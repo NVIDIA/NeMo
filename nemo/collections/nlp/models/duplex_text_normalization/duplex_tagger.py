@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from time import perf_counter
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig
@@ -26,18 +26,36 @@ from nemo.collections.nlp.data.text_normalization import TextNormalizationTagger
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['DuplexTaggerModel']
 
 
-@experimental
 class DuplexTaggerModel(NLPModel):
     """
     Transformer-based (duplex) tagger model for TN/ITN.
     """
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"logits": NeuralType(('B', 'T', 'D'), LogitsType())}
+
+    @property
+    def input_module(self):
+        return self
+
+    @property
+    def output_module(self):
+        return self
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
@@ -60,6 +78,11 @@ class DuplexTaggerModel(NLPModel):
         # Language
         self.lang = cfg.get('lang', None)
 
+    @typecheck()
+    def forward(self, input_ids, attention_mask):
+        logits = self.model(input_ids=input_ids, attention_mask=attention_mask).logits
+        return logits
+
     # Training
     def training_step(self, batch, batch_idx):
         """
@@ -68,7 +91,7 @@ class DuplexTaggerModel(NLPModel):
         """
         num_labels = self.num_labels
         # Apply Transformer
-        tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
+        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
 
         # Loss
         train_loss = self.loss_fct(tag_logits.view(-1, num_labels), batch['labels'].view(-1))
@@ -85,7 +108,7 @@ class DuplexTaggerModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        tag_logits = self.model(batch['input_ids'], batch['attention_mask']).logits
+        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
         tag_preds = torch.argmax(tag_logits, dim=2)
 
         # Update classification_report
@@ -340,6 +363,17 @@ class DuplexTaggerModel(NLPModel):
         logging.info(f'Took {running_time} seconds')
         return dl
 
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        return tuple([input_ids, attention_mask])
+
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
@@ -348,4 +382,11 @@ class DuplexTaggerModel(NLPModel):
             List of available pre-trained models.
         """
         result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="neural_text_normalization_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_tagger.nemo",
+                description="Text Normalization model's tagger model.",
+            )
+        )
         return result

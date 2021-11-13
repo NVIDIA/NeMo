@@ -23,12 +23,10 @@ from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.data.text_normalization.utils import read_data_file
 from nemo.core.classes import Dataset
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 __all__ = ['TextNormalizationTaggerDataset']
 
 
-@experimental
 class TextNormalizationTaggerDataset(Dataset):
     """
     Creates dataset to use to train a DuplexTaggerModel.
@@ -171,7 +169,10 @@ class TextNormalizationTaggerDataset(Dataset):
                     label_ids.append(label_id)
                 # We set the label for the other tokens in a word
                 else:
-                    label_id = self.tag2id[constants.I_PREFIX + label[word_idx]]
+                    if 'SAME' in label[word_idx]:
+                        label_id = self.tag2id[constants.B_PREFIX + label[word_idx]]
+                    else:
+                        label_id = self.tag2id[constants.I_PREFIX + label[word_idx]]
                     label_ids.append(label_id)
                 previous_word_idx = word_idx
 

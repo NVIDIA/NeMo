@@ -24,11 +24,11 @@ from apex.transformer.enums import AttnMaskType, AttnType, LayerType
 from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
-    BiasDropoutAddFusedInference,
-    BiasDropoutAddFusedTrain,
     bias_dropout_add,
+    bias_dropout_add_fused_inference,
+    bias_dropout_add_fused_train,
 )
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import FusedBiasGeLU
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
@@ -67,8 +67,6 @@ class ParallelMLP(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
-        fused_fp16=False,
-        fused_bf16=False,
     ):
         super(ParallelMLP, self).__init__()
 
@@ -99,15 +97,13 @@ class ParallelMLP(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
         )
 
-        self.bias_gelu_impl = FusedBiasGeLU(fused_fp16, fused_bf16)
-
     def forward(self, hidden_states):
 
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
         if self.bias_gelu_fusion:
-            intermediate_parallel = self.bias_gelu_impl(intermediate_parallel, bias_parallel)
+            intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
             intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
 
@@ -132,8 +128,7 @@ class ParallelAttention(MegatronModule):
         hidden_size,
         attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
-        fused_fp16=False,
-        fused_bf16=False,
+        precision=16,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         use_cpu_initialization=False,
@@ -188,6 +183,8 @@ class ParallelAttention(MegatronModule):
             coeff = self.layer_number
             self.norm_factor *= coeff
 
+        fused_fp16 = precision == 16
+        fused_bf16 = precision == 'bf16'
         self.scale_mask_softmax = FusedScaleMaskSoftmax(
             fused_fp16,
             fused_bf16,
@@ -392,8 +389,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
         apply_residual_connection_post_layernorm=False,
-        fused_fp16=False,
-        fused_bf16=False,
+        precision=16,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
         layernorm_epsilon=1e-5,
@@ -408,8 +404,6 @@ class ParallelTransformerLayer_(MegatronModule):
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
-        assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
-
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -421,11 +415,10 @@ class ParallelTransformerLayer_(MegatronModule):
 
         self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm  # if true apply residual connection post layer norm (like original bert)
 
-        self.bf16 = fused_bf16
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16, bf16=fused_bf16)
+        self.input_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -436,8 +429,7 @@ class ParallelTransformerLayer_(MegatronModule):
             hidden_size=hidden_size,
             attention_type=AttnType.self_attn,
             attn_mask_type=self_attn_mask_type,
-            fused_fp16=fused_fp16,
-            fused_bf16=fused_bf16,
+            precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             use_cpu_initialization=use_cpu_initialization,
@@ -448,7 +440,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16, bf16=fused_bf16)
+        self.post_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
@@ -459,8 +451,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 hidden_size=hidden_size,
                 attention_type=AttnType.cross_attn,
                 attn_mask_type=AttnMaskType.padding,
-                fused_fp16=fused_fp16,
-                fused_bf16=fused_bf16,
+                precision=precision,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 use_cpu_initialization=use_cpu_initialization,
@@ -468,9 +459,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_dropout=attention_dropout,
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(
-                hidden_size, eps=layernorm_epsilon, fp16=fused_fp16, bf16=fused_bf16
-            )
+            self.post_inter_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
 
         # MLP
         self.mlp = ParallelMLP(
@@ -482,14 +471,7 @@ class ParallelTransformerLayer_(MegatronModule):
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            fused_fp16=fused_fp16,
-            fused_bf16=fused_bf16,
         )
-        self.bias_dropout_add_fused_train = BiasDropoutAddFusedTrain(fused_fp16, fused_bf16)
-        self.bias_dropout_add_fused_inference = BiasDropoutAddFusedInference(fused_fp16, fused_bf16)
-
-        self.bias_dropout_add_fused_train = BiasDropoutAddFusedTrain(fused_fp16, fused_bf16)
-        self.bias_dropout_add_fused_inference = BiasDropoutAddFusedInference(fused_fp16, fused_bf16)
 
     def forward(
         self,
@@ -524,9 +506,9 @@ class ParallelTransformerLayer_(MegatronModule):
         # dropout semantics during training and inference phases.
         if self.bias_dropout_fusion:
             if self.training:
-                bias_dropout_add_func = self.bias_dropout_add_fused_train
+                bias_dropout_add_func = bias_dropout_add_fused_train
             else:
-                bias_dropout_add_func = self.bias_dropout_add_fused_inference
+                bias_dropout_add_func = bias_dropout_add_fused_inference
         else:
             bias_dropout_add_func = get_bias_dropout_add(self.training)
 
@@ -581,13 +563,14 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
     def __init__(self, **kwargs):
         super(ParallelTransformerLayer, self).__init__(**kwargs)
 
-        assert not (kwargs['fused_fp16'] and kwargs['fused_bf16'])
-        if kwargs['fused_fp16']:
+        if kwargs['precision'] == 32:
+            self.dtype = torch.float32
+        elif kwargs['precision'] == 16:
             self.dtype = torch.float16
-        elif kwargs['fused_bf16']:
+        elif kwargs['precision'] == 'bf16':
             self.dtype = torch.bfloat16
         else:
-            self.dtype = torch.float32
+            raise ValueError
 
     def forward(
         self,
@@ -603,11 +586,10 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             return super().forward(
                 hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
             )
-        else:
-            with torch.cuda.amp.autocast(dtype=self.dtype):
-                return super().forward(
-                    hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
-                )
+        with torch.cuda.amp.autocast(dtype=self.dtype):
+            return super().forward(
+                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
+            )
 
 
 class ParallelTransformer(MegatronModule):
@@ -627,8 +609,7 @@ class ParallelTransformer(MegatronModule):
         self_attn_mask_type=AttnMaskType.padding,
         pre_process=True,
         post_process=True,
-        fused_fp16=False,
-        fused_bf16=False,
+        precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -641,15 +622,12 @@ class ParallelTransformer(MegatronModule):
     ):
         super(ParallelTransformer, self).__init__()
 
-        assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
-
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        self.bf16 = fused_bf16
         self.fp32_residual_connection = fp32_residual_connection
         self.pre_process = pre_process
         self.post_process = post_process
@@ -678,8 +656,7 @@ class ParallelTransformer(MegatronModule):
                 kv_channels=kv_channels,
                 layer_type=layer_type,
                 self_attn_mask_type=self_attn_mask_type,
-                fused_fp16=fused_fp16,
-                fused_bf16=fused_bf16,
+                precision=precision,
                 fp32_residual_connection=fp32_residual_connection,
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
@@ -717,7 +694,7 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon, fp16=fused_fp16, bf16=fused_bf16)
+            self.final_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]

@@ -320,7 +320,7 @@ class TestExpManager:
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_1(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(
+        exp_manager(
             test_trainer,
             {"checkpoint_callback_params": {"save_best_model": True}, "explicit_log_dir": str(tmp_path / "test")},
         )
@@ -335,7 +335,9 @@ class TestExpManager:
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
+        exp_manager(
+            test_trainer, {"explicit_log_dir": str(tmp_path / "test")},
+        )
         model = ExampleModel()
         test_trainer.fit(model)
 
@@ -347,7 +349,7 @@ class TestExpManager:
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(
+        exp_manager(
             test_trainer,
             {
                 "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
@@ -361,3 +363,18 @@ class TestExpManager:
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_make_checkpoint_dir(self, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, check_val_every_n_epoch=5)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()

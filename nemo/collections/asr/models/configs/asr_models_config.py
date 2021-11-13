@@ -27,15 +27,15 @@ from nemo.core.config import modelPT as model_cfg
 
 
 @dataclass
-class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
-    manifest_filepath: Optional[str] = None
+class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
+    manifest_filepath: Optional[Any] = None
     sample_rate: int = MISSING
     labels: List[str] = MISSING
     trim_silence: bool = False
 
     # Tarred dataset support
     is_tarred: bool = False
-    tarred_audio_filepaths: Optional[str] = None
+    tarred_audio_filepaths: Optional[Any] = None
     tarred_shard_strategy: str = "scatter"
     shuffle_n: int = 0
 
@@ -54,6 +54,7 @@ class EncDecCTCDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     bos_id: Optional[int] = None
     pad_id: int = 0
     use_start_end_token: bool = False
+    return_sample_id: Optional[bool] = False
 
 
 @dataclass
@@ -66,9 +67,9 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     labels: List[str] = MISSING
 
     # Dataset configs
-    train_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=True)
-    validation_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
-    test_ds: EncDecCTCDatasetConfig = EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
+    train_ds: ASRDatasetConfig = ASRDatasetConfig(manifest_filepath=None, shuffle=True)
+    validation_ds: ASRDatasetConfig = ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+    test_ds: ASRDatasetConfig = ASRDatasetConfig(manifest_filepath=None, shuffle=False)
 
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())

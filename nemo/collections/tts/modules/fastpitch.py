@@ -243,7 +243,8 @@ class FastPitchModule(NeuralModule):
         # Predict pitch
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
         if pitch is not None:
-            if self.learn_alignment:
+            if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
+                # Pitch during training is per spectrogram frame, but during inference, it should be per character
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
         else:
