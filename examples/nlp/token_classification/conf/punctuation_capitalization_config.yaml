@@ -52,19 +52,9 @@ model:
     punct_labels_file: punct_label_ids.csv
     capit_labels_file: capit_label_ids.csv
   dataset:
-    # Path data if `ds_item` parameters are missing. If `model.dataset.data_dir` parameter is missing, then
-    # `train_ds.ds_item`, `validation_ds.ds_item`, `test_ds.ds_item` are used instead.
-    data_dir: ???
-    # parameters for dataset preprocessing
-    max_seq_length: 128
     pad_label: 'O'
     ignore_extra_tokens: false
     ignore_start_end: false
-    use_cache: true
-    # shared among dataloaders
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   train_ds:
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
