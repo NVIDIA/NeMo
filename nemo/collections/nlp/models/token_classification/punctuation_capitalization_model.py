@@ -29,8 +29,6 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
-    is_legacy_data_config,
-    legacy_data_config_to_new_data_config,
     load_label_ids,
     raise_not_equal_labels_error,
 )
@@ -371,7 +369,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             (punct_label_ids, 'punct_label_vocab_file' if punct_label_ids is None else 'punct_label_ids'),
             (capit_label_ids, 'capit_label_vocab_file' if capit_label_ids is None else 'capit_label_ids'),
         ]:
-            if label_ids[pad_label] != 0:
+            if label_ids is not None and label_ids[pad_label] != 0:
                 raise ValueError(
                     f"Pad label '{pad_label}' has non zero id {label_ids[pad_label]} in "
                     f"`model.common_dataset_parameters.{parameter_name}`."
@@ -417,11 +415,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
         # Following parameters can be missing in config if the model is restored from old checkpoint
-        if is_legacy_model_config(self._cfg):
-            cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
-            self._cfg = legacy_model_config_to_new_model_config(self._cfg)
-        elif is_legacy_data_config(cfg):
-            cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
         self.check_label_config_parameters()
         if not self.label_ids_are_set and not train:
             self.set_label_ids()
