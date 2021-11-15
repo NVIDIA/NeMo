@@ -47,7 +47,7 @@ def main():
         model_cfg = ModelPT.restore_from(restore_path=model_fname, return_config=True)
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
-        nemo_model = imported_class.restore_from(restore_path=cfg.model_path, map_location=device)  # type: ASRModel
+        nemo_model = imported_class.restore_from(restore_path=model_fname, map_location=device)  # type: ASRModel
 
 
         checkpoint_paths = [os.path.join(model_folder_path, x) for x in os.listdir(model_folder_path) if x.endswith('.ckpt')]
