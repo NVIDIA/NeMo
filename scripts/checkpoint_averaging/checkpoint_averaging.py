@@ -31,15 +31,16 @@ def main():
     # loop over all folders with .nemo files (or .nemo files)
     for model_fname in sys.argv[1:]:
         if not model_fname.endswith(".nemo"):
-            # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "averaged-*")
-            nemo_files = list(filter(lambda fn: not os.path.basename(fn).startswith("averaged-"), glob.glob(os.path.join(model_fname, "*.nemo"))))
+            # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "*-averaged.nemo")
+            nemo_files = list(filter(lambda fn: not fn.endswith("-averaged.nemo"), glob.glob(os.path.join(model_fname, "*.nemo"))))
             if len(nemo_files) != 1:
                 raise RuntimeError(f"Expected only a single .nemo files but discovered {len(nemo_files)} .nemo files")
 
             model_fname = nemo_files[0]
 
         model_folder_path = os.path.dirname(model_fname)
-        avg_model_fname = os.path.join(model_folder_path, "averaged-"+os.path.basename(model_fname))
+        fn, fe = os.path.splitext(os.path.basename(model_fname))
+        avg_model_fname = f"{fn}-averaged{fe}"
 
         logging.info(f"Parsing folder {model_folder_path}")
 
@@ -85,6 +86,13 @@ def main():
                 avg_state[k] = avg_state[k] / n
 
         import pudb; pudb.set_trace()
+
+        # restore merged weights into model
+        nemo_model.load_state_dict(avg_state, strict=True)
+
+        ckpt_name = name_prefix + '-averaged.nemo'
+        nemo_model.save_to(avg_model_fname)
+
         # Save model
         ckpt_name = os.path.join(model_folder_path, 'model_weights.ckpt')
         torch.save(avg_state, ckpt_name)
