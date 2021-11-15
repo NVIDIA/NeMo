@@ -27,7 +27,6 @@ find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpo
 import argparse
 import glob
 import os
-import argparse
 
 import torch
 
