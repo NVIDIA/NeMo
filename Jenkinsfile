@@ -1112,7 +1112,7 @@ pipeline {
             pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
             model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
             model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }

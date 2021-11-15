@@ -282,10 +282,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
             self.label_ids_are_set = True
             self.register_artifact(
-                'common_dataset_parameters.punct_label_vocab', self._train_dl.dataset.punct_label_ids_file
+                'common_dataset_parameters.punct_label_vocab_file', self._train_dl.dataset.punct_label_ids_file
             )
             self.register_artifact(
-                'common_dataset_parameters.capit_label_vocab', self._train_dl.dataset.capit_label_ids_file
+                'common_dataset_parameters.capit_label_vocab_file', self._train_dl.dataset.capit_label_ids_file
             )
 
     def get_eval_metrics_kwargs(self):
