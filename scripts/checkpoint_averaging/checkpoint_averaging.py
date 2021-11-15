@@ -39,7 +39,7 @@ def main():
             model_fname = nemo_files[0]
 
         model_folder_path = os.path.dirname(model_fname)
-        fn, fe = os.path.splitext(os.path.basename(model_fname))
+        fn, fe = os.path.splitext(model_fname)
         avg_model_fname = f"{fn}-averaged{fe}"
 
         logging.info(f"Parsing folder {model_folder_path}")
