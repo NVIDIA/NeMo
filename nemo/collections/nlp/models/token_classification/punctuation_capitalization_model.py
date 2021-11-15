@@ -93,7 +93,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         self.punct_classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
-            num_classes=len(self._cfg.common_dataset_parameters.punct_label_ids),
+            num_classes=len(self.punct_label_ids),
             activation=cfg.punct_head.activation,
             log_softmax=False,
             dropout=cfg.punct_head.fc_dropout,
@@ -103,7 +103,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         self.capit_classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
-            num_classes=len(self._cfg.common_dataset_parameters.capit_label_ids),
+            num_classes=len(self.capit_label_ids),
             activation=cfg.capit_head.activation,
             log_softmax=False,
             dropout=cfg.capit_head.fc_dropout,
@@ -650,8 +650,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         assert len(query) == len(
             capit_preds
         ), f"len(query)={len(query)} len(capit_preds)={len(capit_preds)}, query[:30]={query[:30]}"
-        punct_ids_to_labels = {v: k for k, v in self._cfg.common_dataset_parameters.punct_label_ids.items()}
-        capit_ids_to_labels = {v: k for k, v in self._cfg.common_dataset_parameters.capit_label_ids.items()}
+        punct_ids_to_labels = {v: k for k, v in self.punct_label_ids.items()}
+        capit_ids_to_labels = {v: k for k, v in self.capit_label_ids.items()}
         query_with_punct_and_capit = ''
         for j, word in enumerate(query):
             punct_label = punct_ids_to_labels[punct_preds[j]]
@@ -667,7 +667,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def get_labels(self, punct_preds: List[int], capit_preds: List[int]) -> str:
         """
-        Returns punctuation and capitalization labels in NeMo format (see https://docs.nvidia.com/deeplearning/nemo/
+        Returns punctuation and capitalization labels in NeMo format for encoded punctuation ``punct_preds``
+        and ``capit_preds`` labels (see https://docs.nvidia.com/deeplearning/nemo/
         user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format).
         Args:
             punct_preds: ids of predicted punctuation labels
@@ -678,8 +679,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         assert len(capit_preds) == len(
             punct_preds
         ), f"len(capit_preds)={len(capit_preds)} len(punct_preds)={len(punct_preds)}"
-        punct_ids_to_labels = {v: k for k, v in self._cfg.common_dataset_parameters.punct_label_ids.items()}
-        capit_ids_to_labels = {v: k for k, v in self._cfg.common_dataset_parameters.capit_label_ids.items()}
+        punct_ids_to_labels = {v: k for k, v in self.punct_label_ids.items()}
+        capit_ids_to_labels = {v: k for k, v in self.capit_label_ids.items()}
         result = ''
         for capit_label, punct_label in zip(capit_preds, punct_preds):
             punct_label = punct_ids_to_labels[punct_label]
