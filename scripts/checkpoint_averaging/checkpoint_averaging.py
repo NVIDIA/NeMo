@@ -31,15 +31,15 @@ def main():
     # loop over all folders with .nemo files (or .nemo files)
     for model_fname in sys.argv[1:]:
         if not model_fname.endswith(".nemo"):
-            # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "average-*")
-            nemo_files = list(filter(lambda fn: os.path.basename(fn).startswith("average-"), glob.glob(os.path.join(model_fname, "*.nemo"))))
+            # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "averaged-*")
+            nemo_files = list(filter(lambda fn: not os.path.basename(fn).startswith("averaged-"), glob.glob(os.path.join(model_fname, "*.nemo"))))
             if len(nemo_files) != 1:
                 raise RuntimeError(f"Expected only a single .nemo files but discovered {len(nemo_files)} .nemo files")
 
             model_fname = os.path.join(model_fname, nemo_files[0])
 
         model_folder_path = os.path.dirname(model_fname)
-        avg_model_fname = os.path.join(model_folder_path, "average-"+os.path.basename(model_fname))
+        avg_model_fname = os.path.join(model_folder_path, "averaged-"+os.path.basename(model_fname))
 
         logging.info(f"Parsing folder {model_folder_path}")
 
