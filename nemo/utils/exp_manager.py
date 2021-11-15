@@ -291,7 +291,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # If less than 256 ranks, try to save 1 log file per "machine"
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
         logging.add_file_handler(log_file)
-    elif int(os.environ.get("LOCAL_RANK", 0)) == 0 and global_rank == 0:
+    elif global_rank == 0:
         # If running more than 256 ranks, only save 1 log file
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
         logging.add_file_handler(log_file)
