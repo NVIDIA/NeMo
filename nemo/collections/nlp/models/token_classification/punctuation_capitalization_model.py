@@ -29,6 +29,7 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
+    is_legacy_data_config,
     legacy_data_config_to_new_data_config,
     load_label_ids,
 )
@@ -42,7 +43,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
     legacy_model_config_to_new_model_config,
-    is_legacy_config,
+    is_legacy_model_config,
 )
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -377,9 +378,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
         # Following parameters can be missing in config if the model is restored from old checkpoint
-        if is_legacy_config(self._cfg):
+        if is_legacy_model_config(self._cfg):
             cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
             self._cfg = legacy_model_config_to_new_model_config(self._cfg)
+        elif is_legacy_data_config(cfg):
+            cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
         self.check_label_config_parameters()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
         # if ds_item is None and data_dir is None:

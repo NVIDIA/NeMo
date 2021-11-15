@@ -129,8 +129,8 @@ class PunctuationCapitalizationConfig(NemoConfig):
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='Punctuation_and_Capitalization', files_to_copy=[])
 
 
-def is_legacy_config(model_cfg: DictConfig) -> bool:
-    return 'dataset' in model_cfg or 'class_labels' in model_cfg
+def is_legacy_model_config(model_cfg: DictConfig) -> bool:
+    return 'common_dataset_parameters' not in model_cfg
 
 
 def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig:

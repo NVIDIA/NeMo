@@ -21,6 +21,7 @@ __all__ = [
     'PunctuationCapitalizationTrainDataConfig',
     'create_label_ids',
     'create_masks_and_segment_ids',
+    'is_legacy_data_config',
     'legacy_data_config_to_new_data_config',
     'load_label_ids',
 ]
@@ -116,7 +117,13 @@ class PunctuationCapitalizationEvalDataConfig(PunctuationCapitalizationDataConfi
     ds_item: Optional[Any] = None
 
 
-def legacy_data_config_to_new_data_config(ds_section: DictConfig, legacy_dataset_section: DictConfig, train: bool) -> DictConfig:
+def is_legacy_data_config(ds_section: DictConfig) -> bool:
+    return 'use_tarred_dataset' not in ds_section
+
+
+def legacy_data_config_to_new_data_config(
+    ds_section: DictConfig, legacy_dataset_section: DictConfig, train: bool
+) -> DictConfig:
     if train:
         cls = PunctuationCapitalizationTrainDataConfig
         ds_item = legacy_dataset_section.get('data_dir')
