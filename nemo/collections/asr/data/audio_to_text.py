@@ -193,6 +193,9 @@ class _AudioTextDataset(Dataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
     ):
+        if type(manifest_filepath) == str:
+            manifest_filepath = manifest_filepath.split(",")
+
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
