@@ -225,7 +225,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_gpus + local_rank
     logging.rank = global_rank
     world_size = trainer.world_size
 
@@ -285,15 +286,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # Handle logging to file
     if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or world_size <= 32:
         # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
-    elif world_size <= 256 and int(os.environ.get("LOCAL_RANK", 0)) == 0:
+    elif world_size <= 256 and local_rank == 0:
         # If less than 256 ranks, try to save 1 log file per "machine"
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
     elif global_rank == 0:
         # If running more than 256 ranks, only save 1 log file
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
