@@ -69,7 +69,7 @@ class GPTModel(MegatronModule):
         kv_channels=None,
         num_tokentypes=0,
         parallel_output=True,
-        use_continuous_prompts=False,
+        use_soft_prompts=False,
         pre_process=True,
         post_process=True,
         init_method_std=0.02,
@@ -113,7 +113,7 @@ class GPTModel(MegatronModule):
             encoder_attn_mask_type=AttnMaskType.causal,
             init_method=init_method_normal(init_method_std),
             scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
-            use_continuous_prompts=use_continuous_prompts,
+            use_soft_prompts=use_soft_prompts,
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
@@ -195,3 +195,9 @@ class GPTModel(MegatronModule):
         if self._language_model_key in state_dict:
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
+
+    def _init_prompt_from_random(self, prompt_tag, prompt_length, init_method):
+        self.language_model._init_prompt_from_random(prompt_tag, prompt_length, init_method)
+
+    def _init_prompt_from_text(self, prompt_tag, init_token_ids):
+        self.language_model._init_prompt_from_text(prompt_tag, init_token_ids)

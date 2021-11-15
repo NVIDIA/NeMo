@@ -76,7 +76,7 @@ class GPTPromptTuningDataset(Dataset):
     def __getitem__(self, idx):
         prompt_tags = self.prompt_tags[idx]
         input_ids = self.input_ids[idx] 
-        labels = input_ids[1:].copy() + [self.tokenizer.eos_id]
+        #labels = input_ids[1:].copy() + [self.tokenizer.eos_id]
 
         return prompt_tag, input_ids
 

@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -44,7 +44,7 @@ from nemo.utils import AppState, logging
 
 class MegatronGPTModel(NLPModel):
     """
-    Megatron GPT pretraining
+    Megatron GPT pretraining and prompt tuning
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -95,7 +95,7 @@ class MegatronGPTModel(NLPModel):
             ffn_hidden_size=cfg.ffn_hidden_size,
             num_tokentypes=0,
             parallel_output=True,
-            use_continuous_prompts=cfg.get('use_continuous_prompts', False),
+            use_soft_prompts=cfg.get('use_soft_prompts', False),
             pre_process=cfg.get('pre_process', True),
             post_process=cfg.get('post_process', True),
             init_method_std=cfg.get('init_method_std', 0.02),
@@ -110,9 +110,12 @@ class MegatronGPTModel(NLPModel):
             onnx_safe=cfg.get('onnx_safe', False),
         )
 
-        if self.cfg.get('use_continuous_prompts', False): 
+        self.use_soft_prompts = False
+
+        if self.cfg.data.get('use_soft_prompts', False): 
+            self.use_soft_prompts = True
             self.prompt_table_path = self.register_artifact("prompt_table", 
-                                                            self.cfg.prompt_table, 
+                                                            self.cfg.data.prompt_table, 
                                                             verify_src_exists=False)
 
             self.prompt_table = load_prompt_table(self.prompt_table_path, model)
@@ -129,7 +132,7 @@ class MegatronGPTModel(NLPModel):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        if self.cfg.get('use_continuous_prompts', False):
+        if self.use_soft_prompts:
             tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
             output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags, prompt_position_ids)
         else:
@@ -154,7 +157,7 @@ class MegatronGPTModel(NLPModel):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        if self.cfg.get('use_continuous_prompts', False):
+        if self.use_soft_prompts:
             tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
             output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags, prompt_position_ids)
         else:
@@ -209,6 +212,7 @@ class MegatronGPTModel(NLPModel):
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids
+
 
 
     def build_train_valid_test_datasets(self):
@@ -278,15 +282,37 @@ class MegatronGPTModel(NLPModel):
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
 
+    def build_prompt_tuning_dataset(self, dataset_path):
+        dataset = GPTPromptTuningDataset(dataset_path=dataset_path,
+                                         tokenizer=self.tokenizer,
+                                         num_prompt_tokens=self.cfg.data.num_prompt_tokens,
+                                         max_seq_length=self.cfg.data.get('max_seq_length', 512),
+                                         min_seq_length=self.cfg.data.get('min_seq_length', 1),
+                                         add_bos_eos=self.cfg.data.get('add_bos_eos', True),
+                                         )
+
+        dataloader = torch.utils.data.DataLoader(dataset, 
+                                                 batch_size=self.cfg.data.batch_size,
+                                                 collate_fn=dataset.collate_fn,
+                                                 num_workers=self.cfg.data.num_workers, 
+                                                 pin_memory=True)
+        return dataset, dataloader
+
+
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        # TODO: consider adding a ModelPT guard to check if model is being restored.
-        # allowing restored models to optionally setup datasets
-        self.build_train_valid_test_datasets()
-        self.setup_training_data(self.cfg.data)
-        self.setup_validation_data(self.cfg.data)
-        self.setup_test_data(self.cfg.data)
+        elif self.use_soft_prompts:
+            self._train_ds, self._train_dl = self.build_prompt_tuning_dataset(self.cfg.data.train_ds)
+            self._validation_ds, self._validation_dl = self.build_prompt_tuning_dataset(self.cfg.data.valid_ds)
+            self._test_ds, self._test_dl  = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
+        else:
+            # TODO: consider adding a ModelPT guard to check if model is being restored.
+            # allowing restored models to optionally setup datasets
+            self.build_train_valid_test_datasets()
+            self.setup_training_data(self.cfg.data)
+            self.setup_validation_data(self.cfg.data)
+            self.setup_test_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -416,10 +442,31 @@ class MegatronGPTModel(NLPModel):
         response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
         self.unfreeze()
         return response
-    
+
+    def init_prompt_from_random(self, prompt_tag, num_prompt_tokens, init_method):
+        self.model._init_prompt_from_random(prompt_tag, num_prompt_tokens, init_method)
+        self._add_prompt_tag(prompt_tag)
+
+    def init_prompt_from_text(self, prompt_tag, num_prompt_tokens, init_text):
+        # TODO:get device properly
+        device = torch.device("cuda")
+        init_token_ids = torch.tensor(self.tokenizer.text_to_ids(init_text)).to(device)
+
+        self.model._init_prompt_from_text(prompt_tag, init_token_ids)
+        self._add_prompt_tag(prompt_tag)
+
+    def get_prompt_table(self):
+        if hasattr(self, 'prompt_table'):
+            return self.prompt_table
 
     def list_available_models(self):
         return None
+
+    def _add_prompt_tag(self, prompt_tag):
+        if not hasattr(self, 'prompt_table'):
+            raise AttributeError('Please set "use_soft_prompts" in cfg to True')
+        
+        self.prompt_table.add(prompt_tag)
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
