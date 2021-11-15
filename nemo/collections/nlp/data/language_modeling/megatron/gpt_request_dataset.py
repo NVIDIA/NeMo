@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Dict
+from typing import List, Dict
 
 import numpy as np
 import torch
@@ -23,15 +23,15 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import buil
 
 
 class GPTRequestDataset(Dataset):
-    def __init__(self, request: Dict, tokenizer) -> None:
+    def __init__(self, requests: List, tokenizer) -> None:
         super().__init__()
-        self.request = request
+        self.requests = requests
         self.tokenizer = tokenizer
 
         # tokenize prompt
-        self.request['tokenized_prompt'] = self.tokenizer.text_to_tokens(request['prompt'])
-        tokens = self.tokenizer.text_to_ids(request['prompt'])
-        self.request['tokens'] = torch.tensor(tokens)
+        for request in self.requests:
+            request['tokenized_prompt'] = self.tokenizer.text_to_tokens(request['prompt'])
+            request['tokens'] = torch.tensor(self.tokenizer.text_to_ids(request['prompt']))
 
     def __len__(self):
         return 1

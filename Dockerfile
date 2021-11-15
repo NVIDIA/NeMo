@@ -37,7 +37,7 @@ RUN pip uninstall -y sacrebleu torchtext
 
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.9 https://github.com/pytorch/audio.git && \
+RUN git clone --depth 1 --branch release/0.10 https://github.com/pytorch/audio.git && \
     cd audio && \
     git submodule update --init --recursive && \
     BUILD_SOX=1 python setup.py install && \
@@ -46,7 +46,7 @@ RUN git clone --depth 1 --branch release/0.9 https://github.com/pytorch/audio.gi
 # TODO: remove when 21.04 container is released
 # build torchtext
 WORKDIR /tmp/torchtext_build
-RUN git clone --branch v0.8.1 https://github.com/pytorch/text.git && \
+RUN git clone --branch v0.11.0 https://github.com/pytorch/text.git && \
     cd text && \
     git submodule update --init --recursive && \
     python setup.py clean install && \
@@ -75,7 +75,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.4.0
+ARG NEMO_VERSION=1.5.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
@@ -90,7 +90,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
 
 # TODO: Try to remove once 21.07 container is the base container
 # install pinned numba version
-RUN conda install -c numba numba=0.53.1
+RUN conda install -c numba numba=0.54.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo

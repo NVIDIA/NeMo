@@ -162,7 +162,9 @@ def get_tarred_dataset(
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
 
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
-        raise ValueError(f"manifest_filepaths and tarred_audio_filepaths need to have the same number of buckets.")
+        raise ValueError(
+            f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
+        )
 
     if 'labels' not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
@@ -347,6 +349,8 @@ class ASRPredictionWriter(BasePredictionWriter):
 
 
 def convert_to_config_list(initial_list):
+    if type(initial_list) is str:
+        initial_list = initial_list.split(",")
     if initial_list is None or initial_list == []:
         raise ValueError("manifest_filepaths and tarred_audio_filepaths must not be empty.")
     if not isinstance(initial_list, ListConfig):
