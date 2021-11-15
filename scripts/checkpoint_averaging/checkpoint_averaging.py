@@ -27,6 +27,7 @@ find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpo
 import glob
 import os
 import sys
+import argparse
 
 import torch
 
@@ -35,11 +36,15 @@ from nemo.utils import logging, model_utils
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('model_fname_list', metavar='N', type=str, nargs='+', help='Input .nemo files (or folders who contains them) to parse')
+    args = parser.parse_args()
+
+
     device = torch.device("cpu")
 
-    model_fname_list = sys.argv[1:]
     # loop over all folders with .nemo files (or .nemo files)
-    for model_fname_i, model_fname in enumerate(model_fname_list):
+    for model_fname_i, model_fname in enumerate(args.model_fname_list):
         if not model_fname.endswith(".nemo"):
             # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "*-averaged.nemo")
             nemo_files = list(
@@ -54,7 +59,7 @@ def main():
         fn, fe = os.path.splitext(model_fname)
         avg_model_fname = f"{fn}-averaged{fe}"
 
-        logging.info(f"\n===> [{model_fname_i+1} / {len(model_fname_list)}] Parsing folder {model_folder_path}\n")
+        logging.info(f"\n===> [{model_fname_i+1} / {len(args.model_fname_list)}] Parsing folder {model_folder_path}\n")
 
         # restore model from .nemo file path
         model_cfg = ModelPT.restore_from(restore_path=model_fname, return_config=True)
