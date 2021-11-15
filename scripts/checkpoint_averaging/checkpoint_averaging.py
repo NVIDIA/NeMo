@@ -31,8 +31,9 @@ def main():
     # loop over all folders with .nemo files (or .nemo files)
     for model_fname in sys.argv[1:]:
         if not model_fname.endswith(".nemo"):
-            # assume model_fname is a folder which contains a .nemo file
-            nemo_files = glob.glob(os.path.join(model_fname, "*.nemo"))
+            # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "average-*")
+            nemo_files = list(filter(lambda fn: os.path.basename(fn).startswith("average-") glob.glob(os.path.join(model_fname, "*.nemo"))))
+            #
             if len(nemo_files) != 1:
                 raise RuntimeError(f"Expected only a single .nemo files but discovered {len(nemo_files)} .nemo files")
 
