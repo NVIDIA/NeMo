@@ -877,8 +877,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def read_dataset(
         text_file: Path, label_file: Path, num_samples: int, verbose: bool
     ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Set[str], Set[str]]:
-        if num_samples <= 0:
-            raise ValueError(f"Parameter `num_samples` has to be positive whereas `num_samples={num_samples}`")
+        if num_samples == 0:
+            raise ValueError(
+                f"Parameter `num_samples` has to be positive or negative whereas `num_samples={num_samples}`. "
+                f"Negative `num_samples` is for using all samples in a dataset."
+            )
         if verbose:
             logging.info(f'Processing {text_file}')
         with open(text_file, 'r') as f:
