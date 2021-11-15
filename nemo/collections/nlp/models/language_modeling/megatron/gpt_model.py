@@ -69,6 +69,7 @@ class GPTModel(MegatronModule):
         kv_channels=None,
         num_tokentypes=0,
         parallel_output=True,
+        use_continuous_prompts=False,
         pre_process=True,
         post_process=True,
         init_method_std=0.02,
@@ -112,6 +113,7 @@ class GPTModel(MegatronModule):
             encoder_attn_mask_type=AttnMaskType.causal,
             init_method=init_method_normal(init_method_std),
             scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+            use_continuous_prompts=use_continuous_prompts,
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
@@ -140,6 +142,8 @@ class GPTModel(MegatronModule):
         position_ids,
         attention_mask,
         labels=None,
+        prompt_tags=None,
+        prompt_position_ids=None,
         tokentype_ids=None,
         layer_past=None,
         get_key_value=False,
@@ -147,7 +151,13 @@ class GPTModel(MegatronModule):
     ):
 
         lm_output = self.language_model(
-            input_ids, position_ids, attention_mask, layer_past=layer_past, get_key_value=get_key_value
+            input_ids, 
+            position_ids, 
+            attention_mask, 
+            prompt_tags=prompt_tags, 
+            prompt_position_ids=prompt_position_ids,
+            layer_past=layer_past, 
+            get_key_value=get_key_value
         )
 
         if self.post_process:

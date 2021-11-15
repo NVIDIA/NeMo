@@ -25,6 +25,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -37,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.prompt_tuning_utils import load_prompt_table
 from nemo.utils import AppState, logging
 
 
@@ -93,6 +95,7 @@ class MegatronGPTModel(NLPModel):
             ffn_hidden_size=cfg.ffn_hidden_size,
             num_tokentypes=0,
             parallel_output=True,
+            use_continuous_prompts=cfg.get('use_continuous_prompts', False),
             pre_process=cfg.get('pre_process', True),
             post_process=cfg.get('post_process', True),
             init_method_std=cfg.get('init_method_std', 0.02),
@@ -107,13 +110,32 @@ class MegatronGPTModel(NLPModel):
             onnx_safe=cfg.get('onnx_safe', False),
         )
 
-    def forward(self, tokens, position_ids, attention_mask, labels):
-        output_tensor = self.model(tokens, position_ids, attention_mask, labels=labels)
+        if self.cfg.get('use_continuous_prompts', False): 
+            self.prompt_table_path = self.register_artifact("prompt_table", 
+                                                            self.cfg.prompt_table, 
+                                                            verify_src_exists=False)
+
+            self.prompt_table = load_prompt_table(self.prompt_table_path, model)
+
+
+    def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None, prompt_position_ids=None):
+        output_tensor = self.model(tokens, 
+                                   text_position_ids, 
+                                   attention_mask, 
+                                   labels=labels,
+                                   prompt_tags=prompt_tags, 
+                                   prompt_position_ids=prompt_position_ids, 
+                                   )
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-        output_tensor = self(tokens, position_ids, attention_mask, labels)
+        if self.cfg.get('use_continuous_prompts', False):
+            tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
+            output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags, prompt_position_ids)
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+            output_tensor = self(tokens, position_ids, attention_mask, labels)
+
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
@@ -132,8 +154,13 @@ class MegatronGPTModel(NLPModel):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-        output_tensor = self(tokens, position_ids, attention_mask, labels)
+        if self.cfg.get('use_continuous_prompts', False):
+            tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
+            output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags, prompt_position_ids)
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+            output_tensor = self(tokens, position_ids, attention_mask, labels)
+
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
@@ -182,6 +209,7 @@ class MegatronGPTModel(NLPModel):
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids
+
 
     def build_train_valid_test_datasets(self):
         logging.info('Building GPT datasets.')
@@ -388,6 +416,7 @@ class MegatronGPTModel(NLPModel):
         response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
         self.unfreeze()
         return response
+    
 
     def list_available_models(self):
         return None

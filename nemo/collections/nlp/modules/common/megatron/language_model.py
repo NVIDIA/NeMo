@@ -60,6 +60,7 @@ def get_language_model(
     scaled_init_method=None,
     add_decoder=False,
     decoder_attn_mask_type=AttnMaskType.causal,
+    use_continuous_prompts=False,
     pre_process=True,
     post_process=True,
     init_method_std=0.02,
@@ -105,6 +106,7 @@ def get_language_model(
         add_decoder=add_decoder,
         decoder_attn_mask_type=decoder_attn_mask_type,
         add_pooler=add_pooler,
+        use_continuous_prompts=use_continuous_prompt,
         pre_process=pre_process,
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
@@ -325,6 +327,7 @@ class TransformerLanguageModel(MegatronModule):
         add_decoder=False,
         decoder_attn_mask_type=AttnMaskType.causal,
         add_pooler=False,
+        use_continuous_prompt=False,
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
@@ -354,6 +357,7 @@ class TransformerLanguageModel(MegatronModule):
         self.add_pooler = add_pooler
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
+        self.use_continuous_prompt = use_continuous_prompt
 
         if kv_channels is None:
 
@@ -447,6 +451,8 @@ class TransformerLanguageModel(MegatronModule):
         enc_input_ids,
         enc_position_ids,
         enc_attn_mask,
+        prompt_tags=None,
+        prompt_position_ids=None,
         dec_input_ids=None,
         dec_position_ids=None,
         dec_attn_mask=None,
@@ -461,7 +467,15 @@ class TransformerLanguageModel(MegatronModule):
         # Embeddings.
         if self.pre_process:
             embedding_output = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
-            encoder_input = embedding_output
+
+            if self.use_continuous_prompt and prompt_tags:
+                prompt_embeddings = [self.prompt_table[tag] for tag in prompt_tags]
+                prompt_embeddings = torch.stack(prompt_embeddings)
+
+                encoder_input = torch.cat((prompt_embeddings, embedding_output), dim=1)
+
+            else:
+                encoder_input = embedding_output
         else:
             encoder_input = None
 
