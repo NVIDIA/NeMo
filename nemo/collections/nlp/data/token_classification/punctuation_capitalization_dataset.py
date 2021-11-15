@@ -850,8 +850,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
                 logging.info(f'Features restored from {features_pkl}')
+            features = features[:-2]
 
-        self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features[:-2]
+        self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.batches = self.pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
