@@ -81,7 +81,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.punct_label_ids = None
         self.capit_label_ids = None
         super().__init__(cfg=cfg, trainer=trainer)
-
+        if not self.label_ids_are_set:
+            self.set_label_ids()
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
