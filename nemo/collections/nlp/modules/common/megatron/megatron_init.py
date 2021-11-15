@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+from apex.transformer.utils import ensure_divisibility
 
 import numpy as np
 import torch
@@ -39,16 +40,20 @@ def initialize_model_parallel_for_nemo(
     app_state.world_size = world_size
     app_state.local_rank = local_rank
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
-    app_state.tensor_model_parallel_rank = compute_tensor_model_parallel_rank(local_rank, tensor_model_parallel_size)
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
-    app_state.pipeline_model_parallel_rank = None
+    app_state.tensor_model_parallel_rank, app_state.pipeline_model_parallel_rank = fake_initialize_model_parallel(
+        world_size=world_size,
+        rank=global_rank,
+        tensor_model_parallel_size_=tensor_model_parallel_size,
+        pipeline_model_parallel_size_=pipeline_model_parallel_size,
+    )
 
     # update apex.transformer globals
     set_tensor_model_parallel_world_size(app_state.tensor_model_parallel_size)
     set_tensor_model_parallel_rank(app_state.tensor_model_parallel_rank)
 
     # pipeline model parallelism not implemented in NeMo yet
-    set_pipeline_model_parallel_rank(0)
+    set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
     set_pipeline_model_parallel_world_size(1)
 
     _set_random_seed(seed)
@@ -82,3 +87,116 @@ def set_jit_fusion_options():
         torch._C._jit_set_texpr_fuser_enabled(False)
         torch._C._jit_set_nvfuser_enabled(True)
         torch._C._debug_set_autodiff_subgraph_inlining(False)
+
+
+def fake_initialize_model_parallel(
+    world_size,
+    rank,
+    tensor_model_parallel_size_,
+    pipeline_model_parallel_size_,
+    virtual_pipeline_model_parallel_size_=None,
+):
+    """
+    Fake initialize model data parallel groups so that we can instantiate model parallel models before DDP is initialized.
+    This is needed because PTL execution flow is init model, init trainer -> call trainer.fit(model). DDP is initialized during .fit.
+    This function is taken from apex.transformer.parallel_state and modified so that the distributed groups are not created.
+    We only need the tensor parallel and pipeline parallel ranks to instantiate the model.
+
+    Arguments:
+        tensor_model_parallel_size: number of GPUs used to parallelize model tensor.
+        pipeline_model_parallel_size: number of GPUs used to parallelize model pipeline.
+
+    Let's say we have a total of 16 GPUs denoted by g0 ... g15 and we
+    use 2 GPUs to parallelize the model tensor, and 4 GPUs to parallelize
+    the model pipeline. The present function will
+    create 8 tensor model-parallel groups, 4 pipeline model-parallel groups
+    and 8 data-parallel groups as:
+        8 data_parallel groups:
+            [g0, g2], [g1, g3], [g4, g6], [g5, g7], [g8, g10], [g9, g11], [g12, g14], [g13, g15]
+        8 tensor model-parallel groups:
+            [g0, g1], [g2, g3], [g4, g5], [g6, g7], [g8, g9], [g10, g11], [g12, g13], [g14, g15]
+        4 pipeline model-parallel groups:
+            [g0, g4, g8, g12], [g1, g5, g9, g13], [g2, g6, g10, g14], [g3, g7, g11, g15]
+    Note that for efficiency, the caller should make sure adjacent ranks
+    are on the same DGX box. For example if we are using 2 DGX-1 boxes
+    with a total of 16 GPUs, rank 0 to 7 belong to the first box and
+    ranks 8 to 15 belong to the second box.
+    """
+
+    tensor_model_parallel_rank = None
+    pipeline_model_parallel_rank = None
+
+    # Get world size and rank. Ensure some consistencies.
+    tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
+    pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
+    ensure_divisibility(world_size, tensor_model_parallel_size * pipeline_model_parallel_size)
+    data_parallel_size = world_size // (tensor_model_parallel_size * pipeline_model_parallel_size)
+
+    num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
+    num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
+    # num_data_parallel_groups = world_size // data_parallel_size
+
+    # TODO: virtual pipeline model parallelism is not yet implemented in NeMo. This is needed for interleaved pipelining.
+    # if virtual_pipeline_model_parallel_size_ is not None:
+    #     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK
+    #     global _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
+    #     _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
+    #     _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = virtual_pipeline_model_parallel_size_
+
+    # Build the data-parallel groups.
+    all_data_parallel_group_ranks = []
+    for i in range(pipeline_model_parallel_size):
+        start_rank = i * num_pipeline_model_parallel_groups
+        end_rank = (i + 1) * num_pipeline_model_parallel_groups
+        for j in range(tensor_model_parallel_size):
+            ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
+            all_data_parallel_group_ranks.append(list(ranks))
+            # TODO: add logging here
+            # group = torch.distributed.new_group(ranks)
+            # if rank in ranks:
+            #     _DATA_PARALLEL_GROUP = group
+
+    # Build the model-parallel groups.
+    for i in range(data_parallel_size):
+        ranks = [data_parallel_group_ranks[i] for data_parallel_group_ranks in all_data_parallel_group_ranks]
+        # TODO: add logging here
+        # group = torch.distributed.new_group(ranks)
+        # if rank in ranks:
+        #     _MODEL_PARALLEL_GROUP = group
+
+    # Build the tensor model-parallel groups.
+    # global _TENSOR_MODEL_PARALLEL_GROUP
+    # assert _TENSOR_MODEL_PARALLEL_GROUP is None, "tensor model parallel group is already initialized"
+    for i in range(num_tensor_model_parallel_groups):
+        ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
+        # TODO: add logging here
+        # group = torch.distributed.new_group(ranks)
+        # if rank in ranks:
+        #     _TENSOR_MODEL_PARALLEL_GROUP = group
+
+    # Build the pipeline model-parallel groups and embedding groups
+    # (first and last rank in each pipeline model-parallel group).
+    # global _PIPELINE_MODEL_PARALLEL_GROUP
+    # global _PIPELINE_GLOBAL_RANKS
+    # assert _PIPELINE_MODEL_PARALLEL_GROUP is None, "pipeline model parallel group is already initialized"
+    # global _EMBEDDING_GROUP
+    # assert _EMBEDDING_GROUP is None, "embedding group is already initialized"
+    for i in range(num_pipeline_model_parallel_groups):
+        ranks = range(i, world_size, num_pipeline_model_parallel_groups)
+        # TODO: add logging here
+        # group = torch.distributed.new_group(ranks)
+        # if rank in ranks:
+        #     _PIPELINE_MODEL_PARALLEL_GROUP = group
+        #     _PIPELINE_GLOBAL_RANKS = ranks
+        # Setup embedding group (to exchange gradients between
+        # first and last stages).
+        if len(ranks) > 1:
+            embedding_ranks = [ranks[0], ranks[-1]]
+        else:
+            embedding_ranks = ranks
+        # TODO: add logging here
+        # group = torch.distributed.new_group(embedding_ranks)
+        # if rank in embedding_ranks:
+        #     _EMBEDDING_GROUP = group
+
+        return tensor_model_parallel_rank, pipeline_model_parallel_rank
