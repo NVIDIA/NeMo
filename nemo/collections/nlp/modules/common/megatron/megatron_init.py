@@ -198,6 +198,8 @@ def fake_initialize_model_parallel(
     all_pipeline_model_parallel_group_ranks = []
     all_embedding_group_ranks = []
     pipeline_model_parallel_group = None
+    embedding_group = None
+    embedding_rank = None
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
         all_pipeline_model_parallel_group_ranks.append(list(ranks))
@@ -212,9 +214,10 @@ def fake_initialize_model_parallel(
         # first and last stages).
         if len(ranks) > 1:
             embedding_ranks = [ranks[0], ranks[-1]]
+            all_embedding_group_ranks.append(embedding_ranks)
         else:
             embedding_ranks = ranks
-        all_embedding_group_ranks.append(list(embedding_ranks))
+            all_embedding_group_ranks.append(list(embedding_ranks))
         # group = torch.distributed.new_group(embedding_ranks)
         if rank in embedding_ranks:
             # _EMBEDDING_GROUP = group
@@ -222,7 +225,8 @@ def fake_initialize_model_parallel(
             logging.info(f'Rank {rank} has embedding group: {embedding_group}')
 
     pipeline_model_parallel_rank = pipeline_model_parallel_group.index(rank)
-    embedding_rank = embedding_group.index(rank)
+    if embedding_group is not None:
+        embedding_rank = embedding_group.index(rank)
 
     logging.info(f'All pipeline model parallel group ranks: {all_pipeline_model_parallel_group_ranks}')
     logging.info(f'Rank {rank} has pipeline model parallel rank {pipeline_model_parallel_rank}')
