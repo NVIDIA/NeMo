@@ -51,7 +51,7 @@ def main():
         fn, fe = os.path.splitext(model_fname)
         avg_model_fname = f"{fn}-averaged{fe}"
 
-        logging.info(f"[{model_fname_i+1} / {len(model_fname_list)}] Parsing folder {model_folder_path}")
+        logging.info(f"\n===> [{model_fname_i+1} / {len(model_fname_list)}] Parsing folder {model_folder_path}\n")
 
         # restore model from .nemo file path
         model_cfg = ModelPT.restore_from(restore_path=model_fname, return_config=True)
