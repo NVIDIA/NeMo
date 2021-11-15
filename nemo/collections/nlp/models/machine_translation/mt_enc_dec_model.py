@@ -300,11 +300,15 @@ class MTEncDecModel(EncDecNLPModel):
             getattr(self, f'{mode}_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
             )
+        import pudb; pudb.set_trace()
+        inputs = [self.encoder_tokenizer.ids_to_text(src) for src in src_ids.detach().cpu().numpy()]
+        inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
