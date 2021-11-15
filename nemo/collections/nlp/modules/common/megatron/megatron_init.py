@@ -154,7 +154,7 @@ def fake_initialize_model_parallel(
                 data_parallel_group = list(ranks)
                 logging.info(f'Rank {rank} has data parallel group: {data_parallel_group}')
 
-    data_parallel_rank = all_data_parallel_group_ranks.index(data_parallel_group)
+    data_parallel_rank = data_parallel_group.index(rank)
     logging.info(f'All data parallel group ranks: {all_data_parallel_group_ranks}')
     logging.info(f'Ranks {rank} has data parallel rank: {data_parallel_rank}')
 
@@ -183,7 +183,7 @@ def fake_initialize_model_parallel(
             tensor_model_parallel_group = list(ranks)
             logging.info(f'Rank {rank} has tensor model parallel group: {tensor_model_parallel_group}')
 
-    tensor_model_parallel_rank = all_tensor_model_parallel_group_ranks.index(tensor_model_parallel_group)
+    tensor_model_parallel_rank = tensor_model_parallel_group.index(rank)
 
     logging.info(f'All tensor model parallel group ranks: {all_tensor_model_parallel_group_ranks}')
     logging.info(f'Rank {rank} has tensor model parallel rank: {tensor_model_parallel_rank}')
@@ -218,11 +218,11 @@ def fake_initialize_model_parallel(
         # group = torch.distributed.new_group(embedding_ranks)
         if rank in embedding_ranks:
             # _EMBEDDING_GROUP = group
-            embedding_group = embedding_ranks
+            embedding_group = list(embedding_ranks)
             logging.info(f'Rank {rank} has embedding group: {embedding_group}')
 
-    pipeline_model_parallel_rank = all_pipeline_model_parallel_group_ranks.index(pipeline_model_parallel_group)
-    embedding_rank = all_embedding_group_ranks.index(embedding_group)
+    pipeline_model_parallel_rank = pipeline_model_parallel_group.index(rank)
+    embedding_rank = embedding_group.index(rank)
 
     logging.info(f'All pipeline model parallel group ranks: {all_pipeline_model_parallel_group_ranks}')
     logging.info(f'Rank {rank} has pipeline model parallel rank {pipeline_model_parallel_rank}')
