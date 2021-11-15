@@ -36,7 +36,7 @@ def main():
             if len(nemo_files) != 1:
                 raise RuntimeError(f"Expected only a single .nemo files but discovered {len(nemo_files)} .nemo files")
 
-            model_fname = os.path.join(model_fname, nemo_files[0])
+            model_fname = nemo_files[0]
 
         model_folder_path = os.path.dirname(model_fname)
         avg_model_fname = os.path.join(model_folder_path, "averaged-"+os.path.basename(model_fname))
