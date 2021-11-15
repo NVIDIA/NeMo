@@ -82,7 +82,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.capit_label_ids = None
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
-            self.set_label_ids()
+            self._set_label_ids()
         self.bert_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
@@ -387,7 +387,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             capit_label_vocab_file = Path(self._cfg.common_dataset_parameters.capit_label_vocab_file).expanduser()
         return punct_label_vocab_file, capit_label_vocab_file
 
-    def set_label_ids(self):
+    def _set_label_ids(self):
         punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
         if punct_label_vocab_file is not None:
             self.punct_label_ids = load_label_ids(
@@ -420,9 +420,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
         # Following parameters can be missing in config if the model is restored from old checkpoint
-        self.check_label_config_parameters()
         if not self.label_ids_are_set and not train:
-            self.set_label_ids()
+            self.check_label_config_parameters()
+            self._set_label_ids()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
         # if ds_item is None and data_dir is None:
         #     raise ValueError(

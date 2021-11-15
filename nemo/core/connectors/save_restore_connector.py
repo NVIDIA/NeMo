@@ -228,31 +228,33 @@ class SaveRestoreConnector:
         return state_dict
 
     def register_artifact(self, model, config_path: str, src: str, verify_src_exists: bool = True):
-        """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-            when model.save_to("mymodel.nemo") is called.        
+        """
+        Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+        when model.save_to("mymodel.nemo") is called.
 
-            How it works:
-            1. It always returns existing absolute path which can be used during Model constructor call
-                EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
-            2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
+        How it works:
+        1. It always returns existing absolute path which can be used during Model constructor call
+            EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
+        2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
-            If "src" is local existing path, then it will be returned in absolute path form.
-            elif "src" starts with "nemo_file:unique_artifact_name":
-                .nemo will be untarred to a temporary folder location and an actual existing path will be returned
-            else an error will be raised.
+        If "src" is local existing path, then it will be returned in absolute path form.
+        elif "src" starts with "nemo_file:unique_artifact_name":
+            .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+        else an error will be raised.
 
-            WARNING: use .register_artifact calls in your models' constructors.
-            The returned path is not guaranteed to exist after you have exited your model's constuctor.
+        WARNING: use .register_artifact calls in your models' constructors.
+        The returned path is not guaranteed to exist after you have exited your model's constructor.
 
-            Args:
-                model: ModelPT object to register artifact for.
-                config_path (str): Artifact key. Usually corresponds to the model config.
-                src (str): Path to artifact.
-                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
-                                          src is not found. Defaults to True.
+        Args:
+            model: ModelPT object to register artifact for.
+            config_path (str): Artifact key. Usually corresponds to the model config.
+            src (str): Path to artifact.
+            verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return
+                None even if src is not found. Defaults to True.
 
-            Returns:
-                str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
+        Returns:
+            str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model
+                instance life
         """
         app_state = AppState()
 
