@@ -1127,6 +1127,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: Path):
         """ Saves label ids map to a file """
+        filename.parent.mkdir(parents=True, exist_ok=True)
         with filename.open('w') as out:
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
             out.write('\n'.join(labels))
