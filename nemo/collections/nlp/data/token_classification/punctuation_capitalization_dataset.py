@@ -654,9 +654,9 @@ def create_label_ids(unique_labels: Set[str], pad_label: str) -> Dict[str, int]:
     return label_ids
 
 
-def load_label_ids(file_path: Path) -> Dict[str, int]:
+def load_label_ids(file_path: Union[str, os.PathLike]) -> Dict[str, int]:
     ids = {}
-    with file_path.open() as f:
+    with open(file_path) as f:
         for i, line in enumerate(f):
             ids[line.strip()] = i
     return ids

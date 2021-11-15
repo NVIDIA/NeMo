@@ -390,7 +390,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def set_label_ids(self):
         punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
         if punct_label_vocab_file is not None:
-            self.punct_label_ids = load_label_ids(punct_label_vocab_file)
+            self.punct_label_ids = load_label_ids(
+                self.register_artifact('common_dataset_parameters.punct_label_vocab_file', str(punct_label_vocab_file))
+            )
         elif self._cfg.common_dataset_parameters.punct_label_ids is not None:
             self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
         else:
@@ -402,7 +404,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"inferred from training set."
             )
         if capit_label_vocab_file is not None:
-            self.capit_label_ids = load_label_ids(capit_label_vocab_file)
+            self.capit_label_ids = load_label_ids(
+                self.register_artifact('common_dataset_parameters.capit_label_vocab_file', str(capit_label_vocab_file))
+            )
         elif self._cfg.common_dataset_parameters.capit_label_ids is not None:
             self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
         else:
