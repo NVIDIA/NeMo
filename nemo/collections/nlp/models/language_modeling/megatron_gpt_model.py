@@ -37,7 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -64,7 +63,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        if not self.cfg.get('fused_bf16'):
+        if self.cfg.get('precision') != 'bf16':
             set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
@@ -100,8 +99,7 @@ class MegatronGPTModel(NLPModel):
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
-            fused_fp16=cfg.get('fused_fp16', False),
-            fused_bf16=cfg.get('fused_bf16', False),
+            precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
@@ -139,18 +137,6 @@ class MegatronGPTModel(NLPModel):
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
-        # TODO: add text generation
-        # take the first k tokens and then generate text - compare with ground truth (won't look similar in general)
-        """
-        k = num_context
-        n = max_generate_length
-        context_tokens = tokens[0:k]
-        while k < n:
-            output_tensor = self(context_tokens)
-            next_token = sample(output_tensor)
-            context_tokens.append(next_token)
-            k += 1
-        """
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
@@ -314,8 +300,8 @@ class MegatronGPTModel(NLPModel):
         )
         return int(consumed_samples)
 
-    def on_before_optimizer_step(self, optimizer, optimizer_idx):
-        """PTL hook that is called after unscaling gradients when using native amp.
+    def configure_gradient_clipping(self, *args, **kwargs):
+        """PTL hook to configure gradients.
            We use gradient clipping implementation from megatron-lm.
         """
         clip_val = self.trainer.gradient_clip_val
@@ -326,16 +312,16 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeMixedPrecisionPlugin):
-            parameters = self.model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return
+        parameters = self.model.parameters()
+        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
-        response = self.complete(request)
-        return response
+        responses = []
+        for prompt in request:
+            response = self.complete(prompt)
+            responses.append(response)
+        return responses
 
     def complete(self, request: Dict):
         """
@@ -357,6 +343,8 @@ class MegatronGPTModel(NLPModel):
         """
         response = {}
         self.freeze()
+        is_completion_begin = True
+        offsets = [0]
         logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
@@ -379,8 +367,15 @@ class MegatronGPTModel(NLPModel):
             log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
             tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
+            # offsets calculation
+            if is_completion_begin:
+                for index, token in enumerate(self.tokenizer.ids_to_tokens(tokens), start=1):
+                    offsets.append(len(token) + offsets[-1])
+                is_completion_begin = False
+            else:
+                offsets.append(len(self.tokenizer.ids_to_tokens(tokens)[-1]) + offsets[-1])
             response['completion']["tokens"] = list(
-                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0])
+                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0], offsets)
             )
             completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
             if reached_eos:  # Will it actually ever reach that?
