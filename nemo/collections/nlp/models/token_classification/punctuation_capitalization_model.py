@@ -340,7 +340,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def check_label_config_parameters(self):
-        punct_label_ids = self._cfg.common_dataset_parameters.punct_labels_ids
+        punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
         capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
         pad_label = self._cfg.common_dataset_parameters.pad_label
         if self._cfg.common_dataset_parameters.punct_label_vocab_file is None:
