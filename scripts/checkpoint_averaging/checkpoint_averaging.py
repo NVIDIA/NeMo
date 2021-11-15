@@ -49,6 +49,7 @@ def main():
         model_cfg = ModelPT.restore_from(restore_path=model_fname, return_config=True)
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
+        logging.info(f"Loading model {model_fname}")
         nemo_model = imported_class.restore_from(restore_path=model_fname, map_location=device)  # type: ASRModel
 
 
