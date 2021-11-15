@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Builds a .nemo file with average weights over multiple .ckpt files (assumes .ckpt files in same fodler as .nemo file).
+Builds a .nemo file with average weights over multiple .ckpt files (assumes .ckpt files in same folder as .nemo file).
 
 Usage example for building *-averaged.nemo for a given .nemo file:
 
