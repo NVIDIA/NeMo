@@ -137,7 +137,7 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
     train_ds = model_cfg.get('train_ds')
     validation_ds = model_cfg.get('validation_ds')
     test_ds = model_cfg.get('test_ds')
-    dataset = model_cfg.get('dataset')
+    dataset = model_cfg.dataset
     return OmegaConf.structured(
         PunctuationCapitalizationModelConfig(
             common_dataset_parameters=CommonDatasetParameters(

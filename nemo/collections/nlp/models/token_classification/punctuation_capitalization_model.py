@@ -379,7 +379,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         # Following parameters can be missing in config if the model is restored from old checkpoint
         if is_legacy_config(self._cfg):
             cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
-            self._cfg = legacy_model_config_to_new_model_config(cfg)
+            self._cfg = legacy_model_config_to_new_model_config(self._cfg)
         self.check_label_config_parameters()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
         # if ds_item is None and data_dir is None:
