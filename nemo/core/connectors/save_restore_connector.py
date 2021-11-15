@@ -47,7 +47,7 @@ class SaveRestoreConnector:
         Args:
             model: ModelPT object to be saved.
             save_path: Path to .nemo file where model instance should be saved
-		"""
+        """
 
         if is_global_rank_zero():
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -74,27 +74,27 @@ class SaveRestoreConnector:
         trainer: Trainer = None,
     ):
         """
-		Restores model instance (weights and configuration) into .nemo file
+        Restores model instance (weights and configuration) into .nemo file
 
-		Args:
-		restore_path: path to .nemo file from which model should be instantiated
-		override_config_path: path to a yaml config that will override the internal
-			config file or an OmegaConf / DictConfig object representing the model config.
-		map_location: Optional torch.device() to map the instantiated model to a device.
-			By default (None), it will select a GPU if available, falling back to CPU otherwise.
-		strict: Passed to load_state_dict. By default True
-		return_config: If set to true, will return just the underlying config of the restored
-			model as an OmegaConf DictConfig object without instantiating the model.
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
-		Example:
-			```
-			model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
-			assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
-			```
+        Example:
+            ```
+            model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+            assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+            ```
 
-		Returns:
-		An instance of type cls or its underlying config (if return_config is set).
-		"""
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         cwd = os.getcwd()

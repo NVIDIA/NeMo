@@ -85,7 +85,6 @@ def main(cfg: DictConfig) -> None:
                 f'Provide path to the pre-trained .nemo file or choose from {PunctuationCapitalizationModel.list_available_models()}'
             )
         model.update_config(
-            dataset=cfg.model.dataset,
             train_ds=cfg.model.train_ds,
             validation_ds=cfg.model.validation_ds,
             test_ds=cfg.model.test_ds,

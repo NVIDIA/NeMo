@@ -29,6 +29,8 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
+    legacy_data_config_to_new_data_config,
+    load_label_ids,
 )
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset import (
     BertPunctuationCapitalizationInferDataset,
@@ -38,6 +40,10 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
+    legacy_model_config_to_new_model_config,
+    is_legacy_config,
+)
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -46,9 +52,6 @@ from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationModel']
-
-
-DEFAULT_NUM_TOKENS_IN_BATCH = 5000
 
 
 class PunctuationCapitalizationModel(NLPModel, Exportable):
@@ -72,6 +75,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
         self.metrics = None
+        self.punct_label_ids = None
+        self.capit_label_ids = None
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_lm_model(
@@ -232,22 +237,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         return self.multi_eval_epoch_end('test', dataloader_idx)
 
-    def update_data_dir(self, data_dir: str):
-        """
-        Update data directory
-
-        Args:
-            data_dir: path to data directory
-        """
-        if os.path.exists(data_dir):
-            logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-            self._cfg.dataset.data_dir = data_dir
-        else:
-            raise ValueError(f'{data_dir} not found')
-
     def update_config(
         self,
-        dataset: Optional[DictConfig] = None,
         train_ds: Optional[DictConfig] = None,
         test_ds: Optional[DictConfig] = None,
         validation_ds: Optional[DictConfig] = None,
@@ -257,19 +248,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Replace some sections of config. Useful after restoring from checkpoint for finetuning and testing.
 
         Args:
-            dataset: contains common dataset parameters. See possible options in
-                ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.CommonDatasetParameters``
             train_ds: configuration of training dataset. See possible options in
-                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataConfig``
+                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationTrainDataConfig``
             validation_ds: configuration of validation dataset. See possible options in
-                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataConfig``
+                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationEvalDataConfig``
             test_ds: configuration of test dataset. See possible options in
-                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataConfig``
+                ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationEvalDataConfig``
             optim: optimization configuration. See possible options in
                 ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationOptimConfig``
         """
-        if dataset is not None:
-            self._cfg.dataset = dataset
         if train_ds is not None:
             self._cfg.train_ds = train_ds
         if validation_ds is not None:
@@ -284,21 +271,17 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
-        # for older(pre - 1.0.0.b3) configs compatibility
-        if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
-            OmegaConf.set_struct(self._cfg, False)
-            self._cfg.class_labels = {}
-            self._cfg.class_labels = OmegaConf.create(
-                {'punct_labels_file': 'punct_label_ids.csv', 'capit_labels_file': 'capit_label_ids.csv'}
-            )
-
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
-            self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
-            self.register_artifact('class_labels.punct_labels_file', self._train_dl.dataset.punct_label_ids_file)
-            self.register_artifact('class_labels.capit_labels_file', self._train_dl.dataset.capit_label_ids_file)
+            self.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
+            self.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
+            self.register_artifact(
+                'common_dataset_parameters.punct_label_vocab', self._train_dl.dataset.punct_label_ids_file
+            )
+            self.register_artifact(
+                'common_dataset_parameters.capit_label_vocab', self._train_dl.dataset.capit_label_ids_file
+            )
 
     def get_eval_metrics_kwargs(self):
         loss_kw = {'dist_sync_on_step': False, 'take_avg_loss': True}
@@ -356,40 +339,76 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.metrics['test']['punct_class_report'].append(ClassificationReport(**punct_kw))
             self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
-        ds_item = cfg.get('ds_item')
-        data_dir = self._cfg.dataset.get('data_dir')
+    def check_label_config_parameters(self):
+        punct_label_ids = self._cfg.common_dataset_parameters.punct_labels_ids
+        capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
+        pad_label = self._cfg.common_dataset_parameters.pad_label
+        if self._cfg.common_dataset_parameters.punct_label_vocab_file is None:
+            punct_label_vocab_file = None
+        else:
+            punct_label_vocab_file = Path(self._cfg.common_dataset_parameters.punct_label_vocab_file).expanduser()
+        if self._cfg.common_dataset_parameters.capit_label_vocab_file is None:
+            capit_label_vocab_file = None
+        else:
+            capit_label_vocab_file = Path(self._cfg.common_dataset_parameters.capit_label_vocab_file).expanduser()
+        for label_ids, label_vocab_file, label_ids_name, label_vocab_name in [
+            (punct_label_ids, punct_label_vocab_file, 'punct_label_ids', 'punct_label_vocab_file'),
+            (capit_label_ids, capit_label_vocab_file, 'capit_label_ids', 'capit_label_vocab_file'),
+        ]:
+            if label_ids is not None and label_vocab_file is not None:
+                raise ValueError(
+                    f"Both `model.common_dataset_parameters.{label_ids_name}` and "
+                    f"`model.common_dataset_parameters.{label_vocab_name}` are provided, where as no more than one "
+                    f"of those can be used."
+                )
+        if punct_label_vocab_file is not None:
+            punct_label_ids = load_label_ids(punct_label_vocab_file)
+        if capit_label_vocab_file is not None:
+            capit_label_ids = load_label_ids(capit_label_vocab_file)
+        for label_ids, parameter_name in [
+            (punct_label_ids, 'punct_label_vocab_file' if punct_label_ids is None else 'punct_label_ids'),
+            (capit_label_ids, 'capit_label_vocab_file' if capit_label_ids is None else 'capit_label_ids'),
+        ]:
+            if label_ids[pad_label] != 0:
+                raise ValueError(
+                    f"Pad label '{pad_label}' has non zero id {label_ids[pad_label]} in "
+                    f"`model.common_dataset_parameters.{parameter_name}`."
+                )
+
+    def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
         # Following parameters can be missing in config if the model is restored from old checkpoint
+        if is_legacy_config(self._cfg):
+            cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
+            self._cfg = legacy_model_config_to_new_model_config(cfg)
+        self.check_label_config_parameters()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
-        num_workers = cfg.get('num_workers')
-        pin_memory = cfg.get('pin_memory')
-        drop_last = cfg.get('drop_last')
-        p_workers = cfg.get('persistent_worker')
-        if ds_item is None and data_dir is None:
-            raise ValueError(
-                f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
-                f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
-                f"`tar_metadata_file`, `text_file`, `labels_file` files are stored."
-            )
-        ds_data_dir = data_dir if ds_item is None else ds_item
+        # if ds_item is None and data_dir is None:
+        #     raise ValueError(
+        #         f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
+        #         f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
+        #         f"`tar_metadata_file`, `text_file`, `labels_file` files are stored."
+        #     )
         if use_tarred_dataset:
             if cfg.tar_metadata_file is None:
                 raise ValueError(
                     f"If parameter `use_tarred_dataset` is `True`, then a field `tar_metadata_file` has to be a path "
                     f"to tarred dataset metadata file, whereas `None` is given."
                 )
-            tar_metadata_file = Path(ds_data_dir) / cfg.tar_metadata_file
+            tar_metadata_file = Path(cfg.ds_item) / cfg.tar_metadata_file
             dataset = BertPunctuationCapitalizationTarredDataset(
                 metadata_file=tar_metadata_file,
                 tokenizer=self.tokenizer,
-                pad_label=self._cfg.dataset.pad_label,
-                ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
-                ignore_start_end=self._cfg.dataset.ignore_start_end,
-                punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
-                capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
+                pad_label=self._cfg.common_dataset_parameters.pad_label,
+                ignore_extra_tokens=self._cfg.common_dataset_parameters.ignore_extra_tokens,
+                ignore_start_end=self._cfg.common_dataset_parameters.ignore_start_end,
                 world_size=self.world_size,
                 global_rank=self.global_rank,
                 shuffle_n=cfg.tar_shuffle_n,
+            )
+            dataset.check_for_label_consistency_with_model_config(
+                self.punct_label_ids,
+                self.capit_label_ids,
+                self._cfg.common_dataset_parameters,
             )
         else:
             if cfg.text_file is None or cfg.labels_file is None:
@@ -398,35 +417,25 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"dataset config must not be `None`. Whereas `text_file={cfg.text_file}` and "
                     f"`label_file={cfg.labels_file}`."
                 )
-            # Following parameters can be missing in config if the model is restored from old checkpoint
-            tokens_in_batch = cfg.get('tokens_in_batch')
-            if tokens_in_batch is None:
-                logging.warning(
-                    f"`tokens_in_batch` parameter is missing in dataset config. The default value "
-                    f"{DEFAULT_NUM_TOKENS_IN_BATCH} is used."
-                )
-                tokens_in_batch = DEFAULT_NUM_TOKENS_IN_BATCH  # 5000
-            max_seq_length = cfg.get('max_seq_length')
-            use_cache = cfg.get('use_cache')
-            text_file, labels_file = Path(ds_data_dir) / cfg.text_file, Path(ds_data_dir) / cfg.labels_file
+            text_file, labels_file = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
                 label_file=labels_file,
-                pad_label=self._cfg.dataset.pad_label,
+                pad_label=self._cfg.common_dataset_parameters.pad_label,
                 punct_label_ids=self._cfg.punct_label_ids,
                 capit_label_ids=self._cfg.capit_label_ids,
-                max_seq_length=self._cfg.dataset.max_seq_length if max_seq_length is None else max_seq_length,
-                ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
-                ignore_start_end=self._cfg.dataset.ignore_start_end,
-                use_cache=self._cfg.dataset.use_cache if use_cache is None else use_cache,
+                max_seq_length=cfg.max_seq_length,
+                ignore_extra_tokens=self._cfg.common_dataset_parameters.ignore_extra_tokens,
+                ignore_start_end=self._cfg.common_dataset_parameters.ignore_start_end,
+                use_cache=cfg.use_cache,
                 num_samples=cfg.num_samples,
-                tokens_in_batch=tokens_in_batch,
-                punct_label_ids_file=self._cfg.class_labels.punct_labels_file,
-                capit_label_ids_file=self._cfg.class_labels.capit_labels_file,
-                n_jobs=cfg.get('n_jobs', 0),
-                verbose=cfg.get('verbose', False),
-                get_label_frequencies=cfg.get('get_label_frequencies'),
+                tokens_in_batch=cfg.tokens_in_batch,
+                punct_label_vocab_file=self._cfg.common_dataset_parameters.punct_label_vocab_file,
+                capit_label_vocab_file=self._cfg.common_dataset_parameters.capit_label_vocab_file,
+                n_jobs=cfg.n_jobs,
+                verbose=cfg.verbose,
+                get_label_frequencies=cfg.get_label_frequences,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")
@@ -438,10 +447,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             collate_fn=dataset.collate_fn,
             batch_size=1,
             shuffle=shuffle,
-            num_workers=self._cfg.dataset.num_workers if num_workers is None else num_workers,
-            pin_memory=self._cfg.dataset.pin_memory if pin_memory is None else pin_memory,
-            drop_last=self._cfg.dataset.drop_last if drop_last is None else drop_last,
-            persistent_workers=self._cfg.dataset.get('persistent_workers', False) if p_workers is None else p_workers,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
+            persistent_workers=cfg.persistent_workers,
         )
 
     def _setup_infer_dataloader(
@@ -604,10 +613,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             punct_label = punct_ids_to_labels[punct_preds[j]]
             capit_label = capit_ids_to_labels[capit_preds[j]]
 
-            if capit_label != self._cfg.dataset.pad_label:
+            if capit_label != self._cfg.common_dataset_parameters.pad_label:
                 word = word.capitalize()
             query_with_punct_and_capit += word
-            if punct_label != self._cfg.dataset.pad_label:
+            if punct_label != self._cfg.common_dataset_parameters.pad_label:
                 query_with_punct_and_capit += punct_label
             query_with_punct_and_capit += ' '
         return query_with_punct_and_capit[:-1]

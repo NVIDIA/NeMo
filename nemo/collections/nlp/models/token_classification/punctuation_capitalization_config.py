@@ -15,15 +15,20 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from omegaconf.omegaconf import MISSING
+from omegaconf.omegaconf import DictConfig, MISSING, OmegaConf
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
+    legacy_data_config_to_new_data_config,
 )
 from nemo.core.config import TrainerConfig
 from nemo.core.config.modelPT import NemoConfig, OptimConfig, SchedConfig
 from nemo.utils.exp_manager import ExpManagerConfig
+
+
+DEFAULT_IGNORE_EXTRA_TOKENS = False
+DEFAULT_IGNORE_START_END = True
 
 
 @dataclass
@@ -68,21 +73,19 @@ class CapitHeadConfig:
 
 
 @dataclass
-class ClassLabels:
-    punct_labels_file: Optional[str] = "punct_label_ids.csv"
-    capit_labels_file: Optional[str] = "capit_label_ids.csv"
-
-
-@dataclass
 class CommonDatasetParameters:
     pad_label: str = MISSING
-    ignore_extra_tokens: bool = False
-    ignore_start_end: bool = True
+    ignore_extra_tokens: bool = DEFAULT_IGNORE_EXTRA_TOKENS
+    ignore_start_end: bool = DEFAULT_IGNORE_START_END
+    punct_label_ids: Optional[Dict[str, int]] = None
+    punct_label_vocab_file: Optional[str] = None
+    capit_label_ids: Optional[Dict[str, int]] = None
+    capit_label_vocab_file: Optional[str] = None
 
 
 @dataclass
 class PunctuationCapitalizationModelConfig:
-    dataset: Optional[CommonDatasetParameters] = CommonDatasetParameters()
+    common_dataset_parameters: Optional[CommonDatasetParameters] = CommonDatasetParameters()
     train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = PunctuationCapitalizationTrainDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
@@ -104,9 +107,6 @@ class PunctuationCapitalizationModelConfig:
         tar_metadata_file=MISSING,
         tokens_in_batch=MISSING,
     )
-    punct_label_ids: Optional[Dict[str, int]] = None
-    capit_label_ids: Optional[Dict[str, int]] = None
-    class_labels: Optional[ClassLabels] = ClassLabels()
 
     punct_head: PunctHeadConfig = PunctHeadConfig()
     capit_head: CapitHeadConfig = CapitHeadConfig()
@@ -127,3 +127,37 @@ class PunctuationCapitalizationConfig(NemoConfig):
     model: PunctuationCapitalizationModelConfig = PunctuationCapitalizationModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='Punctuation_and_Capitalization', files_to_copy=[])
+
+
+def is_legacy_config(model_cfg: DictConfig) -> bool:
+    return 'dataset' in model_cfg or 'class_labels' in model_cfg
+
+
+def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig:
+    train_ds = model_cfg.get('train_ds')
+    validation_ds = model_cfg.get('validation_ds')
+    test_ds = model_cfg.get('test_ds')
+    dataset = model_cfg.get('dataset')
+    return OmegaConf.structured(
+        PunctuationCapitalizationModelConfig(
+            common_dataset_parameters=CommonDatasetParameters(
+                pad_label=dataset.pad_label,
+                ignore_extra_tokens=dataset.get('ignore_extra_tokens', DEFAULT_IGNORE_EXTRA_TOKENS),
+                ignore_start_end=dataset.get('ignore_start_end', DEFAULT_IGNORE_START_END),
+                punct_label_ids=model_cfg.punct_label_ids,
+                capit_label_ids=model_cfg.capit_label_ids,
+            ),
+            train_ds=None if train_ds is None else legacy_data_config_to_new_data_config(
+                train_ds, dataset, train=True
+            ),
+            validation_ds=None if validation_ds is None else legacy_data_config_to_new_data_config(
+                validation_ds, dataset, train=False
+            ),
+            test_ds=None if test_ds is None else legacy_data_config_to_new_data_config(test_ds, dataset, train=False),
+            punct_head=model_cfg.punct_head,
+            capit_head=model_cfg.capit_head,
+            tokenizer=model_cfg.tokenizer,
+            language_model=model_cfg.language_model,
+            optim=model_cfg.optim,
+        )
+    )

@@ -87,7 +87,7 @@ def main(cfg: DictConfig) -> None:
             f'{PunctuationCapitalizationModel.list_available_models()}'
         )
 
-    model.update_config(dataset=cfg.model.dataset, test_ds=cfg.model.test_ds)
+    model.update_config(test_ds=cfg.model.test_ds)
     if not hasattr(cfg.model, 'test_ds'):
         logging.error(f'model.test_ds was not found in the config, skipping evaluation')
     elif model.prepare_test(trainer):

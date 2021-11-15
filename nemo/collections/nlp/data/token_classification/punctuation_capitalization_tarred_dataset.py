@@ -26,6 +26,7 @@ import torch
 import webdataset as wds
 from joblib import Parallel, delayed
 from numpy.typing import ArrayLike
+from omegaconf import DictConfig
 from torch.utils.data import IterableDataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
@@ -36,6 +37,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     Progress,
     create_label_ids,
     create_masks_and_segment_ids,
+    load_label_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
@@ -175,8 +177,8 @@ def process_fragment(
         pad_label=pad_label,
         punct_label_ids=punct_label_ids,
         capit_label_ids=capit_label_ids,
-        punct_label_ids_file=DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME,
-        capit_label_ids_file=DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME,
+        punct_label_vocab_file=DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME,
+        capit_label_vocab_file=DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME,
         n_jobs=0,
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
@@ -426,14 +428,6 @@ def build_label_ids_from_list_of_labels(pad_label: str, other_labels: List[str])
     ids = {pad_label: 0}
     for lbl in other_labels:
         ids[lbl] = len(ids)
-    return ids
-
-
-def load_label_ids(label_vocab_file: Path) -> Dict[str, int]:
-    ids = {}
-    with label_vocab_file.open() as f:
-        for i, line in enumerate(f):
-            ids[line.strip()] = i
     return ids
 
 
@@ -777,6 +771,13 @@ def create_tarred_dataset(
     create_metadata_file(output_dir, output_file_tmpl, metadata_file_name, num_batches_per_tarfile)
 
 
+def get_difference_between_to_dicts(first_dict: dict, second_dict: dict):
+    missing_in_first = {k: second_dict[k] for k in set(second_dict) - set(first_dict)}
+    missing_in_second = {k: first_dict[k] for k in set(first_dict) - set(second_dict)}
+    not_equal = {k: first_dict[k] for k in set(first_dict) & set(second_dict) if first_dict[k] != second_dict[k]}
+    return missing_in_first, missing_in_second, not_equal
+
+
 class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     f"""
     Punctuation capitalization dataset for training which allows not to load all data in memory. Tarred dataset is
@@ -838,8 +839,6 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         metadata_file: Union[os.PathLike, str],
         tokenizer: TokenizerSpec,
         pad_label: str,
-        punct_label_ids_file: str = 'punct_label_ids.csv',
-        capit_label_ids_file: str = 'capit_label_ids.csv',
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         world_size: int = 1,
@@ -848,8 +847,8 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     ):
         super().__init__()
         self.tokenizer = tokenizer
-        metadata_file = Path(metadata_file).expanduser()
-        with open(metadata_file) as f:
+        self.metadata_file = Path(metadata_file).expanduser()
+        with open(self.metadata_file) as f:
             self.metadata = json.load(f)
         self.ignore_extra_tokens = ignore_extra_tokens
         self.ignore_start_end = ignore_start_end
@@ -859,14 +858,14 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             if file_path.is_absolute():
                 self.tar_files.append(str(file_path))
             else:
-                self.tar_files.append(str(metadata_file.parent / file_path))
+                self.tar_files.append(str(self.metadata_file.parent / file_path))
         for_nemo = "label_id_files_for_nemo_checkpoint"
-        self.punct_label_ids_file = metadata_file.parent / for_nemo / punct_label_ids_file
-        punct_label_vocab_file = metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
-        capit_label_vocab_file = metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
-        self.punct_label_ids = self.load_label_ids(punct_label_vocab_file)
-        self.capit_label_ids_file = metadata_file.parent / for_nemo / capit_label_ids_file
-        self.capit_label_ids = self.load_label_ids(capit_label_vocab_file)
+        self.punct_label_ids_file = self.metadata_file.parent / for_nemo / DEFAULT_PUNCT_LABEL_IDS_NAME
+        punct_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
+        capit_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
+        self.punct_label_ids = load_label_ids(punct_label_vocab_file)
+        self.capit_label_ids_file = self.metadata_file.parent / for_nemo / DEFAULT_CAPIT_LABEL_IDS_NAME
+        self.capit_label_ids = load_label_ids(capit_label_vocab_file)
         self.pad_label = pad_label
         self.check_pad_label()
         self.punct_label_ids_file.parent.mkdir(parents=True, exist_ok=True)
@@ -889,7 +888,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self._dataset = self._dataset.to_tuple('__key__', 'batch.pyd').map(f=self._build_sample)
 
     def check_pad_label(self):
-        """Checks the condition that pad label has 0 id in both ``self.punct_label_ids`` and ``self.capit_label_ids``"""
+        """
+        Checks the condition that ``self.punct_label_ids`` and ``self.capit_label_ids`` have identical zeroth elements
+        """
         for label_ids, label_file, task in [
             (self.punct_label_ids, self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY], "punctuation"),
             (self.capit_label_ids, self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY], "capitalization"),
@@ -900,13 +901,86 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     f"ids dictionary loaded from {label_file}."
                 )
 
-    @staticmethod
-    def load_label_ids(file_path: Path) -> Dict[str, int]:
-        ids = {}
-        with file_path.open() as f:
-            for i, line in enumerate(f):
-                ids[line.strip()] = i
-        return ids
+    def _raise_not_equal_labels_error(
+        self, tarred_labels: dict, model_labels: dict, label_type: str, model_label_desc: str
+    ):
+        missing_in_tarred = {k: model_labels[k] for k in set(model_labels) - set(tarred_labels)}
+        missing_in_model = {k: tarred_labels[k] for k in set(tarred_labels) - set(model_labels)}
+        not_equal = {
+            k: tarred_labels[k]
+            for k in set(tarred_labels) & set(model_labels)
+            if tarred_labels[k] != model_labels[k]
+        }
+        raise ValueError(
+            f"{label_type.capitalize()} labels loaded from tarred dataset with metadata file {self.metadata_file} are "
+            f"not equal to {model_label_desc}. Number of labels missing in the tarred dataset: "
+            f"{len(missing_in_tarred)}, number of labels missing in the model: {len(missing_in_model)}, "
+            f"number of labels not equal in the model and tarred dataset: {len(not_equal)}. First missing "
+            f"labels in the tarred dataset: {dict(list(missing_in_tarred.items())[:3])}, first missing in "
+            f"{model_label_desc}: {dict(list(missing_in_model.items()))}, first not equal labels: "
+            f"{dict(list(not_equal.items()))}."
+        )
+
+    def check_for_label_consistency_with_model_config(
+        self,
+        punct_label_ids: Optional[Dict[str, int]],
+        capit_label_ids: Optional[Dict[str, int]],
+        common_dataset_parameters_config: DictConfig,
+    ):
+        if punct_label_ids is not None:
+            if punct_label_ids != self.punct_label_ids:
+                self._raise_not_equal_labels_error(
+                    self.punct_label_ids,
+                    punct_label_ids,
+                    'punctuation',
+                    "labels stored in `PunctuationCapitalizationModel.punct_label_ids",
+                )
+        if capit_label_ids is not None:
+            if capit_label_ids != self.capit_label_ids:
+                self._raise_not_equal_labels_error(
+                    self.capit_label_ids,
+                    capit_label_ids,
+                    'capitalization',
+                    "labels stored in `PunctuationCapitalizationModel.capit_label_ids",
+                )
+        if common_dataset_parameters_config.punct_label_ids is not None:
+            cfg_punct_label_ids = dict(common_dataset_parameters_config.punct_label_ids)
+            if cfg_punct_label_ids != self.punct_label_ids:
+                self._raise_not_equal_labels_error(
+                    self.punct_label_ids,
+                    cfg_punct_label_ids,
+                    'punctuation',
+                    'labels stored config field `model.common_dataset_parameters.punct_label_ids`',
+                )
+        if common_dataset_parameters_config.capit_label_ids is not None:
+            cfg_capit_label_ids = dict(common_dataset_parameters_config.capit_label_ids)
+            if cfg_capit_label_ids != self.capit_label_ids:
+                self._raise_not_equal_labels_error(
+                    self.capit_label_ids,
+                    cfg_capit_label_ids,
+                    'capitalization',
+                    'labels stored config field `model.common_dataset_parameters.capit_label_ids`',
+                )
+        if common_dataset_parameters_config.punct_label_vocab_file is not None:
+            file = Path(common_dataset_parameters_config.punct_label_vocab_file).expanduser()
+            file_punct_vocab = load_label_ids(file)
+            if file_punct_vocab != self.punct_label_ids:
+                self._raise_not_equal_labels_error(
+                    self.punct_label_ids,
+                    file_punct_vocab,
+                    'punctuation',
+                    f'labels stored in file {file} passed in `model.common_dataset_parameters.punct_label_vocab_file`',
+                )
+        if common_dataset_parameters_config.capit_label_vocab_file is not None:
+            file = Path(common_dataset_parameters_config.capit_label_vocab_file).expanduser()
+            file_capit_vocab = load_label_ids(file)
+            if file_capit_vocab != self.capit_label_ids:
+                self._raise_not_equal_labels_error(
+                    self.capit_label_ids,
+                    file_capit_vocab,
+                    'capitalization',
+                    f'labels stored in file {file} passed in `model.common_dataset_parameters.capit_label_vocab_file`',
+                )
 
     def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
         """

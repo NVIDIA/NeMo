@@ -41,20 +41,14 @@ exp_manager:
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
-  punct_label_ids: null # If you leave empty, then the parameter will be filled during training
-  capit_label_ids: null # If you leave empty, then the parameter will be filled during training
-
-  # Names of label id files in .nemo checkpoint, which is created during training. Do not pass label vocabularies
-  # through `class_labels.punct_labels_file` and `class_labels.capit_labels_file`, the vocabularies will not be used.
-  # Usually label ids are created during training. Alternatively you can set label ids using `punct_label_ids` and
-  # `capit_label_ids` parameters.
-  class_labels:
-    punct_labels_file: punct_label_ids.csv
-    capit_labels_file: capit_label_ids.csv
-  dataset:
+  common_dataset_parameters:
     pad_label: 'O'
     ignore_extra_tokens: false
     ignore_start_end: false
+    punct_label_ids: null
+    punct_label_vocab_file: null
+    capit_label_ids: null
+    capit_label_vocab_file: null
 
   train_ds:
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
