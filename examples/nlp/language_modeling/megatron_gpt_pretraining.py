@@ -23,8 +23,8 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_tensor_model_parallel_rank
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -69,7 +69,7 @@ def main(cfg) -> None:
     if resume_from_checkpoint is not None:
         # inject mp_rank into resume_from_checkpoint
         if cfg.model.tensor_model_parallel_size is not None and cfg.model.tensor_model_parallel_size > 1:
-            mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
+            mp_rank = compute_tensor_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
             resume_from_checkpoint = Path(resume_from_checkpoint)
             resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
                 resume_from_checkpoint.name
