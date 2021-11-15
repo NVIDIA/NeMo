@@ -19,7 +19,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf/hifigan", config_name="hifigan44100")
+@hydra_runner(config_path="conf/hifigan", config_name="hifigan_44100")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
