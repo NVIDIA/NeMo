@@ -38,6 +38,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     create_label_ids,
     create_masks_and_segment_ids,
     load_label_ids,
+    raise_not_equal_labels_error,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
@@ -927,59 +928,68 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         capit_label_ids: Optional[Dict[str, int]],
         common_dataset_parameters_config: DictConfig,
     ):
+        tarred_dataset_label_desc_tmpl = (
+            f'{{label_type}} labels loaded from tarred dataset with metadata file {self.metadata_file}'
+        )
         if punct_label_ids is not None:
             if punct_label_ids != self.punct_label_ids:
-                self._raise_not_equal_labels_error(
-                    self.punct_label_ids,
-                    punct_label_ids,
-                    'punctuation',
-                    "labels stored in `PunctuationCapitalizationModel.punct_label_ids",
+                raise_not_equal_labels_error(
+                    first_labels=self.punct_label_ids,
+                    second_labels=punct_label_ids,
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format('Punctuation'),
+                    second_labels_desc="Punctuation labels stored in an attribute "
+                    "`PunctuationCapitalizationModel.punct_label_ids",
                 )
         if capit_label_ids is not None:
             if capit_label_ids != self.capit_label_ids:
-                self._raise_not_equal_labels_error(
-                    self.capit_label_ids,
-                    capit_label_ids,
-                    'capitalization',
-                    "labels stored in `PunctuationCapitalizationModel.capit_label_ids",
+                raise_not_equal_labels_error(
+                    first_labels=self.capit_label_ids,
+                    second_labels=capit_label_ids,
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format('Capitalization'),
+                    second_labels_desc="Capitalization labels stored in an attribute"
+                    "`PunctuationCapitalizationModel.capit_label_ids",
                 )
         if common_dataset_parameters_config.punct_label_ids is not None:
             cfg_punct_label_ids = dict(common_dataset_parameters_config.punct_label_ids)
             if cfg_punct_label_ids != self.punct_label_ids:
-                self._raise_not_equal_labels_error(
-                    self.punct_label_ids,
-                    cfg_punct_label_ids,
-                    'punctuation',
-                    'labels stored config field `model.common_dataset_parameters.punct_label_ids`',
+                raise_not_equal_labels_error(
+                    first_labels=self.punct_label_ids,
+                    second_labels=cfg_punct_label_ids,
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format('Punctuation'),
+                    second_labels_desc='Punctuation labels stored a config field '
+                    '`model.common_dataset_parameters.punct_label_ids`',
                 )
         if common_dataset_parameters_config.capit_label_ids is not None:
             cfg_capit_label_ids = dict(common_dataset_parameters_config.capit_label_ids)
             if cfg_capit_label_ids != self.capit_label_ids:
-                self._raise_not_equal_labels_error(
-                    self.capit_label_ids,
-                    cfg_capit_label_ids,
-                    'capitalization',
-                    'labels stored config field `model.common_dataset_parameters.capit_label_ids`',
+                raise_not_equal_labels_error(
+                    first_labels=self.capit_label_ids,
+                    second_labels=cfg_capit_label_ids,
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format('Capitalization'),
+                    second_labels_desc='Capitalization labels stored a config field '
+                    '`model.common_dataset_parameters.capit_label_ids`',
                 )
         if common_dataset_parameters_config.punct_label_vocab_file is not None:
             file = Path(common_dataset_parameters_config.punct_label_vocab_file).expanduser()
             file_punct_vocab = load_label_ids(file)
             if file_punct_vocab != self.punct_label_ids:
-                self._raise_not_equal_labels_error(
-                    self.punct_label_ids,
-                    file_punct_vocab,
-                    'punctuation',
-                    f'labels stored in file {file} passed in `model.common_dataset_parameters.punct_label_vocab_file`',
+                raise_not_equal_labels_error(
+                    first_labels=self.punct_label_ids,
+                    second_labels=file_punct_vocab,
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format('Punctuation'),
+                    second_labels_desc=f'labels stored in file {file} passed in '
+                    f'`model.common_dataset_parameters.punct_label_vocab_file`',
                 )
         if common_dataset_parameters_config.capit_label_vocab_file is not None:
             file = Path(common_dataset_parameters_config.capit_label_vocab_file).expanduser()
             file_capit_vocab = load_label_ids(file)
             if file_capit_vocab != self.capit_label_ids:
-                self._raise_not_equal_labels_error(
-                    self.capit_label_ids,
-                    file_capit_vocab,
-                    'capitalization',
-                    f'labels stored in file {file} passed in `model.common_dataset_parameters.capit_label_vocab_file`',
+                raise_not_equal_labels_error(
+                    first_labels=self.capit_label_ids,
+                    second_labels=file_capit_vocab,
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format('Capitalization'),
+                    second_labels_desc=f'labels stored in file {file} passed in '
+                    f'`model.common_dataset_parameters.capit_label_vocab_file`',
                 )
 
     def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:

@@ -32,6 +32,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     is_legacy_data_config,
     legacy_data_config_to_new_data_config,
     load_label_ids,
+    raise_not_equal_labels_error,
 )
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset import (
     BertPunctuationCapitalizationInferDataset,
@@ -76,6 +77,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
         self.metrics = None
+        self.label_ids_are_set = False
         self.punct_label_ids = None
         self.capit_label_ids = None
         super().__init__(cfg=cfg, trainer=trainer)
@@ -277,6 +279,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             self.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
             self.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
+            self.label_ids_are_set = True
             self.register_artifact(
                 'common_dataset_parameters.punct_label_vocab', self._train_dl.dataset.punct_label_ids_file
             )
@@ -342,24 +345,22 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
         capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
         pad_label = self._cfg.common_dataset_parameters.pad_label
-        if self._cfg.common_dataset_parameters.punct_label_vocab_file is None:
-            punct_label_vocab_file = None
-        else:
-            punct_label_vocab_file = Path(self._cfg.common_dataset_parameters.punct_label_vocab_file).expanduser()
-        if self._cfg.common_dataset_parameters.capit_label_vocab_file is None:
-            capit_label_vocab_file = None
-        else:
-            capit_label_vocab_file = Path(self._cfg.common_dataset_parameters.capit_label_vocab_file).expanduser()
+        punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
         for label_ids, label_vocab_file, label_ids_name, label_vocab_name in [
             (punct_label_ids, punct_label_vocab_file, 'punct_label_ids', 'punct_label_vocab_file'),
             (capit_label_ids, capit_label_vocab_file, 'capit_label_ids', 'capit_label_vocab_file'),
         ]:
             if label_ids is not None and label_vocab_file is not None:
-                raise ValueError(
-                    f"Both `model.common_dataset_parameters.{label_ids_name}` and "
-                    f"`model.common_dataset_parameters.{label_vocab_name}` are provided, where as no more than one "
-                    f"of those can be used."
-                )
+                file_label_ids = load_label_ids(label_vocab_file)
+                if label_ids != file_label_ids:
+                    raise_not_equal_labels_error(
+                        first_labels=label_ids,
+                        second_labels=file_label_ids,
+                        first_labels_desc=f"Labels passed in config parameter "
+                        f"`model.common_dataset_parameters.{label_ids_name}`",
+                        second_labels_desc=f"Labels loaded from file {punct_label_vocab_file} passed in config "
+                        f"parameter `model.common_dataset_parameters.{label_vocab_name}",
+                    )
         if punct_label_vocab_file is not None:
             punct_label_ids = load_label_ids(punct_label_vocab_file)
         if capit_label_vocab_file is not None:
@@ -374,6 +375,44 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"`model.common_dataset_parameters.{parameter_name}`."
                 )
 
+    def _extract_label_vocab_files_from_config(self) -> Tuple[Optional[Path], Optional[Path]]:
+        if self._cfg.common_dataset_parameters.punct_label_vocab_file is None:
+            punct_label_vocab_file = None
+        else:
+            punct_label_vocab_file = Path(self._cfg.common_dataset_parameters.punct_label_vocab_file).expanduser()
+        if self._cfg.common_dataset_parameters.capit_label_vocab_file is None:
+            capit_label_vocab_file = None
+        else:
+            capit_label_vocab_file = Path(self._cfg.common_dataset_parameters.capit_label_vocab_file).expanduser()
+        return punct_label_vocab_file, capit_label_vocab_file
+
+    def set_label_ids(self):
+        punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
+        if punct_label_vocab_file is not None:
+            self.punct_label_ids = load_label_ids(punct_label_vocab_file)
+        elif self._cfg.common_dataset_parameters.punct_label_ids is not None:
+            self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
+        else:
+            raise ValueError(
+                f"Could not set attribute `punct_label_ids`. Config parameters "
+                f"`model.common_dataset_parameters.punct_label_ids`, "
+                f"`model.common_dataset_parameters.punct_label_vocab_file` are not set. Another way to set "
+                f"`punct_label_ids` is calling method `setup_training_data`. That way punctuation label ids will be "
+                f"inferred from training set."
+            )
+        if capit_label_vocab_file is not None:
+            self.capit_label_ids = load_label_ids(capit_label_vocab_file)
+        elif self._cfg.common_dataset_parameters.capit_label_ids is not None:
+            self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
+        else:
+            raise ValueError(
+                f"Could not set attribute `capit_label_ids`. Config parameters "
+                f"`model.common_dataset_parameters.capit_label_ids`, "
+                f"`model.common_dataset_parameters.capit_label_vocab_file` are not set. Another way to set "
+                f"`capit_label_ids` is calling method `setup_training_data`. That way capitalization label ids will "
+                f"be inferred from training set."
+            )
+
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
         # Following parameters can be missing in config if the model is restored from old checkpoint
         if is_legacy_model_config(self._cfg):
@@ -382,6 +421,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         elif is_legacy_data_config(cfg):
             cfg = legacy_data_config_to_new_data_config(cfg, self._cfg.dataset, train)
         self.check_label_config_parameters()
+        if not self.label_ids_are_set and not train:
+            self.set_label_ids()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
         # if ds_item is None and data_dir is None:
         #     raise ValueError(
@@ -419,21 +460,27 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"`label_file={cfg.labels_file}`."
                 )
             text_file, labels_file = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+            if self.label_ids_are_set:
+                label_kwargs = {'punct_label_ids': self.punct_label_ids, 'capit_label_ids': self.capit_label_ids}
+            else:
+                label_kwargs = {
+                    'punct_label_ids': self._cfg.common_dataset_parameters.punct_label_ids,
+                    'capit_label_ids': self._cfg.common_dataset_parameters.capit_label_ids,
+                    'punct_label_vocab_file': self._cfg.common_dataset_parameters.punct_label_vocab_file,
+                    'capit_label_vocab_file': self._cfg.common_dataset_parameters.capit_label_vocab_file,
+                }
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
-                label_file=labels_file,
+                labels_file=labels_file,
                 pad_label=self._cfg.common_dataset_parameters.pad_label,
-                punct_label_ids=self._cfg.common_dataset_parameters.punct_label_ids,
-                capit_label_ids=self._cfg.common_dataset_parameters.capit_label_ids,
+                **label_kwargs,
                 max_seq_length=cfg.max_seq_length,
                 ignore_extra_tokens=self._cfg.common_dataset_parameters.ignore_extra_tokens,
                 ignore_start_end=self._cfg.common_dataset_parameters.ignore_start_end,
                 use_cache=cfg.use_cache,
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
-                punct_label_vocab_file=self._cfg.common_dataset_parameters.punct_label_vocab_file,
-                capit_label_vocab_file=self._cfg.common_dataset_parameters.capit_label_vocab_file,
                 n_jobs=cfg.n_jobs,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,

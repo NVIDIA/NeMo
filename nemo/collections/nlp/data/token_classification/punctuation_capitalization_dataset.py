@@ -24,6 +24,7 @@ __all__ = [
     'is_legacy_data_config',
     'legacy_data_config_to_new_data_config',
     'load_label_ids',
+    'raise_not_equal_labels_error',
 ]
 
 import itertools
@@ -661,6 +662,25 @@ def load_label_ids(file_path: Path) -> Dict[str, int]:
     return ids
 
 
+def raise_not_equal_labels_error(
+    first_labels: dict, second_labels: dict, first_labels_desc: str, second_labels_desc: str
+):
+    missing_in_first = {k: second_labels[k] for k in set(second_labels) - set(first_labels)}
+    missing_in_second = {k: first_labels[k] for k in set(first_labels) - set(second_labels)}
+    not_equal = {
+        k: first_labels[k]
+        for k in set(first_labels) & set(second_labels)
+        if first_labels[k] != second_labels[k]
+    }
+    raise ValueError(
+        f"{first_labels_desc} (FIRST LABELS) are not equal to {second_labels_desc} (SECOND LABELS). Number of labels "
+        f"missing in the FIRST LABELS: {len(missing_in_first)}, number of labels missing in the SECOND LABELS: "
+        f"{len(missing_in_second)}, number of not equal labels: {len(not_equal)}. First missing labels in the FIRST "
+        f"LABELS: {dict(list(missing_in_first.items())[:3])}, first missing in the SECOND LABELS: "
+        f"{dict(list(missing_in_second.items()))}, first not equal labels: {dict(list(not_equal.items()))}."
+    )
+
+
 class BertPunctuationCapitalizationDataset(Dataset):
     """
     Creates dataset to use during training for punctuation and capitalization tasks with a pretrained model.
@@ -668,7 +688,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     Args:
         text_file: file to sequences, each line should a text without punctuation and capitalization
-        label_file: file to labels, each line corresponds to word labels for a sentence in the text_file
+        labels_file: file to labels, each line corresponds to word labels for a sentence in the text_file
         max_seq_length: max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS] and [SEP]
             tokens. Sequences which are too long will be clipped by removal of tokens from the end of the sequence
         tokenizer: a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``, ``eos_id``
@@ -721,7 +741,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def __init__(
         self,
         text_file: Union[str, os.PathLike],
-        label_file: Union[str, os.PathLike],
+        labels_file: Union[str, os.PathLike],
         max_seq_length: int,
         tokenizer: TokenizerSpec,
         num_samples: int = -1,
@@ -744,26 +764,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
         batch_building_progress_queue: Optional[mp.Queue] = None,
     ):
         """ Initializes BertPunctuationCapitalizationDataset. """
-
-        if not (os.path.exists(text_file) and os.path.exists(label_file)):
-            raise FileNotFoundError(
-                f'{text_file} or {label_file} not found. The data should be split into 2 files: text.txt and'
-                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with'
-                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are'
-                f'separated with spaces. Each line of the files should follow the format:\n'
-                f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
-                f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
-            )
-        if punct_label_ids is not None and punct_label_vocab_file is not None:
-            raise ValueError(
-                f'You can provide at most one of parameters `punct_label_ids` and `punct_label_vocab_file` whereas '
-                f'both parameters are not `None`.'
-            )
-        if capit_label_ids is not None and capit_label_vocab_file is not None:
-            raise ValueError(
-                f'You can provide at most one of parameters `capit_label_ids` and `capit_label_vocab_file` whereas '
-                f'both parameters are not `None`.'
-            )
+        self.check_constructor_parameters(
+            text_file,
+            labels_file,
+            punct_label_ids,
+            capit_label_ids,
+            punct_label_vocab_file,
+            capit_label_vocab_file,
+            num_samples,
+        )
         if punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
             punct_label_ids = load_label_ids(punct_label_vocab_file)
@@ -771,7 +780,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             capit_label_vocab_file = Path(capit_label_vocab_file).expanduser()
             capit_label_ids = load_label_ids(capit_label_vocab_file)
         # Cache features
-        text_file, label_file = Path(text_file), Path(label_file)
+        text_file, labels_file = Path(text_file), Path(labels_file)
         data_dir = text_file.parent
         filename = text_file.name
 
@@ -806,16 +815,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise ValueError(f"Parameter `num_samples` has to be positive whereas `num_samples={num_samples}`")
             if verbose:
                 logging.info(f'Processing {text_file}')
-            res = self.read_dataset(text_file, label_file, num_samples, verbose)
+            res = self.read_dataset(text_file, labels_file, num_samples, verbose)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
 
             # for dev/test sets use label mapping from training set
             if punct_label_ids:
-                self.check_label_ids(punct_label_ids, punct_unique_labels, 'punct', 'punctuation', label_file)
+                self.check_label_ids(punct_label_ids, punct_unique_labels, 'punct', 'punctuation', labels_file)
             else:
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
-                self.check_label_ids(capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', label_file)
+                self.check_label_ids(capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', labels_file)
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
             if save_label_ids:
@@ -863,6 +872,55 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.capit_label_frequencies = self._calculate_label_frequencies(self.capit_labels, data_dir, 'capit')
 
     @staticmethod
+    def check_constructor_parameters(
+        text_file: Union[str, os.PathLike],
+        labels_file: Union[str, os.PathLike],
+        punct_label_ids: Optional[Dict[str, int]],
+        capit_label_ids: Optional[Dict[str, int]],
+        punct_label_vocab_file: Union[str, os.PathLike],
+        capit_label_vocab_file: Union[str, os.PathLike],
+        num_samples: int,
+    ):
+        if not (os.path.exists(text_file) and os.path.exists(labels_file)):
+            raise FileNotFoundError(
+                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and'
+                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with'
+                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are'
+                f'separated with spaces. Each line of the files should follow the format:\n'
+                f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
+                f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+            )
+        if punct_label_ids is not None and punct_label_vocab_file is not None:
+            punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
+            file_punct_label_ids = load_label_ids(punct_label_vocab_file)
+            if file_punct_label_ids != punct_label_ids:
+                raise_not_equal_labels_error(
+                    first_labels=punct_label_ids,
+                    second_labels=file_punct_label_ids,
+                    first_labels_desc='Punctuation labels passed to the `PunctuationCapitalizationDataset` '
+                    'constructor in parameter `punct_label_ids`',
+                    second_labels_desc=f'Punctuation labels loaded from file {punct_label_vocab_file} path to which '
+                    f'is passed in parameter `punct_label_vocab_file`',
+                )
+        if capit_label_ids is not None and capit_label_vocab_file is not None:
+            capit_vocab_file = Path(capit_label_vocab_file).expanduser()
+            file_capit_label_ids = load_label_ids(capit_vocab_file)
+            if file_capit_label_ids != capit_label_ids:
+                raise_not_equal_labels_error(
+                    first_labels=capit_label_ids,
+                    second_labels=file_capit_label_ids,
+                    first_labels_desc='Capitalization labels passed to the `PunctuationCapitalizationDataset` '
+                    'constructor in parameter `capit_label_ids`',
+                    second_labels_desc=f'Capitalization labels loaded from file {capit_label_vocab_file} path to '
+                    f'which is passed in parameter `capit_label_vocab_file`',
+                )
+        if num_samples == 0:
+            raise ValueError(
+                f"Parameter `num_samples` has to be positive or negative whereas `num_samples={num_samples}`. "
+                f"Negative `num_samples` is for using all samples in a dataset."
+            )
+
+    @staticmethod
     def check_label_ids(
         label_ids: Dict[str, int], unique_labels: Set[str], label_type: str, task: str, label_file: Path
     ):
@@ -877,11 +935,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def read_dataset(
         text_file: Path, label_file: Path, num_samples: int, verbose: bool
     ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Set[str], Set[str]]:
-        if num_samples == 0:
-            raise ValueError(
-                f"Parameter `num_samples` has to be positive or negative whereas `num_samples={num_samples}`. "
-                f"Negative `num_samples` is for using all samples in a dataset."
-            )
         if verbose:
             logging.info(f'Processing {text_file}')
         with open(text_file, 'r') as f:
