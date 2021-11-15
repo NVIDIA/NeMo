@@ -13,7 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Updates a .nemo file with average weights.
+Builds a .nemo file with average weights over multiple .ckpt files (assumes .ckpt files in same fodler as .nemo file).
+
+Usage example for building *-averaged.nemo for a given .nemo file:
+
+NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py my_model.nemo
+
+Usage example for building *-averaged.nemo files for all results in sub-directories under current path:
+
+find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py
 """
 
 import os
