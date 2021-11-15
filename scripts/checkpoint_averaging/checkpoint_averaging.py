@@ -85,18 +85,12 @@ def main():
             else:
                 avg_state[k] = avg_state[k] / n
 
-        import pudb; pudb.set_trace()
-
         # restore merged weights into model
         nemo_model.load_state_dict(avg_state, strict=True)
-
-        ckpt_name = name_prefix + '-averaged.nemo'
+        # Save model
+        logging.info(f"Saving average mdel to: {avg_model_fname}")
         nemo_model.save_to(avg_model_fname)
 
-        # Save model
-        ckpt_name = os.path.join(model_folder_path, 'model_weights.ckpt')
-        torch.save(avg_state, ckpt_name)
-        logging.info(f"Averaged pytorch checkpoint saved as : {ckpt_name}")
 
 
 if __name__ == '__main__':
