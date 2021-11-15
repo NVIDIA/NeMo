@@ -300,7 +300,6 @@ class MTEncDecModel(EncDecNLPModel):
             getattr(self, f'{mode}_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
             )
-        import pudb; pudb.set_trace()
         inputs = [self.encoder_tokenizer.ids_to_text(src) for src in src_ids.detach().cpu().numpy()]
         inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
         np_tgt = tgt_ids.detach().cpu().numpy()
@@ -348,9 +347,10 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
-            import pudb; pudb.set_trace()
+            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(inputs)
             assert len(translations) == len(ground_truths)
 
             # Gather translations and ground truths from all workers
@@ -392,7 +392,7 @@ class MTEncDecModel(EncDecNLPModel):
                 for i in range(0, 3):
                     ind = random.randint(0, len(translations) - 1)
                     logging.info("    " + '\u0332'.join(f"Example {i}:"))
-                    logging.info(f"    Input:        {sources[ind]}")
+                    logging.info(f"    Input:        {inputs[ind]}")
                     logging.info(f"    Prediction:   {translations[ind]}")
                     logging.info(f"    Ground Truth: {ground_truths[ind]}")
             else:

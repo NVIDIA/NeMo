@@ -448,7 +448,6 @@ class MTBottleneckModel(MTEncDecModel):
             getattr(self, f'{mode}_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=num_measurements,
             )
-        import pudb; pudb.set_trace()
         inputs = [self.encoder_tokenizer.ids_to_text(src) for src in src_ids.detach().cpu().numpy()]
         inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
         np_tgt = tgt_ids.detach().cpu().numpy()
@@ -464,6 +463,7 @@ class MTBottleneckModel(MTEncDecModel):
                 log_dict[f"{k}_timing"] = v
 
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
