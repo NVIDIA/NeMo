@@ -417,6 +417,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"`capit_label_ids` is calling method `setup_training_data`. That way capitalization label ids will "
                 f"be inferred from training set."
             )
+        self.label_ids_are_set = True
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
         # Following parameters can be missing in config if the model is restored from old checkpoint
