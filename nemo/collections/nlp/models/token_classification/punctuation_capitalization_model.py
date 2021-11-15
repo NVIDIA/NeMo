@@ -271,7 +271,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, train=True)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             self.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
@@ -320,7 +320,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
 
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, train=False)
         if self._validation_dl is not None:
             loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
             self.metrics['val']['loss'].append(GlobalAverageLossMetric(**loss_kw))
@@ -332,7 +332,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.setup_metrics_dictionary()
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, train=False)
         if self._test_dl is not None:
             loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
             self.metrics['test']['loss'].append(GlobalAverageLossMetric(**loss_kw))
