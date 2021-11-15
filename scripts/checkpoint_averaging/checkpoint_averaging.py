@@ -24,6 +24,7 @@ Usage example for building *-averaged.nemo files for all results in sub-director
 find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py
 """
 
+import argparse
 import glob
 import os
 import argparse
@@ -36,9 +37,14 @@ from nemo.utils import logging, model_utils
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('model_fname_list', metavar='N', type=str, nargs='+', help='Input .nemo files (or folders who contains them) to parse')
+    parser.add_argument(
+        'model_fname_list',
+        metavar='N',
+        type=str,
+        nargs='+',
+        help='Input .nemo files (or folders who contains them) to parse',
+    )
     args = parser.parse_args()
-
 
     device = torch.device("cpu")
 
