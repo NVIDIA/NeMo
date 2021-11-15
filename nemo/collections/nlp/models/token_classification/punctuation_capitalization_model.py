@@ -72,8 +72,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        if is_legacy_model_config(cfg.model):
-            cfg.model = legacy_model_config_to_new_model_config(cfg.model)
+        if is_legacy_model_config(cfg):
+            cfg = legacy_model_config_to_new_model_config(cfg)
         self.setup_tokenizer(cfg.tokenizer)
         self.world_size = 1
         if trainer is not None:
