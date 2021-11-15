@@ -28,8 +28,9 @@ from nemo.core import ModelPT
 def main():
     device = torch.device("cpu")
 
+    model_fname_list = sys.argv[1:]
     # loop over all folders with .nemo files (or .nemo files)
-    for model_fname in sys.argv[1:]:
+    for model_fname_i, model_fname in model_fname_list:
         if not model_fname.endswith(".nemo"):
             # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "*-averaged.nemo")
             nemo_files = list(filter(lambda fn: not fn.endswith("-averaged.nemo"), glob.glob(os.path.join(model_fname, "*.nemo"))))
@@ -42,7 +43,7 @@ def main():
         fn, fe = os.path.splitext(model_fname)
         avg_model_fname = f"{fn}-averaged{fe}"
 
-        logging.info(f"Parsing folder {model_folder_path}")
+        logging.info(f"[{model_fname_i+1} / {len(model_fname_list)}] Parsing folder {model_folder_path}")
 
         # restore model from .nemo file path
         model_cfg = ModelPT.restore_from(restore_path=model_fname, return_config=True)
