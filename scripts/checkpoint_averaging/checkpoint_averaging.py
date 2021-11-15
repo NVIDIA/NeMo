@@ -30,7 +30,7 @@ def main():
 
     model_fname_list = sys.argv[1:]
     # loop over all folders with .nemo files (or .nemo files)
-    for model_fname_i, model_fname in model_fname_list:
+    for model_fname_i, model_fname in enumerate(model_fname_list):
         if not model_fname.endswith(".nemo"):
             # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "*-averaged.nemo")
             nemo_files = list(filter(lambda fn: not fn.endswith("-averaged.nemo"), glob.glob(os.path.join(model_fname, "*.nemo"))))
