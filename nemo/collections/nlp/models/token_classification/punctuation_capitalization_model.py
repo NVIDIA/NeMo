@@ -287,14 +287,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def get_eval_metrics_kwargs(self):
         loss_kw = {'dist_sync_on_step': False, 'take_avg_loss': True}
         punct_kw = {
-            'num_classes': len(self._cfg.punct_label_ids),
-            'label_ids': self._cfg.punct_label_ids,
+            'num_classes': len(self.punct_label_ids),
+            'label_ids': self.punct_label_ids,
             'mode': 'macro',
             'dist_sync_on_step': False,
         }
         capit_kw = {
-            'num_classes': len(self._cfg.capit_label_ids),
-            'label_ids': self._cfg.capit_label_ids,
+            'num_classes': len(self.capit_label_ids),
+            'label_ids': self.capit_label_ids,
             'mode': 'macro',
             'dist_sync_on_step': False,
         }
@@ -322,11 +322,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             val_data_config = self._cfg.validation_ds
 
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, train=False)
-        if self._validation_dl is not None:
-            loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
-            self.metrics['val']['loss'].append(GlobalAverageLossMetric(**loss_kw))
-            self.metrics['val']['punct_class_report'].append(ClassificationReport(**punct_kw))
-            self.metrics['val']['capit_class_report'].append(ClassificationReport(**capit_kw))
+        loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
+        self.metrics['val']['loss'].append(GlobalAverageLossMetric(**loss_kw))
+        self.metrics['val']['punct_class_report'].append(ClassificationReport(**punct_kw))
+        self.metrics['val']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def setup_test_data(self, test_data_config: Optional[Dict] = None):
         if self.metrics is None:
@@ -334,11 +333,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, train=False)
-        if self._test_dl is not None:
-            loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
-            self.metrics['test']['loss'].append(GlobalAverageLossMetric(**loss_kw))
-            self.metrics['test']['punct_class_report'].append(ClassificationReport(**punct_kw))
-            self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
+        loss_kw, punct_kw, capit_kw = self.get_eval_metrics_kwargs()
+        self.metrics['test']['loss'].append(GlobalAverageLossMetric(**loss_kw))
+        self.metrics['test']['punct_class_report'].append(ClassificationReport(**punct_kw))
+        self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def check_label_config_parameters(self):
         punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
