@@ -24,13 +24,14 @@ Usage example for building *-averaged.nemo files for all results in sub-director
 find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py
 """
 
+import glob
 import os
 import sys
-import torch
-import glob
 
-from nemo.utils import logging, model_utils
+import torch
+
 from nemo.core import ModelPT
+from nemo.utils import logging, model_utils
 
 
 def main():
@@ -41,7 +42,9 @@ def main():
     for model_fname_i, model_fname in enumerate(model_fname_list):
         if not model_fname.endswith(".nemo"):
             # assume model_fname is a folder which contains a .nemo file (filter .nemo files which matches with "*-averaged.nemo")
-            nemo_files = list(filter(lambda fn: not fn.endswith("-averaged.nemo"), glob.glob(os.path.join(model_fname, "*.nemo"))))
+            nemo_files = list(
+                filter(lambda fn: not fn.endswith("-averaged.nemo"), glob.glob(os.path.join(model_fname, "*.nemo")))
+            )
             if len(nemo_files) != 1:
                 raise RuntimeError(f"Expected only a single .nemo files but discovered {len(nemo_files)} .nemo files")
 
@@ -60,8 +63,9 @@ def main():
         logging.info(f"Loading model {model_fname}")
         nemo_model = imported_class.restore_from(restore_path=model_fname, map_location=device)  # type: ASRModel
 
-
-        checkpoint_paths = [os.path.join(model_folder_path, x) for x in os.listdir(model_folder_path) if x.endswith('.ckpt')]
+        checkpoint_paths = [
+            os.path.join(model_folder_path, x) for x in os.listdir(model_folder_path) if x.endswith('.ckpt')
+        ]
         """ < Checkpoint Averaging Logic > """
         # load state dicts
         n = len(checkpoint_paths)
@@ -100,7 +104,6 @@ def main():
         # Save model
         logging.info(f"Saving average mdel to: {avg_model_fname}")
         nemo_model.save_to(avg_model_fname)
-
 
 
 if __name__ == '__main__':

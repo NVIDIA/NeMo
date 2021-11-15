@@ -26,7 +26,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
-
 """
 Usage:
     a. If you need to run model on a few prompts from the file:
