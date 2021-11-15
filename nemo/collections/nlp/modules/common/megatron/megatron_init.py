@@ -27,7 +27,7 @@ from apex.transformer.parallel_state import (
 )
 
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_tensor_model_parallel_rank
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 
 
 def initialize_model_parallel_for_nemo(
@@ -151,28 +151,37 @@ def fake_initialize_model_parallel(
         for j in range(tensor_model_parallel_size):
             ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
             all_data_parallel_group_ranks.append(list(ranks))
-            # TODO: add logging here
             # group = torch.distributed.new_group(ranks)
-            # if rank in ranks:
-            #     _DATA_PARALLEL_GROUP = group
+            if rank in ranks:
+                # _DATA_PARALLEL_GROUP = group
+                logging.info(f'Rank {rank} has data parallel group: {[rank for rank in ranks]}')
+
+    logging.info(f'All data parallel group ranks: {all_data_parallel_group_ranks}')
 
     # Build the model-parallel groups.
+    all_model_parallel_group_ranks = []
     for i in range(data_parallel_size):
         ranks = [data_parallel_group_ranks[i] for data_parallel_group_ranks in all_data_parallel_group_ranks]
-        # TODO: add logging here
+        all_model_parallel_group_ranks.append(ranks)
         # group = torch.distributed.new_group(ranks)
-        # if rank in ranks:
-        #     _MODEL_PARALLEL_GROUP = group
+        if rank in ranks:
+            # _MODEL_PARALLEL_GROUP = group
+            logging.info(f'Rank {rank} has model parallel group: {[rank for rank in ranks]}')
+    logging.info(f'All model parallel group ranks: {all_model_parallel_group_ranks}')
 
     # Build the tensor model-parallel groups.
     # global _TENSOR_MODEL_PARALLEL_GROUP
     # assert _TENSOR_MODEL_PARALLEL_GROUP is None, "tensor model parallel group is already initialized"
+    all_tensor_model_parallel_group_ranks = []
     for i in range(num_tensor_model_parallel_groups):
         ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
-        # TODO: add logging here
+        all_tensor_model_parallel_group_ranks.append([rank for rank in ranks])
         # group = torch.distributed.new_group(ranks)
-        # if rank in ranks:
-        #     _TENSOR_MODEL_PARALLEL_GROUP = group
+        if rank in ranks:
+            # _TENSOR_MODEL_PARALLEL_GROUP = group
+            logging.info(f'Rank {rank} has tensor model parallel group: {[rank for rank in ranks]}')
+
+    logging.info(f'All tensor model parallel group ranks: {all_tensor_model_parallel_group_ranks}')
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
@@ -181,22 +190,30 @@ def fake_initialize_model_parallel(
     # assert _PIPELINE_MODEL_PARALLEL_GROUP is None, "pipeline model parallel group is already initialized"
     # global _EMBEDDING_GROUP
     # assert _EMBEDDING_GROUP is None, "embedding group is already initialized"
+    all_pipeline_model_parallel_group_ranks = []
+    all_embedding_group_ranks = []
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-        # TODO: add logging here
+        all_pipeline_model_parallel_group_ranks.append([rank for rank in ranks])
         # group = torch.distributed.new_group(ranks)
-        # if rank in ranks:
-        #     _PIPELINE_MODEL_PARALLEL_GROUP = group
-        #     _PIPELINE_GLOBAL_RANKS = ranks
+        if rank in ranks:
+            # _PIPELINE_MODEL_PARALLEL_GROUP = group
+            # _PIPELINE_GLOBAL_RANKS = ranks
+            logging.info(f'Rank {rank} has pipeline model parallel group: {[rank for rank in ranks]}')
+
         # Setup embedding group (to exchange gradients between
         # first and last stages).
         if len(ranks) > 1:
             embedding_ranks = [ranks[0], ranks[-1]]
         else:
             embedding_ranks = ranks
-        # TODO: add logging here
+        all_embedding_group_ranks.append([rank for frank in embedding_ranks])
         # group = torch.distributed.new_group(embedding_ranks)
-        # if rank in embedding_ranks:
-        #     _EMBEDDING_GROUP = group
+        if rank in embedding_ranks:
+            # _EMBEDDING_GROUP = group
+            logging.info(f'Rank {rank} has embedding group: {embedding_ranks}')
 
-        return tensor_model_parallel_rank, pipeline_model_parallel_rank
+    logging.info(f'All pipeline model parallel group ranks: {all_pipeline_model_parallel_group_ranks}')
+    logging.info(f'All embedding group ranks: {all_pipeline_model_parallel_group_ranks}')
+
+    return tensor_model_parallel_rank, pipeline_model_parallel_rank
