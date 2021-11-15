@@ -119,7 +119,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         att_context_size=None,
         xscaling=True,
         untie_biases=True,
-        pos_emb_max_len: int = 5000,
+        pos_emb_max_len=5000,
         conv_kernel_size=31,
         dropout=0.1,
         dropout_emb=0.1,
@@ -205,15 +205,21 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.out_proj = None
             self._feat_out = d_model
-        self.xmax = pos_emb_max_len
+        self.set_pos_emb_max_len(pos_emb_max_len)
+
+    def set_pos_emb_max_len(self, pos_emb_max_len):
+        """ Sets maximum input length.
+            Pre-calculates internal seq_range mask.
+        """
+        self.pos_emb_max_len = pos_emb_max_len
         device = next(self.parameters()).device
-        seq_range = torch.arange(0, self.xmax, device=device)
+        seq_range = torch.arange(0, self.pos_emb_max_len, device=device)
         self.register_buffer('seq_range', seq_range, persistent=False)
 
     @typecheck()
     def forward(self, audio_signal, length=None):
         audio_size: int = audio_signal.size(-1)
-        if audio_size > self.xmax:
+        if audio_size > self.pos_emb_max_len:
             logging.warning(
                 f"Audio Signal is too long : {audio_size}, please increase pos_emb_max_len (={pos_emb_max_len}) config parameter!"
             )
@@ -235,7 +241,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         # Create the self-attention and padding masks
         pad_mask = self.make_pad_mask(audio_size, length)
         att_mask = pad_mask.unsqueeze(1).repeat([1, audio_size, 1])
-        print(pad_mask.dtype)
         att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
         if self.att_context_size[0] >= 0:
             att_mask = att_mask.triu(diagonal=-self.att_context_size[0])

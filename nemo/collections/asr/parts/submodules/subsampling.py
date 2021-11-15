@@ -93,27 +93,39 @@ class ConvSubsampling(torch.nn.Module):
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
-        self.add_pad = torch.tensor((2 * self._padding) - self._kernel_size, dtype=torch.float)
         self.one = torch.tensor(1, dtype=torch.float)
         in_length = torch.tensor(feat_in, dtype=torch.float)
-        out_length = self.calc_length(in_length)
+        out_length = self.calc_length(
+            in_length,
+            padding=self._padding,
+            kernel_size=self._kernel_size,
+            stride=self._stride,
+            ceil_mode=self._ceil_mode,
+        )
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
     def forward(self, x, lengths):
         # TODO: improve the performance of length calculation
-        lengths = self.calc_length(lengths)
+        lengths = self.calc_length(
+            lengths,
+            padding=self._padding,
+            kernel_size=self._kernel_size,
+            stride=self._stride,
+            ceil_mode=self._ceil_mode,
+        )
         x = x.unsqueeze(1)
         x = self.conv(x)
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, -1))
         return x, lengths
 
-    def calc_length(self, lengths):
+    def calc_length(self, lengths, padding, kernel_size, stride, ceil_mode):
         """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
+        add_pad = (padding * 2) - kernel_size
         for i in range(self._sampling_num):
-            lengths = torch.div(lengths + self.add_pad, self._stride) + self.one
-            if self._ceil_mode:
+            lengths = torch.div(lengths + add_pad, stride) + self.one
+            if ceil_mode:
                 lengths = torch.ceil(lengths)
             else:
                 lengths = torch.floor(lengths)
