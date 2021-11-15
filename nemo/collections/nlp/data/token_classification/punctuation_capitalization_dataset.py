@@ -371,9 +371,9 @@ class TokenizeCreateMasksClipWorker:
             sent_lengths: a list of sequences lengths. A sequence length is a length is a length of corresponding
                 ``input_ids`` element
             punct_labels: a list of 1D int32 arrays. Encoded punctuation labels for every token in a query. Tokens in
-                one word have identical labels. If ``with_label`` is ``False``, then ``punct_labels`` is an empty list
+                one word have identical labels
             capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens in
-                one word have identical labels. If ``with_label`` is ``False``, then ``capit_labels`` is an empty list
+                one word have identical labels
         """
         all_input_ids, all_subtokens_mask, sent_lengths = [], [], []
         punct_all_labels, capit_all_labels = [], []
@@ -396,9 +396,8 @@ class TokenizeCreateMasksClipWorker:
                 subtokens_mask.append(1)
                 subtokens_mask.extend([0] * (len(word_ids) - 1))
 
-                if self.with_label:
-                    punct_labels.extend([punct_query_labels[j]] * len(word_ids))
-                    capit_labels.extend([capit_query_labels[j]] * len(word_ids))
+                punct_labels.extend([punct_query_labels[j]] * len(word_ids))
+                capit_labels.extend([capit_query_labels[j]] * len(word_ids))
 
             # add eos token
             input_ids.append(self.tokenizer.sep_id)
@@ -470,9 +469,9 @@ def tokenize_create_masks_clip_parallel(
         sent_lengths: a list of sequences lengths. A sequence length is a length is a length of corresponding
             ``input_ids`` element
         punct_labels: a list of 1D int32 arrays. Encoded punctuation labels for every token in a query. Tokens in one
-            word have identical labels. If ``with_label`` is ``False``, then ``punct_labels`` is an empty list
+            word have identical labels
         capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens in
-            one word have identical labels. If ``with_label`` is ``False``, then ``capit_labels`` is an empty list
+            one word have identical labels
     """
     create_progress_process = progress_queue is None
     if n_jobs is None:
