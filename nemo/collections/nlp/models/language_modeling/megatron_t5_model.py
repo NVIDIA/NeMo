@@ -26,10 +26,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
 from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -37,12 +33,8 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    get_ltor_masks_and_position_ids,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -375,7 +367,7 @@ class MegatronT5Model(NLPModel):
         ]
         history_mask = history_mask.expand(batch, length, length)
         return history_mask
-    
+
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
@@ -448,11 +440,9 @@ class MegatronT5Model(NLPModel):
         enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
         enc_mask = enc_mask < 0.5
 
-        predicted_tokens_dec = self.decode(
-            tokens_enc,
-            enc_mask,
-            16,
-        ).cpu().numpy()[0].tolist()
+        predicted_tokens_dec = (
+            self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']),).cpu().numpy()[0].tolist()
+        )
         if self.tokenizer.eos_id in predicted_tokens_dec:
             idx = predicted_tokens_dec.index(self.tokenizer.eos_id)
             predicted_tokens_dec = predicted_tokens_dec[:idx]
