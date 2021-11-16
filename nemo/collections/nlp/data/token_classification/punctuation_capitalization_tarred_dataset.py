@@ -178,8 +178,6 @@ def process_fragment(
         pad_label=pad_label,
         punct_label_ids=punct_label_ids,
         capit_label_ids=capit_label_ids,
-        punct_label_vocab_file=DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME,
-        capit_label_vocab_file=DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME,
         n_jobs=0,
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
@@ -225,6 +223,9 @@ def process_fragment(
         current_file_name.rename(new_file_name)
     else:
         current_file_name.unlink()
+    dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_IDS_NAME)
+    dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_IDS_NAME)
+    dataset.punct_label_ids_file.parent.unlink()
 
 
 def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
