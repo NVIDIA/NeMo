@@ -93,6 +93,7 @@ model:
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 17
     d_model: 512
+    is_causal: False
 
     # Sub-sampling params
     subsampling: striding # vggnet or striding

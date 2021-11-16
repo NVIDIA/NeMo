@@ -48,6 +48,7 @@ class ConformerLayer(torch.nn.Module):
         dropout_att=0.1,
         pos_bias_u=None,
         pos_bias_v=None,
+        is_casual=False
     ):
         super(ConformerLayer, self).__init__()
 
@@ -61,7 +62,7 @@ class ConformerLayer(torch.nn.Module):
 
         # convolution module
         self.norm_conv = LayerNorm(d_model)
-        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size)
+        self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size, is_casual=is_casual)
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
@@ -130,20 +131,25 @@ class ConformerConvolution(nn.Module):
         kernel_size (int): kernel size for depthwise convolution
     """
 
-    def __init__(self, d_model, kernel_size):
+    def __init__(self, d_model, kernel_size, is_casual=False):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
+        self.is_casual = is_casual
 
         self.pointwise_conv1 = nn.Conv1d(
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
+        if is_casual:
+            conv_padding = kernel_size - 1
+        else:
+            conv_padding = (kernel_size - 1) // 2
         self.depthwise_conv = nn.Conv1d(
             in_channels=d_model,
             out_channels=d_model,
             kernel_size=kernel_size,
             stride=1,
-            padding=(kernel_size - 1) // 2,
+            padding=conv_padding,
             groups=d_model,
             bias=True,
         )
@@ -163,6 +169,8 @@ class ConformerConvolution(nn.Module):
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
 
         x = self.depthwise_conv(x)
+        if self.is_casual:
+            x = x[:, :, :-self.depthwise_conv.padding[0]]
         x = self.batch_norm(x)
         x = self.activation(x)
         x = self.pointwise_conv2(x)

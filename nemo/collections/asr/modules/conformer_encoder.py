@@ -110,6 +110,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         n_layers,
         d_model,
         feat_out=-1,
+        is_causal=False,
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
@@ -151,6 +152,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 feat_out=d_model,
                 conv_channels=subsampling_conv_channels,
                 activation=nn.ReLU(),
+                is_causal=is_causal
             )
             self._feat_out = d_model
         else:
@@ -196,6 +198,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
+                is_causel=is_causel
             )
             self.layers.append(layer)
 
