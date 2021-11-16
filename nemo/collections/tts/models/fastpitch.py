@@ -413,7 +413,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
         disabled_inputs = set(["durs", "pitch", "pace", "spec", "attn_prior", "mel_lens", "input_lens"])
-        if self.speaker_emb is None:
+        if self.fastpitch.speaker_emb is None:
             disabled_inputs.add("speaker")
         return disabled_inputs
 
