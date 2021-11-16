@@ -16,10 +16,10 @@
 #                   --audio_folder=<source data>
 #                   --dest_folder=<where to store the results>
 import argparse
-import os
-import sys
 import json
+import os
 import subprocess
+import sys
 
 parser = argparse.ArgumentParser(description="Processing Aishell2 Data")
 parser.add_argument("--audio_folder", default=None, type=str, required=True, help="Audio (wav) data directory.")
