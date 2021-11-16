@@ -226,6 +226,7 @@ def process_fragment(
     if fragment_idx == 0:
         dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME)
         dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME)
+        print("removed directory:", dataset.punct_label_ids_file.parent)
         shutil.rmtree(dataset.punct_label_ids_file.parent)
 
 
