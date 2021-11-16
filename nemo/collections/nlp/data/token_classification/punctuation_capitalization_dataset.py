@@ -867,6 +867,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 n_jobs=n_jobs,
             )
             if use_cache:
+                features_pkl.parent.mkdir(parents=True, exist_ok=True)
                 pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
                 if self.verbose:
                     logging.info(f'Features saved to {features_pkl}')
@@ -1202,6 +1203,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         merged_labels = itertools.chain.from_iterable(all_labels)
         if self.verbose:
             logging.info('Three most popular labels')
+        data_dir.mkdir(parents=True, exist_ok=True)
         _, label_frequencies, _ = get_label_stats(merged_labels, str(data_dir / f'label_count_{name}.tsv'))
         return label_frequencies
 
