@@ -223,9 +223,10 @@ def process_fragment(
         current_file_name.rename(new_file_name)
     else:
         current_file_name.unlink()
-    dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_IDS_NAME)
-    dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_IDS_NAME)
-    dataset.punct_label_ids_file.parent.unlink()
+    if fragment_idx == 0:
+        dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_IDS_NAME)
+        dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_IDS_NAME)
+        dataset.punct_label_ids_file.parent.unlink()
 
 
 def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
