@@ -40,6 +40,9 @@ class ConvSubsampling(torch.nn.Module):
             raise ValueError("Sampling factor should be a multiply of 2!")
         self._sampling_num = int(math.log(subsampling_factor, 2))
 
+        #is_causal = False
+        self.is_causal = is_causal
+
         in_channels = 1
         layers = []
         if subsampling == 'vggnet':
@@ -76,10 +79,10 @@ class ConvSubsampling(torch.nn.Module):
             self._kernel_size = 3
             self._ceil_mode = False
 
-            if is_causal:
-                _padding = 2
+            if self.is_causal:
+                conv_padding = 2
             else:
-                _padding = 1
+                conv_padding = 1
 
             for i in range(self._sampling_num):
                 layers.append(
@@ -88,7 +91,7 @@ class ConvSubsampling(torch.nn.Module):
                         out_channels=conv_channels,
                         kernel_size=self._kernel_size,
                         stride=self._stride,
-                        padding=self._padding,
+                        padding=conv_padding,
                     )
                 )
                 layers.append(activation)
@@ -101,7 +104,7 @@ class ConvSubsampling(torch.nn.Module):
             # length=int(in_length),
             out_length = calc_length(
                 lengths=in_length,
-                padding=_padding,
+                padding=self._padding,
                 kernel_size=self._kernel_size,
                 stride=self._stride,
                 ceil_mode=self._ceil_mode,
@@ -115,6 +118,8 @@ class ConvSubsampling(torch.nn.Module):
     def forward(self, x, lengths):
         x = x.unsqueeze(1)
         x = self.conv(x)
+        if self.is_causal:
+            x = x[:, :, :-2]
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
