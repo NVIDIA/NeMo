@@ -29,6 +29,7 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
+    LABEL_ID_FILES_FOR_NEMO_CHECKPOINT,
     load_label_ids,
     raise_not_equal_labels_error,
 )
@@ -447,6 +448,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 world_size=self.world_size,
                 global_rank=self.global_rank,
                 shuffle_n=cfg.tar_shuffle_n,
+                for_nemo_checkpoint_dir=Path(cfg.work_dir) / LABEL_ID_FILES_FOR_NEMO_CHECKPOINT,
             )
             dataset.check_for_label_consistency_with_model_config(
                 self.punct_label_ids,
@@ -485,6 +487,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 n_jobs=cfg.n_jobs,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,
+                save_label_ids=train,
+                cache_dir=cfg.cache_dir,
+                label_info_save_dir=cfg.work_dir,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")

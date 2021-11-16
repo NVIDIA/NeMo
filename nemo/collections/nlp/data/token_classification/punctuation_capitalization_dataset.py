@@ -16,6 +16,7 @@ __all__ = [
     'BertPunctuationCapitalizationDataset',
     'DEFAULT_CAPIT_LABEL_IDS_NAME',
     'DEFAULT_PUNCT_LABEL_IDS_NAME',
+    'LABEL_ID_FILES_FOR_NEMO_CHECKPOINT',
     'Progress',
     'PunctuationCapitalizationEvalDataConfig',
     'PunctuationCapitalizationTrainDataConfig',
@@ -57,6 +58,7 @@ TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
 BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
 BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
 
+LABEL_ID_FILES_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
 DEFAULT_PUNCT_LABEL_IDS_NAME = 'punct_label_ids.csv'
 DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
@@ -71,6 +73,10 @@ class PunctuationCapitalizationDataConfigBase:
     #################################################
     # Whether to use tarred dataset. If True you should provide tar_metadata_file, otherwise text_file and labels_file
     use_tarred_dataset: bool = False
+    # A path to a directory where files create during dataset processing are stored. These include label id files,
+    # label stats. By default, the directory containing `text_file` or `tar_metadata_file`.
+    # You may need this parameter if dataset is read only and does not allow saving anything near dataset files.
+    label_info_save_dir: Optional[str] = None
 
     #################################################
     # USUAL DATASET PARAMETERS
@@ -81,6 +87,11 @@ class PunctuationCapitalizationDataConfigBase:
     max_seq_length: Optional[int] = DEFAULT_MAX_SEQ_LENGTH
     num_samples: int = -1
     use_cache: Optional[bool] = True
+    # A path to directory containing cache or directory where newly created cache is saved. By default, it is
+    # directory containing `text_file`. You may need this parameter if cache is going to be created and dataset
+    # directory is read only. `cache_dir` and `label_info_save_dir` are made separate parameters for the case when
+    # cache is ready and is stored in read only directory.
+    cache_dir: Optional[str] = None
     get_label_frequences: bool = False
     verbose: bool = True
     # If 0, then multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
@@ -752,7 +763,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         use_cache: bool = True,
+        cache_dir: Optional[str, os.PathLike] = None,
         get_label_frequencies: bool = False,
+        label_info_save_dir: Optional[Union[str, os.PathLike]] = None,
         punct_label_vocab_file: Union[str, os.PathLike] = None,
         capit_label_vocab_file: Union[str, os.PathLike] = None,
         add_masks_and_segment_ids_to_batch: bool = True,
@@ -780,8 +793,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
             capit_label_vocab_file = Path(capit_label_vocab_file).expanduser()
             capit_label_ids = load_label_ids(capit_label_vocab_file)
         # Cache features
-        text_file, labels_file = Path(text_file), Path(labels_file)
-        data_dir = text_file.parent
+        text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
+        if label_info_save_dir is None:
+            label_info_save_dir = text_file.parent
+        else:
+            label_info_save_dir = Path(label_info_save_dir).expanduser()
+        if cache_dir is None:
+            cache_dir = text_file.parent
+        else:
+            cache_dir = Path(cache_dir).expanduser()
         filename = text_file.name
 
         if not filename.endswith('.txt'):
@@ -798,12 +818,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_building_progress_queue = batch_building_progress_queue
         filename = filename[:-4]
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        features_pkl = data_dir / "cached_{}_{}_{}_{}_{}".format(
+        features_pkl = cache_dir / "cached_punctuation_capitalization_{}_{}_{}_{}_{}.pkl".format(
             filename, self.tokenizer.name, str(max_seq_length), str(vocab_size), str(num_samples)
         )
-        for_nemo = "label_id_files_for_nemo_checkpoint"
-        self.punct_label_ids_file = data_dir / for_nemo / DEFAULT_PUNCT_LABEL_IDS_NAME
-        self.capit_label_ids_file = data_dir / for_nemo / DEFAULT_CAPIT_LABEL_IDS_NAME
+        self.punct_label_ids_file = (
+            label_info_save_dir / LABEL_ID_FILES_FOR_NEMO_CHECKPOINT / DEFAULT_PUNCT_LABEL_IDS_NAME
+        )
+        self.capit_label_ids_file = (
+            label_info_save_dir / LABEL_ID_FILES_FOR_NEMO_CHECKPOINT / DEFAULT_CAPIT_LABEL_IDS_NAME
+        )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         cache_files_exist = all(
@@ -868,8 +891,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         )
 
         if get_label_frequencies:
-            self.punct_label_frequencies = self._calculate_label_frequencies(self.punct_labels, data_dir, 'punct')
-            self.capit_label_frequencies = self._calculate_label_frequencies(self.capit_labels, data_dir, 'capit')
+            self.punct_label_frequencies = self._calculate_label_frequencies(
+                self.punct_labels, label_info_save_dir, 'punct'
+            )
+            self.capit_label_frequencies = self._calculate_label_frequencies(
+                self.capit_labels, label_info_save_dir, 'capit'
+            )
 
     @staticmethod
     def check_constructor_parameters(

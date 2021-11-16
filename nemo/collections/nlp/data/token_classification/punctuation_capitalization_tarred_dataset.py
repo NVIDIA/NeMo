@@ -807,6 +807,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             getting ids of [CLS], [PAD], and [SEP] tokens which are used for masks creation.
         pad_label: a label that is used for padding and for absence of both punctuation and capitalization. Used for
             checking items ``'punct_label_vocab'`` and ``'capit_label_vocab'`` of dictionary in ``metadata_file``.
+        for_nemo_checkpoint_dir:
         punct_label_ids_file: a name of punctuation label ids file which then will be used in .nemo checkpoints.
             The file with name ``punct_label_ids_file`` is just a copy of a file referenced in item
             ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` in ``metadata_file``.
@@ -843,6 +844,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         metadata_file: Union[os.PathLike, str],
         tokenizer: TokenizerSpec,
         pad_label: str,
+        for_nemo_checkpoint_dir: Optional[Union[os.PathLike, str]],
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         world_size: int = 1,
