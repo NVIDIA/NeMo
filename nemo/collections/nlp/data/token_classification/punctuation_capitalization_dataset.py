@@ -16,7 +16,7 @@ __all__ = [
     'BertPunctuationCapitalizationDataset',
     'DEFAULT_CAPIT_LABEL_IDS_NAME',
     'DEFAULT_PUNCT_LABEL_IDS_NAME',
-    'LABEL_ID_FILES_FOR_NEMO_CHECKPOINT',
+    'LABEL_ID_DIR_FOR_NEMO_CHECKPOINT',
     'Progress',
     'PunctuationCapitalizationEvalDataConfig',
     'PunctuationCapitalizationTrainDataConfig',
@@ -58,7 +58,7 @@ TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
 BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
 BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
 
-LABEL_ID_FILES_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
+LABEL_ID_DIR_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
 DEFAULT_PUNCT_LABEL_IDS_NAME = 'punct_label_ids.csv'
 DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
@@ -763,7 +763,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         use_cache: bool = True,
-        cache_dir: Optional[str, os.PathLike] = None,
+        cache_dir: Optional[Union[str, os.PathLike]] = None,
         get_label_frequencies: bool = False,
         label_info_save_dir: Optional[Union[str, os.PathLike]] = None,
         punct_label_vocab_file: Union[str, os.PathLike] = None,
@@ -822,10 +822,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
             filename, self.tokenizer.name, str(max_seq_length), str(vocab_size), str(num_samples)
         )
         self.punct_label_ids_file = (
-            label_info_save_dir / LABEL_ID_FILES_FOR_NEMO_CHECKPOINT / DEFAULT_PUNCT_LABEL_IDS_NAME
+            label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT / DEFAULT_PUNCT_LABEL_IDS_NAME
         )
         self.capit_label_ids_file = (
-            label_info_save_dir / LABEL_ID_FILES_FOR_NEMO_CHECKPOINT / DEFAULT_CAPIT_LABEL_IDS_NAME
+            label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT / DEFAULT_CAPIT_LABEL_IDS_NAME
         )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0

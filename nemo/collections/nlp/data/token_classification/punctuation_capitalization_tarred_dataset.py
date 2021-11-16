@@ -33,6 +33,7 @@ from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     DEFAULT_CAPIT_LABEL_IDS_NAME,
     DEFAULT_PUNCT_LABEL_IDS_NAME,
+    LABEL_ID_DIR_FOR_NEMO_CHECKPOINT,
     BertPunctuationCapitalizationDataset,
     Progress,
     create_label_ids,
@@ -844,7 +845,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         metadata_file: Union[os.PathLike, str],
         tokenizer: TokenizerSpec,
         pad_label: str,
-        for_nemo_checkpoint_dir: Optional[Union[os.PathLike, str]],
+        label_info_save_dir: Optional[Union[os.PathLike, str]] = None,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         world_size: int = 1,
@@ -854,6 +855,10 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         super().__init__()
         self.tokenizer = tokenizer
         self.metadata_file = Path(metadata_file).expanduser()
+        if label_info_save_dir is None:
+            for_nemo_ckpt = self.metadata_file.parent / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+        else:
+            for_nemo_ckpt = Path(label_info_save_dir).expanduser() / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
         with open(self.metadata_file) as f:
             self.metadata = json.load(f)
         self.ignore_extra_tokens = ignore_extra_tokens
@@ -865,16 +870,15 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 self.tar_files.append(str(file_path))
             else:
                 self.tar_files.append(str(self.metadata_file.parent / file_path))
-        for_nemo = "label_id_files_for_nemo_checkpoint"
-        self.punct_label_ids_file = self.metadata_file.parent / for_nemo / DEFAULT_PUNCT_LABEL_IDS_NAME
         punct_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
         capit_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
         self.punct_label_ids = load_label_ids(punct_label_vocab_file)
-        self.capit_label_ids_file = self.metadata_file.parent / for_nemo / DEFAULT_CAPIT_LABEL_IDS_NAME
         self.capit_label_ids = load_label_ids(capit_label_vocab_file)
         self.pad_label = pad_label
         self.check_pad_label()
         self.punct_label_ids_file.parent.mkdir(parents=True, exist_ok=True)
+        self.punct_label_ids_file = for_nemo_ckpt / DEFAULT_PUNCT_LABEL_IDS_NAME
+        self.capit_label_ids_file = for_nemo_ckpt / DEFAULT_CAPIT_LABEL_IDS_NAME
         shutil.copy(str(punct_label_vocab_file), str(self.punct_label_ids_file))
         shutil.copy(str(capit_label_vocab_file), str(self.capit_label_ids_file))
         begin_idx = (len(self.tar_files) // world_size) * global_rank
