@@ -38,13 +38,6 @@ from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLo
 import nemo.collections.tts.modules.vits_modules as modules
 from nemo.collections.tts.modules.vits_modules import init_weights, get_padding, SynthesizerTrn, MultiPeriodDiscriminator
 
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
-
 @dataclass
 class VitsConfig:
     parser: Dict[Any, Any] = MISSING
@@ -165,7 +158,7 @@ class VitsModel(TextToWaveform):
             y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
             y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.model.hop_size
 
-        return y_hat[0, :, :y_hat_lengths[0]]
+        return y_hat, y_lengths
 
     def training_step(self, batch, batch_idx):
         (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
@@ -239,7 +232,6 @@ class VitsModel(TextToWaveform):
             "loss_disc_all": loss_disc_all,
         }
         self.log_dict(metrics, on_step=True, sync_dist=True)
-        self.log("scaled loss_mel", loss_mel, prog_bar=True, logger=False, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
@@ -251,41 +243,111 @@ class VitsModel(TextToWaveform):
         mel, mel_lengths = self.audio_to_melspec_precessor(x, x_lengths)
         y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y, y_lengths)
 
-        loss_mel = F.l1_loss(mel, y_hat_mel)
+        # plot audio once per epoch
+        if batch_idx == 0 and self.logger is not None and self.logger.experiment is not None:
+            self.logger.experiment.add_audio(
+                "val_wav_target",
+                y[0, : y_lengths[0]].data.cpu().numpy(),
+                self.global_step,
+                sample_rate=self.sample_rate,
+            )
 
-        self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
+            self.logger.experiment.add_audio(
+                "val_wav_predicted",
+                y_hat[0, : y_hat_lengths[0]].data.cpu().numpy(),
+                self.global_step,
+                sample_rate=self.sample_rate,
+            )
+
+            self.logger.experiment.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+            self.logger.experiment.add_image(
+                "val_mel_predicted",
+                plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+
+    def validation_step_alt(self, batch, batch_idx):
+
+        (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
         # plot audio once per epoch
-        if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
-            clips = []
-            specs = []
+        if batch_idx == 0 and self.logger is not None and self.logger.experiment is not None:
 
-            for i in range(min(5, y.shape[0])):
-                clips += [
-                    wandb.Audio(
-                        y[i, : y_lengths[i]].data.cpu().numpy(),
-                        caption=f"real audio {i}",
-                        sample_rate=self.hps.data.sampling_rate,
-                    ),
-                    wandb.Audio(
-                        y_hat[i, : y_hat_lengths[i]].data.cpu().numpy().astype('float32'),
-                        caption=f"generated audio {i}",
-                        sample_rate=self.hps.data.sampling_rate,
-                    ),
-                ]
+            y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
+            y_hat_lengths = mask.sum([1, 2]).long() * self.hps.data.hop_length
 
-                specs += [
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(y_hat_mel[i, :, : y_hat_mel_lengths[i]].data.cpu().numpy()),
-                        caption=f"output mel {i}",
-                    ),
-                    wandb.Image(
-                        plot_spectrogram_to_numpy(mel[i, :, : mel_lengths[i]].cpu().numpy()),
-                        caption=f"gt mel {i}",
-                    ),
-                ]
+            # Note to modify the functions / use the ones in NeMo, we need the lengths
+            mel, mel_lengths = self.audio_to_melspec_precessor(x, x_lengths)
+            y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y, y_lengths)
 
-            self.logger.experiment.log({"audio": clips, "specs": specs})
+            self.logger.experiment.add_audio(
+                "val_wav_target",
+                y[0, : y_lengths[0]].data.cpu().numpy(),
+                self.global_step,
+                sample_rate=self.sample_rate,
+            )
+
+            self.logger.experiment.add_audio(
+                "val_wav_predicted",
+                y_hat[0, : y_hat_lengths[0]].data.cpu().numpy(),
+                self.global_step,
+                sample_rate=self.sample_rate,
+            )
+
+            self.logger.experiment.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+            self.logger.experiment.add_image(
+                "val_mel_predicted",
+                plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+        y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
+        (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
+        mel = modules.spec_to_mel_torch(
+            spec,
+            self._cfg.model.train_ds.filter_length,
+            self._cfg.model.n_mel_channels,
+            self._cfg.model.sample_rate,
+            self._cfg.model.mel_fmin,
+            self._cfg.model.mel_fmax
+        )
+        mel = modules.spec_to_mel_torch(
+            spec,
+            self._cfg.model.train_ds.filter_length,
+            self._cfg.model.n_mel_channels,
+            self._cfg.model.sample_rate,
+            self._cfg.model.mel_fmin,
+            self._cfg.model.mel_fmax
+        )
+        y_mel = modules.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
+        y_hat_mel = modules.mel_spectrogram_torch(
+            y_hat.squeeze(1),
+            self._cfg.model.train_ds.filter_length,
+            self._cfg.model.n_mel_channels,
+            self._cfg.model.sample_rate,
+            self._cfg.model.hop_size,
+            self._cfg.model.preprocessing.n_window_size,
+            self._cfg.model.mel_fmin,
+            self._cfg.model.mel_fmax
+        )
+
+        loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.model.c_mel
+        self.log_dict({"val_loss * c_mel": loss_mel}, on_epoch=True, sync_dist=True)
 
     @staticmethod
     def _loader(cfg):
