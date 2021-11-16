@@ -198,7 +198,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
-                is_causel=is_causel
+                is_causal=is_causal
             )
             self.layers.append(layer)
 
