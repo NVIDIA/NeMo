@@ -224,8 +224,8 @@ def process_fragment(
     else:
         current_file_name.unlink()
     if fragment_idx == 0:
-        dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_IDS_NAME)
-        dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_IDS_NAME)
+        dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME)
+        dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME)
         shutil.rmtree(dataset.punct_label_ids_file.parent)
 
 
