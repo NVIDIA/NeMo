@@ -40,30 +40,85 @@ model:
   mel_fmax: null
 
   train_ds:
-    manifest_filepath: ${train_dataset}
-    max_duration: null
-    min_duration: 0.1
-    sample_rate: ${model.sample_rate}
-    trim: false
-    parser: null
-    drop_last: true
-    shuffle: true
-    batch_size: 64
-    num_workers: 12
-    max_wav_value: 32768.0
-    filter_length: 1024
+    dataset:
+      _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
+      manifest_filepath: ${train_dataset}
+      sample_rate: ${sample_rate}
+      sup_data_path: ${sup_data_path}
+      sup_data_types: ${sup_data_types}
+      n_fft: ${n_fft}
+      win_length: ${n_window_size}
+      hop_length: ${n_window_stride}
+      window: ${window}
+      n_mels: ${n_mels}
+      lowfreq: ${lowfreq}
+      highfreq: ${highfreq}
+      max_duration: null
+      min_duration: 0.1
+      ignore_file: null
+      trim: False
+      pitch_fmin: ${pitch_fmin}
+      pitch_fmax: ${pitch_fmax}
+
+      text_tokenizer:
+        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        punct: True
+        stresses: True
+        chars: True
+        space: ' '
+        silence: null
+        apostrophe: True
+        sep: '|'
+        add_blank_at: null
+        pad_with_space: True
+        g2p:
+          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+          phoneme_dict: ${phoneme_dict_path}
+          heteronyms: ${heteronyms_path}
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 64
+      num_workers: 4
+      pin_memory: false
 
   validation_ds:
-    manifest_filepath: ${validation_datasets}
-    sample_rate: ${model.sample_rate}
-    trim: false
-    parser: null
-    drop_last: false
-    shuffle: false
-    batch_size: 64
-    num_workers: 8
-    max_wav_value: 32768.0
-    filter_length: 1024
+    dataset:
+      _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
+      manifest_filepath: ${validation_datasets}
+      sample_rate: ${sample_rate}
+      sup_data_path: ${sup_data_path}
+      sup_data_types: ${sup_data_types}
+      n_fft: ${n_fft}
+      win_length: ${n_window_size}
+      hop_length: ${n_window_stride}
+      window: ${window}
+      n_mels: ${n_mels}
+      lowfreq: ${lowfreq}
+      highfreq: ${highfreq}
+      max_duration: null
+      min_duration: 0.1
+      ignore_file: null
+      trim: False
+      pitch_fmin: ${pitch_fmin}
+      pitch_fmax: ${pitch_fmax}
+
+      text_tokenizer:
+        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        punct: True
+        stresses: True
+        chars: True
+        space: ' '
+        silence: null
+        apostrophe: True
+        sep: '|'
+        add_blank_at: null
+        pad_with_space: True
+        g2p:
+          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+          phoneme_dict: ${phoneme_dict_path}
+          heteronyms: ${heteronyms_path}
+
 
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures

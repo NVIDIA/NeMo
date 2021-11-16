@@ -63,6 +63,7 @@ class VitsConfig:
 
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
 
@@ -75,7 +76,7 @@ class VitsModel(TextToWaveform):
             abbreviation_version="fastpitch",
             make_table=False,
         )
-
+        
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(VitsConfig)
@@ -384,7 +385,8 @@ class VitsModel(TextToWaveform):
     @staticmethod
     def _loader(cfg):
         try:
-            _ = cfg.dataset.manifest_filepath
+            # _ = cfg.model.train_ds.manifest_filepath
+            _ = cfg['manifest_filepath']
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
@@ -393,6 +395,7 @@ class VitsModel(TextToWaveform):
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
+        
 
     def setup_training_data(self, cfg):
         self._train_dl = self._loader(cfg)
