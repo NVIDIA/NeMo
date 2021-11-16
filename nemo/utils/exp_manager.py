@@ -37,7 +37,7 @@ from pytorch_lightning.trainer.states import RunningStage
 from pytorch_lightning.utilities.distributed import rank_zero_info
 from pytorch_lightning.utilities.types import _METRIC
 
-from nemo.constants import NEMO_ENV_VARNAME_VERSION, NEMO_ENV_VARNAME_TESTING
+from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.env_var_parsing import get_envbool
