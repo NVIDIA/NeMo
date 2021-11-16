@@ -818,8 +818,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_building_progress_queue = batch_building_progress_queue
         filename = filename[:-4]
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        features_pkl = cache_dir / "cached_punctuation_capitalization_{}_{}_{}_{}_{}.pkl".format(
-            filename, self.tokenizer.name, str(max_seq_length), str(vocab_size), str(num_samples)
+        features_pkl = cache_dir / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
+            filename,
+            self.tokenizer.name,
+            str(max_seq_length),
+            str(vocab_size),
+            f'num_samples{num_samples}' if num_samples > 0 else 'all_samples',
         )
         self.punct_label_ids_file = (
             label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT / DEFAULT_PUNCT_LABEL_IDS_NAME
