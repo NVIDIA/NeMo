@@ -269,8 +269,8 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
     if metadata_file_name.exists():
         logging.warning(f"Found metadata file {metadata_file_name}. It is going to be removed.")
         metadata_file_name.unlink()
-    punct_label_ids = output_dir / DEFAULT_PUNCT_LABEL_IDS_NAME
-    capit_label_ids = output_dir / DEFAULT_CAPIT_LABEL_IDS_NAME
+    punct_label_ids = output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME
+    capit_label_ids = output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
     if punct_label_ids.exists():
         logging.warning(f"Found unexpected punctuation label file {punct_label_ids}. It is going to be removed.")
         punct_label_ids.unlink()
