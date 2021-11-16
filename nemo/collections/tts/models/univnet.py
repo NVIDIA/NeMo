@@ -27,11 +27,12 @@ from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
 from nemo.core.classes import Exportable
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 HAVE_WANDB = True
 try:
@@ -39,7 +40,7 @@ try:
 except ModuleNotFoundError:
     HAVE_WANDB = False
 
-
+@experimental
 class UnivNetModel(Vocoder, Exportable):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -319,43 +320,6 @@ class UnivNetModel(Vocoder, Exportable):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
-    @classmethod
-    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        list_of_models = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="tts_univnet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_univnet/versions/1.0.0rc1/files/tts_univnet.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English voices with an American accent.",
-            class_=cls,
-        )
-        list_of_models.append(model)
-        return list_of_models
-
-    # def load_state_dict(self, state_dict, strict=True):
-    #     # override load_state_dict to give us some flexibility to be backward-compatible
-    #     # with old checkpoints
-    #     new_state_dict = {}
-    #     num_resblocks = len(self.cfg['generator']['resblock_kernel_sizes'])
-    #     for k, v in state_dict.items():
-    #         new_k = k
-    #         if 'resblocks' in k:
-    #             parts = k.split(".")
-    #             # only do this is the checkpoint type is older
-    #             if len(parts) == 6:
-    #                 layer = int(parts[2])
-    #                 new_layer = f"{layer // num_resblocks}.{layer % num_resblocks}"
-    #                 new_k = f"generator.resblocks.{new_layer}.{'.'.join(parts[3:])}"
-    #         new_state_dict[new_k] = v
-    #     super().load_state_dict(new_state_dict, strict=strict)
-
-    def _prepare_for_export(self, **kwargs):
-        """
-        Override this method to prepare module for export. This is in-place operation.
-        Base version does common necessary module replacements (Apex etc)
-        """
-        if self.generator is not None:
-            self.generator.remove_weight_norm()
-
     def input_example(self):
         """
         Generates input examples for tracing etc.
@@ -365,9 +329,3 @@ class UnivNetModel(Vocoder, Exportable):
         par = next(self.parameters())
         mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
         return ({'spec': mel},)
-
-    def forward_for_export(self, spec):
-        """
-        Runs the generator, for inputs and outputs see input_types, and output_types
-        """
-        return self.generator(x=spec)
