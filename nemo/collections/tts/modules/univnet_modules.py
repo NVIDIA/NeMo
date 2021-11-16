@@ -27,6 +27,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils.decorators import experimental
 
 
 class KernelPredictor(torch.nn.Module):
@@ -118,12 +119,12 @@ class KernelPredictor(torch.nn.Module):
         return kernels, bias
 
     def remove_weight_norm(self):
-        nn.utils.remove_weight_norm(self.input_conv[0])
-        nn.utils.remove_weight_norm(self.kernel_conv)
-        nn.utils.remove_weight_norm(self.bias_conv)
+        remove_weight_norm(self.input_conv[0])
+        remove_weight_norm(self.kernel_conv)
+        remove_weight_norm(self.bias_conv)
         for block in self.residual_convs:
-            nn.utils.remove_weight_norm(block[1])
-            nn.utils.remove_weight_norm(block[3])
+            remove_weight_norm(block[1])
+            remove_weight_norm(block[3])
 
 
 class LVCBlock(torch.nn.Module):
@@ -205,8 +206,7 @@ class LVCBlock(torch.nn.Module):
         return x
 
     def location_variable_convolution(self, x, kernel, bias, dilation=1, hop_size=256):
-        ''' perform location-variable convolution operation on the input sequence (x) using the local convolution kernl.
-        Time: 414 μs ± 309 ns per loop (mean ± std. dev. of 7 runs, 1000 loops each), test on NVIDIA V100.
+        ''' perform location-variable convolution operation on the input sequence (x) using the local convolution kernel
         Args:
             x (Tensor): the input sequence (batch, in_channels, in_length).
             kernel (Tensor): the local convolution kernel (batch, in_channel, out_channels, kernel_size, kernel_length)
@@ -242,9 +242,9 @@ class LVCBlock(torch.nn.Module):
 
     def remove_weight_norm(self):
         self.kernel_predictor.remove_weight_norm()
-        nn.utils.remove_weight_norm(self.convt_pre[1])
+        remove_weight_norm(self.convt_pre[1])
         for block in self.conv_blocks:
-            nn.utils.remove_weight_norm(block[1])
+            remove_weight_norm(block[1])
 
 
 class Generator(NeuralModule):
@@ -288,7 +288,9 @@ class Generator(NeuralModule):
                 )
             )
 
-        assert hop_length_lvc == self.hop_length, "multiplied value of strides {} should match n_window_stride {}".format(self.strides, self.hop_length)
+        assert hop_length_lvc == self.hop_length,\
+            "multiplied value of strides {} should match n_window_stride {}".\
+                format(self.strides, self.hop_length)
 
         self.conv_pre = \
             nn.utils.weight_norm(nn.Conv1d(self.noise_dim, self.channel_size, 7, padding=3, padding_mode='reflect'))
@@ -326,10 +328,10 @@ class Generator(NeuralModule):
 
     def remove_weight_norm(self):
         print('Removing weight norm...')
-        nn.utils.remove_weight_norm(self.conv_pre)
+        remove_weight_norm(self.conv_pre)
         for layer in self.conv_post:
             if len(layer.state_dict()) != 0:
-                nn.utils.remove_weight_norm(layer)
+                remove_weight_norm(layer)
         for res_block in self.res_stack:
             res_block.remove_weight_norm()
 
@@ -393,7 +395,8 @@ class MultiPeriodDiscriminator(NeuralModule):
         super().__init__()
         self.lrelu_slope = cfg.lrelu_slope
         self.periods = cfg.periods
-        assert len(self.periods) == 5, "MPD requires list of len=5, got {}".format(cfg.periods)
+        assert len(self.periods) == 5,\
+            "MPD requires list of len=5, got {}".format(cfg.periods)
         self.kernel_size = cfg.kernel_size
         self.stride = cfg.stride
         self.use_spectral_norm = cfg.use_spectral_norm
@@ -409,7 +412,7 @@ class MultiPeriodDiscriminator(NeuralModule):
         )
 
     @property
-    def output_types(self):
+    def input_types(self):
         return {
             "y": NeuralType(('B', 'S', 'T'), AudioSignal()),
             "y_hat": NeuralType(('B', 'S', 'T'), AudioSignal()),
@@ -441,13 +444,14 @@ class MultiPeriodDiscriminator(NeuralModule):
         return y_d_rs, y_d_gs, fmap_rs, fmap_gs
 
 
-
-class DiscriminatorR(torch.nn.Module):
+@experimental
+class DiscriminatorR(NeuralModule):
     def __init__(self, cfg, resolution):
-        super(DiscriminatorR, self).__init__()
+        super().__init__()
 
         self.resolution = resolution
-        assert len(self.resolution) == 3 , "MRD layer requires list with len=3, got {}".format(self.resolution)
+        assert len(self.resolution) == 3 ,\
+            "MRD layer requires list with len=3, got {}".format(self.resolution)
         self.lrelu_slope = cfg.lrelu_slope
 
         norm_f = weight_norm if cfg.use_spectral_norm == False else spectral_norm
@@ -499,11 +503,14 @@ class DiscriminatorR(torch.nn.Module):
         return mag
 
 
-class MultiResolutionDiscriminator(torch.nn.Module):
+@experimental
+class MultiResolutionDiscriminator(NeuralModule):
     def __init__(self, cfg, debug=False):
-        super(MultiResolutionDiscriminator, self).__init__()
+        super().__init__()
         self.resolutions = cfg.resolutions
-        assert len(self.resolutions) == 3, "MRD requires list of list with len=3, each element having a list with len=3. got {}".format(self.resolutions)
+        assert len(self.resolutions) == 3,\
+            "MRD requires list of list with len=3, each element having a list with len=3. got {}".\
+                format(self.resolutions)
         self.discriminators = nn.ModuleList(
             [DiscriminatorR(cfg, resolution) for resolution in self.resolutions]
         )
