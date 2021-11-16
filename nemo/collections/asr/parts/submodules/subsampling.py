@@ -111,7 +111,7 @@ class ConvSubsampling(torch.nn.Module):
             )
             in_length = out_length
 
-        out_length = int(out_length)
+        out_length = int(out_length) - 2
         self.out = torch.nn.Linear(conv_channels * out_length, feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
@@ -119,7 +119,7 @@ class ConvSubsampling(torch.nn.Module):
         x = x.unsqueeze(1)
         x = self.conv(x)
         if self.is_causal:
-            x = x[:, :, :-1, :-1]
+            x = x[:, :, :-1, :-2]
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
@@ -136,6 +136,7 @@ class ConvSubsampling(torch.nn.Module):
 
         if self.is_causal:
             new_lengths -= 1
+        assert new_lengths == x.size()[1]
         new_lengths = new_lengths.to(dtype=lengths.dtype)
         return x, new_lengths
 
