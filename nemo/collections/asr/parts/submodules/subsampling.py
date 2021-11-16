@@ -119,7 +119,7 @@ class ConvSubsampling(torch.nn.Module):
         x = x.unsqueeze(1)
         x = self.conv(x)
         if self.is_causal:
-            x = x[:, :, :-2]
+            x = x[:, :, :-1]
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
