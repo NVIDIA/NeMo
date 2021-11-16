@@ -43,10 +43,10 @@ class ConvSubsampling(torch.nn.Module):
         in_channels = 1
         layers = []
         if subsampling == 'vggnet':
-            _padding = 0
-            _stride = 2
-            _kernel_size = 2
-            _ceil_mode = True
+            self._padding = 0
+            self._stride = 2
+            self._kernel_size = 2
+            self._ceil_mode = True
 
             for i in range(self._sampling_num):
                 layers.append(
@@ -63,18 +63,18 @@ class ConvSubsampling(torch.nn.Module):
                 layers.append(activation)
                 layers.append(
                     torch.nn.MaxPool2d(
-                        kernel_size=_kernel_size,
-                        stride=_stride,
-                        padding=_padding,
-                        ceil_mode=_ceil_mode,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=self._padding,
+                        ceil_mode=self._ceil_mode,
                     )
                 )
                 in_channels = conv_channels
         elif subsampling == 'striding':
-            _padding = 1
-            _stride = 2
-            _kernel_size = 3
-            _ceil_mode = False
+            self._padding = 1
+            self._stride = 2
+            self._kernel_size = 3
+            self._ceil_mode = False
 
             if is_causal:
                 _padding = 2
@@ -86,9 +86,9 @@ class ConvSubsampling(torch.nn.Module):
                     torch.nn.Conv2d(
                         in_channels=in_channels,
                         out_channels=conv_channels,
-                        kernel_size=_kernel_size,
-                        stride=_stride,
-                        padding=_padding,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=self._padding,
                     )
                 )
                 layers.append(activation)
@@ -102,9 +102,9 @@ class ConvSubsampling(torch.nn.Module):
             out_length = calc_length(
                 lengths=in_length,
                 padding=_padding,
-                kernel_size=_kernel_size,
-                stride=_stride,
-                ceil_mode=_ceil_mode,
+                kernel_size=self._kernel_size,
+                stride=self._stride,
+                ceil_mode=self._ceil_mode,
             )
             in_length = out_length
 
