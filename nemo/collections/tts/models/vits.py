@@ -40,6 +40,7 @@ from nemo.collections.tts.modules.vits_modules import init_weights, get_padding,
 <<<<<<< HEAD
 =======
 
+<<<<<<< HEAD
 
 HAVE_WANDB = True
 try:
@@ -48,6 +49,8 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 >>>>>>> 8ddb3dfb5... Fix all imports
 
+=======
+>>>>>>> e8f520f47... Modified validation step
 @dataclass
 class VitsConfig:
     parser: Dict[Any, Any] = MISSING
@@ -268,6 +271,7 @@ class VitsModel(TextToWaveform):
                 self.global_step,
                 sample_rate=self.sample_rate,
             )
+<<<<<<< HEAD
 
             self.logger.experiment.add_image(
                 "val_mel_target",
@@ -284,6 +288,24 @@ class VitsModel(TextToWaveform):
             )
 
 
+=======
+
+            self.logger.experiment.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+            self.logger.experiment.add_image(
+                "val_mel_predicted",
+                plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+
+
+>>>>>>> e8f520f47... Modified validation step
     def validation_step_alt(self, batch, batch_idx):
 
         (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
