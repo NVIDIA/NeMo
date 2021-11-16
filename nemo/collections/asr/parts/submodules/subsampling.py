@@ -80,9 +80,9 @@ class ConvSubsampling(torch.nn.Module):
             self._ceil_mode = False
 
             if self.is_causal:
-                conv_padding = 2
+                self._padding = 2
             else:
-                conv_padding = 1
+                self._padding = 1
 
             for i in range(self._sampling_num):
                 layers.append(
@@ -91,7 +91,7 @@ class ConvSubsampling(torch.nn.Module):
                         out_channels=conv_channels,
                         kernel_size=self._kernel_size,
                         stride=self._stride,
-                        padding=conv_padding,
+                        padding=self._padding,
                     )
                 )
                 layers.append(activation)
@@ -119,13 +119,12 @@ class ConvSubsampling(torch.nn.Module):
         x = x.unsqueeze(1)
         x = self.conv(x)
         if self.is_causal:
-            x = x[:, :, :-1]
+            x = x[:, :, :-1, :-1]
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
         # TODO: improve the performance of length calculation
         new_lengths = lengths
-        # TODO: improve the performance of length calculation
         for i in range(self._sampling_num):
             new_lengths = calc_length(
                 lengths=new_lengths,
@@ -135,6 +134,8 @@ class ConvSubsampling(torch.nn.Module):
                 ceil_mode=self._ceil_mode,
             )
 
+        if self.is_causal:
+            new_lengths -= 1
         new_lengths = new_lengths.to(dtype=lengths.dtype)
         return x, new_lengths
 
