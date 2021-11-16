@@ -89,7 +89,7 @@ model:
     use_tarred_dataset: false
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     label_info_save_dir: train_label_info
-    cache_dir: train_cache
+    cache_dir: validation_cache
 
     text_file: text_dev.txt
     labels_file: labels_dev.txt
@@ -111,7 +111,7 @@ model:
     use_tarred_dataset: false
     ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     label_info_save_dir: train_label_info
-    cache_dir: train_cache
+    cache_dir: test_cache
 
     text_file: text_dev.txt
     labels_file: labels_dev.txt
