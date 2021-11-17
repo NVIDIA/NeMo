@@ -930,6 +930,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self,
         punct_label_ids: Optional[Dict[str, int]],
         capit_label_ids: Optional[Dict[str, int]],
+        class_labels: DictConfig,
         common_dataset_parameters_config: DictConfig,
     ):
         tarred_dataset_label_desc_tmpl = (
@@ -973,26 +974,26 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels_desc='Capitalization labels stored a config field '
                     '`model.common_dataset_parameters.capit_label_ids`',
                 )
-        if common_dataset_parameters_config.punct_label_vocab_file is not None:
-            file = Path(common_dataset_parameters_config.punct_label_vocab_file).expanduser()
-            file_punct_vocab = load_label_ids(file)
+        if common_dataset_parameters_config.label_vocab_dir is not None:
+            label_vocab_dir = Path(common_dataset_parameters_config.label_vocab_dir).expanduser()
+            punct_label_vocab_file = label_vocab_dir / class_labels.punct_labels_file
+            file_punct_vocab = load_label_ids(punct_label_vocab_file)
             if file_punct_vocab != self.punct_label_ids:
                 raise_not_equal_labels_error(
                     first_labels=self.punct_label_ids,
                     second_labels=file_punct_vocab,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format('Punctuation'),
-                    second_labels_desc=f'labels stored in file {file} passed in '
+                    second_labels_desc=f'labels stored in file {punct_label_vocab_file} passed in '
                     f'`model.common_dataset_parameters.punct_label_vocab_file`',
                 )
-        if common_dataset_parameters_config.capit_label_vocab_file is not None:
-            file = Path(common_dataset_parameters_config.capit_label_vocab_file).expanduser()
-            file_capit_vocab = load_label_ids(file)
+            capit_label_vocab_file = label_vocab_dir / class_labels.capit_labels_file
+            file_capit_vocab = load_label_ids(capit_label_vocab_file)
             if file_capit_vocab != self.capit_label_ids:
                 raise_not_equal_labels_error(
                     first_labels=self.capit_label_ids,
                     second_labels=file_capit_vocab,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format('Capitalization'),
-                    second_labels_desc=f'labels stored in file {file} passed in '
+                    second_labels_desc=f'labels stored in file {capit_label_vocab_file} passed in '
                     f'`model.common_dataset_parameters.capit_label_vocab_file`',
                 )
 

@@ -1134,7 +1134,7 @@ pipeline {
       stages {
         stage('create and use tarred dataset') {
           steps {
-            sh 'data_dir=/home/TestData/nlp/token_classification_punctuation/ && \
+            sh 'data_dir=/home/TestData/nlp/token_classification_punctuation && \
             usual_data=${data_dir}/wmt_wiki_10000 && \
             tarred_data=${data_dir}/train_tarred && \
             output=${data_dir}/output && \
