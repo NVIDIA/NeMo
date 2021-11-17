@@ -122,7 +122,6 @@ class SaveRestoreConnector:
                         # Resolve the override config
                         conf = OmegaConf.to_container(conf, resolve=True)
                         conf = OmegaConf.create(conf)
-
                 # If override is top level config, extract just `model` from it
                 if 'model' in conf:
                     conf = conf.model
