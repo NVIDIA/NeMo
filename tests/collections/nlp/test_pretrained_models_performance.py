@@ -28,11 +28,10 @@ def get_metrics(data_dir, model):
     trainer = pl.Trainer(gpus=[0])
 
     model.set_trainer(trainer)
-    # model.update_data_dir(data_dir)
+    model.update_data_dir(data_dir)
 
     test_ds = OmegaConf.create(
         {
-            'ds_item': data_dir,
             'text_file': 'text_dev.txt',
             'labels_file': 'labels_dev.txt',
             'shuffle': False,
@@ -42,6 +41,29 @@ def get_metrics(data_dir, model):
     )
 
     model._cfg.dataset.use_cache = False
+    trainer.test(model)
+    model.setup_test_data(test_data_config=test_ds)
+    metrics = trainer.test(model)[0]
+
+    return metrics
+
+
+def get_metrics_new_format(data_dir, model):
+    trainer = pl.Trainer(gpus=[0])
+
+    model.set_trainer(trainer)
+
+    test_ds = OmegaConf.create(
+        {
+            'ds_item': data_dir,
+            'text_file': 'text_dev.txt',
+            'labels_file': 'labels_dev.txt',
+            'shuffle': False,
+            'num_samples': -1,
+            'batch_size': 8,
+            'use_cache': False,
+        }
+    )
     trainer.test(model)
     model.setup_test_data(test_data_config=test_ds)
     metrics = trainer.test(model)[0]
@@ -63,7 +85,7 @@ class TestPretrainedModelPerformance:
     def test_punct_capit_with_bert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_bert")
-        metrics = get_metrics(data_dir, model)
+        metrics = get_metrics_new_format(data_dir, model)
 
         assert abs(metrics['test_punct_precision'] - 52.3024) < 0.001
         assert abs(metrics['test_punct_recall'] - 58.9220) < 0.001
@@ -95,7 +117,7 @@ class TestPretrainedModelPerformance:
     def test_punct_capit_with_distilbert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_distilbert")
-        metrics = get_metrics(data_dir, model)
+        metrics = get_metrics_new_format(data_dir, model)
 
         assert abs(metrics['test_punct_precision'] - 53.0826) < 0.001
         assert abs(metrics['test_punct_recall'] - 56.2905) < 0.001
