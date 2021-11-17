@@ -15,11 +15,9 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from omegaconf.omegaconf import DictConfig, MISSING, OmegaConf
+from omegaconf.omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    DEFAULT_CAPIT_LABEL_IDS_NAME,
-    DEFAULT_PUNCT_LABEL_IDS_NAME,
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
     legacy_data_config_to_new_data_config,
@@ -156,12 +154,12 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
                 punct_label_ids=model_cfg.punct_label_ids,
                 capit_label_ids=model_cfg.capit_label_ids,
             ),
-            train_ds=None if train_ds is None else legacy_data_config_to_new_data_config(
-                train_ds, dataset, train=True
-            ),
-            validation_ds=None if validation_ds is None else legacy_data_config_to_new_data_config(
-                validation_ds, dataset, train=False
-            ),
+            train_ds=None
+            if train_ds is None
+            else legacy_data_config_to_new_data_config(train_ds, dataset, train=True),
+            validation_ds=None
+            if validation_ds is None
+            else legacy_data_config_to_new_data_config(validation_ds, dataset, train=False),
             test_ds=None if test_ds is None else legacy_data_config_to_new_data_config(test_ds, dataset, train=False),
             punct_head=model_cfg.punct_head,
             capit_head=model_cfg.capit_head,

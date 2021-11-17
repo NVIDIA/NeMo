@@ -53,7 +53,6 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
-
 MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
 TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
 BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
@@ -706,8 +705,8 @@ def raise_not_equal_labels_error(
         )
     if len(missing_in_second) > 0:
         msg += (
-           f" Several examples of missing FIRST LABELS in the SECOND LABELS: "
-           f"{dict(list(missing_in_second.items())[:3])}."
+            f" Several examples of missing FIRST LABELS in the SECOND LABELS: "
+            f"{dict(list(missing_in_second.items())[:3])}."
         )
     if len(not_equal) > 0:
         msg += f" Several examples of labels which are not equal: {dict(list(not_equal.items())[:3])}"

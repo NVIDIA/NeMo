@@ -28,8 +28,8 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
-    PunctuationCapitalizationTrainDataConfig,
     PunctuationCapitalizationEvalDataConfig,
+    PunctuationCapitalizationTrainDataConfig,
     load_label_ids,
     raise_not_equal_labels_error,
 )
@@ -42,8 +42,8 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    legacy_model_config_to_new_model_config,
     is_legacy_model_config,
+    legacy_model_config_to_new_model_config,
 )
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
