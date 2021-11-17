@@ -43,6 +43,7 @@ class AppState(metaclass=Singleton):
         self._data_parallel_rank = None
 
         self._world_size = None
+        self._model_parallel_size = None
         self._tensor_model_parallel_size = None
         self._tensor_model_parallel_group = None
         self._pipeline_model_parallel_size = None
@@ -102,6 +103,22 @@ class AppState(metaclass=Singleton):
                 size (int):  Total number of GPUs.
         """
         self._world_size = size
+
+    @property
+    def model_parallel_size(self):
+        """ Property returns the number of GPUs in each model parallel group.
+            Returns:
+                Number of GPUs in each model parallel group.
+        """
+        return self._model_parallel_size
+
+    @model_parallel_size.setter
+    def model_parallel_size(self, size):
+        """ Property sets the number of GPUs in each model parallel group.
+            Args:
+                size (int):  Number of GPUs in each model parallel group.
+        """
+        self._model_parallel_size = size
 
     @property
     def tensor_model_parallel_size(self):
