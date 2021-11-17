@@ -206,7 +206,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
 
     @torch.no_grad()
     def transcribe(
-        self, paths2audio_files: List[str], batch_size: int = 4, return_hypotheses: bool = False
+        self,
+        paths2audio_files: List[str],
+        batch_size: int = 4,
+        return_hypotheses: bool = False,
+        partial_hypothesis: Optional[List['Hypothesis']] = None,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -262,7 +266,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
                     )
                     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                        encoded, encoded_len, return_hypotheses=return_hypotheses
+                        encoded,
+                        encoded_len,
+                        return_hypotheses=return_hypotheses,
+                        partial_hypotheses=partial_hypothesis,
                     )
 
                     hypotheses += best_hyp
@@ -640,7 +647,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
         if hasattr(self, '_trainer') and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
             sample_id = self._trainer.global_step
-
         else:
             log_every_n_steps = 1
             sample_id = batch_nb
@@ -691,6 +697,23 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
             self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
 
         return {'loss': loss_value}
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        signal, signal_len, transcript, transcript_len, sample_id = batch
+
+        # forward() only performs encoder forward
+        if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
+            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+        else:
+            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        del signal
+
+        best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
+            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+        )
+
+        sample_id = sample_id.cpu().detach().numpy()
+        return list(zip(sample_id, best_hyp_text))
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len = batch
@@ -802,14 +825,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecJointModel):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.joint.vocabulary,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': os.cpu_count() - 1,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
         }
 

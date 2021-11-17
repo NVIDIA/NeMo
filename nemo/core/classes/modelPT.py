@@ -18,7 +18,7 @@ import os
 import uuid
 from abc import abstractmethod
 from os import path
-from os.path import expanduser
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import hydra
@@ -99,7 +99,7 @@ class ModelPT(LightningModule, Model):
 
         self._cfg = cfg
 
-        self.save_hyperparameters(self._cfg)
+        self.save_hyperparameters("cfg")
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -214,24 +214,27 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
 
+        def maybe_make_save_dir(path: 'pathlib.Path'):
+            if not path.parent.exists():
+                path.parent.mkdir(parents=True)
+
+        save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
-        # Add NeMo rank check as well
         if app_state.model_parallel_size is not None:
             if app_state.model_parallel_size > 1:
-                if isinstance(self._save_restore_connector, SaveRestoreConnector):
+                if type(self._save_restore_connector) == SaveRestoreConnector:
                     raise ValueError(
-                        'Default NeMo SaveRestoreConnector will not work in model parallel mode. You should use a connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You can also you custom one.'
+                        'Default NeMo SaveRestoreConnector will not work in model parallel mode. You should use a '
+                        'connector which supports model parallel mode, such as NLPSaveRestoreConnector in NLP. You '
+                        'can also use a custom one.'
                     )
-
-            save_path = os.path.abspath(os.path.expanduser(save_path))
+            if app_state.data_parallel_rank == 0:
+                maybe_make_save_dir(save_path)
             # connector checks for ranks properly, no need to check here
-            self._save_restore_connector.save_to(self, save_path)
-        else:
-            if not is_global_rank_zero():
-                return
-            else:
-                save_path = os.path.abspath(os.path.expanduser(save_path))
-                self._save_restore_connector.save_to(self, save_path)
+            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
+        elif is_global_rank_zero():
+            maybe_make_save_dir(save_path)
+            self._save_restore_connector.save_to(self, str(save_path))  # downstream tasks expect str, not Path
 
     @classmethod
     def restore_from(
@@ -452,20 +455,20 @@ class ModelPT(LightningModule, Model):
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
-            if self._trainer.max_steps is None:
+            if self._trainer.max_steps is None or self.trainer.max_steps < 0:
                 # Store information needed to calculate max_steps
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.distributed_backend is None:
+                if self._trainer.accelerator is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.distributed_backend == "ddp_cpu":
+                elif self._trainer.accelerator == "ddp_cpu":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.distributed_backend == "ddp":
+                elif self._trainer.accelerator == "ddp":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
                 else:
                     logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.distributed_backend}. We "
+                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
                         "recommend to use 'ddp' instead."
                     )
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
@@ -889,7 +892,9 @@ class ModelPT(LightningModule, Model):
             with open_dict(cfg):
                 # Restore model
                 model_path = cfg.pop('init_from_nemo_model')
-                restored_model = self.restore_from(model_path, map_location=map_location, strict=True)
+                restored_model = self.restore_from(
+                    model_path, map_location=map_location, strict=cfg.get("init_strict", True)
+                )
 
                 # Restore checkpoint into current model
                 self.load_state_dict(restored_model.state_dict(), strict=False)
@@ -915,7 +920,9 @@ class ModelPT(LightningModule, Model):
                         )
                         return
 
-                restored_model = self.from_pretrained(model_name, map_location=map_location, strict=True)
+                restored_model = self.from_pretrained(
+                    model_name, map_location=map_location, strict=cfg.get("init_strict", True)
+                )
 
                 # Restore checkpoint into current model
                 self.load_state_dict(restored_model.state_dict(), strict=False)
@@ -1139,8 +1146,7 @@ class ModelPT(LightningModule, Model):
             Please create a new model using an updated config to properly update the model.
         """
         self._cfg = cfg
-        self._set_hparams(self._cfg)
-        self._hparams_initial = copy.deepcopy(self._hparams)
+        self._set_hparams({'cfg': self._cfg})
 
     @staticmethod
     def _is_model_being_restored() -> bool:

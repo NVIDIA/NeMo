@@ -21,15 +21,13 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing, post_process_punct
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
-__all__ = ['DuplexTextNormalizationModel']
+__all__ = ['DuplexTextNormalizationModel', 'post_process_punct']
 
 
-@experimental
 class DuplexTextNormalizationModel(nn.Module):
     """
     DuplexTextNormalizationModel is a wrapper class that can be used to
@@ -242,6 +240,7 @@ class DuplexTextNormalizationModel(nn.Module):
         original_sents = [s for s in sents]
         # Separate into words
         if not processed:
+            sents = [input_preprocessing(x, lang=self.lang) for x in sents]
             sents = [self.decoder.processor.tokenize(x).split() for x in sents]
         else:
             sents = [x.split() for x in sents]

@@ -25,14 +25,9 @@ from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_pretrained_lm_models_list,
 )
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
-    get_megatron_lm_model,
-    get_megatron_lm_models_list,
-)
 from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_huggingface_transformer,
-    get_megatron_transformer,
     get_nemo_transformer,
 )
 from nemo.utils import AppState, logging
@@ -48,7 +43,7 @@ def get_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
         include_external if true includes all HuggingFace model names, not only those supported language models in NeMo.
 
     """
-    return get_megatron_lm_models_list() + get_huggingface_pretrained_lm_models_list(include_external=include_external)
+    return get_huggingface_pretrained_lm_models_list(include_external=include_external)
 
 
 def get_lm_model(

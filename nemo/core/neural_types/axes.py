@@ -57,7 +57,7 @@ class AxisKind(AxisKindAbstract):
         _label = label.lower().strip()
         if _label == "b" or _label == "n" or _label == "batch":
             return AxisKind.Batch
-        elif _label == "t" or _label == "time":
+        elif _label == "t" or _label == "time" or (len(_label) == 2 and _label[0] == "t" and _label[1].isdigit()):
             return AxisKind.Time
         elif _label == "d" or _label == "c" or _label == "channel":
             return AxisKind.Dimension
@@ -67,6 +67,8 @@ class AxisKind(AxisKindAbstract):
             return AxisKind.Height
         elif _label == "s" or _label == "singleton":
             return AxisKind.Singleton
+        elif _label == "seq" or _label == "sequence":
+            return AxisKind.Sequence
         elif _label == "flowgroup":
             return AxisKind.FlowGroup
         elif _label == "any":

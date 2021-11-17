@@ -38,6 +38,7 @@ from nemo.core.neural_types.elements import (
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
+    TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
@@ -137,7 +138,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             return self._parser
 
         if self.learn_alignment:
-            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+            if self.vocab is None:
+                self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
             self._parser = self.vocab.encode
         else:
             self._parser = parsers.make_parser(
@@ -386,35 +388,52 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         return list_of_models
 
-    @property
-    def input_module(self):
-        return self.fastpitch
+    ### Export code
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        inp = torch.randint(0, self.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64)
+        pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
 
-    @property
-    def output_module(self):
-        return self.fastpitch
+        inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
 
-    def forward_for_export(self, text, pitch, pace):
-        (
-            spect,
-            num_frames,
-            durs_predicted,
-            log_durs_predicted,
-            pitch_predicted,
-            attn_soft,
-            attn_logprob,
-            attn_hard,
-            attn_hard_dur,
-            pitch,
-        ) = self.fastpitch(text=text, pitch=pitch, pace=pace)
-        return spect.to(torch.float), num_frames, durs_predicted, log_durs_predicted, pitch_predicted
+        if self.speaker_emb is not None:
+            inputs['speaker'] = torch.randint(
+                0, self.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
+            )
+
+        return (inputs,)
+
+    def forward_for_export(self, text, pitch, pace, speaker=None):
+        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
+
+    def _prepare_for_export(self, **kwargs):
+        super()._prepare_for_export(**kwargs)
+
+        # Define input_types and output_types as required by export()
+        self.input_types = {
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "pace": NeuralType(('B', 'T'), optional=True),
+            "speaker": NeuralType(('B'), Index()),
+        }
+        self.output_types = {
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
+        }
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["durs", "speaker", "spec", "attn_prior", "mel_lens", "input_lens"])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set(["attn_soft", "pitch", "attn_logprob", "attn_hard", "attn_hard_dur",])
+        disabled_inputs = set()
+        if self.fastpitch.speaker_emb is None:
+            disabled_inputs.add("speaker")
+        return disabled_inputs

@@ -20,6 +20,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
+from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
@@ -210,7 +211,11 @@ class AbstractRNNTDecoding(ABC):
             )
 
     def rnnt_decoder_predictions_tensor(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor, return_hypotheses: bool = False
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        return_hypotheses: bool = False,
+        partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> (List[str], Optional[List[List[str]]], Optional[Union[Hypothesis, NBestHypotheses]]):
         """
         Decode an encoder output by autoregressive decoding of the Decoder+Joint networks.
@@ -237,7 +242,7 @@ class AbstractRNNTDecoding(ABC):
         # Compute hypotheses
         with torch.no_grad():
             hypotheses_list = self.decoding(
-                encoder_output=encoder_output, encoded_lengths=encoded_lengths
+                encoder_output=encoder_output, encoded_lengths=encoded_lengths, partial_hypotheses=partial_hypotheses
             )  # type: [List[Hypothesis]]
 
             # extract the hypotheses
@@ -472,8 +477,8 @@ class RNNTWER(Metric):
         log_prediction: Whether to log a single decoded sample per call.
 
     Returns:
-        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
-        text word error rate, compute wer=wer_numerator/wer_denominator
+        res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
+            distances for all prediction - reference pairs, total number of words in all references.
     """
 
     def __init__(
@@ -503,10 +508,11 @@ class RNNTWER(Metric):
         with torch.no_grad():
             # prediction_cpu_tensor = tensors[0].long().cpu()
             targets_cpu_tensor = targets.long().cpu()
+            targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
             # iterate over batch
-            for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
+            for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
 

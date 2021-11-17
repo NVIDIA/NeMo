@@ -180,11 +180,13 @@ class FastPitchModule(NeuralModule):
             "durs": NeuralType(('B', 'T'), TokenDurationType()),
             "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
-            "pace": NeuralType(('B', 'T'), optional=True),
+            "pace": NeuralType(optional=True),
             "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
             "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "pitch_offset": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
+            "pace": NeuralType(('B', 'T'), optional=True),
         }
 
     @property
@@ -215,6 +217,7 @@ class FastPitchModule(NeuralModule):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
+        pitch_offset=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -241,13 +244,14 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
-        # if pitch is not None:
-        #     if self.learn_alignment:
-        #         pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
-        #     pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
-        # else:
-        pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch_offset
+        if pitch is not None:
+            if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
+                # Pitch during training is per spectrogram frame, but during inference, it should be per character
+                pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
+            pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
+        else:
+            pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
 
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
@@ -275,6 +279,31 @@ class FastPitchModule(NeuralModule):
             pitch,
         )
 
+    def infer(self, *, text, pitch=None, speaker=None, pace=1.0):
+        # Calculate speaker embedding
+        if self.speaker_emb is None or speaker is None:
+            spk_emb = 0
+        else:
+            spk_emb = self.speaker_emb(speaker).unsqueeze(1)
+
+        # Input FFT
+        enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
+
+        # Predict duration and pitch
+        log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
+        durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
+        pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
+        enc_out = enc_out + pitch_emb.transpose(1, 2)
+
+        # Expand to decoder time dimension
+        len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+
+        # Output FFT
+        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
+        spect = self.proj(dec_out).transpose(1, 2)
+        return spect.to(torch.float), dec_lens, durs_predicted, log_durs_predicted, pitch_predicted
+
     def input_example(self):
         """
         Generates input examples for tracing etc.
@@ -286,5 +315,11 @@ class FastPitchModule(NeuralModule):
         pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
         pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
 
-        return ({'text': inp, 'pitch': pitch, 'pace': pace},)
+        inputs = {'text': inp, 'pitch_offset': pitch, 'pace': pace}
 
+        if self.speaker_emb is not None:
+            inputs['speaker'] = torch.randint(
+                0, self.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
+            )
+
+        return (inputs,)
