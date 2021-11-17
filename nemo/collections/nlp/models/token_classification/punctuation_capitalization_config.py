@@ -76,8 +76,8 @@ class CapitHeadConfig:
 
 @dataclass
 class ClassLabels:
-    punct_labels_file: str = DEFAULT_PUNCT_LABEL_IDS_NAME
-    capit_labels_file: str = DEFAULT_CAPIT_LABEL_IDS_NAME
+    punct_labels_file: str = MISSING
+    capit_labels_file: str = MISSING
 
 
 @dataclass

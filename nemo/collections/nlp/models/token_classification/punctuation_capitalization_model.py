@@ -287,8 +287,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             else:
                 punct_label_ids_file = Path(label_vocab_dir).expanduser() / self._cfg.class_labels.punct_labels_file
                 capit_label_ids_file = Path(label_vocab_dir).expanduser() / self._cfg.class_labels.capit_labels_file
-            self.register_artifact('common_dataset_parameters.punct_label_vocab_file', str(punct_label_ids_file))
-            self.register_artifact('common_dataset_parameters.capit_label_vocab_file', str(capit_label_ids_file))
+            self.register_artifact('class_labels.punct_labels_file', str(punct_label_ids_file))
+            self.register_artifact('class_labels.capit_labels_file', str(capit_label_ids_file))
 
     def get_eval_metrics_kwargs(self):
         loss_kw = {'dist_sync_on_step': False, 'take_avg_loss': True}
@@ -396,7 +396,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
         if punct_label_vocab_file is not None:
             self.punct_label_ids = load_label_ids(
-                self.register_artifact('common_dataset_parameters.punct_label_vocab_file', str(punct_label_vocab_file))
+                self.register_artifact('class_labels.punct_labels_file', str(punct_label_vocab_file))
             )
         elif self._cfg.common_dataset_parameters.punct_label_ids is not None:
             self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
@@ -410,7 +410,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             )
         if capit_label_vocab_file is not None:
             self.capit_label_ids = load_label_ids(
-                self.register_artifact('common_dataset_parameters.capit_label_vocab_file', str(capit_label_vocab_file))
+                self.register_artifact('class_labels.capit_labels_file', str(capit_label_vocab_file))
             )
         elif self._cfg.common_dataset_parameters.capit_label_ids is not None:
             self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
