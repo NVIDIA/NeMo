@@ -163,7 +163,7 @@ class TTSDataset(Dataset):
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "text_tokens": None,
-                        "speaker_id": item["speaker"] if "speaker_id" in item else None,
+                        "speaker_id": item["speaker"] if "speaker" in item else None,
                     }
 
                     if "text" in item:
