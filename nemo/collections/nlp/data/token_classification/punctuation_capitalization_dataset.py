@@ -71,37 +71,45 @@ class PunctuationCapitalizationDataConfigBase:
     #################################################
     # COMMON DATASET PARAMETERS
     #################################################
-    # Whether to use tarred dataset. If True you should provide tar_metadata_file, otherwise text_file and labels_file
+    # Whether to use tarred dataset. If True you should provide tar_metadata_file. Otherwise, you should provide
+    # text_file and labels_file.
     use_tarred_dataset: bool = False
-    # A path to a directory where files create during dataset processing are stored. These include label id files,
-    # label stats. By default, the directory containing `text_file` or `tar_metadata_file`.
-    # You may need this parameter if dataset is read only and does not allow saving anything near dataset files.
+    # A path to a directory where files created during dataset processing are stored. These include label id files
+    # and label stats files. By default, it is a directory containing `text_file` or `tar_metadata_file`.
+    # You may need this parameter if dataset is read-only and thus does not allow saving anything near dataset files.
     label_info_save_dir: Optional[str] = None
 
     #################################################
     # USUAL DATASET PARAMETERS
     #################################################
-    text_file: Optional[str] = None  # Any -- Union[str, List[str]]  A name of dataset source file
-    labels_file: Optional[str] = None  # Any = str or List[str]  A name of dataset target file
+    text_file: Optional[str] = None
+    labels_file: Optional[str] = None
     tokens_in_batch: int = DEFAULT_TOKENS_IN_BATCH
     max_seq_length: Optional[int] = DEFAULT_MAX_SEQ_LENGTH
+    # Number of samples loaded from `text_file` and `labels_file` which are used in dataset. If this parameter is
+    # -1, then all samples are used.
     num_samples: int = -1
+    # Whether used pickled features. If pickled features does not exist, then pickled features will be created.
     use_cache: Optional[bool] = True
-    # A path to directory containing cache or directory where newly created cache is saved. By default, it is
-    # directory containing `text_file`. You may need this parameter if cache is going to be created and dataset
-    # directory is read only. `cache_dir` and `label_info_save_dir` are made separate parameters for the case when
-    # cache is ready and is stored in read only directory.
+    # A path to a directory containing cache or directory where newly created cache is saved. By default, it is
+    # a directory containing `text_file`. You may need this parameter if cache for a dataset is going to be create
+    # and the dataset directory is read only.
+    #
+    # `cache_dir` and `label_info_save_dir` are separate parameters for the case when a cache is ready and this cache
+    # is stored in a read only directory. In this case you will separate `label_info_save_dir`.
     cache_dir: Optional[str] = None
     get_label_frequences: bool = False
     verbose: bool = True
-    # If 0, then multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
+    # Number of workers used for features creation (tokenization, label encoding, and clipping). If 0, then
+    # multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
     # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `n_jobs` is greater than zero.
     n_jobs: Optional[int] = 0
 
     #################################################
     # TARRED DATASET PARAMETERS
     #################################################
-    tar_metadata_file: Optional[str] = None  # Any = str or List[str]  A name of metadata file for tarred dataset
+    tar_metadata_file: Optional[str] = None
+    # The size of shuffle buffer of `webdataset`. The number of batches which are permuted.
     tar_shuffle_n: int = 1
 
     #################################################
@@ -124,8 +132,8 @@ class PunctuationCapitalizationTrainDataConfig(PunctuationCapitalizationDataConf
 
 @dataclass
 class PunctuationCapitalizationEvalDataConfig(PunctuationCapitalizationDataConfigBase):
-    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
-    # Any = str or List[str]. If a List[str], then multiple dataset testing or evaluation is used
+    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay.
+    # Any = str or List[str]. If a List[str], then the model is tested or validated on several datasets.
     ds_item: Optional[Any] = None
 
 
@@ -136,6 +144,18 @@ def is_legacy_data_config(ds_section: DictConfig) -> bool:
 def legacy_data_config_to_new_data_config(
     ds_section: DictConfig, legacy_dataset_section: DictConfig, train: bool
 ) -> DictConfig:
+    """
+    Transform old style dataset to new format dataset.
+    Args:
+        ds_section: a ds section (``train_ds``, or ``validation_ds``, or ``test_ds``) from old style config. Such
+            section contain ``batch_size`` parameter.
+        legacy_dataset_section: a ``model.dataset`` section. ``model.dataset`` section contains ``data_dir`` parameter
+        train: ``True`` if ``train_ds`` is transformed and ``False`` otherwise
+
+    Returns:
+        New format dataset based on either ``PunctuationCapitalizationTrainDataConfig`` (``train=True``) or
+            ``PunctuationCapitalizationEvalDataConfig`` (``train=False``)
+    """
     if train:
         cls = PunctuationCapitalizationTrainDataConfig
         ds_item = legacy_dataset_section.get('data_dir')
@@ -160,43 +180,53 @@ def legacy_data_config_to_new_data_config(
     return new_config
 
 
-def check_number_of_labels(words, query, qi, split_i, punctuation_labels, capitalization_labels):
+def check_number_of_labels(
+    words: List[str],
+    query: str,
+    qi: int,
+    split_i: int,
+    punctuation_labels: List[str],
+    capitalization_labels: List[str],
+):
     if len(words) != len(punctuation_labels):
         raise ValueError(
-            f"Number of punctuation labels for query {qi} in split {split_i} is not equal to number of "
-            f"words. Number of words: {len(words)}, number of punctuation labels: "
-            f"{len(punctuation_labels)}. Query: '{query}', punctuation labels: '{punctuation_labels}'"
+            f"Number of punctuation labels for a query number {qi} in a split number {split_i} is not equal to "
+            f"number of words. Number of words: {len(words)}, number of punctuation labels: "
+            f"{len(punctuation_labels)}. First 100 characters of the query: '{query[:100]}', punctuation labels: "
+            f"'{punctuation_labels}'"
         )
     if len(words) != len(capitalization_labels):
         raise ValueError(
-            f"Number of capitalization labels for query {qi} in split {split_i} is not equal to number of "
-            f"words. Number of words: {len(words)}, number of capitalization labels: "
-            f"{len(capitalization_labels)}. Query: '{query}', "
+            f"Number of capitalization labels for a query number {qi} in a split number {split_i} is not equal to "
+            f"number of words. Number of words: {len(words)}, number of capitalization labels: "
+            f"{len(capitalization_labels)}. First 100 characters of the query: '{query[:100]}', "
             f"capitalization labels: '{capitalization_labels}'"
         )
 
 
-def show_prog(queues: Tuple[mp.Queue, ...], total_num_lines: List[int], descriptions: List[str], units: List[str]):
+def show_prog(queues: Tuple[mp.Queue, ...], totals: List[int], descriptions: List[str], units: List[str]):
     """
     Show several ``tqdm`` progress bars.
     Args:
-        queues: a list of queues by which progress is delivered. Each queue is responsible for one progress bar.
-            ``show_prog`` function extracts integers from ``queues`` elements and ands them to progress bars
-        total_num_lines: list of values 100% of progress bars. See more in description of ``total`` parameter of
+        queues: a list of queues by which progress is delivered into this function. Each queue is responsible for one
+            progress bar. ``show_prog`` function extracts integers from ``queues`` elements and adds them to progress
+            bars. If value extracted from a queue equals ``-1``, then corresponding progress bar is closed. When all
+            progress bars are closed, this function returns.
+        totals: list of values 100% of progress bars. See more in a description of ``total`` parameter of
             ``tqdm.tqdm`` function
-        descriptions: list of descriptions of progress bars. See more in description of ``desc`` parameter of
+        descriptions: list of descriptions of progress bars. See more in a description of ``desc`` parameter of
             ``tqdm.tqdm`` function
-        units: list of progress bar units. See more in description of ``unit`` parameter of ``tqdm.tqdm`` function
+        units: list of progress bar units. See more in a description of ``unit`` parameter of ``tqdm.tqdm`` function
     """
-    if not all([len(queues) == len(v) for v in [total_num_lines, descriptions, units]]):
+    if not all([len(queues) == len(v) for v in [totals, descriptions, units]]):
         raise ValueError(
             f"All of parameters `queues`, `total_num_lines`, `descriptions`, `units` have to have equal lengths. "
-            f"len(queues)={len(queues)}, len(total_num_lines)={len(total_num_lines)}, "
+            f"len(queues)={len(queues)}, len(total_num_lines)={len(totals)}, "
             f"len(descriptions)={len(descriptions)}, len(units)={len(units)}."
         )
     prog = [
         tqdm(total=tt, desc=dd, unit=uu, unit_scale=True, position=i)
-        for i, (tt, dd, uu) in enumerate(zip(total_num_lines, descriptions, units))
+        for i, (tt, dd, uu) in enumerate(zip(totals, descriptions, units))
     ]
     finished = [False] * len(queues)
     while True:
@@ -214,14 +244,14 @@ def show_prog(queues: Tuple[mp.Queue, ...], total_num_lines: List[int], descript
                     continue
             prog[i].n += to_add
             prog[i].update(0)
-            if prog[i].n >= total_num_lines[i]:
+            if prog[i].n >= totals[i]:
                 finished[i] = True
                 prog[i].close()
             if stop:
-                if prog[i].n < total_num_lines[i]:
+                if prog[i].n < totals[i]:
                     logging.warning(
-                        f"Progress process with description '{descriptions[i]}' terminated before progress bar "
-                        f"reached 100%. prog.n={prog[i].n}, total_num_lines={total_num_lines[i]}"
+                        f"Progress with description '{descriptions[i]}' terminated before progress bar "
+                        f"reached 100%. prog.n={prog[i].n}, total_num_lines={totals[i]}"
                     )
                 finished[i] = True
                 prog[i].close()
@@ -232,10 +262,10 @@ def show_prog(queues: Tuple[mp.Queue, ...], total_num_lines: List[int], descript
 
 class Progress:
     """
-    Manages several ``tqdm`` progress bars for multi process tasks. ``Progress`` class can be used as context manager.
+    Manages several ``tqdm`` progress bars for multi process tasks. This class can be used as context manager.
 
-    The class starts separate process which creates and updates progress bars. Information is passed to progress
-    process via multiprocessing queues. There is a queue for every progress bar
+    The class starts separate process which creates and updates progress bars. Information to progress process is
+    passed via multiprocessing queues. There is a separate queue for every progress bar.
 
     You can use it as context manager:
 
@@ -257,7 +287,7 @@ class Progress:
             pool.starmap(worker_func, data)
         progress.finish()
 
-    In a worker function you will have to put number of processed items into progress queues. For example:
+    In a worker function you will have to put number of processed items into the progress queues. For example:
 
     .. code-block:: python
         def worker_func(my_datum, parrot_progress_queue, frog_progress_queue):
@@ -265,6 +295,9 @@ class Progress:
             for i in range(10):
                 parrot_progress_queue.put(1)
                 frog_progress_queue.put(2)
+
+    If ``-1`` is put into a progress queue, then corresponding progress bar is closed even if the progress bar didn't
+    reach 100%.
     """
 
     def __init__(self, total: Union[int, List[int]], desc: Union[str, List[str]], unit: Union[str, List[str]]):
@@ -275,14 +308,14 @@ class Progress:
 
         Args:
             total: a list of ``int`` which length is equal to the number of progress bars OR an ``int`` OR a list of
-                one ``int``. Number which comprises 100% of work. When sum of values passed through the queue equals
-                ``total`` corresponding progress bar reaches 100%. If ``total`` is an ``int`` or a list of one
-                element, then all progress bars have equal ``total`` parameter.
+                one ``int``. Number which comprises 100% of progress bar. When sum of values passed through the
+                corresponding queue equals ``total`` corresponding progress bar reaches 100%. If ``total`` is an
+                ``int`` or a list of one element, then all progress bars have equal ``total`` parameter.
             desc: a list of ``str`` which length is equal to the number of progress bars OR a ``str`` OR a list of one
-                ``str``. Description of a progress bar which is showed  as prefix. See more in description of parameter
-                ``desc`` of function ``tqdm.tqdm``.
+                ``str``. Description of a progress bar which is showed as a prefix. See more in description of
+                parameter ``desc`` of function ``tqdm.tqdm``.
             unit: a list of ``str`` which length is equal to the number of progress bars OR a ``str`` OR a list of one
-                ``str``. A unit of progress bar. See more in description of parameter ``unit`` of function
+                ``str``. A unit of a progress bar. See more in description of parameter ``unit`` of function
                 ``tqdm.tqdm``.
         """
         if not isinstance(total, list):
@@ -335,18 +368,15 @@ class TokenizeCreateMasksClipWorker:
     ):
         """
         Args:
-            max_seq_length: max number of tokens in input sequence including [CLS] and [SEP] tokens. If number of
+            max_seq_length: max number of tokens in an input sequence including [CLS] and [SEP] tokens. If number of
                 tokens in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence
                 are removed
             tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
-            punct_label_ids: dict to map punctuation labels to label ids.
-                Starts with pad_label->0 and then increases in alphabetical order.
-                Required for training and evaluation, not needed for inference.
-            capit_label_ids: dict to map capitalization labels to label ids. Starts
-                with pad_label->0 and then increases in alphabetical order.
-                Required for training and evaluation, not needed for inference.
+            punct_label_ids: dict to map punctuation labels to label ids. Starts with pad_label->0.
+            capit_label_ids: dict to map capitalization labels to label ids. Starts with pad_label->0.
             pad_label: pad value use for labels. By default, it's the neutral label for punctuation and capitalization.
-            verbose: whether to show examples of tokenized data and various progress information
+                Its id in ``punct_label_ids`` and ``capit_label_ids`` has to be ``0``
+            verbose: whether to report when the worker finishes its job
             progress_queue: a multiprocessing queue used for reporting progress. Useful for creating tarred dataset
         """
         self.max_seq_length = max_seq_length
@@ -368,27 +398,26 @@ class TokenizeCreateMasksClipWorker:
         punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         split_i: int,
-    ) -> Tuple[List[ArrayLike], List[ArrayLike], List[int], List[ArrayLike], List[ArrayLike]]:
+    ) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
         """
+        Tokenize, clip, encode labels, and create masks of first tokens in words.
+
         Args:
             queries: text sequences
             punct_label_lines: a list or a tuple of labels for every word in a sequence (str)
             capit_label_lines: a list of a tuple labels for every word in a sequence (str)
-            split_i: number of split processed by worker. Used for logging
+            split_i: number of a split which is processed. Used for logging
 
         Returns:
-            input_ids: a list of 1D int32 arrays. Each array contains token ids of corresponding query
+            input_ids: a list of 1D int32 arrays. Each array contains token ids of the corresponding query
             subtokens_mask: a list of 1D boolean arrays. An array element is ``True`` if corresponding token is the
                 first token in a word
-            sent_lengths: a list of sequences lengths. A sequence length is a length is a length of corresponding
-                ``input_ids`` element
             punct_labels: a list of 1D int32 arrays. Encoded punctuation labels for every token in a query. Tokens in
                 one word have identical labels
-            capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens in
-                one word have identical labels
+            capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens
+                in one word have identical labels
         """
-        all_input_ids, all_subtokens_mask, sent_lengths = [], [], []
-        punct_all_labels, capit_all_labels = [], []
+        all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels = [], [], [], []
         progress_made = 0
         for i, query in enumerate(queries):
             words = query.split()
@@ -414,7 +443,6 @@ class TokenizeCreateMasksClipWorker:
             # add eos token
             input_ids.append(self.tokenizer.sep_id)
             subtokens_mask.append(0)
-            sent_lengths.append(len(input_ids))
 
             all_input_ids.append(np.array(self.maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
             all_subtokens_mask.append(np.array(self.maybe_clip(subtokens_mask, 0), dtype=bool))
@@ -430,7 +458,7 @@ class TokenizeCreateMasksClipWorker:
         self.progress_queue.put(progress_made)
         if self.verbose:
             logging.info(f"Finished processing split with number {split_i}")
-        return all_input_ids, all_subtokens_mask, sent_lengths, punct_all_labels, capit_all_labels
+        return all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels
 
 
 def tokenize_create_masks_clip_parallel(
@@ -445,22 +473,20 @@ def tokenize_create_masks_clip_parallel(
     verbose: bool,
     n_jobs: Optional[int],
     progress_queue: Optional[mp.Queue],
-) -> Tuple[List[ArrayLike], List[ArrayLike], List[int], List[ArrayLike], List[ArrayLike]]:
+) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
     """
     Tokenizes data, encodes labels, creates masks of first tokens in words, clips sequences by number of tokens.
 
     Args:
         queries: text sequences
-        max_seq_length: max number of tokens in input sequence including [CLS] and [SEP] tokens. If number of tokens
+        max_seq_length: max number of tokens in an input sequence including [CLS] and [SEP] tokens. If number of tokens
             in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence are removed
         tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
-        punct_label_ids: dict to map punctuation labels to label ids.
-            Starts with pad_label->0 and then increases in alphabetical order.
-            Required for training and evaluation, not needed for inference.
-        capit_label_ids: dict to map capitalization labels to label ids. Starts
-            with pad_label->0 and then increases in alphabetical order.
+        punct_label_ids: dict to map punctuation labels to label ids. Starts with pad_label->0.
+        capit_label_ids: dict to map capitalization labels to label ids. Starts with pad_label->0.
             Required for training and evaluation, not needed for inference.
         pad_label: pad value use for labels. By default, it's the neutral label for punctuation and capitalization.
+            
         punct_label_lines: list of labels for every word in a sequence (str)
         capit_label_lines: list of labels for every word in a sequence (str)
         verbose: whether to show examples of tokenized data and various progress information
@@ -478,8 +504,6 @@ def tokenize_create_masks_clip_parallel(
         input_ids: a list of 1D int32 arrays. Each array contains token ids of corresponding query
         subtokens_mask: a list of 1D boolean arrays. An array element is ``True`` if corresponding token is the
             first token in a word
-        sent_lengths: a list of sequences lengths. A sequence length is a length is a length of corresponding
-            ``input_ids`` element
         punct_labels: a list of 1D int32 arrays. Encoded punctuation labels for every token in a query. Tokens in one
             word have identical labels
         capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens in
@@ -526,7 +550,7 @@ def tokenize_create_masks_clip_parallel(
     if create_progress_process:
         progress.finish()
     result = tuple(list(itertools.chain(*e)) for e in zip(*result))
-    assert len(result) == 5
+    assert len(result) == 4
     return result
 
 
@@ -577,7 +601,7 @@ def get_features(
     """
     if verbose:
         logging.info("Start initial tokenization.")
-    input_ids, subtokens_mask, sent_lengths, punct_labels, capit_labels = tokenize_create_masks_clip_parallel(
+    input_ids, subtokens_mask, punct_labels, capit_labels = tokenize_create_masks_clip_parallel(
         queries,
         max_seq_length,
         tokenizer,
@@ -592,7 +616,7 @@ def get_features(
     )
     if verbose:
         logging.info("Finished initial tokenization.")
-        get_stats(sent_lengths)
+        get_stats([len(inp) for inp in input_ids])
         logging.info(f"Finished clipping and padding.")
         for i in range(min(len(input_ids), 5)):
             logging.info("*** Example ***")

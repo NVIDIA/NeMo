@@ -85,8 +85,8 @@ def main(cfg: DictConfig) -> None:
                 f'{PunctuationCapitalizationModel.list_available_models()}'
             )
         model.update_config(
-            class_labels=cfg.class_labels,
-            common_dataset_parameters=cfg.common_dataset_parameters,
+            class_labels=cfg.model.class_labels,
+            common_dataset_parameters=cfg.model.common_dataset_parameters,
             train_ds=cfg.model.train_ds,
             validation_ds=cfg.model.validation_ds,
             test_ds=cfg.model.test_ds,
