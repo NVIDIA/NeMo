@@ -54,7 +54,7 @@ def initialize_model_parallel_for_nemo(
 
     # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
-    set_pipeline_model_parallel_world_size(1)
+    set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
 
     _set_random_seed(seed)
 
