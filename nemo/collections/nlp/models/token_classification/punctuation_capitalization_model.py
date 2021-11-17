@@ -347,32 +347,53 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.metrics['test']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
     def check_label_config_parameters(self):
-        punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
-        capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
+        pli = self._cfg.common_dataset_parameters.punct_label_ids
+        cli = self._cfg.common_dataset_parameters.capit_label_ids
         pad_label = self._cfg.common_dataset_parameters.pad_label
-        punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
-        for label_ids, label_vocab_file, label_ids_name, label_vocab_name in [
-            (punct_label_ids, punct_label_vocab_file, 'punct_label_ids', 'punct_label_vocab_file'),
-            (capit_label_ids, capit_label_vocab_file, 'capit_label_ids', 'capit_label_vocab_file'),
+        plvf, clvf = self._extract_label_vocab_files_from_config()
+        for label_ids, label_vocab_file, already_set_label_ids, label_ids_name, label_vocab_name in [
+            (pli, plvf, self.punct_label_ids, 'punct_label_ids', 'punct_label_vocab_file'),
+            (cli, clvf, self.capit_label_ids, 'capit_label_ids', 'capit_label_vocab_file'),
         ]:
-            if label_ids is not None and label_vocab_file is not None:
+            if label_vocab_file is not None:
                 file_label_ids = load_label_ids(label_vocab_file)
+            if label_ids is not None and label_vocab_file is not None:
                 if label_ids != file_label_ids:
                     raise_not_equal_labels_error(
                         first_labels=label_ids,
                         second_labels=file_label_ids,
                         first_labels_desc=f"Labels passed in config parameter "
                         f"`model.common_dataset_parameters.{label_ids_name}`",
-                        second_labels_desc=f"Labels loaded from file {punct_label_vocab_file} passed in config "
+                        second_labels_desc=f"Labels loaded from file {plvf} passed in config "
                         f"parameter `model.common_dataset_parameters.{label_vocab_name}",
                     )
-        if punct_label_vocab_file is not None:
-            punct_label_ids = load_label_ids(punct_label_vocab_file)
-        if capit_label_vocab_file is not None:
-            capit_label_ids = load_label_ids(capit_label_vocab_file)
+            if already_set_label_ids is not None:
+                config_label_ids = label_ids if label_vocab_file is None else file_label_ids
+                if config_label_ids is not None:
+                    if label_vocab_file is None:
+                        config_label_ids_source = (
+                            f"Labels passed in config parameter `model.common_dataset_parameters.{label_ids_name}`"
+                        )
+                    else:
+                        config_label_ids_source = (
+                            f"Labels loaded from file {plvf} passed in config parameter "
+                            f"`model.common_dataset_parameters.{label_vocab_name}"
+                        )
+                    if already_set_label_ids != config_label_ids:
+                        raise_not_equal_labels_error(
+                            first_labels=config_label_ids,
+                            second_labels=already_set_label_ids,
+                            first_labels_desc=config_label_ids_source,
+                            second_labels_desc=f"Labels which are already set in "
+                            f"`PunctuationCapitalizationModel.{label_ids_name}`",
+                        )
+        if plvf is not None:
+            pli = load_label_ids(plvf)
+        if clvf is not None:
+            cli = load_label_ids(clvf)
         for label_ids, parameter_name in [
-            (punct_label_ids, 'punct_label_vocab_file' if punct_label_ids is None else 'punct_label_ids'),
-            (capit_label_ids, 'capit_label_vocab_file' if capit_label_ids is None else 'capit_label_ids'),
+            (pli, 'punct_label_vocab_file' if pli is None else 'punct_label_ids'),
+            (cli, 'capit_label_vocab_file' if cli is None else 'capit_label_ids'),
         ]:
             if label_ids is not None and label_ids[pad_label] != 0:
                 raise ValueError(
