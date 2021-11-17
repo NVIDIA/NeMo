@@ -148,6 +148,7 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
     dataset = model_cfg.dataset
     return OmegaConf.structured(
         PunctuationCapitalizationModelConfig(
+            class_labels=model_cfg.class_labels,
             common_dataset_parameters=CommonDatasetParameters(
                 pad_label=dataset.pad_label,
                 ignore_extra_tokens=dataset.get('ignore_extra_tokens', DEFAULT_IGNORE_EXTRA_TOKENS),
