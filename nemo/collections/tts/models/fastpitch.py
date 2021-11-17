@@ -117,6 +117,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
+        self._input_types = self._output_types = None
 
     @property
     def tb_logger(self):
@@ -395,16 +396,18 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         Returns:
             A tuple of input examples.
         """
-        par = next(self.parameters())
-        inp = torch.randint(0, self.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64)
+        par = next(self.fastpitch.parameters())
+        inp = torch.randint(
+            0, self.fastpitch.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64
+        )
         pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
         pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
 
         inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
 
-        if self.speaker_emb is not None:
+        if self.fastpitch.speaker_emb is not None:
             inputs['speaker'] = torch.randint(
-                0, self.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
+                0, self.fastpitch.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
             )
 
         return (inputs,)
@@ -412,17 +415,25 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def forward_for_export(self, text, pitch, pace, speaker=None):
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
 
+    @property
+    def input_types(self):
+        return self._input_types
+
+    @property
+    def output_types(self):
+        return self._output_types
+
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
         # Define input_types and output_types as required by export()
-        self.input_types = {
+        self._input_types = {
             "text": NeuralType(('B', 'T'), TokenIndex()),
             "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
             "pace": NeuralType(('B', 'T'), optional=True),
             "speaker": NeuralType(('B'), Index()),
         }
-        self.output_types = {
+        self._output_types = {
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "num_frames": NeuralType(('B'), TokenDurationType()),
             "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
