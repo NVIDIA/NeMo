@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import copy
-import os
 from math import ceil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -29,7 +28,8 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
-    LABEL_ID_DIR_FOR_NEMO_CHECKPOINT,
+    PunctuationCapitalizationTrainDataConfig,
+    PunctuationCapitalizationEvalDataConfig,
     load_label_ids,
     raise_not_equal_labels_error,
 )
@@ -51,6 +51,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.config_utils import update_model_config
 
 __all__ = ['PunctuationCapitalizationModel']
 
@@ -281,8 +282,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if optim is not None:
             self._cfg.optim = optim
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
+    def setup_training_data(self, train_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None):
         """Setup training data"""
+        if train_data_config is not None:
+            train_data_config = OmegaConf.create(train_data_config)
+            train_data_config = update_model_config(PunctuationCapitalizationTrainDataConfig(), train_data_config)
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
@@ -328,12 +332,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         )
         self.metrics = torch.nn.ModuleDict({"val": eval_metrics, "test": copy.deepcopy(eval_metrics)})
 
-    def setup_validation_data(self, val_data_config: Optional[Dict] = None):
+    def setup_validation_data(self, val_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None):
         """
         Setup validaton data
 
         val_data_config: validation data config
         """
+        if val_data_config is not None:
+            val_data_config = OmegaConf.create(val_data_config)
+            val_data_config = update_model_config(PunctuationCapitalizationEvalDataConfig(), val_data_config)
         if self.metrics is None:
             self.setup_metrics_dictionary()
         if val_data_config is None:
@@ -345,7 +352,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.metrics['val']['punct_class_report'].append(ClassificationReport(**punct_kw))
         self.metrics['val']['capit_class_report'].append(ClassificationReport(**capit_kw))
 
-    def setup_test_data(self, test_data_config: Optional[Dict] = None):
+    def setup_test_data(self, test_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None):
+        if test_data_config is not None:
+            test_data_config = OmegaConf.create(test_data_config)
+            test_data_config = update_model_config(PunctuationCapitalizationEvalDataConfig(), test_data_config)
         if self.metrics is None:
             self.setup_metrics_dictionary()
         if test_data_config is None:

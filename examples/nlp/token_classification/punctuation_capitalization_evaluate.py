@@ -60,8 +60,7 @@ def main(cfg: DictConfig) -> None:
         'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
             no DDP to obtain accurate results'
     )
-    default_cfg = PunctuationCapitalizationConfig()
-    cfg = update_model_config(default_cfg, cfg)
+    cfg = update_model_config(PunctuationCapitalizationConfig(), cfg)
     if not hasattr(cfg.model, 'test_ds'):
         raise ValueError(f'model.test_ds was not found in the config, skipping evaluation')
     else:
