@@ -130,14 +130,20 @@ class NLPDDPPlugin(DDPPlugin):
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
             if torch.distributed.is_initialized():
-                parallel_state.initialize_model_parallel(app_state.model_parallel_size)
+                parallel_state.initialize_model_parallel(
+                    tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
+                    pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+                )
                 app_state.model_parallel_group = parallel_state.get_tensor_model_parallel_group()
                 app_state.data_parallel_group = parallel_state.get_data_parallel_group()
                 app_state.model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
                 app_state.data_parallel_rank = parallel_state.get_data_parallel_rank()
                 app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
-                logging.info(f'mp_rank: {app_state.model_parallel_rank}')
-                logging.info(f'dp_rank: {app_state.data_parallel_rank}')
+                app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
+                app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
+                logging.info(f'Tensor model parallel rank: {app_state.tensor_model_parallel_rank}')
+                logging.info(f'Pipeline model parallel rank: {app_state.pipeline_model_parallel_rank}')
+                logging.info(f'Data parallel rank: {app_state.data_parallel_rank}')
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
         # PTL override to accomodate model parallel checkpoints
