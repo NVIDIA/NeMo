@@ -26,6 +26,7 @@ __all__ = [
     'legacy_data_config_to_new_data_config',
     'load_label_ids',
     'raise_not_equal_labels_error',
+    'save_label_ids',
 ]
 
 import itertools
@@ -673,6 +674,14 @@ def load_label_ids(file_path: Union[str, os.PathLike]) -> Dict[str, int]:
     return ids
 
 
+def save_label_ids(label_ids: Dict[str, int], file_path: Path):
+    """ Saves label ids map to a file """
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with file_path.open('w') as out:
+        labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+        out.write('\n'.join(labels))
+
+
 def raise_not_equal_labels_error(
     first_labels: dict, second_labels: dict, first_labels_desc: str, second_labels_desc: str
 ):
@@ -852,15 +861,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         if features is None:
             features = pickle.load(open(features_pkl, 'rb'))
+            li = features[-2:]
             self.check_label_ids_loaded_from_pkl(
-                punct_label_ids,
-                capit_label_ids,
-                *features[-2:],
-                punct_label_vocab_file,
-                capit_label_vocab_file,
-                features_pkl,
+                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file, features_pkl
             )
-            punct_label_ids, capit_label_ids = features[-2], features[-1]
+            punct_label_ids, capit_label_ids = li[-2], li[-1]
             if tokenization_progress_queue is not None:
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
@@ -1242,15 +1247,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         )
         return label_frequencies
 
-    def _save_label_ids(self, label_ids: Dict[str, int], filename: Path):
-        """ Saves label ids map to a file """
-        filename.parent.mkdir(parents=True, exist_ok=True)
-        with filename.open('w') as out:
-            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-            out.write('\n'.join(labels))
-            if self.verbose:
-                logging.info(f'Labels: {label_ids}')
-                logging.info(f'Labels mapping saved to : {out.name}')
+    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name):
+        nemo_dir = self.label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+        punct_labels_file = nemo_dir / punct_labels_file_name
+        capit_labels_file = nemo_dir / capit_labels_file_name
+        save_label_ids(self.punct_label_ids, punct_labels_file)
+        save_label_ids(self.capit_label_ids, capit_labels_file)
 
     def __len__(self) -> int:
         return len(self.batches)

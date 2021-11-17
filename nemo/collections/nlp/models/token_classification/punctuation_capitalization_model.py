@@ -283,7 +283,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             label_vocab_dir = self._cfg.common_dataset_parameters.label_vocab_dir
             if label_vocab_dir is None:
-                punct_label_ids_file, capit_label_ids_file = self._train_dl.dataset.save_labels_and_get_file_paths()
+                punct_label_ids_file, capit_label_ids_file = self._train_dl.dataset.save_labels_and_get_file_paths(
+                    self._cfg.class_labels.punct_labels_file, self._cfg.class_labels.capit_labels_file
+                )
             else:
                 punct_label_ids_file = Path(label_vocab_dir).expanduser() / self._cfg.class_labels.punct_labels_file
                 capit_label_ids_file = Path(label_vocab_dir).expanduser() / self._cfg.class_labels.capit_labels_file

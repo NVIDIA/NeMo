@@ -31,8 +31,6 @@ from torch.utils.data import IterableDataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    DEFAULT_CAPIT_LABEL_IDS_NAME,
-    DEFAULT_PUNCT_LABEL_IDS_NAME,
     LABEL_ID_DIR_FOR_NEMO_CHECKPOINT,
     BertPunctuationCapitalizationDataset,
     Progress,
@@ -857,9 +855,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self.tokenizer = tokenizer
         self.metadata_file = Path(metadata_file).expanduser()
         if label_info_save_dir is None:
-            for_nemo_ckpt = self.metadata_file.parent / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+            self.for_nemo_ckpt = self.metadata_file.parent / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
         else:
-            for_nemo_ckpt = Path(label_info_save_dir).expanduser() / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+            self.for_nemo_ckpt = Path(label_info_save_dir).expanduser() / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
         with open(self.metadata_file) as f:
             self.metadata = json.load(f)
         self.ignore_extra_tokens = ignore_extra_tokens
@@ -871,18 +869,12 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 self.tar_files.append(str(file_path))
             else:
                 self.tar_files.append(str(self.metadata_file.parent / file_path))
-        punct_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
-        capit_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
-        self.punct_label_ids = load_label_ids(punct_label_vocab_file)
-        self.capit_label_ids = load_label_ids(capit_label_vocab_file)
+        self.punct_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
+        self.capit_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
+        self.punct_label_ids = load_label_ids(self.punct_label_vocab_file)
+        self.capit_label_ids = load_label_ids(self.capit_label_vocab_file)
         self.pad_label = pad_label
         self.check_pad_label()
-        for_nemo_ckpt.mkdir(parents=True, exist_ok=True)
-        self.punct_label_ids_file = for_nemo_ckpt / DEFAULT_PUNCT_LABEL_IDS_NAME
-        self.capit_label_ids_file = for_nemo_ckpt / DEFAULT_CAPIT_LABEL_IDS_NAME
-        if save_label_ids:
-            shutil.copy(str(punct_label_vocab_file), str(self.punct_label_ids_file))
-            shutil.copy(str(capit_label_vocab_file), str(self.capit_label_ids_file))
         begin_idx = (len(self.tar_files) // world_size) * global_rank
         end_idx = begin_idx + (len(self.tar_files) // world_size)
         logging.info(
@@ -1002,6 +994,14 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels_desc=f'labels stored in file {file} passed in '
                     f'`model.common_dataset_parameters.capit_label_vocab_file`',
                 )
+
+    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name):
+        self.for_nemo_ckpt.mkdir(parents=True, exist_ok=True)
+        punct_label_ids_file = self.for_nemo_ckpt / punct_labels_file_name
+        capit_label_ids_file = self.for_nemo_ckpt / capit_labels_file_name
+        if save_label_ids:
+            shutil.copy(str(self.punct_label_vocab_file), str(punct_label_ids_file))
+            shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
 
     def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
         """
