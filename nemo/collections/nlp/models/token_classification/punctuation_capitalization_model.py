@@ -277,17 +277,18 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             train_data_config = self._cfg.train_ds
 
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, train=True)
-
+        self.punct_label_ids = self._train_dl.dataset.punct_label_ids.copy()
+        self.capit_label_ids = self._train_dl.dataset.capit_label_ids.copy()
+        self.label_ids_are_set = True
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            self.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
-            self.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
-            self.label_ids_are_set = True
-            self.register_artifact(
-                'common_dataset_parameters.punct_label_vocab_file', self._train_dl.dataset.punct_label_ids_file
-            )
-            self.register_artifact(
-                'common_dataset_parameters.capit_label_vocab_file', self._train_dl.dataset.capit_label_ids_file
-            )
+            label_vocab_dir = self._cfg.common_dataset_parameters.label_vocab_dir
+            if label_vocab_dir is None:
+                punct_label_ids_file, capit_label_ids_file = self._train_dl.dataset.save_labels_and_get_file_paths()
+            else:
+                punct_label_ids_file = Path(label_vocab_dir).expanduser() / self._cfg.class_labels.punct_labels_file
+                capit_label_ids_file = Path(label_vocab_dir).expanduser() / self._cfg.class_labels.capit_labels_file
+            self.register_artifact('common_dataset_parameters.punct_label_vocab_file', str(punct_label_ids_file))
+            self.register_artifact('common_dataset_parameters.capit_label_vocab_file', str(capit_label_ids_file))
 
     def get_eval_metrics_kwargs(self):
         loss_kw = {'dist_sync_on_step': False, 'take_avg_loss': True}
@@ -378,14 +379,17 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 )
 
     def _extract_label_vocab_files_from_config(self) -> Tuple[Optional[Path], Optional[Path]]:
-        if self._cfg.common_dataset_parameters.punct_label_vocab_file is None:
-            punct_label_vocab_file = None
+        if self._cfg.common_dataset_parameters.label_vocab_dir is None:
+            if self._is_model_being_restored():
+                punct_label_vocab_file = self._cfg.class_labels.punct_labels_file
+                capit_label_vocab_file = self._cfg.class_labels.capit_labels_file
+            else:
+                punct_label_vocab_file, capit_label_vocab_file = None, None
         else:
-            punct_label_vocab_file = Path(self._cfg.common_dataset_parameters.punct_label_vocab_file).expanduser()
-        if self._cfg.common_dataset_parameters.capit_label_vocab_file is None:
-            capit_label_vocab_file = None
-        else:
-            capit_label_vocab_file = Path(self._cfg.common_dataset_parameters.capit_label_vocab_file).expanduser()
+            label_vocab_dir = Path(self._cfg.common_dataset_parameters.label_vocab_dir).expanduser()
+            punct_label_vocab_file = label_vocab_dir / self._cfg.class_labels.punct_labels_file
+            capit_label_vocab_file = label_vocab_dir / self._cfg.class_labels.capit_labels_file
+        print("Extracted vocab files:", punct_label_vocab_file, capit_label_vocab_file)
         return punct_label_vocab_file, capit_label_vocab_file
 
     def _set_label_ids(self):
@@ -421,17 +425,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.label_ids_are_set = True
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
-        # Following parameters can be missing in config if the model is restored from old checkpoint
         if not self.label_ids_are_set and not train:
             self.check_label_config_parameters()
             self._set_label_ids()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
-        # if ds_item is None and data_dir is None:
-        #     raise ValueError(
-        #         f"At least one of parameters `model.dataset.data_dir` and `model.<dataset_config>.ds_item` should be "
-        #         f"present in model config. Parameters `data_dir` or `ds_item` are paths to directory where "
-        #         f"`tar_metadata_file`, `text_file`, `labels_file` files are stored."
-        #     )
         if use_tarred_dataset:
             if cfg.tar_metadata_file is None:
                 raise ValueError(
@@ -466,11 +463,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             if self.label_ids_are_set:
                 label_kwargs = {'punct_label_ids': self.punct_label_ids, 'capit_label_ids': self.capit_label_ids}
             else:
+                punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
                 label_kwargs = {
                     'punct_label_ids': self._cfg.common_dataset_parameters.punct_label_ids,
                     'capit_label_ids': self._cfg.common_dataset_parameters.capit_label_ids,
-                    'punct_label_vocab_file': self._cfg.common_dataset_parameters.punct_label_vocab_file,
-                    'capit_label_vocab_file': self._cfg.common_dataset_parameters.capit_label_vocab_file,
+                    'punct_label_vocab_file': punct_label_vocab_file,
+                    'capit_label_vocab_file': capit_label_vocab_file,
                 }
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
@@ -487,7 +485,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 n_jobs=cfg.n_jobs,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,
-                save_label_ids=train,
                 cache_dir=cfg.cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
             )

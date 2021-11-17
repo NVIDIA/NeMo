@@ -18,6 +18,8 @@ from typing import Any, Dict, Optional, Tuple
 from omegaconf.omegaconf import DictConfig, MISSING, OmegaConf
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
+    DEFAULT_CAPIT_LABEL_IDS_NAME,
+    DEFAULT_PUNCT_LABEL_IDS_NAME,
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
     legacy_data_config_to_new_data_config,
@@ -73,18 +75,24 @@ class CapitHeadConfig:
 
 
 @dataclass
+class ClassLabels:
+    punct_labels_file: str = DEFAULT_PUNCT_LABEL_IDS_NAME
+    capit_labels_file: str = DEFAULT_CAPIT_LABEL_IDS_NAME
+
+
+@dataclass
 class CommonDatasetParameters:
     pad_label: str = MISSING
     ignore_extra_tokens: bool = DEFAULT_IGNORE_EXTRA_TOKENS
     ignore_start_end: bool = DEFAULT_IGNORE_START_END
     punct_label_ids: Optional[Dict[str, int]] = None
-    punct_label_vocab_file: Optional[str] = None
     capit_label_ids: Optional[Dict[str, int]] = None
-    capit_label_vocab_file: Optional[str] = None
+    label_vocab_dir: Optional[str] = None
 
 
 @dataclass
 class PunctuationCapitalizationModelConfig:
+    class_labels: ClassLabels = ClassLabels()
     common_dataset_parameters: Optional[CommonDatasetParameters] = CommonDatasetParameters()
     train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = PunctuationCapitalizationTrainDataConfig(
         text_file=MISSING,

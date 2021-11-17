@@ -41,6 +41,9 @@ exp_manager:
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
+  class_labels:
+    label_vocab_dir: null
+
   common_dataset_parameters:
     pad_label: 'O'
     ignore_extra_tokens: false

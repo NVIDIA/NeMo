@@ -766,11 +766,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         cache_dir: Optional[Union[str, os.PathLike]] = None,
         get_label_frequencies: bool = False,
         label_info_save_dir: Optional[Union[str, os.PathLike]] = None,
-        punct_label_vocab_file: Union[str, os.PathLike] = None,
-        capit_label_vocab_file: Union[str, os.PathLike] = None,
+        punct_label_vocab_file: Optional[Union[str, os.PathLike]] = None,
+        capit_label_vocab_file: Optional[Union[str, os.PathLike]] = None,
         add_masks_and_segment_ids_to_batch: bool = True,
         verbose: bool = True,
-        save_label_ids: bool = True,
         n_jobs: Optional[int] = 0,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
@@ -792,20 +791,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if capit_label_vocab_file is not None:
             capit_label_vocab_file = Path(capit_label_vocab_file).expanduser()
             capit_label_ids = load_label_ids(capit_label_vocab_file)
-        # Cache features
         text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
         if label_info_save_dir is None:
-            label_info_save_dir = text_file.parent
+            self.label_info_save_dir = text_file.parent
         else:
-            label_info_save_dir = Path(label_info_save_dir).expanduser()
-        if cache_dir is None:
-            cache_dir = text_file.parent
-        else:
-            cache_dir = Path(cache_dir).expanduser()
-        filename = text_file.name
-
-        if not filename.endswith('.txt'):
-            raise ValueError("{text_file} should have extension .txt")
+            self.label_info_save_dir = Path(label_info_save_dir).expanduser()
 
         self.tokens_in_batch = tokens_in_batch
         self.tokenizer = tokenizer
@@ -816,47 +806,27 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.verbose = verbose
         self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
         self.batch_building_progress_queue = batch_building_progress_queue
-        filename = filename[:-4]
-        vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        features_pkl = cache_dir / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
-            filename,
-            self.tokenizer.name,
-            str(max_seq_length),
-            str(vocab_size),
-            f'num_samples{num_samples}' if num_samples > 0 else 'all_samples',
-        )
-        self.punct_label_ids_file = (
-            label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT / DEFAULT_PUNCT_LABEL_IDS_NAME
-        )
-        self.capit_label_ids_file = (
-            label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT / DEFAULT_CAPIT_LABEL_IDS_NAME
-        )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        cache_files_exist = all(
-            [features_pkl.is_file(), self.punct_label_ids_file.is_file(), self.capit_label_ids_file.is_file()]
-        )
+        features_pkl = self.get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
         features = None
-        if master_device and not (cache_files_exist and use_cache):
-            if num_samples == 0:
-                raise ValueError(f"Parameter `num_samples` has to be positive whereas `num_samples={num_samples}`")
+        if master_device and not (features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(f'Processing {text_file}')
             res = self.read_dataset(text_file, labels_file, num_samples, verbose)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
-
-            # for dev/test sets use label mapping from training set
             if punct_label_ids:
-                self.check_label_ids(punct_label_ids, punct_unique_labels, 'punct', 'punctuation', labels_file)
+                self.check_label_ids_vs_unique_labels(
+                    punct_label_ids, punct_unique_labels, 'punct', 'punctuation', labels_file
+                )
             else:
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
-                self.check_label_ids(capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', labels_file)
+                self.check_label_ids_vs_unique_labels(
+                    capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', labels_file
+                )
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
-            if save_label_ids:
-                self._save_label_ids(punct_label_ids, self.punct_label_ids_file)
-                self._save_label_ids(capit_label_ids, self.capit_label_ids_file)
             features = get_features(
                 text_lines,
                 punct_label_lines,
@@ -882,6 +852,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         if features is None:
             features = pickle.load(open(features_pkl, 'rb'))
+            self.check_label_ids_loaded_from_pkl(
+                punct_label_ids,
+                capit_label_ids,
+                *features[-2:],
+                punct_label_vocab_file,
+                capit_label_vocab_file,
+                features_pkl,
+            )
             punct_label_ids, capit_label_ids = features[-2], features[-1]
             if tokenization_progress_queue is not None:
                 tokenization_progress_queue.put(len(features[0]))
@@ -896,12 +874,25 @@ class BertPunctuationCapitalizationDataset(Dataset):
         )
 
         if get_label_frequencies:
-            self.punct_label_frequencies = self._calculate_label_frequencies(
-                self.punct_labels, label_info_save_dir, 'punct'
-            )
-            self.capit_label_frequencies = self._calculate_label_frequencies(
-                self.capit_labels, label_info_save_dir, 'capit'
-            )
+            self.punct_label_frequencies = self._calculate_and_save_label_frequencies(self.punct_labels, 'punct')
+            self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
+
+    def get_path_to_pkl_features(
+        self, text_file: Path, cache_dir: Optional[Union[str, os.PathLike]], max_seq_length: int, num_samples: int
+    ) -> Path:
+        if cache_dir is None:
+            cache_dir = text_file.parent
+        else:
+            cache_dir = Path(cache_dir).expanduser()
+        vocab_size = getattr(self.tokenizer, "vocab_size", 0)
+        features_pkl = cache_dir / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
+            text_file.stem,
+            self.tokenizer.name,
+            str(max_seq_length),
+            str(vocab_size),
+            f'num_samples{num_samples}' if num_samples > 0 else 'all_samples',
+        )
+        return features_pkl
 
     @staticmethod
     def check_constructor_parameters(
@@ -921,6 +912,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f'separated with spaces. Each line of the files should follow the format:\n'
                 f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
                 f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+            )
+        if not str(text_file).endswith('.txt'):
+            raise ValueError(
+                f"Parameter `text_file` has to be path to a file with .txt extension, whereas `text_file={text_file}`"
+            )
+        if not str(labels_file).endswith('.txt'):
+            raise ValueError(
+                f"Parameter `labels_file` has to be path to a file with .txt extension, whereas "
+                f"`labels_file={labels_file}`"
             )
         if punct_label_ids is not None and punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
@@ -953,7 +953,36 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
 
     @staticmethod
-    def check_label_ids(
+    def check_label_ids_loaded_from_pkl(
+        parameter_punct_label_ids: Dict[str, int],
+        parameter_capit_label_ids: Dict[str, int],
+        pkl_punct_label_ids: Dict[str, int],
+        pkl_capit_label_ids: Dict[str, int],
+        punct_label_vocab_file: Optional[Path],
+        capit_label_vocab_file: Optional[Path],
+        features_file: Path,
+    ):
+        if parameter_punct_label_ids != pkl_punct_label_ids:
+            raise_not_equal_labels_error(
+                first_labels=parameter_punct_label_ids,
+                second_labels=pkl_punct_label_ids,
+                first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
+                if punct_label_vocab_file is None
+                else f"Punctuation labels loaded from file {punct_label_vocab_file}",
+                second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
+            )
+        if parameter_capit_label_ids != pkl_capit_label_ids:
+            raise_not_equal_labels_error(
+                first_labels=parameter_capit_label_ids,
+                second_labels=pkl_capit_label_ids,
+                first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
+                if capit_label_vocab_file is None
+                else f"Capitalization labels loaded from file {capit_label_vocab_file}",
+                second_labels_desc=f"Capitalization label ids loaded from features file {features_file}",
+            )
+
+    @staticmethod
+    def check_label_ids_vs_unique_labels(
         label_ids: Dict[str, int], unique_labels: Set[str], label_type: str, task: str, label_file: Path
     ):
         if unique_labels - set(label_ids):
@@ -1202,13 +1231,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
 
-    def _calculate_label_frequencies(self, all_labels: List[ArrayLike], data_dir: Path, name: str) -> Dict[str, float]:
+    def _calculate_and_save_label_frequencies(self, all_labels: List[ArrayLike], name: str) -> Dict[str, float]:
         """ Calculates labels frequencies """
         merged_labels = itertools.chain.from_iterable(all_labels)
         if self.verbose:
             logging.info('Three most popular labels')
-        data_dir.mkdir(parents=True, exist_ok=True)
-        _, label_frequencies, _ = get_label_stats(merged_labels, str(data_dir / f'label_count_{name}.tsv'))
+        self.label_info_save_dir.mkdir(parents=True, exist_ok=True)
+        _, label_frequencies, _ = get_label_stats(
+            merged_labels, str(self.label_info_save_dir / f'label_count_{name}.tsv')
+        )
         return label_frequencies
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: Path):

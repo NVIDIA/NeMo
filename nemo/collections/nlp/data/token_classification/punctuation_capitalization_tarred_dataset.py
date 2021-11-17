@@ -846,6 +846,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         tokenizer: TokenizerSpec,
         pad_label: str,
         label_info_save_dir: Optional[Union[os.PathLike, str]] = None,
+        save_label_ids: bool = True,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         world_size: int = 1,
@@ -879,8 +880,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         for_nemo_ckpt.mkdir(parents=True, exist_ok=True)
         self.punct_label_ids_file = for_nemo_ckpt / DEFAULT_PUNCT_LABEL_IDS_NAME
         self.capit_label_ids_file = for_nemo_ckpt / DEFAULT_CAPIT_LABEL_IDS_NAME
-        shutil.copy(str(punct_label_vocab_file), str(self.punct_label_ids_file))
-        shutil.copy(str(capit_label_vocab_file), str(self.capit_label_ids_file))
+        if save_label_ids:
+            shutil.copy(str(punct_label_vocab_file), str(self.punct_label_ids_file))
+            shutil.copy(str(capit_label_vocab_file), str(self.capit_label_ids_file))
         begin_idx = (len(self.tar_files) // world_size) * global_rank
         end_idx = begin_idx + (len(self.tar_files) // world_size)
         logging.info(
