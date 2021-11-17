@@ -185,8 +185,6 @@ class FastPitchModule(NeuralModule):
             "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "pitch_offset": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
-            "pace": NeuralType(('B', 'T'), optional=True),
         }
 
     @property
@@ -217,7 +215,6 @@ class FastPitchModule(NeuralModule):
         attn_prior=None,
         mel_lens=None,
         input_lens=None,
-        pitch_offset=None,
     ):
 
         if not self.learn_alignment and self.training:
@@ -244,7 +241,7 @@ class FastPitchModule(NeuralModule):
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
 
         # Predict pitch
-        pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch_offset
+        pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
         if pitch is not None:
             if self.learn_alignment and pitch.shape[-1] != pitch_predicted.shape[-1]:
                 # Pitch during training is per spectrogram frame, but during inference, it should be per character
@@ -303,23 +300,3 @@ class FastPitchModule(NeuralModule):
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
         spect = self.proj(dec_out).transpose(1, 2)
         return spect.to(torch.float), dec_lens, durs_predicted, log_durs_predicted, pitch_predicted
-
-    def input_example(self):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        par = next(self.parameters())
-        inp = torch.randint(0, self.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64)
-        pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
-        pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
-
-        inputs = {'text': inp, 'pitch_offset': pitch, 'pace': pace}
-
-        if self.speaker_emb is not None:
-            inputs['speaker'] = torch.randint(
-                0, self.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
-            )
-
-        return (inputs,)
