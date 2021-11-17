@@ -181,7 +181,6 @@ def process_fragment(
         use_cache=False,
         add_masks_and_segment_ids_to_batch=False,
         verbose=False,
-        save_label_ids=fragment_idx == 0,
         tokenization_progress_queue=tokenization_progress_queue,
         batch_mark_up_progress_queue=batch_mark_up_progress_queue,
         batch_building_progress_queue=batch_building_progress_queue,
@@ -223,10 +222,12 @@ def process_fragment(
     else:
         current_file_name.unlink()
     if fragment_idx == 0:
-        dataset.punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME)
-        dataset.capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME)
-        print("removed directory:", dataset.punct_label_ids_file.parent)
-        shutil.rmtree(dataset.punct_label_ids_file.parent)
+        punct_label_ids_file, capit_label_ids_file = dataset.save_labels_and_get_file_paths(
+            DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME, DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
+        )
+        punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME)
+        capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME)
+        shutil.rmtree(punct_label_ids_file.parent)
 
 
 def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path):
