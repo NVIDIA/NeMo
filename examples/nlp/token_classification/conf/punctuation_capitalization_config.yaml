@@ -42,8 +42,8 @@ exp_manager:
 
 model:
   class_labels:
-    punct_labels_file: null
-    capit_labels_file: null
+    punct_labels_file: punct_label_ids.csv
+    capit_labels_file: capit_label_ids.csv
 
   common_dataset_parameters:
     pad_label: 'O'
