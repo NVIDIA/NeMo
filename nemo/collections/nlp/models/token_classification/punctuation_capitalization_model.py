@@ -397,9 +397,17 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def _set_label_ids(self):
         punct_label_vocab_file, capit_label_vocab_file = self._extract_label_vocab_files_from_config()
         if punct_label_vocab_file is not None:
-            self.punct_label_ids = load_label_ids(
-                self.register_artifact('class_labels.punct_labels_file', str(punct_label_vocab_file))
-            )
+            punct_labels_file = self.register_artifact('class_labels.punct_labels_file', str(punct_label_vocab_file))
+            if punct_labels_file is None:
+                logging.warning(
+                    f"The artifact `class_labels.punct_labels_file` was not found in checkpoint. Will rely on "
+                    f"`punct_label_ids` parameter"
+                )
+                self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
+            else:
+                self.punct_label_ids = load_label_ids(
+                    self.register_artifact('class_labels.punct_labels_file', str(punct_label_vocab_file))
+                )
         elif self._cfg.common_dataset_parameters.punct_label_ids is not None:
             self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
         else:
@@ -411,9 +419,17 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 f"inferred from training set."
             )
         if capit_label_vocab_file is not None:
-            self.capit_label_ids = load_label_ids(
-                self.register_artifact('class_labels.capit_labels_file', str(capit_label_vocab_file))
-            )
+            capit_labels_file = self.register_artifact('class_labels.capit_labels_file', str(capit_label_vocab_file))
+            if capit_labels_file is None:
+                logging.warning(
+                    f"The artifact `class_labels.capit_labels_file` was not found in checkpoint. Will rely on "
+                    f"`capit_label_ids` parameter"
+                )
+                self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
+            else:
+                self.capit_label_ids = load_label_ids(
+                    self.register_artifact('class_labels.capit_labels_file', str(capit_label_vocab_file))
+                )
         elif self._cfg.common_dataset_parameters.capit_label_ids is not None:
             self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
         else:
