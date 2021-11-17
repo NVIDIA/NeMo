@@ -96,6 +96,8 @@ class MegatronGPTModel(NLPModel):
             num_tokentypes=0,
             parallel_output=True,
             use_soft_prompts=cfg.get('use_soft_prompts', False),
+            prompt_length=cfg.get('prompt_length', 10),
+            prompt_tags=cfg.get('existing_prompt_tags', None),
             pre_process=cfg.get('pre_process', True),
             post_process=cfg.get('post_process', True),
             init_method_std=cfg.get('init_method_std', 0.02),
@@ -112,14 +114,15 @@ class MegatronGPTModel(NLPModel):
 
         self.use_soft_prompts = False
 
-        if self.cfg.data.get('use_soft_prompts', False): 
+        if self.cfg.get('use_soft_prompts', False): 
             self.use_soft_prompts = True
-            self.prompt_table_path = self.register_artifact("prompt_table", 
-                                                            self.cfg.data.prompt_table, 
-                                                            verify_src_exists=False)
+            self.prompt_table = {}
 
-            self.prompt_table = load_prompt_table(self.prompt_table_path, model)
+            if self.cfg.get('existing_prompt_tags', None):
+                prompt_tags = self.cfg.prompt_tags
 
+                for tag in prompt_tags:
+                    self._add_prompt_tag(tag)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None, prompt_position_ids=None):
         output_tensor = self.model(tokens, 
@@ -443,11 +446,11 @@ class MegatronGPTModel(NLPModel):
         self.unfreeze()
         return response
 
-    def init_prompt_from_random(self, prompt_tag, num_prompt_tokens, init_method):
-        self.model._init_prompt_from_random(prompt_tag, num_prompt_tokens, init_method)
+    def init_prompt_from_random(self, prompt_tag, init_method):
+        self.model._init_prompt_from_random(prompt_tag, init_method)
         self._add_prompt_tag(prompt_tag)
 
-    def init_prompt_from_text(self, prompt_tag, num_prompt_tokens, init_text):
+    def init_prompt_from_text(self, prompt_tag, init_text):
         # TODO:get device properly
         device = torch.device("cuda")
         init_token_ids = torch.tensor(self.tokenizer.text_to_ids(init_text)).to(device)

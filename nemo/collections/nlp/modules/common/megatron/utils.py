@@ -133,3 +133,4 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
     attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
+
