@@ -82,9 +82,12 @@ def main(cfg: DictConfig) -> None:
             model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
         else:
             raise ValueError(
-                f'Provide path to the pre-trained .nemo file or choose from {PunctuationCapitalizationModel.list_available_models()}'
+                f'Provide path to the pre-trained .nemo file or choose from '
+                f'{PunctuationCapitalizationModel.list_available_models()}'
             )
         model.update_config(
+            class_labels=cfg.class_labels,
+            common_dataset_parameters=cfg.common_dataset_parameters,
             train_ds=cfg.model.train_ds,
             validation_ds=cfg.model.validation_ds,
             test_ds=cfg.model.test_ds,

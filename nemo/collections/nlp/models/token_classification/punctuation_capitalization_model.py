@@ -244,6 +244,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def update_config(
         self,
+        class_labels: Optional[DictConfig] = None,
+        common_dataset_parameters: Optional[DictConfig] = None,
         train_ds: Optional[DictConfig] = None,
         test_ds: Optional[DictConfig] = None,
         validation_ds: Optional[DictConfig] = None,
@@ -262,6 +264,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             optim: optimization configuration. See possible options in
                 ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationOptimConfig``
         """
+        if class_labels is not None:
+            self._cfg.class_labels = class_labels
+        if common_dataset_parameters is not None:
+            self._cfg.common_dataset_parameters = common_dataset_parameters
         if train_ds is not None:
             self._cfg.train_ds = train_ds
         if validation_ds is not None:
@@ -377,7 +383,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     else:
                         config_label_ids_source = (
                             f"Labels loaded from file {plvf} passed in config parameter "
-                            f"`model.common_dataset_parameters.{label_vocab_name}"
+                            f"`model.common_dataset_parameters.{label_vocab_name}`"
                         )
                     if already_set_label_ids != config_label_ids:
                         raise_not_equal_labels_error(
