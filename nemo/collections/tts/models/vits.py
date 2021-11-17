@@ -126,11 +126,26 @@ class VitsModel(TextToWaveform):
         self.hop_size = cfg.hop_size
 
         self.net_g = SynthesizerTrn(
-            # len(symbols),
-            self.hps.data.filter_length // 2 + 1,
-            self.hps.train.segment_size // self.hps.data.hop_length,
-            **self.hps.model)
-        self.net_d = MultiPeriodDiscriminator(self.hps.model.use_spectral_norm)
+            n_vocab = cfg.symbols_embedding_dim,
+            spec_channels = cfg.n_mel_channels,
+            segment_size = cfg.segment_size,
+            inter_channels = cfg.inter_channels,
+            hidden_channels = cfg.hidden_channels,
+            filter_channels = cfg.filter_channels,
+            n_heads = cfg.n_heads,
+            n_layers = cfg.n_layers,
+            kernel_size = cfg.pitch_embedding_kernel_size,
+            p_dropout = cfg.p_dropout,
+            resblock = cfg.generator.resblock,
+            resblock_kernel_sizes = cfg.generator.resblock_kernel_sizes,
+            resblock_dilation_sizes = cfg.generator.resblock_dilation_sizes,
+            upsample_rates = cfg.generator.upsample_rates,
+            upsample_initial_channel = cfg.generator.upsample_initial_channel,
+            upsample_kernel_sizes = cfg.generator.upsample_kernel_sizes,
+            # cfg.filter_channels // 2 + 1,
+            # cfg.segment_size // cfg.train_ds.dataset.hop_length,
+            )
+        self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
         self.automatic_optimization = False
 
     def parse(self, str_input: str) -> torch.tensor:
@@ -140,21 +155,21 @@ class VitsModel(TextToWaveform):
     def configure_optimizers(self):
         self.optim_g = torch.optim.AdamW(
             self.net_g.parameters(),
-            self._cfg.model.lr,
-            betas=self._cfg.model.betas,
-            eps=self._cfg.model.eps)
+            self._cfg.lr,
+            betas=self._cfg.betas,
+            eps=self._cfg.eps)
         self.optim_d = torch.optim.AdamW(
             self.net_d.parameters(),
-            self._cfg.model.lr,
-            betas=self._cfg.model.betas,
-            eps=self._cfg.model.eps)
+            self._cfg.lr,
+            betas=self._cfg.betas,
+            eps=self._cfg.eps)
 
-        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.model.lr_decay)
+        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.lr_decay)
         scheduler_g_dict = {
             'scheduler': scheduler_g,
             'interval': 'step',
         }
-        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.model.lr_decay)
+        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.lr_decay)
         scheduler_d_dict = {
             'scheduler': scheduler_d,
             'interval': 'step'
@@ -170,7 +185,7 @@ class VitsModel(TextToWaveform):
             x_lengths = x_lengths[:1]
 
             y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
-            y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.model.hop_size
+            y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.hop_size
 
         return y_hat, y_lengths
 
@@ -182,24 +197,24 @@ class VitsModel(TextToWaveform):
             (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
             mel = modules.spec_to_mel_torch(
                 spec,
-                self._cfg.model.train_ds.filter_length,
-                self._cfg.model.n_mel_channels,
-                self._cfg.model.sample_rate,
-                self._cfg.model.mel_fmin,
-                self._cfg.model.mel_fmax
+                self._cfg.train_ds.filter_length,
+                self._cfg.n_mel_channels,
+                self._cfg.sample_rate,
+                self._cfg.mel_fmin,
+                self._cfg.mel_fmax
             )
-            y_mel = modules.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
+            y_mel = modules.slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
             y_hat_mel = modules.mel_spectrogram_torch(
                 y_hat.squeeze(1),
-                self._cfg.model.train_ds.filter_length,
-                self._cfg.model.n_mel_channels,
-                self._cfg.model.sample_rate,
-                self._cfg.model.hop_size,
-                self._cfg.model.preprocessing.n_window_size,
-                self._cfg.model.mel_fmin,
-                self._cfg.model.mel_fmax
+                self._cfg.train_ds.filter_length,
+                self._cfg.n_mel_channels,
+                self._cfg.sample_rate,
+                self._cfg.hop_size,
+                self._cfg.preprocessing.n_window_size,
+                self._cfg.mel_fmin,
+                self._cfg.mel_fmax
             )
-            y = modules.slice_segments(y, ids_slice * self._cfg.model.hop_size, self._cfg.model.segment_size)  # slice
+            y = modules.slice_segments(y, ids_slice * self._cfg.hop_size, self._cfg.segment_size)  # slice
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
             loss_disc_all = loss_disc
@@ -215,8 +230,8 @@ class VitsModel(TextToWaveform):
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
-            loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.model.c_mel
-            loss_kl = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.model.c_kl
+            loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
+            loss_kl = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.c_kl
 
             loss_fm = self.feat_matching_loss(fmap_r, fmap_g)
             loss_gen, losses_gen = self.gen_loss(y_d_hat_g)
@@ -353,40 +368,40 @@ class VitsModel(TextToWaveform):
         (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
         mel = modules.spec_to_mel_torch(
             spec,
-            self._cfg.model.train_ds.filter_length,
-            self._cfg.model.n_mel_channels,
-            self._cfg.model.sample_rate,
-            self._cfg.model.mel_fmin,
-            self._cfg.model.mel_fmax
+            self._cfg.train_ds.filter_length,
+            self._cfg.n_mel_channels,
+            self._cfg.sample_rate,
+            self._cfg.mel_fmin,
+            self._cfg.mel_fmax
         )
         mel = modules.spec_to_mel_torch(
             spec,
-            self._cfg.model.train_ds.filter_length,
-            self._cfg.model.n_mel_channels,
-            self._cfg.model.sample_rate,
-            self._cfg.model.mel_fmin,
-            self._cfg.model.mel_fmax
+            self._cfg.train_ds.filter_length,
+            self._cfg.n_mel_channels,
+            self._cfg.sample_rate,
+            self._cfg.mel_fmin,
+            self._cfg.mel_fmax
         )
-        y_mel = modules.slice_segments(mel, ids_slice, self._cfg.model.segment_size // self._cfg.model.hop_size)
+        y_mel = modules.slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
         y_hat_mel = modules.mel_spectrogram_torch(
             y_hat.squeeze(1),
-            self._cfg.model.train_ds.filter_length,
-            self._cfg.model.n_mel_channels,
-            self._cfg.model.sample_rate,
-            self._cfg.model.hop_size,
-            self._cfg.model.preprocessing.n_window_size,
-            self._cfg.model.mel_fmin,
-            self._cfg.model.mel_fmax
+            self._cfg.train_ds.filter_length,
+            self._cfg.n_mel_channels,
+            self._cfg.sample_rate,
+            self._cfg.hop_size,
+            self._cfg.preprocessing.n_window_size,
+            self._cfg.mel_fmin,
+            self._cfg.mel_fmax
         )
 
-        loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.model.c_mel
+        loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
         self.log_dict({"val_loss * c_mel": loss_mel}, on_epoch=True, sync_dist=True)
 
     @staticmethod
     def _loader(cfg):
         try:
             # _ = cfg.model.train_ds.manifest_filepath
-            _ = cfg['manifest_filepath']
+            _ = cfg['dataset']['manifest_filepath']
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None

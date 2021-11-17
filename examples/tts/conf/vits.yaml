@@ -5,6 +5,35 @@ labels: [' ', '!', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'a', 'b', 'c', '
 train_dataset: ???
 validation_datasets: ???
 test_datasets: null
+sample_rate: 22050
+sup_data_path: null
+sup_data_types: null
+
+# LJSpeech stats (per frame), train
+pitch_mean: 212.35873413085938
+pitch_std: 68.52806091308594
+
+# default values from librosa.pyin
+pitch_fmin: 65.40639132514966
+pitch_fmax: 2093.004522404789
+
+# default values for sample_rate=22050
+n_mels: 80
+n_window_size: 1024
+n_window_stride: 256
+n_fft: 1024
+lowfreq: 0
+highfreq: 8000
+window: "hann"
+
+pitch_loss_scale: 0.1
+durs_loss_scale: 0.1
+mel_loss_scale: 1.0
+
+phoneme_dict_path: null # "scripts/tts_dataset_files/cmudict-0.7b-030921"
+heteronyms_path: null # "scripts/tts_dataset_files/heteronyms-030921"
+
+filter_length: 768
 
 model:
   sample_rate: 22050
@@ -31,10 +60,11 @@ model:
   c_kl: 1.
   inter_channels: 192
   hidden_channels: 192
-  filter_channels: 768
+  filter_channels: ${filter_length}
   n_heads: 2
   p_dropout: 0.1
   n_layers_q: 3
+  n_layers: 6
   use_spectral_norm: false
   mel_fmin: 0.0
   mel_fmax: null
@@ -119,6 +149,13 @@ model:
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
 
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 64
+      num_workers: 1
+      pin_memory: false
+
 
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
@@ -172,19 +209,19 @@ model:
 
   duration_predictor:
     _target_: nemo.collections.tts.modules.vits_modules.StochasticDurationPredictor
-    input_size: ${model.symbols_embedding_dim}
+    in_channels: ${model.symbols_embedding_dim} # input_size: ${model.symbols_embedding_dim}
     kernel_size: 3
-    filter_size: 256
-    dropout: 0.1
-    n_layers: 6
+    filter_channels: ${filter_length} # filter_size: 256
+    p_dropout: 0.1 # dropout: 0.1
+    # n_layers: 6
 
   pitch_predictor:
     _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
     input_size: ${model.symbols_embedding_dim}
     kernel_size: 3
-    filter_size: 256
+    filter_size: ${filter_length}
     dropout: 0.1
-    n_layers: 6
+    n_layers: ${model.n_layers}
 
   generator:
     _target_: nemo.collections.tts.modules.vits_modules.Generator
@@ -194,7 +231,7 @@ model:
     upsample_rates: [8,8,2,2]
     upsample_initial_channel: 512
     upsample_kernel_sizes: [16,16,4,4]
-    initial_input_size: 384
+    initial_channel: 384 # initial_input_size: 384
 
 trainer:
   gpus: -1 # number of gpus
@@ -204,7 +241,7 @@ trainer:
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  gradient_clip_val: 1000.0
+  # gradient_clip_val: 1000.0
   flush_logs_every_n_steps: 1000
   log_every_n_steps: 100
   check_val_every_n_epoch: 5
