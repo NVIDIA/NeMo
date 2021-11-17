@@ -688,17 +688,27 @@ def raise_not_equal_labels_error(
     missing_in_first = {k: second_labels[k] for k in set(second_labels) - set(first_labels)}
     missing_in_second = {k: first_labels[k] for k in set(first_labels) - set(second_labels)}
     not_equal = {
-        k: first_labels[k]
+        k: {'FIRST LABELS': first_labels[k], 'SECOND LABELS': second_labels[k]}
         for k in set(first_labels) & set(second_labels)
         if first_labels[k] != second_labels[k]
     }
-    raise ValueError(
-        f"{first_labels_desc} (FIRST LABELS) are not equal to {second_labels_desc} (SECOND LABELS). Number of labels "
-        f"missing in the FIRST LABELS: {len(missing_in_first)}, number of labels missing in the SECOND LABELS: "
-        f"{len(missing_in_second)}, number of not equal labels: {len(not_equal)}. First missing labels in the FIRST "
-        f"LABELS: {dict(list(missing_in_first.items())[:3])}, first missing in the SECOND LABELS: "
-        f"{dict(list(missing_in_second.items()))}, first not equal labels: {dict(list(not_equal.items()))}."
-    )
+    msg = f"{first_labels_desc} (FIRST LABELS) are not equal to {second_labels_desc} (SECOND LABELS)."
+    if len(missing_in_first) > 0:
+        msg += f" Number of labels missing in the FIRST LABELS: {len(missing_in_first)}."
+    if len(missing_in_second) > 0:
+        msg += f" Number of labels missing in the SECOND LABELS: {len(missing_in_second)}."
+    if len(not_equal) > 0:
+        msg += f" Number of labels which are not equal: {len(not_equal)}."
+    if len(missing_in_first) > 0:
+        msg += f" Several examples of missing labels in the FIRST LABELS: {dict(list(missing_in_first.items())[:3])}."
+    if len(missing_in_second) > 0:
+        msg += (
+           f" Several examples of missing labels in the SECOND LABELS: "
+           f"{dict(list(missing_in_second.items())[:3])}."
+        )
+    if len(not_equal) > 0:
+        msg += f" Several examples of labels which are not equal: {dict(list(not_equal.items())[:3])}"
+    raise ValueError(msg)
 
 
 class BertPunctuationCapitalizationDataset(Dataset):

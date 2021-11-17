@@ -263,7 +263,8 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
             f"Found {len(unexpected_tar_files)} unexpected tar files in the output directory {output_dir}. "
             f"All of them are going to be removed. The files match one of 3 patterns: "
             f"'{TAR_FRAGMENT_PATTERN_IN_PROGRESS.pattern}', '{TAR_FRAGMENT_PATTERN_FINISHED.pattern}', "
-            f"'{tar_final_pattern.pattern}'. The first 3 unexpected files: {unexpected_tar_files[:3]}"
+            f"'{tar_final_pattern.pattern}'. The first 3 unexpected files: "
+            f"{', '.join([str(f) for f in unexpected_tar_files[:3]])}."
         )
         for fn in unexpected_tar_files:
             fn.unlink()
@@ -799,21 +800,14 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             containing ``metadata_file``. Items ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and
             ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` are paths to .csv files which contain unique punctuation an
             capitalization labels. These paths are relative to directory containing ``metadata_file``.
-            Each line in ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` contain 1
+            Each line in ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` contains 1
             label. The first lines in ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'``
             files are neutral labels which also serve as padding. Neutral labels similar for punctuation and
-            capitalization and have to be equal to ``pad_label``.
+            capitalization and have to be equal to ``pad_label`` parameter.
         tokenizer: a tokenizer instance used for tokenization of dataset source. A tokenizer instance is used for
             getting ids of [CLS], [PAD], and [SEP] tokens which are used for masks creation.
         pad_label: a label that is used for padding and for absence of both punctuation and capitalization. Used for
             checking items ``'punct_label_vocab'`` and ``'capit_label_vocab'`` of dictionary in ``metadata_file``.
-        for_nemo_checkpoint_dir:
-        punct_label_ids_file: a name of punctuation label ids file which then will be used in .nemo checkpoints.
-            The file with name ``punct_label_ids_file`` is just a copy of a file referenced in item
-            ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` in ``metadata_file``.
-        capit_label_ids_file: a name of capitalization label ids file which then will be used in .nemo checkpoints.
-            The file with name ``capit_label_ids_file`` is just a copy of a file referenced in item
-            ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` in ``metadata_file``.
         ignore_extra_tokens: whether to use only first token in a word for loss computation and training. If set to
             ``True``, then loss will be computed only for the first token of a word.
         ignore_start_end: whether to compute loss for [CLS] and [SEP] tokens. If set to ``True``, then loss will not
@@ -845,7 +839,6 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         tokenizer: TokenizerSpec,
         pad_label: str,
         label_info_save_dir: Optional[Union[os.PathLike, str]] = None,
-        save_label_ids: bool = True,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         world_size: int = 1,
@@ -905,26 +898,6 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     f"Pad label '{self.pad_label}' has non zero id {label_ids[self.pad_label]} in {task} "
                     f"ids dictionary loaded from {label_file}."
                 )
-
-    def _raise_not_equal_labels_error(
-        self, tarred_labels: dict, model_labels: dict, label_type: str, model_label_desc: str
-    ):
-        missing_in_tarred = {k: model_labels[k] for k in set(model_labels) - set(tarred_labels)}
-        missing_in_model = {k: tarred_labels[k] for k in set(tarred_labels) - set(model_labels)}
-        not_equal = {
-            k: tarred_labels[k]
-            for k in set(tarred_labels) & set(model_labels)
-            if tarred_labels[k] != model_labels[k]
-        }
-        raise ValueError(
-            f"{label_type.capitalize()} labels loaded from tarred dataset with metadata file {self.metadata_file} are "
-            f"not equal to {model_label_desc}. Number of labels missing in the tarred dataset: "
-            f"{len(missing_in_tarred)}, number of labels missing in the model: {len(missing_in_model)}, "
-            f"number of labels not equal in the model and tarred dataset: {len(not_equal)}. First missing "
-            f"labels in the tarred dataset: {dict(list(missing_in_tarred.items())[:3])}, first missing in "
-            f"{model_label_desc}: {dict(list(missing_in_model.items()))}, first not equal labels: "
-            f"{dict(list(not_equal.items()))}."
-        )
 
     def check_for_label_consistency_with_model_config(
         self,

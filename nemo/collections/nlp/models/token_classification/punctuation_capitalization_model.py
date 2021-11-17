@@ -391,7 +391,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             label_vocab_dir = Path(self._cfg.common_dataset_parameters.label_vocab_dir).expanduser()
             punct_label_vocab_file = label_vocab_dir / self._cfg.class_labels.punct_labels_file
             capit_label_vocab_file = label_vocab_dir / self._cfg.class_labels.capit_labels_file
-        print("Extracted vocab files:", punct_label_vocab_file, capit_label_vocab_file)
         return punct_label_vocab_file, capit_label_vocab_file
 
     def _set_label_ids(self):
@@ -443,8 +442,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.label_ids_are_set = True
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, train: bool):
+        self.check_label_config_parameters()
         if not self.label_ids_are_set and not train:
-            self.check_label_config_parameters()
             self._set_label_ids()
         use_tarred_dataset = cfg.get('use_tarred_dataset', False)
         if use_tarred_dataset:
