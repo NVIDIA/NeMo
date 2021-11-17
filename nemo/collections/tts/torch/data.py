@@ -588,6 +588,7 @@ class MixerTTSDataset(TTSDataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
         ) = super().__getitem__(index)
 
         lm_tokens = None
@@ -607,13 +608,14 @@ class MixerTTSDataset(TTSDataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
             lm_tokens,
         )
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
-        data_dict = self.general_collate_fn(list(zip(*batch[:12])))
-        lm_tokens_list = batch[12]
+        data_dict = self.general_collate_fn(list(zip(*batch[:13])))
+        lm_tokens_list = batch[13]
 
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.full(
