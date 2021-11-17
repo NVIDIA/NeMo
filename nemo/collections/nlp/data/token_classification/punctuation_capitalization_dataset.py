@@ -296,8 +296,7 @@ class Progress:
                 parrot_progress_queue.put(1)
                 frog_progress_queue.put(2)
 
-    If ``-1`` is put into a progress queue, then corresponding progress bar is closed even if the progress bar didn't
-    reach 100%.
+    Progress bars and progress process are closed when ``finish`` or ``__exit__`` methods are called.
     """
 
     def __init__(self, total: Union[int, List[int]], desc: Union[str, List[str]], unit: Union[str, List[str]]):
@@ -461,18 +460,18 @@ class TokenizeCreateMasksClipWorker:
         return all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels
 
 
-def tokenize_create_masks_clip_parallel(
-    queries: List[str],
+def get_features(
+    queries: Union[List[str], Tuple[str, ...]],
+    punct_label_lines: Union[List[str], Tuple[str, ...]],
+    capit_label_lines: Union[List[str], Tuple[str, ...]],
     max_seq_length: int,
     tokenizer: TokenizerSpec,
-    punct_label_ids: Optional[Dict[str, int]],
-    capit_label_ids: Optional[Dict[str, int]],
-    punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
-    capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
-    pad_label: str,
-    verbose: bool,
-    n_jobs: Optional[int],
-    progress_queue: Optional[mp.Queue],
+    punct_label_ids: Dict[str, int] = None,
+    capit_label_ids: Dict[str, int] = None,
+    pad_label: str = 'O',
+    verbose: bool = True,
+    n_jobs: Optional[int] = 0,
+    progress_queue: Optional[mp.Queue] = None,
 ) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
     """
     Tokenizes data, encodes labels, creates masks of first tokens in words, clips sequences by number of tokens.
@@ -484,15 +483,14 @@ def tokenize_create_masks_clip_parallel(
         tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
         punct_label_ids: dict to map punctuation labels to label ids. Starts with pad_label->0.
         capit_label_ids: dict to map capitalization labels to label ids. Starts with pad_label->0.
-            Required for training and evaluation, not needed for inference.
         pad_label: pad value use for labels. By default, it's the neutral label for punctuation and capitalization.
-            
-        punct_label_lines: list of labels for every word in a sequence (str)
-        capit_label_lines: list of labels for every word in a sequence (str)
+            Its id in ``punct_label_ids`` and ``capit_label_ids`` has to be ``0``
+        punct_label_lines: a list of a tuple of labels for every word in a sequence (str)
+        capit_label_lines: a list or a tuple of labels for every word in a sequence (str)
         verbose: whether to show examples of tokenized data and various progress information
         n_jobs: a number of workers used for preparing features. If ``n_jobs <= 0``, then do not use multiprocessing
-            and run features creation in a calling process. If not set, number of workers will be equal to the number
-            of CPUs.
+            and run features creation in this process. If not set, number of workers will be equal to the number of
+            CPUs.
 
             !!WARNING!!
             There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
@@ -505,10 +503,12 @@ def tokenize_create_masks_clip_parallel(
         subtokens_mask: a list of 1D boolean arrays. An array element is ``True`` if corresponding token is the
             first token in a word
         punct_labels: a list of 1D int32 arrays. Encoded punctuation labels for every token in a query. Tokens in one
-            word have identical labels
+            word have identical labels.
         capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens in
             one word have identical labels
     """
+    if verbose:
+        logging.info("Start initial tokenization.")
     create_progress_process = progress_queue is None
     if n_jobs is None:
         n_jobs = min(mp.cpu_count(), len(queries))
@@ -549,71 +549,7 @@ def tokenize_create_masks_clip_parallel(
             )
     if create_progress_process:
         progress.finish()
-    result = tuple(list(itertools.chain(*e)) for e in zip(*result))
-    assert len(result) == 4
-    return result
-
-
-def get_features(
-    queries: Union[List[str], Tuple[str, ...]],
-    punct_label_lines: Union[List[str], Tuple[str, ...]],
-    capit_label_lines: Union[List[str], Tuple[str, ...]],
-    max_seq_length: int,
-    tokenizer: TokenizerSpec,
-    punct_label_ids: Dict[str, int] = None,
-    capit_label_ids: Dict[str, int] = None,
-    pad_label: str = 'O',
-    verbose: bool = True,
-    n_jobs: Optional[int] = 0,
-    progress_queue: Optional[mp.Queue] = None,
-) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
-    """
-    Tokenizes data, encodes labels, creates masks of first tokens in words, clips sequences by number of tokens.
-
-    Args:
-        queries: text sequences
-        max_seq_length: max number of tokens in input sequence including [CLS] and [SEP] tokens. If number of tokens
-            in a sequence exceeds ``max_seq_length``, then excess tokens in the end of the sequence are removed
-        tokenizer: a tokenizer instance which has properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``
-        punct_label_ids: dict to map punctuation labels to label ids.
-            Starts with pad_label->0 and then increases in alphabetical order.
-            Required for training and evaluation, not needed for inference.
-        capit_label_ids: dict to map capitalization labels to label ids. Starts
-            with pad_label->0 and then increases in alphabetical order.
-            Required for training and evaluation, not needed for inference.
-        pad_label: pad value use for labels. By default, it's the neutral label for punctuation and capitalization.
-        punct_label_lines: a list of a tuple of labels for every word in a sequence (str)
-        capit_label_lines: a list or a tuple of labels for every word in a sequence (str)
-        verbose: whether to show examples of tokenized data and various progress information
-        n_jobs: a number of workers used for preparing features. If ``n_jobs <= 0``, then do not use multiprocessing
-            and run features creation in this process. If not set, number of workers will be equal to the number of
-            CPUs
-        progress_queue: a multiprocessing queue used for reporting progress. Useful for creating tarred dataset
-
-    Returns:
-        input_ids: a list of 1D int32 arrays. Each array contains token ids of corresponding query
-        subtokens_mask: a list of 1D boolean arrays. An array element is ``True`` if corresponding token is the
-            first token in a word
-        punct_labels: a list of 1D int32 arrays. Encoded punctuation labels for every token in a query. Tokens in one
-            word have identical labels.
-        capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens in
-            one word have identical labels
-    """
-    if verbose:
-        logging.info("Start initial tokenization.")
-    input_ids, subtokens_mask, punct_labels, capit_labels = tokenize_create_masks_clip_parallel(
-        queries,
-        max_seq_length,
-        tokenizer,
-        punct_label_ids,
-        capit_label_ids,
-        punct_label_lines,
-        capit_label_lines,
-        pad_label,
-        verbose,
-        n_jobs,
-        progress_queue,
-    )
+    input_ids, subtokens_mask, punct_labels, capit_labels = tuple(list(itertools.chain(*e)) for e in zip(*result))
     if verbose:
         logging.info("Finished initial tokenization.")
         get_stats([len(inp) for inp in input_ids])
@@ -640,12 +576,12 @@ def create_masks_and_segment_ids(
     """
     Creates segment ids array, input mask, loss mask.
 
-    Segment ids array is token type ids for BERT in HuggingFace terminology and it is a zeros array for punctuation
+    Segment ids array is BERT token type ids in HuggingFace terminology. It is a zeros array for punctuation
     and capitalization task.
 
     Input mask element is ``True`` if an element of ``input_ids`` is not padding and ``False`` otherwise.
 
-    Loss mask element is always ``True`` for the first token in a word. If ``ignore_start_end=False``, then loss mask
+    Loss mask element is ``True`` for the first token in a word. If ``ignore_start_end=False``, then loss mask
     element is ``True`` for [CLS] and [SEP] tokens. If ``ignore_extra_tokens=False``, then loss mask element is ``True``
     for all word tokens. In all other cases loss mask elements are ``False``.
 
@@ -681,6 +617,15 @@ def create_masks_and_segment_ids(
 
 
 def create_label_ids(unique_labels: Set[str], pad_label: str) -> Dict[str, int]:
+    """
+    Returns label ids dictionary. ``pad_label`` always has id ``0``. Other labels are sorted in alphabetical order.
+    Args:
+        unique_labels: a set of labels from which label ids dictionary is created. May or may no contain ``pad_label``
+        pad_label: label used for padding. It is also a neutral label
+
+    Returns:
+        label ids dictionary
+    """
     label_ids = {pad_label: 0}
     if pad_label in unique_labels:
         unique_labels.remove(pad_label)
@@ -698,7 +643,14 @@ def load_label_ids(file_path: Union[str, os.PathLike]) -> Dict[str, int]:
 
 
 def save_label_ids(label_ids: Dict[str, int], file_path: Path):
-    """ Saves label ids map to a file """
+    """
+    Saves label ids map to a file. In each line of a file one label is saved. Labels are saved in the order of
+    increasing of their ids.
+
+    Args:
+        label_ids: label id dictionary. Pad label has to have id ``0``
+        file_path: path to a file where labels will be saved
+    """
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with file_path.open('w') as out:
         labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
@@ -706,8 +658,26 @@ def save_label_ids(label_ids: Dict[str, int], file_path: Path):
 
 
 def raise_not_equal_labels_error(
-    first_labels: dict, second_labels: dict, first_labels_desc: str, second_labels_desc: str
+    first_labels: Dict[str, int], second_labels: Dict[str, int], first_labels_desc: str, second_labels_desc: str
 ):
+    """
+    A helper function for raising comprehensible error if labels from 2 sources are different.
+    Such sources may include:
+      - labels stored in .nemo checkpoint
+      - labels stored in tarred dataset
+      - labels passed in config parameters `model.common_dataset_parameters.{punct_label_ids,capit_label_ids}`
+      - labels from files passed in config parameters `model.class_labels.{punct_labels_file,capit_labels_file}`
+      - labels in attributes `PunctuationCapitalizationModel.{punct_label_ids,capit_label_ids}`
+      - any other source
+    This function helps to detect configuration early and give error messages that are easy to interpret.
+    Call this function if ``first_labels != second_labels``.
+
+    Args:
+        first_labels: first dictionary with labels
+        second_labels: second dictionary with labels
+        first_labels_desc: a description of first labels
+        second_labels_desc: a description of second labels
+    """
     missing_in_first = {k: second_labels[k] for k in set(second_labels) - set(first_labels)}
     missing_in_second = {k: first_labels[k] for k in set(first_labels) - set(second_labels)}
     not_equal = {
@@ -739,33 +709,43 @@ def raise_not_equal_labels_error(
 
 class BertPunctuationCapitalizationDataset(Dataset):
     """
-    Creates dataset to use during training for punctuation and capitalization tasks with a pretrained model.
+    Creates dataset to use during training for punctuation and capitalization tasks.
     For dataset to use during inference without labels, see ``BertPunctuationCapitalizationInferDataset``.
 
     Args:
-        text_file: file to sequences, each line should a text without punctuation and capitalization
-        labels_file: file to labels, each line corresponds to word labels for a sentence in the text_file
+        text_file: file to sequences, each line should contain a text without punctuation and capitalization
+        labels_file: file to labels, each line corresponds to word labels for a sentence in the ``text_file``
         max_seq_length: max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS] and [SEP]
             tokens. Sequences which are too long will be clipped by removal of tokens from the end of the sequence
         tokenizer: a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``, ``eos_id``
         num_samples: number of samples you want to use for the dataset. If ``-1``, use all dataset. Useful for testing.
-        pad_label: pad value use for labels. It's the neutral label both for punctuation and capitalization.
-        punct_label_ids and capit_label_ids: dict to map labels to label ids. Starts with pad_label->0 and then
-            increases in alphabetical order. For dev set use label_ids generated during training to support cases when
-            not all labels are present in the dev set. For training, it is recommended to set ``punct_label_ids`` to
-            ``None`` or load from cache
-        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
-        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
-        use_cache: whether to use processed data cache or not
-        get_label_frequencies: whether to show label frequencies. Works if ``verbose`` parameter is ``True``
+        pad_label: pad value to use for labels. It's also the neutral label both for punctuation and capitalization.
+        punct_label_ids and capit_label_ids: dict to map labels to label ids. For dev set use label_ids generated
+            during training to support cases when not all labels are present in the dev set. For training, it is
+            recommended to set ``punct_label_ids`` to ``None`` or load from cache
+        ignore_extra_tokens: whether to ignore in the loss_mask tokens which are not first tokens in some word.
+            For example, assume ``'tokenization'`` is tokenized into ``['token', 'ization']``.
+            If ``ignore_extra_tokens=True``, loss mask for the word is ``[True, False]``, and if
+            ``ignore_extra_tokens=False``, then loss mask is ``[True, True]``
+        ignore_start_end: whether to ignore [CLS] and [SEP] tokens in the loss_mask
+        use_cache: whether to use pickled features or not. If pickled features does not exist and ``use_cache=True``,
+            then pickled features will be created. Pickled features are looked for and stored in ``cache_dir``.
+            Pickled features include input ids, subtokens mask (mask of first tokens in words), encoded punctuation and
+            capitalization labels, label ids
+        cache_dir: a place for cache (pickled features). By default ``text_file`` parent directory is used. This
+            parameter is useful if dataset directory is read-only and you wish to pickle features. In such a case
+            specify a path to directory which allows writing in ``cache_dir`` parameter
+        get_label_frequencies: whether to show and save label frequencies. Frequencies are showed if ``verbose``
+            parameter is ``True``. If ``get_label_frequencies=True``, then frequencies are saved into
+            ``label_info_save_dir``
+        label_info_save_dir: a path to a directory where label frequencies are saved. When method
+            ``save_labels_and_get_file_paths`` is called label ids are saved into ``label_info_save_dir`` directory
         punct_label_vocab_file and capit_label_vocab_file: paths to .csv files containing punctuation and
             capitalization label vocabularies correspondingly. Each line in such a vocabulary file contains exactly
             one label. The first line has to contain `pad_label`, otherwise error will be raised.
         add_masks_and_segment_ids_to_batch: whether to add ``loss_mask``, ``input_mask``, ``segment_ids`` to batch.
             Useful for creation of tarred dataset and can NOT be used during model training and inference
         verbose: whether to show data examples, label stats and other useful information
-        save_label_ids: whether to save punctuation and capitalization label ids into files ``punct_label_ids`` and
-            ``capit_label_ids``
         n_jobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
             clipping. If ``n_jobs <= 0`` data preparation is performed without multiprocessing. By default ``n_jobs``
             is equal to the number of CPUs.
