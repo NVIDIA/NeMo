@@ -42,16 +42,16 @@ exp_manager:
 
 model:
   class_labels:
-    label_vocab_dir: null
+    punct_labels_file: null
+    capit_labels_file: null
 
   common_dataset_parameters:
     pad_label: 'O'
     ignore_extra_tokens: false
     ignore_start_end: false
     punct_label_ids: null
-    punct_label_vocab_file: null
     capit_label_ids: null
-    capit_label_vocab_file: null
+    label_vocab_dir: null
 
   train_ds:
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
