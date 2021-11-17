@@ -995,13 +995,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     f'`model.common_dataset_parameters.capit_label_vocab_file`',
                 )
 
-    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name):
+    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name) -> Tuple[Path, Path]:
         self.for_nemo_ckpt.mkdir(parents=True, exist_ok=True)
         punct_label_ids_file = self.for_nemo_ckpt / punct_labels_file_name
         capit_label_ids_file = self.for_nemo_ckpt / capit_labels_file_name
-        if save_label_ids:
-            shutil.copy(str(self.punct_label_vocab_file), str(punct_label_ids_file))
-            shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
+        shutil.copy(str(self.punct_label_vocab_file), str(punct_label_ids_file))
+        shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
+        return punct_label_ids_file, capit_label_ids_file
 
     def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
         """

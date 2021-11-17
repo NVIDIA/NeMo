@@ -1247,12 +1247,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
         )
         return label_frequencies
 
-    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name):
+    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name) -> Tuple[Path, Path]:
         nemo_dir = self.label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
         punct_labels_file = nemo_dir / punct_labels_file_name
         capit_labels_file = nemo_dir / capit_labels_file_name
         save_label_ids(self.punct_label_ids, punct_labels_file)
         save_label_ids(self.capit_label_ids, capit_labels_file)
+        return punct_labels_file, capit_labels_file
 
     def __len__(self) -> int:
         return len(self.batches)
