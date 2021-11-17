@@ -28,10 +28,11 @@ def get_metrics(data_dir, model):
     trainer = pl.Trainer(gpus=[0])
 
     model.set_trainer(trainer)
-    model.update_data_dir(data_dir)
+    # model.update_data_dir(data_dir)
 
     test_ds = OmegaConf.create(
         {
+            'ds_item': data_dir,
             'text_file': 'text_dev.txt',
             'labels_file': 'labels_dev.txt',
             'shuffle': False,
