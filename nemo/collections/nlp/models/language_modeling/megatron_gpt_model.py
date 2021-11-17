@@ -45,7 +45,10 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
+    from apex.transformer.pipeline_parallel.schedules.common import (
+        build_model,
+        _get_params_for_weight_decay_optimization,
+    )
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -111,6 +114,7 @@ class MegatronGPTModel(NLPModel):
 
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
+        self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -156,6 +160,10 @@ class MegatronGPTModel(NLPModel):
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
         return output_tensor
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self.setup_optimizer_param_groups = _get_params_for_weight_decay_optimization(self.model)
 
     def training_step(self, batch, batch_idx):
         if self.use_soft_prompts:
@@ -390,6 +398,12 @@ class MegatronGPTModel(NLPModel):
         return dataset, dataloader
 
     def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
         if stage == 'predict':
             return
         else:
