@@ -19,6 +19,8 @@ Conversational AI architectures are typically large and require a lot of data an
 for training. NeMo uses `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for easy and performant multi-GPU/multi-node
 mixed-precision training.
 
+`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
+
 .. raw:: html
 
     <div style="position: relative; padding-bottom: 3%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
