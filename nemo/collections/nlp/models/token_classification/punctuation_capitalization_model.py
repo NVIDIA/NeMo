@@ -51,7 +51,6 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.config_utils import update_model_config
 
 __all__ = ['PunctuationCapitalizationModel']
 

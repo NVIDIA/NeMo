@@ -60,7 +60,7 @@ def get_metrics_new_format(data_dir, model):
             'labels_file': 'labels_dev.txt',
             'shuffle': False,
             'num_samples': -1,
-            'batch_size': 8,
+            'tokens_in_batch': 512,
             'use_cache': False,
         }
     )
