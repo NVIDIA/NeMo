@@ -468,6 +468,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             dataset.check_for_label_consistency_with_model_config(
                 self.punct_label_ids,
                 self.capit_label_ids,
+                self._cfg.class_labels,
                 self._cfg.common_dataset_parameters,
             )
         else:
