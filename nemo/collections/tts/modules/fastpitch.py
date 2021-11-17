@@ -284,5 +284,11 @@ class FastPitchModule(NeuralModule):
         """
         par = next(self.parameters())
         inp = torch.randint(0, self.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64)
+        inputs = {'text': inp}
 
-        return ({'text': inp},)
+        if self.speaker_emb is not None:
+            inputs['speaker'] = torch.randint(
+                0, self.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
+            )
+
+        return (inputs,)
