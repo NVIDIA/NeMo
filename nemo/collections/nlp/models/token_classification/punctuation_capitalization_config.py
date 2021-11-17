@@ -75,13 +75,13 @@ class CapitHeadConfig:
 
 
 @dataclass
-class ClassLabels:
+class ClassLabelsConfig:
     punct_labels_file: str = MISSING
     capit_labels_file: str = MISSING
 
 
 @dataclass
-class CommonDatasetParameters:
+class CommonDatasetParametersConfig:
     pad_label: str = MISSING
     ignore_extra_tokens: bool = DEFAULT_IGNORE_EXTRA_TOKENS
     ignore_start_end: bool = DEFAULT_IGNORE_START_END
@@ -92,8 +92,8 @@ class CommonDatasetParameters:
 
 @dataclass
 class PunctuationCapitalizationModelConfig:
-    class_labels: ClassLabels = ClassLabels()
-    common_dataset_parameters: Optional[CommonDatasetParameters] = CommonDatasetParameters()
+    class_labels: ClassLabelsConfig = ClassLabelsConfig()
+    common_dataset_parameters: Optional[CommonDatasetParametersConfig] = CommonDatasetParametersConfig()
     train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = PunctuationCapitalizationTrainDataConfig(
         text_file=MISSING,
         labels_file=MISSING,
@@ -149,7 +149,7 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
     return OmegaConf.structured(
         PunctuationCapitalizationModelConfig(
             class_labels=model_cfg.class_labels,
-            common_dataset_parameters=CommonDatasetParameters(
+            common_dataset_parameters=CommonDatasetParametersConfig(
                 pad_label=dataset.pad_label,
                 ignore_extra_tokens=dataset.get('ignore_extra_tokens', DEFAULT_IGNORE_EXTRA_TOKENS),
                 ignore_start_end=dataset.get('ignore_start_end', DEFAULT_IGNORE_START_END),

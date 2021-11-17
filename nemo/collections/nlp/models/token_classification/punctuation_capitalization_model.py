@@ -255,6 +255,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Replace some sections of config. Useful after restoring from checkpoint for finetuning and testing.
 
         Args:
+            class_labels: names of label id files used as label id dictionaries. See more in
+                ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.ClassLabelsConfig``
+            common_dataset_parameters: see more in
+                ``nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.CommonDatasetParametersConfig``
             train_ds: configuration of training dataset. See possible options in
                 ``nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationTrainDataConfig``
             validation_ds: configuration of validation dataset. See possible options in
@@ -390,7 +394,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                             first_labels=config_label_ids,
                             second_labels=already_set_label_ids,
                             first_labels_desc=config_label_ids_source,
-                            second_labels_desc=f"Labels which are already set in "
+                            second_labels_desc=f"Labels which are already set in an attribute "
                             f"`PunctuationCapitalizationModel.{label_ids_name}`",
                         )
         if plvf is not None:

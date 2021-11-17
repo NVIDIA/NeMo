@@ -694,16 +694,19 @@ def raise_not_equal_labels_error(
     }
     msg = f"{first_labels_desc} (FIRST LABELS) are not equal to {second_labels_desc} (SECOND LABELS)."
     if len(missing_in_first) > 0:
-        msg += f" Number of labels missing in the FIRST LABELS: {len(missing_in_first)}."
+        msg += f" Number of SECOND LABELS missing in the FIRST LABELS: {len(missing_in_first)}."
     if len(missing_in_second) > 0:
-        msg += f" Number of labels missing in the SECOND LABELS: {len(missing_in_second)}."
+        msg += f" Number of FIRST LABELS missing in the SECOND LABELS: {len(missing_in_second)}."
     if len(not_equal) > 0:
         msg += f" Number of labels which are not equal: {len(not_equal)}."
     if len(missing_in_first) > 0:
-        msg += f" Several examples of missing labels in the FIRST LABELS: {dict(list(missing_in_first.items())[:3])}."
+        msg += (
+            f" Several examples of missing SECONDS LABELS in the FIRST LABELS: "
+            f"{dict(list(missing_in_first.items())[:3])}."
+        )
     if len(missing_in_second) > 0:
         msg += (
-           f" Several examples of missing labels in the SECOND LABELS: "
+           f" Several examples of missing FIRST LABELS in the SECOND LABELS: "
            f"{dict(list(missing_in_second.items())[:3])}."
         )
     if len(not_equal) > 0:
