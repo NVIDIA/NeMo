@@ -95,14 +95,16 @@ class NLPDDPPlugin(DDPPlugin):
             # this means that data parallel groups span multiple GPUs
             # and are non-trivial
             device_ids = self.determine_ddp_device_ids()
-            self._model = DistributedDataParallel(
-                LightningDistributedModule(self.model),
-                device_ids=device_ids,
-                output_device=device_ids[0],
-                process_group=app_state.data_parallel_group,
-                find_unused_parameters=False,
-                **self._ddp_kwargs,
-            )
+            self._model = [
+                DistributedDataParallel(
+                    LightningDistributedModule(model_module),
+                    device_ids=device_ids,
+                    output_device=device_ids[0],
+                    process_group=parallel_state.get_data_parallel_group(),
+                    **self._ddp_kwargs,
+                )
+                for model_module in self.model
+            ]
 
             if self.no_ddp_communication_hook:
                 # When using custom gradient accumulation and allreduce, disable
