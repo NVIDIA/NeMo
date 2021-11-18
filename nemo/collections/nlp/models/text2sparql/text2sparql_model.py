@@ -177,6 +177,7 @@ class Text2SparqlModel(ModelPT):
         perplexity = self.validation_perplexity.compute()
         tensorboard_logs = {"val_loss": avg_loss, "perplexity": perplexity}
         logging.info(f"evaluation perplexity {perplexity.item()}")
+        self.log("val_loss", avg_loss)
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     @typecheck.disable_checks()
