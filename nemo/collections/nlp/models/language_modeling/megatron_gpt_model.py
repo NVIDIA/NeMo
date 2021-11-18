@@ -104,6 +104,7 @@ class MegatronGPTModel(NLPModel):
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
+            persist_layer_norm=cfg.get('persist_layer_norm', False),
             onnx_safe=cfg.get('onnx_safe', False),
         )
 

@@ -58,6 +58,7 @@ model:
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
+  persist_layer_norm: True # Use of persistent fused layer norm kernel.
 
   tokenizer:
     library: 'megatron'

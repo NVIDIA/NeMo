@@ -71,6 +71,7 @@ def get_language_model(
     activations_checkpoint_num_layers=1,
     layernorm_epsilon=1e-5,
     bias_gelu_fusion=True,
+    persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
 ):
@@ -115,6 +116,7 @@ def get_language_model(
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
         layernorm_epsilon=layernorm_epsilon,
         bias_gelu_fusion=bias_gelu_fusion,
+        persist_layer_norm=persist_layer_norm,
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
     )
@@ -335,6 +337,7 @@ class TransformerLanguageModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         bias_gelu_fusion=True,
+        persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
     ):
@@ -396,6 +399,7 @@ class TransformerLanguageModel(MegatronModule):
             hidden_dropout=hidden_dropout,
             use_cpu_initialization=use_cpu_initialization,
             bias_gelu_fusion=bias_gelu_fusion,
+            persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
         )
@@ -427,6 +431,7 @@ class TransformerLanguageModel(MegatronModule):
                 hidden_dropout=hidden_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_gelu_fusion=bias_gelu_fusion,
+                persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
             )
