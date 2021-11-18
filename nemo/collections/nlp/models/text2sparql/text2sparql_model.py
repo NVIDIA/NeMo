@@ -191,6 +191,7 @@ class Text2SparqlModel(ModelPT):
     def test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
         """Called at the end of test to aggregate outputs and decode them."""
         texts = [self.encoder_tokenizer.ids_to_text(seq) for batch in outputs for seq in batch]
+        self.test_output = [{"texts": texts}]
         return {"texts": texts}
 
     def setup_tokenizer(self, cfg: DictConfig):
