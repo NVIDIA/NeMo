@@ -84,14 +84,14 @@ Modules
 Datasets
 --------
 
-.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataset
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset
     :show-inheritance:
     :members:
 
 .. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.create_tarred_dataset
 
-.. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.PunctuationCapitalizationTarredDataset
+.. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset
 
-.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.PunctuationCapitalizationInferDataset
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.BertPunctuationCapitalizationInferDataset
     :show-inheritance:
     :members:

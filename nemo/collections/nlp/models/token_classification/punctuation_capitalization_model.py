@@ -188,6 +188,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Args:
             batch: a dictionary with following items:
+
                 * ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
                 * ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
                 * ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
@@ -222,6 +223,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Args:
             batch: a dictionary with following items:
+
                 * ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
                 * ``'subtokens_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
                     ``True`` if corresponding token from ``'input_ids'`` element is the first token in some word
