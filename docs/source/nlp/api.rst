@@ -43,7 +43,7 @@ Modules
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.nlp.modules.MegatronBertEncoder
+.. autoclass:: nemo.collections.nlp.modules.common.megatron.MegatronBertEncoder
     :show-inheritance:
     :members:
 
