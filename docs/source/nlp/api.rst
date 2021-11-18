@@ -80,3 +80,18 @@ Modules
 .. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_models_list
 
 .. autofunction::  nemo.collections.nlp.modules.common.megatron.get_megatron_lm_models_list
+
+Datasets
+--------
+
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.PunctuationCapitalizationDataset
+    :show-inheritance:
+    :members:
+
+.. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.create_tarred_dataset
+
+.. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.PunctuationCapitalizationTarredDataset
+
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.PunctuationCapitalizationInferDataset
+    :show-inheritance:
+    :members:

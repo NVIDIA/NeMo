@@ -43,6 +43,9 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
+    ClassLabelsConfig,
+    CommonDatasetParametersConfig,
+    OptimConfig,
     is_legacy_model_config,
     legacy_model_config_to_new_model_config,
 )
@@ -75,6 +78,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     """
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Neural types of a model."""
         return self.bert_model.input_types
 
     @property
@@ -153,8 +157,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             token_type_ids: an integer torch Tensor of shape ``[Batch, Time]``. Contains an index of segment to which
                 the token belongs. If not ``None`` it should be a zeros tensor
         Returns:
-            a float torch tensor of shape ``[Batch, Time, NumPunctuationLabels]`` containing punctuation logits
-            a float torch tensor of shape ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
+            (tuple): tuple containing
+
+                punct_logits (torch.Tensor): a float torch tensor of shape ``[Batch, Time, NumPunctuationLabels]``
+                    containing punctuation logits
+                capit_logits (torch.Tensor): a float torch tensor of shape ``[Batch, Time, NumCapitalizationLabels]``
+                    containing capitalization logits
         """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
@@ -180,25 +188,25 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Args:
             batch: a dictionary with following items:
-                - ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
-                - ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
-                - ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
+                * ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
+                * ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
+                * ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
                     should be ``False`` on padding tokens and ``True`` on other tokens.
-                - ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
+                * ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
                     on. See more details in description of parameters ``ignore_start_end`` and
                     ``ignore_extra_tokens`` of class
                     :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
-                - ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
+                * ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
                     labels
-                - ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
+                * ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
                      capitalization labels
-                - ``'subtokens_mask'``: not required for training and can be omitted
+                * ``'subtokens_mask'``: not required for training and can be omitted
             batch_idx: an index of batch. Mandatory Lightning parameter
 
         Returns:
-            a dictionary with 2 items:
-                ``'loss'``: torch tensor containing mean aggregated punctuation and capitalization loss
-                ``'lr'``: a float containing learning rate
+            (dict): a dictionary with 2 items:
+                ``'loss'`` (torch.Tensor): torch tensor containing mean aggregated punctuation and capitalization loss
+                ``'lr'`` (torch.Tensor): a float containing learning rate
         """
         loss, _, _ = self._make_step(batch)
         lr = self._optimizer.param_groups[0]['lr']
@@ -214,19 +222,19 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         Args:
             batch: a dictionary with following items:
-                - ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
-                - ``'subtokens_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
+                * ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
+                * ``'subtokens_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
                     ``True`` if corresponding token from ``'input_ids'`` element is the first token in some word
                                 - ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
-                - ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
+                * ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
                     should be ``False`` on padding tokens and ``True`` on other tokens.
-                - ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
+                * ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
                     on. See more details in description of parameters ``ignore_start_end`` and
                     ``ignore_extra_tokens`` of class
                     :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
-                - ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
+                * ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
                     labels
-                - ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
+                * ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
                      capitalization labels
             mode: either ``'validation'`` or ``'test'`` depending on caller method
             dataloader_idx: NeMo parameter for multi dataset validation
@@ -255,6 +263,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader passed in as
         ``batch``. See more details in :meth:`eval_step`.
+
+        Args:
+
         """
         return self.eval_step(batch, 'val', dataloader_idx)
 
@@ -262,6 +273,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         Lightning calls this inside the test loop with the data from the test dataloader passed in as ``batch``.
         See more details in :meth:`eval_step`.
+
+        Args:
+            batch: see :meth:`eval_step` for the ``batch`` parameter explanation
+            batch_idx: an index of a batch in a dataset. A mandatory Lightning parameter
+            dataloader_idx: a NeMo parameter for performing testing on multiple datasets
         """
         return self.eval_step(batch, 'test', dataloader_idx)
 
@@ -319,16 +335,19 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     def update_config(
         self,
-        class_labels: Optional[DictConfig] = None,
-        common_dataset_parameters: Optional[DictConfig] = None,
-        train_ds: Optional[DictConfig] = None,
-        test_ds: Optional[DictConfig] = None,
-        validation_ds: Optional[DictConfig] = None,
-        optim: Optional[DictConfig] = None,
+        class_labels: Optional[Union[DictConfig, Dict[str, str]]] = None,
+        common_dataset_parameters: Optional[Union[DictConfig, Dict[str, Any]]] = None,
+        train_ds: Optional[Union[DictConfig, Dict[str, Any]]] = None,
+        test_ds: Optional[Union[DictConfig, Dict[str, Any]]] = None,
+        validation_ds: Optional[Union[DictConfig, Dict[str, Any]]] = None,
+        optim: Optional[Union[DictConfig, Dict[str, Any]]] = None,
     ) -> None:
         """
-        Replace some sections of config. Useful after restoring from checkpoint for finetuning and testing if config
-        parameters of checkpoints are not suitable.
+        Set new values for some sections of config. Useful after restoring from checkpoint for finetuning
+        and testing if config parameters of checkpoints are not suitable.
+
+        Note that while it is possible to provide a dictionary with some of config items missing, ENTIRE section will
+        be updated. A replacement config will be completed with missing items set to default.
 
         Args:
             class_labels: names of label id files used as label id dictionaries. See more in
@@ -345,22 +364,32 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationOptimConfig`
         """
         if class_labels is not None:
-            self._cfg.class_labels = class_labels
+            self._cfg.class_labels = OmegaConf.merge(
+                OmegaConf.structured(ClassLabelsConfig), OmegaConf.create(class_labels)
+            )
         if common_dataset_parameters is not None:
-            self._cfg.common_dataset_parameters = common_dataset_parameters
+            self._cfg.common_dataset_parameters = OmegaConf.merge(
+                OmegaConf.structured(CommonDatasetParametersConfig), OmegaConf.create(common_dataset_parameters)
+            )
         if train_ds is not None:
-            self._cfg.train_ds = train_ds
+            self._cfg.train_ds = OmegaConf.merge(
+                OmegaConf.structured(PunctuationCapitalizationTrainDataConfig), OmegaConf.create(train_ds)
+            )
         if validation_ds is not None:
-            self._cfg.validation_ds = validation_ds
+            self._cfg.validation_ds = OmegaConf.merge(
+                OmegaConf.structured(PunctuationCapitalizationEvalDataConfig), OmegaConf.create(validation_ds)
+            )
         if test_ds is not None:
-            self._cfg.test_ds = test_ds
+            self._cfg.test_ds = OmegaConf.merge(
+                OmegaConf.structured(PunctuationCapitalizationEvalDataConfig), OmegaConf.create(test_ds)
+            )
         if optim is not None:
-            self._cfg.optim = optim
+            self._cfg.optim = OmegaConf.merge(OmegaConf.structured(OptimConfig), OmegaConf.create(optim))
 
     def setup_training_data(self, train_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None) -> None:
         """
         Sets up training data: creates dataset and sets data loader. If parameter ``train_data_config`` is not
-        provided, then ``train_ds`` item from model config will be used.
+        provided, then config section ``train_ds`` will be used.
 
         Args:
             train_data_config: a dictionary that should contain only fields present in
@@ -427,7 +456,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def setup_validation_data(self, val_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None) -> None:
         """
         Sets up validation data: creates dataset and sets data loader. If parameter ``val_data_config`` is not
-        provided, then ``validation_ds`` item from model config will be used. Here model config is a configuration used
+        provided, then ``validation_ds`` config section will be used. Here model config is a configuration used
         for model instantiation.
 
         Args:
@@ -457,7 +486,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def setup_test_data(self, test_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None) -> None:
         """
         Sets up test data: creates dataset and sets data loader. If parameter ``test_data_config`` is not
-        provided, then ``test_ds`` item from model config will be used. Here model config is a configuration used
+        provided, then ``test_ds`` config section will be used. Here model config is a configuration used
         for model instantiation.
 
         Args:
@@ -947,7 +976,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 ``'num_workers'``, ``'pin_memory'``, ``'worker_init_fn'``, ``'prefetch_factor'``,
                 ``'persistent_workers'``.
         Returns:
-            text with added capitalization and punctuation or punctuation and capitalization labels
+            a list of queries with restored capitalization and punctuation if ``return_labels=False``, else a list of
+            punctuation and capitalization labels strings for all queries
         """
         if len(queries) == 0:
             return []

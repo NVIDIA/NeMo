@@ -198,9 +198,9 @@ class PunctuationCapitalizationModelConfig:
         validation_ds (PunctuationCapitalizationEvalDataConfig): a configuration for creating validation dataset and
             data loader
         test_ds (PunctuationCapitalizationEvalDataConfig): a configuration for creating test dataset and data loader
-        punct_head (PunctHeadConfig): a configuration for creating punctuation MLP head that is applied to a language
+        punct_head (HeadConfig): a configuration for creating punctuation MLP head that is applied to a language
             model outputs
-        capit_head (CapitHeadConfig): a configuration for creating capitalization MLP head that is applied to
+        capit_head (HeadConfig): a configuration for creating capitalization MLP head that is applied to
             a language model outputs
         tokenizer:
         language_model (LanguageModelConfig): a configuration of a BERT like language model which serves as a model
