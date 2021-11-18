@@ -53,7 +53,7 @@ autodoc_mock_imports = [
     'nemo_text_processing.text_normalization',  # Not installed automatically
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
-    'apex.optimizers',
+    'apex',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
