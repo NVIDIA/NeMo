@@ -79,4 +79,4 @@ Modules
 
 .. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_models_list
 
-.. autofunction::  nemo.collections.nlp.modules.get_megatron_lm_models_list
+.. autofunction::  nemo.collections.nlp.modules.common.megatron.get_megatron_lm_models_list
