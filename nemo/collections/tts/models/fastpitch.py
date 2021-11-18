@@ -441,6 +441,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
         }
 
+    def _export_teardown(self):
+        self._input_types = self._output_types = None
+
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
