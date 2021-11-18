@@ -220,9 +220,12 @@ class ConformerEncoder(NeuralModule, Exportable):
     def forward(self, audio_signal, length=None):
         max_audio_length: int = audio_signal.size(-1)
         if max_audio_length > self.pos_emb_max_len:
-            logging.warning(
-                f"Audio Signal is too long : {max_audio_length}, please increase pos_emb_max_len (={pos_emb_max_len}) config parameter!"
-            )
+            self.set_pos_emb_max_len(max_audio_length)
+        return self.forward_for_export(audio_signal=audio_signal, length=length)
+
+    @typecheck()
+    def forward_for_export(self, audio_signal, length=None):
+        max_audio_length: int = audio_signal.size(-1)
 
         if length is None:
             length = audio_signal.new_full(

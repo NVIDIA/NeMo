@@ -93,7 +93,6 @@ class ConvSubsampling(torch.nn.Module):
         else:
             raise ValueError(f"Not valid sub-sampling: {subsampling}!")
 
-        self.one = torch.tensor(1, dtype=torch.float)
         in_length = torch.tensor(feat_in, dtype=torch.float)
         out_length = calc_length(
             in_length,
