@@ -218,15 +218,15 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, audio_signal, length=None):
-        audio_size: int = audio_signal.size(-1)
-        if audio_size > self.pos_emb_max_len:
+        max_audio_length: int = audio_signal.size(-1)
+        if max_audio_length > self.pos_emb_max_len:
             logging.warning(
-                f"Audio Signal is too long : {audio_size}, please increase pos_emb_max_len (={pos_emb_max_len}) config parameter!"
+                f"Audio Signal is too long : {max_audio_length}, please increase pos_emb_max_len (={pos_emb_max_len}) config parameter!"
             )
 
         if length is None:
             length = audio_signal.new_full(
-                audio_signal.size(0), audio_size, dtype=torch.int32, device=self.seq_range.device
+                audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
             )
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
@@ -237,10 +237,10 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.pre_encode(audio_signal)
         audio_signal, pos_emb = self.pos_enc(audio_signal)
         # adjust size
-        audio_size = audio_signal.size(1)
+        max_audio_length = audio_signal.size(1)
         # Create the self-attention and padding masks
-        pad_mask = self.make_pad_mask(audio_size, length)
-        att_mask = pad_mask.unsqueeze(1).repeat([1, audio_size, 1])
+        pad_mask = self.make_pad_mask(max_audio_length, length)
+        att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
         if self.att_context_size[0] >= 0:
             att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
@@ -258,7 +258,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
         return audio_signal, length
 
-    def make_pad_mask(self, audio_size, seq_lens):
+    def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
-        mask = self.seq_range[:audio_size].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
         return mask

@@ -95,24 +95,25 @@ class ConvSubsampling(torch.nn.Module):
 
         self.one = torch.tensor(1, dtype=torch.float)
         in_length = torch.tensor(feat_in, dtype=torch.float)
-        out_length = self.calc_length(
+        out_length = calc_length(
             in_length,
             padding=self._padding,
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
+            sampling_num=self._sampling_num,
         )
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
     def forward(self, x, lengths):
-        # TODO: improve the performance of length calculation
-        lengths = self.calc_length(
+        lengths = calc_length(
             lengths,
             padding=self._padding,
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
+            sampling_num=self._sampling_num,
         )
         x = x.unsqueeze(1)
         x = self.conv(x)
@@ -120,13 +121,14 @@ class ConvSubsampling(torch.nn.Module):
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, -1))
         return x, lengths
 
-    def calc_length(self, lengths, padding, kernel_size, stride, ceil_mode):
-        """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
-        add_pad = (padding * 2) - kernel_size
-        for i in range(self._sampling_num):
-            lengths = torch.div(lengths + add_pad, stride) + self.one
-            if ceil_mode:
-                lengths = torch.ceil(lengths)
-            else:
-                lengths = torch.floor(lengths)
-        return lengths.to(dtype=torch.int)
+
+def calc_length(lengths, padding, kernel_size, stride, ceil_mode, sampling_num=1):
+    """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
+    add_pad = (padding * 2) - kernel_size
+    for i in range(sampling_num):
+        lengths = torch.div(lengths + add_pad, stride) + 1.0
+        if ceil_mode:
+            lengths = torch.ceil(lengths)
+        else:
+            lengths = torch.floor(lengths)
+    return lengths.to(dtype=torch.int)

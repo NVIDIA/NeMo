@@ -225,7 +225,6 @@ class PositionalEncoding(torch.nn.Module):
         if positions is None:
             positions = torch.arange(0, max_len, dtype=torch.float32)
         self.create_pe(positions=positions)
-        self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32)
 
         if dropout_rate_emb > 0:
             self.dropout_emb = nn.Dropout(dropout_rate_emb)
@@ -280,7 +279,7 @@ class RelPositionalEncoding(PositionalEncoding):
             xscale=xscale,
             positions=torch.arange(max_len - 1, -max_len, -1, dtype=torch.float32),
         )
-
+        self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32)
         if dropout_rate_emb > 0:
             self.dropout_emb = nn.Dropout(dropout_rate_emb)
         else:
@@ -304,7 +303,7 @@ class RelPositionalEncoding(PositionalEncoding):
         # negative positions would be used for right and positive for left tokens
         # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
         start_pos = self.center_pos - x.size(1)
-        end_pos = self.center_pos + x.size(1)
+        end_pos = self.center_pos + x.size(1) - 1
         pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)
