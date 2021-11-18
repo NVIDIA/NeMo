@@ -214,9 +214,10 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.pos_emb_max_len = pos_emb_max_len
         device = next(self.parameters()).device
         seq_range = torch.arange(0, self.pos_emb_max_len, device=device)
-        if not hasattr(self, 'seq_range'):
+        if hasattr(self, 'seq_range'):
+            self.seq_range = seq_range
+        else:
             self.register_buffer('seq_range', seq_range, persistent=False)
-        self.seq_range = seq_range
         self.pos_enc.extend_pe(pos_emb_max_len)
 
     @typecheck()

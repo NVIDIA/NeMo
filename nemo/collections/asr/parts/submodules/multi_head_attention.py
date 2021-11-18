@@ -246,9 +246,10 @@ class PositionalEncoding(torch.nn.Module):
             return
         positions = torch.arange(0, length, dtype=torch.float32).unsqueeze(1)
         pe = self.create_pe(positions=positions)
-        if not hasattr(self, 'pe'):
+        if hasattr(self, 'pe'):
+            self.pe = pe
+        else:
             self.register_buffer('pe', pe, persistent=False)
-        self.pe = pe
 
     def forward(self, x: torch.Tensor):
         """Adds positional encoding.

@@ -100,7 +100,7 @@ class ConvSubsampling(torch.nn.Module):
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
-            sampling_num=self._sampling_num,
+            repeat_num=self._sampling_num,
         )
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
@@ -112,7 +112,7 @@ class ConvSubsampling(torch.nn.Module):
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
-            sampling_num=self._sampling_num,
+            repeat_num=self._sampling_num,
         )
         x = x.unsqueeze(1)
         x = self.conv(x)
@@ -121,10 +121,10 @@ class ConvSubsampling(torch.nn.Module):
         return x, lengths
 
 
-def calc_length(lengths, padding, kernel_size, stride, ceil_mode, sampling_num=1):
+def calc_length(lengths, padding, kernel_size, stride, ceil_mode, repeat_num=1):
     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
     add_pad = (padding * 2) - kernel_size
-    for i in range(sampling_num):
+    for i in range(repeat_num):
         lengths = torch.div(lengths + add_pad, stride) + 1.0
         if ceil_mode:
             lengths = torch.ceil(lengths)
