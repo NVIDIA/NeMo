@@ -157,6 +157,7 @@ class MegatronGPTModel(NLPModel):
             self.log('global_step', self.trainer.global_step, prog_bar=True)
             self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
             self._reduced_loss_buffer = []
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -306,9 +307,13 @@ class MegatronGPTModel(NLPModel):
         if stage == 'predict':
             return
         elif self.use_soft_prompts:
+            # Load prompt tuning datasets
             self._train_ds, self._train_dl = self.build_prompt_tuning_dataset(self.cfg.data.train_ds)
             self._validation_ds, self._validation_dl = self.build_prompt_tuning_dataset(self.cfg.data.valid_ds)
             self._test_ds, self._test_dl  = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
+
+            # Freeze all weights except prompt embeddings
+            self.prompt_tuning_freeze()
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
@@ -371,6 +376,23 @@ class MegatronGPTModel(NLPModel):
 
         parameters = self.model.parameters()
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+
+    def prompt_tuning_freeze(self):
+        """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
+        """
+
+        for param in self.model.language_model.embedding.parameters():
+            param.requires_grad = False
+        for param in self.model.language_model.encoder.parameters():
+            param.requires_grad = False
+
+        if hasattr(self.model.language_model, 'decoder'):
+            for param in self.model.language_model.decoder.parameters():
+                param.requires_grad = False
+
+        if hasattr(self.model.language_model, 'pooler'):
+            for param in self.model.language_model.pooler.parameters():
+                param.requires_grad = False
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
