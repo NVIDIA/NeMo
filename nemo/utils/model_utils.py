@@ -21,6 +21,7 @@ from typing import List, Optional, Union
 
 import wrapt
 
+import nemo
 from nemo import constants
 from nemo.utils import logging
 
@@ -569,7 +570,6 @@ def resolve_cache_dir() -> Path:
     override_dir = os.environ.get(constants.NEMO_ENV_CACHE_DIR, "")
     if override_dir == "":
         path = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}')
-        return path
     else:
         path = Path(override_dir).resolve()
-        return path
+    return path
