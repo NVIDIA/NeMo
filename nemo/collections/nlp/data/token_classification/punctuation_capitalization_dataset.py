@@ -180,14 +180,14 @@ def legacy_data_config_to_new_data_config(
     return new_config
 
 
-def check_number_of_labels(
+def _check_number_of_labels(
     words: List[str],
     query: str,
     qi: int,
     split_i: int,
     punctuation_labels: List[str],
     capitalization_labels: List[str],
-):
+) -> None:
     if len(words) != len(punctuation_labels):
         raise ValueError(
             f"Number of punctuation labels for a query number {qi} in a split number {split_i} is not equal to "
@@ -204,7 +204,7 @@ def check_number_of_labels(
         )
 
 
-def show_prog(queues: Tuple[mp.Queue, ...], totals: List[int], descriptions: List[str], units: List[str]):
+def _show_prog(queues: Tuple[mp.Queue, ...], totals: List[int], descriptions: List[str], units: List[str]) -> None:
     """
     Show several ``tqdm`` progress bars.
     Args:
@@ -299,7 +299,7 @@ class Progress:
     Progress bars and progress process are closed when ``finish`` or ``__exit__`` methods are called.
     """
 
-    def __init__(self, total: Union[int, List[int]], desc: Union[str, List[str]], unit: Union[str, List[str]]):
+    def __init__(self, total: Union[int, List[int]], desc: Union[str, List[str]], unit: Union[str, List[str]]) -> None:
         """
         Starts progress process and creates queues for passing information to the progress process. Number of progress
         bars is equal to the max length of lists ``total``, ``desc``, ``unit``. If none of these parameters is a list,
@@ -334,19 +334,19 @@ class Progress:
                 param *= num_processes
         manager = mp.Manager()
         self.progress_queues = tuple(manager.Queue() for _ in range(num_processes))
-        self.progress_process = mp.Process(target=show_prog, args=(self.progress_queues, total, desc, unit))
+        self.progress_process = mp.Process(target=_show_prog, args=(self.progress_queues, total, desc, unit))
         self.progress_process.start()
 
-    def __enter__(self):
+    def __enter__(self) -> Tuple[mp.Queue, ...]:
         return self.get_queues()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.finish()
 
     def get_queues(self) -> Tuple[mp.Queue, ...]:
         return self.progress_queues
 
-    def finish(self):
+    def finish(self) -> None:
         for q in self.progress_queues:
             q.put(-1)
         self.progress_process.join()
@@ -364,7 +364,7 @@ class TokenizeCreateMasksClipWorker:
         pad_label: str,
         verbose: bool,
         progress_queue: mp.Queue,
-    ):
+    ) -> None:
         """
         Args:
             max_seq_length: max number of tokens in an input sequence including [CLS] and [SEP] tokens. If number of
@@ -386,7 +386,7 @@ class TokenizeCreateMasksClipWorker:
         self.verbose = verbose
         self.progress_queue = progress_queue
 
-    def maybe_clip(self, values: List[int], append_value: int) -> List[int]:
+    def _maybe_clip(self, values: List[int], append_value: int) -> List[int]:
         if len(values) > self.max_seq_length:
             return values[: self.max_seq_length - 1] + [append_value]
         return values
@@ -421,7 +421,7 @@ class TokenizeCreateMasksClipWorker:
         for i, query in enumerate(queries):
             words = query.split()
             input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
-            check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
+            _check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
             pad_id = self.punct_label_ids[self.pad_label]
             punct_labels = [pad_id]
             punct_query_labels = [self.punct_label_ids[lab] for lab in punct_label_lines[i]]
@@ -443,13 +443,13 @@ class TokenizeCreateMasksClipWorker:
             input_ids.append(self.tokenizer.sep_id)
             subtokens_mask.append(0)
 
-            all_input_ids.append(np.array(self.maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
-            all_subtokens_mask.append(np.array(self.maybe_clip(subtokens_mask, 0), dtype=bool))
+            all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
+            all_subtokens_mask.append(np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool))
 
             punct_labels.append(pad_id)
-            punct_all_labels.append(np.array(self.maybe_clip(punct_labels, pad_id), dtype=np.int32))
+            punct_all_labels.append(np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32))
             capit_labels.append(pad_id)
-            capit_all_labels.append(np.array(self.maybe_clip(capit_labels, pad_id), dtype=np.int32))
+            capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
             progress_made += 1
             if progress_made >= TOKENIZATION_PROGRESS_REPORT_PERIOD:
                 self.progress_queue.put(progress_made)
@@ -460,7 +460,7 @@ class TokenizeCreateMasksClipWorker:
         return all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels
 
 
-def get_features(
+def _get_features(
     queries: Union[List[str], Tuple[str, ...]],
     punct_label_lines: Union[List[str], Tuple[str, ...]],
     capit_label_lines: Union[List[str], Tuple[str, ...]],
@@ -642,7 +642,7 @@ def load_label_ids(file_path: Union[str, os.PathLike]) -> Dict[str, int]:
     return ids
 
 
-def save_label_ids(label_ids: Dict[str, int], file_path: Path):
+def save_label_ids(label_ids: Dict[str, int], file_path: Path) -> None:
     """
     Saves label ids map to a file. In each line of a file one label is saved. Labels are saved in the order of
     increasing of their ids.
@@ -659,15 +659,15 @@ def save_label_ids(label_ids: Dict[str, int], file_path: Path):
 
 def raise_not_equal_labels_error(
     first_labels: Dict[str, int], second_labels: Dict[str, int], first_labels_desc: str, second_labels_desc: str
-):
+) -> None:
     """
     A helper function for raising comprehensible error if labels from 2 sources are different.
     Such sources may include:
       - labels stored in .nemo checkpoint
       - labels stored in tarred dataset
-      - labels passed in config parameters `model.common_dataset_parameters.{punct_label_ids,capit_label_ids}`
-      - labels from files passed in config parameters `model.class_labels.{punct_labels_file,capit_labels_file}`
-      - labels in attributes `PunctuationCapitalizationModel.{punct_label_ids,capit_label_ids}`
+      - labels passed in config parameters ``model.common_dataset_parameters.{punct_label_ids,capit_label_ids}``
+      - labels from files passed in config parameters ``model.class_labels.{punct_labels_file,capit_labels_file}``
+      - labels in attributes ``PunctuationCapitalizationModel.{punct_label_ids,capit_label_ids}``
       - any other source
     This function helps to detect configuration early and give error messages that are easy to interpret.
     Call this function if ``first_labels != second_labels``.
@@ -707,10 +707,31 @@ def raise_not_equal_labels_error(
     raise ValueError(msg)
 
 
+def pad(vectors: List[ArrayLike], length: int, value: Union[int, float, bool]) -> ArrayLike:
+    """
+    Pad vectors to length ``length`` and then stack.
+    Args:
+        vectors: a list of 1D arrays. Arrays to pad and stack
+        length: a length of padded sequence. Has to be greater or equal to the maximum length of an element of
+            ``vectors``.
+        value: a value used for padding
+
+    Returns:
+        an array of padded vectors
+    """
+    result = []
+    for v in vectors:
+        result.append(np.concatenate([v, np.full([length - v.shape[0]], value, dtype=v.dtype)]))
+    return np.stack(result)
+
+
 class BertPunctuationCapitalizationDataset(Dataset):
     """
     Creates dataset to use during training for punctuation and capitalization tasks.
-    For dataset to use during inference without labels, see ``BertPunctuationCapitalizationInferDataset``.
+    For dataset to use during inference without labels, see
+    :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.BertPunctuationCapitalizationInferDataset`.
+    For huge datasets which cannot be loaded into memory simultaneously use
+    :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`.
 
     Args:
         text_file: file to sequences, each line should contain a text without punctuation and capitalization
@@ -719,6 +740,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
             tokens. Sequences which are too long will be clipped by removal of tokens from the end of the sequence
         tokenizer: a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``, ``eos_id``
         num_samples: number of samples you want to use for the dataset. If ``-1``, use all dataset. Useful for testing.
+        tokens_in_batch: number of tokens in a batch including paddings and special tokens ([CLS], [SEP], [UNK]).
+            This class :meth:`__getitem__` method returns not samples but ready batches. Number of samples in a batch is
+            adjusted for input sequences lengths. If input sequences are short, them a batch will contain more samples.
+            Before packing into batches, samples are sorted by the number of tokens they contain. Sorting allows
+            to reduce number of pad tokens in a batch significantly. Usual PyTorch data loader shuffling will only
+            permute batches with changing their content. Proper shuffling is achieved via calling of
+            :meth:`repack_batches_with_shuffle` method every epoch
         pad_label: pad value to use for labels. It's also the neutral label both for punctuation and capitalization.
         punct_label_ids and capit_label_ids: dict to map labels to label ids. For dev set use label_ids generated
             during training to support cases when not all labels are present in the dev set. For training, it is
@@ -743,8 +771,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         punct_label_vocab_file and capit_label_vocab_file: paths to .csv files containing punctuation and
             capitalization label vocabularies correspondingly. Each line in such a vocabulary file contains exactly
             one label. The first line has to contain `pad_label`, otherwise error will be raised.
-        add_masks_and_segment_ids_to_batch: whether to add ``loss_mask``, ``input_mask``, ``segment_ids`` to batch.
-            Useful for creation of tarred dataset and can NOT be used during model training and inference
+        add_masks_and_segment_ids_to_batch: whether to add ``'loss_mask'``, ``'input_mask'``, ``'segment_ids'`` items
+            to batch. Useful for creation of tarred dataset and can NOT be used during model training and inference
         verbose: whether to show data examples, label stats and other useful information
         n_jobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
             clipping. If ``n_jobs <= 0`` data preparation is performed without multiprocessing. By default ``n_jobs``
@@ -799,9 +827,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
-    ):
+    ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
-        self.check_constructor_parameters(
+        self._check_constructor_parameters(
             text_file,
             labels_file,
             punct_label_ids,
@@ -833,26 +861,26 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_building_progress_queue = batch_building_progress_queue
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        features_pkl = self.get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
+        features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
         features = None
         if master_device and not (features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(f'Processing {text_file}')
-            res = self.read_dataset(text_file, labels_file, num_samples, verbose)
+            res = self._read_dataset(text_file, labels_file, num_samples, verbose)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
             if punct_label_ids:
-                self.check_label_ids_vs_unique_labels(
+                self._check_label_ids_vs_unique_labels(
                     punct_label_ids, punct_unique_labels, 'punct', 'punctuation', labels_file
                 )
             else:
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
-                self.check_label_ids_vs_unique_labels(
+                self._check_label_ids_vs_unique_labels(
                     capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', labels_file
                 )
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
-            features = get_features(
+            features = _get_features(
                 text_lines,
                 punct_label_lines,
                 capit_label_lines,
@@ -878,7 +906,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if features is None:
             features = pickle.load(open(features_pkl, 'rb'))
             li = features[-2:]
-            self.check_label_ids_loaded_from_pkl(
+            self._check_label_ids_loaded_from_pkl(
                 punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file, features_pkl
             )
             punct_label_ids, capit_label_ids = li[-2], li[-1]
@@ -890,7 +918,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
-        self.batches = self.pack_into_batches(
+        self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
 
@@ -898,7 +926,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.punct_label_frequencies = self._calculate_and_save_label_frequencies(self.punct_labels, 'punct')
             self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
 
-    def get_path_to_pkl_features(
+    def _get_path_to_pkl_features(
         self, text_file: Path, cache_dir: Optional[Union[str, os.PathLike]], max_seq_length: int, num_samples: int
     ) -> Path:
         if cache_dir is None:
@@ -916,7 +944,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         return features_pkl
 
     @staticmethod
-    def check_constructor_parameters(
+    def _check_constructor_parameters(
         text_file: Union[str, os.PathLike],
         labels_file: Union[str, os.PathLike],
         punct_label_ids: Optional[Dict[str, int]],
@@ -924,7 +952,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         punct_label_vocab_file: Union[str, os.PathLike],
         capit_label_vocab_file: Union[str, os.PathLike],
         num_samples: int,
-    ):
+    ) -> None:
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
                 f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and'
@@ -974,7 +1002,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
 
     @staticmethod
-    def check_label_ids_loaded_from_pkl(
+    def _check_label_ids_loaded_from_pkl(
         parameter_punct_label_ids: Dict[str, int],
         parameter_capit_label_ids: Dict[str, int],
         pkl_punct_label_ids: Dict[str, int],
@@ -982,7 +1010,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         punct_label_vocab_file: Optional[Path],
         capit_label_vocab_file: Optional[Path],
         features_file: Path,
-    ):
+    ) -> None:
         if parameter_punct_label_ids != pkl_punct_label_ids:
             raise_not_equal_labels_error(
                 first_labels=parameter_punct_label_ids,
@@ -1003,9 +1031,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
 
     @staticmethod
-    def check_label_ids_vs_unique_labels(
+    def _check_label_ids_vs_unique_labels(
         label_ids: Dict[str, int], unique_labels: Set[str], label_type: str, task: str, label_file: Path
-    ):
+    ) -> None:
         if unique_labels - set(label_ids):
             not_present_labels = list(unique_labels - set(label_ids))
             raise ValueError(
@@ -1014,8 +1042,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
 
     @staticmethod
-    def read_dataset(
-        text_file: Path, label_file: Path, num_samples: int, verbose: bool
+    def _read_dataset(
+        text_file: Path, labels_file: Path, num_samples: int, verbose: bool
     ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Set[str], Set[str]]:
         if verbose:
             logging.info(f'Processing {text_file}')
@@ -1023,19 +1051,19 @@ class BertPunctuationCapitalizationDataset(Dataset):
             text_lines = f.readlines()
         punct_unique_labels, capit_unique_labels = set(), set()
         punct_labels_lines, capit_labels_lines = [], []
-        with label_file.open() as f:
+        with labels_file.open() as f:
             for i, line in enumerate(f):
                 pairs = line.split()
                 if not all([len(p) == 2 for p in pairs]):
                     raise ValueError(
                         f"Some label pairs are not pairs but have wrong length (!= 2) in line {i} in label file "
-                        f"{label_file}"
+                        f"{labels_file}"
                     )
                 words = text_lines[i].split()
                 if len(pairs) != len(words):
                     raise ValueError(
-                        f"In line {i} number of words {len(words)} text file {text_file} is not equal to the number "
-                        f"of labels {len(pairs)} in label file {label_file}."
+                        f"In line {i} in text file {text_file} number of words {len(words)} is not equal to the "
+                        f"number of labels {len(pairs)} in labels file {labels_file}."
                     )
                 punct_line, capit_line = zip(*pairs)
                 punct_labels_lines.append(punct_line)
@@ -1046,35 +1074,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if len(punct_labels_lines) != len(text_lines):
             raise ValueError(
                 f"Number of text lines {len(text_lines)} in text file {text_file} is not equal to the number of lines "
-                f"{len(punct_labels_lines)} in label file {label_file}."
+                f"{len(punct_labels_lines)} in labels file {labels_file}."
             )
         dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
         if len(dataset) == 0:
-            raise ValueError(f"Dataset loaded from files {text_file} and {label_file} is empty.")
+            raise ValueError(f"Dataset loaded from files {text_file} and {labels_file} is empty.")
         if num_samples > 0:
             dataset = dataset[:num_samples]
         text_lines, punct_labels_lines, capit_labels_lines = zip(*dataset)
         return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels
 
-    @staticmethod
-    def pad(vectors: List[ArrayLike], length: int, value: Union[int, float, bool]) -> ArrayLike:
-        """
-        Pad vectors to length ``length`` and then stack.
-        Args:
-            vectors: a list of 1D arrays. Arrays to pad and stack
-            length: a length of padded sequence. Has to be greater or equal to the maximum length of an element of
-                ``vectors``.
-            value: a values used for padding
-
-        Returns:
-            an array of padded vectors
-        """
-        result = []
-        for v in vectors:
-            result.append(np.concatenate([v, np.full([length - v.shape[0]], value, dtype=v.dtype)]))
-        return np.stack(result)
-
-    def mark_up_batches(self, input_ids: List[ArrayLike]) -> Tuple[List[int], List[int], List[int]]:
+    def _mark_up_batches(self, input_ids: List[ArrayLike]) -> Tuple[List[int], List[int], List[int]]:
         """
         Computes indices of first samples in batch, batch sizes, seq lengths for batches. ``input_ids`` has to be
         sorted by number of tokens in ascending order.
@@ -1151,7 +1161,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         return batch_beginnings, batch_sizes, batch_seq_lengths
 
-    def pack_into_batches(
+    def _pack_into_batches(
         self,
         input_ids: List[ArrayLike],
         subtokens_mask: List[ArrayLike],
@@ -1196,7 +1206,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
         random.shuffle(zipped)
         input_ids, subtokens_mask, punct_labels, capit_labels = zip(*sorted(zipped, key=lambda x: x[0].shape[0]))
-        batch_beginnings, batch_sizes, batch_seq_lengths = self.mark_up_batches(input_ids)
+        batch_beginnings, batch_sizes, batch_seq_lengths = self._mark_up_batches(input_ids)
         batches = []
         if self.batch_building_progress_queue is None:
             inp_iterator = tqdm(
@@ -1210,15 +1220,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
             inp_iterator = zip(batch_beginnings, batch_sizes, batch_seq_lengths)
             progress_made = 0
         for start, size, length in inp_iterator:
-            batch_input_ids = self.pad(input_ids[start : start + size], length, self.tokenizer.pad_id)
-            batch_subtokens_mask = self.pad(subtokens_mask[start : start + size], length, False)
+            batch_input_ids = pad(input_ids[start : start + size], length, self.tokenizer.pad_id)
+            batch_subtokens_mask = pad(subtokens_mask[start : start + size], length, False)
             batch = {
                 "input_ids": batch_input_ids,
                 "subtokens_mask": batch_subtokens_mask,
-                "punct_labels": self.pad(
+                "punct_labels": pad(
                     punct_labels[start : start + size], length, self.punct_label_ids[self.pad_label]
                 ).astype(np.int64),
-                "capit_labels": self.pad(
+                "capit_labels": pad(
                     capit_labels[start : start + size], length, self.capit_label_ids[self.pad_label]
                 ).astype(np.int64),
             }
@@ -1246,9 +1256,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         random.shuffle(batches)
         return batches
 
-    def repack_batches_with_shuffle(self):
+    def repack_batches_with_shuffle(self) -> None:
+        """A function for proper shuffling of a dataset. Pytorch data loader shuffing will only permute batches."""
         logging.info("Shuffling training dataset")
-        self.batches = self.pack_into_batches(
+        self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
 
@@ -1263,7 +1274,25 @@ class BertPunctuationCapitalizationDataset(Dataset):
         )
         return label_frequencies
 
-    def save_labels_and_get_file_paths(self, punct_labels_file_name, capit_labels_file_name) -> Tuple[Path, Path]:
+    def save_labels_and_get_file_paths(
+        self, punct_labels_file_name: str, capit_labels_file_name: str
+    ) -> Tuple[Path, Path]:
+        """
+        Saves label ids into files located in ``self.label_info_save_dir``. Saved label ids are usually used for
+        creating .nemo checkpoints.
+
+        The signatures of this method and the signature of the method
+        ``nemo.collections.nlp.data.token_classification.BertPunctuationCapitalizationTarredDataset.save_labels_and_get_file_paths``
+        must be identical.
+
+        Args:
+            punct_labels_file_name: a name of a punctuation labels file
+            capit_labels_file_name: a name of a capitalization labels file
+
+        Returns:
+            a path to the saved punctuation labels file
+            a path to the saved capitalization labels file
+        """
         nemo_dir = self.label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
         punct_labels_file = nemo_dir / punct_labels_file_name
         capit_labels_file = nemo_dir / capit_labels_file_name
@@ -1277,7 +1306,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def collate_fn(self, batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
         """
         Return zeroth batch of ``batches`` passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
-        ``'capit_labels'`` to types supported by ``PunctuationCapitalizationModel``.
+        ``'capit_labels'`` to types supported by
+        :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`.
 
         Note: batch size in data loader and sampler has to be 1.
         Args:
@@ -1308,15 +1338,19 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         Returns:
             a dictionary with items:
-              - ``'input_ids'``: ``np.int32`` array,
-              - ``'subtokens_mask'``: ``bool`` array,
+              - ``'input_ids'``: ``np.int32`` array containing encoded tokens,
+              - ``'subtokens_mask'``: ``bool`` array which elements are ``True`` if they correspond to first token in
+                  a word,
               - ``'punct_labels'``: ``np.int32`` array,
               - ``'capit_labels'``: ``np.int32`` array.
             If ``self.add_masks_and_segment_ids_to_batch`` is ``True``, then a batch also contain items
-              - ``'segment_ids'``: ``np.int8`` array,
-              - ``'input_mask'``: ``bool`` array,
-              - ``'loss_mask'``: ``bool`` array.
+              - ``'segment_ids'``: ``np.int8`` array filled with zeros (BERT token types in HuggingFace terminology),
+              - ``'input_mask'``: ``bool`` array which elements are ``True`` if corresponding token is not a padding
+                  token,
+              - ``'loss_mask'``: ``bool`` array which elements are ``True`` if loss is computed for corresponding
+                  token. See more in description of constructor parameters ``ignore_start_end``,
+                  ``ignore_extra_tokens``.
 
-            The values of a batch dictionary are numpy arrays of identical shapes.
+            The values of a batch dictionary are numpy arrays of identical shapes ``[Batch, Time]``.
         """
         return self.batches[idx]

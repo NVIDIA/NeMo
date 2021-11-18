@@ -22,12 +22,12 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
     METADATA_CAPIT_LABEL_VOCAB_KEY,
     METADATA_PUNCT_LABEL_VOCAB_KEY,
     build_label_ids_from_list_of_labels,
-    check_before_building_label_ids,
+    check_labels_for_being_unique_before_building_label_ids,
     create_tarred_dataset,
 )
 
 
-def get_args():
+def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=f"A tarred dataset allows to train on large amounts without storing it all into memory "
@@ -35,7 +35,7 @@ def get_args():
         f"contains metadata file, tar files with batches, {DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME} and "
         f"{DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME} files. A metadata file is a JSON file with 4 fields: 'num_batches', "
         f"'tar_files', '{METADATA_PUNCT_LABEL_VOCAB_KEY}', '{METADATA_CAPIT_LABEL_VOCAB_KEY}'. 'num_batches' (int) is "
-        f"a total number of batches in tarred dataset. 'tar_files' is a list of paths to tar files given relatively "
+        f"a total number of batches in tarred dataset. 'tar_files' is a list of paths to tar files relative "
         f"to directory containing the metadata file. '{METADATA_PUNCT_LABEL_VOCAB_KEY}' and "
         f"'{METADATA_CAPIT_LABEL_VOCAB_KEY}' are paths to .csv files containing all unique punctuation and "
         f"capitalization labels. Each label in these files is written in a separate line. The first labels in both "
@@ -236,16 +236,16 @@ def get_args():
                         f"'{args.special_token_names[i]}'."
                     )
     if args.punct_labels is not None:
-        check_before_building_label_ids(
+        check_labels_for_being_unique_before_building_label_ids(
             args.pad_label, args.punct_labels, '--pad_label', '--punct_labels', parser.error
         )
-        check_before_building_label_ids(
+        check_labels_for_being_unique_before_building_label_ids(
             args.pad_label, args.capit_labels, '--pad_label', '--capit_labels', parser.error
         )
     return args
 
 
-def main():
+def main() -> None:
     args = get_args()
     if args.special_token_names is None:
         special_tokens = None
