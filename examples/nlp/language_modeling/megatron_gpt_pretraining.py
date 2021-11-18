@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -27,6 +28,21 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin, M
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
+
+
+def check_config_dependency(cfg):
+    # version dependency check
+    nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+    if nvidia_torch_version is not None:
+        NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+        NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+
+        # Persistent layer norm is supported from Nvidia PyTorch container v21.11
+        if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
+            cfg.model.persist_layer_norm = False
+    else:
+        # Not a Nvidia container. Dependency check is on users
+        pass
 
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
@@ -81,6 +97,8 @@ def main(cfg) -> None:
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
+    check_config_dependency(cfg)
+
     model = MegatronGPTModel(cfg.model, trainer)
 
     trainer.fit(model)
