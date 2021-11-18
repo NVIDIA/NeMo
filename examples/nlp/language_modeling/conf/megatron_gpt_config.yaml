@@ -115,3 +115,7 @@ model:
       warmup_steps: 500
       constant_steps: 50000
       min_lr: 2e-5
+    master_param: False # Use optimizer wrapper with master parameters
+    fp32_grad_accum: False # Accumulate gradients and all-reduce in fp32
+    contiguous_grad_bucket: False # Allocate master gradients in the contiguous memory space
+    async_grad_allreduce: False # Asynchronous master gradient all-reduce

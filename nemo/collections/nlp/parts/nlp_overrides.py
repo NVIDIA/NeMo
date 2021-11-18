@@ -16,18 +16,24 @@ import os
 import shutil
 import tempfile
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Callable, Generator
+from contextlib import contextmanager
 
 import torch
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+import pytorch_lightning as pl
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.utilities.types import _PATH
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
+
 
 try:
     from apex.transformer import parallel_state
@@ -52,12 +58,14 @@ class NLPDDPPlugin(DDPPlugin):
         cluster_environment: ClusterEnvironment = None,
         sync_batchnorm: bool = False,
         checkpoint_io: Optional[CheckpointIO] = None,
+        fp32_grad_accum: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        self.fp32_grad_accum = fp32_grad_accum
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
@@ -91,6 +99,13 @@ class NLPDDPPlugin(DDPPlugin):
                 find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
+
+            if self.fp32_grad_accum:
+                # When using custom gradient accumulation and allreduce, disable
+                # DDP communication hook that works on the gradient bucket.
+                # Instead, use the custom gradient function and communication hook,
+                # which is defined in the master optimizer wrapper.
+                self._model.register_comm_hook(None, noop_hook)
 
         else:
             super().configure_ddp()
@@ -323,3 +338,76 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
         # To prepare for next iteration, clear the data collected from optimizers this iteration.
         self._per_optimizer_states = defaultdict(torch.cuda.amp.grad_scaler._refresh_per_optimizer_state)
+        
+
+class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
+    """
+    Plugin for Half (FP16 and BF16) precision training.
+    This plugin assumes the uase of the optimizer with master parameters (fp32).
+    This plugin uses half-precision at all operators in the model so need of inputer precision
+    at each layer operator.
+
+    Args:
+        precision: Whether to use ``torch.float16`` (``16``) or ``torch.bfloat16`` (``'bf16'``).
+        device: The device for ``torch.autocast``.
+        scaler: An optional :class:`torch.cuda.amp.GradScaler` to use.
+    """
+
+    def __init__(
+        self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+    ) -> None:
+        super().__init__(precision, device, scaler)
+
+    def optimizer_step(
+        self,
+        model: Union["pl.LightningModule", torch.nn.Module],
+        optimizer: torch.optim.Optimizer,
+        optimizer_idx: int,
+        closure: Callable[[], Any],
+        **kwargs: Any,
+    ) -> None:
+        assert isinstance(optimizer, MasterOptimizerWrapper), \
+            "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"
+
+        if self.scaler is None:
+            assert optimizer.fp32_grad_accumulation, "BF16 uses FP32 grad accumulation"
+            if optimizer.async_master_grads_allreudce:
+                # Execute the last step with asynchronous master gradients all-reduce
+                with optimizer.grad_sync():
+                    closure_result = closure()
+            else:
+                closure_result = closure()
+                optimizer.allreduce_main_grads()
+
+            self._after_closure(model, optimizer, optimizer_idx)
+            return optimizer.step(**kwargs)
+
+        if isinstance(optimizer, torch.optim.LBFGS):
+            raise MisconfigurationException(
+                f"Native AMP and the LBFGS optimizer are not compatible (optimizer {optimizer_idx})."
+            )
+        assert not optimizer.fp32_grad_accumulation, "FP16 uses FP16 grad accumulation"
+        closure_result = closure()
+
+        #TODO: Add an option for merged all-reduce
+        
+        # cast fp16 grads to fp32 and copy to main grads, which are used for unscale and param update
+        optimizer.copy_model_grads_to_main_grads()
+        # `unscale` after the closure is executed but before the `on_before_optimizer_step` hook.
+        # unscale main (fp32) gradients
+        self.scaler.unscale_(optimizer)
+        self._after_closure(model, optimizer, optimizer_idx)
+        skipped_backward = closure_result is None
+        # in manual optimization, the closure does not return a value
+        if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
+            # note: the scaler will skip the `optimizer.step` if nonfinite gradients are found
+            self.scaler.step(optimizer, **kwargs)
+            self.scaler.update()
+
+    @contextmanager
+    def forward_context(self) -> Generator[None, None, None]:
+        """ No explicit precision casting. Inputs are supposed to be manually casted """
+        try:
+            yield
+        finally:
+            pass

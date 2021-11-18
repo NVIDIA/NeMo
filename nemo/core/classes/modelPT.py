@@ -26,11 +26,13 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
+from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
@@ -560,8 +562,20 @@ class ModelPT(LightningModule, Model):
                     raise e
 
         else:
+            use_master_param = optimizer_args.pop('master_param', False)
+            fp32_grad_accum = optimizer_args.pop('fp32_grad_accum', False)
+            contiguous_grad_bucket = optimizer_args.pop('contiguous_grad_bucket', False)
+            async_grad_allreduce = optimizer_args.pop('async_grad_allreduce', False)
             optimizer = optim.get_optimizer(optimizer_name)
             optimizer = optimizer(self.parameters(), **optimizer_args)
+            if use_master_param:
+                # Wrap the baseline optimizer with an optimizer class with master parameters
+                optimizer = MasterOptimizerWrapper(
+                    optimizer,
+                    fp32_grad_accum=fp32_grad_accum,
+                    contiguous_grad_bucket=contiguous_grad_bucket,
+                    async_grad_allreduce=async_grad_allreduce,
+                )
 
             logging.info("Optimizer config = %s", str(optimizer))
 

@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
@@ -125,9 +126,15 @@ class MegatronGPTModel(NLPModel):
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
+        self.use_master_param = cfg.optim.get('master_param', False)
+        if self.use_master_param:
+            # pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+            self.model.cuda(torch.cuda.current_device())
+            # Model wrapper to convert input to target half precision
+            self.model = Float16Module(self.model, cfg.precision)
+
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
-
         return output_tensor
 
     def training_step(self, batch, batch_idx):
@@ -441,7 +448,11 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        parameters = [param for param in self.model.parameters() if param.requires_grad]
+        if self.use_master_param:
+            # grep fp32 master parameters for gradient clipping
+            parameters = self._optimizer.get_parameters()
+        else:
+            parameters = self.model.parameters()
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def prompt_tuning_freeze(self):
