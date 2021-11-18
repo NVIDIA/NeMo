@@ -1,9 +1,13 @@
 name: "FastPitch"
 sample_rate: 22050
+
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
 sup_data_types: [ "duration_prior", "pitch" ]
+
+phoneme_dict_path: ???
+heteronyms_path: ???
 
 model:
   learn_alignment: true

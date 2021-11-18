@@ -99,7 +99,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
 
-            self.ds_class_name = self._cfg.train_ds.dataset.split(".")[-1]
+            self.ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
             if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 logging.warning(
@@ -111,7 +111,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
             elif self.ds_class_name == "TTSDataset":
                 self.vocab = instantiate(self._cfg.train_ds.dataset.text_tokenizer)
-                input_fft_kwargs["n_embed"] = len(self.tokenizer.tokens)
+                input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
             else:
                 raise ValueError(f"Unknown dataset class: {self.ds_class_name}")
@@ -155,7 +155,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             return self._parser
 
         if self.learn_alignment:
-            ds_class_name = self._cfg.train_ds.dataset.split(".")[-1]
+            ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
             if ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 logging.warning(
