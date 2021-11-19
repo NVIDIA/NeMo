@@ -87,6 +87,7 @@ class TimeFst(GraphFst):
             + delete_space
             + pynutil.insert(":")
             + (second @ add_leading_zero_to_double_digit)
+            + pynutil.insert("s")
         )
 
         graph = (graph_h | graph_ms | graph_hms) + optional_zone

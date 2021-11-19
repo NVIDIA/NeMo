@@ -74,6 +74,10 @@ kwh	ki lô oát giờ
 kwh	ki lô goát giờ
 m³	met khối
 m³	mét khối
+cm³	centimet khối
+cm³	cen ti mét khối
+cm³	xen ti mét khối
+cm³	xăng ti mét khối
 tw	tera watt
 tw	terawatt
 tw	te ra watt
@@ -88,8 +92,9 @@ mw	mê ga watt
 mw	mê ga oát
 mw	mê ga goát
 μm	micromet
-μm	micro met
-μm	muy cro met
+μm	micro mét
+μm	muy crô mét
+μm	muy cờ rô mset
 "	inch
 tb	terabyte
 tb	tera byte
@@ -107,6 +112,7 @@ db	đề xi ben
 μg	muy crô gram
 μg	micro gam
 μg	muy crô gam
+μg	muy cờ rô gam
 pg	petagram
 pg	peta gam
 pg	pê ta gam
@@ -141,6 +147,7 @@ ns	nano giây
 ns	na nô giây
 μs	micro giây
 μs	muy crô giây
+μs	muy cờ rô giây
 pa	pascal
 ms	milli giây
 ms	mi li giây
@@ -158,3 +165,7 @@ pb	peta byte
 pb	petabyte
 pb	pê ta byte
 kcal	kilo calo
+l	lít
+ml	millilit
+ml	mili lít
+ml	mi li lít
