@@ -219,22 +219,40 @@ def get_tarred_dataset(
         datasets.append(dataset)
 
     if len(datasets) > 1:
-        logging.warning(f"Batch bucketing is enabled for {len(datasets)} buckets with batch size of {config['batch_size']}!")
-        if type(config['batch_size']) == int:
-            bucketing_batch_sizes = [config['batch_size']]*len(datasets)
-            # for idx in range(len(datasets)):
-            #     scale_factor = len(datasets) - idx
-            #     bucketing_batchsizes.append(scale_factor * config['batch_size'])
-            # logging.warning(f"Linear scalingBatch bucketing is enabled for {len(tarred_audio_filepath)} buckets!")
-        else:
-            bucketing_batch_sizes = config['batch_size']
-        if len(bucketing_batch_sizes) != len(datasets):
+        if config.get('bucketing_batch_size', None) is not None and config['bucketing_batch_size'] > 0:
+            if config['bucketing_batch_size'] != 1:
+                raise ValueError(
+                    f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={config['bucketing_batch_size']})!"
+                )
+
+            if type(config['bucketing_batch_size']) == int:
+                bucketing_batch_sizes = []
+                for idx in range(len(datasets)):
+                    scale_factor = len(datasets) - idx
+                    bucketing_batch_sizes.append(scale_factor * config['bucketing_batch_size'])
+            elif type(config['bucketing_batch_size']):
+                bucketing_batch_sizes = config['bucketing_batch_size']
+            else:
+                raise ValueError(
+                    f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={config['bucketing_batch_size']})!"
+                )
+
+            if len(bucketing_batch_sizes) != len(datasets):
+                logging.warning(
+                    f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={len(datasets)}) "
+                )
             logging.warning(
-                f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={len(datasets)}) "
+                f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
+            )
+        else:
+            logging.warning(
+                f"Batch bucketing is enabled for {len(datasets)} buckets with fixed batch size of {config['batch_size']}!"
             )
 
         for idx, dataset in enumerate(datasets):
-            datasets[idx] = audio_to_text.BucketingDataset(dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx])
+            datasets[idx] = audio_to_text.BucketingDataset(
+                dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx]
+            )
 
     if len(datasets) > 1:
         return ChainDataset(datasets)
