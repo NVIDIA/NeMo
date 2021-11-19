@@ -35,6 +35,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     LMTokens,
     LogMel,
     Pitch,
+    SpeakerID,
     WithLens,
 )
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
@@ -162,6 +163,7 @@ class TTSDataset(Dataset):
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "text_tokens": None,
+                        "speaker_id": item["speaker"] if "speaker" in item else None,
                     }
 
                     if "text" in item:
@@ -297,6 +299,9 @@ class TTSDataset(Dataset):
     def add_energy(self, **kwargs):
         pass
 
+    def add_speaker_id(self, **kwargs):
+        pass
+
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
             spec = self.stft(audio)
@@ -398,6 +403,10 @@ class TTSDataset(Dataset):
 
             energy_length = torch.tensor(len(energy)).long()
 
+        speaker_id = None
+        if SpeakerID in self.sup_data_types_set:
+            speaker_id = torch.tensor(sample["speaker_id"]).long()
+
         return (
             audio,
             audio_length,
@@ -411,6 +420,7 @@ class TTSDataset(Dataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
         )
 
     def __len__(self):
@@ -440,6 +450,7 @@ class TTSDataset(Dataset):
             pitches_lengths,
             energies,
             energies_lengths,
+            _,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -461,7 +472,7 @@ class TTSDataset(Dataset):
             if DurationPrior in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies = [], [], [], [], [], []
+        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids = [], [], [], [], [], [], []
 
         for i, sample_tuple in enumerate(batch):
             (
@@ -477,6 +488,7 @@ class TTSDataset(Dataset):
                 pitch_length,
                 energy,
                 energy_length,
+                speaker_id,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -495,6 +507,8 @@ class TTSDataset(Dataset):
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
             if Energy in self.sup_data_types_set:
                 energies.append(general_padding(energy, energy_length.item(), max_energies_len))
+            if SpeakerID in self.sup_data_types_set:
+                speaker_ids.append(speaker_id)
 
         data_dict = {
             "audio": torch.stack(audios),
@@ -509,6 +523,7 @@ class TTSDataset(Dataset):
             "pitch_lens": torch.stack(pitches_lengths) if Pitch in self.sup_data_types_set else None,
             "energy": torch.stack(energies) if Energy in self.sup_data_types_set else None,
             "energy_lens": torch.stack(energies_lengths) if Energy in self.sup_data_types_set else None,
+            "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
         }
 
         return data_dict
@@ -573,6 +588,7 @@ class MixerTTSDataset(TTSDataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
         ) = super().__getitem__(index)
 
         lm_tokens = None
@@ -592,13 +608,14 @@ class MixerTTSDataset(TTSDataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
             lm_tokens,
         )
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
-        data_dict = self.general_collate_fn(list(zip(*batch[:12])))
-        lm_tokens_list = batch[12]
+        data_dict = self.general_collate_fn(list(zip(*batch[:13])))
+        lm_tokens_list = batch[13]
 
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.full(
