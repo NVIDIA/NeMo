@@ -1290,7 +1290,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             capit_labels_file_name: a name of a capitalization labels file
 
         Returns:
-            a path to the saved punctuation labels file
+            tuple: a ta path to the saved punctuation labels file
             a path to the saved capitalization labels file
         """
         nemo_dir = self.label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
@@ -1314,14 +1314,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
             batches: a list of batches passed for collating. Normally ``batches`` contains exactly 1 element
 
         Returns:
-            a batch dictionary with following items:
-              - ``'input_ids'``: ``torch.int32`` tensor,
-              - ``'subtokens_mask'``: ``torch.bool`` tensor,
-              - ``'punct_labels'``: ``torch.int64`` tensor,
-              - ``'capit_labels'``: ``torch.int64`` tensor.
-              - ``'segment_ids'``: ``torch.int32`` tensor,
-              - ``'input_mask'``: ``torch.bool`` tensor,
-              - ``'loss_mask'``: ``torch.bool`` tensor.
+            dict: a batch dictionary with following items:
+              - ``'input_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
+              - ``'subtokens_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
+              - ``'punct_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``,
+              - ``'capit_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``.
+              - ``'segment_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
+              - ``'input_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
+              - ``'loss_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``.
         """
         batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
         batch['segment_ids'] = batch['segment_ids'].int()

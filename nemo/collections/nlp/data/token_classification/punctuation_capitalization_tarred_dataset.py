@@ -1027,13 +1027,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
         Returns:
             a batch in the form of a dictionary with items:
-              - ``'input_ids'``: a ``np.int32`` numpy array;
-              - ``'subtokens_mask'``: a boolean numpy array;
-              - ``'punct_labels'``: a ``np.int32`` numpy array;
-              - ``'capit_labels'``: a ``np.int32`` numpy array;
-              - ``'segment_ids'``: a ``np.int8`` numpy array;
-              - ``'input_mask'``: a boolean numpy array;
-              - ``'loss_mask'``: a boolean numpy array.
+              - ``'input_ids'``: a ``np.int32`` numpy array of shape ``[Batch, Time]``;
+              - ``'subtokens_mask'``: a boolean numpy array of shape ``[Batch, Time]``;
+              - ``'punct_labels'``: a ``np.int32`` numpy array of shape ``[Batch, Time]``;
+              - ``'capit_labels'``: a ``np.int32`` numpy array of shape ``[Batch, Time]``;
+              - ``'segment_ids'``: a ``np.int8`` numpy array of shape ``[Batch, Time]``;
+              - ``'input_mask'``: a boolean numpy array of shape ``[Batch, Time]``;
+              - ``'loss_mask'``: a boolean numpy array of shape ``[Batch, Time]``.
         """
         _, batch = batch
         batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
@@ -1083,13 +1083,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
         Returns:
             a batch dictionary with following items:
-              - ``'input_ids'``: ``torch.int32`` tensor,
-              - ``'subtokens_mask'``: ``torch.bool`` tensor,
-              - ``'punct_labels'``: ``torch.int64`` tensor,
-              - ``'capit_labels'``: ``torch.int64`` tensor.
-              - ``'segment_ids'``: ``torch.int32`` tensor,
-              - ``'input_mask'``: ``torch.bool`` tensor,
-              - ``'loss_mask'``: ``torch.bool`` tensor.
+              - ``'input_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
+              - ``'subtokens_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
+              - ``'punct_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``,
+              - ``'capit_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``.
+              - ``'segment_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
+              - ``'input_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
+              - ``'loss_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``.
         """
         batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
         batch['segment_ids'] = batch['segment_ids'].int()

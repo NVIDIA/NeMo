@@ -156,13 +156,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 paddings
             token_type_ids: an integer torch Tensor of shape ``[Batch, Time]``. Contains an index of segment to which
                 the token belongs. If not ``None`` it should be a zeros tensor
-        Returns:
-            (tuple): tuple containing
 
-                punct_logits (torch.Tensor): a float torch tensor of shape ``[Batch, Time, NumPunctuationLabels]``
-                    containing punctuation logits
-                capit_logits (torch.Tensor): a float torch tensor of shape ``[Batch, Time, NumCapitalizationLabels]``
-                    containing capitalization logits
+        Returns:
+            :obj:`Tuple[torch.Tensor, torch.Tensor]`: a tuple containing
+
+                - ``punct_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
+                  ``[Batch, Time, NumPunctuationLabels]`` containing punctuation logits
+                - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
+                  ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
         """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
@@ -189,25 +190,27 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Args:
             batch: a dictionary with following items:
 
-                * ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
-                * ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
-                * ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
+                - ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
+                - ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
+                - ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
                     should be ``False`` on padding tokens and ``True`` on other tokens.
-                * ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
-                    on. See more details in description of parameters ``ignore_start_end`` and
-                    ``ignore_extra_tokens`` of class
-                    :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
-                * ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
-                    labels
-                * ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
-                     capitalization labels
-                * ``'subtokens_mask'``: not required for training and can be omitted
+                - ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
+                  on. See more details in description of parameters ``ignore_start_end`` and
+                  ``ignore_extra_tokens`` of class
+                  :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
+                - ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
+                  labels
+                - ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
+                  capitalization labels
+                - ``'subtokens_mask'``: not required for training and can be omitted
+
             batch_idx: an index of batch. Mandatory Lightning parameter
 
         Returns:
-            (dict): a dictionary with 2 items:
-                ``'loss'`` (torch.Tensor): torch tensor containing mean aggregated punctuation and capitalization loss
-                ``'lr'`` (torch.Tensor): a float containing learning rate
+            dict: a dictionary with 2 items:
+
+                - ``'loss'`` (torch.Tensor): torch tensor containing mean aggregated punctuation and capitalization loss
+                - ``'lr'`` (torch.Tensor): a float containing learning rate
         """
         loss, _, _ = self._make_step(batch)
         lr = self._optimizer.param_groups[0]['lr']
@@ -224,19 +227,19 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Args:
             batch: a dictionary with following items:
 
-                - 'input_ids': an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
-                - 'subtokens_mask': a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
+                - ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
+                - ``'subtokens_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
                   ``True`` if corresponding token from ``'input_ids'`` element is the first token in some word
                 - ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
-                - 'input_mask': a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
+                - ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
                   should be ``False`` on padding tokens and ``True`` on other tokens.
-                - 'loss_mask': a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
+                - ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
                   on. See more details in description of parameters ``ignore_start_end`` and
                   ``ignore_extra_tokens`` of class
                   :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
-                - 'punct_labels': a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
+                - ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
                   labels
-                - 'capit_labels': a long torch tensor of shape ``[Batch, Time]``. Contains encoded
+                - ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
                   capitalization labels
             mode: either ``'validation'`` or ``'test'`` depending on caller method
             dataloader_idx: NeMo parameter for multi dataset validation
