@@ -3,7 +3,7 @@ train_dataset: ???
 validation_datasets: ???
 
 defaults:
-  - model/generator: v4
+  - model/generator: v1_44100
   - model/train_ds: train_ds
   - model/validation_ds: val_ds
 
