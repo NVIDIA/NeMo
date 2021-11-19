@@ -220,9 +220,9 @@ def get_tarred_dataset(
 
     if len(datasets) > 1:
         if config.get('bucketing_batch_size', None) is not None and config['bucketing_batch_size'] > 0:
-            if config['bucketing_batch_size'] != 1:
+            if config['batch_size'] != 1:
                 raise ValueError(
-                    f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={config['bucketing_batch_size']})!"
+                    f"batch_size should be set to one when bucketing is enabled (batch_size={config['batch_size']}!"
                 )
 
             if type(config['bucketing_batch_size']) == int:
