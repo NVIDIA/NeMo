@@ -247,7 +247,8 @@ class PunctuationCapitalizationConfig(NemoConfig):
     A config for punctuation model training and testing.
 
     See an example of full config in
-    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
+    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml
+    <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
     """
     pretrained_model: Optional[str] = None
     """Can be an NVIDIA's NGC cloud model or a path to a .nemo checkpoint. You can get list of possible cloud options

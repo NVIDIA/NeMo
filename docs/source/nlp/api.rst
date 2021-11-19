@@ -91,6 +91,8 @@ Datasets
 .. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.create_tarred_dataset
 
 .. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset
+    :show-inheritance:
+    :members:
 
 .. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.BertPunctuationCapitalizationInferDataset
     :show-inheritance:
