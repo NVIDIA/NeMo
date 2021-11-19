@@ -68,6 +68,7 @@ class ConvASREncoder(NeuralModule, Exportable):
 
             if isinstance(m, SqueezeExcite):
                 m.set_max_len(8192)
+                m.forward = m.forward_for_export
 
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
