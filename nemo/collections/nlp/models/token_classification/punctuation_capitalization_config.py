@@ -197,7 +197,7 @@ class PunctuationCapitalizationModelConfig:
     model.
 
     See an example of model config in
-    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml<https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
+    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
 
     This config is a part of :class:`~PunctuationCapitalizationConfig`.
     """
@@ -247,21 +247,7 @@ class PunctuationCapitalizationConfig(NemoConfig):
     A config for punctuation model training and testing.
 
     See an example of full config in
-    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml<https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
-
-    Attributes:
-        pretrained_model (str): can be an NVIDIA's NGC cloud model or a path to a .nemo checkpoint. You can get
-            list of possible cloud options by calling method
-            :meth:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel.list_available_models`.
-        name (str): a name of the model. Used for naming output directories
-        do_training (bool): whether to perform training of the model
-        do_testing (bool): whether ot perform testing of the model
-        model (PunctuationCapitalizationModelConfig): a configuration for the
-            :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
-            model
-        trainer (TrainerConfig): contains parameter of ``Trainer`` Lightning class constructor parameters
-        exp_manager (ExpManagerConfig): a configuration various NeMo training options such as output directories,
-            resuming from checkpoint, tensorboard and W&B logging, and so on
+    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
     """
     pretrained_model: Optional[str] = None
     """Can be an NVIDIA's NGC cloud model or a path to a .nemo checkpoint. You can get list of possible cloud options

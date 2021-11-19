@@ -226,18 +226,18 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
                 - 'input_ids': an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
                 - 'subtokens_mask': a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
-                    ``True`` if corresponding token from ``'input_ids'`` element is the first token in some word
+                  ``True`` if corresponding token from ``'input_ids'`` element is the first token in some word
                 - ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
                 - 'input_mask': a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
-                    should be ``False`` on padding tokens and ``True`` on other tokens.
+                  should be ``False`` on padding tokens and ``True`` on other tokens.
                 - 'loss_mask': a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
-                    on. See more details in description of parameters ``ignore_start_end`` and
-                    ``ignore_extra_tokens`` of class
-                    :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
+                  on. See more details in description of parameters ``ignore_start_end`` and
+                  ``ignore_extra_tokens`` of class
+                  :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
                 - 'punct_labels': a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
-                    labels
+                  labels
                 - 'capit_labels': a long torch tensor of shape ``[Batch, Time]``. Contains encoded
-                     capitalization labels
+                  capitalization labels
             mode: either ``'validation'`` or ``'test'`` depending on caller method
             dataloader_idx: NeMo parameter for multi dataset validation
 

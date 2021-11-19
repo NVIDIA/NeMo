@@ -650,7 +650,7 @@ def create_tarred_dataset(
     tar_file_prefix: Optional[str] = 'punctuation_capitalization',
     n_jobs: Optional[int] = mp.cpu_count(),
 ) -> None:
-    f"""
+    """
     A tarred dataset allows to train on large amounts of data without storing it all into memory simultaneously.
 
     Tarred dataset is a directory which contains metadata file, tar files with batches, 
@@ -783,10 +783,10 @@ def create_tarred_dataset(
 
 
 class BertPunctuationCapitalizationTarredDataset(IterableDataset):
-    f"""
+    """
     Punctuation capitalization dataset for which allows not to load all data in memory simultaneously. A tarred dataset
     is created from text and label files using script
-    `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py<https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+    `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
     or function
     :func:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.create_tarred_dataset`.
 
