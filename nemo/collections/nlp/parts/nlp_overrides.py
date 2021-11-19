@@ -28,6 +28,7 @@ from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from pytorch_lightning.loops.fit_loop import FitLoop
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -96,6 +97,7 @@ class NLPDDPPlugin(DDPPlugin):
             # With model parallelism, multiple GPUs form a large "logical GPU"
             # this means that data parallel groups span multiple GPUs
             # and are non-trivial
+            # TODO: for megatron-lm self.model is a list
             device_ids = self.determine_ddp_device_ids()
             self._model = DistributedDataParallel(
                 LightningDistributedModule(self.model),
@@ -503,3 +505,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             yield
         finally:
             pass
+
+
+class NLPFitLoop(FitLoop):
+    pass
