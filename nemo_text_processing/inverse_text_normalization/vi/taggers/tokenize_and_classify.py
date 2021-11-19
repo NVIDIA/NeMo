@@ -15,13 +15,11 @@
 
 import os
 
-from nemo_text_processing.inverse_text_normalization.vi.taggers.address import AddressFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.fraction import FractionFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.electronic import ElectronicFst
-from nemo_text_processing.inverse_text_normalization.vi.taggers.math import MathFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.ordinal import OrdinalFst
@@ -83,8 +81,6 @@ class ClassifyFst(GraphFst):
             decimal = DecimalFst(cardinal)
             decimal_graph = decimal.fst
 
-            address_graph = AddressFst(cardinal=cardinal).fst
-            math_graph = MathFst(cardinal=cardinal).fst
             measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal).fst
             date_graph = DateFst(cardinal=cardinal).fst
             word_graph = WordFst().fst
@@ -103,9 +99,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(measure_graph, 1.1)
                 | pynutil.add_weight(cardinal_graph, 1.1)
                 | pynutil.add_weight(ordinal_graph, 1.1)
-                | pynutil.add_weight(math_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.09)
-                | pynutil.add_weight(address_graph, 1.09)
                 | pynutil.add_weight(money_graph, 1.07)
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)

@@ -13,13 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.vi.verbalizers.address import AddressFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.fraction import FractionFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.electronic import ElectronicFst
-from nemo_text_processing.inverse_text_normalization.vi.verbalizers.math import MathFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.vi.verbalizers.ordinal import OrdinalFst
@@ -45,8 +43,6 @@ class VerbalizeFst(GraphFst):
         decimal_graph = decimal.fst
         fraction = FractionFst()
         fraction_graph = fraction.fst
-        address_graph = AddressFst().fst
-        math_graph = MathFst().fst
         measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
         money_graph = MoneyFst(decimal=decimal).fst
         time_graph = TimeFst().fst
@@ -61,8 +57,6 @@ class VerbalizeFst(GraphFst):
             | measure_graph
             | ordinal_graph
             | fraction_graph
-            | math_graph
-            | address_graph
             | decimal_graph
             | cardinal_graph
             | whitelist_graph
