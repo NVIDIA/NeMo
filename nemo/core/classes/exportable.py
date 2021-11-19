@@ -209,6 +209,7 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=True)
             if forward_method:
                 type(self).forward = old_forward_method
+            self._export_teardown()
         return ([output], [output_descr])
 
     def _verify_onnx_export(
@@ -373,6 +374,12 @@ class Exportable(ABC):
         """
         replace_1D_2D = kwargs.get('replace_1D_2D', False)
         replace_for_export(self, replace_1D_2D)
+
+    def _export_teardown(self):
+        """
+        Override this method for any teardown code after export.
+        """
+        pass
 
     def _wrap_forward_method(self):
         old_forward_method = None
