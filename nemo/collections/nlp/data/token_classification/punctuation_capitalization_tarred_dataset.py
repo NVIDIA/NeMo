@@ -519,7 +519,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     f"""
     It is possible that number of batches in a fragment is not evenly divisible by ``num_batches_per_tarfile``.
     In such a case excess batches are put in a tar file which matches a pattern
-    ``'{TAR_FRAGMENT_PATTERN_TO_REPACK.pattern}'``. Such files are repacked by
+    ``fragment(0|[1-9][0-9]*).num_batches(0|[1-9][0-9]*).(0|[1-9][0-9]*).tar.to_repack``. Such files are repacked by
     ``repack_tar_files_with_not_enough_batches`` function into tar files with correct ``num_batches_per_tarfile``
     batches each. If there is no enough batches in repacked files, then up to ``num_batches_per_tarfile - 1``
     remaining batches may be discarded.
@@ -527,8 +527,8 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     Args:
         output_dir: a path to the output directory which contains files to repack and where new files are saved
         num_batches_per_tarfile: a number of batches in 1 tar file. If number of batches in files matching a pattern
-            ``'{TAR_FRAGMENT_PATTERN_TO_REPACK.pattern}'`` is not evenly divisible by ``num_batches_per_tarfile``
-            excess batches are discarded.
+            ``fragment(0|[1-9][0-9]*).num_batches(0|[1-9][0-9]*).(0|[1-9][0-9]*).tar.to_repack`` is not evenly
+            divisible by ``num_batches_per_tarfile`` excess batches are discarded.
     """
     files_to_repack_with_matches = [
         (path, TAR_FRAGMENT_PATTERN_TO_REPACK.match(path.name))
@@ -654,14 +654,13 @@ def create_tarred_dataset(
     A tarred dataset allows to train on large amounts of data without storing it all into memory simultaneously.
 
     Tarred dataset is a directory which contains metadata file, tar files with batches, 
-    {DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME} and {DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME} files.
+    ``punct_label_vocab.csv`` and ``capit_label_vocab.csv`` files.
 
-    Metadata file is a JSON file with 4 items: 'num_batches', 'tar_files', '{METADATA_PUNCT_LABEL_VOCAB_KEY}', 
-    '{METADATA_CAPIT_LABEL_VOCAB_KEY}'. 'num_batches' (int) is a total number of batches in tarred dataset.
-    'tar_files' is a list of paths to tar file paths relative to directory containing the metadata file.
-    '{METADATA_PUNCT_LABEL_VOCAB_KEY}' and '{METADATA_CAPIT_LABEL_VOCAB_KEY}' are correspondingly paths
-    punctuation and capitalization label vocabulary files. These paths are relative to directory containing the
-    metadata file.
+    Metadata file is a JSON file with 4 items: ``'num_batches'``, ``'tar_files'``, ``'punct_label_vocab_file'``, 
+    'capit_label_vocab_file'. The item ``'num_batches'`` (``int``) is a total number of batches in tarred dataset.
+    'tar_files' is a list of paths to tar file paths relative to directory containing the metadata file. The items
+    ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are correspondingly paths punctuation and
+    capitalization label vocabulary files. These paths are relative to directory containing the metadata file.
 
     Every tar file contains objects written using ``webdataset.TarWriter``. Each object is a dictionary with two items:
     '__key__' and 'batch.pyd'. '__key__' is a name of a batch and 'batch.pyd' is a pickled dictionary which contains
@@ -795,16 +794,14 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         metadata_file: a path to tarred dataset metadata file. Metadata file and files referenced in metadata file are
             created by ``examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py``.
             Metadata file is a JSON file which contains ``'num_batches'``, ``'tar_files'``,
-            ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'``, ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` items. The first item is
-            total number of batches in a dataset, the second is a list of paths to tar files relative to directory
-            containing ``metadata_file``. Items ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and
-            ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` are paths to .csv files which contain unique punctuation an
-            capitalization label vocabularies. Vocabulary file paths are relative to directory containing the
-            ``metadata_file``. Each line in ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and
-            ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` contains 1 label. The first lines in
-            ``'{METADATA_PUNCT_LABEL_VOCAB_KEY}'`` and ``'{METADATA_CAPIT_LABEL_VOCAB_KEY}'`` files are neutral labels
-            which also serve as pad labels. Neutral labels for punctuation and capitalization must be equal to the
-            ``pad_label`` parameter.
+            ``'punct_label_vocab_file'``, ``'capit_label_vocab_file'`` items. The first item is total number of batches
+            in a dataset, the second is a list of paths to tar files relative to directory containing
+            ``metadata_file``. Items ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are paths to .csv
+            files which contain unique punctuation an capitalization label vocabularies. Vocabulary file paths are
+            relative to directory containing the ``metadata_file``. Each line in ``'punct_label_vocab_file'`` and
+            ``'capit_label_vocab_file'`` contains 1 label. The first lines in ``'punct_label_vocab_file'`` and
+            ``'capit_label_vocab_file'`` files are neutral labels which also serve as pad labels. Neutral labels for
+            punctuation and capitalization must be equal to the ``pad_label`` parameter.
         tokenizer: a tokenizer instance used for tokenization of dataset source. A tokenizer instance is used for
             getting ids of [CLS], [PAD], and [SEP] tokens which are used for masks creation.
         pad_label: a label that is used for padding and for absence of both punctuation and capitalization. Used for
