@@ -62,7 +62,6 @@ LABEL_ID_DIR_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
 DEFAULT_PUNCT_LABEL_IDS_NAME = 'punct_label_ids.csv'
 DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
-DEFAULT_TOKENS_IN_BATCH = 5000
 DEFAULT_MAX_SEQ_LENGTH = 512
 
 
@@ -84,7 +83,7 @@ class PunctuationCapitalizationDataConfigBase:
     #################################################
     text_file: Optional[str] = None
     labels_file: Optional[str] = None
-    tokens_in_batch: int = DEFAULT_TOKENS_IN_BATCH
+    tokens_in_batch: int = 5000
     max_seq_length: Optional[int] = DEFAULT_MAX_SEQ_LENGTH
     # Number of samples loaded from `text_file` and `labels_file` which are used in dataset. If this parameter is
     # -1, then all samples are used.
@@ -734,59 +733,77 @@ class BertPunctuationCapitalizationDataset(Dataset):
     :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`.
 
     Args:
-        text_file: file to sequences, each line should contain a text without punctuation and capitalization
-        labels_file: file to labels, each line corresponds to word labels for a sentence in the ``text_file``
-        max_seq_length: max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS] and [SEP]
-            tokens. Sequences which are too long will be clipped by removal of tokens from the end of the sequence
-        tokenizer: a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``, ``eos_id``
-        num_samples: number of samples you want to use for the dataset. If ``-1``, use all dataset. Useful for testing.
-        tokens_in_batch: number of tokens in a batch including paddings and special tokens ([CLS], [SEP], [UNK]).
-            This class :meth:`__getitem__` method returns not samples but ready batches. Number of samples in a batch is
-            adjusted for input sequences lengths. If input sequences are short, them a batch will contain more samples.
-            Before packing into batches, samples are sorted by the number of tokens they contain. Sorting allows
-            to reduce number of pad tokens in a batch significantly. Usual PyTorch data loader shuffling will only
-            permute batches with changing their content. Proper shuffling is achieved via calling of
-            :meth:`repack_batches_with_shuffle` method every epoch
-        pad_label: pad value to use for labels. It's also the neutral label both for punctuation and capitalization.
-        punct_label_ids and capit_label_ids: dict to map labels to label ids. For dev set use label_ids generated
-            during training to support cases when not all labels are present in the dev set. For training, it is
-            recommended to set ``punct_label_ids`` to ``None`` or load from cache
-        ignore_extra_tokens: whether to ignore in the loss_mask tokens which are not first tokens in some word.
-            For example, assume ``'tokenization'`` is tokenized into ``['token', 'ization']``.
-            If ``ignore_extra_tokens=True``, loss mask for the word is ``[True, False]``, and if
-            ``ignore_extra_tokens=False``, then loss mask is ``[True, True]``
-        ignore_start_end: whether to ignore [CLS] and [SEP] tokens in the loss_mask
-        use_cache: whether to use pickled features or not. If pickled features does not exist and ``use_cache=True``,
-            then pickled features will be created. Pickled features are looked for and stored in ``cache_dir``.
-            Pickled features include input ids, subtokens mask (mask of first tokens in words), encoded punctuation and
-            capitalization labels, label ids
-        cache_dir: a place for cache (pickled features). By default ``text_file`` parent directory is used. This
-            parameter is useful if dataset directory is read-only and you wish to pickle features. In such a case
-            specify a path to directory which allows writing in ``cache_dir`` parameter
-        get_label_frequencies: whether to show and save label frequencies. Frequencies are showed if ``verbose``
-            parameter is ``True``. If ``get_label_frequencies=True``, then frequencies are saved into
-            ``label_info_save_dir``
-        label_info_save_dir: a path to a directory where label frequencies are saved. When method
-            ``save_labels_and_get_file_paths`` is called label ids are saved into ``label_info_save_dir`` directory
-        punct_label_vocab_file and capit_label_vocab_file: paths to .csv files containing punctuation and
-            capitalization label vocabularies correspondingly. Each line in such a vocabulary file contains exactly
-            one label. The first line has to contain `pad_label`, otherwise error will be raised.
-        add_masks_and_segment_ids_to_batch: whether to add ``'loss_mask'``, ``'input_mask'``, ``'segment_ids'`` items
-            to batch. Useful for creation of tarred dataset and can NOT be used during model training and inference
-        verbose: whether to show data examples, label stats and other useful information
-        n_jobs: number of workers used for tokenization, encoding labels, creating "first token in word" mask, and
-            clipping. If ``n_jobs <= 0`` data preparation is performed without multiprocessing. By default ``n_jobs``
-            is equal to the number of CPUs.
+        text_file (:obj:`Union[str, os.PathLike]`): file to sequences, each line should contain a text without
+            punctuation and capitalization
+        labels_file (:obj:`Union[str, os.PathLike]`): file to labels, each line corresponds to word labels for a
+            sentence in the ``text_file``
+        max_seq_length (:obj:`int`): max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS]
+            and [SEP] tokens. Sequences which are too long will be clipped by removal of tokens from the end of the
+            sequence
+        tokenizer (:obj:`TokenizerSpec`): a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``,
+            ``eos_id``
+        num_samples (:obj:`int`, `optional`, defaults to :obj:`-1`): number of samples you want to use for the dataset.
+            If ``-1``, use all dataset. Useful for testing.
+        tokens_in_batch (:obj:`int`, `optional`, defaults to :obj:`5000`): number of tokens in a batch including
+            paddings and special tokens ([CLS], [SEP], [UNK]). This class :meth:`__getitem__` method returns not
+            samples but ready batches. Number of samples in a batch is adjusted for input sequences lengths. If input
+            sequences are short, them a batch will contain more samples. Before packing into batches, samples are
+            sorted by the number of tokens they contain. Sorting allows to reduce number of pad tokens in a batch
+            significantly. Usual PyTorch data loader shuffling will only permute batches with changing their content.
+            Proper shuffling is achieved via calling of :meth:`repack_batches_with_shuffle` method every epoch.
+        pad_label (:obj:`str`, `optional`, defaults to :obj:`'O'`): pad value to use for labels. It's also the neutral
+            label both for punctuation and capitalization.
+        punct_label_ids (:obj:`Dict[str, int]`, `optional`): dict to map punctuation labels to label ids. For dev set,
+            use label ids generated during training to support cases when not all labels are present in the dev set.
+            For training, it is recommended to set ``punct_label_ids`` to ``None`` or load from cache
+        capit_label_ids (:obj:`Dict[str, int]`, `optional`): dict to map capitalization labels to label ids. For dev
+            set, use label ids generated during training to support cases when not all labels are present in the dev
+            set. For training, it is recommended to set ``capit_label_ids`` to ``None`` or load from cache
+        ignore_extra_tokens (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to ignore in the loss_mask
+            tokens which are not first tokens in some word. For example, assume ``'tokenization'`` is tokenized into
+            ``['token', 'ization']``. If ``ignore_extra_tokens=True``, loss mask for the word is ``[True, False]``, and
+            if ``ignore_extra_tokens=False``, then loss mask is ``[True, True]``
+        ignore_start_end (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to ignore [CLS] and [SEP] tokens
+            in the loss_mask
+        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to use pickled features or not. If
+            pickled features does not exist and ``use_cache=True``, then pickled features will be created. Pickled
+            features are looked for and stored in ``cache_dir``. Pickled features include input ids, subtokens mask
+            (mask of first tokens in words), encoded punctuation and capitalization labels, label ids
+        cache_dir (:obj:`Union[str, os.PathLike]`, `optional`): a place for cache (pickled features). By default
+            ``text_file`` parent directory is used. This parameter is useful if dataset directory is read-only and you
+            wish to pickle features. In such a case specify a path to directory which allows writing in ``cache_dir``
+            parameter
+        get_label_frequencies (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to show and save label
+            frequencies. Frequencies are showed if ``verbose`` parameter is ``True``. If
+            ``get_label_frequencies=True``, then frequencies are saved into ``label_info_save_dir``
+        label_info_save_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where label frequencies
+            are saved. When method :meth:`save_labels_and_get_file_paths` is called label ids are saved into
+            ``label_info_save_dir`` directory
+        punct_label_vocab_file (:obj:`Union[str, os.PathLike]`, `optional`): paths to a .csv file containing
+            punctuation label vocabulary. Each line in such a vocabulary file contains exactly one label. The first
+            line has to contain `pad_label`, otherwise error will be raised.
+        capit_label_vocab_file (:obj:`Union[str, os.PathLike]`, `optional`): paths to .csv files containing
+            capitalization label vocabulary. Each line in such a vocabulary file contains exactly one label. The first
+            line has to contain `pad_label`, otherwise error will be raised.
+        add_masks_and_segment_ids_to_batch (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to add
+            ``'loss_mask'``, ``'input_mask'``, ``'segment_ids'`` items to batch. Useful for creation of tarred dataset
+            and can NOT be used during model training and inference
+        verbose (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to show data examples, label stats and
+            other useful information
+        n_jobs (:obj:`int`, `optional`, defaults to :obj:`0`): number of workers used for tokenization, encoding
+            labels, creating "first token in word" mask, and clipping. If ``n_jobs <= 0`` data preparation is performed
+            without multiprocessing. By default ``n_jobs`` is equal to the number of CPUs.
 
-            !!WARNING!!
-            There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
-            if ``n_jobs > 0``.
+            .. warning::
+                There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
+                if ``n_jobs > 0``.
 
-        tokenization_progress_queue: a queue for reporting tokenization progress. Useful for creation of tarred dataset
-        batch_mark_up_progress_queue: a queue for reporting progress in deciding which samples batches will contain
-            Useful for creation of tarred dataset
-        batch_building_progress_queue: a queue for reporting progress in batch creation (stacking and padding). Useful
-            for creation of tarred dataset
+        tokenization_progress_queue (:obj:`multiprocessing.Queue`, `optional`): a queue for reporting tokenization
+            progress. Useful for creation of tarred dataset
+        batch_mark_up_progress_queue (:obj:`multiprocessing.Queue`, `optional`): a queue for reporting progress in
+            deciding which samples batches will contain. Useful for creation of tarred dataset
+        batch_building_progress_queue (:obj:`multiprocessing.Queue`, `optional`): a queue for reporting progress in
+            batch creation (stacking and padding). Useful for creation of tarred dataset
     """
 
     @property
@@ -809,12 +826,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         max_seq_length: int,
         tokenizer: TokenizerSpec,
         num_samples: int = -1,
-        tokens_in_batch: int = DEFAULT_TOKENS_IN_BATCH,
+        tokens_in_batch: int = 5000,
         pad_label: str = 'O',
         punct_label_ids: Optional[Dict[str, int]] = None,
         capit_label_ids: Optional[Dict[str, int]] = None,
         ignore_extra_tokens: bool = False,
-        ignore_start_end: bool = False,
+        ignore_start_end: bool = True,
         use_cache: bool = True,
         cache_dir: Optional[Union[str, os.PathLike]] = None,
         get_label_frequencies: bool = False,
@@ -1264,7 +1281,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         )
 
     def _calculate_and_save_label_frequencies(self, all_labels: List[ArrayLike], name: str) -> Dict[str, float]:
-        """ Calculates labels frequencies """
+        """Calculates and saves labels frequencies in :attr:`label_info_save_dir`."""
         merged_labels = itertools.chain.from_iterable(all_labels)
         if self.verbose:
             logging.info('Three most popular labels')
@@ -1286,12 +1303,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
         must be identical.
 
         Args:
-            punct_labels_file_name: a name of a punctuation labels file
-            capit_labels_file_name: a name of a capitalization labels file
+            punct_labels_file_name (:obj:`str`): a name of a punctuation labels file
+            capit_labels_file_name (:obj:`str`): a name of a capitalization labels file
 
         Returns:
-            tuple: a ta path to the saved punctuation labels file
-            a path to the saved capitalization labels file
+            :obj:`Tuple[pathlib.Path, pathlib.Path]`: a tuple containing:
+
+                - :obj:`pathlib.Path`: a path to the saved punctuation labels file
+                - :obj:`pathlib.Path`: a path to the saved capitalization labels file
         """
         nemo_dir = self.label_info_save_dir / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
         punct_labels_file = nemo_dir / punct_labels_file_name
@@ -1309,19 +1328,22 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ``'capit_labels'`` to types supported by
         :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`.
 
-        Note: batch size in data loader and sampler has to be 1.
+        .. warning::
+            A ``batch_size`` parameter of a PyTorch data loader and sampler has to be ``1``.
+
         Args:
-            batches: a list of batches passed for collating. Normally ``batches`` contains exactly 1 element
+            batches (:obj:`List[Dict[str, ArrayLike]]`): a list of one batche passed for collating. When using this
+                dataset, you need to set PyTorch data loader ``batch_size`` parameter to ``1``.
 
         Returns:
-            dict: a batch dictionary with following items:
-              - ``'input_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
-              - ``'subtokens_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
-              - ``'punct_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``,
-              - ``'capit_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``.
-              - ``'segment_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
-              - ``'input_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
-              - ``'loss_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``.
+            :obj:`Dict[str, torch.Tensor]`: a batch dictionary with following items:
+              - ``'input_ids'`` (:obj:`torch.Tensor`): :obj:`torch.int32` tensor of shape ``[Batch, Time]``,
+              - ``'subtokens_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor of shape ``[Batch, Time]``,
+              - ``'punct_labels'`` (:obj:`torch.Tensor`): :obj:`torch.int64` tensor of shape ``[Batch, Time]``,
+              - ``'capit_labels'`` (:obj:`torch.Tensor`): :obj:`torch.int64` tensor of shape ``[Batch, Time]``.
+              - ``'segment_ids'`` (:obj:`torch.Tensor`): :obj:`torch.int32` tensor of shape ``[Batch, Time]``,
+              - ``'input_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor of shape ``[Batch, Time]``,
+              - ``'loss_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor of shape ``[Batch, Time]``.
         """
         batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
         batch['segment_ids'] = batch['segment_ids'].int()
@@ -1331,26 +1353,28 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, ArrayLike]:
         """
-        Return a batch with index ``idx``.
+        Return a batch with index ``idx``. The values of a batch dictionary are numpy arrays of identical shapes
+        ``[Batch, Time]``.
 
         Args:
             idx: an index of returned batch
 
         Returns:
-            a dictionary with items:
-              - ``'input_ids'``: ``np.int32`` array containing encoded tokens,
-              - ``'subtokens_mask'``: ``bool`` array which elements are ``True`` if they correspond to first token in
-                  a word,
-              - ``'punct_labels'``: ``np.int32`` array,
-              - ``'capit_labels'``: ``np.int32`` array.
-            If ``self.add_masks_and_segment_ids_to_batch`` is ``True``, then a batch also contain items
-              - ``'segment_ids'``: ``np.int8`` array filled with zeros (BERT token types in HuggingFace terminology),
-              - ``'input_mask'``: ``bool`` array which elements are ``True`` if corresponding token is not a padding
-                  token,
-              - ``'loss_mask'``: ``bool`` array which elements are ``True`` if loss is computed for corresponding
-                  token. See more in description of constructor parameters ``ignore_start_end``,
-                  ``ignore_extra_tokens``.
-
-            The values of a batch dictionary are numpy arrays of identical shapes ``[Batch, Time]``.
+            :obj:`Dict[str, ArrayLike]`: a dictionary with items:
+              - ``'input_ids'`` (:obj:`numpy.ndarray`): :obj:`numpy.int32` array containing encoded tokens,
+              - ``'subtokens_mask'`` (:obj:`numpy.ndarray`): :obj:`bool` array which elements are ``True`` if they
+                correspond to first token in a word,
+              - ``'punct_labels'`` (:obj:`numpy.ndarray`): :obj:`numpy.int32` array,
+              - ``'capit_labels'`` (:obj:`numpy.ndarray`): :obj:`numpy.int32` array.
+              - ``'segment_ids'`` (:obj:`numpy.ndarray`): :obj:`numpy.int8` array filled with zeros (BERT token types
+                in HuggingFace terminology) (if ``self.add_masks_and_segment_ids_to_batch`` is ``False``, then this
+                items is missing),
+              - ``'input_mask'`` (:obj:`numpy.ndarray`): :obj:`bool` array which elements are ``True`` if corresponding
+                token is not a padding token (if ``self.add_masks_and_segment_ids_to_batch`` is ``False``, then this
+                items is missing),
+              - ``'loss_mask'`` (:obj:`numpy.ndarray`): :obj:`bool` array which elements are ``True`` if loss is
+                computed for corresponding token. See more in description of constructor parameters
+                ``ignore_start_end``, ``ignore_extra_tokens`` (if ``self.add_masks_and_segment_ids_to_batch`` is
+                ``False``, then this items is missing).
         """
         return self.batches[idx]

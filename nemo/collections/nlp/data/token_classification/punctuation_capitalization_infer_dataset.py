@@ -98,8 +98,8 @@ def get_features_infer(
             subtokens = [tokenizer.cls_token] + query_st[i : i + length] + [tokenizer.sep_token]
             q_inp_ids.append(tokenizer.tokens_to_ids(subtokens))
             q_segment_ids.append([0] * len(subtokens))
-            q_subtokens_mask.append([0] + stm[q_i][i : i + length] + [0])
-            q_inp_mask.append([1] * len(subtokens))
+            q_subtokens_mask.append([False] + stm[q_i][i : i + length] + [False])
+            q_inp_mask.append([True] * len(subtokens))
             q_quantities_of_preceding_words.append(np.count_nonzero(stm[q_i][:i]))
         all_input_ids.append(q_inp_ids)
         all_segment_ids.append(q_segment_ids)
@@ -152,7 +152,7 @@ def _check_max_seq_length_and_margin_and_step(max_seq_length: int, margin: int, 
         )
 
 
-def _get_subtokens_and_subtokens_mask(query: str, tokenizer: TokenizerSpec) -> Tuple[List[str], List[int]]:
+def _get_subtokens_and_subtokens_mask(query: str, tokenizer: TokenizerSpec) -> Tuple[List[str], List[bool]]:
     """
     Tokenizes input query into subtokens and creates subtokens mask. Subtokens mask is an array of the same length as
     subtokens array and contains zeros and ones in which. If element of mask equals 1, then corresponding subtoken in
@@ -170,8 +170,8 @@ def _get_subtokens_and_subtokens_mask(query: str, tokenizer: TokenizerSpec) -> T
     for j, word in enumerate(words):
         word_tokens = tokenizer.text_to_tokens(word)
         subtokens.extend(word_tokens)
-        subtokens_mask.append(1)
-        subtokens_mask.extend([0] * (len(word_tokens) - 1))
+        subtokens_mask.append(True)
+        subtokens_mask.extend([False] * (len(word_tokens) - 1))
     return subtokens, subtokens_mask
 
 
@@ -187,17 +187,20 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
     borders of segments which have only one side context.
 
     Args:
-        queries: list of sequences.
-        tokenizer: such as AutoTokenizer
-        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-        step: relative shift of consequent segments into which long queries are split. Long queries are split into
-            segments which can overlap. Parameter ``step`` controls such overlapping. Imagine that queries are
-            tokenized into characters, ``max_seq_length=5``, and ``step=2``. In such a case query "hello" is
-            tokenized into segments ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``.
-        margin: number of subtokens in the beginning and the end of segments which are not used for prediction
-            computation. The first segment does not have left margin and the last segment does not have right
-            margin. For example, if input sequence is tokenized into characters, ``max_seq_length=5``,
-            ``step=1``, and ``margin=1``, then query "hello" will be tokenized into segments
+        queries (:obj:`List[str]`): list of sequences.
+        tokenizer (:obj:`TokenizerSpec`): a tokenizer which was used for model training. It should have properties
+            ``cls_id``, ``sep_id``, ``unk_id``, ``pad_id``.
+        max_seq_length (:obj:`int`, `optional`, defaults to :obj:`128`): max sequence length which includes [CLS] and
+            [SEP] tokens
+        step (:obj:`int`, `optional`, defaults to :obj:`8`): relative shift of consequent segments into which long
+            queries are split. Long queries are split into segments which can overlap. Parameter ``step`` controls such
+            overlapping. Imagine that queries are tokenized into characters, ``max_seq_length=5``, and ``step=2``. In
+            such a case query "hello" is tokenized into segments
+            ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]``.
+        margin (:obj:`int`, `optional`, defaults to :obj:`16`): number of subtokens in the beginning and the end of
+            segments which are not used for prediction computation. The first segment does not have left margin and the
+            last segment does not have right margin. For example, if input sequence is tokenized into characters,
+            ``max_seq_length=5``, ``step=1``, and ``margin=1``, then query "hello" will be tokenized into segments
             ``[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'e', 'l', 'l', '[SEP]'],
             ['[CLS]', 'l', 'l', 'o', '[SEP]']]``. These segments are passed to the model. Before final predictions
             computation, margins are removed. In the next list, subtokens which logits are not used for final
@@ -212,17 +215,17 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         input_ids: ids of word subtokens encoded using tokenizer
         segment_ids: an array of zeros
         input_mask: attention mask. Zeros if input is padding.
-        subtoken_mask: a mask used for retrieving predictions for words. An element equals ``1`` if corresponding
+        subtokens_mask: a mask used for retrieving predictions for words. An element equals ``True`` if corresponding
             token is the first token in some word and zero otherwise. For example, if input query
-            "language processing" is tokenized into ["[CLS]", "language", "process", "ing", "SEP"], then
-            ``subtokens_mask`` will be [0, 1, 1, 0, 0].
+            "language processing" is tokenized into ``["[CLS]", "language", "process", "ing", "SEP"]``, then
+            ``subtokens_mask`` will be ``[False, True, True, False, False]``.
         quantities_of_preceding_words: number of words preceding a segment in a query. It is used for uniting
             predictions from different segments if such segments overlap. For example, if query "hello john" is
             tokenized into segments ``[['hell', 'o'], ['john']]``, then ``quantities_of_preceding_words=[0, 1]``.
         query_ids: ids of queries to which segments belong. For example, if ``queries=["foo", "bar"]`` are
             segmented into ``[[['[CLS]', 'f', 'o', '[SEP]'], ['[CLS]', 'o', 'o', '[SEP]']],
             [['[CLS]', 'b', 'a', '[SEP]'], ['[CLS]', 'a', 'r', '[SEP]']]]``, then for batch
-            [['[CLS]', 'o', 'o', '[SEP]'], ['[CLS]', 'b', 'a', '[SEP]'], ['[CLS]', 'a', 'r', '[SEP]']]
+            ``[['[CLS]', 'o', 'o', '[SEP]'], ['[CLS]', 'b', 'a', '[SEP]'], ['[CLS]', 'a', 'r', '[SEP]']]``
             ``query_ids=[0, 1, 1]``.
         is_first: is segment the first segment in query. The left margin of the first segment in a query is not
             removed and this parameter is used to identify first segments.
@@ -242,7 +245,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         }
 
     def __init__(
-        self, queries: List[str], tokenizer: TokenizerSpec, max_seq_length: int = 128, step: int = 32, margin: int = 16
+        self, queries: List[str], tokenizer: TokenizerSpec, max_seq_length: int = 64, step: int = 8, margin: int = 16
     ):
         features = get_features_infer(
             queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer, step=step, margin=margin
@@ -262,8 +265,40 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
     def collate_fn(
         self, batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]]
     ) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Tuple[int], Tuple[int], Tuple[bool], Tuple[bool]
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        Tuple[int, ...],
+        Tuple[int, ...],
+        Tuple[bool, ...],
+        Tuple[bool, ...],
     ]:
+        """
+        Collates samples into batches.
+
+        Args:
+            batch (:obj:`List[tuple]`): a list of samples returned by :meth:`__getitem__` method.
+
+        Returns:
+            :obj:`Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Tuple[int, ...], Tuple[int, ...],
+            Tuple[bool, ...], Tuple[bool, ...]]`: a tuple containing following elements:
+
+              - ``input_ids`` (:obj:`torch.Tensor`): an integer tensor of shape ``[Batch, Time]`` containing encoded
+                input text.
+              - ``segment_ids`` (:obj:`torch.Tensor`): an integer tensor of shape ``[Batch, Time]`` filled with zeros.
+              - ``input_mask`` (:obj:`torch.Tensor`): a boolean tensor of shape ``[Batch, Time]`` which elements are
+                ``True`` if corresponding token is not a padding token.
+              - ``subtokens_mask`` (:obj:`torch.Tensor`): a boolean tensor of shape ``[Batch, Time]`` which elements
+                are ``True`` if corresponding tken is the first token in a word.
+              - ``quantities_of_preceding_words`` (:obj:`Tuple[int, ...]`):  a tuple containing number of words in
+                a query preceding current segment.
+              - ``query_ids`` (:obj:`Tuple[int, ...]`): a tuple containing indices of queries to which segments belong.
+              - ``is_first`` (:obj:`Tuple[bool, ...]`): a tuple booleans which elements are ``True`` if corresponding
+                segment is the first segment in a query.
+              - ``is_last`` (:obj:`Tuple[bool, ...]`): a tuple of booleans which elements are ``True`` if corresponding
+                segment is the last segment in a query.
+        """
         inp_ids, segment_ids, inp_mask, st_mask, n_preceding, query_ids, is_first, is_last = zip(*batch)
         return (
             pad_sequence([torch.tensor(x) for x in inp_ids], batch_first=True, padding_value=0),
@@ -277,6 +312,34 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         )
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]:
+        """
+        Returns batch used for punctuation and capitalization inference.
+
+        Args:
+            idx (:obj:`int`): a batch index
+
+        Returns:
+            :obj:`Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]`: a tuple containing:
+
+                - ``input_ids`` (:obj:`np.ndarray`): an integer numpy array of shape ``[Time]``. Ids of word
+                  subtokens encoded using tokenizer
+                - ``segment_ids`` (:obj:`np.ndarray`): an integer zeros numpy array of shape ``[Time]``. Indices
+                  of segments for BERET model (token types in HuggingFace terminology).
+                - ``input_mask`` (:obj:`np.ndarray`): a boolean numpy array of shape ``[Time]``. An element of
+                  this array is ``True`` if corresponding token is not padding token.
+                - ``subtokens_mask`` (:obj:`np.ndarray`): a boolean numpy array of shape ``[Time]``. An element
+                  equals ``True`` if corresponding token is the first token in some word and zero otherwise. For
+                  example, if input query "language processing" is tokenized into
+                  ``["[CLS]", "language", "process", "ing", "SEP"]``, then ``subtokens_mask`` will be
+                  ``[False, True, True, False, False]``.
+                - ``quantities_of_preceding_words`` (:obj:`int`): a number of words preceding current segment in the
+                  query the segment belongs to. This parameter is used for uniting predictions from adjacent segments.
+                - ``query_ids`` (:obj:`int`): an index of query to which the segment belongs
+                - ``is_first`` (:obj`:`bool`): whether a segment is the first segment in a query. The left margin of
+                  the first segment in a query is not removed.
+                - ``is_last`` (:obj:`bool`): whether a query is the last query in a query. The right margin of the last
+                  segment in a query is not removed.
+        """
         return (
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
