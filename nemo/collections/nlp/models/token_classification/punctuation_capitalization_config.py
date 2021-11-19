@@ -31,21 +31,28 @@ from nemo.utils.exp_manager import ExpManagerConfig
 
 @dataclass
 class PunctuationCapitalizationSchedConfig(SchedConfig):
-    f"""
-    A configuration of learning rate scheduler.
-
-    This config is a part of :class:`PunctuationCapitalizationOptimConfig` config.
-
-    Attributes:
-        name (str): a name of learning rate scheduler. Possible options are {AVAILABLE_SCHEDULERS}
-        warmup_ratio (float): the fraction of training steps spend on warmup. Warmup is a period in the beginning of
-            training during which learning rate is increased linearly to its start value
-        last_epoch (int): a number of an epoch from which to resume scheduling. Useful when restoring from checkpoint.
-            See more in PyTorch documentation. If ``-1``, then start scheduling from the beginning
     """
+    A configuration of learning rate scheduler. This config is a part of :class:`PunctuationCapitalizationOptimConfig`
+    config.
+
+    Warmup is a period in the beginning of training during which
+    learning rate is increased linearly to its initial value.
+    """
+
     name: str = 'InverseSquareRootAnnealing'
+    """A name of learning rate scheduler. For possible options see `Learning Rate Schedulers`_."""
+
+    warmup_steps: Optional[int] = None
+    """Number of steps spent on warmup. You may specify at most one of parameters ``warmup_steps`` and
+    ``warmup_ratio``."""
+
     warmup_ratio: Optional[float] = None
+    """The fraction of training steps spend on warmup. You may specify at most one of parameters ``warmup_steps`` and
+    ``warmup_ration``."""
+
     last_epoch: int = -1
+    """A number of an epoch from which to resume scheduling. Useful when restoring from checkpoint. See more in PyTorch
+    documentation. If ``-1``, then start scheduling from the beginning."""
 
 
 # TODO: support more optimizers (it pins the optimizer to Adam-like optimizers).

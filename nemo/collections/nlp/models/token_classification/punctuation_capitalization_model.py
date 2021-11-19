@@ -224,19 +224,19 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Args:
             batch: a dictionary with following items:
 
-                * ``'input_ids'``: an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
-                * ``'subtokens_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
+                * 'input_ids': an integer torch tensor of shape ``[Batch, Time]`` containing encoded source text
+                * 'subtokens_mask': a boolean torch tensor of shape ``[Batch, Time]``. An element of this item is
                     ``True`` if corresponding token from ``'input_ids'`` element is the first token in some word
                                 - ``'segment_ids'``: a zeros integer torch tensor of shape ``[Batch, Time]``
-                * ``'input_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
+                * 'input_mask': a boolean torch tensor of shape ``[Batch, Time]``. Serves as attention mask.
                     should be ``False`` on padding tokens and ``True`` on other tokens.
-                * ``'loss_mask'``: a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
+                * 'loss_mask': a boolean torch tensor of shape ``[Batch, Time]``. Which token to compute loss
                     on. See more details in description of parameters ``ignore_start_end`` and
                     ``ignore_extra_tokens`` of class
                     :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
-                * ``'punct_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
+                * 'punct_labels': a long torch tensor of shape ``[Batch, Time]``. Contains encoded punctuation
                     labels
-                * ``'capit_labels'``: a long torch tensor of shape ``[Batch, Time]``. Contains encoded
+                * 'capit_labels': a long torch tensor of shape ``[Batch, Time]``. Contains encoded
                      capitalization labels
             mode: either ``'validation'`` or ``'test'`` depending on caller method
             dataloader_idx: NeMo parameter for multi dataset validation
@@ -280,6 +280,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             batch: see :meth:`eval_step` for the ``batch`` parameter explanation
             batch_idx: an index of a batch in a dataset. A mandatory Lightning parameter
             dataloader_idx: a NeMo parameter for performing testing on multiple datasets
+
+        Returns:
+            a dictionary containing items ``'loss'``, ``'punct_class_report'``, ``'capit_class_report'`` which values
+                are ``None``
         """
         return self.eval_step(batch, 'test', dataloader_idx)
 
