@@ -24,8 +24,6 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
 )
 from nemo.core.config import TrainerConfig
 from nemo.core.config.modelPT import NemoConfig, OptimConfig, SchedConfig
-from nemo.core.optim.optimizers import AVAILABLE_OPTIMIZERS
-from nemo.core.optim.lr_scheduler import AVAILABLE_SCHEDULERS
 from nemo.utils.exp_manager import ExpManagerConfig
 
 
@@ -250,6 +248,7 @@ class PunctuationCapitalizationConfig(NemoConfig):
     `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml
     <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
     """
+
     pretrained_model: Optional[str] = None
     """Can be an NVIDIA's NGC cloud model or a path to a .nemo checkpoint. You can get list of possible cloud options
     by calling method

@@ -84,6 +84,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
         trainer (:obj:`pytorch_lightning.Trainer`): an instance of a PyTorch Lightning trainer
     """
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         """Neural types of a :meth:`forward` method input."""
@@ -126,7 +127,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             activation=cfg.punct_head.activation,
             log_softmax=False,
             dropout=cfg.punct_head.fc_dropout,
-            num_layers=cfg.punct_head.punct_num_fc_layers,
+            num_layers=cfg.punct_head.num_fc_layers,
             use_transformer_init=cfg.punct_head.use_transformer_init,
         )
 
@@ -136,7 +137,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             activation=cfg.capit_head.activation,
             log_softmax=False,
             dropout=cfg.capit_head.fc_dropout,
-            num_layers=cfg.capit_head.capit_num_fc_layers,
+            num_layers=cfg.capit_head.num_fc_layers,
             use_transformer_init=cfg.capit_head.use_transformer_init,
         )
 
@@ -456,10 +457,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.register_artifact('class_labels.punct_labels_file', str(punct_label_ids_file))
             self.register_artifact('class_labels.capit_labels_file', str(capit_label_ids_file))
 
-    def _get_eval_metrics_kwargs(self) -> Tuple[
+    def _get_eval_metrics_kwargs(
+        self
+    ) -> Tuple[
         Dict[str, bool],
         Dict[str, Union[bool, str, int, Dict[str, int]]],
-        Dict[str, Union[bool, str, int, Dict[str, int]]]
+        Dict[str, Union[bool, str, int, Dict[str, int]]],
     ]:
         loss_kw = {'dist_sync_on_step': False, 'take_avg_loss': True}
         punct_kw = {
