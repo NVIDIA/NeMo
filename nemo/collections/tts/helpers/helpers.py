@@ -54,7 +54,6 @@ from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
 
-from nemo.core.optim.lr_scheduler import compute_max_steps
 from nemo.utils import logging
 
 try:

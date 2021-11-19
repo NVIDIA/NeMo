@@ -104,7 +104,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 logging.warning(
-                    "AudioToCharWithPriorAndPitchDataset will be deprecated. "
+                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
                     "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
                 )
                 self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
@@ -161,7 +161,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             if ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 logging.warning(
-                    "AudioToCharWithPriorAndPitchDataset will be deprecated. "
+                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
                     "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
                 )
                 if self.vocab is None:
