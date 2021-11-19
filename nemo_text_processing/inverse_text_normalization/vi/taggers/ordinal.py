@@ -29,9 +29,6 @@ class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
         e.g. thứ nhất -> ordinal { integer: "1" }
-
-    Args:
-        cardinal: CardinalFst
     """
 
     def __init__(self):

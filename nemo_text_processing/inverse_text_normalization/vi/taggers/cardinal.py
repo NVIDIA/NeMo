@@ -16,9 +16,7 @@
 
 from nemo_text_processing.inverse_text_normalization.vi.utils import get_abs_path
 from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
-    NEMO_ALPHA,
     NEMO_DIGIT,
-    NEMO_SIGMA,
     NEMO_SPACE,
     GraphFst,
     delete_space,

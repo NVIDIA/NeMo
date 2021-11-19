@@ -18,8 +18,6 @@ import string
 from pathlib import Path
 from typing import Dict
 
-from nemo_text_processing.inverse_text_normalization.vi.utils import get_abs_path
-
 try:
     import pynini
     from pynini import Far
