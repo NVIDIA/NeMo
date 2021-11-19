@@ -173,7 +173,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
                 dropout_rate=dropout,
-                max_len=cur_audio_len,
+                max_len=pos_emb_max_len,
                 xscale=self.xscale,
                 dropout_rate_emb=dropout_emb,
             )
@@ -181,7 +181,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=cur_audio_len, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
@@ -215,7 +215,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
-        seq_range = torch.arange(0, self.pos_emb_max_len, device=device)
+        seq_range = torch.arange(0, self.max_audio_length, device=device)
         if hasattr(self, 'seq_range'):
             self.seq_range = seq_range
         else:
