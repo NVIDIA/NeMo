@@ -458,7 +458,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.register_artifact('class_labels.capit_labels_file', str(capit_label_ids_file))
 
     def _get_eval_metrics_kwargs(
-        self
+        self,
     ) -> Tuple[
         Dict[str, bool],
         Dict[str, Union[bool, str, int, Dict[str, int]]],
