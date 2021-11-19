@@ -1450,40 +1450,39 @@ class BucketingDataset(IterableDataset):
     """
 
     def __init__(
-        self,
-        dataset: IterableDataset,
-        bucketing_batchsize: int,
+        self, dataset: IterableDataset, bucketing_batch_size: int,
     ):
         self.wrapped_dataset = dataset
-        self.bucketing_batchsize = bucketing_batchsize
+        self.bucketing_batch_size = bucketing_batch_size
         super().__init__()
 
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch[0], self.wrapped_dataset.pad_id)
 
     def __iter__(self):
-        return BucketingIterator(wrapped_iter=self.wrapped_dataset._dataset.__iter__(), bucketing_batchsize=self.bucketing_batchsize).__iter__()
+        return BucketingIterator(
+            wrapped_iter=self.wrapped_dataset._dataset.__iter__(), bucketing_batch_size=self.bucketing_batch_size
+        ).__iter__()
 
     def __len__(self):
-        #print(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
-        print(f"dataset size={int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))}, bucketing_batchsize={self.bucketing_batchsize}")
-        return int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batchsize)))
-        #print(math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize)))
-        #return math.ceil(self.wrapped_dataset.length/float(self.bucketing_batchsize))
+        # print(
+        #     f"dataset size={int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batch_size)))}, bucketing_batch_size={self.bucketing_batch_size}"
+        # )
+        return int(math.ceil(len(self.wrapped_dataset.collection) / float(self.bucketing_batch_size)))
 
 
 class BucketingIterator:
-    def __init__(self, wrapped_iter, bucketing_batchsize):
+    def __init__(self, wrapped_iter, bucketing_batch_size):
         self.wrapped_iter = wrapped_iter
-        self.bucketing_batchsize = bucketing_batchsize
+        self.bucketing_batch_size = bucketing_batch_size
 
     def __iter__(self):
         return self
 
     def __next__(self):
         batches = []
-        #print("hiii")
-        for idx in range(self.bucketing_batchsize):
+        # print("hiii")
+        for idx in range(self.bucketing_batch_size):
             try:
                 sample = next(self.wrapped_iter)
             except StopIteration:
@@ -1491,8 +1490,8 @@ class BucketingIterator:
             except Exception as e:
                 logging.error(e)
             batches.append(sample)
-        #print(f"idx={idx}, batch_len={len(batches)}, b_size={self.bucketing_batchsize}")
+        # print(f"idx={idx}, batch_len={len(batches)}, b_size={self.bucketing_batchsize}")
         if len(batches) == 0:
             raise StopIteration
-        #print(batches)
+        # print(batches)
         return batches

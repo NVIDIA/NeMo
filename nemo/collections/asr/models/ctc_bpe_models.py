@@ -28,7 +28,6 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-from torch.utils.data import ChainDataset
 
 __all__ = ['EncDecCTCModelBPE']
 
