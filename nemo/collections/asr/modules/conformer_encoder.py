@@ -167,11 +167,13 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_u = None
             pos_bias_v = None
 
+        self.pos_emb_max_len = pos_emb_max_len
+        cur_audio_len = 80
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
                 dropout_rate=dropout,
-                max_len=pos_emb_max_len,
+                max_len=cur_audio_len,
                 xscale=self.xscale,
                 dropout_rate_emb=dropout_emb,
             )
@@ -179,7 +181,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
+                d_model=d_model, dropout_rate=dropout, max_len=cur_audio_len, xscale=self.xscale
             )
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
@@ -205,26 +207,26 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.out_proj = None
             self._feat_out = d_model
-        self.set_pos_emb_max_len(pos_emb_max_len)
+        self.set_max_audio_length(cur_audio_len)
 
-    def set_pos_emb_max_len(self, pos_emb_max_len):
+    def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
             Pre-calculates internal seq_range mask.
         """
-        self.pos_emb_max_len = pos_emb_max_len
+        self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
         seq_range = torch.arange(0, self.pos_emb_max_len, device=device)
         if hasattr(self, 'seq_range'):
             self.seq_range = seq_range
         else:
             self.register_buffer('seq_range', seq_range, persistent=False)
-        self.pos_enc.extend_pe(pos_emb_max_len)
+        self.pos_enc.extend_pe(max_audio_length, device)
 
     @typecheck()
     def forward(self, audio_signal, length=None):
         max_audio_length: int = audio_signal.size(-1)
-        if max_audio_length > self.pos_emb_max_len:
-            self.set_pos_emb_max_len(max_audio_length)
+        if max_audio_length > self.max_audio_length:
+            self.set_max_audio_length(max_audio_length * 2)
         return self.forward_for_export(audio_signal=audio_signal, length=length)
 
     @typecheck()
@@ -269,3 +271,8 @@ class ConformerEncoder(NeuralModule, Exportable):
         """Make masking for padding."""
         mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
         return mask
+
+    def _prepare_for_export(self, **kwargs):
+        # extend masks to configured maximum
+        self.set_max_audio_length(self.pos_emb_max_len)
+        Exportable._prepare_for_export(self, **kwargs)

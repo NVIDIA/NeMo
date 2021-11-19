@@ -222,9 +222,7 @@ class PositionalEncoding(torch.nn.Module):
         self.d_model = d_model
         self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
-        # for derived class init
-        if max_len > 0:
-            self.extend_pe(max_len)
+        self.max_len = max_len
         if dropout_rate_emb > 0:
             self.dropout_emb = nn.Dropout(dropout_rate_emb)
         else:
@@ -232,24 +230,25 @@ class PositionalEncoding(torch.nn.Module):
 
     def create_pe(self, positions):
         pos_length = positions.size(0)
-        pe = torch.zeros(pos_length, self.d_model)
+        pe = torch.zeros(pos_length, self.d_model, device=positions.device)
         div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
+            torch.arange(0, self.d_model, 2, dtype=torch.float32, device=positions.device)
+            * -(math.log(10000.0) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(positions * div_term)
         pe[:, 1::2] = torch.cos(positions * div_term)
-        return pe.unsqueeze(0)
-
-    def extend_pe(self, length):
-        """Reset and extend the positional encodings if needed."""
-        if hasattr(self, 'pe') and self.pe.size(1) >= length:
-            return
-        positions = torch.arange(0, length, dtype=torch.float32).unsqueeze(1)
-        pe = self.create_pe(positions=positions)
+        pe = pe.unsqueeze(0)
         if hasattr(self, 'pe'):
             self.pe = pe
         else:
             self.register_buffer('pe', pe, persistent=False)
+
+    def extend_pe(self, length, device):
+        """Reset and extend the positional encodings if needed."""
+        if hasattr(self, 'pe') and self.pe.size(1) >= length:
+            return
+        positions = torch.arange(0, length, dtype=torch.float32, device=device).unsqueeze(1)
+        self.create_pe(positions=positions)
 
     def forward(self, x: torch.Tensor):
         """Adds positional encoding.
@@ -279,25 +278,16 @@ class RelPositionalEncoding(PositionalEncoding):
         dropout_rate_emb (float): dropout rate for the positional embeddings
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
-        # pass max_len=0 to avoid baseclass pe creation
-        super().__init__(d_model, dropout_rate, max_len=0, xscale=xscale)
-        # now explicitly call our class method
-        RelPositionalEncoding.extend_pe(self, max_len)
-        self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32)
-
-    def extend_pe(self, length):
+    def extend_pe(self, length, device):
         """Reset and extend the positional encodings if needed."""
-        needed_size = 2 * (length - 1) + 1
+        needed_size = 2 * length - 1
         if hasattr(self, 'pe') and self.pe.size(1) >= needed_size:
             return
         # positions would be from negative numbers to positive
         # positive positions would be used for left positions and negative for right positions
-        positions = torch.arange(length - 1, -length, -1, dtype=torch.float32).unsqueeze(1)
-        pe = self.create_pe(positions=positions)
-        if not hasattr(self, 'pe'):
-            self.register_buffer('pe', pe, persistent=False)
-        self.pe = pe
+        positions = torch.arange(length - 1, -length, -1, dtype=torch.float32, device=device).unsqueeze(1)
+        self.create_pe(positions=positions)
+        self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32, device=device)
 
     def forward(self, x):
         """Compute positional encoding.
