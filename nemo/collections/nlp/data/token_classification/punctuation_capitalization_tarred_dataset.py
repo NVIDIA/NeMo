@@ -697,7 +697,7 @@ def create_tarred_dataset(
         tokenizer_name (:obj:`str`): name of the tokenizer used for tokenization of source sequences. Possible options
             are ``'sentencepiece'``, ``'word', ``'char'``, HuggingFace tokenizers. For more options see function
             ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have properties ``cls_id``,
-            ``pad_id``, ``sep_id``, ``unk_id``."
+            ``pad_id``, ``sep_id``, ``unk_id``.
         tokenizer_model (:obj:`Union[os.PathLike, str]`, `optional`): a path to tokenizer model required for
             ``'sentencepiece'`` tokenizer.
         vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): a path to vocabulary file which is used in ``'word'``,
@@ -929,9 +929,10 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     ) -> None:
         """
         Checks that label ids loaded from tarred dataset are identical to those provided in
-        ``model.common_dataset_parameters`` config item. In addition, this method check that label ids to those set in
+        ``model.common_dataset_parameters`` config item. In addition, this method checks that label ids set in
         attributes ``punct_label_ids`` and ``capit_label_ids`` of an instance of
-        :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`.
+        :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
+        are identical to label ids loaded from tarred dataset.
 
         Args:
             punct_label_ids: a content of ``punct_label_ids`` attribute of an instance of

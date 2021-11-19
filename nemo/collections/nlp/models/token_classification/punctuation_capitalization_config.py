@@ -46,7 +46,7 @@ class PunctuationCapitalizationSchedConfig(SchedConfig):
 
     warmup_ratio: Optional[float] = None
     """The fraction of training steps spend on warmup. You may specify at most one of parameters ``warmup_steps`` and
-    ``warmup_ration``."""
+    ``warmup_ratio``."""
 
     last_epoch: int = -1
     """A number of an epoch from which to resume scheduling. Useful when restoring from checkpoint. See more in PyTorch
@@ -76,6 +76,27 @@ class PunctuationCapitalizationOptimConfig(OptimConfig):
 
     sched: Optional[PunctuationCapitalizationSchedConfig] = PunctuationCapitalizationSchedConfig()
     """A configuration of learning rate scheduler."""
+
+
+@dataclass
+class TokenizerConfig:
+    """A structure and default values of source text tokenizer."""
+
+    vocab_file: Optional[str] = None
+    """A path to vocabulary file which is used in ``'word'``, ``'char'``, and HuggingFace tokenizers"""
+
+    tokenizer_name: str = MISSING
+    """A name of the tokenizer used for tokenization of source sequences. Possible options are ``'sentencepiece'``,
+    ``'word', ``'char'``, HuggingFace tokenizers (e.g. ``'bert-base-uncased'``). For more options see function
+    ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have properties ``cls_id``, ``pad_id``,
+    ``sep_id``, ``unk_id``."""
+
+    special_tokens: Optional[Dict[str, str]] = None
+    """A dictionary with special tokens passed to constructors of ``'char'``, ``'word'``, ``'sentencepiece'``, and
+    various HuggingFace tokenizers."""
+
+    tokenizer_model: Optional[str] = None
+    """A path to tokenizer model required for ``'sentencepiece'`` tokenizer."""
 
 
 @dataclass
@@ -230,7 +251,8 @@ class PunctuationCapitalizationModelConfig:
     capit_head: HeadConfig = HeadConfig()
     """A configuration for creating capitalization MLP head that is applied to a language model outputs."""
 
-    tokenizer: Any = MISSING
+    tokenizer: Any = TokenizerConfig()
+    """A configuration for source text tokenizer."""
 
     language_model: LanguageModelConfig = LanguageModelConfig()
     """A configuration of a BERT like language model which serves as a model body."""

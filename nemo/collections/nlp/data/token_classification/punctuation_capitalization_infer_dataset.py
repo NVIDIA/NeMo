@@ -210,29 +210,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-
-        input_ids: ids of word subtokens encoded using tokenizer
-        segment_ids: an array of zeros
-        input_mask: attention mask. Zeros if input is padding.
-        subtokens_mask: a mask used for retrieving predictions for words. An element equals ``True`` if corresponding
-            token is the first token in some word and zero otherwise. For example, if input query
-            "language processing" is tokenized into ``["[CLS]", "language", "process", "ing", "SEP"]``, then
-            ``subtokens_mask`` will be ``[False, True, True, False, False]``.
-        quantities_of_preceding_words: number of words preceding a segment in a query. It is used for uniting
-            predictions from different segments if such segments overlap. For example, if query "hello john" is
-            tokenized into segments ``[['hell', 'o'], ['john']]``, then ``quantities_of_preceding_words=[0, 1]``.
-        query_ids: ids of queries to which segments belong. For example, if ``queries=["foo", "bar"]`` are
-            segmented into ``[[['[CLS]', 'f', 'o', '[SEP]'], ['[CLS]', 'o', 'o', '[SEP]']],
-            [['[CLS]', 'b', 'a', '[SEP]'], ['[CLS]', 'a', 'r', '[SEP]']]]``, then for batch
-            ``[['[CLS]', 'o', 'o', '[SEP]'], ['[CLS]', 'b', 'a', '[SEP]'], ['[CLS]', 'a', 'r', '[SEP]']]``
-            ``query_ids=[0, 1, 1]``.
-        is_first: is segment the first segment in query. The left margin of the first segment in a query is not
-            removed and this parameter is used to identify first segments.
-        is_last: is segment the last segment in query. The right margin of the last segment in a query is not
-            removed and this parameter is used to identify last segments.
-
-        """
+        """Returns neural types of :meth:`collate_fn` output."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),

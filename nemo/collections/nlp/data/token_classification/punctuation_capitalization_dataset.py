@@ -14,8 +14,6 @@
 
 __all__ = [
     'BertPunctuationCapitalizationDataset',
-    'DEFAULT_CAPIT_LABEL_IDS_NAME',
-    'DEFAULT_PUNCT_LABEL_IDS_NAME',
     'LABEL_ID_DIR_FOR_NEMO_CHECKPOINT',
     'Progress',
     'PunctuationCapitalizationEvalDataConfig',
@@ -59,81 +57,121 @@ BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
 BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
 
 LABEL_ID_DIR_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
-DEFAULT_PUNCT_LABEL_IDS_NAME = 'punct_label_ids.csv'
-DEFAULT_CAPIT_LABEL_IDS_NAME = 'capit_label_ids.csv'
 
 DEFAULT_MAX_SEQ_LENGTH = 512
 
 
 @dataclass
 class PunctuationCapitalizationDataConfigBase:
+    """A base class for punctuation and capitalization data configs. This class does not define ``ds_item``
+    attribute which works differently for train and evaluation data."""
+
     #################################################
     # COMMON DATASET PARAMETERS
     #################################################
-    # Whether to use tarred dataset. If True you should provide tar_metadata_file. Otherwise, you should provide
-    # text_file and labels_file.
     use_tarred_dataset: bool = False
-    # A path to a directory where files created during dataset processing are stored. These include label id files
-    # and label stats files. By default, it is a directory containing `text_file` or `tar_metadata_file`.
-    # You may need this parameter if dataset is read-only and thus does not allow saving anything near dataset files.
+    """Whether to use tarred dataset. If True you should provide ``tar_metadata_file``. Otherwise, you should provide
+    ``text_file`` and labels_file``"""
+
     label_info_save_dir: Optional[str] = None
+    """A path to a directory where files created during dataset processing are stored. These include label id files
+    and label stats files. By default, it is a directory containing ``text_file`` or ``tar_metadata_file``.
+    You may need this parameter if dataset is read-only and thus does not allow saving anything near dataset files"""
 
     #################################################
     # USUAL DATASET PARAMETERS
     #################################################
     text_file: Optional[str] = None
+    """A path to a file with source text data without punctuation and capitalization."""
+
     labels_file: Optional[str] = None
+    """A path to a file with punctuation and capitalization labels in NeMo format. NeMo format is described here
+    :ref:`nlp/punctuation_and_capitalization/NeMo Data Format`"""
+
     tokens_in_batch: int = 5000
+    """Number of tokens in a batch including paddings and special tokens ([CLS], [SEP], [UNK]). This config does
+    not have ``batch_size`` parameter."""
+
     max_seq_length: Optional[int] = DEFAULT_MAX_SEQ_LENGTH
-    # Number of samples loaded from `text_file` and `labels_file` which are used in dataset. If this parameter is
-    # -1, then all samples are used.
+    """Max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS] and [SEP] tokens. Sequences
+    which are too long will be clipped by removal of tokens from the end of the sequence."""
+
     num_samples: int = -1
-    # Whether used pickled features. If pickled features does not exist, then pickled features will be created.
+    """A number of samples loaded from ``text_file`` and ``labels_file`` which are used in dataset. If this parameter
+    is ``-1``, then all samples are used."""
+
     use_cache: Optional[bool] = True
-    # A path to a directory containing cache or directory where newly created cache is saved. By default, it is
-    # a directory containing `text_file`. You may need this parameter if cache for a dataset is going to be create
-    # and the dataset directory is read only.
-    #
-    # `cache_dir` and `label_info_save_dir` are separate parameters for the case when a cache is ready and this cache
-    # is stored in a read only directory. In this case you will separate `label_info_save_dir`.
+    """Whether used pickled features. If pickled features does not exist, then pickled features will be created."""
+
     cache_dir: Optional[str] = None
+    """A path to a directory containing cache or directory where newly created cache is saved. By default, it is
+    a directory containing ``text_file``. You may need this parameter if cache for a dataset is going to be create
+    and the dataset directory is read only.
+    
+    ``cache_dir`` and ``label_info_save_dir`` are separate parameters for the case when a cache is ready and this cache
+    is stored in a read only directory. In this case you will separate ``label_info_save_dir``."""
+
     get_label_frequences: bool = False
+    """Whether to show and save label frequencies. Frequencies are showed if ``verbose`` parameter is ``True``. If
+    ``get_label_frequencies=True``, then frequencies are saved into ``label_info_save_dir``"""
+
     verbose: bool = True
-    # Number of workers used for features creation (tokenization, label encoding, and clipping). If 0, then
-    # multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
-    # There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if `n_jobs` is greater than zero.
+    """If ``True`` dataset instance will print progress messages and examples of acquired features."""
+
     n_jobs: Optional[int] = 0
+    """Number of workers used for features creation (tokenization, label encoding, and clipping). If 0, then
+    multiprocessing is not used; if null, then n_jobs is equal to the number of CPU cores.
+    There can be weird deadlocking with some tokenizers (e.g. SentencePiece) if ``n_jobs`` is greater than zero."""
 
     #################################################
     # TARRED DATASET PARAMETERS
     #################################################
     tar_metadata_file: Optional[str] = None
-    # The size of shuffle buffer of `webdataset`. The number of batches which are permuted.
+    """A path to tarred dataset metadata file. Tarred metadata file and other parts of tarred dataset are usually
+    created by the script
+    `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
+    <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+    """
+
     tar_shuffle_n: int = 1
+    """The size of shuffle buffer of `webdataset`. The number of batches which are permuted."""
 
     #################################################
-    # DATALOADER PARAMETERS
+    # PYTORCH DATALOADER PARAMETERS
     #################################################
-    # Shuffle batches every epoch. For not tarred training datasets parameter also activates batch
-    # repacking every epoch. For tarred dataset it would be only batches permutation.
     shuffle: bool = True
+    """Shuffle batches every epoch. For not tarred training datasets parameter also activates batch repacking every
+    epoch. For tarred dataset it would be only batches permutation."""
+
     drop_last: Optional[bool] = False
+    """In case when data parallelism is used defines the way data pipeline behaves when some replicas are out of data
+    and some replicas did not run out of data. If ``drop_last`` is ``True``, then epoch ends in the moment any
+    replica runs out of data. If ``drop_last`` is ``False``, then a replica will replace missing batch with
+    a batch from a pool of batches that the replica has already processed. If data parallelism is not used, then
+    parameter ``drop_last`` does not do anything. For more information see
+    ``torch.utils.data.distributed.DistributedSampler``"""
+
     pin_memory: Optional[bool] = True
+    """See ``torch.utils.data.DataLoader`` documentation."""
+
     num_workers: Optional[int] = 8
+    """See ``torch.utils.data.DataLoader`` documentation."""
+
     persistent_workers: Optional[bool] = True
+    """See ``torch.utils.data.DataLoader`` documentation."""
 
 
 @dataclass
 class PunctuationCapitalizationTrainDataConfig(PunctuationCapitalizationDataConfigBase):
-    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay
     ds_item: Optional[str] = None
+    """Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay"""
 
 
 @dataclass
 class PunctuationCapitalizationEvalDataConfig(PunctuationCapitalizationDataConfigBase):
-    # Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay.
-    # Any = str or List[str]. If a List[str], then the model is tested or validated on several datasets.
     ds_item: Optional[Any] = None
+    """Path to a directory where `tar_metadata_file` or `text_file` and `labels_file` lay. ``Any`` = ``str`` or
+    ``List[str]``. If a ``List[str]``, then the model is tested or validated on several datasets."""
 
 
 def is_legacy_data_config(ds_section: DictConfig) -> bool:
@@ -736,10 +774,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
         text_file (:obj:`Union[str, os.PathLike]`): file to sequences, each line should contain a text without
             punctuation and capitalization
         labels_file (:obj:`Union[str, os.PathLike]`): file to labels, each line corresponds to word labels for a
-            sentence in the ``text_file``
+            sentence in the ``text_file``. Labels have to follow format described in this section of documentation
+            :ref:`nlp/punctuation_and_capitalization/NeMo Data Format`.
         max_seq_length (:obj:`int`): max number of tokens in a source sequence. ``max_seq_length`` includes for [CLS]
             and [SEP] tokens. Sequences which are too long will be clipped by removal of tokens from the end of the
-            sequence
+            sequence.
         tokenizer (:obj:`TokenizerSpec`): a tokenizer instance which has properties ``unk_id``, ``sep_id``, ``bos_id``,
             ``eos_id``
         num_samples (:obj:`int`, `optional`, defaults to :obj:`-1`): number of samples you want to use for the dataset.
@@ -750,7 +789,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             sequences are short, them a batch will contain more samples. Before packing into batches, samples are
             sorted by the number of tokens they contain. Sorting allows to reduce number of pad tokens in a batch
             significantly. Usual PyTorch data loader shuffling will only permute batches with changing their content.
-            Proper shuffling is achieved via calling of :meth:`repack_batches_with_shuffle` method every epoch.
+            Proper shuffling is achieved via calling method :meth:`repack_batches_with_shuffle` every epoch.
         pad_label (:obj:`str`, `optional`, defaults to :obj:`'O'`): pad value to use for labels. It's also the neutral
             label both for punctuation and capitalization.
         punct_label_ids (:obj:`Dict[str, int]`, `optional`): dict to map punctuation labels to label ids. For dev set,
