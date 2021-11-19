@@ -26,6 +26,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss
@@ -478,7 +479,7 @@ class Wav2VecEncoderModel(ModelPT):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_char_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 shuffle_n=shuffle_n,
                 global_rank=self.global_rank,
@@ -493,10 +494,15 @@ class Wav2VecEncoderModel(ModelPT):
 
             dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
+        if type(dataset) is ChainDataset:
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),

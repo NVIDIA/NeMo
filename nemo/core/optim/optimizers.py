@@ -17,6 +17,7 @@ from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 import hydra
+import torch
 import torch.optim as optim
 from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
@@ -41,10 +42,12 @@ AVAILABLE_OPTIMIZERS = {
 
 try:
     from apex.optimizers import FusedLAMB
+    from apex.optimizers import FusedAdam
 
     AVAILABLE_OPTIMIZERS['lamb'] = FusedLAMB
+    AVAILABLE_OPTIMIZERS['fused_adam'] = FusedAdam
 except ModuleNotFoundError:
-    logging.warning("Apex was not found. Using the lamb optimizer will error out.")
+    logging.warning("Apex was not found. Using the lamb or fused_adam optimizer will error out.")
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
@@ -165,6 +168,9 @@ def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:
         raise ValueError(
             f"Cannot resolve optimizer '{name}'. Available optimizers are : " f"{AVAILABLE_OPTIMIZERS.keys()}"
         )
+    if name == 'fused_adam':
+        if not torch.cuda.is_available():
+            raise ValueError(f'CUDA must be available to use fused_adam.')
 
     optimizer = AVAILABLE_OPTIMIZERS[name]
     optimizer = partial(optimizer, **kwargs)

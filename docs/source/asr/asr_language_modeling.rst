@@ -27,7 +27,7 @@ NeMo supports both character-based and BPE-based models for N-gram LMs. An N-gra
 decoders on top of the ASR models to produce more accurate candidates. The beam search decoder would incorporate
 the scores produced by the N-gram LM into its score calculations as the following:
 
-.. code::
+.. code-block::
 
     final_score = acoustic_score + beam_alpha*lm_score + beam_beta*seq_length
 
@@ -51,7 +51,7 @@ detected automatically from the type of the model.
 
 You may train the N-gram model as the following:
 
-.. code::
+.. code-block::
 
     python train_kenlm.py --nemo_model_file <path to the .nemo file of the model> \
                               --train_file <path to the training text or JSON manifest file \
@@ -63,7 +63,7 @@ The train file specified by `--train_file` can be a text file or JSON manifest. 
 other than `.json`, it assumes that data format is plain text. For plain text format, each line should contain one
 sample. For JSON manifest file, the file need to contain json formatted samples per each line like this:
 
-.. code::
+.. code-block::
 
     {"audio_filepath": "/data_path/file1.wav", "text": "The transcript of the audio file."}
 
@@ -99,7 +99,7 @@ The script to evaluate an ASR model with beam search decoding and N-gram models 
 
 You may evaluate an ASR model as the following:
 
-.. code::
+.. code-block::
 
     python eval_beamsearch_ngram.py --nemo_model_file <path to the .nemo file of the model> \
                                          --input_manifest <path to the evaluation JSON manifest file \
@@ -180,7 +180,7 @@ You may specify a single or list of values for each of these parameters to perfo
 beam search decoding on all the combinations of the these three hyperparameters.
 For instance, the following set of parameters would results in 2*1*2=4 beam search decodings:
 
-.. code::
+.. code-block::
 
     python eval_beamsearch_ngram.py ... \
                         --beam_width 64 128 \
@@ -223,7 +223,7 @@ search decoding or the result of fusion with an N-gram LM. You may generate this
 
 The neural rescorer would rescore the beams/candidates by using two parameters of `rescorer_alpha` and `rescorer_beta` as the following:
 
-.. code::
+.. code-block::
 
     final_score = beam_search_score + rescorer_alpha*neural_rescorer_score + rescorer_beta*seq_length
 
@@ -240,7 +240,8 @@ You may follow the following steps to evaluate a neural LM:
 
 #. Rescore the candidates by `scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/neural_rescorer/eval_neural_rescorer.py>`__.
 
-.. code::
+.. code-block::
+
     python eval_neural_rescorer.py
         --lm_model=[path to .nemo file of the LM or the name of a HF pretrained model]
         --beams_file=[path to beams .tsv file]

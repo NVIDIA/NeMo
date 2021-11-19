@@ -36,32 +36,35 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from nemo.core.neural_types import AcousticEncodedRepresentation, ElementType, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
 
 
-def pack_hypotheses(
-    hypotheses: List[List[int]],
-    timesteps: List[List[int]],
-    logitlen: torch.Tensor,
-    alignments: Optional[List[List[int]]] = None,
-) -> List[rnnt_utils.Hypothesis]:
+def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
 
     if hasattr(logitlen, 'cpu'):
         logitlen_cpu = logitlen.to('cpu')
     else:
         logitlen_cpu = logitlen
 
-    return [
-        rnnt_utils.Hypothesis(
-            y_sequence=torch.tensor(sent, dtype=torch.long),
-            score=-1.0,
-            timestep=timestep,
-            length=length,
-            alignments=alignments[idx] if alignments is not None else None,
-        )
-        for idx, (sent, timestep, length) in enumerate(zip(hypotheses, timesteps, logitlen_cpu))
-    ]
+    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
+        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
+        hyp.length = logitlen_cpu[idx]
+
+        if hyp.dec_state is not None:
+            hyp.dec_state = _states_to_device(hyp.dec_state)
+
+    return hypotheses
+
+
+def _states_to_device(dec_state, device='cpu'):
+    if torch.is_tensor(dec_state):
+        dec_state = dec_state.to(device)
+
+    elif isinstance(dec_state, (list, tuple)):
+        dec_state = tuple(_states_to_device(dec_i, device) for dec_i in dec_state)
+
+    return dec_state
 
 
 class _GreedyRNNTInfer(Typing):
@@ -92,6 +95,7 @@ class _GreedyRNNTInfer(Typing):
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
         }
 
     @property
@@ -222,7 +226,12 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         )
 
     @typecheck()
-    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -246,22 +255,18 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             self.joint.eval()
 
             hypotheses = []
-            timesteps = []
-            alignments = [] if self.preserve_alignments else None
             # Process each sequence independently
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 for batch_idx in range(encoder_output.size(0)):
                     inseq = encoder_output[batch_idx, :, :].unsqueeze(1)  # [T, 1, D]
                     logitlen = encoded_lengths[batch_idx]
-                    sentence, timestep, alignment = self._greedy_decode(inseq, logitlen)
-                    hypotheses.append(sentence)
-                    timesteps.append(timestep)
 
-                    if self.preserve_alignments:
-                        alignments.append(alignment)
+                    partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                    hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
-            packed_result = pack_hypotheses(hypotheses, timesteps, encoded_lengths, alignments=alignments)
+            packed_result = pack_hypotheses(hypotheses, encoded_lengths)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
@@ -269,20 +274,25 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         return (packed_result,)
 
     @torch.no_grad()
-    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
+    def _greedy_decode(
+        self, x: torch.Tensor, out_len: torch.Tensor, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
+    ):
         # x: [T, 1, D]
         # out_len: [seq_len]
 
-        # Initialize blank state and empty label set
-        hidden = None
-        label = []
-        timesteps = []
+        # Initialize blank state and empty label set in Hypothesis
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[])
+
+        if partial_hypotheses is not None:
+            if len(partial_hypotheses.y_sequence) > 0:
+                hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
+                hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
+                hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
 
         if self.preserve_alignments:
             # Alignments is a 2-dimensional dangling list representing T x U
-            alignments = [[]]
-        else:
-            alignments = None
+            # alignments = [[]]
+            hypothesis.alignments = [[]]
 
         # For timestep t in X_t
         for time_idx in range(out_len):
@@ -298,10 +308,14 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # In the first timestep, we initialize the network with RNNT Blank
                 # In later timesteps, we provide previous predicted label as input.
-                last_label = self._SOS if label == [] else label[-1]
+                last_label = (
+                    self._SOS
+                    if (hypothesis.y_sequence == [] and hypothesis.dec_state is None)
+                    else hypothesis.y_sequence[-1]
+                )
 
                 # Perform prediction network and joint network steps.
-                g, hidden_prime = self._pred_step(last_label, hidden)
+                g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
                 logp = self._joint_step(f, g, log_normalize=None)[0, 0, 0, :]
 
                 del g
@@ -316,7 +330,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
                 if self.preserve_alignments:
                     # insert logits into last timestep
-                    alignments[-1].append(k)
+                    hypothesis.alignments[-1].append(k)
 
                 del logp
 
@@ -326,22 +340,30 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
                     if self.preserve_alignments:
                         # convert Ti-th logits into a torch array
-                        alignments.append([])  # blank buffer for next timestep
+                        hypothesis.alignments.append([])  # blank buffer for next timestep
                 else:
                     # Append token to label set, update RNN state.
-                    label.append(k)
-                    timesteps.append(time_idx)
-                    hidden = hidden_prime
+                    hypothesis.y_sequence.append(k)
+                    hypothesis.score += float(v)
+                    hypothesis.timestep.append(time_idx)
+                    hypothesis.dec_state = hidden_prime
 
                 # Increment token counter.
                 symbols_added += 1
 
         # Remove trailing empty list of Alignments
         if self.preserve_alignments:
-            if len(alignments[-1]) == 0:
-                del alignments[-1]
+            if len(hypothesis.alignments[-1]) == 0:
+                del hypothesis.alignments[-1]
 
-        return label, timesteps, alignments
+        # Unpack the hidden states
+        hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
+
+        # Remove the original input label if partial hypothesis was provided
+        if partial_hypotheses is not None:
+            hypothesis.y_sequence = hypothesis.y_sequence[1:]
+
+        return hypothesis
 
 
 class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
@@ -389,7 +411,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             self._greedy_decode = self._greedy_decode_masked
 
     @typecheck()
-    def forward(self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor):
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
@@ -415,38 +442,50 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             with self.decoder.as_frozen(), self.joint.as_frozen():
                 inseq = encoder_output  # [B, T, D]
-                hypotheses, timesteps, alignments = self._greedy_decode(inseq, logitlen, device=inseq.device)
+                hypotheses = self._greedy_decode(
+                    inseq, logitlen, device=inseq.device, partial_hypotheses=partial_hypotheses
+                )
 
             # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses, timesteps, logitlen, alignments=alignments)
-
-            del hypotheses, timesteps
+            packed_result = pack_hypotheses(hypotheses, logitlen)
 
         self.decoder.train(decoder_training_state)
         self.joint.train(joint_training_state)
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+    def _greedy_decode_blank_as_pad(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
+
         with torch.no_grad():
             # x: [B, T, D]
             # out_len: [B]
             # device: torch.device
 
-            # Initialize state
-            hidden = None
+            # Initialize list of Hypothesis
             batchsize = x.shape[0]
+            hypotheses = [
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+            ]
 
-            # Output string buffer
-            label = [[] for _ in range(batchsize)]
-            timesteps = [[] for _ in range(batchsize)]
+            # Initialize Hidden state matrix (shared by entire batch)
+            hidden = None
 
             # If alignments need to be preserved, register a danling list to hold the values
             if self.preserve_alignments:
                 # alignments is a 3-dimensional dangling list representing B x T x U
-                alignments = []
-                for _ in range(batchsize):
-                    alignments.append([[]])
+                for hyp in hypotheses:
+                    hyp.alignments = [[]]
+                # alignments = []
+                # for _ in range(batchsize):
+                #     alignments.append([[]])
             else:
                 alignments = None
 
@@ -479,7 +518,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Batch prediction and joint network steps
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
-                    if time_idx == 0 and symbols_added == 0:
+                    if time_idx == 0 and symbols_added == 0 and hidden is None:
                         g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                     else:
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
@@ -493,7 +532,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
-                    del v, g
+                    del g
 
                     # Update blank mask with current predicted blanks
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -509,7 +548,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         logp_vals = logp.to('cpu').max(1)[1]
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                alignments[batch_idx][-1].append(logp_vals[batch_idx])
+                                hypotheses[batch_idx].alignments[-1].append(logp_vals[batch_idx])
                         del logp_vals
                     del logp
 
@@ -531,8 +570,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 # this checks if current timestep <= sample-level AM length
                                 # If current timestep > sample-level AM length, no alignments will be added
                                 # Therefore the list of Uj alignments is empty here.
-                                if len(alignments[batch_idx][-1]) > 0:
-                                    alignments[batch_idx].append([])  # blank buffer for next timestep
+                                if len(hypotheses[batch_idx].alignments[-1]) > 0:
+                                    hypotheses[batch_idx].alignments.append([])  # blank buffer for next timestep
                     else:
                         # Collect batch indices where blanks occurred now/past
                         blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
@@ -540,15 +579,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Recover prior state for all samples which predicted blank now/past
                         if hidden is not None:
                             # LSTM has 2 states
-                            for state_id in range(len(hidden)):
-                                hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
                         elif len(blank_indices) > 0 and hidden is None:
                             # Reset state if there were some blank and other non-blank predictions in batch
                             # Original state is filled with zeros so we just multiply
                             # LSTM has 2 states
-                            for state_id in range(len(hidden_prime)):
-                                hidden_prime[state_id][:, blank_indices, :] *= 0.0
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
 
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
@@ -564,39 +601,53 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # once they have occured (normally stopping condition of sample level loop).
                         for kidx, ki in enumerate(k):
                             if blank_mask[kidx] == 0:
-                                label[kidx].append(ki)
-                                timesteps[kidx].append(time_idx)
+                                hypotheses[kidx].y_sequence.append(ki)
+                                hypotheses[kidx].timestep.append(time_idx)
+                                hypotheses[kidx].score += float(v[kidx])
 
                         symbols_added += 1
 
             # Remove trailing empty list of alignments at T_{am-len} x Uj
             if self.preserve_alignments:
                 for batch_idx in range(batchsize):
-                    if len(alignments[batch_idx][-1]) == 0:
-                        del alignments[batch_idx][-1]
+                    if len(hypotheses[batch_idx].alignments[-1]) == 0:
+                        del hypotheses[batch_idx].alignments[-1]
 
-        return label, timesteps, alignments
+        # Preserve states
+        for batch_idx in range(batchsize):
+            hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
+
+        return hypotheses
 
     @torch.no_grad()
-    def _greedy_decode_masked(self, x: torch.Tensor, out_len: torch.Tensor, device: torch.device):
+    def _greedy_decode_masked(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
+
         # x: [B, T, D]
         # out_len: [B]
         # device: torch.device
 
         # Initialize state
-        hidden = None
         batchsize = x.shape[0]
+        hypotheses = [
+            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+        ]
 
-        # Output string buffer
-        label = [[] for _ in range(batchsize)]
-        timesteps = [[] for _ in range(batchsize)]
+        # Initialize Hidden state matrix (shared by entire batch)
+        hidden = None
 
         # If alignments need to be preserved, register a danling list to hold the values
         if self.preserve_alignments:
             # alignments is a 3-dimensional dangling list representing B x T x U
-            alignments = []
-            for _ in range(batchsize):
-                alignments.append([[]])
+            for hyp in hypotheses:
+                hyp.alignments = [[]]
         else:
             alignments = None
 
@@ -630,7 +681,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Batch prediction and joint network steps
                 # If very first prediction step, submit SOS tag (blank) to pred_step.
                 # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
-                if time_idx == 0 and symbols_added == 0:
+                if time_idx == 0 and symbols_added == 0 and hidden is None:
                     g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                 else:
                     # Set a dummy label for the blank value
@@ -653,7 +704,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Get index k, of max prob for batch
                 v, k = logp.max(1)
-                del v, g
+                del g
 
                 # Update blank mask with current predicted blanks
                 # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
@@ -667,7 +718,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     logp_vals = logp.to('cpu').max(1)[1]
                     for batch_idx in range(batchsize):
                         if time_idx < out_len[batch_idx]:
-                            alignments[batch_idx][-1].append(logp_vals[batch_idx])
+                            hypotheses[batch_idx].alignments[-1].append(logp_vals[batch_idx])
                     del logp_vals
                 del logp
 
@@ -689,8 +740,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             # this checks if current timestep <= sample-level AM length
                             # If current timestep > sample-level AM length, no alignments will be added
                             # Therefore the list of Uj alignments is empty here.
-                            if len(alignments[batch_idx][-1]) > 0:
-                                alignments[batch_idx].append([])  # blank buffer for next timestep
+                            if len(hypotheses[batch_idx].alignments[-1]) > 0:
+                                hypotheses[batch_idx].alignments.append([])  # blank buffer for next timestep
                 else:
                     # Collect batch indices where blanks occurred now/past
                     blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
@@ -698,15 +749,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # Recover prior state for all samples which predicted blank now/past
                     if hidden is not None:
                         # LSTM has 2 states
-                        for state_id in range(len(hidden)):
-                            hidden_prime[state_id][:, blank_indices, :] = hidden[state_id][:, blank_indices, :]
+                        hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
                     elif len(blank_indices) > 0 and hidden is None:
                         # Reset state if there were some blank and other non-blank predictions in batch
                         # Original state is filled with zeros so we just multiply
                         # LSTM has 2 states
-                        for state_id in range(len(hidden_prime)):
-                            hidden_prime[state_id][:, blank_indices, :] *= 0.0
+                        hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
 
                     # Recover prior predicted label for all samples which predicted blank now/past
                     k[blank_indices] = last_label[blank_indices, 0]
@@ -722,18 +771,23 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # once they have occured (normally stopping condition of sample level loop).
                     for kidx, ki in enumerate(k):
                         if blank_mask[kidx] == 0:
-                            label[kidx].append(ki)
-                            timesteps[kidx].append(time_idx)
+                            hypotheses[kidx].y_sequence.append(ki)
+                            hypotheses[kidx].timestep.append(time_idx)
+                            hypotheses[kidx].score += float(v[kidx])
 
                 symbols_added += 1
 
         # Remove trailing empty list of alignments at T_{am-len} x Uj
         if self.preserve_alignments:
             for batch_idx in range(batchsize):
-                if len(alignments[batch_idx][-1]) == 0:
-                    del alignments[batch_idx][-1]
+                if len(hypotheses[batch_idx].alignments[-1]) == 0:
+                    del hypotheses[batch_idx].alignments[-1]
 
-        return label, timesteps, alignments
+        # Preserve states
+        for batch_idx in range(batchsize):
+            hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
+
+        return hypotheses
 
 
 class ONNXGreedyBatchedRNNTInfer:
@@ -822,8 +876,12 @@ class ONNXGreedyBatchedRNNTInfer:
             inseq = encoder_output  # [B, T, D]
             hypotheses, timestamps = self._greedy_decode(inseq, logitlen)
 
-            # # Pack the hypotheses results
-            packed_result = pack_hypotheses(hypotheses, timestamps, logitlen, None)
+            # Pack the hypotheses results
+            packed_result = [rnnt_utils.Hypothesis(score=-1.0, y_sequence=[]) for _ in range(len(hypotheses))]
+            for i in range(len(packed_result)):
+                packed_result[i].y_sequence = torch.tensor(hypotheses[i], dtype=torch.long)
+                packed_result[i].length = timestamps[i]
+
             del hypotheses
 
         return packed_result

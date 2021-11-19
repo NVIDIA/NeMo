@@ -18,6 +18,8 @@ model:
   pitch_fmax: 640
   pitch_avg: 211.27540199742586 # for a female speaker (8051 HiFiGAN)
   pitch_std: 52.1851002822779 # for a female speaker (8051 HiFiGAN)
+  dur_loss_scale: 0.1
+  pitch_loss_scale: 0.1
 
   train_ds:
     dataset:

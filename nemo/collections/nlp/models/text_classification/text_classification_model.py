@@ -318,7 +318,3 @@ class TextClassificationModel(NLPModel, Exportable):
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass

@@ -18,6 +18,7 @@ from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -222,7 +223,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
                 shuffle_n=shuffle_n,
@@ -270,11 +271,15 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'shuffle': False,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'pin_memory': True,
+            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

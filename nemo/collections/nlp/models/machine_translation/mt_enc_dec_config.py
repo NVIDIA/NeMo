@@ -147,6 +147,7 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
     latent_size: int = -1  # -1 will take value of encoder hidden
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
+    log_timing: bool = True
 
     encoder: NeMoTransformerBottleneckEncoderConfig = NeMoTransformerBottleneckEncoderConfig(
         library='nemo',
