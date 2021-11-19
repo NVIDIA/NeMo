@@ -183,7 +183,7 @@ def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch
         x = x[:, :, :context_window]  # [B, C, context_window]
         mask = mask[:, :, :context_window]  # [B, 1, context_window]
 
-        mask = mask.type(x.dtype).sum(dim=-1, keepdim=True)  # [B, C, 1]
+        mask = mask.sum(dim=-1, keepdim=True).type(x.dtype)  # [B, C, 1]
         y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
         y = y / (mask + 1e-8)  # [B, C, 1]
 
@@ -213,7 +213,7 @@ def _se_pool_step_script_train(x: torch.Tensor, context_window: int, mask: torch
         x = x[:, :, start_idx : (start_idx + context_window)]  # [B, C, context_window]
         mask = mask[:, :, start_idx : (start_idx + context_window)]  # [B, 1, context_window]
 
-        mask = mask.type(x.dtype).sum(dim=-1, keepdim=True)  # [B, C, 1]
+        mask = mask.sum(dim=-1, keepdim=True).type(x.dtype)  # [B, C, 1]
         y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
         y = y / (mask + 1e-8)  # [B, C, 1]
 
