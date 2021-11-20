@@ -451,7 +451,7 @@ class SqueezeExcite(nn.Module):
         self.set_max_len(1)
 
     def forward(self, x, lengths):
-        max_audio_length: int = lengths.max()
+        max_audio_length: int = x.size(-1)
         if max_audio_length > self.max_len:
             self.set_max_len(max_audio_length)
 
