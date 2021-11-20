@@ -13,25 +13,25 @@
 # limitations under the License.
 
 
-from typing import Dict
+from typing import List
 
 import torch
 from torch.utils.data.dataset import Dataset
 
 
 class GPTRequestDataset(Dataset):
-    def __init__(self, request: Dict, tokenizer) -> None:
+    def __init__(self, requests: List, tokenizer) -> None:
         super().__init__()
-        self.request = request
+        self.requests = requests
         self.tokenizer = tokenizer
 
         # tokenize prompt
-        self.request['tokenized_prompt'] = self.tokenizer.text_to_tokens(request['prompt'])
-        tokens = self.tokenizer.text_to_ids(request['prompt'])
-        self.request['tokens'] = torch.tensor(tokens)
+        for request in self.requests:
+            request['tokenized_prompt'] = self.tokenizer.text_to_tokens(request['prompt'])
+            request['tokens'] = torch.tensor(self.tokenizer.text_to_ids(request['prompt']))
 
     def __len__(self):
         return 1
 
     def __getitem__(self, index):
-        return self.request
+        return self.requests
