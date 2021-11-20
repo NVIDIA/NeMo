@@ -13,9 +13,71 @@
 # limitations under the License.
 
 import math
+from typing import Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+
+class CausalConv2D(nn.Conv2d):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: Union[str, int] = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str ='zeros',
+        device=None,
+        dtype=None,
+    ) -> None:
+        self._padding = padding
+        self._stride = stride
+        self._needed_cache_len = kernel_size - stride
+        self._ignore_len = self._padding // self._stride
+
+        padding = 0
+        super(CausalConv2D, self).__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            bias,
+            padding_mode,
+            device,
+            dtype,
+        )
+
+    def forward(self, x):
+        if type(x) == tuple:
+            x, cache = x
+        else:
+            cache = None
+        input_x = x
+        x_length = x.size()[-1]
+        if cache is None:
+            x = F.pad(x, pad=(self._padding, self._padding, self._padding, self._padding))
+        else:
+            cache_length = cache.size()[-1]
+            needed_cache = cache[:, :, -self._needed_cache_len:, -self._needed_cache_len:]
+            x = torch.cat((needed_cache, x), dim=-1)
+
+        x = super().forward(x)
+        if cache is None:
+            # x = x[:, :, :-(self.padding[0]//2), :-(self.padding[0]//2)]
+            x = x[:, :, :-self._ignore_len, :-self._ignore_len]
+        else:
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length):]
+            cache[:, :, -x_length:] = input_x
+
+        return x
 
 
 class ConvSubsampling(torch.nn.Module):
@@ -32,7 +94,9 @@ class ConvSubsampling(torch.nn.Module):
         activation (Module): activation function, default is nn.ReLU()
     """
 
-    def __init__(self, subsampling, subsampling_factor, feat_in, feat_out, conv_channels, activation=nn.ReLU(), is_causal=False):
+    def __init__(
+        self, subsampling, subsampling_factor, feat_in, feat_out, conv_channels, activation=nn.ReLU(), is_causal=False
+    ):
         super(ConvSubsampling, self).__init__()
         self._subsampling = subsampling
 
@@ -40,7 +104,7 @@ class ConvSubsampling(torch.nn.Module):
             raise ValueError("Sampling factor should be a multiply of 2!")
         self._sampling_num = int(math.log(subsampling_factor, 2))
 
-        #is_causal = False
+        # is_causal = False
         self.is_causal = is_causal
 
         in_channels = 1
@@ -74,26 +138,36 @@ class ConvSubsampling(torch.nn.Module):
                 )
                 in_channels = conv_channels
         elif subsampling == 'striding':
-            self._padding = 1
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
 
             if self.is_causal:
-                self._padding = 2
+                self._padding = self._kernel_size - 1
             else:
-                self._padding = 1
+                self._padding = (self._kernel_size - 1) // 2
 
             for i in range(self._sampling_num):
-                layers.append(
-                    torch.nn.Conv2d(
-                        in_channels=in_channels,
-                        out_channels=conv_channels,
-                        kernel_size=self._kernel_size,
-                        stride=self._stride,
-                        padding=self._padding,
+                if self.is_causal:
+                    layers.append(
+                        CausalConv2D(
+                            in_channels=in_channels,
+                            out_channels=conv_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=self._kernel_size - 1,
+                        )
                     )
-                )
+                else:
+                    layers.append(
+                        torch.nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=conv_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=self._padding,
+                        )
+                    )
                 layers.append(activation)
                 in_channels = conv_channels
         else:
@@ -110,16 +184,16 @@ class ConvSubsampling(torch.nn.Module):
                 ceil_mode=self._ceil_mode,
             )
             in_length = out_length
+            if self.is_causal:
+                 out_length -= self._padding//self._stride
 
-        out_length = int(out_length) - 2
+        out_length = int(out_length)
         self.out = torch.nn.Linear(conv_channels * out_length, feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
-    def forward(self, x, lengths):
+    def forward(self, x, lengths, cache=None):
         x = x.unsqueeze(1)
-        x = self.conv(x)
-        if self.is_causal:
-            x = x[:, :, :-1, :-2]
+        x = self.conv((x, cache))
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
@@ -133,10 +207,11 @@ class ConvSubsampling(torch.nn.Module):
                 stride=self._stride,
                 ceil_mode=self._ceil_mode,
             )
-
-        if self.is_causal:
-            new_lengths -= 1
-        assert new_lengths == x.size()[1]
+            if self.is_causal:
+                 new_lengths -= self._padding//self._stride
+        #print(new_lengths)
+        #print(x.size()[1])
+        #assert new_lengths == x.size()[1]
         new_lengths = new_lengths.to(dtype=lengths.dtype)
         return x, new_lengths
 

@@ -114,7 +114,7 @@ model:
 
     # Convolution module's params
     conv_kernel_size: 31
-
+    conv_norm: "batch_norm"
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
     dropout_emb: 0.0 # The dropout used for embeddings

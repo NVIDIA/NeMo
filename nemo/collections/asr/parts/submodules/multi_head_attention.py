@@ -110,7 +110,7 @@ class MultiHeadAttention(nn.Module):
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
-    def forward(self, query, key, value, mask, pos_emb=None):
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -168,7 +168,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         x = x[:, :, 1:].view(*x_size)  # (b, h, t1, t2)
         return x
 
-    def forward(self, query, key, value, mask, pos_emb):
+    def forward(self, query, key, value, mask, pos_emb, cache=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -179,6 +179,13 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
+        # assume key and values are the same
+        if cache is not None:
+            q_length = query.size()[1]
+            cache_length = cache.size()[1]
+            q_input = query
+            key = value = torch.cat((cache, key), dim=1)
+
         q, k, v = self.forward_qkv(query, key, value)
         q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
@@ -206,7 +213,11 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
         scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
 
-        return self.forward_attention(v, scores, mask)
+        ret = self.forward_attention(v, scores, mask)
+        if cache is not None:
+            cache[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :]
+            cache[:, -q_length:, :] = q_input
+        return ret
 
 
 class PositionalEncoding(torch.nn.Module):

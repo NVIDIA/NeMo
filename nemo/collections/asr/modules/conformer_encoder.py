@@ -122,6 +122,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         untie_biases=True,
         pos_emb_max_len=5000,
         conv_kernel_size=31,
+        conv_norm="batch_norm",
         dropout=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
@@ -152,7 +153,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 feat_out=d_model,
                 conv_channels=subsampling_conv_channels,
                 activation=nn.ReLU(),
-                is_causal=is_causal
+                is_causal=is_causal,
             )
             self._feat_out = d_model
         else:
@@ -194,11 +195,12 @@ class ConformerEncoder(NeuralModule, Exportable):
                 self_attention_model=self_attention_model,
                 n_heads=n_heads,
                 conv_kernel_size=conv_kernel_size,
+                conv_norm=conv_norm,
                 dropout=dropout,
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
-                is_causal=is_causal
+                is_causal=is_causal,
             )
             self.layers.append(layer)
 
@@ -210,13 +212,13 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
 
     @typecheck()
-    def forward(self, audio_signal, length=None):
+    def forward(self, audio_signal, length=None, cache=None):
         if length is None:
             length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
-            audio_signal, length = self.pre_encode(audio_signal, length)
+            audio_signal, length = self.pre_encode(audio_signal, length, cache)
         else:
             audio_signal = self.pre_encode(audio_signal)
 
@@ -235,7 +237,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
-            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
+            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask, cache=None)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
