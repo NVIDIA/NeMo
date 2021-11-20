@@ -78,6 +78,32 @@ class OperationMode(Enum):
     infer = 2
 
 
+def get_batch_size(train_dataloader):
+    if train_dataloader.batch_size is not None:
+        return train_dataloader.batch_size
+    elif train_dataloader.batch_sampler is not None:
+        if train_dataloader.batch_sampler.micro_batch_size is not None:
+            return train_dataloader.batch_sampler.micro_batch_size
+        else:
+            raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+    else:
+        raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
+
+
+def get_num_workers(trainer):
+    if trainer.accelerator is None:
+        return trainer.num_gpus or 1
+    elif trainer.accelerator == "ddp_cpu":
+        return trainer.num_processes * trainer.num_nodes
+    elif trainer.accelerator == "ddp":
+        return trainer.num_gpus * trainer.num_nodes
+    else:
+        logging.warning(
+            f"The lightning trainer received accelerator: {trainer.accelerator}. We " "recommend to use 'ddp' instead."
+        )
+        return trainer.num_gpus * trainer.num_nodes
+
+
 def binarize_attention(attn, in_len, out_len):
     """Convert soft attention matrix to hard attention matrix.
 
