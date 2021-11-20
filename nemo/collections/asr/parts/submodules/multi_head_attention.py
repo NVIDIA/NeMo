@@ -181,6 +181,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         # assume key and values are the same
         if cache is not None:
+            if not hasattr(self, 'cache_id'):
+                cache = cache[self._cache_id]
             q_length = query.size()[1]
             cache_length = cache.size()[1]
             q_input = query
@@ -215,7 +217,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
         ret = self.forward_attention(v, scores, mask)
         if cache is not None:
-            cache[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :]
+            cache[:, :-q_length, :] = cache[:, -(cache_length - q_length) :, :]
             cache[:, -q_length:, :] = q_input
         return ret
 

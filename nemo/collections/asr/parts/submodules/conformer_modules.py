@@ -15,9 +15,9 @@
 from typing import Union
 
 import torch
+import torch.nn.functional as F
 from torch import nn as nn
 from torch.nn import LayerNorm
-import torch.nn.functional as F
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
@@ -91,7 +91,7 @@ class ConformerLayer(torch.nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
 
-    def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None, cache=None):
+    def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None, cache_last_time=None, cache_last_channel=None):
         """
         Args:
             x (torch.Tensor): input signals (B, T, d_model)
@@ -109,16 +109,16 @@ class ConformerLayer(torch.nn.Module):
         residual = x
         x = self.norm_self_att(x)
         if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb, cache=cache)
+            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb, cache=cache_last_channel)
         elif self.self_attention_model == 'abs_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, cache=cache)
+            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel)
         else:
             x = None
         x = self.dropout(x) + residual
 
         residual = x
         x = self.norm_conv(x)
-        x = self.conv(x, pad_mask=pad_mask, cache=cache)
+        x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
         x = self.dropout(x) + residual
 
         residual = x
@@ -260,14 +260,16 @@ class CausalConv1D(nn.Conv1d):
         if cache is None:
             x = F.pad(x, pad=(self._padding, self._padding))
         else:
+            if not hasattr(self, 'cache_id'):
+                cache = cache[self._cache_id]
             cache_length = cache.size()[-1]
-            needed_cache = cache[:, :, -self._padding:]
+            needed_cache = cache[:, :, -self._padding :]
             x = torch.cat((needed_cache, x), dim=-1)
         x = super().forward(x)
         if cache is None:
-            #x = x[:, :, : -self.padding[0]]
+            # x = x[:, :, : -self.padding[0]]
             x = x[:, :, : -self._padding]
         else:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length):]
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
             cache[:, :, -x_length:] = input_x
         return x

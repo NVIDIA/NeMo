@@ -31,7 +31,7 @@ class CausalConv2D(nn.Conv2d):
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        padding_mode: str ='zeros',
+        padding_mode: str = 'zeros',
         device=None,
         dtype=None,
     ) -> None:
@@ -65,16 +65,19 @@ class CausalConv2D(nn.Conv2d):
         if cache is None:
             x = F.pad(x, pad=(self._padding, self._padding, self._padding, self._padding))
         else:
+            if not hasattr(self, 'cache_id'):
+                cache = cache[self._cache_id]
+
             cache_length = cache.size()[-1]
-            needed_cache = cache[:, :, -self._needed_cache_len:, -self._needed_cache_len:]
+            needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
             x = torch.cat((needed_cache, x), dim=-1)
 
         x = super().forward(x)
         if cache is None:
             # x = x[:, :, :-(self.padding[0]//2), :-(self.padding[0]//2)]
-            x = x[:, :, :-self._ignore_len, :-self._ignore_len]
+            x = x[:, :, : -self._ignore_len, : -self._ignore_len]
         else:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length):]
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
             cache[:, :, -x_length:] = input_x
 
         return x
@@ -185,7 +188,7 @@ class ConvSubsampling(torch.nn.Module):
             )
             in_length = out_length
             if self.is_causal:
-                 out_length -= self._padding//self._stride
+                out_length -= self._padding // self._stride
 
         out_length = int(out_length)
         self.out = torch.nn.Linear(conv_channels * out_length, feat_out)
@@ -208,10 +211,10 @@ class ConvSubsampling(torch.nn.Module):
                 ceil_mode=self._ceil_mode,
             )
             if self.is_causal:
-                 new_lengths -= self._padding//self._stride
-        #print(new_lengths)
-        #print(x.size()[1])
-        #assert new_lengths == x.size()[1]
+                new_lengths -= self._padding // self._stride
+        # print(new_lengths)
+        # print(x.size()[1])
+        # assert new_lengths == x.size()[1]
         new_lengths = new_lengths.to(dtype=lengths.dtype)
         return x, new_lengths
 

@@ -212,13 +212,13 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
 
     @typecheck()
-    def forward(self, audio_signal, length=None, cache=None):
+    def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None):
         if length is None:
             length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
-            audio_signal, length = self.pre_encode(audio_signal, length, cache)
+            audio_signal, length = self.pre_encode(audio_signal, length, cache_pre_encode)
         else:
             audio_signal = self.pre_encode(audio_signal)
 
@@ -237,7 +237,14 @@ class ConformerEncoder(NeuralModule, Exportable):
         pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
-            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask, cache=None)
+            audio_signal = layer(
+                x=audio_signal,
+                att_mask=att_mask,
+                pos_emb=pos_emb,
+                pad_mask=pad_mask,
+                cache_last_time=cache_last_time,
+                cache_last_channel=cache_last_channel,
+            )
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
