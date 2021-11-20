@@ -503,10 +503,7 @@ class SqueezeExcite(nn.Module):
         self.max_len = max_len
         device = next(self.parameters()).device
         seq_range = torch.arange(0, self.max_len, device=device)
-        if hasattr(self, 'seq_range'):
-            self.register_buffer('seq_range', seq_range, persistent=False)
-        else:
-            self.register_buffer('seq_range', seq_range, persistent=False)
+        self.register_buffer('seq_range', seq_range, persistent=False)
 
     def make_pad_mask(self, seq_lens, max_audio_length, device=None):
         """Make masking for padding."""
