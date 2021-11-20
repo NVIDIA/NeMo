@@ -60,13 +60,7 @@ class ElectronicFst(GraphFst):
             + delete_extra_space
             + domain
         )
-        domain_graph = (
-            pynutil.insert("domain: \"")
-            + server
-            + delete_extra_space
-            + multi_domain
-            + pynutil.insert("\"")
-        )
+        domain_graph = pynutil.insert("domain: \"") + server + delete_extra_space + multi_domain + pynutil.insert("\"")
         graph = (
             username
             + delete_extra_space
@@ -86,10 +80,7 @@ class ElectronicFst(GraphFst):
             delete_extra_space
             + symbols
             + delete_extra_space
-            + (
-                domain 
-                | pynini.closure(accepted_username + delete_extra_space) + accepted_username
-            )
+            + (domain | pynini.closure(accepted_username + delete_extra_space) + accepted_username)
         )
 
         protocol = (

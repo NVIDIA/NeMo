@@ -56,7 +56,7 @@ class MeasureFst(GraphFst):
         optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross(pynini.union("âm", "trừ"), "\"true\"") + delete_extra_space,
             0,
-            1
+            1,
         )
 
         unit_singular = convert_space(graph_unit_singular)
@@ -90,7 +90,7 @@ class MeasureFst(GraphFst):
         fraction_graph = (
             delete_extra_space
             + pynutil.insert("fractional_part: \"")
-            + (graph_digit| graph_half | graph_one | graph_four)
+            + (graph_digit | graph_half | graph_one | graph_four)
             + pynutil.insert("\"")
         )
 

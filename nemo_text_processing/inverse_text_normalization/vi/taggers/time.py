@@ -78,13 +78,7 @@ class TimeFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        graph_hms = (
-            graph_hm
-            + delete_extra_space
-            + pynutil.insert("seconds: \"")
-            + graph_second
-            + pynutil.insert("\"")
-        )
+        graph_hms = graph_hm + delete_extra_space + pynutil.insert("seconds: \"") + graph_second + pynutil.insert("\"")
 
         graph_ms = (
             pynutil.insert("minutes: \"")

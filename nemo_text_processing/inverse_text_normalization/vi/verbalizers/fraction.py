@@ -26,7 +26,8 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
-   
+
+
 class FractionFst(GraphFst):
     """
     Finite state transducer for verbalizing fraction,

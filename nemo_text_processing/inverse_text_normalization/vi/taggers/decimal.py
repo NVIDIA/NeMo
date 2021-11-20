@@ -52,10 +52,10 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
     optional_fraction_graph = pynini.closure(
         delete_extra_space
         + pynutil.insert("fractional_part: \"")
-        + (graph_digit| graph_half | graph_one | graph_four)
+        + (graph_digit | graph_half | graph_one | graph_four)
         + pynutil.insert("\""),
         0,
-        1
+        1,
     )
 
     res = (
@@ -110,7 +110,7 @@ class DecimalFst(GraphFst):
         optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross(pynini.union("âm", "trừ"), "\"true\"") + delete_extra_space,
             0,
-            1
+            1,
         )
 
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_decimal + pynutil.insert("\"")

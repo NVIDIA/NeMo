@@ -74,7 +74,7 @@ class CardinalFst(GraphFst):
                 graph_teen,
                 graph_ties + optional_ten + ((delete_space + last_digit) | pynutil.insert("0")),
                 zero + delete_space + (graph_digit | graph_four),
-                graph_digit
+                graph_digit,
             )
         )
 
@@ -86,7 +86,9 @@ class CardinalFst(GraphFst):
         )
 
         graph_thousands = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete(pynini.union("nghìn", "ngàn")),
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + pynutil.delete(pynini.union("nghìn", "ngàn")),
             pynutil.insert("000", weight=0.1),
         )
 
@@ -105,7 +107,9 @@ class CardinalFst(GraphFst):
             pynutil.insert("000", weight=0.1),
         )
         graph_billion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit + delete_space + pynutil.delete(pynini.union("tỉ", "tỷ")),
+            graph_hundred_component_at_least_one_none_zero_digit
+            + delete_space
+            + pynutil.delete(pynini.union("tỉ", "tỷ")),
             pynutil.insert("000", weight=0.1),
         )
 
@@ -117,11 +121,7 @@ class CardinalFst(GraphFst):
             + graph_thousands
             + delete_space
             + graph_hundred_component,
-            graph_ten_thousand
-            + delete_space
-            + graph_ten_thousand_suffix
-            + delete_space
-            + graph_hundred_component,
+            graph_ten_thousand + delete_space + graph_ten_thousand_suffix + delete_space + graph_hundred_component,
             graph_hundred_component_at_least_one_none_zero_digit
             + delete_space
             + pynutil.delete(pynini.union("nghìn", "ngàn"))

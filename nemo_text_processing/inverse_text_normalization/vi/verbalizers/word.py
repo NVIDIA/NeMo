@@ -17,7 +17,7 @@ from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
     NEMO_CHAR,
     NEMO_SIGMA,
     GraphFst,
-    delete_space
+    delete_space,
 )
 
 try:

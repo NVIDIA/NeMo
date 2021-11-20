@@ -57,7 +57,7 @@ class FractionFst(GraphFst):
         optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross(pynini.union("âm", "trừ"), "\"true\"") + delete_extra_space,
             0,
-            1
+            1,
         )
         graph = optional_graph_negative + graph
         final_graph = self.add_tokens(graph)
