@@ -36,7 +36,6 @@ class TalkNetDursModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
@@ -134,10 +133,6 @@ class TalkNetPitchModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-
-        print(cfg)
-
-        typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
@@ -247,7 +242,6 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
