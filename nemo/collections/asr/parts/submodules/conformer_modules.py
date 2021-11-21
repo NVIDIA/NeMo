@@ -270,6 +270,6 @@ class CausalConv1D(nn.Conv1d):
             # x = x[:, :, : -self.padding[0]]
             x = x[:, :, : -self._padding]
         else:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length):]
             cache[:, :, -x_length:] = input_x
         return x

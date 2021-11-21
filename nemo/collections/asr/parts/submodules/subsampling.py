@@ -61,7 +61,7 @@ class CausalConv2D(nn.Conv2d):
         else:
             cache = None
         input_x = x
-        x_length = x.size()[-1]
+        x_length = x.size()[2]
         if cache is None:
             x = F.pad(x, pad=(self._padding, self._padding, self._padding, self._padding))
         else:
