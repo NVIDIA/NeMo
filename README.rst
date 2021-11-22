@@ -36,6 +36,7 @@ Introduction
 NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), natural language processing (NLP), and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
+`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
 
 `Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
 
@@ -172,14 +173,13 @@ Megatron GPT training requires NVIDIA Apex to be installed.
 
     git clone https://github.com/NVIDIA/apex
     cd apex
+    git checkout 14ccf5986401104121d0ef286a29386904af3bb7
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 
 If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.10-py3 and then installing from GitHub.
-Note NVIDIA's PyTorch 21.10-py3 has not yet been released publicly. Please use a container with the nightly version of PyTorch installed if you are 
-unable to access the NVIDIA's PyTorch 21.10 container.
 
 .. code-block:: bash
 
@@ -190,7 +190,7 @@ unable to access the NVIDIA's PyTorch 21.10 container.
 Examples
 --------
 
-Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
+Many examples can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing
