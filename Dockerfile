@@ -46,7 +46,7 @@ RUN git clone --depth 1 --branch release/0.10 https://github.com/pytorch/audio.g
 # TODO: remove when 21.04 container is released
 # build torchtext
 WORKDIR /tmp/torchtext_build
-RUN git clone --branch v0.11.0 https://github.com/pytorch/text.git && \
+RUN git clone --branch v0.11.0-rc3 https://github.com/pytorch/text.git && \
     cd text && \
     git submodule update --init --recursive && \
     python setup.py clean install && \
