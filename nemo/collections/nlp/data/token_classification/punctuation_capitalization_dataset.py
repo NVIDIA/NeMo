@@ -89,7 +89,7 @@ class PunctuationCapitalizationDataConfigBase:
     <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/punctuation_and_capitalization.html#nemo-data-format>`_
     """
 
-    tokens_in_batch: int = None
+    tokens_in_batch: Optional[int] = None
     """Number of tokens in a batch including paddings and special tokens ([CLS], [SEP], [UNK]). This config does
     not have ``batch_size`` parameter."""
 
