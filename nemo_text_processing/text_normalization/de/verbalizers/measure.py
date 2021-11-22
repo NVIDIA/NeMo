@@ -44,9 +44,7 @@ class MeasureFst(GraphFst):
 
     def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst, deterministic: bool):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
-        optional_sign = cardinal.optional_sign
         unit = pynutil.delete("units: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\"")
-        delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
 
         graph_decimal = decimal.fst
         graph_cardinal = cardinal.fst
