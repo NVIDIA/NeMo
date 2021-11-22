@@ -226,7 +226,7 @@ class ConvSubsampling(torch.nn.Module):
         x = self.conv(x)
 
         if cache is not None:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
             cache[:, :, -x_length:] = input_x
 
         b, c, t, f = x.size()

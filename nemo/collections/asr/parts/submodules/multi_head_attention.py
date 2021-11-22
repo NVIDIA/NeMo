@@ -217,7 +217,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
         ret = self.forward_attention(v, scores, mask)
         if cache is not None:
-            cache[:, :-q_length, :] = cache[:, -(cache_length - q_length) :, :]
+            cache[:, :-q_length, :] = cache[:, -(cache_length - q_length) :, :].clone()
             cache[:, -q_length:, :] = q_input
         return ret
 

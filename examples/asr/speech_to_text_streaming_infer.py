@@ -150,7 +150,7 @@ def main():
     pre_encode_buffer_size = 5
     last_channel_buffer_size = cfg.encoder.att_context_size[0]
     last_time_buffer_size = cfg.encoder.conv_kernel_size - 1
-    cache_pre_encode = torch.zeros((1, 1, pre_encode_buffer_size,processed_signal.size(-1)), device=asr_model.device, dtype=torch.float32)
+    cache_pre_encode = torch.zeros((1, 1, pre_encode_buffer_size,processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32)
     cache_last_channel = torch.zeros((1, last_channel_buffer_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
     cache_last_time = torch.zeros((1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32)
 
