@@ -80,7 +80,7 @@ model:
     tar_metadata_file: null
     # Controls batch shuffling in tarred dataset. `tar_shuffle_n` is a size of shuffled batch buffer. Mind that this
     # shuffling only permutes batches and doesn't exchange samples between batches. Proper shuffling is turned on in
-    # usual dataset.
+    # regular dataset.
     tar_shuffle_n: 1
 
   validation_ds:

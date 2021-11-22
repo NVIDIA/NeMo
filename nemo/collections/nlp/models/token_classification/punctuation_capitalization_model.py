@@ -310,7 +310,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         Called at the end of training epoch. This method properly shuffles
         :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`.
-        Usual data loader shuffling only permutes batches.
+        Regular data loader shuffling only permutes batches.
 
         Args:
             outputs (:obj:`pytorch_lightning.utilities.types.EPOCH_OUTPUT`): an output of all training steps. It is a

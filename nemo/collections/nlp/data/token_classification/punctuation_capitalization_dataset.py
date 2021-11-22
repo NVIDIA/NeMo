@@ -78,7 +78,7 @@ class PunctuationCapitalizationDataConfigBase:
     files"""
 
     #################################################
-    # USUAL DATASET PARAMETERS
+    # REGULAR DATASET PARAMETERS
     #################################################
     text_file: Optional[str] = None
     """A path to a file with source text data without punctuation and capitalization."""
@@ -103,7 +103,7 @@ class PunctuationCapitalizationDataConfigBase:
 
     use_cache: bool = True
     """Whether to use pickled features. If pickled features does not exist, then pickled features will be created.
-    For large usual datasets, pickled features may considerably reduce time for training starting. Tokenization
+    For large regular datasets, pickled features may considerably reduce time for training starting. Tokenization
     of source sequences is not fast because sequences are split into words before tokenization. For even larger
     datasets (~4M), tarred datasets are recommended."""
 
@@ -145,7 +145,7 @@ class PunctuationCapitalizationDataConfigBase:
     # PYTORCH DATALOADER PARAMETERS
     #################################################
     shuffle: bool = True
-    """Shuffle batches every epoch. For usual training datasets, the parameter also activates batch repacking every
+    """Shuffle batches every epoch. For regular training datasets, the parameter also activates batch repacking every
     epoch. For tarred dataset, it would be only batches permutation."""
 
     drop_last: bool = False
@@ -794,7 +794,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             samples but ready batches. Number of samples in a batch is adjusted for input sequences lengths. If input
             sequences are short, then a batch will contain more samples. Before packing into batches, samples are
             sorted by number of tokens they contain. Sorting allows to reduce number of pad tokens in a batch
-            significantly. Usual PyTorch data loader shuffling will only permute batches with changing their content.
+            significantly. Regular PyTorch data loader shuffling will only permute batches with changing their content.
             Proper shuffling is achieved via calling method :meth:`repack_batches_with_shuffle` every epoch.
         pad_label (:obj:`str`, `optional`, defaults to :obj:`'O'`): pad value to use for labels. It's also the neutral
             label both for punctuation and capitalization.

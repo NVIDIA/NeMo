@@ -1096,39 +1096,52 @@ pipeline {
             mkdir -p tmp_data && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
             python punctuation_capitalization_train.py \
-            model.train_ds.ds_item=tmp_data \
-            model.validation_ds.ds_item=tmp_data \
-            model.test_ds.ds_item=tmp_data \
-            model.language_model.pretrained_model_name=distilbert-base-uncased \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
-            +model.test_ds.use_cache=false \
-            trainer.gpus=[0,1] \
-            trainer.accelerator=ddp \
-            trainer.max_epochs=1 \
-            +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+              model.train_ds.ds_item=tmp_data \
+              model.validation_ds.ds_item=tmp_data \
+              model.test_ds.ds_item=tmp_data \
+              model.language_model.pretrained_model_name=distilbert-base-uncased \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.gpus=[0,1] \
+              trainer.accelerator=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +do_testing=true && \
             mv tmp_data tmp_data2 && \
             python punctuation_capitalization_train.py \
-            model.train_ds.ds_item=tmp_data2 \
-            model.validation_ds.ds_item=tmp_data2 \
-            model.test_ds.ds_item=tmp_data2 \
-            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
-            +model.test_ds.use_cache=false \
-            trainer.gpus=[0,1] \
-            trainer.accelerator=ddp \
-            trainer.max_epochs=1 \
-            +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+              model.train_ds.ds_item=tmp_data2 \
+              model.validation_ds.ds_item=tmp_data2 \
+              model.test_ds.ds_item=tmp_data2 \
+              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.gpus=[0,1] \
+              trainer.accelerator=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
             rm -r tmp_data2 && \
             python punctuation_capitalization_evaluate.py \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
-            +model.test_ds.use_cache=false \
-            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-            model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
+            python punctuation_capitalization_train.py \
+              do_training=false \
+              +do_testing=true \
+              ~model.train_ds \
+              ~model.validation_ds \
+              model.test_ds.ds_item=tmp_data2 \
+              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              +model.test_ds.use_cache=false \
+              trainer.gpus=[0,1] \
+              trainer.accelerator=ddp \
+              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+            rm -r tmp_data2\
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }

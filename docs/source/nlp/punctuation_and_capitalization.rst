@@ -447,14 +447,14 @@ Data config
      - ``train_ds``, ``validation_ds``, ``test_ds``
 
 For convenience, items of data config are described in 4 tables:
-:ref:`common parameters for both usual and tarred datasets<common-data-parameters-label>`,
-:ref:`parameters which are applicable only to usual dataset<usual-dataset-parameters-label>`,
+:ref:`common parameters for both regular and tarred datasets<common-data-parameters-label>`,
+:ref:`parameters which are applicable only to regular dataset<regular-dataset-parameters-label>`,
 :ref:`parameters which are applicable only to tarred dataset<tarred-dataset-parameters-label>`,
 :ref:`parameters for PyTorch data loader<pytorch-dataloader-parameters-label>`.
 
 .. _common-data-parameters-label:
 
-.. list-table:: Parameters for both usual (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`) and tarred (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`) datasets
+.. list-table:: Parameters for both regular (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`) and tarred (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`) datasets
    :widths: 5 5 5 35
    :header-rows: 1
 
@@ -465,7 +465,7 @@ For convenience, items of data config are described in 4 tables:
    * - **use_tarred_dataset**
      - bool
      - ???
-     - A mandatory parameter specifying whether to use tarred dataset or usual dataset. If ``true``, then you should
+     - A mandatory parameter specifying whether to use tarred dataset or regular dataset. If ``true``, then you should
        provide ``ds_item``, ``tar_metadata_file`` parameters. Otherwise, you should provide parameters ``ds_item``,
        ``text_file``, ``labels_file``, ``tokens_in_batch`` parameters.
    * - **ds_item**
@@ -486,9 +486,9 @@ For convenience, items of data config are described in 4 tables:
        You may need this parameter if dataset directory is read-only and thus does not allow saving anything near
        dataset files.
 
-.. _usual-dataset-parameters-label:
+.. _regular-dataset-parameters-label:
 
-.. list-table:: Parameters for usual (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`) dataset
+.. list-table:: Parameters for regular (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`) dataset
    :widths: 5 5 5 30
    :header-rows: 1
 

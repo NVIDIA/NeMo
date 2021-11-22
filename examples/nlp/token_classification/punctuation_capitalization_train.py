@@ -70,7 +70,8 @@ def main(cfg: DictConfig) -> None:
     cfg = update_model_config(PunctuationCapitalizationConfig(), cfg)
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-
+    if not cfg.do_training and not cfg.do_testing:
+        raise ValueError("At least one of config parameters `do_training` and `do_testing` has to `true`.")
     if cfg.do_training:
         if cfg.model.get('train_ds') is None:
             raise ValueError('`model.train_ds` config section is required if `do_training` config item is `True`.')
@@ -103,8 +104,10 @@ def main(cfg: DictConfig) -> None:
         model.setup_training_data()
         model.setup_validation_data()
         model.setup_optimization()
-
-    trainer.fit(model)
+    if cfg.do_training:
+        trainer.fit(model)
+    if cfg.do_testing:
+        trainer.test(model)
 
 
 if __name__ == '__main__':
