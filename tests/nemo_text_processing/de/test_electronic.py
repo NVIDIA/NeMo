@@ -48,5 +48,7 @@ class TestElectronic:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, expected, test_input):
-        pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=1000)
+        pred_non_deterministic = self.normalizer_with_audio.normalize(
+            test_input, n_tagged=1000, punct_pre_process=False, punct_post_process=False
+        )
         assert expected in pred_non_deterministic

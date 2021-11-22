@@ -77,8 +77,6 @@ W26s
 The box was 25 x 7 m.
 ~4567
 4567
-~This example number 15,000 can be a very long one, and can fail to produce valid normalization for a such an easy number like 10,125 or dollar value $5349.01, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, 452.
-This example number 15,000 can be a very long one, and can fail to produce valid normalization for a such an easy number like 10,125 or dollar value $5349.01, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, and can fail to terminate, 452.
 ~$1.01
 $1.01
 ~$17.31
@@ -86,7 +84,7 @@ $17.31
 ~25.]
 25.]
 ~Francis I--test
-Francis I--test
+Francis I -- test
 ~librivox.com
 librivox.com
 ~1,000,123

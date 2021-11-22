@@ -132,7 +132,6 @@ class NormalizerWithAudio(Normalizer):
             if verbose:
                 print(text)
             return text
-
         text = pynini.escape(text)
 
         if n_tagged == -1:
