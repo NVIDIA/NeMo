@@ -55,6 +55,7 @@ def get_metrics_new_format(data_dir, model):
 
     test_ds = OmegaConf.create(
         {
+            'use_tarred_dataset': False,
             'ds_item': data_dir,
             'text_file': 'text_dev.txt',
             'labels_file': 'labels_dev.txt',
@@ -64,7 +65,6 @@ def get_metrics_new_format(data_dir, model):
             'use_cache': False,
         }
     )
-    trainer.test(model)
     model.setup_test_data(test_data_config=test_ds)
     metrics = trainer.test(model)[0]
 
