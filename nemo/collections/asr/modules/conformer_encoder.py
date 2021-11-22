@@ -24,7 +24,7 @@ from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType, ChannelType
 
 __all__ = ['ConformerEncoder']
 
@@ -90,6 +90,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
+                "cache_last_channel": NeuralType(tuple('B', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_time": NeuralType(tuple('B', 'T', 'D'), ChannelType(), optional=True),
+                "cache_pre_encode": NeuralType(tuple('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
             }
         )
 
