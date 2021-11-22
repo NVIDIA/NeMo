@@ -48,14 +48,9 @@ class MeasureFst(GraphFst):
         unit = pynutil.delete("units: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\"")
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
 
-        graph_decimal = (
-            pynutil.delete("decimal { ") + optional_sign + decimal.numbers + delete_space + pynutil.delete(" }")
-        )
-        graph_cardinal = (
-            pynutil.delete("cardinal { ") + optional_sign + cardinal.numbers + delete_space + pynutil.delete(" }")
-        )
-
-        graph_fraction = pynutil.delete("fraction { ") + fraction.graph + delete_space + pynutil.delete(" }")
+        graph_decimal = decimal.fst
+        graph_cardinal = cardinal.fst
+        graph_fraction = fraction.fst
 
         graph = (graph_cardinal | graph_decimal | graph_fraction) + pynini.accep(" ") + unit
 

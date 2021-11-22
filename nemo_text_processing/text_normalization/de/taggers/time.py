@@ -44,7 +44,7 @@ class TimeFst(GraphFst):
         final_suffix = pynutil.delete(" ") + pynutil.delete("Uhr") | pynutil.delete("uhr")
         time_zone_graph = pynini.string_file(get_abs_path("data/time/time_zone.tsv"))
 
-        labels_hour = [str(x) for x in range(0, 24)]
+        labels_hour = [str(x) for x in range(0, 25)]
         labels_minute_single = [str(x) for x in range(1, 10)]
         labels_minute_double = [str(x) for x in range(10, 60)]
 
