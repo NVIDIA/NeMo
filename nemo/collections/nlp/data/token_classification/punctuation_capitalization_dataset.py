@@ -122,7 +122,7 @@ class PunctuationCapitalizationDataConfigBase:
     verbose: bool = True
     """If ``True`` dataset instance will print progress messages and examples of acquired features."""
 
-    n_jobs: int = 0
+    n_jobs: Optional[int] = 0
     """Number of workers used for features creation (tokenization, label encoding, and clipping). If 0, then
     multiprocessing is not used; if ``None``, then n_jobs is equal to the number of CPU cores.
     There can be weird deadlocking errors with some tokenizers (e.g. SentencePiece) if ``n_jobs`` is greater than zero.
