@@ -181,7 +181,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         # assume key and values are the same
         if cache is not None:
-            if hasattr(self, 'cache_id'):
+            if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
             q_length = query.size()[1]
             cache_length = cache.size()[1]

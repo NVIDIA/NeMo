@@ -72,10 +72,10 @@ def set_streaming_mode(asr_model):
     last_time_num = 0
     for m in asr_model.encoder.layers.modules():
         if type(m) == RelPositionMultiHeadAttention:
-            m.cache_id = last_channel_num
+            m._cache_id = last_channel_num
             last_channel_num += 1
         if type(m) == ConformerConvolution:
-            m.cache_id = last_time_num
+            m._cache_id = last_time_num
             last_time_num += 1
 
     return last_channel_num, last_time_num

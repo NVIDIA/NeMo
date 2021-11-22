@@ -74,7 +74,7 @@ class CausalConv2D(nn.Conv2d):
         if cache is None:
             x = F.pad(x, pad=(self._left_padding, self._right_padding, self._left_padding, self._right_padding))
         else:
-            if hasattr(self, 'cache_id'):
+            if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
 
             cache_length = cache.size()[-2]
@@ -215,7 +215,7 @@ class ConvSubsampling(torch.nn.Module):
         input_x = x
         # x = self.conv((x, cache))
         if cache is not None:
-            if hasattr(self, 'cache_id'):
+            if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
 
             cache_length = cache.size()[-2]
@@ -227,7 +227,7 @@ class ConvSubsampling(torch.nn.Module):
 
         if cache is not None:
             cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
-            cache[:, :, -x_length:] = input_x
+            cache[:, :, -x_length:, :] = input_x
 
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
