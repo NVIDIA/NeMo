@@ -21,6 +21,8 @@ from typing import List, Optional, Union
 
 import wrapt
 
+import nemo
+from nemo import constants
 from nemo.utils import logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
@@ -552,3 +554,22 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optiona
 
     msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
     return None, msg
+
+
+def resolve_cache_dir() -> Path:
+    """
+    Utility method to resolve a cache directory for NeMo that can be overriden by an environment variable.
+
+    Example:
+        NEMO_CACHE_DIR="~/nemo_cache_dir/" python nemo_example_script.py
+
+    Returns:
+        A Path object, resolved to the absolute path of the cache directory. If no override is provided,
+        uses an inbuilt default which adapts to nemo versions strings.
+    """
+    override_dir = os.environ.get(constants.NEMO_ENV_CACHE_DIR, "")
+    if override_dir == "":
+        path = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}')
+    else:
+        path = Path(override_dir).resolve()
+    return path
