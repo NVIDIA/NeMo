@@ -95,9 +95,9 @@ def main(cfg: DictConfig) -> None:
         model.update_config(
             class_labels=cfg.model.class_labels,
             common_dataset_parameters=cfg.model.common_dataset_parameters,
-            train_ds=cfg.model.get('train_ds'),
-            validation_ds=cfg.model.get('validation_ds'),
-            test_ds=cfg.model.get('test_ds'),
+            train_ds=cfg.model.get('train_ds') if cfg.do_training else None,
+            validation_ds=cfg.model.get('validation_ds') if cfg.do_training else None,
+            test_ds=cfg.model.get('test_ds') if cfg.do_testing else None,
             optim=cfg.model.optim,
         )
         model.set_trainer(trainer)
