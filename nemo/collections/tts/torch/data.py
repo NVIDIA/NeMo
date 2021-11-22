@@ -362,7 +362,9 @@ class TTSDataset(Dataset):
             log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
 
             if self.use_beta_binomial_interpolator:
-                duration_prior = torch.from_numpy(self.beta_binomial_interpolator(log_mel_length.item(), text_length))
+                duration_prior = torch.from_numpy(
+                    self.beta_binomial_interpolator(log_mel_length.item(), text_length.item())
+                )
             else:
                 prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
 
