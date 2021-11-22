@@ -176,7 +176,12 @@ Megatron GPT training requires NVIDIA Apex to be installed.
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
+To build a nemo container with Dockerfile from a branch, please run 
 
+.. code-block:: bash
+    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
+    
+    
 If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.10-py3 and then installing from GitHub.
 Note NVIDIA's PyTorch 21.10-py3 has not yet been released publicly. Please use a container with the nightly version of PyTorch installed if you are 
 unable to access the NVIDIA's PyTorch 21.10 container.
