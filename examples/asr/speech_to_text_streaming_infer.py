@@ -34,6 +34,13 @@ from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
 
+from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    MultiHeadAttention,
+    RelPositionMultiHeadAttention,
+)
+
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerConvolution
+
 # can_gpu = torch.cuda.is_available()
 
 
@@ -58,6 +65,20 @@ from nemo.utils import logging
 #
 #     wer = word_error_rate(hypotheses=hyps, references=refs)
 #     return hyps, refs, wer
+
+
+def set_streaming_mode(asr_model):
+    last_channel_num = 0
+    last_time_num = 0
+    for m in asr_model.encoder.layers.modules():
+        if type(m) == RelPositionMultiHeadAttention:
+            m.cache_id = last_channel_num
+            last_channel_num += 1
+        if type(m) == ConformerConvolution:
+            m.cache_id = last_time_num
+            last_time_num += 1
+
+    return last_channel_num, last_time_num
 
 
 def model_process(
@@ -107,6 +128,7 @@ def main():
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
+    last_channel_num, last_time_num = set_streaming_mode(asr_model)
     asr_model = asr_model.to("cuda")
 
     cfg = copy.deepcopy(asr_model._cfg)
@@ -151,8 +173,8 @@ def main():
     last_channel_buffer_size = cfg.encoder.att_context_size[0]
     last_time_buffer_size = cfg.encoder.conv_kernel_size - 1
     cache_pre_encode = torch.zeros((1, 1, pre_encode_buffer_size,processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32)
-    cache_last_channel = torch.zeros((1, last_channel_buffer_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
-    cache_last_time = torch.zeros((1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32)
+    cache_last_channel = torch.zeros((last_channel_num, 1, last_channel_buffer_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
+    cache_last_time = torch.zeros((last_time_num, 1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32)
 
     asr_out_stream = model_process(
         asr_model=asr_model,
@@ -164,7 +186,7 @@ def main():
     )
 
 
-    # print(asr_out)
+    print(asr_out_stream)
     # asr_model = asr_model.to(asr_model.device)
 
     # with open(args.test_manifest, "r") as mfst_f:
