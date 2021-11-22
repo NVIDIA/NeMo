@@ -23,7 +23,7 @@ from typing import List, Tuple
 import torch
 from torch import nn
 
-from nemo.collections.asr.models.wav2vec.wav2vec_config import Wav2VecConvExtractorMode, Wav2VecTransformerConfig
+from nemo.collections.asr.models.configs.wav2vec_config import Wav2VecConvExtractorMode, Wav2VecTransformerConfig
 
 
 class TransposeLast(torch.nn.Module):
