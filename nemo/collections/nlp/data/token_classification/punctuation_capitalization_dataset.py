@@ -999,8 +999,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         features_pkl = cache_dir / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
             text_file.stem,
             self.tokenizer.name,
-            str(max_seq_length),
-            str(vocab_size),
+            max_seq_length,
+            vocab_size,
             f'num_samples{num_samples}' if num_samples > 0 else 'all_samples',
         )
         return features_pkl

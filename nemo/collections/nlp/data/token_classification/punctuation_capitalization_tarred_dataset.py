@@ -151,9 +151,9 @@ def process_fragment(
 ) -> None:
     tokenizer = get_tokenizer(
         tokenizer_name,
-        tokenizer_model=str(tokenizer_model),
-        vocab_file=str(vocab_file),
-        merges_file=str(merges_file),
+        tokenizer_model=None if tokenizer_model is None else str(tokenizer_model),
+        vocab_file=None if vocab_file is None else str(vocab_file),
+        merges_file=None if merges_file is None else str(merges_file),
         special_tokens=special_tokens,
         use_fast=use_fast_tokenizer,
     )
