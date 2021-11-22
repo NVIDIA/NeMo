@@ -52,7 +52,7 @@ class MoneyFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
-        graph_decimal_final = decimal.final_graph_wo_negative
+        graph_decimal_final = decimal.fst
 
         maj_singular_labels = load_labels(get_abs_path("data/money/currency.tsv"))
         maj_singular = pynini.string_map(maj_singular_labels)
@@ -89,9 +89,12 @@ class MoneyFst(GraphFst):
 
         graph = (graph_integer_only + optional_delete_fractional_zeros) | graph_decimal
 
-        # allow two digit decimal to be verbalized as cardinal instead digit by digit
-        # ,01 ,1 ,10
+        # remove trailing zeros of non zero number in the first 2 digits and fill up to 2 digits
+        # e.g. 2000 -> 20, 0200->02, 01 -> 01, 10 -> 10
+        # not accepted: 002, 00, 0,
         two_digits_fractional_part = (
+            pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(pynutil.delete("0"))
+        ) @ (
             (pynutil.delete("0") + (NEMO_DIGIT - "0"))
             | ((NEMO_DIGIT - "0") + pynutil.insert("0"))
             | ((NEMO_DIGIT - "0") + NEMO_DIGIT)
@@ -123,11 +126,10 @@ class MoneyFst(GraphFst):
                 graph_fractional_one + insert_space + pynutil.insert(curr_symbol) @ graph_min_singular
             )
 
-            decimal_graph_with_minor_curr = (
-                pynini.closure(integer_plus_maj + pynini.cross(",", " "), 0, 1) + fractional_plus_min
-            )
+            decimal_graph_with_minor_curr = integer_plus_maj + pynini.cross(",", " ") + fractional_plus_min
             decimal_graph_with_minor_curr |= (
-                pynini.closure(integer_plus_maj + pynini.cross(",", " "), 0, 1)
+                integer_plus_maj
+                + pynini.cross(",", " ")
                 + pynutil.insert("fractional_part: \"")
                 + two_digits_fractional_part @ cardinal.two_digit_non_zero
                 + pynutil.insert("\"")

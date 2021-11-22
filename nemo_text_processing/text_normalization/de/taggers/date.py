@@ -59,6 +59,8 @@ def get_year_graph(leading_zero: 'pynini.FstLike', cardinal: GraphFst) -> 'pynin
         + pynini.closure(hundred + insert_space, 0, 1)
         + graph_two_digit
     )
+    # for 20**
+    graph_double_double |= pynini.accep("20") @ graph_two_digit + insert_space + graph_two_digit
     graph = (
         graph_double_double
         | (pynini.accep("1") + NEMO_DIGIT) @ graph_two_digit + insert_space + pynutil.delete("00") + hundred
@@ -83,7 +85,6 @@ class DateFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
-        # DE format: DD-MM-YYYY or DD-MM-YY
         month_abbr_graph = load_labels(get_abs_path("data/months/abbr_to_name.tsv"))
         number_to_month = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         month_graph = pynini.union(*[x[1] for x in month_abbr_graph]).optimize()
@@ -95,8 +96,6 @@ class DateFst(GraphFst):
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
         # jan.-> januar, Jan-> januar, januar-> januar
         month_graph |= month_abbr_graph
-
-        separators = [".", "/"]
 
         numbers = cardinal.graph_hundred_component_at_least_one_none_zero_digit
         leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
@@ -126,13 +125,20 @@ class DateFst(GraphFst):
             + month_name
             + pynini.closure(pynini.accep(" ") + year_only, 0, 1)
         )
+
+        separators = ["."]
         for sep in separators:
             year_optional = pynini.closure(pynini.cross(sep, " ") + year_only, 0, 1)
             new_graph = day + pynini.cross(sep, " ") + month_number + year_optional
             graph_dmy |= new_graph
 
+        dash = "-"
+        day_optional = pynini.closure(pynini.cross(dash, " ") + day, 0, 1)
+        graph_ymd = year_only + pynini.cross(dash, " ") + month_number + day_optional
+
         final_graph = graph_dmy + pynutil.insert(" preserve_order: true")
         final_graph |= year_only
+        final_graph |= graph_ymd
 
         self.final_graph = final_graph.optimize()
         self.fst = self.add_tokens(self.final_graph).optimize()

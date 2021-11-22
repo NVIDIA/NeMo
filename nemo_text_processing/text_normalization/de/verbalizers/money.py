@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_preserve_order
 
 try:
     import pynini
@@ -35,23 +35,18 @@ class MoneyFst(GraphFst):
         money { currency_maj: "pfund" integer_part: "null" fractional_part: "null eins" quantity: "million"} -> "null komma null eins million pfund"
 
     Args:
+        decimal: GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="verbalize", deterministic=deterministic)
 
         keep_space = pynini.accep(" ")
 
         maj = pynutil.delete("currency_maj: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         min = pynutil.delete("currency_min: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-
-        preserve_order = pynini.closure(
-            pynutil.delete(" preserve_order: true")
-            | (pynutil.delete(" field_order: \"") + NEMO_NOT_QUOTE + pynutil.delete("\"")),
-            1,
-        )
 
         fractional_part = (
             pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
@@ -70,14 +65,14 @@ class MoneyFst(GraphFst):
             + maj
             + keep_space
             + (fractional_part | (optional_add_and + fractional_part + keep_space + min))
-            + preserve_order
+            + delete_preserve_order
         )
 
         # *** komma *** currency_maj
-        graph_decimal = integer_part + keep_space + pynutil.insert("komma ") + fractional_part + keep_space + maj
+        graph_decimal = decimal.fst + keep_space + maj
 
         # *** current_min
-        graph_minor = fractional_part + keep_space + min + preserve_order
+        graph_minor = fractional_part + keep_space + min + delete_preserve_order
 
         graph = graph_integer | graph_integer_with_minor | graph_decimal | graph_minor
 

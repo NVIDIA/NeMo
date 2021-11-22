@@ -58,6 +58,7 @@ class DateFst(GraphFst):
 
         # day month year
         graph_dmy = day + pynini.accep(" ") + final_month + pynini.closure(pynini.accep(" ") + year, 0, 1)
+        graph_dmy |= final_month + pynini.accep(" ") + year
 
         final_graph = graph_dmy + delete_preserve_order
         final_graph |= year

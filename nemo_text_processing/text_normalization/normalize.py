@@ -271,7 +271,7 @@ class Normalizer:
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de", "ru"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )

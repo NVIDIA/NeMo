@@ -92,7 +92,7 @@ class CardinalFst(GraphFst):
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
 
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
-        separator = "."
+        # separator = "."
 
         def tens_no_zero():
             return (
