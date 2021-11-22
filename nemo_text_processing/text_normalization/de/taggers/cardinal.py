@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Adapted from https://github.com/google/TextNormalizationCoveringGrammars
-# Russian minimally supervised number grammar.
-
 from collections import defaultdict
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
