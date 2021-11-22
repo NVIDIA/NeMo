@@ -50,16 +50,17 @@ For more details about the config files and different ways of model restoration,
 
 To run this script and train the model from scratch, use:
     python punctuation_and_capitalization_train.py \
-           model.dataset.data_dir=<PATH_TO_DATA_DIR>
+        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
+        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
 
 To use one of the pretrained versions of the model and finetune it, run:
-    python punctuation_and_capitalization.py \
-    pretrained_model=punctuation_en_bert \
-    model.dataset.data_dir=<PATH_TO_DATA_DIR>
+    python punctuation_and_capitalization_train.py \
+        pretrained_model=punctuation_en_bert \
+        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
+        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
     
-    <PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
     pretrained_model   - pretrained PunctuationCapitalization model from list_available_models() or 
-                     path to a .nemo file, for example: punctuation_en_bert or model.nemo
+        path to a .nemo file, for example: punctuation_en_bert or model.nemo
 
 """
 

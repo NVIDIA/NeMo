@@ -322,12 +322,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         if shuffle:
             if isinstance(self.train_dataloader().dataset, BertPunctuationCapitalizationDataset):
                 self.train_dataloader().dataset.repack_batches_with_shuffle()
-            else:
-                logging.warning(
-                    f"Shuffling every epoch is not supported for datasets of type "
-                    f"{type(self.train_dataloader().dataset)} only for "
-                    f"`{BertPunctuationCapitalizationDataset.__name__}`"
-                )
 
     def _multi_eval_epoch_end(self, mode: str, dataloader_idx: int) -> Dict[str, Dict[str, torch.Tensor]]:
         loss = self.metrics[mode]['loss'][dataloader_idx].compute()

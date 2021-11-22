@@ -44,10 +44,9 @@ For more details about the config files and different ways of model restoration,
 *** Model Evaluation ***
 
     python punctuation_capitalization_evaluate.py \
-    model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
-    pretrained_model=punctuation_en_distilbert 
+        model.test_ds.ds_item=<PATH_TO_TEST_DIR>  \
+        pretrained_model=punctuation_en_distilbert
 
-<PATH_TO_DATA_DIR> - a directory that contains test_ds.text_file and test_ds.labels_file (see the config)
 pretrained_model   - pretrained PunctuationCapitalizationModel model from list_available_models() or 
                      path to a .nemo file, for example: punctuation_en_bert or your_model.nemo
 

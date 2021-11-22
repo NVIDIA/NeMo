@@ -27,6 +27,40 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 )
 
 
+"""
+A tarred dataset allows to train on large amounts without storing it all into memory simultaneously. In case of
+punctuation and capitalization model, tarred dataset is a directory which contains metadata file, tar files with
+batches, punct_label_vocab.csv and capit_label_vocab.csv files.
+
+A metadata file is a JSON file with 4 fields: 'num_batches', 'tar_files', 'punct_label_vocab_file',
+'capit_label_vocab_file'. 'num_batches' (int) is a total number of batches in tarred dataset. 'tar_files' is a list of
+paths to tar files relative to directory containing the metadata file. 'punct_label_vocab_file' and
+'capit_label_vocab_file' are paths to .csv files containing all unique punctuation and capitalization labels. Each
+label in these files is written in a separate line. The first labels in both files are equal and serve for padding and
+as neutral labels.
+
+Every tar file contains objects written using `webdataset.TarWriter`. Each object is a dictionary with two items:
+'__key__' and 'batch.pyd'. '__key__' is a name of a batch and 'batch.pyd' is a pickled dictionary which contains
+'input_ids', 'subtokens_mask', 'punct_labels', 'capit_labels'. 'input_ids' is an array containing ids of source tokens,
+'subtokens_mask' is a boolean array showing first tokens in words, 'punct_labels' and 'capit_labels' are arrays with
+ids of labels. Metadata file should be passed to constructor of
+`nemo.collections.nlp.data.token_classification.PunctuationCapitalizationTarredDataset` and the instance of 
+the class will handle iteration and constructing masks and token types for BERT model.
+
+Example of usage:
+
+python create_punctuation_capitalization_tarred_dataset.py \
+  --text <PATH_TO_TEXT_FILE> \
+  --labels <PATH_TO_LABELS_FILE> \
+  --output_dir <PATH_TO_OUTPUT_DIR> \
+  --lines_per_dataset_fragment 10000 \
+  --tokens_in_batch 8000 \
+  --num_batches_per_tarfile 5 \
+  --tokenizer_name char \
+  --vocab_file <PATH_TO_CHAR_TOKENIZER_VOCABULARY>
+"""
+
+
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
