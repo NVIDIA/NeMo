@@ -20,12 +20,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     NEMO_SPACE,
     SINGULAR_TO_PLURAL,
+    TO_LOWER,
     GraphFst,
     convert_space,
     delete_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
 
 try:
@@ -60,6 +61,8 @@ class MeasureFst(GraphFst):
             cardinal_graph |= cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1), graph_unit)
+
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
