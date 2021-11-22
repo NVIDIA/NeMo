@@ -50,7 +50,7 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
-    resume_from_checkpoint = trainer.resume_from_checkpoint
+    resume_from_checkpoint = trainer.checkpoint_connector.resume_from_checkpoint_fit_path
     if resume_from_checkpoint is not None:
         # inject mp_rank into resume_from_checkpoint
         if cfg.model.tensor_model_parallel_size is not None and cfg.model.tensor_model_parallel_size > 1:
