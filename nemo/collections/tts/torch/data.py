@@ -24,7 +24,11 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution, general_padding
+from nemo.collections.tts.torch.helpers import (
+    BetaBinomialInterpolator,
+    beta_binomial_prior_distribution,
+    general_padding,
+)
 from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
     MAIN_DATA_TYPES,
@@ -107,6 +111,7 @@ class TTSDataset(Dataset):
         Keyword Args:
             durs_file (Optional[str]): String path to pickled durations location.
             durs_type (Optional[str]): Type of durations. Currently supported only "aligned-based".
+            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator. Defaults to False.
             pitch_fmin (Optional[float]): The fmin input to librosa.pyin. Defaults to librosa.note_to_hz('C2').
             pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
             pitch_avg (Optional[float]): The mean that we use to normalize the pitch.
@@ -287,7 +292,10 @@ class TTSDataset(Dataset):
                 )
 
     def add_duration_prior(self, **kwargs):
-        pass
+        self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
+
+        if self.use_beta_binomial_interpolator:
+            self.beta_binomial_interpolator = BetaBinomialInterpolator()
 
     def add_pitch(self, **kwargs):
         self.pitch_fmin = kwargs.pop("pitch_fmin", librosa.note_to_hz('C2'))
@@ -351,15 +359,19 @@ class TTSDataset(Dataset):
 
         duration_prior = None
         if DurationPrior in self.sup_data_types_set:
-            prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
+            log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
 
-            if prior_path.exists():
-                duration_prior = torch.load(prior_path)
+            if self.use_beta_binomial_interpolator:
+                duration_prior = torch.from_numpy(self.beta_binomial_interpolator(log_mel_length.item(), text_length))
             else:
-                log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
-                duration_prior = beta_binomial_prior_distribution(text_length, log_mel_length)
-                duration_prior = torch.from_numpy(duration_prior)
-                torch.save(duration_prior, prior_path)
+                prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
+
+                if prior_path.exists():
+                    duration_prior = torch.load(prior_path)
+                else:
+                    duration_prior = beta_binomial_prior_distribution(text_length, log_mel_length)
+                    duration_prior = torch.from_numpy(duration_prior)
+                    torch.save(duration_prior, prior_path)
 
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
