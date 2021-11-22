@@ -120,6 +120,44 @@ def getMinimumConnection(mat, max_N, n_list):
 
     return affinity_mat, p_value
 
+def getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data):
+    """
+    Calculates cosine similarity values among speaker embeddings.
+    """
+    sim_d = cosine_similarity(emb)
+    scaler.fit(sim_d)
+    sim_d = scaler.transform(sim_d)
+    # fusion_weight = np.array([0.1, 0.2, 0.3, 0.4])
+    # fusion_weight = np.array([0.333, 0.333, 0.333, 0.333])
+    # fusion_weight = np.array([0.4, 0.3, 0.2, 0.1])
+    # fusion_weight = np.array([0.2, 0.3, 0.5])
+    # fusion_weight = np.array([0.1, 0.3, 0.6])
+    fusion_weight = np.array([0.333, 0.333, 0.333])
+    # fusion_weight = np.array([0.5, 0.3, 0.2])
+    # fusion_weight = np.array([0.5, 0.4, 0.1])
+    base_scale_idx = max(list(uniq_multi_scale_data.keys()))
+    base_scale_mapping_argmat = uniq_multi_scale_data[base_scale_idx]['mapping']
+    base_scale_emb = np.array(uniq_multi_scale_data[base_scale_idx]['embeddings'])
+    base_scale_score_mat = getCosAffinityMatrix(base_scale_emb)
+    score_mat_list, repeated_mat_list = [], []
+    for scale_idx in sorted(uniq_multi_scale_data.keys()):
+        mapping_argmat = uniq_multi_scale_data[scale_idx]['mapping']
+        count_dict = dict(Counter(mapping_argmat))
+        repeat_list = [ v for k, v in count_dict.items()]
+        score_mat = getCosAffinityMatrix(uniq_multi_scale_data[scale_idx]['embeddings'])
+        score_mat_list.append(score_mat)
+        try:
+            repeated_mat = np.repeat(np.repeat(score_mat, repeat_list, axis=0), repeat_list, axis=1)
+        except:
+            # repeated_mat = repeated_mat
+            pass
+        
+        repeated_mat_list.append(repeated_mat)
+
+    fused_sim_d = np.average(np.array(repeated_mat_list), weights=fusion_weight, axis=0)
+    
+    return fused_sim_d, base_scale_emb
+
 
 def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     """
@@ -500,6 +538,7 @@ def COSclustering(
     max_rp_threshold=0.25,
     sparse_search_volume=30,
     fixed_thres=None,
+    uniq_multi_scale_data=None,
     cuda=False,
 ):
     """
@@ -554,7 +593,11 @@ def COSclustering(
     if oracle_num_speakers:
         max_num_speaker = oracle_num_speakers
 
-    mat = getCosAffinityMatrix(emb)
+    if uniq_multi_scale_data:
+        mat, emb = getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data)
+    else:
+        mat = getCosAffinityMatrix(emb)
+
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,

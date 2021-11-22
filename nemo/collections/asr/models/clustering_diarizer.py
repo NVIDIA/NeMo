@@ -36,6 +36,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     perform_clustering,
     score_labels,
     segments_manifest_to_subsegments_manifest,
+    get_multiscale_time_stamps,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.vad_utils import (
@@ -260,16 +261,19 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
-    def _run_segmentation(self):
-
-        self.subsegments_manifest_path = os.path.join(self._speaker_dir, 'subsegments.json')
+    def _run_segmentation(self, window=None, shift=None, scale_tag=''):
+        
+        _window = self._speaker_params.window_length_in_sec if window is None else window
+        _shift = self._speaker_params.shift_length_in_sec if shift is None else shift
+        self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             subsegments_manifest_file=self.subsegments_manifest_path,
-            window=self._speaker_params.window_length_in_sec,
-            shift=self._speaker_params.shift_length_in_sec,
+            window=_window,
+            shift=_shift,
         )
-
+            # window=self._speaker_params.window_length_in_sec,
+            # shift=self._speaker_params.shift_length_in_sec,
         return None
 
     def _perform_speech_activity_detection(self):
@@ -310,7 +314,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
             )
 
-    def _extract_embeddings(self, manifest_file):
+    def _extract_embeddings(self, manifest_file, scale_tag=''):
         """
         This method extracts speaker embeddings from segments passed through manifest_file
         Optionally you may save the intermediate speaker embeddings for debugging or any use. 
@@ -354,9 +358,76 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             prefix = get_uniqname_from_filepath(manifest_file)
 
             name = os.path.join(embedding_dir, prefix)
-            self._embeddings_file = name + '_embeddings.pkl'
+            self._embeddings_file = name + f'_embeddings{scale_tag}.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
+    
+    def _extract_multiscale_embeddings(self):
+        multi_scale_dict = {0:(1.5, 0.75), 1:(1.0, 0.5), 2:(0.5, 0.25)}
+        # multi_scale_dict = {0:(3.0, 1.0), 1:(1.5, 0.75), 2:(1.0, 0.5), 3:(0.5, 0.25)}
+
+        for scale_idx, (time_length, shift_length) in multi_scale_dict.items():
+            out_embeddings = defaultdict(list) 
+            logging.info(f"Extracting multiscale embeddings for Diarization: scale-{scale_idx}")
+
+            scale_subsegments_manifest_path = self.subsegments_manifest_path.split('.')[0] + f'_scale_{scale_idx}.json'
+            multiscale_manifest_file = segments_manifest_to_subsegments_manifest(
+                segments_manifest_file=self._speaker_manifest_path,
+                subsegments_manifest_file = scale_subsegments_manifest_path,
+                window=time_length,
+                shift=shift_length,
+            )
+
+            spk_dl_config = {
+                'manifest_filepath': multiscale_manifest_file,
+                'sample_rate': self._cfg.sample_rate,
+                'batch_size': self._cfg.get('batch_size', 32),
+                'time_length': time_length,
+                'shift_length': shift_length,
+                'trim_silence': False,
+                'embedding_dir': self._speaker_dir,
+                'labels': None,
+                'task': "diarization",
+                'num_workers': self._cfg.num_workers,
+            }
+            self._setup_spkr_test_data_mod(multiscale_manifest_file, spk_dl_config)
+            self._speaker_model = self._speaker_model.to(self._device)
+            self._speaker_model.eval()
+
+            all_embs = []
+            for test_batch in tqdm(self._speaker_model.test_dataloader()):
+                test_batch = [x.to(self._device) for x in test_batch]
+                audio_signal, audio_signal_len, labels, slices = test_batch
+                with autocast():
+                    _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+                    emb_shape = embs.shape[-1]
+                    embs = embs.view(-1, emb_shape)
+                    all_embs.extend(embs.cpu().detach().numpy())
+                del test_batch
+
+            with open(multiscale_manifest_file, 'r') as manifest:
+                for i, line in enumerate(manifest.readlines()):
+                    line = line.strip()
+                    dic = json.loads(line)
+                    uniq_name = os.path.basename(dic['audio_filepath']).rsplit('.', 1)[0]
+                    # if uniq_name  not in out_embeddings_all_scales:
+                        # out_embeddings_all_scales[uniq_name] = defaultdict(list)
+                    # if scale_idx not in out_embeddings_all_scales[uniq_name]:
+                        # out_embeddings_all_scales[uniq_name][scale_idx] = []
+                    # out_embeddings_all_scales[uniq_name][scale_idx].extend([all_embs[i]])
+                    out_embeddings[uniq_name].extend([all_embs[i]])
+
+            embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
+            if not os.path.exists(embedding_dir):
+                os.makedirs(embedding_dir, exist_ok=True)
+
+            prefix = multiscale_manifest_file.split('/')[-1].rsplit('.', 1)[-2]
+            name = os.path.join(embedding_dir, prefix)
+            self._multiscale_embeddings_file = name + f'_embeddings.pkl'
+            pkl.dump(out_embeddings, open(self._multiscale_embeddings_file, 'wb'))
+            logging.info("Saved embedding files to {}".format(embedding_dir))
+
+        return multi_scale_dict
 
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
         with open(manifest_filepath, 'w') as fp:
@@ -391,26 +462,46 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 raise ValueError("paths2audio_files must be of type list of paths to file containing audio file")
 
         self.AUDIO_RTTM_MAP = audio_rttm_map(self._diarizer_params.manifest_filepath)
-
-        # Speech Activity Detection
-        self._perform_speech_activity_detection()
-
-        # Segmentation
-        self._run_segmentation()
-
-        # Embedding Extraction
-        self._extract_embeddings(self.subsegments_manifest_path)
-
+        
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
+        # Speech Activity Detection
+        self._perform_speech_activity_detection()
+        
         # Clustering
+        multi_scale_dict = {0:(1.5, 0.75), 1:(1.0, 0.5), 2:(0.5, 0.25)}
+        # multi_scale_dict = {0:(1.5, 0.75), 1:(1.2, 0.6), 2:(1.0, 0.5)}
+        # multi_scale_dict = {0:(1.5, 0.75), 1:(1.0, 0.5), 2:(0.5, 0.2)}
+        # multi_scale_dict = {0:(3.0, 1.0), 1:(1.5, 0.75), 2:(1.0, 0.5), 3:(0.5, 0.25)}
+        if multi_scale_dict:
+            multi_scale_emb_ts_spkrs = dict()
+            for scale_idx, (time_length, shift_length) in multi_scale_dict.items():
+                out_embeddings = defaultdict(list) 
+                self._run_segmentation(window=time_length, shift=shift_length, scale_tag=f'_scale{scale_idx}')
+                logging.info(f"Extracting multiscale embeddings for Diarization: scale-{scale_idx}, {self.subsegments_manifest_path}")
+                self._extract_embeddings(self.subsegments_manifest_path, scale_tag=f'_scale{scale_idx}')
+                multi_scale_emb_ts_spkrs[scale_idx] = [self.embeddings, self.time_stamps]
+            self.embeddings, self.time_stamps, multi_scale_data = get_multiscale_time_stamps(multi_scale_emb_ts_spkrs, multi_scale_dict)
+        else:
+            # embeddings, time_stamps, speakers = get_time_stamps(embeddings_file, reco2num, manifest_path)
+            # all_reference, all_hypothesis = perform_clustering(
+                # embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
+            # )
+            # Segmentation
+            self._run_segmentation()
+
+            # Embedding Extraction
+            self._extract_embeddings(self.subsegments_manifest_path)
+            multi_scale_data = None
+            
         all_reference, all_hypothesis = perform_clustering(
             embeddings=self.embeddings,
             time_stamps=self.time_stamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,
+            multi_scale_data=multi_scale_data,
         )
 
         # TODO Resegmentation -> Coming Soon

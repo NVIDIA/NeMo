@@ -17,6 +17,7 @@ import shutil
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASR_TIMESTAMPS
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -47,36 +48,30 @@ def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
-    asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer.asr.parameters)
+    asr_timestamp_decoder = ASR_TIMESTAMPS(**cfg.diarizer)
+    
+    asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer)
+
     asr_diar_offline.root_path = cfg.diarizer.out_dir
+    
     shutil.rmtree(asr_diar_offline.root_path, ignore_errors=True)
 
-    AUDIO_RTTM_MAP = audio_rttm_map(cfg.diarizer.manifest_filepath)
-    asr_diar_offline.AUDIO_RTTM_MAP = AUDIO_RTTM_MAP
-    asr_model = asr_diar_offline.set_asr_model(cfg.diarizer.asr.model_path)
+    asr_model = asr_timestamp_decoder.set_asr_model(cfg.diarizer.asr.model_path)
 
-    word_list, word_ts_list = asr_diar_offline.run_ASR(asr_model)
+    word_hyp, word_ts_hyp = asr_timestamp_decoder.run_ASR(asr_model)
 
-    score = asr_diar_offline.run_diarization(cfg, word_ts_list,)
-    total_riva_dict = asr_diar_offline.write_json_and_transcript(word_list, word_ts_list)
+    diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_hyp)
+    
+    total_riva_dict = asr_diar_offline.write_json_and_transcript(diar_hyp, word_hyp, word_ts_hyp)
 
-    if score is not None:
-        metric, mapping_dict = score
-        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict)
+    if diar_score is not None:
+        metric, mapping_dict = diar_score
+        
+        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, total_riva_dict)
 
         WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict)
-        effective_wder = asr_diar_offline.get_effective_WDER(DER_result_dict, WDER_dict)
-
-        logging.info(
-            f"\nDER  : {DER_result_dict['total']['DER']:.4f} \
-            \nFA   : {DER_result_dict['total']['FA']:.4f} \
-            \nMISS : {DER_result_dict['total']['MISS']:.4f} \
-            \nCER  : {DER_result_dict['total']['CER']:.4f} \
-            \nWDER : {WDER_dict['total']:.4f} \
-            \neffective WDER : {effective_wder:.4f} \
-            \nspk_counting_acc : {DER_result_dict['total']['spk_counting_acc']:.4f}"
-        )
-
+    
+        asr_diar_offline.print_errors(DER_result_dict, WDER_dict)
 
 if __name__ == '__main__':
     main()
