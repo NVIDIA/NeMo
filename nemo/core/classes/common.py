@@ -486,7 +486,7 @@ class Serialization(ABC):
             # target class resolution was unsuccessful, fall back to current `cls`
             if instance is None:
                 if imported_cls_tb is not None:
-                    logging.debug(
+                    logging.info(
                         f"Model instantiation from target class {target_cls} failed with following error.\n"
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
