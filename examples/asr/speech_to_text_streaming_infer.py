@@ -39,7 +39,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 
-from nemo.collections.asr.parts.submodules.conformer_modules import ConformerConvolution
+from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
 
 # can_gpu = torch.cuda.is_available()
 
@@ -74,7 +74,7 @@ def set_streaming_mode(asr_model):
         if type(m) == RelPositionMultiHeadAttention:
             m._cache_id = last_channel_num
             last_channel_num += 1
-        if type(m) == ConformerConvolution:
+        if type(m) == CausalConv1D:
             m._cache_id = last_time_num
             last_time_num += 1
 
