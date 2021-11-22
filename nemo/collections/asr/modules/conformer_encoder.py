@@ -90,9 +90,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(tuple('B', 'D', 'T'), ChannelType(), optional=True),
-                "cache_last_time": NeuralType(tuple('B', 'T', 'D'), ChannelType(), optional=True),
-                "cache_pre_encode": NeuralType(tuple('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
+                "cache_last_channel": NeuralType(('B', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_time": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True),
+                "cache_pre_encode": NeuralType(('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
             }
         )
 
