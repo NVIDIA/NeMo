@@ -48,7 +48,7 @@ model:
   common_dataset_parameters:
     pad_label: 'O'
     ignore_extra_tokens: false
-    ignore_start_end: false
+    ignore_start_end: true
     punct_label_ids: null
     capit_label_ids: null
     label_vocab_dir: null

@@ -597,6 +597,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
     if new_file_sink is not None:
         new_file_sink.close()
         new_file.unlink()
+        logging.info(f"Discarded {new_file_num_batches} batches.")
     if pop_file_ds is not None:
         pop_file.unlink()
     logging.info(f"Repacked {total_batches_in_repacked_files} batches from short tar files")
@@ -624,6 +625,7 @@ def create_metadata_file(
         metadata["num_batches"] += nb
     metadata[METADATA_PUNCT_LABEL_VOCAB_KEY] = DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME
     metadata[METADATA_CAPIT_LABEL_VOCAB_KEY] = DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
+    logging.info(f"{metadata['num_batches']} batches are in tarred dataset with metadata file {metadata_file_name}")
     with metadata_file_name.open('w') as f:
         json.dump(metadata, f, indent=2)
 

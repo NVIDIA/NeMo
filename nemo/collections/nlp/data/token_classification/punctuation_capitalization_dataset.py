@@ -1067,12 +1067,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def _check_label_ids_loaded_from_pkl(
         parameter_punct_label_ids: Dict[str, int],
         parameter_capit_label_ids: Dict[str, int],
-        pkl_punct_label_ids: Dict[str, int],
-        pkl_capit_label_ids: Dict[str, int],
+        pkl_punct_label_ids: Any,
+        pkl_capit_label_ids: Any,
         punct_label_vocab_file: Optional[Path],
         capit_label_vocab_file: Optional[Path],
         features_file: Path,
     ) -> None:
+        if not isinstance(pkl_punct_label_ids, dict):
+            raise ValueError(
+                f"Punctuation label ids loaded from features file {features_file} has wrong type "
+                f"{type(pkl_punct_label_ids)}"
+            )
         if parameter_punct_label_ids != pkl_punct_label_ids:
             raise_not_equal_labels_error(
                 first_labels=parameter_punct_label_ids,
@@ -1081,6 +1086,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 if punct_label_vocab_file is None
                 else f"Punctuation labels loaded from file {punct_label_vocab_file}",
                 second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
+            )
+        if not isinstance(pkl_capit_label_ids, dict):
+            raise ValueError(
+                f"Capitalization label ids loaded from features file {features_file} has wrong type "
+                f"{type(pkl_capit_label_ids)}"
             )
         if parameter_capit_label_ids != pkl_capit_label_ids:
             raise_not_equal_labels_error(
