@@ -1078,29 +1078,31 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f"Punctuation label ids loaded from features file {features_file} has wrong type "
                 f"{type(pkl_punct_label_ids)}"
             )
-        if parameter_punct_label_ids != pkl_punct_label_ids:
-            raise_not_equal_labels_error(
-                first_labels=parameter_punct_label_ids,
-                second_labels=pkl_punct_label_ids,
-                first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
-                if punct_label_vocab_file is None
-                else f"Punctuation labels loaded from file {punct_label_vocab_file}",
-                second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
-            )
+        if parameter_punct_label_ids is not None:
+            if parameter_punct_label_ids != pkl_punct_label_ids:
+                raise_not_equal_labels_error(
+                    first_labels=parameter_punct_label_ids,
+                    second_labels=pkl_punct_label_ids,
+                    first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
+                    if punct_label_vocab_file is None
+                    else f"Punctuation labels loaded from file {punct_label_vocab_file}",
+                    second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
+                )
         if not isinstance(pkl_capit_label_ids, dict):
             raise ValueError(
                 f"Capitalization label ids loaded from features file {features_file} has wrong type "
                 f"{type(pkl_capit_label_ids)}"
             )
-        if parameter_capit_label_ids != pkl_capit_label_ids:
-            raise_not_equal_labels_error(
-                first_labels=parameter_capit_label_ids,
-                second_labels=pkl_capit_label_ids,
-                first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
-                if capit_label_vocab_file is None
-                else f"Capitalization labels loaded from file {capit_label_vocab_file}",
-                second_labels_desc=f"Capitalization label ids loaded from features file {features_file}",
-            )
+        if parameter_capit_label_ids is not None:
+            if parameter_capit_label_ids != pkl_capit_label_ids:
+                raise_not_equal_labels_error(
+                    first_labels=parameter_capit_label_ids,
+                    second_labels=pkl_capit_label_ids,
+                    first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
+                    if capit_label_vocab_file is None
+                    else f"Capitalization labels loaded from file {capit_label_vocab_file}",
+                    second_labels_desc=f"Capitalization label ids loaded from features file {features_file}",
+                )
 
     @staticmethod
     def _check_label_ids_vs_unique_labels(
