@@ -1131,7 +1131,7 @@ pipeline {
               model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
               model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
             python punctuation_capitalization_train.py \
-              do_training=false \
+              +do_training=false \
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
