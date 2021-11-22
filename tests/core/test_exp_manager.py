@@ -54,6 +54,21 @@ class MyTestOptimizer(torch.optim.Optimizer):
         return loss
 
 
+class DoNothingOptimizer(torch.optim.Optimizer):
+    def __init__(self, params):
+        self._step = 0
+        super().__init__(params, {})
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        self._step += 1
+        return loss
+
+
 class OnesDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_len):
         super().__init__()
@@ -107,6 +122,11 @@ class ExampleModel(ModelPT):
 
     def validation_epoch_end(self, loss):
         self.log("val_loss", torch.stack(loss).mean())
+
+
+class DoNothingModel(ExampleModel):
+    def configure_optimizers(self):
+        return DoNothingOptimizer(self.parameters())
 
 
 class TestExpManager:
@@ -305,13 +325,17 @@ class TestExpManager:
             {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
+        assert (
+            Path(test_trainer.checkpoint_connector.resume_from_checkpoint_fit_path).resolve() == checkpoint.resolve()
+        )
 
         # Succeed again and make sure that run_0 exists and previous log files were moved
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         exp_manager(test_trainer, {"resume_if_exists": True, "explicit_log_dir": str(log_dir)})
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
+        assert (
+            Path(test_trainer.checkpoint_connector.resume_from_checkpoint_fit_path).resolve() == checkpoint.resolve()
+        )
         prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0")
         assert prev_run_dir.exists()
         prev_log = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0" / "lightning_logs.txt")
@@ -378,3 +402,39 @@ class TestExpManager:
         test_trainer.fit(model)
 
         assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_restore_model(self, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_top_k": 1, "save_last": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        checkpoint = list(Path(str(tmp_path / "test" / "checkpoints")).glob("*.ckpt"))
+        # Make sure that only the best and last checkpoint is saved
+        assert len(checkpoint) == 2
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
+
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=5)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_top_k": 1, "save_last": False},
+                "explicit_log_dir": str(tmp_path / "test"),
+                "resume_if_exists": True,
+                "resume_past_end": True,
+            },
+        )
+        model = DoNothingModel()
+        model.l1.weight = torch.nn.Parameter(torch.tensor((0.0, 0.0)).unsqueeze(0))
+        model.l1.bias = torch.nn.Parameter(torch.tensor(1.0))
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 1.0) < 1e-5
+
+        test_trainer.fit(model)
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
