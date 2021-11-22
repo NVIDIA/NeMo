@@ -14,7 +14,7 @@ Model Classes
 
 .. autoclass:: nemo.collections.nlp.models.PunctuationCapitalizationModel
     :show-inheritance:
-    :members: add_punctuation_capitalization, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, multi_validation_epoch_end, register_artifact
+    :members:
 
 .. autoclass:: nemo.collections.nlp.models.TokenClassificationModel
     :show-inheritance:
@@ -94,7 +94,8 @@ Datasets
 .. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset
     :show-inheritance:
     :members:
-    :special-members: __getitem__
+    :special-members: __iter__
+    :exclude-members: reinforce_type
 
 .. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.BertPunctuationCapitalizationInferDataset
     :show-inheritance:

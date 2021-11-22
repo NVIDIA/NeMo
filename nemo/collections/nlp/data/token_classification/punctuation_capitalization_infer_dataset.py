@@ -178,7 +178,10 @@ def _get_subtokens_and_subtokens_mask(query: str, tokenizer: TokenizerSpec) -> T
 class BertPunctuationCapitalizationInferDataset(Dataset):
     """
     Creates dataset to use during inference for punctuation and capitalization tasks with a pretrained model.
-    For dataset to use during training with labels, see BertPunctuationCapitalizationDataset.
+    For dataset to use during training with labels, see
+    :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`
+    and
+    :class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`.
 
     Parameters ``max_seq_length``, ``step``, ``margin`` are for controlling the way queries are split into segments
     which then processed by the model. Parameter ``max_seq_length`` is a length of a segment after tokenization
@@ -259,8 +262,8 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             batch (:obj:`List[tuple]`): a list of samples returned by :meth:`__getitem__` method.
 
         Returns:
-            :obj:`Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Tuple[int, ...], Tuple[int, ...],
-            Tuple[bool, ...], Tuple[bool, ...]]`: a tuple containing following elements:
+            :obj:`Tuple[torch.Tensor (x4), Tuple[int, ...] (x2), Tuple[bool, ...] (x2)]`: a tuple containing 8
+            elements:
 
               - ``input_ids`` (:obj:`torch.Tensor`): an integer tensor of shape ``[Batch, Time]`` containing encoded
                 input text.
@@ -300,20 +303,21 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             :obj:`Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, bool, bool]`: a tuple containing:
 
                 - ``input_ids`` (:obj:`np.ndarray`): an integer numpy array of shape ``[Time]``. Ids of word
-                  subtokens encoded using tokenizer
+                  subtokens encoded using tokenizer passed in constructor ``tokenizer`` parameter.
                 - ``segment_ids`` (:obj:`np.ndarray`): an integer zeros numpy array of shape ``[Time]``. Indices
-                  of segments for BERET model (token types in HuggingFace terminology).
+                  of segments for BERT model (token types in HuggingFace terminology).
                 - ``input_mask`` (:obj:`np.ndarray`): a boolean numpy array of shape ``[Time]``. An element of
                   this array is ``True`` if corresponding token is not padding token.
                 - ``subtokens_mask`` (:obj:`np.ndarray`): a boolean numpy array of shape ``[Time]``. An element
-                  equals ``True`` if corresponding token is the first token in some word and zero otherwise. For
-                  example, if input query "language processing" is tokenized into
+                  equals ``True`` if corresponding token is the first token in a word and ``False`` otherwise. For
+                  example, if input query ``"language processing"`` is tokenized into
                   ``["[CLS]", "language", "process", "ing", "SEP"]``, then ``subtokens_mask`` will be
                   ``[False, True, True, False, False]``.
                 - ``quantities_of_preceding_words`` (:obj:`int`): a number of words preceding current segment in the
-                  query the segment belongs to. This parameter is used for uniting predictions from adjacent segments.
+                  query to which the segment belongs. This parameter is used for uniting predictions from adjacent
+                  segments.
                 - ``query_ids`` (:obj:`int`): an index of query to which the segment belongs
-                - ``is_first`` (:obj`:`bool`): whether a segment is the first segment in a query. The left margin of
+                - ``is_first`` (:obj:`bool`): whether a segment is the first segment in a query. The left margin of
                   the first segment in a query is not removed.
                 - ``is_last`` (:obj:`bool`): whether a query is the last query in a query. The right margin of the last
                   segment in a query is not removed.

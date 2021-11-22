@@ -419,6 +419,8 @@ Optimizers can be configured from the CLI as well:
         # modify betas 
         model.optim.betas=[.8, .5]
 
+.. _optimizers-label:
+
 Optimizers
 ~~~~~~~~~~
 
@@ -467,6 +469,8 @@ Register Optimizer
 To register a new optimizer to be used with NeMo, run:
 
 .. autofunction:: nemo.core.optim.optimizers.register_optimizer
+
+.. _learning-rate-schedulers-label:
 
 Learning Rate Schedulers
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -600,7 +604,7 @@ The resulting .nemo file will then have the following file:
 If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
 if the ``src`` cannot be found. 
 
-
+.. _exp-manager-label:
 
 Experiment Manager
 ==================

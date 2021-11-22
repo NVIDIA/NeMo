@@ -71,6 +71,13 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
+    if cfg.do_training:
+        if cfg.model.get('train_ds') is None:
+            raise ValueError('`model.train_ds` config section is required if `do_training` config item is `True`.')
+    if cfg.do_testing:
+        if cfg.model.get('test_ds') is None:
+            raise ValueError('`model.test_ds` config section is required if `do_testing` config item is `True`.')
+
     if not cfg.pretrained_model:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
@@ -87,9 +94,9 @@ def main(cfg: DictConfig) -> None:
         model.update_config(
             class_labels=cfg.model.class_labels,
             common_dataset_parameters=cfg.model.common_dataset_parameters,
-            train_ds=cfg.model.train_ds,
-            validation_ds=cfg.model.validation_ds,
-            test_ds=cfg.model.test_ds,
+            train_ds=cfg.model.get('train_ds'),
+            validation_ds=cfg.model.get('validation_ds'),
+            test_ds=cfg.model.get('test_ds'),
             optim=cfg.model.optim,
         )
         model.set_trainer(trainer)

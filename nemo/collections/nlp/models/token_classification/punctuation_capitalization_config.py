@@ -30,15 +30,17 @@ from nemo.utils.exp_manager import ExpManagerConfig
 @dataclass
 class PunctuationCapitalizationSchedConfig(SchedConfig):
     """
-    A configuration of learning rate scheduler. This config is a part of :class:`PunctuationCapitalizationOptimConfig`
-    config.
+    A configuration of a learning rate scheduler. This config is a part of
+    :class:`PunctuationCapitalizationOptimConfig` config.
 
-    Warmup is a period in the beginning of training during which
-    learning rate is increased linearly to its initial value.
+    Warmup is a period in the beginning of training during which learning rate is increased linearly to its initial
+    value.
     """
 
     name: str = 'InverseSquareRootAnnealing'
-    """A name of learning rate scheduler. For possible options see :ref:`core/core:Learning Rate Schedulers`."""
+    """A name of learning rate scheduler. For possible options see
+    `Learning Rate Schedulers
+    <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/core/core.html#learning-rate-schedulers>`_."""
 
     warmup_steps: Optional[int] = None
     """Number of steps spent on warmup. You may specify at most one of parameters ``warmup_steps`` and
@@ -50,7 +52,7 @@ class PunctuationCapitalizationSchedConfig(SchedConfig):
 
     last_epoch: int = -1
     """A number of an epoch from which to resume scheduling. Useful when restoring from checkpoint. See more in PyTorch
-    documentation. If ``-1``, then start scheduling from the beginning."""
+    documentation. If ``last_epoch`` equals ``-1``, then start scheduling from the beginning."""
 
 
 # TODO: support more optimizers (it pins the optimizer to Adam-like optimizers).
@@ -87,7 +89,7 @@ class TokenizerConfig:
 
     tokenizer_name: str = MISSING
     """A name of the tokenizer used for tokenization of source sequences. Possible options are ``'sentencepiece'``,
-    ``'word', ``'char'``, HuggingFace tokenizers (e.g. ``'bert-base-uncased'``). For more options see function
+    ``'word'``, ``'char'``, HuggingFace tokenizers (e.g. ``'bert-base-uncased'``). For more options see function
     ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have properties ``cls_id``, ``pad_id``,
     ``sep_id``, ``unk_id``."""
 
@@ -96,23 +98,23 @@ class TokenizerConfig:
     various HuggingFace tokenizers."""
 
     tokenizer_model: Optional[str] = None
-    """A path to tokenizer model required for ``'sentencepiece'`` tokenizer."""
+    """A path to a tokenizer model required for ``'sentencepiece'`` tokenizer."""
 
 
 @dataclass
 class LanguageModelConfig:
     """
     A structure and default values of language model configuration of punctuation and capitalization model. BERT like
-    HuggingFace models are supported. Provide a valid ``pretrained_model_name`` and optionally you may
-    reinitialize model using ``config_file`` or ``config``.
+    HuggingFace models are supported. Provide a valid ``pretrained_model_name`` and, optionally, you may
+    reinitialize model via ``config_file`` or ``config``.
 
-    Alternatively you can initialize language model using ``lm_checkpoint``.
+    Alternatively you can initialize the language model using ``lm_checkpoint``.
 
     This config is a part of :class:`PunctuationCapitalizationModelConfig` config.
     """
 
     pretrained_model_name: str = MISSING
-    """A mandatory name of HuggingFace pretrained model. For example, ``'bert-base-uncased'``."""
+    """A mandatory parameter containing name of HuggingFace pretrained model. For example, ``'bert-base-uncased'``."""
 
     config_file: Optional[str] = None
     """A path to a file with HuggingFace model config which is used to reinitialize language model."""
@@ -121,7 +123,7 @@ class LanguageModelConfig:
     """A HuggingFace config which is used to reinitialize language model."""
 
     lm_checkpoint: Optional[str] = None
-    """A path to torch checkpoint of a language model."""
+    """A path to a ``torch`` checkpoint of a language model."""
 
 
 @dataclass
@@ -135,7 +137,7 @@ class HeadConfig:
     """
 
     num_fc_layers: int = 1
-    """A number of hidden layers in a head."""
+    """A number of hidden layers in a multilayer perceptron."""
 
     fc_dropout: float = 0.1
     """A dropout used in an MLP."""
@@ -144,7 +146,8 @@ class HeadConfig:
     """An activation used in hidden layers."""
 
     use_transformer_init: bool = True
-    """Whether to initialize the weights of the classifier head with the same approach used in a language model."""
+    """Whether to initialize the weights of the classifier head with the approach that was used for language model
+    initialization."""
 
 
 @dataclass
@@ -168,9 +171,9 @@ class ClassLabelsConfig:
 @dataclass
 class CommonDatasetParametersConfig:
     """
-    A structure and default values of common dataset parameters cofnig which include label and loss mask information.
-    If you omit parameters ``punct_label_ids``, ``capit_label_ids``, ``label_vocab_dir``, then labels can be inferred
-    from training dataset or loaded from checkpoint.
+    A structure and default values of common dataset parameters config which includes label and loss mask information.
+    If you omit parameters ``punct_label_ids``, ``capit_label_ids``, ``label_vocab_dir``, then labels will be inferred
+    from a training dataset or loaded from a checkpoint.
 
     Parameters ``ignore_extra_tokens`` and ``ignore_start_end`` are responsible for forming loss mask. A loss mask
     defines on which tokens loss is computed.
@@ -179,22 +182,22 @@ class CommonDatasetParametersConfig:
     """
 
     pad_label: str = MISSING
-    """A mandatory parameter which should contain label used for padding both for punctuation and capitalization. It
-    also serves as a neutral label for both punctuation and capitalization. If any parameter of ``punct_label_ids``,
-    ``capit_label_ids`` is provided, then ``pad_label`` must have ``0`` id in then. In addition, if ``label_vocab_dir``
-    is provided, then ``pad_label`` has to have ``0`` in ``class_labels.punct_labels_file`` and
+    """A mandatory parameter which should contain label used for punctuation and capitalization label padding. It
+    also serves as a neutral label for both punctuation and capitalization. If any of ``punct_label_ids``,
+    ``capit_label_ids`` parameters is provided, then ``pad_label`` must have ``0`` id in them. In addition, if ``label_vocab_dir``
+    is provided, then ``pad_label`` must be on the first lines in files ``class_labels.punct_labels_file`` and
     ``class_labels.capit_labels_file``."""
 
     ignore_extra_tokens: bool = False
     """Whether to compute loss on not first tokens in words. If this parameter is ``True``, then loss mask is ``False``
-    all tokens in a word except the first."""
+    for all tokens in a word except the first."""
 
     ignore_start_end: bool = True
     """If ``False``, then loss is computed on [CLS] and [SEP] tokens."""
 
     punct_label_ids: Optional[Dict[str, int]] = None
     """A dictionary with punctuation label ids. ``pad_label`` must have ``0`` id in this dictionary. You can omit this
-    parameter and pass label ids through ``class_labels.punct_labels_file`` or let model to infer label ids from
+    parameter and pass label ids through ``class_labels.punct_labels_file`` or let the model to infer label ids from
     dataset or load them from checkpoint."""
 
     capit_label_ids: Optional[Dict[str, int]] = None
@@ -205,7 +208,8 @@ class CommonDatasetParametersConfig:
     label_vocab_dir: Optional[str] = None
     """A path to directory which contains class labels files. See :class:`ClassLabelsConfig`. If this parameter is
     provided, then labels will be loaded from files which are located in ``label_vocab_dir`` and have names specified
-    in ``model.class_labels`` configuration section."""
+    in ``model.class_labels`` configuration section. A label specified in ``pad_label`` has to be on the first lines
+    of ``model.class_labels`` files."""
 
 
 @dataclass
@@ -216,33 +220,28 @@ class PunctuationCapitalizationModelConfig:
     model.
 
     See an example of model config in
-    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
+    `nemo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml
+    <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_
 
     This config is a part of :class:`~PunctuationCapitalizationConfig`.
     """
 
     class_labels: ClassLabelsConfig = ClassLabelsConfig()
-    """A mandatory dictionary which contains names of label id files in for .nemo checkpoints. It also can be used for
-    passing label vocabularies to the model. If you wish to use ``class_label`` for passing vocabularies, please
-    provide path to vocabulary files in ``common_dataset_parameters.label_vocab_dir`` parameter."""
+    """A mandatory parameter containing a dictionary with names of label id files used in .nemo checkpoints.
+    These file names can also be used for passing label vocabularies to the model. If you wish to use ``class_labels``
+    for passing vocabularies, please provide path to vocabulary files in
+    ``model.common_dataset_parameters.label_vocab_dir`` parameter."""
 
     common_dataset_parameters: Optional[CommonDatasetParametersConfig] = CommonDatasetParametersConfig()
-    """A dictionary with label information. It also contains ``ignore_start_end`` and ``ignore_extra_tokens``
-    parameters which are responsible for loss mask creation."""
+    """Label ids and loss mask information information."""
 
-    train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = PunctuationCapitalizationTrainDataConfig(
-        use_tarred_dataset=MISSING, tokens_in_batch=MISSING
-    )
+    train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = None
     """A configuration for creating training dataset and data loader."""
 
-    validation_ds: Optional[PunctuationCapitalizationEvalDataConfig] = PunctuationCapitalizationEvalDataConfig(
-        use_tarred_dataset=MISSING, tokens_in_batch=MISSING
-    )
+    validation_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
     """A configuration for creating validation datasets and data loaders."""
 
-    test_ds: Optional[PunctuationCapitalizationEvalDataConfig] = PunctuationCapitalizationEvalDataConfig(
-        use_tarred_dataset=MISSING, tokens_in_batch=MISSING
-    )
+    test_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
     """A configuration for creating test datasets and data loaders."""
 
     punct_head: HeadConfig = HeadConfig()
@@ -255,7 +254,7 @@ class PunctuationCapitalizationModelConfig:
     """A configuration for source text tokenizer."""
 
     language_model: LanguageModelConfig = LanguageModelConfig()
-    """A configuration of a BERT like language model which serves as a model body."""
+    """A configuration of a BERT-like language model which serves as a model body."""
 
     optim: Optional[OptimConfig] = PunctuationCapitalizationOptimConfig()
     """A configuration of optimizer and learning rate scheduler."""
@@ -274,11 +273,11 @@ class PunctuationCapitalizationConfig(NemoConfig):
     pretrained_model: Optional[str] = None
     """Can be an NVIDIA's NGC cloud model or a path to a .nemo checkpoint. You can get list of possible cloud options
     by calling method
-    :meth:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel.list_available_models`.
+    :func:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel.list_available_models`.
     """
 
     name: Optional[str] = 'Punctuation_and_Capitalization'
-    """A name of the model. Used for naming output directories."""
+    """A name of the model. Used for naming output directories and ``.nemo`` checkpoints."""
 
     do_training: bool = True
     """Whether to perform training of the model."""
@@ -295,8 +294,8 @@ class PunctuationCapitalizationConfig(NemoConfig):
     """Contains ``Trainer`` Lightning class constructor parameters."""
 
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name=name, files_to_copy=[])
-    """A configuration various NeMo training options such as output directories, resuming from checkpoint, tensorboard
-    and W&B logging, and so on. For possible options see :ref:`core/core:Experiment Manager`."""
+    """A configuration with various NeMo training options such as output directories, resuming from checkpoint,
+    tensorboard and W&B logging, and so on. For possible options see :ref:`exp-manager-label`."""
 
 
 def is_legacy_model_config(model_cfg: DictConfig) -> bool:

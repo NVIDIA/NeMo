@@ -97,16 +97,18 @@ def get_args() -> argparse.Namespace:
         type=int,
         default=10 ** 6,
         help="A number of lines processed by one worker during creation of tarred dataset. A worker tokenizes "
-        "`--lines_per_dataset_fragment` keeps in RAM tokenized text labels before packing them into batches. "
-        "Reducing `--lines_per_dataset_fragment` leads to reducing of the amount of memory required by this script.",
+        "`--lines_per_dataset_fragment` lines and keeps in RAM tokenized text labels before packing them into "
+        "batches. Reducing `--lines_per_dataset_fragment` leads to reducing of the amount of memory required by this "
+        "script.",
     )
     parser.add_argument(
         "--num_batches_per_tarfile",
         type=int,
         default=1000,
-        help="A number of batches saved in a tar file. If you increase `--num_batches_per_tarfile` there will be less "
-        "tar files in the dataset. There cannot be less then `--num_batches_per_tarfile` batches in a tar file, and "
-        "all excess batches are removed. Maximum number of discarded batches is `--num_batches_per_tarfile - 1`.",
+        help="A number of batches saved in a tar file. If you increase `--num_batches_per_tarfile`, then there will "
+        "be less tar files in the dataset. There cannot be less then `--num_batches_per_tarfile` batches in a tar "
+        "file, and all excess batches are removed. Maximum number of discarded batches is "
+        "`--num_batches_per_tarfile - 1`.",
     )
     parser.add_argument(
         "--tokenizer_name",
@@ -124,10 +126,10 @@ def get_args() -> argparse.Namespace:
         "--vocab_file",
         "-v",
         type=Path,
-        help="Path to vocabulary file which is used in 'word', 'char', and HuggingFace tokenizers.",
+        help="Path to vocabulary file which can be used in 'word', 'char', and HuggingFace tokenizers.",
     )
     parser.add_argument(
-        "--merges_file", "-M", type=Path, help="Path to merges file which maybe used in HuggingFace tokenizers."
+        "--merges_file", "-M", type=Path, help="Path to merges file which can be used in HuggingFace tokenizers."
     )
     parser.add_argument(
         "--special_token_names",
@@ -151,7 +153,8 @@ def get_args() -> argparse.Namespace:
         "-P",
         default='O',
         help="Pad label both for punctuation and capitalization. This label is also is used for marking words which "
-        "do not need punctuation and capitalization.",
+        "do not need punctuation and capitalization. It is also a neutral label used for marking words which do "
+        "not require punctuation and capitalization.",
     )
     punct = parser.add_mutually_exclusive_group(required=False)
     punct.add_argument(

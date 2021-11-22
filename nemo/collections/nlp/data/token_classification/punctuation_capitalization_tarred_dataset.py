@@ -651,15 +651,18 @@ def create_tarred_dataset(
     n_jobs: Optional[int] = None,
 ) -> None:
     """
-    A tarred dataset allows to train on large amounts of data without storing it all into memory simultaneously.
+    Creates tarred dataset from ``text_file`` and ``labels_file``. A tarred dataset allows to train on large amounts of
+    data without storing it all into memory simultaneously. You may use these function directly or try script
+    `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
+    <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_.
 
     Tarred dataset is a directory which contains metadata file, tar files with batches, 
     ``punct_label_vocab.csv`` and ``capit_label_vocab.csv`` files.
 
     Metadata file is a JSON file with 4 items: ``'num_batches'``, ``'tar_files'``, ``'punct_label_vocab_file'``, 
-    'capit_label_vocab_file'. The item ``'num_batches'`` (``int``) is a total number of batches in tarred dataset.
-    'tar_files' is a list of paths to tar file paths relative to directory containing the metadata file. The items
-    ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are correspondingly paths punctuation and
+    ``'capit_label_vocab_file'``. The item ``'num_batches'`` (``int``) is a total number of batches in tarred dataset.
+    ``'tar_files'`` is a list of paths to tar files relative to directory containing the metadata file. The items
+    ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are correspondingly paths to punctuation and
     capitalization label vocabulary files. These paths are relative to directory containing the metadata file.
 
     Every tar file contains objects written using ``webdataset.TarWriter``. Each object is a dictionary with two items:
@@ -668,51 +671,51 @@ def create_tarred_dataset(
     array containing ids of source tokens, ``'subtokens_mask'`` is a boolean array showing first tokens in words,
     ``'punct_labels'`` and ``'capit_labels'`` are arrays with ids of labels.
 
-    Metadata file should be passed to constructor of :class:`PunctuationCapitalizationTarredDataset` and the instance
-    of the class will handle iteration and constructing masks and token types for BERT model.
+    Metadata file should be passed to constructor of :class:`BertPunctuationCapitalizationTarredDataset` and the
+    instance of the class will handle iteration and constructing masks and token types for BERT model.
 
     Args:
         text_file (:obj:`Union[os.PathLike, str]`): a path to a file with dataset source. Dataset source is lowercased
             text without punctuation. Number of lines in ``text_file`` has to be equal to the number of lines in
             ``labels_file``.
         labels_file (:obj:`Union[os.PathLike, str]`): a path to a file with labels. Labels are given in the format
-            described in :ref:`nlp/punctuation_and_capitalization/NeMo Data Format`.
+            described in :ref:`NeMo Data Format<nemo-data-format-label>`.
         output_dir (:obj:`Union[os.PathLike, str]`): a path to a directory where metadata file, tar files and
-            'punct_label_ids.csv' and 'capit_label_ids.csv' files are saved.
-        max_seq_length (:obj:`int`): Maximum number of subtokens in an input sequence. A source sequence which contain
+            ``'punct_label_ids.csv'`` and ``'capit_label_ids.csv'`` files are saved.
+        max_seq_length (:obj:`int`): Maximum number of subtokens in an input sequence. A source sequence which contains
             too many subtokens is clipped to ``max_seq_length - 2`` subtokens and then [CLS] token is prepended to the
             clipped sequence and [SEP] token is appended to the clipped sequence. The clipping is performed via removal
             of subtokens in the end of a source sequence.
         tokens_in_batch (:obj:`int`): maximum number of tokens in a batch including [CLS], [SEP], [UNK], and [PAD]
             tokens. Before packing into batches source sequences are sorted by number of tokens in order to reduce
-            number of pad tokens. So the number of samples in a batch may be different.
+            number of pad tokens. So the number of samples in a batch may vary.
         lines_per_dataset_fragment (:obj:`int`): a number of lines processed by one worker during creation of tarred
-            dataset. A worker tokenizes ``lines_per_dataset_fragment`` keeps in RAM tokenized text labels before
-            packing them into batches. Reducing ``lines_per_dataset_fragment`` leads to reducing of the amount of
-            memory required by this script.
+            dataset. A worker tokenizes ``lines_per_dataset_fragment`` lines and keeps in RAM tokenized text labels
+            before packing them into batches. Reducing ``lines_per_dataset_fragment`` leads to reducing of the amount
+            of memory used by this function.
         num_batches_per_tarfile (:obj:`int`): a number of batches saved in a tar file. If you increase
-            ``num_batches_per_tarfile`` there will be less tar files in the dataset. There cannot be less then
+            ``num_batches_per_tarfile``, then there will be less tar files in the dataset. There cannot be less then
             ``num_batches_per_tarfile`` batches in a tar file, and all excess batches are removed. Maximum number of
             discarded batches is ``num_batches_per_tarfile - 1``.
-        tokenizer_name (:obj:`str`): name of the tokenizer used for tokenization of source sequences. Possible options
-            are ``'sentencepiece'``, ``'word', ``'char'``, HuggingFace tokenizers. For more options see function
-            ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have properties ``cls_id``,
-            ``pad_id``, ``sep_id``, ``unk_id``.
-        tokenizer_model (:obj:`Union[os.PathLike, str]`, `optional`): a path to tokenizer model required for
+        tokenizer_name (:obj:`str`): a name of the tokenizer used for tokenization of source sequences. Possible
+            options are ``'sentencepiece'``, ``'word'``, ``'char'``, HuggingFace tokenizers. For more options see
+            function ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have properties
+            ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``.
+        tokenizer_model (:obj:`Union[os.PathLike, str]`, `optional`): a path to a tokenizer model required for
             ``'sentencepiece'`` tokenizer.
-        vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): a path to vocabulary file which is used in ``'word'``,
-            ``'char'``, and HuggingFace tokenizers.
-        merges_file (:obj:`Union[os.PathLike, str]`, `optional`): a path to merges file which maybe used in HuggingFace
-            tokenizers.
+        vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): a path to a vocabulary file which can be used in
+            ``'word'``, ``'char'``, and HuggingFace tokenizers.
+        merges_file (:obj:`Union[os.PathLike, str]`, `optional`): a path to merges file which can be used in
+            HuggingFace tokenizers.
         special_tokens (:obj:`Dict[str, str]`, `optional`): a dictionary with special tokens passed to constructors of
             ``'char'``, ``'word'``, ``'sentencepiece'``, and various HuggingFace tokenizers.
         use_fast_tokenizer (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to use fast HuggingFace
             tokenizer.
         pad_label (:obj:`str`, `optional`, defaults to :obj:`'O'`): a pad label both for punctuation and
-            capitalization. This label is also a neutral label (is used for marking words which do not need punctuation
+            capitalization. This label is also a neutral label (used for marking words which do not need punctuation
             and capitalization).
         punct_label_ids (:obj:`Dict[str, int]`, `optional`): a dictionary which keys are punctuation labels and values
-            are label ids. The pad label has to have id ``0``. You can provide at most one of parameters
+            are label ids. The pad label ``pad_label`` has to have id ``0``. You can provide at most one of parameters
             ``punct_label_ids`` and ``punct_label_vocab_file``. If none of parameters ``punct_label_ids`` and
             ``punct_label_vocab_file`` is provided, then punctuation label ids will be inferred from ``labels_file``
             file.
@@ -796,7 +799,7 @@ def create_tarred_dataset(
 
 class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     """
-    Punctuation capitalization dataset for which allows not to load all data in memory simultaneously. A tarred dataset
+    Punctuation capitalization dataset which allows not to load all data in memory simultaneously. A tarred dataset
     is created from text and label files using script
     `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
     <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
@@ -807,24 +810,24 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         metadata_file (:obj:`Union[os.PathLike, str]`): a path to tarred dataset metadata file. Metadata file and files
             referenced in metadata file are created by
             `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
-            <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+            <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_.
             Metadata file is a JSON file which contains ``'num_batches'``, ``'tar_files'``,
             ``'punct_label_vocab_file'``, ``'capit_label_vocab_file'`` items. The first item is total number of batches
             in a dataset, the second is a list of paths to tar files relative to directory containing
-            ``metadata_file``. Items ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are paths to .csv
-            files which contain unique punctuation an capitalization label vocabularies. Vocabulary file paths are
-            relative to directory containing the ``metadata_file``. Each line in ``'punct_label_vocab_file'`` and
+            ``metadata_file``. Items ``'punct_label_vocab_file'`` and ``'capit_label_vocab_file'`` are paths to
+            ``.csv`` files which contain unique punctuation an capitalization label vocabularies. Vocabulary file paths
+            are relative to directory containing the ``metadata_file``. Each line in ``'punct_label_vocab_file'`` and
             ``'capit_label_vocab_file'`` contains 1 label. The first lines in ``'punct_label_vocab_file'`` and
             ``'capit_label_vocab_file'`` files are neutral labels which also serve as pad labels. Neutral labels for
             punctuation and capitalization must be equal to the ``pad_label`` parameter.
         tokenizer (:obj:`TokenizerSpec`): a tokenizer instance used for tokenization of dataset source. A tokenizer
             instance is used for getting ids of [CLS], [PAD], and [SEP] tokens which are used for masks creation.
-        pad_label (:obj:`str`): a label that is used for padding and for absence of both punctuation and
+        pad_label (:obj:`str`): a label that is used for padding and for absence of punctuation or
             capitalization. Used for checking items ``'punct_label_vocab'`` and ``'capit_label_vocab'`` of dictionary
             in ``metadata_file``.
         label_info_save_dir (:obj:`Union[os.PathLike, str]`, `optional`): a path to a directory where label
-            vocabularies are copied when method :meth:`save_labels_and_get_file_paths` is called. This is useful if
-            tarred dataset directory is read-only.
+            vocabularies are copied when method :meth:`save_labels_and_get_file_paths` is called. This parameter is
+            useful if tarred dataset directory is read-only.
         ignore_extra_tokens (:obj:`bool`, `optional`, defaults to :obj:`False`): whether to use only first token in a
             word for loss computation and training. If set to ``True``, then loss will be computed only for the first
             tokens of words.
@@ -929,23 +932,23 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     ) -> None:
         """
         Checks that label ids loaded from tarred dataset are identical to those provided in
-        ``model.common_dataset_parameters`` config item. In addition, this method checks that label ids set in
-        attributes ``punct_label_ids`` and ``capit_label_ids`` of an instance of
+        ``model.common_dataset_parameters`` :ref:`config<common-dataset-parameters-config-label>` item. In addition,
+        this method checks that label ids set in attributes ``punct_label_ids`` and ``capit_label_ids`` of an instance
+        of
         :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
         are identical to label ids loaded from tarred dataset.
 
         Args:
             punct_label_ids: a content of ``punct_label_ids`` attribute of an instance of
                 :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
-                in which this tarred dataset is used
+                in which this tarred dataset is used.
             capit_label_ids: a content of ``capit_label_ids`` attribute of an instance of
                 :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
-                in which this tarred dataset is used
-            class_labels: a config item ``model.class_labels``. See more in description of class
-                :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.ClassLabelsConfig`
+                in which this tarred dataset is used.
+            class_labels: a config item ``model.class_labels``. See more in description of
+                :ref:`class labels config<class-labels-config-label>`.
             common_dataset_parameters_config: a config item ``model.common_dataset_parameters``. See more in
-                of class
-                :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.CommonDatasetParametersConfig`
+                of :ref:`common dataset parameters config<common-dataset-parameters-config-label>`.
         """
         tarred_dataset_label_desc_tmpl = (
             f'{{label_type}} labels loaded from tarred dataset with metadata file {self.metadata_file}'
@@ -1015,12 +1018,12 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self, punct_labels_file_name: str, capit_labels_file_name: str
     ) -> Tuple[Path, Path]:
         """
-        Copies label vocabulary files for punctuation and capitalization into directory ``self.for_nemo_ckpt`` which
-        is in turn stored in directory passed in the ``__init__`` parameter ``label_info_save_dir``. The names of new
+        Copies label vocabulary files for punctuation and capitalization into directory passed in the constructor
+        parameter ``label_info_save_dir``. The names of new
         files are ``punct_labels_file_name`` and ``capit_labels_file_name``.
 
         The signatures of this method and the signature of the method
-        ``nemo.collections.nlp.data.token_classification.BertPunctuationCapitalizationDataset.save_labels_and_get_file_paths``
+        :meth:`~nemo.collections.nlp.data.token_classification.BertPunctuationCapitalizationDataset.save_labels_and_get_file_paths`
         must be identical.
 
         Args:
@@ -1077,19 +1080,22 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
     def __iter__(self) -> Iterator[Dict[str, ArrayLike]]:
         """
-        Returns an iterator of batches. Batches are dictionaries with following items:
-            - ``'input_ids'``: ``np.int32`` array containing encoded tokens,
-            - ``'subtokens_mask'``: ``bool`` array which elements are ``True`` if they correspond to first token in
-                a word,
-            - ``'punct_labels'``: ``np.int32`` array,
-            - ``'capit_labels'``: ``np.int32``,
-            - ``'segment_ids'``: ``np.int8`` array filled with zeros (BERT token types in HuggingFace terminology),
-            - ``'input_mask'``: ``bool`` array which elements are ``True`` if corresponding token is not a padding
-                token,
-            - ``'loss_mask'``: ``bool`` array which elements are ``True`` if loss is computed for corresponding
-                token. See more in description of constructor parameters ``ignore_start_end``, ``ignore_extra_tokens``.
+        Constructs an iterator of batches. The values of one batch dictionary are numpy arrays of identical shapes
+        ``[Batch, Time]``.
 
-        The values of one batch dictionary are numpy arrays of identical shapes ``[Batch, Time]``.
+        Returns:
+            :obj:`Iterator[Dict[str, ArrayLike]]`: an iterator of batches with items:
+
+              - ``'input_ids'``: ``np.int32`` array containing encoded tokens,
+              - ``'subtokens_mask'``: ``bool`` array which elements are ``True`` if they correspond to first token in
+                a word,
+              - ``'punct_labels'``: ``np.int32`` array with encoded punctuation labels,
+              - ``'capit_labels'``: ``np.int32`` array with encoded capitalization labels,
+              - ``'segment_ids'``: ``np.int8`` array filled with zeros (BERT token types in HuggingFace terminology),
+              - ``'input_mask'``: ``bool`` array which elements are ``True`` if corresponding token is not a padding
+                token,
+              - ``'loss_mask'``: ``bool`` array which elements are ``True`` if loss is computed for corresponding
+                token. See more in description of constructor parameters ``ignore_start_end``, ``ignore_extra_tokens``.
         """
         return self._dataset.__iter__()
 
@@ -1099,24 +1105,28 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     @staticmethod
     def collate_fn(batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
         """
-        Return zeroth batch of ``batches`` passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
-        ``'capit_labels'`` to types supported by ``PunctuationCapitalizationModel``.
+        Return zeroth batch of ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
+        ``'capit_labels'`` to types supported by
+        :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`.
+        All output tensors have shape ``[Batch, Time]``.
 
-        Note: batch size in data loader and sampler has to be 1.
+        .. warning::
+            ``batch size`` parameter of a PyTorch data loader and sampler has to be ``1``.
 
         Args:
-            batches (:obj:`List[Dict[str, ArrayLike]]`): a list of batches passed for collating. Normally ``batches``
-                contains exactly 1 element
+            batches (:obj:`List[Dict[str, ArrayLike]]`): a list of batches passed for collating
 
         Returns:
-            :obj:`Dict[str, torch.Tensor]`: a batch dictionary with following items:
-              - ``'input_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
-              - ``'subtokens_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
-              - ``'punct_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``,
-              - ``'capit_labels'``: ``torch.int64`` tensor of shape ``[Batch, Time]``.
-              - ``'segment_ids'``: ``torch.int32`` tensor of shape ``[Batch, Time]``,
-              - ``'input_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``,
-              - ``'loss_mask'``: ``torch.bool`` tensor of shape ``[Batch, Time]``.
+            :obj:`Dict[str, torch.Tensor]`: a batch dictionary with following items (for detailed description of batch
+            items see method :meth:`__getitem__`):
+
+              - ``'input_ids'`` (:obj:`torch.Tensor`): :obj:`torch.int32` tensor,
+              - ``'subtokens_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor,
+              - ``'punct_labels'`` (:obj:`torch.Tensor`): :obj:`torch.int64` tensor,
+              - ``'capit_labels'`` (:obj:`torch.Tensor`): :obj:`torch.int64` tensor,
+              - ``'segment_ids'`` (:obj:`torch.Tensor`): :obj:`torch.int32` tensor,
+              - ``'input_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor,
+              - ``'loss_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor.
         """
         batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
         batch['segment_ids'] = batch['segment_ids'].int()

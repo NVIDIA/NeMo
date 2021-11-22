@@ -7,8 +7,9 @@ Automatic Speech Recognition (ASR) systems typically generate text with no punct
 There are two issues with non-punctuated ASR output:
 
 - it could be difficult to read and understand
-- models for some downstream tasks, such as named entity recognition, machine translation, or text-to-speech, are usually trained 
-on punctuated datasets and using raw ASR output as the input to these models could deteriorate their performance
+- models for some downstream tasks, such as named entity recognition, machine translation, or text-to-speech, are
+  usually trained on punctuated datasets and using raw ASR output as the input to these models could deteriorate their
+  performance
 
 Quick Start Guide
 -----------------
@@ -77,6 +78,8 @@ The ``source_data_dir`` structure should look similar to the following:
      |-- dev.txt
      |-- train.txt
 
+.. _nemo-data-format-label:
+
 NeMo Data Format
 ----------------
 
@@ -100,10 +103,10 @@ The ``labels.txt`` file contains corresponding labels for each word in ``text.tx
 spaces. Each label in ``labels.txt`` file consists of 2 symbols:
 
 - the first symbol of the label indicates what punctuation mark should follow the word (where ``O`` means no
-punctuation needed)
+  punctuation needed)
 
 - the second symbol determines if a word needs to be capitalized or not (where ``U`` indicates that the word should be
-upper cased, and ``O`` - no capitalization needed)
+  upper cased, and ``O`` - no capitalization needed)
 
 By default, the following punctuation marks are considered: commas, periods, and question marks; the remaining punctuation marks were 
 removed from the data. This can be changed by introducing new labels in the ``labels.txt`` files.
@@ -120,12 +123,10 @@ labels for the above ``text.txt`` file should be:
 The complete list of all possible labels used in this tutorial are: 
 
 - ``OO``
-- ``O``
 - ``.O``
 - ``?O``
 - ``OU``
-- <blank space> 
-- ``U``
+- <blank space>
 - ``.U``
 - ``?U``
 
@@ -165,7 +166,7 @@ Tarred dataset
 --------------
 
 Tokenization and encoding of data is quite costly for punctuation and capitalization task. If your dataset contains a
-lot of samples (~4M) you may use tarred dataset. A tarred dataset is a collection of tarred files which
+lot of samples (~4M) you may use tarred dataset. A tarred dataset is a collection of `.tar` files which
 contain batches ready for passing into a model. Tarred dataset is not loaded into memory entirely, but in small pieces,
 which do not overflow memory. Tarred dataset relies on `webdataset <https://github.com/webdataset/webdataset>`_.
 
@@ -173,7 +174,7 @@ For creating of tarred dataset you will need data in NeMo format:
 
 .. code::
 
-    python examples/nlp/token_classification/data/prepare_data_for_punctuation_capitalization.py \
+    python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
         --text <PATH_TO_LOWERCASED_TEXT_WITHOUT_PUNCTUATION> \
         --labels <PATH_TO_LABELS_IN_NEMO_FORMAT> \
         --output_dir <PATH_TO_DIRECTORY_WITH_OUTPUT_TARRED_DATASET> \
@@ -182,7 +183,10 @@ For creating of tarred dataset you will need data in NeMo format:
 All tar files contain similar amount of batches, so up to :code:`--num_batches_per_tarfile - 1` batches will be
 discarded during tarred dataset creation.
 
-Beside tar files with batches the script will create metadata JSON file, and 2 csv files with punctuation and
+Beside `.tar` files with batches, the
+`examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
+<https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+script will create metadata JSON file, and 2 `.csv` files with punctuation and
 capitalization label vocabularies. To use tarred dataset you will need to pass path to a metadata file of your dataset
 in a config parameter :code:`model.train_ds.tar_metadata_file` and set a config parameter
 :code:`model.train_ds.use_tarred_dataset=true`.
@@ -190,108 +194,670 @@ in a config parameter :code:`model.train_ds.tar_metadata_file` and set a config 
 Training Punctuation and Capitalization Model
 ---------------------------------------------
 
-The language model is initialized with the pre-trained model from
+The language model is initialized with the a pre-trained model from
 `HuggingFace Transformers <https://github.com/huggingface/transformers>`__, unless the user provides a pre-trained
-checkpoint for the language model. Example of model configuration file for training the model can be found at:
+checkpoint for the language model. To train model from scratch, you will need to provide HuggingFace configuration in
+one of parameters ``model.language_model.config_file``, ``model.language_model.config``. An example of a model
+configuration file for training the model can be found at:
 `NeMo/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__.
 
-The specification is roughly grouped into the following categories:
+A configuration file is a `.yaml` file which contains all parameters for model creation, training, testing, validation.
+A structure of the configuration file for training and testing is described in the :ref:`Run config<run-config-label>`
+section. Some of parameters are required in the config. Default values of required parameters are ``???``. If you omit
+any of other parameters, they will be initialized according to default values from following tables.
 
-- Parameters that describe the training process: **trainer**
-- Parameters that describe the datasets: **model.dataset**, **model.train_ds**, **model.validation_ds**
-- Parameters that describe the model: **model**
+.. _run-config-label:
 
-More details about parameters in the config file can be found below and in the
-`model's config file <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`__:
+Run config
+^^^^^^^^^^
 
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **Parameter**                             | **Data Type**   |  **Description**                                      |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **pretrained_model**                      | string          | Path to the pre-trained model ``.nemo`` file or       |
-|                                           |                 | pre-trained model name.                               |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.dataset.data_dir**                | string          | Path to the data converted to the specified above     |
-|                                           |                 | format.                                               |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.punct_head.punct_num_fc_layers**  | integer         | Number of fully connected layers.                     |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.punct_head.fc_dropout**           | float           | Activation to use between fully connected layers.     |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.punct_head.activation**           | string          | Dropout to apply to the input hidden states.          |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.punct_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier   |
-|                                           |                 | head with the same approach used in Transformer.      |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.capit_head.punct_num_fc_layers**  | integer         | Number of fully connected layers.                     |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.capit_head.fc_dropout**           | float           | Dropout to apply to the input hidden states.          |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.capit_head.activation**           | string          | Activation function to use between fully connected    |
-|                                           |                 | layers.                                               |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **model.capit_head.use_transrormer_init** | bool            | Whether to initialize the weights of the classifier   |
-|                                           |                 | head with the same approach used in Transformer.      |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.use_tarred_dataset**           | bool            | Whether to use tarred or usual dataset                |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.ds_item**                      | string          | A path to directory where ``text_file``,              |
-|                                           |                 | ``labels_file``, ``tar_metadata_file`` stored. If     |
-|                                           |                 | ``ds_item`` is not provided, then                     |
-|                                           |                 | ``dataset.data_dir`` is used instead.                 |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.text_file**                    | string          | Name of the text training file located at ``ds_item`` |
-|                                           |                 | or, if ``ds_item`` is missing, located in             |
-|                                           |                 | ``data_dir``.                                         |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.labels_file**                  | string          | Name of the labels training file located at           |
-|                                           |                 | ``ds_item``, such as ``labels_train.txt``. If         |
-|                                           |                 | ``ds_item`` parameter is missing, then labels file    |
-|                                           |                 | should be located in ``data_dir``.                    |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.tar_metadata_file**            | string          | Name of metadata file located either in ``ds_item``   |
-|                                           |                 | or, if ``ds_item`` is missing, located in             |
-|                                           |                 | ``data_dir``.                                         |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.tokens_in_batch**              | int             | Number of tokens in a batch. When batch is build      |
-|                                           |                 | samples in a dataset are sorted by number of tokens   |
-|                                           |                 | and samples whose lengths are not much different      |
-|                                           |                 | are packed into batches. This way the number of       |
-|                                           |                 | padding tokens is reduced. Batch size varies: if      |
-|                                           |                 | samples are short, then a batch contains more         |
-|                                           |                 | elements.                                             |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **train_ds.num_samples**                  | integer         | Number of samples to use from the training dataset,   |
-|                                           |                 | ``-1`` - to use all.                                  |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **validation_ds.ds_item**                 | string or       | A path or a list of paths to validation dataset       |
-|                                           | a list of       | directories. If ``ds_item`` is a list, then           |
-|                                           | strings.        | validation will be performed on several datasets.     |
-|                                           | To override     | Each ``ds_item`` directory has to contain files with  |
-|                                           | config value    | names ``text_file`` and ``labels_file``. If           |
-|                                           | with a list     | ``ds_item`` is missing, then ``dataset.data_dir``     |
-|                                           | use syntax      | is used instead.                                      |
-|                                           | [VAL1,VAL2].    |                                                       |
-|                                           | Do NOT use      |                                                       |
-|                                           | spaces in such  |                                                       |
-|                                           | overriding.     |                                                       |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **validation_ds.text_file**               | string          | Name of the text file for evaluation, located at      |
-|                                           |                 | ``data_dir``.                                         |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **validation_ds.labels_file**             | string          | Name of the labels dev file located at ``data_dir``,  |
-|                                           |                 | such as ``labels_dev.txt``.                           |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **validation_ds.num_samples**             | integer         | Number of samples to use from the dev set, ``-1`` -   |
-|                                           |                 | to use all.                                           |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
-| **validation_ds.tokens_in_batch**         | int             | Number of tokens in a batch. When batch is build      |
-|                                           |                 | samples in a dataset are sorted by number of tokens   |
-|                                           |                 | and samples whose lengths are not much different      |
-|                                           |                 | are packed into batches. This way the number of       |
-|                                           |                 | padding tokens is reduced. Batch size varies: if      |
-|                                           |                 | samples are short, then a batch contains more         |
-|                                           |                 | elements.                                             |
-+-------------------------------------------+-----------------+-------------------------------------------------------+
+An example of config file is
+`here <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_.
+
+.. list-table:: Run config. The main config passed to scripts `punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train.py>`_ and `punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **pretrained_model**
+     - string
+     - ``null``
+     - Can be an NVIDIA's NGC cloud model or a path to a ``.nemo`` checkpoint. You can get list of possible cloud options
+       by calling a method :py:meth:`~nemo.collections.nlp.models.PunctuationCapitalizationModel.list_available_models`.
+   * - **name**
+     - string
+     - ``'Punctuation_and_Capitalization'``
+     - A name of the model. Used for naming output directories and ``.nemo`` checkpoints.
+   * - **do_training**
+     - bool
+     - ``true``
+     - Whether to perform training of the model.
+   * - **do_testing**
+     - bool
+     - ``false``
+     - Whether ot perform testing of the model after training.
+   * - **model**
+     - :ref:`model config<model-config-label>`
+     - :ref:`model config<model-config-label>`
+     - A configuration for the :class:`~nemo.collections.nlp.models.PunctuationCapitalizationModel`.
+   * - **trainer**
+     - trainer config
+     -
+     - Parameters of
+       `pytorch_lightning.Trainer <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#trainer-class-api>`_.
+   * - **exp_manager**
+     - exp manager config
+     -
+     - A configuration with various NeMo training options such as output directories, resuming from checkpoint,
+       tensorboard and W&B logging, and so on. For possible options see :ref:`exp-manager-label` description and class
+       :class:`~nemo.utils.exp_manager.exp_manager`.
+
+.. _model-config-label:
+
+Model config
+^^^^^^^^^^^^
+
+.. list-table:: Location of model config in parent config
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model``
+
+A configuration of
+:class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
+model.
+
+.. list-table:: Model config
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **class_labels**
+     - :ref:`class labels config<class-labels-config-label>`
+     - :ref:`class labels config<class-labels-config-label>`
+     - A mandatory parameter containing a dictionary with names of label id files used in ``.nemo`` checkpoints. These
+       file names can also be used for passing label vocabularies to the model. If you wish to use ``class_labels`` for
+       passing vocabularies, please provide path to vocabulary files in
+       ``model.common_dataset_parameters.label_vocab_dir`` parameter.
+   * - **common_dataset_parameters**
+     - :ref:`common dataset parameters config<common-dataset-parameters-config-label>`
+     - :ref:`common dataset parameters config<common-dataset-parameters-config-label>`
+     - Label ids and loss mask information.
+   * - **train_ds**
+     - :ref:`data config<data-config-label>` with string in  ``ds_item``
+     - ``null``
+     - A configuration for creating training dataset and data loader. A mandatory parameter if training is performed.
+   * - **validation_ds**
+     - :ref:`data config<data-config-label>` with string OR list of strings in ``ds_item``
+     - ``null``
+     - A configuration for creating validation datasets and data loaders.
+   * - **test_ds**
+     - :ref:`data config<data-config-label>` with string OR list of strings in ``ds_item``
+     - ``null``
+     - A configuration for creating test datasets and data loaders. A mandatory parameter if testing is performed.
+   * - **punct_head**
+     - :ref:`head config<head-config-label>`
+     - :ref:`head config<head-config-label>`
+     - A configuration for creating punctuation MLP head that is applied to a language model outputs.
+   * - **capit_head**
+     - :ref:`head config<head-config-label>`
+     - :ref:`head config<head-config-label>`
+     - A configuration for creating capitalization MLP head that is applied to a language model outputs.
+   * - **tokenizer**
+     - :ref:`tokenizer config<tokenizer-config-label>`
+     - :ref:`tokenizer config<tokenizer-config-label>`
+     - A configuration for creating source text tokenizer.
+   * - **language_model**
+     - :ref:`language model config<language-model-config-label>`
+     - :ref:`language model config<language-model-config-label>`
+     - A configuration of a BERT-like language model which serves as a model body.
+   * - **optim**
+     - :ref:`optim config<optim-config-label>`
+     - :ref:`optim config<optim-config-label>`
+     - A configuration of optimizer, learning rate scheduler, and L2 regularization.
+
+.. _class-labels-config-label:
+
+Class labels config
+^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Location of class labels config in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.class_labels``
+   * - :ref:`Model config<model-config-label>`
+     - ``class_labels``
+
+.. list-table:: Class labels config
+   :widths: 5 5 5 35
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **punct_labels_file**
+     - string
+     - ???
+     - A name of a punctuation labels file. It is a mandatory parameter that cannot be omitted in the config. This name
+       is used as a name of label ids file in ``.nemo`` checkpoint. It also can be used for passing label vocabulary to
+       the model. If ``punct_labels_file`` is used as a vocabulary file, then you should provide parameter
+       ``label_vocab_dir`` in :ref:`common dataset parameters<common-dataset-parameters-config-label>`
+       (``model.common_dataset_parameters.label_vocab_dir`` in :ref:`run config<run-config-label>`). Each line of
+       ``punct_labels_file`` file contains 1 label. The first line has to contain neutral label which has to be
+       equal to a ``pad_label`` parameter in :ref:`common dataset parameters<common-dataset-parameters-config-label>`.
+   * - **capit_labels_file**
+     - string
+     - ???
+     - Same as ``punct_labels_file`` for capitalization labels.
+
+.. _common-dataset-parameters-config-label:
+
+Common dataset parameters config
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Location of common dataset parameters config in parent config
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.common_dataset_config``
+   * - :ref:`Model config<model-config-label>`
+     - ``common_dataset_config``
+
+A common dataset parameters config which includes label and loss mask information.
+If you omit parameters ``punct_label_ids``, ``capit_label_ids``, ``label_vocab_dir``, then labels will be inferred
+from a training dataset or loaded from a checkpoint.
+
+Parameters ``ignore_extra_tokens`` and ``ignore_start_end`` are responsible for forming loss mask. A loss mask
+defines on which tokens loss is computed.
+
+.. list-table:: Common dataset parameters config
+   :widths: 5 5 5 35
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **pad_label**
+     - string
+     - ???
+     - A mandatory parameter which should contain label used for punctuation and capitalization label padding. It
+       also serves as a neutral label for both punctuation and capitalization. If any of ``punct_label_ids``,
+       ``capit_label_ids`` parameters is provided, then ``pad_label`` must have ``0`` id in them. In addition, if
+       ``label_vocab_dir`` is provided, then ``pad_label`` must be on the first lines in files
+       ``class_labels.punct_labels_file`` and ``class_labels.capit_labels_file``.
+   * - **ignore_extra_tokens**
+     - bool
+     - ``false``
+     - Whether to compute loss on not first tokens in words. If this parameter is ``true``, then loss mask is ``false``
+       for all tokens in a word except the first.
+   * - **ignore_start_end**
+     - bool
+     - ``true``
+     - If ``false``, then loss is computed on [CLS] and [SEP] tokens.
+   * - **punct_label_ids**
+     - ``Dict[str, int]``
+     - ``null``
+     - A dictionary with punctuation label ids. ``pad_label`` must have ``0`` id in this dictionary. You can omit this
+       parameter and pass label ids through ``class_labels.punct_labels_file`` or let the model to infer label ids from
+       dataset or load them from checkpoint.
+   * - **capit_label_ids**
+     - ``Dict[str, int]``
+     - ``null``
+     - Same as ``punct_label_ids`` for capitalization labels.
+   * - **label_vocab_dir**
+     - string
+     - ``null``
+     - A path to directory which contains class labels files. See :class:`ClassLabelsConfig`. If this parameter is
+       provided, then labels will be loaded from files which are located in ``label_vocab_dir`` and have names
+       specified in ``model.class_labels`` configuration section. A label specified in ``pad_label`` has to be on the
+       first lines of ``model.class_labels`` files.
+
+.. _data-config-label:
+
+Data config
+^^^^^^^^^^^
+
+.. list-table:: Location of data configs in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Keys in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.train_ds``, ``model.validation_ds``, ``model.test_ds``
+   * - :ref:`Model config<model-config-label>`
+     - ``train_ds``, ``validation_ds``, ``test_ds``
+
+For convenience, items of data config are described in 4 tables:
+:ref:`common parameters for both usual and tarred datasets<common-data-parameters-label>`,
+:ref:`parameters which are applicable only to usual dataset<usual-dataset-parameters-label>`,
+:ref:`parameters which are applicable only to tarred dataset<tarred-dataset-parameters-label>`,
+:ref:`parameters for PyTorch data loader<pytorch-dataloader-parameters-label>`.
+
+.. _common-data-parameters-label:
+
+.. list-table:: Parameters for both usual (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`) and tarred (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`) datasets
+   :widths: 5 5 5 35
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **use_tarred_dataset**
+     - bool
+     - ???
+     - A mandatory parameter specifying whether to use tarred dataset or usual dataset. If ``true``, then you should
+       provide ``ds_item``, ``tar_metadata_file`` parameters. Otherwise, you should provide parameters ``ds_item``,
+       ``text_file``, ``labels_file``, ``tokens_in_batch`` parameters.
+   * - **ds_item**
+     - **string** OR **list of strings** (only if used in ``model.validation_ds`` or ``model.test_ds``)
+     - ???
+     - A mandatory parameter containing path to a directory containing ``tar_metadata_file`` file
+       (if ``use_tarred_dataset=true``) or ``text_file`` and ``labels_file`` (if ``use_tarred_dataset=false``).
+       For ``validation_ds`` or ``test_ds`` you may specify a list of paths in ``ds_item``.
+       If ``ds_item`` is a list, then evaluation will be performed on several datasets. To override ``ds_item`` config
+       parameter with a list use following syntax:
+       ``python punctuation_capitalization_train.py model.validation_ds.ds_item=[path1,path2]`` (no spaces after ``=``
+       sign).
+   * - **label_info_save_dir**
+     - string
+     - ``null``
+     - A path to a directory where files created during dataset processing are stored. These files include label id
+       files and label stats files. By default, it is a directory containing ``text_file`` or ``tar_metadata_file``.
+       You may need this parameter if dataset directory is read-only and thus does not allow saving anything near
+       dataset files.
+
+.. _usual-dataset-parameters-label:
+
+.. list-table:: Parameters for usual (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset`) dataset
+   :widths: 5 5 5 30
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **text_file**
+     - string
+     - ``null``
+     - A mandatory parameter if ``use_tarred_dataset=false``. ``text_file`` is a name of a source text file which is
+       located in ``ds_item`` directory.
+   * - **labels_file**
+     - string
+     - ``null``
+     - A mandatory parameter if ``use_tarred_dataset=false``. ``labels_file`` is a name of a file with punctuation and
+       capitalization labels in :ref:`NeMo format <nemo-data-format-label>`. It has is located in ``ds_item`` directory.
+   * - **tokens_in_batch**
+     - int
+     - ``null``
+     - A mandatory parameter if ``use_tarred_dataset=false``. ``tokens_in_batch`` contains a number of tokens in a batch
+       including paddings and special tokens ([CLS], [SEP], [UNK]). This config does not have ``batch_size`` parameter.
+   * - **max_seq_length**
+     - int
+     - ``512``
+     - Max number of tokens in a source sequence. ``max_seq_length`` includes [CLS] and [SEP] tokens. Sequences
+       which are too long will be clipped by removal of tokens from the end of a sequence.
+   * - **num_samples**
+     - int
+     - ``-1``
+     - A number of samples loaded from ``text_file`` and ``labels_file`` which are used in the dataset. If this
+       parameter equals ``-1``, then all samples are used.
+   * - **use_cache**
+     - bool
+     - ``true``
+     - Whether to use pickled features. If pickled features does not exist, then pickled features will be created.
+       For large usual datasets, pickled features may considerably reduce time for training starting. Tokenization
+       of source sequences is not fast because sequences are split into words before tokenization. For even larger
+       datasets (~4M), tarred datasets are recommended.
+   * - **cache_dir**
+     - string
+     - ``null``
+     - A path to a directory containing cache or directory where newly created cache is saved. By default, it is
+       a directory containing ``text_file``. You may need this parameter if cache for a dataset is going to be created
+       and the dataset directory is read-only. ``cache_dir`` and ``label_info_save_dir`` are separate parameters for
+       the case when a cache is ready and this cache is stored in a read-only directory. In such a case you will
+       separate ``label_info_save_dir``.
+   * - **get_label_frequences**
+     - bool
+     - ``false``
+     - Whether to show and save label frequencies. Frequencies are showed if ``verbose`` parameter is ``true``. If
+       ``get_label_frequencies=true``, then frequencies are saved into ``label_info_save_dir``.
+   * - **verbose**
+     - bool
+     - ``true``
+     - If ``true``, then progress messages and examples of acquired features are printed.
+   * - **n_jobs**
+     - int
+     - ``0``
+     - Number of workers used for features creation (tokenization, label encoding, and clipping). If ``0``, then
+       multiprocessing is not used; if ``null``, then ``n_jobs`` will be equal to the number of CPU cores. WARNING:
+       there can be weird deadlocking errors with some tokenizers (e.g. SentencePiece) if ``n_jobs`` is greater than
+       zero.
+
+.. _tarred-dataset-parameters-label:
+
+.. list-table:: Parameters for tarred (:class:`~nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset`) dataset
+   :widths: 5 5 5 30
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **tar_metadata_file**
+     - string
+     - ``null``
+     - A mandatory parameter if ``use_tarred_dataset=true``. A tarred metadata file and other parts of tarred dataset
+       are usually created by the script
+       `examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py
+       <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py>`_
+   * - **tar_shuffle_n**
+     - int
+     - ``1``
+     - The size of shuffle buffer of `webdataset <https://github.com/webdataset/webdataset>`_. The number of batches
+       which are permuted.
+
+.. _pytorch-dataloader-parameters-label:
+
+.. list-table:: Parameters for PyTorch `torch.utils.data.DataLoader <https://pytorch.org/docs/stable/data.html?highlight=distributedsampler#torch.utils.data.DataLoader>`_
+   :widths: 5 5 5 30
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **shuffle**
+     - bool
+     - ``true``
+     - Shuffle batches every epoch. For usual training datasets, the parameter activates batch repacking every
+       epoch. For tarred dataset it would be only batches permutation.
+   * - **drop_last**
+     - bool
+     - ``false``
+     - In cases when data parallelism is used, ``drop_last`` defines the way data pipeline behaves when some replicas
+       are out of data and some are not. If ``drop_last`` is ``True``, then epoch ends in the moment when any replica
+       runs out of data. If ``drop_last`` is ``False``, then the replica will replace missing batch with a batch from a
+       pool of batches that the replica has already processed. If data parallelism is not used, then parameter
+       ``drop_last`` does not do anything. For more information see
+       `torch.utils.data.distributed.DistributedSampler
+       <https://pytorch.org/docs/stable/data.html?highlight=distributedsampler#torch.utils.data.distributed.DistributedSampler>`_
+   * - **pin_memory**
+     - bool
+     - ``true``
+     - See this parameter documentation in
+       `torch.utils.data.DataLoader <https://pytorch.org/docs/stable/data.html?highlight=distributedsampler#torch.utils.data.DataLoader>`_
+   * - **num_workers**
+     - int
+     - ``8``
+     - See this parameter documentation in
+       `torch.utils.data.DataLoader <https://pytorch.org/docs/stable/data.html?highlight=distributedsampler#torch.utils.data.DataLoader>`_
+   * - **persistent_memory**
+     - bool
+     - ``true``
+     - See this parameter documentation in
+       `torch.utils.data.DataLoader <https://pytorch.org/docs/stable/data.html?highlight=distributedsampler#torch.utils.data.DataLoader>`_
+
+.. _head-config-label:
+
+Head config
+^^^^^^^^^^^
+
+.. list-table:: Location of head configs in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Keys in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.punct_head``, ``model.capit_head``
+   * - :ref:`Model config<model-config-label>`
+     - ``punct_head``, ``capit_head``
+
+This config defines a multilayer perceptron which is applied to
+outputs of a language model. Number of units in the hidden layer is equal to the dimension of the language model.
+
+.. list-table:: Head config
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **num_fc_layers**
+     - int
+     - ``1``
+     - A number of hidden layers in the multilayer perceptron.
+   * - **fc_dropout**
+     - float
+     - ``0.1``
+     - A dropout used in the MLP.
+   * - **activation**
+     - string
+     - ``'relu'``
+     - An activation used in hidden layers.
+   * - **use_transformer_init**
+     - bool
+     - ``true``
+     - Whether to initialize the weights of the classifier head with the approach that was used for language model
+       initialization.
+
+.. _language-model-config-label:
+
+Language model config
+^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Location of language model config in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.language_model``
+   * - :ref:`Model config<model-config-label>`
+     - ``language_model``
+
+A configuration of a language model which serves as a model body. BERT-like HuggingFace models are supported. Provide a
+valid ``pretrained_model_name`` and, optionally, you may reinitialize model via ``config_file`` or ``config``.
+
+Alternatively you can initialize the language model using ``lm_checkpoint``.
+
+.. list-table:: Language model config
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **pretrained_model_name**
+     - string
+     - ???
+     - A mandatory parameter containing name of HuggingFace pretrained model. For example, ``'bert-base-uncased'``.
+   * - **config_file**
+     - string
+     - ``null``
+     - A path to a file with HuggingFace model config which is used to reinitialize the language model.
+   * - **config**
+     - dict
+     - ``null``
+     - A HuggingFace config which is used to reinitialize the language model.
+   * - **lm_checkpoint**
+     - string
+     - ``null``
+     - A path to a ``torch`` checkpoint of the language model.
+
+.. _tokenizer-config-label:
+
+Tokenizer config
+^^^^^^^^^^^^^^^^
+
+.. list-table:: Location of tokenizer config in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.tokenizer``
+   * - :ref:`Model config<model-config-label>`
+     - ``tokenizer``
+
+A configuration of a source text tokenizer.
+
+.. list-table:: Language model config
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **tokenizer_name**
+     - string
+     - ???
+     - A mandatory parameter containing a name of the tokenizer used for tokenization of source sequences. Possible
+       options are ``'sentencepiece'``, ``'word'``, ``'char'``, HuggingFace tokenizers (e.g. ``'bert-base-uncased'``).
+       For more options see function ``nemo.collections.nlp.modules.common.get_tokenizer``. The tokenizer must have
+       properties ``cls_id``, ``pad_id``, ``sep_id``, ``unk_id``.
+   * - **vocab_file**
+     - string
+     - ``null``
+     - A path to vocabulary file which is used in ``'word'``, ``'char'``, and HuggingFace tokenizers.
+   * - **special_tokens**
+     - ``Dict[str, str]``
+     - ``null``
+     - A dictionary with special tokens passed to constructors of ``'char'``, ``'word'``, ``'sentencepiece'``, and
+       various HuggingFace tokenizers.
+   * - **tokenizer_model**
+     - string
+     - ``null``
+     - A path to a tokenizer model required for ``'sentencepiece'`` tokenizer.
+
+.. _optim-config-label:
+
+Optimization config
+^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: Location of optimization config in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.optim``
+   * - :ref:`Model config<model-config-label>`
+     - ``optim``
+
+An optimization configuration which includes L2 regularization and learning rate scheduling.
+
+.. list-table:: Language model config
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **name**
+     - string
+     - ???
+     - A name of an optimizer. For possible options see :ref:`optimizers-label`.
+   * - **lr**
+     - float
+     - ``1e-3``
+     - An initial learning rate value. If warmup is used, then ``lr`` is a learning rate after warmup.
+   * - **betas**
+     - ``Tuple[float, float]``
+     - ``[0.9,0.98]``
+     - An Adam optimizer momentum parameters.
+   * - **weight_decay**
+     - float
+     - ``0.0``
+     - A weight decay for L2 regularization.
+   * - **sched**
+     - :ref:`scheduler config<sched-config-label>`
+     - :ref:`scheduler config<sched-config-label>`
+     - A configuration of learning rate scheduler.
+
+.. _sched-config-label:
+
+Scheduler config
+^^^^^^^^^^^^^^^^
+
+.. list-table:: Location of scheduler config in parent configs
+   :widths: 5 5
+   :header-rows: 1
+
+   * - **Parent config**
+     - **Key in parent config**
+   * - :ref:`Run config<run-config-label>`
+     - ``model.optim.sched``
+   * - :ref:`Model config<model-config-label>`
+     - ``optim.sched``
+   * - :ref:`Optimization config<optim-config-label>`
+     - ``sched``
+
+A configuration of a learning rate scheduler.
+
+Warmup is a period in the beginning of training during which learning rate is increased linearly to its initial
+value.
+
+.. list-table:: Language model config
+   :widths: 5 5 10 25
+   :header-rows: 1
+
+   * - **Parameter**
+     - **Data type**
+     - **Default value**
+     - **Description**
+   * - **name**
+     - string
+     - ``'InverseSquareRootAnnealing'``
+     - A name of learning rate scheduler. For possible options see :ref:`learning-rate-schedulers-label`.
+   * - **warmup_steps**
+     - int
+     - ``null``
+     - Number of steps spent on warmup. You may specify at most one of parameters ``warmup_steps`` and ``warmup_ratio``.
+   * - **betas**
+     - ``Tuple[float, float]``
+     - ``[0.9,0.98]``
+     - An Adam optimizer momentum parameters.
+   * - **warmup_ratio**
+     - float
+     - ``null``
+     - The fraction of training steps spend on warmup. You may specify at most one of parameters ``warmup_steps`` and
+       ``warmup_ratio``.
+   * - **last_epoch**
+     - int
+     - ``-1``
+     - A number of an epoch from which to resume scheduling. Useful when restoring from checkpoint. See more in PyTorch
+       documentation. If ``last_epoch`` equals ``-1``, then start scheduling from the beginning.
+
+Model training
+^^^^^^^^^^^^^^
 
 For more information, refer to the :ref:`nlp_model` section.
 
@@ -317,12 +883,6 @@ To train from the pre-trained model, run:
              pretrained_model=<PATH/TO/SAVE/.nemo>
 
 
-Required Arguments for Training
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-* :code:`model.dataset.data_dir`: Path to the `data_dir` with the pre-processed data files.
-
-
 .. note::
 
     All parameters defined in the configuration file can be changed with command arguments. For example, the sample
@@ -346,12 +906,12 @@ Inference is performed by a script `examples/nlp/token_classification/punctuate_
         --margin 16 \
         --step 8
 
-:code:`<PATH_TO_INPUT_MANIFEST>` is a path to NeMo :ref:`ASR manifest <_LibriSpeech_dataset>` with text in which you need to
+:code:`<PATH_TO_INPUT_MANIFEST>` is a path to NeMo :ref:`ASR manifest<LibriSpeech_dataset>` with text in which you need to
 restore punctuation and capitalization. If manifest contains :code:`'pred_text'` key, then :code:`'pred_text'` elements
 will be processed. Otherwise, punctuation and capitalization will be restored in :code:`'text'` elements.
 
 :code:`<PATH_TO_OUTPUT_MANIFEST>` is a path to NeMo ASR manifest into which result will be saved. The text with restored
-punctuation and capitalization is saved into :code:`'pred_text'` elements if :code:`'pred_text'` key is present in
+punctuation and capitalization is saved into :code:`'pred_text'` elements if :code:`'pred_text'` key is present in the
 input manifest. Otherwise result will be saved into :code:`'text'` elements.
 
 Alternatively you can pass data for restoring punctuation and capitalization as plain text. See help for parameters :code:`--input_text`
@@ -360,10 +920,11 @@ and :code:`--output_text` of the script
 
 The script `punctuate_capitalize_infer.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuate_capitalize_infer.py>`_
 can restore punctuation and capitalization in a text of arbitrary length. Long sequences are split into segments
-:code:`--max_seq_length - 2` tokens each. Each segment starts and ends with :code:`[CLS]` and :code:`[SEP]`
-tokens correspondingly. Every segment is offset to the previous one by :code:`--step` tokens. For example, if
-every character is a token, :code:`--max_seq_length=5`, :code:`--step=2`, then text :code:`"hello"` will be split into
-segments :code:`[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]`.
+:code:`--max_seq_length - 2` tokens each (this number does not include :code:`[CLS]` and :code:`[SEP]` tokens). Each
+segment starts and ends with :code:`[CLS]` and :code:`[SEP]` tokens correspondingly. Every segment is offset to the
+previous one by :code:`--step` tokens. For example, if every character is a token, :code:`--max_seq_length=5`,
+:code:`--step=2`, then text :code:`"hello"` will be split into segments
+:code:`[['[CLS]', 'h', 'e', 'l', '[SEP]'], ['[CLS]', 'l', 'l', 'o', '[SEP]']]`.
 
 If segments overlap, then predicted probabilities for a token present in several segments are multiplied before
 before selecting the best candidate.
@@ -395,8 +956,8 @@ Required Arguments
 ^^^^^^^^^^^^^^^^^^
 
 - :code:`pretrained_model`: pretrained Punctuation and Capitalization model from ``list_available_models()`` or path to a ``.nemo``
-file. For example: ``punctuation_en_bert`` or ``your_model.nemo``.
-- :code:`model.dataset.data_dir`: path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`
+  file. For example: ``punctuation_en_bert`` or ``your_model.nemo``.
+- :code:`model.test_ds.ds_item`: path to the directory that containes :code:`model.test_ds.text_file` and :code:`model.test_ds.labels_file`
 
 During evaluation of the :code:`test_ds`, the script generates two classification reports: one for capitalization task and another
 one for punctuation task. This classification reports include the following metrics:
