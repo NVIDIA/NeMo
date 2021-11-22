@@ -39,11 +39,14 @@ class FractionFst(GraphFst):
         super().__init__(name="fraction", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
 
+        optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
         integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         numerator = pynutil.insert("numerator: \"") + cardinal_graph + pynini.cross(pynini.union("/", " / "), "\" ")
         denominator = pynutil.insert("denominator: \"") + cardinal_graph + pynutil.insert("\"")
 
-        self.graph = pynini.closure(integer + pynini.accep(" "), 0, 1) + numerator + denominator
+        self.graph = (
+            optional_graph_negative + pynini.closure(integer + pynini.accep(" "), 0, 1) + numerator + denominator
+        )
 
         graph = self.graph + pynutil.insert(" preserve_order: true")
         final_graph = self.add_tokens(graph)

@@ -58,11 +58,14 @@ class ElectronicFst(GraphFst):
                 NEMO_NOT_QUOTE - pynini.accep(" ")
             )
 
+        verbalize_characters = pynini.cdrewrite(graph_symbols | graph_digit, "", "", NEMO_SIGMA)
+
         user_name = pynutil.delete("username: \"") + add_space_after_char() + pynutil.delete("\"")
+        user_name @= verbalize_characters
 
         convert_defaults = NEMO_NOT_QUOTE | domain_common | server_common
         domain = convert_defaults + pynini.closure(insert_space + convert_defaults)
-        domain @= pynini.cdrewrite(graph_symbols | graph_digit, "", "", NEMO_SIGMA)
+        domain @= verbalize_characters
 
         domain = pynutil.delete("domain: \"") + domain + pynutil.delete("\"")
         protocol = (

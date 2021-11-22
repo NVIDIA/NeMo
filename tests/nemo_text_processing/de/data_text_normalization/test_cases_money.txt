@@ -1,0 +1,19 @@
+zwei dollar~$2
+zwei dollar~$2,000
+zwei dollar~$2,0
+zwei dollar~$2,00
+zwei komma null null null eins dollar~$2,0001
+ein cent~€0,01
+zwanzig cent~€0,20
+zwei dollar zwanzig~$2,20
+zwei dollar zwanzig~$2,20000
+zwei dollar und zwanzig cent~$2,20
+zwei dollar und zwanzig cent~$2,200
+zwei komma zwei null eins dollar~$2,2010
+zwei komma zwei null eins dollar~$2,201
+zwei euro und zwanzig cent~€2,20
+zwei euro und zwanzig cent~€2,200
+zwei komma zwei null null millionen euro~€2,200 millionen
+zwei komma zwei null eins millionen euro~€2,201 millionen
+zwei komma zwei eins millionen euro~€2,21 millionen
+eins million euro~€1 million

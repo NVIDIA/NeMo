@@ -40,25 +40,25 @@ class VerbalizeFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
-        cardinal_tagger = CardinalTaggerFst()
-        cardinal = CardinalFst()
+        cardinal_tagger = CardinalTaggerFst(deterministic=deterministic)
+        cardinal = CardinalFst(deterministic=deterministic)
         cardinal_graph = cardinal.fst
-        ordinal = OrdinalFst()
+        ordinal = OrdinalFst(deterministic=deterministic)
         ordinal_graph = ordinal.fst
         decimal = DecimalFst(deterministic=deterministic)
         decimal_graph = decimal.fst
-        fraction = FractionFst(ordinal=ordinal)
+        fraction = FractionFst(ordinal=ordinal, deterministic=deterministic)
         fraction_graph = fraction.fst
         date = DateFst(ordinal=ordinal)
         date_graph = date.fst
         measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
         measure_graph = measure.fst
-        electronic = ElectronicFst()
+        electronic = ElectronicFst(deterministic=deterministic)
         electronic_graph = electronic.fst
-        whitelist_graph = WhiteListFst().fst
+        whitelist_graph = WhiteListFst(deterministic=deterministic).fst
         money_graph = MoneyFst(decimal=decimal).fst
-        telephone_graph = TelephoneFst().fst
-        time_graph = TimeFst(cardinal_tagger).fst
+        telephone_graph = TelephoneFst(deterministic=deterministic).fst
+        time_graph = TimeFst(cardinal_tagger, deterministic=deterministic).fst
 
         graph = (
             cardinal_graph
