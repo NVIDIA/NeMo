@@ -42,12 +42,11 @@ class CausalConv2D(nn.Conv2d):
             self._left_padding = padding
             self._right_padding = padding
 
-
         self._stride = stride
         self._needed_cache_len = kernel_size - stride
-        #self._needed_cache_len = 2 * stride + 1
+        # self._needed_cache_len = 2 * stride + 1
         self._ignore_len = self._right_padding // self._stride
-        #self._ignore_len = 0
+        # self._ignore_len = 0
 
         padding = 0
         super(CausalConv2D, self).__init__(
@@ -79,7 +78,7 @@ class CausalConv2D(nn.Conv2d):
                 cache = cache[self._cache_id]
 
             cache_length = cache.size()[-2]
-            needed_cache = cache[:, :, -self._needed_cache_len:, -self._needed_cache_len:]
+            needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
             x = torch.cat((needed_cache, x), dim=-1)
 
         x = super().forward(x)
@@ -173,7 +172,7 @@ class ConvSubsampling(torch.nn.Module):
                             out_channels=conv_channels,
                             kernel_size=self._kernel_size,
                             stride=self._stride,
-                            #padding=self._kernel_size - 1,
+                            # padding=self._kernel_size - 1,
                             padding=-1,
                         )
                     )
@@ -214,20 +213,20 @@ class ConvSubsampling(torch.nn.Module):
         x = x.unsqueeze(1)
         x_length = x.size()[-2]
         input_x = x
-        #x = self.conv((x, cache))
+        # x = self.conv((x, cache))
         if cache is not None:
             if hasattr(self, 'cache_id'):
                 cache = cache[self._cache_id]
 
             cache_length = cache.size()[-2]
             if x_length != 1:
-                needed_cache = cache[:, :, -self._needed_cache_len:, -self._needed_cache_len:]
+                needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
                 x = torch.cat((needed_cache, x), dim=-2)
 
         x = self.conv(x)
 
         if cache is not None:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length):]
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
             cache[:, :, -x_length:] = input_x
 
         b, c, t, f = x.size()
@@ -254,9 +253,9 @@ class ConvSubsampling(torch.nn.Module):
 def calc_length(lengths, padding, kernel_size, stride, ceil_mode):
     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
     if ceil_mode:
-        #lengths = torch.ceil((lengths + (2 * padding) - (kernel_size - 1) - 1) / float(stride) + 1)
+        # lengths = torch.ceil((lengths + (2 * padding) - (kernel_size - 1) - 1) / float(stride) + 1)
         lengths = torch.ceil((lengths + padding - (kernel_size - 1) - 1) / float(stride) + 1)
     else:
-        #lengths = torch.floor(torch.div(lengths + (2 * padding) - (kernel_size - 1) - 1, stride) + 1)
+        # lengths = torch.floor(torch.div(lengths + (2 * padding) - (kernel_size - 1) - 1, stride) + 1)
         lengths = torch.floor(torch.div(lengths + padding - (kernel_size - 1) - 1, stride) + 1)
     return lengths

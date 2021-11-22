@@ -156,7 +156,7 @@ class ConformerConvolution(nn.Module):
                 out_channels=d_model,
                 kernel_size=kernel_size,
                 stride=1,
-                padding=-1,# kernel_size - 1,
+                padding=-1,  # kernel_size - 1,
                 groups=d_model,
                 bias=True,
             )
@@ -269,11 +269,11 @@ class CausalConv1D(nn.Conv1d):
             if hasattr(self, 'cache_id'):
                 cache = cache[self._cache_id]
             cache_length = cache.size()[-1]
-            needed_cache = cache[:, :, -self._left_padding:]
+            needed_cache = cache[:, :, -self._left_padding :]
             x = torch.cat((needed_cache, x), dim=-1)
         x = super().forward(x)
         if cache is not None:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length):]
+            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
             cache[:, :, -x_length:] = input_x
         # else:
         #     # x = x[:, :, : -self.padding[0]]
