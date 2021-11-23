@@ -509,3 +509,9 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
 
 class NLPFitLoop(FitLoop):
     pass
+
+    class NLPFitLoop(FitLoop):
+        pass
+
+
+# TODO: implement
