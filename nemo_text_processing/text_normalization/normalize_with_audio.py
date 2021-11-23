@@ -132,7 +132,6 @@ class NormalizerWithAudio(Normalizer):
             if verbose:
                 print(text)
             return text
-
         text = pynini.escape(text)
 
         if n_tagged == -1:
@@ -145,7 +144,7 @@ class NormalizerWithAudio(Normalizer):
         else:
             normalized_texts = []
             for tagged_text in tagged_texts:
-                self._verbalize(tagged_text, normalized_texts)
+                self._verbalize(tagged_text, normalized_texts, verbose=verbose)
 
         if len(normalized_texts) == 0:
             raise ValueError()
@@ -158,17 +157,17 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
-    def _verbalize(self, tagged_text: str, normalized_texts: List[str]):
+    def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):
         """
         Verbalizes tagged text
 
         Args:
             tagged_text: text with tags
             normalized_texts: list of possible normalization options
+            verbose: if true prints intermediate classification results
         """
 
         def get_verbalized_text(tagged_text):
-            tagged_text = pynini.escape(tagged_text)
             return rewrite.rewrites(tagged_text, self.verbalizer.fst)
 
         self.parser(tagged_text)
@@ -176,7 +175,11 @@ class NormalizerWithAudio(Normalizer):
         tags_reordered = self.generate_permutations(tokens)
         for tagged_text_reordered in tags_reordered:
             try:
+                tagged_text_reordered = pynini.escape(tagged_text_reordered)
                 normalized_texts.extend(get_verbalized_text(tagged_text_reordered))
+                if verbose:
+                    print(tagged_text_reordered)
+
             except pynini.lib.rewrite.Error:
                 continue
 
@@ -252,7 +255,9 @@ def parse_args():
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
-    parser.add_argument("--language", help="Select target language", choices=["en", "ru"], default="en", type=str)
+    parser.add_argument(
+        "--language", help="Select target language", choices=["en", "ru", "de"], default="en", type=str
+    )
     parser.add_argument("--audio_data", default=None, help="path to an audio file or .json manifest")
     parser.add_argument(
         '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
