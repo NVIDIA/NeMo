@@ -140,12 +140,16 @@ class ClassifyFst(GraphFst):
             )
 
             graph = token_plus_punct + pynini.closure(
-                (
-                    pynutil.add_weight(pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space), 0.001)
-                    | delete_extra_space
+                pynini.closure(
+                    pynutil.add_weight(
+                        pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space), 0.000001
+                    ),
+                    0,
+                    1,
                 )
                 + token_plus_punct
             )
+
             self.fst = graph.optimize()
 
             if far_file:
