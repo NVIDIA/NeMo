@@ -1,15 +1,15 @@
 bcp:
   job_name: bignlp-${training.run.name}
-  nodes: 20
+  nodes: 2
   ntasks_per_node: 8
   gpus_per_task: 1
-  time_limit: "8D"
-  instance: "dgxa100.80g.8.norm"
+  time_limit: "4D"
+  instance: "dgxa100.40g.8.norm"
   workspace_common: "bignlp_ws_common"
   workspace_results: "bignlp_ws_results_mk"
 
 run:
-  name: "5b-20f1"
+  name: "126m-2f1"
   results_dir: /workspace-results/${.name}
   log_dir: ${.results_dir}
 
@@ -23,14 +23,15 @@ trainer:
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 120000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 08:00:00:00
+  max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_time: 02:12:00:00 # days:hours:minutes:seconds
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 8 # AGB=8 for 80GB, 32 for 40 GB nodes
+  accumulate_grad_batches: 1
   gradient_clip_val: 1.0
+
 
 exp_manager:
   explicit_log_dir: ${training.run.log_dir}
@@ -52,18 +53,18 @@ exp_manager:
 
 
 model:
-  # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. [1,4,32] for 40GB nodes 
-  micro_batch_size: 2
-  tensor_model_parallel_size: 2
+  # model parallelism 
+  micro_batch_size: 4
+  tensor_model_parallel_size: 1
 
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: 2048
-  num_layers: 24
-  hidden_size: 4096
+  num_layers: 12
+  hidden_size: 768
   ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
-  num_attention_heads: 32
-  init_method_std: 0.01  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  num_attention_heads: 12
+  init_method_std: 0.023  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
@@ -72,7 +73,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 4
+  activations_checkpoint_num_layers: 0
 
   tokenizer:
     library: 'megatron'
@@ -96,16 +97,16 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1.2e-4
+    lr: 6e-4
     weight_decay: 0.1 
     betas: 
     - 0.9
     - 0.95
     sched:
       name: CosineAnnealing
-      warmup_steps: 190
-      constant_steps: 20000
-      min_lr: 1.2e-5
+      warmup_steps: 636
+      constant_steps: 100000
+      min_lr: 6e-5
 
   data:
     data_impl: mmap
@@ -178,3 +179,4 @@ model:
       - ${data_dir}/my-gpt3_28_text_document
       - .0334
       - ${data_dir}/my-gpt3_29_text_document
+

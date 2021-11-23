@@ -1,6 +1,6 @@
 bcp:
   job_name: bignlp-${training.run.name}
-  nodes: 20
+  nodes: 16
   ntasks_per_node: 8
   gpus_per_task: 1
   time_limit: "8D"
@@ -9,7 +9,7 @@ bcp:
   workspace_results: "bignlp_ws_results_mk"
 
 run:
-  name: "5b-20f1"
+  name: "5b-16f1"
   results_dir: /workspace-results/${.name}
   log_dir: ${.results_dir}
 
@@ -29,7 +29,7 @@ trainer:
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 8 # AGB=8 for 80GB, 32 for 40 GB nodes
+  accumulate_grad_batches: 10 # AGB=8 for 80GB/20-nodes, 10 for 80GB/16-node, 32 for 40GB/20-nodes
   gradient_clip_val: 1.0
 
 exp_manager:
