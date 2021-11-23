@@ -254,12 +254,12 @@ def calc_bucketing_batch_sizes(cfg, datasets_len):
         bucketing_batch_sizes = cfg['bucketing_batch_size']
     else:
         raise ValueError(
-            f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={config['bucketing_batch_size']})!"
+            f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={cfg['bucketing_batch_size']})!"
         )
 
     if len(bucketing_batch_sizes) != datasets_len:
         raise ValueError(
-            f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={len(datasets)}) "
+            f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={datasets_len}) "
         )
     return bucketing_batch_sizes
 
