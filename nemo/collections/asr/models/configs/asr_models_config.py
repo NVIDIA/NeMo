@@ -59,6 +59,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     # bucketing configs
     bucketing_batch_size: Optional[Any] = None
 
+
 @dataclass
 class EncDecCTCConfig(model_cfg.ModelConfig):
     # Model global arguments
