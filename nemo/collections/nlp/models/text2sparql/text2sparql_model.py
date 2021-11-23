@@ -177,6 +177,7 @@ class Text2SparqlModel(ModelPT):
         perplexity = self.validation_perplexity.compute()
         tensorboard_logs = {"val_loss": avg_loss, "perplexity": perplexity}
         logging.info(f"evaluation perplexity {perplexity.item()}")
+        self.log("val_loss", avg_loss)
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     @typecheck.disable_checks()
@@ -190,6 +191,7 @@ class Text2SparqlModel(ModelPT):
     def test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
         """Called at the end of test to aggregate outputs and decode them."""
         texts = [self.encoder_tokenizer.ids_to_text(seq) for batch in outputs for seq in batch]
+        self.test_output = [{"texts": texts}]
         return {"texts": texts}
 
     def setup_tokenizer(self, cfg: DictConfig):

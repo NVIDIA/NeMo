@@ -61,13 +61,21 @@ class ConvASREncoder(NeuralModule, Exportable):
 
     def _prepare_for_export(self, **kwargs):
         m_count = 0
-        for m in self.modules():
+        stride = 1
+        one_hour = 100 * 60 * 60 * 1  # 1 sec / 0.01 window stride = 100 frames / second * 60 sec * 60 min * 1 hour
+
+        for name, m in self.named_modules():
             if isinstance(m, MaskedConv1d):
-                if self._rnnt_export:
-                    pass
-                else:
-                    m.use_mask = False
-                    m_count += 1
+                m.use_mask = False
+                m_count += 1
+
+            if isinstance(m, MaskedConv1d):
+                if m.conv.stride[0] > 1 and 'mconv' in name:
+                    stride = stride * m.conv.stride[0]
+
+            if isinstance(m, SqueezeExcite):
+                m.set_max_len(int(one_hour // stride))  # One hour divided by current stride level
+                m.forward = m.forward_for_export
 
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
@@ -78,36 +86,20 @@ class ConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(1, self._feat_in, 8192).to(next(self.parameters()).device)
-        lens = torch.randint(0, input_example.shape[-1], size=(input_example.shape[0],))
-
-        if self._rnnt_export:
-            return tuple([input_example, lens])
-        else:
-            return tuple([input_example])
+        device = next(self.parameters()).device
+        input_example = torch.randn(1, self._feat_in, 8192, device=device)
+        lens = torch.full(size=(input_example.shape[0],), fill_value=8192, device=device)
+        return tuple([input_example, lens])
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        if self._rnnt_export:
-            return set([])
-        else:
-            return set(["length"])
+        return set([])
 
     @property
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
-        if self._rnnt_export:
-            return set([])
-        else:
-            return set(["encoded_lengths"])
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+        return set([])
 
     @property
     def input_types(self):
@@ -237,6 +229,10 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
+
+            if isinstance(m, SqueezeExcite):
+                m.set_max_len(8192)
+
         logging.warning(f"Turned off {m_count} masked convolutions")
 
     def input_example(self):
@@ -400,13 +396,6 @@ class ConvASRDecoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
         https://arxiv.org/pdf/2005.04290.pdf
     """
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
 
     @property
     def input_types(self):

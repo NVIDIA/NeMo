@@ -194,7 +194,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
-                trainer.checkpoint_connector.resume_checkpoint_path so that the trainer should auto-resume. exp_manager will move files
+                trainer.checkpoint_connector.resume_from_checkpoint_fit_path so that the trainer should auto-resume. exp_manager will move files
                 under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
                 we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
@@ -385,7 +385,7 @@ def check_resume(
     resume_ignore_no_checkpoint: bool = False,
 ):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
-    trainer.checkpoint_connector.resume_checkpoint_path as necessary.
+    trainer.checkpoint_connector.resume_from_checkpoint_fit_path as necessary.
 
     Returns:
         log_dir (Path): the log_dir
@@ -441,7 +441,7 @@ def check_resume(
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
+    trainer.checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
@@ -883,7 +883,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
+    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_from_checkpoint_fit_path or ""
     if params.model_parallel_size is not None and params.model_parallel_size > 1:
         checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
             checkpoint_callback.last_model_path
