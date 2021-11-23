@@ -437,7 +437,7 @@ class MTBottleneckModel(MTEncDecModel):
         # pass cache to sampler in order to reuse encoder's output
         cache = dict(z=z, z_mean=z_mean, z_mask=z_mask, timer=timer,)
 
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
+        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
 
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
@@ -448,9 +448,6 @@ class MTBottleneckModel(MTEncDecModel):
             getattr(self, f'{mode}_loss_{dataloader_idx}')(
                 loss=eval_loss, num_measurements=num_measurements,
             )
-        import pudb; pudb.set_trace()
-        inputs = [self.encoder_tokenizer.ids_to_text(src) for src in src_ids.detach().cpu().numpy()]
-        inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
