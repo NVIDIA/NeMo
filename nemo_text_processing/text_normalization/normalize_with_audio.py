@@ -110,9 +110,12 @@ class NormalizerWithAudio(Normalizer):
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        self.default_norm = Normalizer(
-            lang=lang, cache_dir=cache_dir, overwrite_cache=overwrite_cache, input_case=input_case
-        )
+        if lang == 'en':
+            self.default_norm = Normalizer(
+                lang=lang, cache_dir=cache_dir, overwrite_cache=overwrite_cache, input_case=input_case
+            )
+        else:
+            self.default_norm = None
 
     def normalize(
         self,
@@ -171,7 +174,10 @@ class NormalizerWithAudio(Normalizer):
             else:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
-        default_norm = self.default_norm.normalize(text=text, punct_post_process=punct_post_process)
+        if self.default_norm:
+            default_norm = self.default_norm.normalize(text=text, punct_post_process=punct_post_process)
+        else:
+            default_norm = []
         normalized_texts = set([default_norm] + normalized_texts)
         return normalized_texts
 
