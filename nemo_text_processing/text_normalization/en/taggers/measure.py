@@ -171,6 +171,25 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\" } preserve_order: true")
         )
 
+        math_operations = pynini.string_file(get_abs_path("data/math_operations.tsv"))
+        delimiter = pynini.accep(" ") | pynutil.insert(" ")
+
+        math = (
+            cardinal_graph
+            + delimiter
+            + math_operations
+            + delimiter
+            + cardinal_graph
+            + delimiter
+            + pynini.cross("=", "equals")
+            + delimiter
+            + cardinal_graph
+        )
+        math = (
+            pynutil.insert("units: \"math\" cardinal { integer: \"")
+            + math
+            + pynutil.insert("\" } preserve_order: true")
+        )
         final_graph = (
             subgraph_decimal
             | subgraph_cardinal
@@ -181,6 +200,7 @@ class MeasureFst(GraphFst):
             | alpha_dash_decimal
             | subgraph_fraction
             | address
+            | math
         )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
