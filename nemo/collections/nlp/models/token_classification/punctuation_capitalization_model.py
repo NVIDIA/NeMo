@@ -43,8 +43,6 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    ClassLabelsConfig,
-    CommonDatasetParametersConfig,
     OptimConfig,
     is_legacy_model_config,
     legacy_model_config_to_new_model_config,
