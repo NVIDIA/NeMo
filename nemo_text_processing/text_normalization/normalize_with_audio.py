@@ -40,6 +40,14 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
+try:
+    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
+
+    NLP_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    NLP_AVAILABLE = False
+
 """
 The script provides multiple normalization options and chooses the best one that minimizes CER of the ASR output
 (most of the semiotic classes use deterministic=False flag).
@@ -102,6 +110,9 @@ class NormalizerWithAudio(Normalizer):
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
+        self.default_norm = Normalizer(
+            lang=lang, cache_dir=cache_dir, overwrite_cache=overwrite_cache, input_case=input_case
+        )
 
     def normalize(
         self,
@@ -125,6 +136,7 @@ class NormalizerWithAudio(Normalizer):
         Returns:
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
+        original_text = text
         if punct_pre_process:
             text = pre_process(text)
         text = text.strip()
@@ -149,13 +161,19 @@ class NormalizerWithAudio(Normalizer):
 
         if len(normalized_texts) == 0:
             raise ValueError()
-        if punct_post_process:
-            normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
 
+        if punct_post_process:
             # do post-processing based on Moses detokenizer
             if self.processor:
                 normalized_texts = [self.processor.detokenize([t]) for t in normalized_texts]
-        normalized_texts = set(normalized_texts)
+                normalized_texts = [
+                    post_process_punct(input=original_text, normalized_text=t) for t in normalized_texts
+                ]
+            else:
+                print("NEMO_NLP collection is not available: skipping punctuation post_processing")
+
+        default_norm = self.default_norm.normalize(text=text, punct_post_process=punct_post_process)
+        normalized_texts = set([default_norm] + normalized_texts)
         return normalized_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str]):

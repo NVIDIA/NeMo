@@ -16,11 +16,11 @@
 import os
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
     delete_space,
     generator_main,
-NEMO_WHITE_SPACE
 )
 from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
@@ -171,15 +171,8 @@ class ClassifyFst(GraphFst):
                 + pynini.closure(pynutil.insert(" ") + punct)
             )
 
-            graph = token_plus_punct + pynini.closure(
-                pynini.closure(
-                    pynutil.add_weight(
-                        pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space), 0.000001
-                    ),
-                    0,
-                    1,
-                )
-                + token_plus_punct
+            graph = token_plus_punct + (
+                pynini.closure(delete_extra_space + token_plus_punct) | pynutil.add_weight(token_plus_punct, 0.001)
             )
             graph = delete_space + graph + delete_space
 
