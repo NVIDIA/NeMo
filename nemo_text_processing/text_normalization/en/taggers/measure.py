@@ -26,7 +26,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.en.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
 
 try:

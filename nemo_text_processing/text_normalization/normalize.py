@@ -151,7 +151,6 @@ class Normalizer:
             output = self.select_verbalizer(verbalizer_lattice)
             if punct_post_process:
                 # do post-processing based on Moses detokenizer
-                print(output)
                 if self.processor:
                     output = self.processor.detokenize([output])
                     output = post_process_punct(input=text, normalized_text=output)
