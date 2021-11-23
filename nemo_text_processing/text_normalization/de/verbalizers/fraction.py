@@ -72,8 +72,7 @@ class FractionFst(GraphFst):
 
         fraction_default = (numerator + insert_space + denominator) @ denominator_one_half
 
-        self.graph_no_sign = pynini.closure(integer, 0, 1) + fraction_default
-        self.graph = optional_sign + self.graph_no_sign
+        self.graph = optional_sign + pynini.closure(integer, 0, 1) + fraction_default
 
         graph = self.graph + delete_preserve_order
 
