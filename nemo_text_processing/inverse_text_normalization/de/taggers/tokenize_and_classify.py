@@ -30,6 +30,8 @@ from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation impo
 from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as TNCardinalFst
 from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst as TNDecimalFst
+from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionFst
+from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalFst
 from nemo_text_processing.text_normalization.en.graph_utils import generator_main
 
 from nemo.utils import logging
@@ -66,28 +68,31 @@ class ClassifyFst(GraphFst):
             logging.info(f"ClassifyFst.fst was restored from {far_file}.")
         else:
             logging.info(f"Creating ClassifyFst grammars.")
-            tn_cardinal = TNCardinalFst()
+            tn_cardinal = TNCardinalFst(deterministic=False)
+            tn_decimal = TNDecimalFst(cardinal=tn_cardinal, deterministic=False)
+            tn_ordinal_verbalizer = TNOrdinalFst(deterministic=False)
+            tn_fraction_verbalizer = TNFractionFst(ordinal=tn_ordinal_verbalizer, deterministic=False)
+
             cardinal = CardinalFst(tn_cardinal=tn_cardinal)
             cardinal_graph = cardinal.fst
 
             ordinal = OrdinalFst(cardinal)
             ordinal_graph = ordinal.fst
-            tn_decimal = TNDecimalFst(cardinal=tn_cardinal)
             decimal = DecimalFst(cardinal=cardinal, tn_decimal=tn_decimal)
             decimal_graph = decimal.fst
 
-            fraction = FractionFst(cardinal)
+            fraction = FractionFst(itn_cardinal_tagger=cardinal, tn_fraction_verbalizer=tn_fraction_verbalizer)
             fraction_graph = fraction.fst
 
-            measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
-            date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
+            # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
+            # date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
             word_graph = WordFst().fst
-            time_graph = TimeFst().fst
-            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-            whitelist_graph = WhiteListFst().fst
+            # time_graph = TimeFst().fst
+            # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
+            # whitelist_graph = WhiteListFst().fst
             punct_graph = PunctuationFst().fst
-            electronic_graph = ElectronicFst().fst
-            telephone_graph = TelephoneFst().fst
+            # electronic_graph = ElectronicFst().fst
+            # telephone_graph = TelephoneFst().fst
 
             classify = (
                 pynutil.add_weight(cardinal_graph, 1.1)
@@ -97,7 +102,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(measure_graph, 1.1)
                 # | pynutil.add_weight(ordinal_graph, 1.1)
-                # | pynutil.add_weight(fraction_graph, 1.1)
+                | pynutil.add_weight(fraction_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
                 # | pynutil.add_weight(telephone_graph, 1.1)
                 # | pynutil.add_weight(electronic_graph, 1.1)

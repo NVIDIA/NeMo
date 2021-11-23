@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
+    NEMO_NOT_QUOTE,
     GraphFst,
+    convert_space,
     delete_extra_space,
     delete_space,
     insert_space,
 )
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 
 try:
     import pynini
@@ -41,26 +43,35 @@ class FractionFst(GraphFst):
         cardinal: CardinalFst
     """
 
-    def __init__(self, cardinal: GraphFst):
+    def __init__(self, itn_cardinal_tagger: GraphFst, tn_fraction_verbalizer: GraphFst):
         super().__init__(name="fraction", kind="classify")
         # integer_part # numerator # denominator
+        tagger = tn_fraction_verbalizer.graph.invert().optimize()
 
-        cardinal_graph = cardinal.graph_no_exception
-        fractional = pynini.string_file(get_abs_path("data/fractions.tsv"))
+        delete_optional_sign = pynini.closure(pynutil.delete("negative: ") + pynini.cross("\"true\" ", "-"), 0, 1)
+        delete_integer_marker = (
+            pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        ) @ itn_cardinal_tagger.graph_no_exception
 
-        self.fractional = ((pynini.closure(NEMO_CHAR) + fractional) @ cardinal_graph).optimize()
+        delete_numerator_marker = (
+            pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        ) @ itn_cardinal_tagger.graph_no_exception
 
-        integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
-        numerator = pynutil.insert("numerator: \"") + cardinal_graph + pynutil.insert("\"")
-        denominator = pynutil.insert("denominator: \"") + self.fractional + pynutil.insert("\"")
-
-        graph = pynini.closure(integer + delete_space, 0, 1) + numerator + delete_space + insert_space + denominator
-        graph = graph.optimize()
-        self.final_graph_wo_negative = graph
-
-        optional_graph_negative = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
+        delete_denominator_marker = (
+            pynutil.insert('/')
+            + (pynutil.delete("denominator: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\""))
+            @ itn_cardinal_tagger.graph_no_exception
         )
-        graph = optional_graph_negative + graph
-        final_graph = self.add_tokens(graph)
-        self.fst = final_graph.optimize()
+
+        graph = (
+            pynini.closure(delete_integer_marker + pynini.accep(" "), 0, 1)
+            + delete_numerator_marker
+            + delete_space
+            + delete_denominator_marker
+        ).optimize()
+        verbalizer = delete_optional_sign + graph
+
+        final_graph = tagger @ verbalizer
+
+        graph = pynutil.insert("name: \"") + convert_space(final_graph) + pynutil.insert("\"")
+        self.fst = graph.optimize()
