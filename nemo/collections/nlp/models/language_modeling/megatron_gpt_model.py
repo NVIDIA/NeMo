@@ -63,8 +63,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        if self.cfg.get('precision') != 'bf16':
-            set_jit_fusion_options()
+        set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
