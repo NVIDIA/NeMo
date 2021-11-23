@@ -1072,7 +1072,7 @@ class _TarredAudioToTextDataset(IterableDataset):
                 )
 
             elif shard_strategy == 'replicate':
-                self.length = len(self.collection) // world_size
+                self.length = len(self.collection)
                 logging.info("All tarred dataset shards will be replicated across all nodes.")
             else:
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
@@ -1449,7 +1449,11 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
 
 class BucketingDataset(IterableDataset):
     """
-    lodfehlkfeh fqpfjqfpopf fpqojf qpoj!!!
+    A Dataset which wraps another IterableDataset and adopts it for bucketing
+
+    Args:
+        dataset (IterableDataset): The IterableDataset to get wrapped
+        bucketing_batch_size (int): Number of samples to build a batch
     """
 
     def __init__(
@@ -1468,9 +1472,6 @@ class BucketingDataset(IterableDataset):
         ).__iter__()
 
     def __len__(self):
-        # print(
-        #     f"dataset size={int(math.ceil(len(self.wrapped_dataset.collection)/float(self.bucketing_batch_size)))}, bucketing_batch_size={self.bucketing_batch_size}"
-        # )
         return int(math.ceil(len(self.wrapped_dataset.collection) / float(self.bucketing_batch_size)))
 
 
@@ -1489,11 +1490,7 @@ class BucketingIterator:
                 sample = next(self.wrapped_iter)
             except StopIteration:
                 break
-            except Exception as e:
-                logging.error(e)
             batches.append(sample)
-        # print(f"idx={idx}, batch_len={len(batches)}, b_size={self.bucketing_batchsize}")
         if len(batches) == 0:
             raise StopIteration
-        # print(batches)
         return batches
