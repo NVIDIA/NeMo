@@ -69,7 +69,7 @@ class CardinalFst(GraphFst):
     Allows both compound numeral strings or separated by whitespace.
     "und" (en: "and") can be inserted between "hundert" and following number or "tausend" and following single or double digit number.
 
-        e.g. minus drei und zwanzig -> cardinal { integer: "23" negative: "-" } }
+        e.g. minus drei und zwanzig -> cardinal { negative: "-" integer: "23" } }
         e.g. minusdreiundzwanzig -> cardinal { integer: "23" } }
         e.g. dreizehn -> cardinal { integer: "13" } }
         e.g. hundert -> cardinal { integer: "100" } }
@@ -81,129 +81,22 @@ class CardinalFst(GraphFst):
     
     """
 
-    def __init__(self):
-        super().__init__(name="cardinal", kind="classify")
-        delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
-        graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
-        graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
+    def __init__(self, tn_cardinal: GraphFst, deterministic: bool = True):
+        super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        file_hundred = pynini.string_file(get_abs_path("data/numbers/hundred.tsv"))
-
-        graph_hundred = pynutil.delete(file_hundred)
-
-        graph_ties_digit = get_ties_digit(
-            get_abs_path("data/numbers/digit.tsv"), get_abs_path("data/numbers/ties.tsv")
-        )
-        graph_ties = graph_ties_digit | (graph_ties + pynutil.insert("0"))
-        self.graph_ties = graph_ties.optimize()
-
-        graph_hundred_component = pynini.union(
-            pynini.union(graph_digit + delete_space, pynutil.insert('1')) + graph_hundred, pynutil.insert("0")
-        )
-        graph_hundred_component += delete_space
-        graph_hundred_component += pynini.union(
-            pynutil.insert("00"),
-            pynini.closure(pynutil.delete(AND) + delete_space, 0, 1)
-            + pynini.union(
-                graph_teen, graph_ties, pynutil.insert("0") + graph_digit,  #  fourteen  # twenty, twenty four,
-            ),
-        )
-
-        graph_hundred_component_at_least_one_none_zero_digit = (
-            graph_hundred_component
-            @ (pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)).optimize()
-        )
+        graph = tn_cardinal.graph.invert().optimize()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
-            graph_hundred_component_at_least_one_none_zero_digit
+            tn_cardinal.graph_hundred_component_at_least_one_none_zero_digit.invert().optimize()
         )
 
-        graph_thousands = pynini.union(
-            pynini.union(graph_hundred_component_at_least_one_none_zero_digit + delete_space, pynutil.insert('1'))
-            + pynutil.delete("tausend"),
-            pynutil.insert("000", weight=0.1),
-        )
-
-        graph_million = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit
-            + delete_space
-            + pynutil.delete("million")
-            + pynini.closure(pynutil.delete("en"), 0, 1),
-            pynutil.insert("000", weight=0.1),
-        )
-        graph_billion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit
-            + delete_space
-            + pynutil.delete("milliarde")
-            + pynini.closure(pynutil.delete("n"), 0, 1),
-            pynutil.insert("000", weight=0.1),
-        )
-        graph_trillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit
-            + delete_space
-            + pynutil.delete("billion")
-            + pynini.closure(pynutil.delete("en"), 0, 1),
-            pynutil.insert("000", weight=0.1),
-        )
-        graph_quadrillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit
-            + delete_space
-            + pynutil.delete("billiarde")
-            + pynini.closure(pynutil.delete("n"), 0, 1),
-            pynutil.insert("000", weight=0.1),
-        )
-        graph_quintillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit
-            + delete_space
-            + pynutil.delete("trillion")
-            + pynini.closure(pynutil.delete("en"), 0, 1),
-            pynutil.insert("000", weight=0.1),
-        )
-        graph_sextillion = pynini.union(
-            graph_hundred_component_at_least_one_none_zero_digit
-            + delete_space
-            + pynutil.delete("trilliarde")
-            + pynini.closure(pynutil.delete("n"), 0, 1),
-            pynutil.insert("000", weight=0.1),
-        )
-
-        graph = pynini.union(
-            graph_sextillion
-            + delete_space
-            + graph_quintillion
-            + delete_space
-            + graph_quadrillion
-            + delete_space
-            + graph_trillion
-            + delete_space
-            + graph_billion
-            + delete_space
-            + graph_million
-            + delete_space
-            + graph_thousands
-            + delete_space
-            + graph_hundred_component,
-            graph_zero,
-        )
-
-        graph = (
-            graph
-            @ pynini.union(
-                pynutil.delete(pynini.closure("0")) + pynini.difference(NEMO_DIGIT, "0") + pynini.closure(NEMO_DIGIT),
-                "0",
-            ).optimize()
-        )
-
-        graph_exception = pynini.project(pynini.union(graph_digit, graph_zero), 'input')
+        self.graph_ties = tn_cardinal.two_digit_non_zero.invert().optimize()
 
         self.graph_no_exception = graph
-
+        self.digit = tn_cardinal.digit.invert().optimize()
+        graph_exception = pynini.project(self.digit, 'input')
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 
-        optional_minus_graph = pynini.closure(
-            pynutil.insert("negative: ") + pynini.cross("minus", "\"-\"") + NEMO_SPACE, 0, 1
-        )
+        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("minus ", "\"-\" "), 0, 1)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
 
