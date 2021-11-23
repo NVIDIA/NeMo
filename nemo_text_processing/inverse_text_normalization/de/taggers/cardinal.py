@@ -15,8 +15,15 @@
 
 from collections import defaultdict
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_DIGIT,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+    insert_space,
+)
 
 try:
     import pynini
@@ -30,39 +37,6 @@ except (ModuleNotFoundError, ImportError):
 AND = "und"
 
 
-def get_ties_digit(digit_path: str, tie_path: str):
-    """
-    getting all inverse normalizations for numbers between 21 - 100
-
-    Args:
-        digit_path: file to digit tsv
-        tie_path: file to tie tsv, e.g. 20, 30, etc.
-    """
-
-    digits = defaultdict(list)
-    ties = defaultdict(list)
-    for k, v in load_labels(digit_path):
-        digits[v].append(k)
-
-    for k, v in load_labels(tie_path):
-        ties[v].append(k)
-
-    d = []
-    for i in range(21, 100):
-        s = str(i)
-        if s[1] == "0":
-            continue
-
-        for di in digits[s[1]]:
-            for ti in ties[s[0]]:
-                word = di + f" {AND} " + ti
-                d.append((word, s))
-                word = di + f"{AND}" + ti
-                d.append((word, s))
-
-    return pynini.string_map(d)
-
-
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals. Numbers below ten are not converted. 
@@ -70,26 +44,29 @@ class CardinalFst(GraphFst):
     "und" (en: "and") can be inserted between "hundert" and following number or "tausend" and following single or double digit number.
 
         e.g. minus drei und zwanzig -> cardinal { negative: "-" integer: "23" } }
-        e.g. minusdreiundzwanzig -> cardinal { integer: "23" } }
+        e.g. minus dreiundzwanzig -> cardinal { integer: "23" } }
         e.g. dreizehn -> cardinal { integer: "13" } }
-        e.g. hundert -> cardinal { integer: "100" } }
+        e.g. ein hundert -> cardinal { integer: "100" } }
         e.g. einhundert -> cardinal { integer: "100" } }
-        e.g. tausend -> cardinal { integer: "1000" } }
+        e.g. ein tausend -> cardinal { integer: "1000" } }
         e.g. eintausend -> cardinal { integer: "1000" } }
-        e.g. tausendundzwanzig -> cardinal { integer: "1020" } }
-        e.g. hundertundzwanzig -> cardinal { integer: "120" } }
-    
+        e.g. ein tausend zwanzig -> cardinal { integer: "1020" } }
     """
 
     def __init__(self, tn_cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
-        graph = tn_cardinal.graph.invert().optimize()
+        # add_space_between_chars = pynini.cdrewrite(pynini.closure(insert_space, 0, 1), NEMO_CHAR, NEMO_CHAR, NEMO_SIGMA)
+        optional_delete_space = pynini.closure(NEMO_SIGMA | pynutil.delete(" "))
+
+        graph = (tn_cardinal.graph @ optional_delete_space).invert().optimize()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
-            tn_cardinal.graph_hundred_component_at_least_one_none_zero_digit.invert().optimize()
+            (tn_cardinal.graph_hundred_component_at_least_one_none_zero_digit @ optional_delete_space)
+            .invert()
+            .optimize()
         )
 
-        self.graph_ties = tn_cardinal.two_digit_non_zero.invert().optimize()
+        self.graph_ties = (tn_cardinal.two_digit_non_zero @ optional_delete_space).invert().optimize()
 
         self.graph_no_exception = graph
         self.digit = tn_cardinal.digit.invert().optimize()
