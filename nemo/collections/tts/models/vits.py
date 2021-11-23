@@ -1,56 +1,30 @@
 from dataclasses import dataclass
-from itertools import chain
 from typing import Any, Dict
 
-import numpy as np
+import omegaconf
 import torch
 from hydra.utils import instantiate
-import omegaconf
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
-import torch
-from torch import nn
+from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from torch.cuda.amp import autocast
-
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
-from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
-
-from nemo.collections.asr.data.audio_to_text import FastPitchDataset
+import nemo.collections.tts.modules.vits_modules as modules
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, regulate_len
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    MelSpectrogramType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
-from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import NoamAnnealing
+from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator
+from nemo.collections.tts.torch.data import TTSDataset
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+<<<<<<< HEAD
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 import nemo.collections.tts.modules.vits_modules as modules
 from nemo.collections.tts.modules.vits_modules import init_weights, get_padding, SynthesizerTrn, MultiPeriodDiscriminator
-<<<<<<< HEAD
-=======
 
-<<<<<<< HEAD
 
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
->>>>>>> 8ddb3dfb5... Fix all imports
-
-=======
->>>>>>> e8f520f47... Modified validation step
 @dataclass
 class VitsConfig:
     parser: Dict[Any, Any] = MISSING
@@ -148,6 +122,22 @@ class VitsModel(TextToWaveform):
         self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
         self.automatic_optimization = False
 
+        window_fn = {
+            'hann': torch.hann_window,
+            'hamming': torch.hamming_window,
+            'blackman': torch.blackman_window,
+            'bartlett': torch.bartlett_window,
+            'none': None,
+        }.get(self.window, None)
+
+        self.stft = lambda x: torch.stft(
+            input=x,
+            n_fft=self.n_fft,
+            hop_length=self.hop_len,
+            win_length=self.win_length,
+            window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
+        )
+
     def parse(self, str_input: str) -> torch.tensor:
         # TODO: Implement
         pass
@@ -189,8 +179,20 @@ class VitsModel(TextToWaveform):
 
         return y_hat, y_lengths
 
+
+    def get_spec(self, audio):
+        with torch.cuda.amp.autocast(enabled=False):
+            spec = self.stft(audio)
+            if spec.dtype in [torch.cfloat, torch.cdouble]:
+                spec = torch.view_as_real(spec)
+            spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
+        return spec
+
     def training_step(self, batch, batch_idx):
-        (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
+        (x, x_lengths, y, y_lengths) = batch
+
+        spec = self.get_spec(y)
+        spec_lengths = torch.ones(spec.shape[0]) * spec.shape[2]
 
         with autocast(enabled=False):
             y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
@@ -263,7 +265,7 @@ class VitsModel(TextToWaveform):
         self.log_dict(metrics, on_step=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
+        (x, x_lengths, y, y_lengths) = batch
 
         y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
         y_hat_lengths = mask.sum([1, 2]).long() * self.hps.data.hop_length

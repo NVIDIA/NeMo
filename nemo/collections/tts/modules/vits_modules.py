@@ -1,44 +1,16 @@
-import copy
-import math
 import numpy as np
-import scipy
+import math
+
+import numpy as np
 import torch
 from torch import nn
+from torch.nn import Conv1d, ConvTranspose1d, Conv2d
 from torch.nn import functional as F
-
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
-from torch.nn.utils import weight_norm, remove_weight_norm
-from dataclasses import dataclass
-from itertools import chain
-from typing import Any, Dict
-
-from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig, OmegaConf
-from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
-import math
-
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
-from nemo.collections.asr.data.audio_to_text import FastPitchDataset
-from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, regulate_len
-from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.monotonic_align import maximum_path
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    MelSpectrogramType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
-from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import NoamAnnealing
-from nemo.utils import logging
-from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
+from nemo.collections.tts.modules.vits_mel_processing import librosa_mel_fn, spectral_normalize_torch
+
 #from nemo.collections.tts.vits_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 
 LRELU_SLOPE = 0.1
@@ -1210,12 +1182,16 @@ class Decoder(nn.Module):
             self.ffn_layers.append(FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout, causal=True))
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
+    def subsequent_mask(length):
+        mask = torch.tril(torch.ones(length, length)).unsqueeze(0).unsqueeze(0)
+        return mask
+
     def forward(self, x, x_mask, h, h_mask):
         """
         x: decoder input
         h: encoder output
         """
-        self_attn_mask = commons.subsequent_mask(x_mask.size(2)).to(device=x.device, dtype=x.dtype)
+        self_attn_mask = self.subsequent_mask(x_mask.size(2)).to(device=x.device, dtype=x.dtype)
         encdec_attn_mask = h_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
         x = x * x_mask
         for i in range(self.n_layers):
