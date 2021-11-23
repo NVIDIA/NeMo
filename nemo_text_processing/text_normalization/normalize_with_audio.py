@@ -176,9 +176,9 @@ class NormalizerWithAudio(Normalizer):
 
         if self.default_norm:
             default_norm = self.default_norm.normalize(text=text, punct_post_process=punct_post_process)
-        else:
-            default_norm = []
-        normalized_texts = set([default_norm] + normalized_texts)
+            normalized_texts += [default_norm]
+
+        normalized_texts = set(normalized_texts)
         return normalized_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):
