@@ -36,7 +36,7 @@ class DecimalFst(GraphFst):
 
     """
 
-    def __init__(self, deterministic: bool):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
         delete_space = pynutil.delete(" ")

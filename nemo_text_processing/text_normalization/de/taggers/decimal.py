@@ -73,7 +73,7 @@ class DecimalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()

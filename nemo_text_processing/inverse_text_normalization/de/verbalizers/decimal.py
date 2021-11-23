@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_preserve_order,
+    delete_space,
+)
 
 try:
     import pynini
@@ -29,36 +34,16 @@ class DecimalFst(GraphFst):
         decimal { negative: "true" integer_part: "12"  fractional_part: "5006" quantity: "billion" } -> -12.5006 billion
     """
 
-    def __init__(self):
+    def __init__(self, tn_decimal: GraphFst):
         super().__init__(name="decimal", kind="verbalize")
-        optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-") + delete_space, 0, 1)
-        integer = (
-            pynutil.delete("integer_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+        delete_space = pynutil.delete(" ")
+        optional_sign = pynini.closure(
+            pynutil.delete("negative: \"") + NEMO_NOT_QUOTE + pynutil.delete("\"") + delete_space, 0, 1
         )
-        optional_integer = pynini.closure(integer + delete_space, 0, 1)
-        fractional = (
-            pynutil.insert(",")
-            + pynutil.delete("fractional_part:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        optional_fractional = pynini.closure(fractional + delete_space, 0, 1)
-        quantity = (
-            pynutil.delete("quantity:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        optional_quantity = pynini.closure(pynutil.insert(" ") + quantity + delete_space, 0, 1)
-        graph = (optional_integer + optional_fractional + optional_quantity).optimize()
-        self.numbers = graph
-        graph = optional_sign + graph
+        optional_integer = pynini.closure(tn_decimal.integer, 0, 1)
+        optional_fractional = pynini.closure(delete_space + pynutil.insert(",") + tn_decimal.fractional_default, 0, 1)
+        graph = (optional_integer + optional_fractional + tn_decimal.optional_quantity).optimize()
+        self.numbers = optional_sign + graph
+        graph = self.numbers + delete_preserve_order
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

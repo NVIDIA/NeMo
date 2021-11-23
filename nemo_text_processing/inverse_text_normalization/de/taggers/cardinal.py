@@ -73,9 +73,11 @@ class CardinalFst(GraphFst):
         graph_exception = pynini.project(self.digit, 'input')
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 
-        optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("minus ", "\"-\" "), 0, 1)
+        self.optional_minus_graph = pynini.closure(
+            pynutil.insert("negative: ") + pynini.cross("minus ", "\"-\" "), 0, 1
+        )
 
-        final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
+        final_graph = self.optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

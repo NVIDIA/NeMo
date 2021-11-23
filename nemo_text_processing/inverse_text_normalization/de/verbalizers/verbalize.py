@@ -25,6 +25,7 @@ from nemo_text_processing.inverse_text_normalization.de.verbalizers.telephone im
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst as TNCardinalFst
+from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst as TNDecimalFst
 
 
 class VerbalizeFst(GraphFst):
@@ -36,10 +37,12 @@ class VerbalizeFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="verbalize", kind="verbalize")
-        cardinal = CardinalFst(TNCardinalFst())
+        tn_cardinal = TNCardinalFst()
+        tn_decimal = TNDecimalFst()
+        cardinal = CardinalFst(tn_cardinal=tn_cardinal)
         cardinal_graph = cardinal.fst
         ordinal_graph = OrdinalFst().fst
-        decimal = DecimalFst()
+        decimal = DecimalFst(tn_decimal=tn_decimal)
         decimal_graph = decimal.fst
         fraction = FractionFst()
         fraction_graph = fraction.fst
