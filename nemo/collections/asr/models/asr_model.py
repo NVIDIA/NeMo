@@ -82,11 +82,18 @@ class ExportableEncDecModel(Exportable):
         return self.decoder
 
     def forward_for_export(self, input, length=None):
-        encoder_output = self.input_module(input, length)
-        if isinstance(encoder_output, tuple):
-            return self.output_module(encoder_output[0])
+        if hasattr(self.input_module, 'forward_for_export'):
+            encoder_output = self.input_module.forward_for_export(input, length)
         else:
-            return self.output_module(encoder_output)
+            encoder_output = self.input_module(input, length)
+        if isinstance(encoder_output, tuple):
+            decoder_input = encoder_output[0]
+        else:
+            decoder_input = encoder_output
+        if hasattr(self.output_module, 'forward_for_export'):
+            return self.output_module.forward_for_export(decoder_input)
+        else:
+            return self.output_module(decoder_input)
 
     def _prepare_for_export(self, **kwargs):
         self.input_module._prepare_for_export(**kwargs)
