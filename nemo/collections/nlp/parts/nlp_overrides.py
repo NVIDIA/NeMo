@@ -18,6 +18,7 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 
 import pytorch_lightning as pl
 import torch
