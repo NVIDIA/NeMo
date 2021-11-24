@@ -19,7 +19,7 @@ class FeatureLoss(Loss):
             "loss": NeuralType(elements_type=LossType()),
         }
 
-    @typecheck()
+    # @typecheck()
     def forward(self, fmap_r, fmap_g):
         loss = 0
         for dr, dg in zip(fmap_r, fmap_g):

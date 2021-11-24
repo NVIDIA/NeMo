@@ -265,7 +265,9 @@ class VitsModel(TextToWaveform):
             "losses_disc_g": losses_disc_g,
             "loss_disc_all": loss_disc_all,
         }
-        self.log_dict(metrics, on_step=True, sync_dist=True)
+        
+        # TODO: Fix logging
+        # self.log_dict(metrics, on_step=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         # (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
