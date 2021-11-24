@@ -437,7 +437,7 @@ class MTBottleneckModel(MTEncDecModel):
         # pass cache to sampler in order to reuse encoder's output
         cache = dict(z=z, z_mean=z_mean, z_mask=z_mask, timer=timer,)
 
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
+        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
 
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
@@ -461,6 +461,7 @@ class MTBottleneckModel(MTEncDecModel):
                 log_dict[f"{k}_timing"] = v
 
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
