@@ -609,7 +609,7 @@ class PosteriorEncoder(nn.Module):
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths, g=None):
-        x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
+        x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype).to(device='cuda')
         x = self.pre(x) * x_mask
         x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
@@ -912,6 +912,8 @@ class SynthesizerTrn(nn.Module):
 # Mel_processing #
 ##################
 
+mel_basis = {}
+hann_window = {}
 
 def spec_to_mel_torch(spec, n_fft, num_mels, sampling_rate, fmin, fmax):
     global mel_basis
@@ -1013,6 +1015,7 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
     if x_lengths is None:
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
+    ids_str_max = ids_str_max.to(device=x.device)
     ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
     ret = slice_segments(x, ids_str, segment_size)
     return ret, ids_str

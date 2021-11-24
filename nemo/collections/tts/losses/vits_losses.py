@@ -47,7 +47,7 @@ class DiscriminatorLoss(Loss):
             "fake_losses": [NeuralType(elements_type=LossType())],
         }
 
-    def forward(disc_real_outputs, disc_generated_outputs):
+    def forward(self, disc_real_outputs, disc_generated_outputs):
         loss = 0
         r_losses = []
         g_losses = []
@@ -109,7 +109,7 @@ class KlLoss(Loss):
         }
 
     @typecheck()
-    def kl_loss(z_p, logs_q, m_p, logs_p, z_mask):
+    def kl_loss(self, z_p, logs_q, m_p, logs_p, z_mask):
         """
         z_p, logs_q: [b, h, t_t]
         m_p, logs_p: [b, h, t_t]

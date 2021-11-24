@@ -33,7 +33,8 @@ mel_loss_scale: 1.0
 phoneme_dict_path: null # "scripts/tts_dataset_files/cmudict-0.7b-030921"
 heteronyms_path: null # "scripts/tts_dataset_files/heteronyms-030921"
 
-filter_length: 768
+filter_channels: 768
+filter_length: 1024
 
 model:
   sample_rate: 22050
@@ -43,7 +44,7 @@ model:
   n_speakers: 1
   symbols_embedding_dim: 384
   max_token_duration: 75
-  n_mel_channels: 80
+  n_mel_channels: ${n_mels}
   pitch_embedding_kernel_size: 3
   mel_loss_coeff: 40
   hop_size: 256
@@ -60,7 +61,8 @@ model:
   c_kl: 1.
   inter_channels: 192
   hidden_channels: 192
-  filter_channels: ${filter_length}
+  filter_channels: ${filter_channels}
+  filter_length: ${filter_length}
   n_heads: 2
   p_dropout: 0.1
   n_layers_q: 3
@@ -108,7 +110,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 64
+      batch_size: 2
       num_workers: 4
       pin_memory: false
 
@@ -152,7 +154,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 64
+      batch_size: 2
       num_workers: 1
       pin_memory: false
 
@@ -169,7 +171,7 @@ model:
     lowfreq: 0
     mag_power: 1.0
     n_fft: 1024
-    n_window_size: 1024
+    n_window_size: ${n_window_size}
     n_window_stride: ${model.hop_size}
     normalize: null
     pad_to: 1
@@ -225,7 +227,7 @@ model:
 
   generator:
     _target_: nemo.collections.tts.modules.vits_modules.Generator
-    resblock: 1
+    resblock: "1"
     resblock_kernel_sizes: [3,7,11]
     resblock_dilation_sizes: [[1,3,5], [1,3,5], [1,3,5]]
     upsample_rates: [8,8,2,2]

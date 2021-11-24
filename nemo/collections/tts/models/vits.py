@@ -98,11 +98,13 @@ class VitsModel(TextToWaveform):
         self.splice_length = cfg.splice_length
         self.sample_rate = cfg.sample_rate
         self.hop_size = cfg.hop_size
+        self.n_fft = cfg.train_ds.dataset.n_fft
+        self.win_length = cfg.train_ds.dataset.win_length
 
         self.net_g = SynthesizerTrn(
             n_vocab = cfg.symbols_embedding_dim,
-            spec_channels = cfg.n_mel_channels,
-            segment_size = cfg.segment_size,
+            spec_channels = cfg.train_ds.dataset.n_fft // 2 + 1,
+            segment_size = cfg.segment_size // cfg.train_ds.dataset.hop_length,
             inter_channels = cfg.inter_channels,
             hidden_channels = cfg.hidden_channels,
             filter_channels = cfg.filter_channels,
@@ -133,7 +135,7 @@ class VitsModel(TextToWaveform):
         self.stft = lambda x: torch.stft(
             input=x,
             n_fft=self.n_fft,
-            hop_length=self.hop_len,
+            hop_length=self.hop_size,
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
         )
@@ -168,6 +170,7 @@ class VitsModel(TextToWaveform):
 
     def forward(self, batch, batch_idx):
         with torch.no_grad():
+            # TODO: Fix
             (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
             # remove else
@@ -189,7 +192,8 @@ class VitsModel(TextToWaveform):
         return spec
 
     def training_step(self, batch, batch_idx):
-        (x, x_lengths, y, y_lengths) = batch
+        # (x, x_lengths, y, y_lengths) = batch
+        (y, y_lengths, x, x_lengths) = batch
 
         spec = self.get_spec(y)
         spec_lengths = torch.ones(spec.shape[0]) * spec.shape[2]
@@ -199,7 +203,7 @@ class VitsModel(TextToWaveform):
             (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
             mel = modules.spec_to_mel_torch(
                 spec,
-                self._cfg.train_ds.filter_length,
+                self._cfg.filter_length,
                 self._cfg.n_mel_channels,
                 self._cfg.sample_rate,
                 self._cfg.mel_fmin,
@@ -208,14 +212,15 @@ class VitsModel(TextToWaveform):
             y_mel = modules.slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
             y_hat_mel = modules.mel_spectrogram_torch(
                 y_hat.squeeze(1),
-                self._cfg.train_ds.filter_length,
+                self._cfg.filter_length,
                 self._cfg.n_mel_channels,
                 self._cfg.sample_rate,
                 self._cfg.hop_size,
-                self._cfg.preprocessing.n_window_size,
+                self._cfg.preprocessor.n_window_size,
                 self._cfg.mel_fmin,
                 self._cfg.mel_fmax
             )
+            y = torch.unsqueeze(y, 1)
             y = modules.slice_segments(y, ids_slice * self._cfg.hop_size, self._cfg.segment_size)  # slice
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
@@ -266,15 +271,18 @@ class VitsModel(TextToWaveform):
 
     def validation_step(self, batch, batch_idx):
         # (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
-        (x, x_lengths, y, y_lengths) = batch
+        (y, y_lengths, x, x_lengths) = batch
 
-
-        y_hat, attn, mask, *_ = self.net_g.infer(y, y_lengths, max_len=1000)
+        y_hat, attn, mask, *_ = self.net_g.infer(x, x_lengths, max_len=1000)
+        y_hat = y_hat.squeeze()
         y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.train_ds.dataset.hop_length
 
+        # spec = self.get_spec(y)
+        # spec_lengths = torch.ones(spec.shape[0]) * spec.shape[2]
+
         # Note to modify the functions / use the ones in NeMo, we need the lengths
-        mel, mel_lengths = self.audio_to_melspec_precessor(x, x_lengths)
-        y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y, y_lengths)
+        mel, mel_lengths = self.audio_to_melspec_precessor(y, y_lengths)
+        y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
 
         # plot audio once per epoch
         if batch_idx == 0 and self.logger is not None and self.logger.experiment is not None:
