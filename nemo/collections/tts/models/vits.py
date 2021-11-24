@@ -18,7 +18,6 @@ from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPerio
 from nemo.collections.tts.torch.data import TTSDataset
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-<<<<<<< HEAD
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 import nemo.collections.tts.modules.vits_modules as modules
@@ -239,7 +238,7 @@ class VitsModel(TextToWaveform):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
             loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
-            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmag_g=fmap_g)
+            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
@@ -298,7 +297,6 @@ class VitsModel(TextToWaveform):
                 self.global_step,
                 sample_rate=self.sample_rate,
             )
-<<<<<<< HEAD
 
             self.logger.experiment.add_image(
                 "val_mel_target",
@@ -314,25 +312,6 @@ class VitsModel(TextToWaveform):
                 dataformats="HWC",
             )
 
-
-=======
-
-            self.logger.experiment.add_image(
-                "val_mel_target",
-                plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-
-            self.logger.experiment.add_image(
-                "val_mel_predicted",
-                plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
-        
-
->>>>>>> e8f520f47... Modified validation step
     def validation_step_alt(self, batch, batch_idx):
 
         (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
