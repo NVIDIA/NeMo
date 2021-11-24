@@ -43,6 +43,7 @@ def _process_log_file(log_file: str):
                     processes[process_id]['Window Increased'] = False
                     processes[process_id]['Start Window'] = window_size
                     processes[process_id]['Final Window'] = window_size
+                    processes[process_id]['Completed'] = False
                     base_dir, base_name = os.path.split(path[0])
                     processes[process_id]['Audio Dir'] = base_dir
                     processes[process_id]['Audio File'] = base_name

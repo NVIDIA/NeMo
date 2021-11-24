@@ -3,14 +3,18 @@
 # default values for optional arguments
 MIN_SCORE=-5
 CUT_PREFIX=0
-SCRIPTS_DIR="scripts"
+SCRIPTS_DIR="scripts" # /<PATH TO>/NeMo/tools/ctc_segmentation/tools/scripts/ directory
 OFFSET=0
-LANGUAGE='en' # 'en', 'ru', 'other'
-MIN_SEGMENT_LEN=20
-MAX_SEGMENT_LEN=100
-ADDITIONAL_SPLIT_SYMBOLS=''
-AUDIO_FORMAT='.mp3'
+LANGUAGE='en' # 'en', 'es', 'ru', 'other'
+MAX_SEGMENT_LEN=30
+ADDITIONAL_SPLIT_SYMBOLS=":|;|,"
 USE_NEMO_NORMALIZATION='True'
+
+# Benchmarking
+DATA_DIR="/home/ebakhturina/data/segmentation/test/data"
+MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" #"QuartzNet15x5Base-En" #
+
+rm -rf ${OUTPUT_DIR}
 
 for ARG in "$@"
 do
@@ -34,7 +38,6 @@ echo "LANGUAGE = $LANGUAGE"
 echo "MIN_SEGMENT_LEN = $MIN_SEGMENT_LEN"
 echo "MAX_SEGMENT_LEN = $MAX_SEGMENT_LEN"
 echo "ADDITIONAL_SPLIT_SYMBOLS = $ADDITIONAL_SPLIT_SYMBOLS"
-echo "AUDIO_FORMAT = $AUDIO_FORMAT"
 echo "USE_NEMO_NORMALIZATION = $USE_NEMO_NORMALIZATION"
 
 if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; then
@@ -46,7 +49,6 @@ if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $DATA_DIR ]] || [[ -z $OUTPUT_DIR ]]; t
   --OFFSET=[offset value (Optional)]
   --CUT_PREFIX=[cut prefix in sec (Optional)]
   --SCRIPTS_DIR=[scripts_dir_path (Optional)]
-  --MIN_SEGMENT_LEN=[min number of characters of the text segment for alignment (Optional)]
   --MAX_SEGMENT_LEN=[max number of characters of the text segment for alignment (Optional)]
   --ADDITIONAL_SPLIT_SYMBOLS=[Additional symbols to use for
     sentence split if eos sentence split resulted in sequence longer than --max_length.
@@ -67,12 +69,10 @@ NEMO_NORMALIZATION=""
 python $SCRIPTS_DIR/prepare_data.py \
 --in_text=$DATA_DIR/text \
 --audio_dir=$DATA_DIR/audio \
---audio_format=$AUDIO_FORMAT \
 --output_dir=$OUTPUT_DIR/processed/ \
 --language=$LANGUAGE \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
---min_length=$MIN_SEGMENT_LEN \
 --max_length=$MAX_SEGMENT_LEN \
 --additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS $NEMO_NORMALIZATION || exit
 
@@ -81,44 +81,29 @@ python $SCRIPTS_DIR/prepare_data.py \
 # one might want to perform alignment with various window sizes
 # note if the alignment with the initial window size isn't found, the window size will be double to re-attempt
 # alignment
-for WINDOW in 8000 12000
+for WINDOW in 8000 #12000
 do
   python $SCRIPTS_DIR/run_ctc_segmentation.py \
   --output_dir=$OUTPUT_DIR \
-  --data=$OUTPUT_DIR/processed/ \
+  --data=$OUTPUT_DIR/processed \
   --model=$MODEL_NAME_OR_PATH  \
   --window_len $WINDOW || exit
 done
 
 # STEP #3 (Optional)
 # Verify aligned segments only if multiple WINDOWs used in the Step #2)
+echo "VERIFYING SEGMENTS"
 python $SCRIPTS_DIR/verify_segments.py \
 --base_dir=$OUTPUT_DIR  || exit
 
 # STEP #4
 # Cut the original audio files based on the alignments
 # (use --alignment=$OUTPUT_DIR/segments if only 1 WINDOW size was used in the Step #2)
-# Three manifests and corresponding clips folders will be created:
-#   - high scored clips
-#   - low scored clips
-#   - deleted segments
+# Manifests and corresponding clips folders will be created "high scored clips", segments that have alignment
+# confidence score above the MIN_SCORE value
+echo "CUTTING AUDIO"
 python $SCRIPTS_DIR/cut_audio.py \
 --output_dir=$OUTPUT_DIR \
---model=$MODEL_NAME_OR_PATH \
 --alignment=$OUTPUT_DIR/verified_segments \
 --threshold=$MIN_SCORE \
 --offset=$OFFSET || exit
-
-# STEP #5 (Optional)
-# If multiple audio files were segmented in the step #2, this step will aggregate manifests with high scored segments
-# for all audio files into all_manifest.json
-# Also a separate manifest with samples from across all high scored segments will be credated if --num_samples > 0
-# --num_samples samples will be taken from the beginning, end and the middle of the each audio file high score manifest
-# and will be stored at sample_manifest.json
-python $SCRIPTS_DIR/process_manifests.py \
---output_dir=$OUTPUT_DIR \
---manifests_dir=$OUTPUT_DIR/manifests/ \
---num_samples 0
-
-exit
-

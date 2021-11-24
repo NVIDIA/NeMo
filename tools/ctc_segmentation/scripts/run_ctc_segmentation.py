@@ -14,7 +14,6 @@
 
 import argparse
 import logging
-import multiprocessing
 import os
 import sys
 import time
@@ -23,7 +22,9 @@ from pathlib import Path
 import numpy as np
 import scipy.io.wavfile as wav
 import torch
-from utils import get_segments, listener_configurer, listener_process, worker_configurer, worker_process
+from joblib import Parallel, delayed
+from tqdm import tqdm
+from utils import get_segments
 
 import nemo.collections.asr as nemo_asr
 
@@ -68,18 +69,25 @@ if __name__ == '__main__':
     elif args.model in nemo_asr.models.EncDecCTCModel.get_available_model_names():
         asr_model = nemo_asr.models.EncDecCTCModel.from_pretrained(args.model, strict=False)
     else:
-        raise ValueError(
-            f'{args.model} not a valid model name or path. Provide path to the pre-trained checkpoint '
-            f'or choose from {nemo_asr.models.EncDecCTCModel.list_available_models()}'
-        )
+        try:
+            asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(args.model)
+        except:
+            raise ValueError(
+                f'Provide path to the pretrained checkpoint or choose from {nemo_asr.models.EncDecCTCModel.get_available_model_names()}'
+            )
+
+    bpe_model = isinstance(asr_model, nemo_asr.models.EncDecCTCModelBPE)
+
+    # get tokenizer used during training, None for char based models
+    if bpe_model:
+        tokenizer = asr_model.tokenizer
+    else:
+        tokenizer = None
 
     # extract ASR vocabulary and add blank symbol
-    vocabulary = asr_model.cfg.decoder.vocabulary
-    odim = len(vocabulary) + 1
+    vocabulary = ["ε"] + list(asr_model.cfg.decoder.vocabulary)
     logging.debug(f'ASR Model vocabulary: {vocabulary}')
 
-    # add blank to vocab
-    vocabulary = ["ε"] + list(vocabulary)
     data = Path(args.data)
     output_dir = Path(args.output_dir)
 
@@ -97,6 +105,7 @@ if __name__ == '__main__':
     segments_dir = os.path.join(args.output_dir, 'segments')
     os.makedirs(segments_dir, exist_ok=True)
     for path_audio in audio_paths:
+        logging.info(f'Processing {path_audio.name}...')
         transcript_file = os.path.join(data_dir, path_audio.name.replace(".wav", ".txt"))
         segment_file = os.path.join(
             segments_dir, f"{args.window_len}_" + path_audio.name.replace(".wav", "_segments.txt")
@@ -115,24 +124,32 @@ if __name__ == '__main__':
             raise
 
         original_duration = len(signal) / sample_rate
+        logging.debug(f'len(signal): {len(signal)}, sr: {sample_rate}')
         logging.debug(f'Duration: {original_duration}s, file_name: {path_audio}')
-        log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0]
+        log_probs = None
+        try:
+            log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0]
+            # move blank values to the first column (ctc-package compatibility)
+            blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
+            log_probs = np.concatenate((blank_col, log_probs[:, :-1]), axis=1)
 
-        # move blank values to the first column
-        blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
-        log_probs = np.concatenate((blank_col, log_probs[:, :-1]), axis=1)
+            all_log_probs.append(log_probs)
+            all_segment_file.append(str(segment_file))
+            all_transcript_file.append(str(transcript_file))
+            all_wav_paths.append(path_audio)
+        except Exception as e:
+            logging.error(e)
+            logging.error(f"Skipping {path_audio.name}")
+            continue
 
-        all_log_probs.append(log_probs)
-        all_segment_file.append(str(segment_file))
-        all_transcript_file.append(str(transcript_file))
-        all_wav_paths.append(path_audio)
-
+    asr_model_type = type(asr_model)
     del asr_model
     torch.cuda.empty_cache()
 
     if len(all_log_probs) == 0:
         raise ValueError(f'No valid audio files found at {args.data}')
     start_time = time.time()
+    index_duration = len(signal) / log_probs.shape[0] / sample_rate
     if args.no_parallel:
         for i in range(len(all_log_probs)):
             get_segments(
@@ -141,36 +158,57 @@ if __name__ == '__main__':
                 all_transcript_file[i],
                 all_segment_file[i],
                 vocabulary,
+                tokenizer,
+                bpe_model,
+                index_duration,
                 args.window_len,
             )
     else:
-        queue = multiprocessing.Queue(-1)
-
-        listener = multiprocessing.Process(target=listener_process, args=(queue, listener_configurer, log_file, level))
-        listener.start()
-        workers = []
-        for i in range(len(all_log_probs)):
-            worker = multiprocessing.Process(
-                target=worker_process,
-                args=(
-                    queue,
-                    worker_configurer,
-                    level,
-                    all_log_probs[i],
-                    all_wav_paths[i],
-                    all_transcript_file[i],
-                    all_segment_file[i],
-                    vocabulary,
-                    args.window_len,
-                ),
+        normalized_lines = Parallel(n_jobs=-2)(
+            delayed(get_segments)(
+                all_log_probs[i],
+                all_wav_paths[i],
+                all_transcript_file[i],
+                all_segment_file[i],
+                vocabulary,
+                tokenizer,
+                bpe_model,
+                index_duration,
+                args.window_len,
             )
-            workers.append(worker)
-            worker.start()
-        for w in workers:
-            w.join()
-        queue.put_nowait(None)
-        listener.join()
-
+            for i in tqdm(range(len(all_log_probs)))
+        )
+    #
+    #     import multiprocessing
+    #     queue = multiprocessing.Queue(-1)
+    #     listener = multiprocessing.Process(target=listener_process, args=(queue, listener_configurer, log_file, level))
+    #     listener.start()
+    #     workers = []
+    #     for i in range(len(all_log_probs)):
+    #         worker = multiprocessing.Process(
+    #             target=worker_process,
+    #             args=(
+    #                 queue,
+    #                 worker_configurer,
+    #                 level,
+    #                 all_log_probs[i],
+    #                 all_wav_paths[i],
+    #                 all_transcript_file[i],
+    #                 all_segment_file[i],
+    #                 vocabulary,
+    #                 tokenizer,
+    #                 bpe_model,
+    #                 index_duration,
+    #                 args.window_len,
+    #             ),
+    #         )
+    #         workers.append(worker)
+    #         worker.start()
+    #     for w in workers:
+    #         w.join()
+    #     queue.put_nowait(None)
+    #     listener.join()
+    #
     total_time = time.time() - start_time
     logger.info(f'Total execution time: ~{round(total_time/60)}min')
     logger.info(f'Saving logs to {log_file}')
