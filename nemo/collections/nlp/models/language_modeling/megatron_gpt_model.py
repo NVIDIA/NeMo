@@ -171,7 +171,8 @@ class MegatronGPTModel(NLPModel):
         self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
-        reduced_loss = None
+        # TODO: need to return a loss for PTL but we don't get one for all ranks with pipeline parallel
+        loss = torch.tensor([0.0])
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
@@ -183,9 +184,14 @@ class MegatronGPTModel(NLPModel):
                 forward_only=False,
                 tensor_shape=tensor_shape,
             )
-            # only pipeline last stage will have losses to log
-            if not parallel_state.is_pipeline_last_stage():
-                return
+            # TODO: Figure out logging for pipeline parallel
+            if reduced_loss == []:
+                reduced_loss = [0]
+            else:
+                loss = reduced_loss[0]['avg']
+                reduced_loss = [loss]
+
+            torch.distributed.barrier()
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
             loss = self.loss_func(loss_mask, output_tensor)
@@ -285,6 +291,7 @@ class MegatronGPTModel(NLPModel):
                 forward_only=True,
                 tensor_shape=tensor_shape,
             )
+            torch.distributed.barrier()
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
             loss = self.loss_func(loss_mask, output_tensor)
@@ -293,15 +300,21 @@ class MegatronGPTModel(NLPModel):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
+        # TODO: figure out how to log properly with pipeline parallel
+        averaged_loss = 0  # this should not be here
         if self.cfg.pipeline_model_parallel_size > 1:
             if parallel_state.is_pipeline_last_stage():
                 outputs = [output[0]['avg'] for output in outputs]
             else:
-                return
+                outputs = None
 
-        averaged_loss = torch.stack(outputs).mean()
+        if outputs is not None:
+            averaged_loss = torch.stack(outputs).mean()
+
         self.log('val_loss', averaged_loss, prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+
+        torch.distributed.barrier()
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
