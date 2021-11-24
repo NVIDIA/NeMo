@@ -190,8 +190,6 @@ class MegatronGPTModel(NLPModel):
             else:
                 loss = reduced_loss[0]['avg']
                 reduced_loss = [loss]
-
-            torch.distributed.barrier()
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
             loss = self.loss_func(loss_mask, output_tensor)
@@ -291,7 +289,6 @@ class MegatronGPTModel(NLPModel):
                 forward_only=True,
                 tensor_shape=tensor_shape,
             )
-            torch.distributed.barrier()
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
             loss = self.loss_func(loss_mask, output_tensor)
