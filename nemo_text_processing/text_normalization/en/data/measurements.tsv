@@ -1,5 +1,9 @@
 f	fahrenheit
+°f	fahrenheit
+℉	fahrenheit
 c	celsius
+°c	celsius
+℃	celsius
 km	kilometer
 m	meter
 cm	centimeter
@@ -90,7 +94,6 @@ ms	mega siemens
 bar	bar
 gl	giga liter
 μs	microsecond
-da	deci ampere
 pa	pascal
 ds	deci second
 ms	milli second

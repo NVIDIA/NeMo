@@ -18,7 +18,6 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
-from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -26,11 +25,14 @@ try:
     import pynini
 
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 try:
     from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 
     NLP_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -152,10 +154,12 @@ class Normalizer:
                 continue
             output = self.select_verbalizer(verbalizer_lattice)
             if punct_post_process:
-                output = post_process_punctuation(output)
                 # do post-processing based on Moses detokenizer
                 if self.processor:
-                    output = self.processor.detokenize([output])
+                    output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
+                    output = post_process_punct(input=text, normalized_text=output)
+                else:
+                    print("NEMO_NLP collection is not available: skipping punctuation post_processing")
             return output
         raise ValueError()
 

@@ -121,6 +121,7 @@ class CardinalFst(GraphFst):
             alpha |= letter_pronunciation
 
         delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
+
         letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
         num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
