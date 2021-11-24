@@ -213,11 +213,6 @@ def post_process_punct(input: str, normalized_text: str):
     input = [x for x in input]
     normalized_text = [x for x in normalized_text]
     punct_marks = string.punctuation
-    if 'twenty five.' in input:
-        import pdb
-
-        pdb.set_trace()
-        print()
     try:
         for punct in punct_marks:
             if input.count(punct) != normalized_text.count(punct):

@@ -170,9 +170,7 @@ class ClassifyFst(GraphFst):
                 + pynini.closure(pynutil.insert(" ") + punct)
             )
 
-            graph = token_plus_punct + (
-                pynini.closure(delete_extra_space + token_plus_punct) | pynutil.add_weight(token_plus_punct, 0.001)
-            )
+            graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
             graph = delete_space + graph + delete_space
 
             self.fst = graph.optimize()

@@ -19,7 +19,6 @@ from argparse import ArgumentParser
 from typing import List, Tuple
 
 from joblib import Parallel, delayed
-from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
@@ -110,12 +109,6 @@ class NormalizerWithAudio(Normalizer):
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        if lang == 'en':
-            self.default_norm = Normalizer(
-                lang=lang, cache_dir=cache_dir, overwrite_cache=overwrite_cache, input_case=input_case
-            )
-        else:
-            self.default_norm = None
 
     def normalize(
         self,
@@ -173,10 +166,6 @@ class NormalizerWithAudio(Normalizer):
                 ]
             else:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
-
-        if self.default_norm:
-            default_norm = self.default_norm.normalize(text=text, punct_post_process=punct_post_process)
-            normalized_texts += [default_norm]
 
         normalized_texts = set(normalized_texts)
         return normalized_texts

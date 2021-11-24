@@ -15,4 +15,3 @@
 10:00:00 p.m. e.s.t~ten hours zero minutes and zero seconds p m e s t
 1:01:01~one hour one minute and one second
 14:10:30~fourteen hours ten minutes and thirty seconds
-11:20AM,2:40PM~eleven twenty A M , two forty P M

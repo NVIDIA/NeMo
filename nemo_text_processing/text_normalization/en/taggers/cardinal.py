@@ -120,10 +120,7 @@ class CardinalFst(GraphFst):
             letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
             alpha |= letter_pronunciation
 
-        delimiter = insert_space | pynini.cross("-", " dash ") | pynini.cross("/", " slash ")
-
-        if not self.deterministic:
-            delimiter |= pynini.cross("-", " ") | pynini.cross("/", " ")
+        delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
 
         letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
@@ -134,4 +131,4 @@ class CardinalFst(GraphFst):
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 
         serial_graph.optimize()
-        return pynutil.add_weight(serial_graph, 1)
+        return pynutil.add_weight(serial_graph, 10)
