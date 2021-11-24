@@ -27,6 +27,8 @@ def convert_to_cli(cfg):
             continue
         elif k == "splits_string":
             result += f"{k}=\\'{v}\\' "
+        elif k == "file_numbers":
+            result += f"{k}=\\'{v}\\' "
         else:
             result += f"{k}={v} "
     return result
