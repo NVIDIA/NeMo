@@ -37,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
+    init_method_normal,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
@@ -238,23 +239,32 @@ class MegatronGPTModel(NLPModel):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
-    def get_forward_output_and_loss_fnc(self, batch):
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-        output_tensor = self(tokens, position_ids, attention_mask, labels)
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+            tokens, labels, loss_mask, attention_mask, position_ids = batch
+            output_tensor = model(tokens, position_ids, attention_mask, labels)
 
-        def loss_func(output_tensor):
-            loss = self.loss_func(loss_mask, output_tensor)
-            reduced_loss = average_losses_across_data_parallel_group([loss])
-            return loss, {'avg': reduced_loss}
+            def loss_func(output_tensor):
+                loss = self.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                return loss, {'avg': reduced_loss}
 
-        return output_tensor, loss_func
+            return output_tensor, loss_func
+
+        return fwd_output_and_loss_func
 
     def validation_step(self, batch, batch_idx):
         reduced_loss = None
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
             reduced_loss = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_fnc, batch=batch, model=self, forward_only=True
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
             )
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
@@ -264,6 +274,12 @@ class MegatronGPTModel(NLPModel):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
+        if self.cfg.pipeline_model_parallel_size > 1:
+            if parallel_state.is_pipeline_last_stage():
+                outputs = [output[0]['avg'] for output in outputs]
+            else:
+                return
+
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
@@ -416,6 +432,15 @@ class MegatronGPTModel(NLPModel):
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        # if not using pipeline parallel, then this call will do nothing
+        self.model.initialize_word_embeddings(
+            init_method=init_method_normal(self.cfg.get('init_method_std', 0.02)),
+            vocab_size=self.padded_vocab_size,
+            hidden_size=self.cfg.hidden_size,
+            pipeline_model_parallel_size=parallel_state.get_pipeline_model_parallel_world_size(),
+        )
 
     def setup_training_data(self, cfg):
         if self.use_soft_prompts:
