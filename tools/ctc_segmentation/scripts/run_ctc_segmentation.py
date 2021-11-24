@@ -39,19 +39,24 @@ parser.add_argument(
     'as the wav file.',
 )
 parser.add_argument('--window_len', type=int, default=8000, help='Window size for ctc segmentation algorithm')
-parser.add_argument('--no_parallel', action='store_true', help='Flag to disable parallel segmentation')
 parser.add_argument('--sample_rate', type=int, default=16000, help='Sampling rate')
 parser.add_argument(
     '--model', type=str, default='QuartzNet15x5Base-En', help='Path to model checkpoint or pre-trained model name',
 )
 parser.add_argument('--debug', action='store_true', help='Flag to enable debugging messages')
+parser.add_argument(
+    "--num_jobs",
+    default=-2,
+    type=int,
+    help="The maximum number of concurrently running jobs, `-2` - all CPUs but one are used",
+)
 
 logger = logging.getLogger('ctc_segmentation')  # use module name
 
 if __name__ == '__main__':
 
     args = parser.parse_args()
-
+    logging.basicConfig(level=logging.INFO)
     # setup logger
     log_dir = os.path.join(args.output_dir, 'logs')
     os.makedirs(log_dir, exist_ok=True)
@@ -150,65 +155,23 @@ if __name__ == '__main__':
         raise ValueError(f'No valid audio files found at {args.data}')
     start_time = time.time()
     index_duration = len(signal) / log_probs.shape[0] / sample_rate
-    if args.no_parallel:
-        for i in range(len(all_log_probs)):
-            get_segments(
-                all_log_probs[i],
-                all_wav_paths[i],
-                all_transcript_file[i],
-                all_segment_file[i],
-                vocabulary,
-                tokenizer,
-                bpe_model,
-                index_duration,
-                args.window_len,
-            )
-    else:
-        normalized_lines = Parallel(n_jobs=-2)(
-            delayed(get_segments)(
-                all_log_probs[i],
-                all_wav_paths[i],
-                all_transcript_file[i],
-                all_segment_file[i],
-                vocabulary,
-                tokenizer,
-                bpe_model,
-                index_duration,
-                args.window_len,
-            )
-            for i in tqdm(range(len(all_log_probs)))
+    normalized_lines = Parallel(n_jobs=args.num_jobs)(
+        delayed(get_segments)(
+            all_log_probs[i],
+            all_wav_paths[i],
+            all_transcript_file[i],
+            all_segment_file[i],
+            vocabulary,
+            tokenizer,
+            bpe_model,
+            index_duration,
+            args.window_len,
+            log_file=log_file,
+            debug=args.debug,
         )
-    #
-    #     import multiprocessing
-    #     queue = multiprocessing.Queue(-1)
-    #     listener = multiprocessing.Process(target=listener_process, args=(queue, listener_configurer, log_file, level))
-    #     listener.start()
-    #     workers = []
-    #     for i in range(len(all_log_probs)):
-    #         worker = multiprocessing.Process(
-    #             target=worker_process,
-    #             args=(
-    #                 queue,
-    #                 worker_configurer,
-    #                 level,
-    #                 all_log_probs[i],
-    #                 all_wav_paths[i],
-    #                 all_transcript_file[i],
-    #                 all_segment_file[i],
-    #                 vocabulary,
-    #                 tokenizer,
-    #                 bpe_model,
-    #                 index_duration,
-    #                 args.window_len,
-    #             ),
-    #         )
-    #         workers.append(worker)
-    #         worker.start()
-    #     for w in workers:
-    #         w.join()
-    #     queue.put_nowait(None)
-    #     listener.join()
-    #
+        for i in tqdm(range(len(all_log_probs)))
+    )
+
     total_time = time.time() - start_time
     logger.info(f'Total execution time: ~{round(total_time/60)}min')
     logger.info(f'Saving logs to {log_file}')

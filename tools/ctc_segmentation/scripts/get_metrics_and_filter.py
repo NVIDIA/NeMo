@@ -11,10 +11,7 @@ from tqdm import tqdm
 
 parser = argparse.ArgumentParser("Calculate metrics and filters out samples based on thresholds")
 parser.add_argument(
-    "-m",
-    '--manifest',
-    required=True,
-    help='Path .json manifest file with ASR predictions saved' 'at `pred_text` field.',
+    '--manifest', required=True, help='Path .json manifest file with ASR predictions saved' 'at `pred_text` field.',
 )
 parser.add_argument(
     '--tail_len', type=int, help='Number of characters to use for CER calculation at the edges', default=5
@@ -32,7 +29,12 @@ parser.add_argument('--max_wer', type=int, help='Threshold WER value', default=7
 parser.add_argument('--max_len_diff', type=float, help='Threshold for len diff', default=0.3)
 parser.add_argument('--max_edge_cer', type=int, help='Threshold edge CER value', default=35)
 parser.add_argument('--max_duration', type=int, help='Max duration of a segment', default=-1)
-parser.add_argument("--num_workers", default=-2, type=int, help="Workers to process dataset.")
+parser.add_argument(
+    "--num_jobs",
+    default=-2,
+    type=int,
+    help="The maximum number of concurrently running jobs, `-2` - all CPUs but one are used",
+)
 
 
 def _calculate(line, tail_len, tail_duration, sample_rate):
@@ -43,13 +45,13 @@ def _calculate(line, tail_len, tail_duration, sample_rate):
 
     num_words = max(len(text), eps)
     word_dist = editdistance.eval(text, pred_text)
-    line['WER'] = round(word_dist / num_words * 100.0, 2)
+    line['WER'] = word_dist / num_words * 100.0
     num_chars = max(len(line['text']), eps)
     char_dist = editdistance.eval(line['text'], line['pred_text'])
-    line['CER'] = round(char_dist / num_chars * 100.0, 2)
+    line['CER'] = char_dist / num_chars * 100.0
 
-    line['start_CER'] = editdistance.eval(line['text'][:tail_len], line['pred_text'][:tail_len])
-    line['end_CER'] = editdistance.eval(line['text'][-tail_len:], line['pred_text'][-tail_len:])
+    line['start_CER'] = editdistance.eval(line['text'][:tail_len], line['pred_text'][:tail_len]) / tail_len * 100
+    line['end_CER'] = editdistance.eval(line['text'][-tail_len:], line['pred_text'][-tail_len:]) / tail_len * 100
 
     sr, signal = wavfile.read(line['audio_filepath'])
     assert sr == sample_rate and len(signal.shape) == 1
@@ -66,7 +68,7 @@ def get_metrics():
     with open(args.manifest, "r") as f:
         lines = f.readlines()
 
-    lines = Parallel(n_jobs=args.num_workers)(
+    lines = Parallel(n_jobs=args.num_jobs)(
         delayed(_calculate)(
             json.loads(line), tail_len=args.tail_len, tail_duration=args.tail_duration, sample_rate=args.sample_rate
         )
@@ -117,11 +119,14 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
 def filter(manifest):
     original_duration = 0
     if args.audio_dir:
-        audio_files = glob(f"{args.audio_dir}*.wav")
+        audio_files = glob(f"{args.audio_dir}*")
         for audio in audio_files:
-            audio_data = AudioSegment.from_wav(audio)
-            duration = audio_data.duration_seconds
-            original_duration += duration
+            try:
+                audio_data = AudioSegment.from_wav(audio)
+                duration = audio_data.duration_seconds
+                original_duration += duration
+            except:
+                print(f'Skipping {audio}')
 
     _apply_filters(
         manifest=manifest,

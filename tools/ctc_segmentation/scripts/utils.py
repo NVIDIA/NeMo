@@ -15,8 +15,8 @@
 import logging
 import logging.handlers
 import math
-import multiprocessing
 import os
+import sys
 from pathlib import PosixPath
 from typing import List, Tuple, Union
 
@@ -37,6 +37,8 @@ def get_segments(
     bpe_model: bool,
     index_duration: float,
     window_size: int = 8000,
+    log_file: str = 'log.log',
+    debug: bool = False,
 ) -> None:
     """
     Segments the audio into segments and saves segments timings to a file
@@ -53,6 +55,12 @@ def get_segments(
         window_size: the length of each utterance (in terms of frames of the CTC outputs) fits into that window.
         index_duration: corresponding time duration of one CTC output index (in seconds)
     """
+    level = 'DEBUG' if debug else 'INFO'
+    file_handler = logging.FileHandler(filename=log_file)
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    handlers = [file_handler, stdout_handler]
+    logging.basicConfig(handlers=handlers, level=level)
+
     try:
         with open(transcript_file, "r") as f:
             text = f.readlines()
@@ -112,6 +120,7 @@ def get_segments(
         for i, (word, segment) in enumerate(zip(text, segments)):
             if i < 5:
                 logging.debug(f"{segment[0]:.2f} {segment[1]:.2f} {segment[2]:3.4f} {word}")
+        logging.info(f"segmentation of {transcript_file} complete.")
 
     except Exception as e:
         logging.info(e)
@@ -204,8 +213,6 @@ def determine_utterance_segments(config, utt_begin_indices, char_probs, timings,
     segments = []
     min_prob = np.float64(-10000000000.0)
     for i in tqdm(range(len(text))):
-        # if "quorum" in text[i]:
-        #     import pdb; pdb.set_trace()
         start = _compute_time(utt_begin_indices[i], "begin", timings)
         end = _compute_time(utt_begin_indices[i + 1], "end", timings)
 
@@ -229,7 +236,6 @@ def determine_utterance_segments(config, utt_begin_indices, char_probs, timings,
             start_t = int(round(start_t))
 
         end_t = int(round(end / config.index_duration_in_seconds))
-        # end_t = math.floor(end / config.index_duration_in_seconds)
 
         # Compute confidence score by using the min mean probability after splitting into segments of L frames
         n = config.score_min_mean_over_L
@@ -280,68 +286,3 @@ def write_output(
                 outfile.write(
                     f'{start} {end} {score} | {text[i]} | {text_no_preprocessing[i]} | {text_normalized[i]}\n'
                 )
-
-
-#####################
-# logging utils
-#####################
-def listener_configurer(log_file, level):
-    root = logging.getLogger()
-    h = logging.handlers.RotatingFileHandler(log_file, 'w')
-    f = logging.Formatter('%(asctime)s %(processName)-10s %(name)s %(levelname)-8s %(message)s')
-    h.setFormatter(f)
-    ch = logging.StreamHandler()
-    root.addHandler(h)
-    root.setLevel(level)
-    root.addHandler(ch)
-
-
-def listener_process(queue, configurer, log_file, level):
-    configurer(log_file, level)
-    while True:
-        try:
-            record = queue.get()
-            if record is None:  # We send this as a sentinel to tell the listener to quit.
-                break
-            logger = logging.getLogger(record.name)
-            logger.setLevel(logging.INFO)
-            logger.handle(record)  # No level or filter logic applied - just do it!
-
-        except Exception:
-            import sys
-            import traceback
-
-            print('Problem:', file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-
-
-def worker_configurer(queue, level):
-    h = logging.handlers.QueueHandler(queue)  # Just the one handler needed
-    root = logging.getLogger()
-    root.addHandler(h)
-    root.setLevel(level)
-
-
-def worker_process(
-    queue,
-    configurer,
-    level,
-    log_probs,
-    path_wav,
-    transcript_file,
-    output_file,
-    vocabulary,
-    tokenizer,
-    asr_model,
-    index_duration,
-    window_len,
-):
-    configurer(queue, level)
-    name = multiprocessing.current_process().name
-    innerlogger = logging.getLogger('worker')
-    innerlogger.info(f'{name} is processing {path_wav}, window_len={window_len}')
-    get_segments(
-        log_probs, path_wav, transcript_file, output_file, vocabulary, tokenizer, asr_model, index_duration, window_len
-    )
-    if os.path.exists(output_file):
-        innerlogger.info(f'{name} completed segmentation of {path_wav}, segments saved to {output_file}')

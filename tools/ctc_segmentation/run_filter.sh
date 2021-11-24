@@ -1,13 +1,14 @@
 #!/bin/bash
 
 SCRIPTS_DIR="scripts" # /<PATH TO>/NeMo/tools/ctc_segmentation/tools/scripts/ directory
-MODEL_NAME_OR_PATH=""
-INPUT_AUDIO_DIR=""
+MODEL_NAME_OR_PATH="" # ASR model to use for transcribing the segmented audio files
+INPUT_AUDIO_DIR="" # Path to original directory with audio files
 MANIFEST=""
-BATCH_SIZE=4
+BATCH_SIZE=4 # batch size for ASR transcribe
+NUM_JOBS=-2 # The maximum number of concurrently running jobs, `-2` - all CPUs but one are used
 
 # Thresholds for filtering
-CER_THRESHOLD=35
+CER_THRESHOLD=30
 WER_THRESHOLD=75
 CER_EDGE_THRESHOLD=35
 LEN_DIFF_THRESHOLD=0.3
@@ -38,11 +39,12 @@ else
   ARG_MODEL="pretrained_name";
 fi
 
+OUT_MANIFEST="$(dirname ${MANIFEST})"
 # Add transcripts to the manifest file, ASR model predictions will be stored under "pred_text" field
 python ${SCRIPTS_DIR}/../../../examples/asr/transcribe_speech.py \
 $ARG_MODEL=$MODEL_NAME_OR_PATH \
 dataset_manifest=$MANIFEST \
-output_filename=${MANIFEST}_transcribed.json || exit
+output_filename=${OUT_MANIFEST}_transcribed.json || exit
 
 echo "--- Calculating metrics and filtering out samples based on thresholds ---"
 echo "CER_THRESHOLD = ${CER_THRESHOLD}"
@@ -51,7 +53,7 @@ echo "CER_EDGE_THRESHOLD = ${CER_EDGE_THRESHOLD}"
 echo "LEN_DIFF_THRESHOLD = ${LEN_DIFF_THRESHOLD}"
 
 python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
---manifest=${MANIFEST}_transcribed.json \
+--manifest=${OUT_MANIFEST}_transcribed.json \
 --audio_dir=${INPUT_AUDIO_DIR} \
 --max_cer=${CER_THRESHOLD} \
 --max_wer=${WER_THRESHOLD} \
@@ -64,6 +66,6 @@ python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
 # clean up
 ##rm -rf ${OUTPUT_DIR}/processed
 
-#python /home/ebakhturina/NeMo/tools/speech_data_explorer/data_explorer.py \
+#python ${SCRIPTS_DIR}/../../speech_data_explorer/data_explorer.py \
 #--disable-caching-metrics \
 #${OUTPUT_DIR}/manifests/all_transcribed.json
