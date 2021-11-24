@@ -95,11 +95,11 @@ class KlLoss(Loss):
     @property
     def input_types(self):
         return {
-            "z_p": [NeuralType(('B', 'T'), VoidType())],
-            "logs_q": [NeuralType(('B', 'T'), VoidType())],
-            "m_p": [NeuralType(('B', 'T'), VoidType())],
-            "logs_p": [NeuralType(('B', 'T'), VoidType())],
-            "z_mask": [NeuralType(('B', 'T'), VoidType())],
+            "z_p": [NeuralType(('B', 'D', 'T'), VoidType())],
+            "logs_q": [NeuralType(('B', 'D', 'T'), VoidType())],
+            "m_p": [NeuralType(('B', 'D', 'T'), VoidType())],
+            "logs_p": [NeuralType(('B', 'D', 'T'), VoidType())],
+            "z_mask": [NeuralType(('B', 'D', 'T'), VoidType())],
         }
 
     @property
@@ -109,7 +109,7 @@ class KlLoss(Loss):
         }
 
     @typecheck()
-    def kl_loss(self, z_p, logs_q, m_p, logs_p, z_mask):
+    def forward(self, z_p, logs_q, m_p, logs_p, z_mask):
         """
         z_p, logs_q: [b, h, t_t]
         m_p, logs_p: [b, h, t_t]

@@ -238,10 +238,9 @@ class VitsModel(TextToWaveform):
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
-            loss_kl = self.kl_loss(z_p, logs_q, m_p, logs_p, z_mask) * self._cfg.c_kl
-
-            loss_fm = self.feat_matching_loss(fmap_r, fmap_g)
-            loss_gen, losses_gen = self.gen_loss(y_d_hat_g)
+            loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
+            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmag_g=fmap_g)
+            loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
         # train generator
