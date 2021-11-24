@@ -171,16 +171,22 @@ class MegatronGPTModel(NLPModel):
         self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
-        # TODO: refactor to make sense
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            reduced_loss = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_fnc, batch=batch, model=self, forward_only=True
-            )
-            return reduced_loss
+        reduced_loss = None
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-        output_tensor = self(tokens, position_ids, attention_mask, labels)
-        loss = self.loss_func(loss_mask, output_tensor)
-        reduced_loss = average_losses_across_data_parallel_group([loss])
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
+            tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+            reduced_loss = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+            )
+        else:
+            output_tensor = self(tokens, position_ids, attention_mask, labels)
+            loss = self.loss_func(loss_mask, output_tensor)
+            reduced_loss = average_losses_across_data_parallel_group([loss])
 
         # cache reduced loss while accumulating gradients
         self._reduced_loss_buffer.append(reduced_loss[0])
