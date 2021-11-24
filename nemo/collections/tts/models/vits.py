@@ -128,7 +128,7 @@ class VitsModel(TextToWaveform):
             'blackman': torch.blackman_window,
             'bartlett': torch.bartlett_window,
             'none': None,
-        }.get(self.window, None)
+        }.get(self.hann_window, None)
 
         self.stft = lambda x: torch.stft(
             input=x,
@@ -265,10 +265,12 @@ class VitsModel(TextToWaveform):
         self.log_dict(metrics, on_step=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
+        # (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
         (x, x_lengths, y, y_lengths) = batch
 
-        y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
-        y_hat_lengths = mask.sum([1, 2]).long() * self.hps.data.hop_length
+
+        y_hat, attn, mask, *_ = self.net_g.infer(y, y_lengths, max_len=1000)
+        y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.train_ds.dataset.hop_length
 
         # Note to modify the functions / use the ones in NeMo, we need the lengths
         mel, mel_lengths = self.audio_to_melspec_precessor(x, x_lengths)
@@ -321,7 +323,7 @@ class VitsModel(TextToWaveform):
                 self.global_step,
                 dataformats="HWC",
             )
-
+        
 
 >>>>>>> e8f520f47... Modified validation step
     def validation_step_alt(self, batch, batch_idx):
