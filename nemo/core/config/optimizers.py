@@ -204,6 +204,7 @@ class NovogradParams(OptimizerParams):
     luc_trust: float = 1e-3
     luc_eps: float = 1e-8
 
+
 @dataclass
 class AdafactorParams(OptimizerParams):
     """
