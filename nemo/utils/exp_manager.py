@@ -434,16 +434,8 @@ def check_resume(
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
-<<<<<<< HEAD
-    # # remove mp_rank from checkpoint if necessary
-    # if checkpoint is not None:
-    #     if 'mp_rank' in str(checkpoint):
-    #         checkpoint = checkpoint.parent.parent.joinpath(checkpoint.name)
-    trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
-=======
 
     trainer.checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
->>>>>>> f8885b1ddcde6d61c73f724020ae9205bc64dd4e
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
