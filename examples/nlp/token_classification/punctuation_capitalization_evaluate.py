@@ -85,7 +85,7 @@ def main(cfg: DictConfig) -> None:
             f'{PunctuationCapitalizationModel.list_available_models()}'
         )
 
-    model.update_config(
+    model.update_config_after_restoring_from_checkpoint(
         class_labels=cfg.model.class_labels,
         common_dataset_parameters=cfg.model.common_dataset_parameters,
         test_ds=cfg.model.test_ds,

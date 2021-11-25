@@ -699,11 +699,13 @@ pipeline {
         }
        stage('Test Restore with AlBERT') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_train.py \
+            +do_training=false \
+            +do_testing=true \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
             +model.test_ds.use_cache=false \
+            ~model.train_ds \
+            ~model.validation_ds \
             model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             exp_manager=null'
@@ -711,11 +713,13 @@ pipeline {
         }
         stage('Test Restore with RoBERTa') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_train.py \
+            +do_training=false \
+            +do_testing=true \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
             +model.test_ds.use_cache=false \
+            ~model.train_ds \
+            ~model.validation_ds \
             model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             exp_manager=null'
@@ -1082,12 +1086,12 @@ pipeline {
         }
         stage('Evaluation script for Punctuation') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
-            model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_train.py \
+            +do_training=false \
+            +do_testing=true \
             model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
+            ~model.train_ds \
+            ~model.validation_ds \
             +model.test_ds.use_cache=false \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo'
           }
@@ -1123,13 +1127,13 @@ pipeline {
               trainer.accelerator=ddp \
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
-            python punctuation_capitalization_evaluate.py \
-              +model.train_ds.use_cache=false \
-              +model.validation_ds.use_cache=false \
+            python punctuation_capitalization_train.py \
+              +do_training=false \
+              +do_testing=true \
               +model.test_ds.use_cache=false \
               pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              ~model.train_ds \
+              ~model.validation_ds \
               model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
             python punctuation_capitalization_train.py \
               +do_training=false \

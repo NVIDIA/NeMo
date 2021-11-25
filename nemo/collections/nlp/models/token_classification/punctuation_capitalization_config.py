@@ -156,7 +156,9 @@ class ClassLabelsConfig:
     A structure and default values of a mandatory part of config which contains names of files which are saved in .nemo
     checkpoint. These files can also be used for passing label vocabulary to the model. For using them as label
     vocabularies you will need to provide path these files in parameter
-    ``model.common_dataset_parameters.label_vocab_dir``.
+    ``model.common_dataset_parameters.label_vocab_dir``. Each line in labels files
+    contains 1 label. The values are sorted, ``<line number>==<label id>``, starting from ``0``. A label with ``0`` id
+    must contain neutral label which must be equal to ``model.common_dataset_parameters.pad_label``.
 
     This config is a part of :class:`~CommonDatasetParametersConfig`.
     """
@@ -256,7 +258,7 @@ class PunctuationCapitalizationModelConfig:
     language_model: LanguageModelConfig = LanguageModelConfig()
     """A configuration of a BERT-like language model which serves as a model body."""
 
-    optim: Optional[OptimConfig] = PunctuationCapitalizationOptimConfig()
+    optim: Optional[OptimConfig] = None
     """A configuration of optimizer and learning rate scheduler."""
 
 

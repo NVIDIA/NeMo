@@ -359,67 +359,108 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """
         return self._multi_eval_epoch_end('test', dataloader_idx)
 
-    def update_config(
-        self,
-        class_labels: Optional[Union[DictConfig, Dict[str, str]]] = None,
-        common_dataset_parameters: Optional[Union[DictConfig, Dict[str, Any]]] = None,
-        train_ds: Optional[Union[DictConfig, Dict[str, Any]]] = None,
-        test_ds: Optional[Union[DictConfig, Dict[str, Any]]] = None,
-        validation_ds: Optional[Union[DictConfig, Dict[str, Any]]] = None,
-        optim: Optional[Union[DictConfig, Dict[str, Any]]] = None,
-    ) -> None:
+    def update_config_after_restoring_from_checkpoint(self, **kwargs) -> None:
         """
         Set new values for some sections of config. Useful after restoring from checkpoint for fine tuning
         and testing if config parameters of checkpoints are not suitable.
 
         No need to provide values for all items in an updated config section. If an item is omitted in this method
         parameter, then corresponding item in model config does not change. If the entire updated section is missing
-        in then model config, then omitted items from this method parameters are set as default.
+        in the model config, then omitted items from this method parameters are set as default according to tables
+        :ref:`here <run-config-label>`.
 
-        Args:
-            class_labels (:obj:`Union[DictConfig, Dict[str, str]]`, `optional`): names of label id files used as label
+        If one of parameters ``train_ds``, ``validation_ds``, ``test_ds``, ``optim`` is provided but its value is
+        ``None``, then corresponding section is removed from config. This option is not working for other parameters.
+
+        .. warning::
+            You may change values of parameters related to label ids:
+
+                - ``common_dataset_parameters.punct_label_ids``,
+                - ``common_dataset_parameters.capit_label_ids``,
+                - ``common_dataset_parameters.label_vocab_dir``,
+                - ``class_labels.punct_labels_file``,
+                - ``class_labels.capit_labels_file``,
+
+            yet label ids in config and loaded from files must be equal to label ids loaded from checkpoint. Otherwise,
+            an error will be raised.
+
+        Keyword Args:
+            class_labels (:obj:`Union[DictConfig, Dict[str, str]]`): names of label id files used as label
                 id dictionaries. See more in :ref:`class labels config<class-labels-config-label>`.
             common_dataset_parameters (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): see more in
                 :ref:`common dataset parameters config<common-dataset-parameters-config-label>`.
             train_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of training dataset. See
                 possible options in :ref:`data config<data-config-label>`.
-            validation_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of validation dataset.
-                See possible options in :ref:`data config<data-config-label>`.
-            test_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of test dataset. See possible
-                options in :ref:`data config<data-config-label>`.
+            validation_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of validation
+                dataset. See possible options in :ref:`data config<data-config-label>`.
+            test_ds (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): configuration of test dataset. See
+                possible options in :ref:`data config<data-config-label>`.
             optim (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): optimization configuration. See possible
                 options in :ref:`optimization config<optim-config-label>`.
         """
-        if class_labels is not None:
-            self._cfg.class_labels = OmegaConf.merge(self._cfg.class_labels, OmegaConf.create(class_labels))
-        if common_dataset_parameters is not None:
-            self._cfg.common_dataset_parameters = OmegaConf.merge(
-                self._cfg.common_dataset_parameters, OmegaConf.create(common_dataset_parameters)
+        allowed_keys = {
+            'class_labels', 'ignore_extra_tokens', 'ingore_start_end', 'train_ds', 'validation_ds', 'test_ds', 'optim'
+        }
+        unexpected_keys = set(kwargs) - allowed_keys
+        if unexpected_keys:
+            raise ValueError(
+                f"Found unexpected keyword arguments: {unexpected_keys}. You can use only {allowed_keys}."
             )
-        if train_ds is not None:
-            if 'train_ds' in self._cfg:
-                base = self._cfg.train_ds
+        if 'class_labels' in kwargs:
+            if kwargs['class_labels'] is None:
+                raise ValueError(
+                    f"'class_labels' parameters is `None`, whereas you cannot remove section 'class_labels' from model "
+                    f"config."
+                )
+            self._cfg.class_labels = OmegaConf.merge(
+                self._cfg.class_labels, OmegaConf.create(kwargs['class_labels'])
+            )
+        if 'common_dataset_parameters' in kwargs:
+            if kwargs['common_dataset_parameters'] is None:
+                raise ValueError(
+                    f"'common_dataset_parameters' item is `None`, whereas you cannot remove section"
+                    f"'common_dataset_parameters' from model config."
+                )
+            self._cfg.common_dataset_parameters = OmegaConf.merge(
+                self._cfg.common_dataset_parameters, OmegaConf.create(kwargs['common_dataset_parameters'])
+            )
+            self._check_label_config_parameters()
+        if 'train_ds' in kwargs:
+            if kwargs['train_ds'] is None:
+                del self._cfg.train_ds
             else:
-                base = OmegaConf.structured(PunctuationCapitalizationTrainDataConfig)
-            self._cfg.train_ds = OmegaConf.merge(base, OmegaConf.create(train_ds))
-        if validation_ds is not None:
-            if 'validation_ds' in self._cfg:
-                base = self._cfg.validation_ds
+                if 'train_ds' in self._cfg:
+                    base = self._cfg.train_ds
+                else:
+                    base = OmegaConf.structured(PunctuationCapitalizationTrainDataConfig)
+                self._cfg.train_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['train_ds']))
+        if 'validation_ds' in kwargs:
+            if kwargs['validation_ds'] is None:
+                del self._cfg.validation_ds
             else:
-                base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
-            self._cfg.validation_ds = OmegaConf.merge(base, OmegaConf.create(validation_ds))
-        if test_ds is not None:
-            if 'test_ds' in self._cfg:
-                base = self._cfg.test_ds
+                if 'validation_ds' in self._cfg:
+                    base = self._cfg.validation_ds
+                else:
+                    base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
+                self._cfg.validation_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['validation_ds']))
+        if 'test_ds' in kwargs:
+            if kwargs['test_ds'] is None:
+                del self._cfg.test_ds
             else:
-                base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
-            self._cfg.test_ds = OmegaConf.merge(base, OmegaConf.create(test_ds))
-        if optim is not None:
-            if 'optim' in self._cfg:
-                base = self._cfg.optim
+                if 'test_ds' in self._cfg:
+                    base = self._cfg.test_ds
+                else:
+                    base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
+                self._cfg.test_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['test_ds']))
+        if 'optim' in kwargs:
+            if kwargs['optim'] is None:
+                del self._cfg.optim
             else:
-                base = OmegaConf.merge(OmegaConf.structured(OptimConfig))
-            self._cfg.optim = OmegaConf.merge(base, OmegaConf.create(optim))
+                if 'optim' in self._cfg:
+                    base = self._cfg.optim
+                else:
+                    base = OmegaConf.merge(OmegaConf.structured(OptimConfig))
+                self._cfg.optim = OmegaConf.merge(base, OmegaConf.create(kwargs['optim']))
 
     def setup_training_data(self, train_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None) -> None:
         """

@@ -57,9 +57,8 @@ model:
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py` for tarred dataset
     # creation.
-    use_tarred_dataset: false
-    # A path to directory where `tar_metadata_file` is stored. If `ds_item` is missing, then `model.dataset.data_dir`
-    # will be used instead. You cannot pass list of paths in `model.train_ds.ds_item`.
+    use_tarred_dataset: ???
+    # A path to directory where `tar_metadata_file` or `text_file` and `labels_file` are stored.
     ds_item: ???
 
     text_file: text_train.txt
@@ -68,6 +67,7 @@ model:
     shuffle: true
     num_samples: -1
     tokens_in_batch: 15000
+    max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
@@ -88,7 +88,8 @@ model:
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
     use_tarred_dataset: false
-    # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] OR PATH_TO_DEV (Note no space between the paths and square brackets)
+    # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
+    # brackets)
     ds_item: ???
 
     text_file: text_dev.txt
@@ -96,12 +97,13 @@ model:
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
+    max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
     n_jobs: 0
 
-    # Do not remove this parameter from config. For more details see `train_ds` section.
+    # For more details see `train_ds` section.
     tar_metadata_file: null
 
   test_ds:
@@ -116,12 +118,13 @@ model:
     shuffle: false
     num_samples: -1
     tokens_in_batch: 15000
+    max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
     n_jobs: 0
 
-    # Do not remove this parameter from config. For more details see `train_ds` section.
+    # For more details see `train_ds` section.
     tar_metadata_file: null
 
   tokenizer:

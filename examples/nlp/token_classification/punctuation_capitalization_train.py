@@ -93,21 +93,22 @@ def main(cfg: DictConfig) -> None:
                 f'Provide path to the pre-trained .nemo file or choose from '
                 f'{PunctuationCapitalizationModel.list_available_models()}'
             )
-        model.update_config(
+        model.update_config_after_restoring_from_checkpoint(
             class_labels=cfg.model.class_labels,
             common_dataset_parameters=cfg.model.common_dataset_parameters,
             train_ds=cfg.model.get('train_ds') if cfg.do_training else None,
             validation_ds=cfg.model.get('validation_ds') if cfg.do_training else None,
             test_ds=cfg.model.get('test_ds') if cfg.do_testing else None,
-            optim=cfg.model.optim,
+            optim=cfg.model.get('optim') if cfg.do_training else None,
         )
         model.set_trainer(trainer)
+    if cfg.do_training:
         model.setup_training_data()
         model.setup_validation_data()
         model.setup_optimization()
-    if cfg.do_training:
         trainer.fit(model)
     if cfg.do_testing:
+        model.setup_test_data()
         trainer.test(model)
 
 
