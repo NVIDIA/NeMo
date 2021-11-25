@@ -28,10 +28,10 @@ from nemo_text_processing.inverse_text_normalization.de.taggers.time import Time
 from nemo_text_processing.inverse_text_normalization.de.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.inverse_text_normalization.en.taggers.word import WordFst
-from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as TNCardinalFst
-from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst as TNDecimalFst
-from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionFst
-from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalFst
+from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as TNCardinalTagger
+from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst as TNDecimalTagger
+from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionVerbalizer
+from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalVerbalizer
 from nemo_text_processing.text_normalization.en.graph_utils import generator_main
 
 from nemo.utils import logging
@@ -68,17 +68,17 @@ class ClassifyFst(GraphFst):
             logging.info(f"ClassifyFst.fst was restored from {far_file}.")
         else:
             logging.info(f"Creating ClassifyFst grammars.")
-            tn_cardinal = TNCardinalFst(deterministic=False)
-            tn_decimal = TNDecimalFst(cardinal=tn_cardinal, deterministic=False)
-            tn_ordinal_verbalizer = TNOrdinalFst(deterministic=False)
-            tn_fraction_verbalizer = TNFractionFst(ordinal=tn_ordinal_verbalizer, deterministic=False)
+            tn_cardinal_tagger = TNCardinalTagger(deterministic=False)
+            tn_decimal_tagger = TNDecimalTagger(cardinal=tn_cardinal_tagger, deterministic=False)
+            tn_ordinal_verbalizer = TNOrdinalVerbalizer(deterministic=False)
+            tn_fraction_verbalizer = TNFractionVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
 
-            cardinal = CardinalFst(tn_cardinal=tn_cardinal)
+            cardinal = CardinalFst(tn_cardinal=tn_cardinal_tagger)
             cardinal_graph = cardinal.fst
 
-            ordinal = OrdinalFst(cardinal)
+            ordinal = OrdinalFst(itn_cardinal_tagger=cardinal, tn_ordinal_verbalizer=tn_ordinal_verbalizer)
             ordinal_graph = ordinal.fst
-            decimal = DecimalFst(cardinal=cardinal, tn_decimal=tn_decimal)
+            decimal = DecimalFst(cardinal=cardinal, tn_decimal=tn_decimal_tagger)
             decimal_graph = decimal.fst
 
             fraction = FractionFst(itn_cardinal_tagger=cardinal, tn_fraction_verbalizer=tn_fraction_verbalizer)
@@ -101,7 +101,7 @@ class ClassifyFst(GraphFst):
                 # | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(measure_graph, 1.1)
-                # | pynutil.add_weight(ordinal_graph, 1.1)
+                | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)
                 # | pynutil.add_weight(telephone_graph, 1.1)

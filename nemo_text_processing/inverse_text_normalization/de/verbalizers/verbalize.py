@@ -22,7 +22,6 @@ from nemo_text_processing.inverse_text_normalization.de.verbalizers.electronic i
 # from nemo_text_processing.inverse_text_normalization.de.verbalizers.fraction import FractionFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.money import MoneyFst
-from nemo_text_processing.inverse_text_normalization.de.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.whitelist import WhiteListFst
@@ -47,7 +46,6 @@ class VerbalizeFst(GraphFst):
 
         cardinal = CardinalFst(tn_cardinal=tn_cardinal_verbalizer)
         cardinal_graph = cardinal.fst
-        ordinal_graph = OrdinalFst().fst
         decimal = DecimalFst(tn_decimal=tn_decimal_verbalizer)
         decimal_graph = decimal.fst
         # measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal, fraction=fraction).fst
@@ -63,7 +61,6 @@ class VerbalizeFst(GraphFst):
             | money_graph
             # | measure_graph
             # | fraction_graph
-            | ordinal_graph
             | decimal_graph
             | cardinal_graph
             | whitelist_graph
