@@ -1146,7 +1146,7 @@ class ModelPT(LightningModule, Model):
             Please create a new model using an updated config to properly update the model.
         """
         self._cfg = cfg
-        self._set_hparams({'cfg': self._cfg})
+        self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
 
     @staticmethod
     def _is_model_being_restored() -> bool:

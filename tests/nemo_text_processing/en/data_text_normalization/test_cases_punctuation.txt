@@ -1,0 +1,13 @@
+a `quote` example~a `quote` example
+a `25` example~a `twenty five` example
+single quote.'~single quote.'
+single quote. '4~single quote. 'four
+company's results,' said he:~company's results,' said he:
+test -~test -
+-5 test -~minus five test -
+abbreviation USA.~abbreviation u s a.
+abbreviation U.S.A.~abbreviation u s a
+abbreviation. U.S.A..~abbreviation. u s a.
+1-4=5~one minus four equals five
+&gt;&gt;~&gt;&gt;
+abbreviation USA,~abbreviation u s a,
