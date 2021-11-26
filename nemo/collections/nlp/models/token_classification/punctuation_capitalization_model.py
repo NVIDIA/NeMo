@@ -370,7 +370,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         :ref:`here <run-config-label>`.
 
         If one of parameters ``train_ds``, ``validation_ds``, ``test_ds``, ``optim`` is provided but its value is
-        ``None``, then corresponding section is removed from config. This option is not working for other parameters.
+        ``None``, then corresponding section is replaced with ``None``.
 
         .. warning::
             You may change values of parameters related to label ids:
@@ -398,9 +398,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             optim (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): optimization configuration. See possible
                 options in :ref:`optimization config<optim-config-label>`.
         """
-        allowed_keys = {
-            'class_labels', 'ignore_extra_tokens', 'ingore_start_end', 'train_ds', 'validation_ds', 'test_ds', 'optim'
-        }
+        allowed_keys = {'class_labels', 'common_dataset_parameters', 'train_ds', 'validation_ds', 'test_ds', 'optim'}
         unexpected_keys = set(kwargs) - allowed_keys
         if unexpected_keys:
             raise ValueError(
@@ -427,39 +425,39 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self._check_label_config_parameters()
         if 'train_ds' in kwargs:
             if kwargs['train_ds'] is None:
-                del self._cfg.train_ds
+                self._cfg.train_ds = None
             else:
-                if 'train_ds' in self._cfg:
+                if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                     base = self._cfg.train_ds
                 else:
                     base = OmegaConf.structured(PunctuationCapitalizationTrainDataConfig)
                 self._cfg.train_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['train_ds']))
         if 'validation_ds' in kwargs:
             if kwargs['validation_ds'] is None:
-                del self._cfg.validation_ds
+                self._cfg.validation_ds = None
             else:
-                if 'validation_ds' in self._cfg:
+                if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                     base = self._cfg.validation_ds
                 else:
                     base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
                 self._cfg.validation_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['validation_ds']))
         if 'test_ds' in kwargs:
             if kwargs['test_ds'] is None:
-                del self._cfg.test_ds
+                self._cfg.test_ds = None
             else:
-                if 'test_ds' in self._cfg:
+                if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                     base = self._cfg.test_ds
                 else:
                     base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
                 self._cfg.test_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['test_ds']))
         if 'optim' in kwargs:
             if kwargs['optim'] is None:
-                del self._cfg.optim
+                self._cfg.optim = None
             else:
-                if 'optim' in self._cfg:
+                if 'optim' in self._cfg and self._cfg.optim is not None:
                     base = self._cfg.optim
                 else:
-                    base = OmegaConf.merge(OmegaConf.structured(OptimConfig))
+                    base = OmegaConf.structured(OptimConfig)
                 self._cfg.optim = OmegaConf.merge(base, OmegaConf.create(kwargs['optim']))
 
     def setup_training_data(self, train_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None) -> None:

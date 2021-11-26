@@ -68,7 +68,7 @@ To use one of the pretrained versions of the model and finetune it, run:
 @hydra_runner(config_path="conf", config_name="punctuation_capitalization_config")
 def main(cfg: DictConfig) -> None:
     torch.manual_seed(42)
-    cfg = update_model_config(PunctuationCapitalizationConfig(), cfg)
+    cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationConfig()), cfg)
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     if not cfg.do_training and not cfg.do_testing:
