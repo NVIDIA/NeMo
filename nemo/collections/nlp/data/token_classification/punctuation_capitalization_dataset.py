@@ -813,6 +813,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
             features are looked for and stored in ``cache_dir``. Pickled features include input ids, subtokens mask
             (mask of first tokens in words), encoded punctuation and capitalization labels, label ids. Features
             creation consumes considerable time and this ``use_cache=True`` significantly speeds up training starting.
+
+            .. warning::
+                If you spawned more then 1 processes BEFORE dataset creation, then the ``use_cache`` parameter
+                has to be ``True``. In PyTorch Lightning spawning is performed when ``Trainer.fit`` or ``Trainer.test``
+                are called.
         cache_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where cache (pickled features)
             is stored. By default, ``text_file`` parent directory is used. This parameter is useful if dataset
             directory is read-only and you wish to pickle features. In such a case specify a path to directory which
@@ -899,6 +904,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             punct_label_vocab_file,
             capit_label_vocab_file,
             num_samples,
+            use_cache,
         )
         if punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
@@ -924,8 +930,6 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
-        print("(BertPunctuationCapitalizationDataset.__init__)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("(BertPunctuationCapitalizationDataset.__init__)rank, master_device, features_pkl:", torch.distributed.get_rank() if torch.distributed.is_initialized() else None, master_device, features_pkl)
         features = None
         if master_device and not (features_pkl.is_file() and use_cache):
             if verbose:
@@ -1016,7 +1020,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
         punct_label_vocab_file: Union[str, os.PathLike],
         capit_label_vocab_file: Union[str, os.PathLike],
         num_samples: int,
+        use_cache: bool,
     ) -> None:
+        if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1 and not use_cache:
+            raise ValueError(
+                f"If you already created process group and the world size is greater than 1, then `use_cache` "
+                f"parameter has to `True`. Only master process prepares features and if `use_cache=False`, then "
+                f"other processes will not be able to obtain features. Alternatively, you may set `use_cache=False` "
+                f"and set up data before spawning processes. Use `cache_dir` dataset directory with "
+                f"`text_file` and `labels_file` is read-only."
+            )
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
                 f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and'
