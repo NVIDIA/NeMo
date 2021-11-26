@@ -69,6 +69,7 @@ To use one of the pretrained versions of the model and finetune it, run:
 def main(cfg: DictConfig) -> None:
     torch.manual_seed(42)
     cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationConfig()), cfg)
+    print("(main)trainer config:", OmegaConf.to_yaml(cfg.trainer))
     trainer = pl.Trainer(**cfg.trainer)
     print("(main)trainer.accelerator:", trainer.accelerator)
     print("(main)after trainer init. torch.distributed.is_initialized() =", torch.distributed.is_initialized())
