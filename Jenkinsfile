@@ -1102,6 +1102,7 @@ pipeline {
             mkdir -p tmp_data && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
             python punctuation_capitalization_train.py \
+              model.train_ds.use_tarred_dataset=false \
               model.train_ds.ds_item=tmp_data \
               model.validation_ds.ds_item=tmp_data \
               model.test_ds.ds_item=tmp_data \
@@ -1116,6 +1117,7 @@ pipeline {
               +do_testing=true && \
             mv tmp_data tmp_data2 && \
             python punctuation_capitalization_train.py \
+              model.train_ds.use_tarred_dataset=false \
               model.train_ds.ds_item=tmp_data2 \
               model.validation_ds.ds_item=tmp_data2 \
               model.test_ds.ds_item=tmp_data2 \
