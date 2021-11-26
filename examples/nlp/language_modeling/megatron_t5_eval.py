@@ -35,14 +35,7 @@ def main():
         "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
     )
     parser.add_argument(
-        "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
-    )
-    parser.add_argument(
-        "--stop_after_sentence",
-        type=bool,
-        default="True",
-        required=False,
-        help="True/False: whether to stop after full sentence has been generated.",
+        "--tokens_to_generate", type=int, default="16", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=1, required=True,
@@ -64,7 +57,6 @@ def main():
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,
-        "stop_after_sentence": args.stop_after_sentence,
     }
 
     dataset = T5RequestDataset(request, model.tokenizer)

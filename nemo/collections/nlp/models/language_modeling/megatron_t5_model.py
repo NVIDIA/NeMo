@@ -210,15 +210,6 @@ class MegatronT5Model(NLPModel):
         dec_mask = data_b['dec_mask'] < 0.5
         enc_dec_mask = data_b['enc_dec_mask'] < 0.5
 
-        if self.cfg.debug:
-            logging.info('debugging')
-            tokens_enc_list = tokens_enc.detach().tolist()[0]
-            tokens_dec_list = tokens_dec.detach().tolist()[0]
-            labels_list = labels.detach().tolist()[0]
-            logging.info(f'detokenize enc tokens: {self.tokenizer.ids_to_text(tokens_enc_list)}')
-            logging.info(f'detokenize dec tokens: {self.tokenizer.ids_to_text(tokens_dec_list)}')
-            logging.info(f'detokenize labels: {self.tokenizer.ids_to_text(labels_list)}')
-
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask
 
     def build_train_valid_test_datasets(self):
@@ -409,8 +400,10 @@ class MegatronT5Model(NLPModel):
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
+            if token_ids[:, -1] == self.tokenizer.eos_id:
+                break
 
-        return predicted_tokens_dec
+        return predicted_tokens_dec, log_probs
 
     def complete(self, request: Dict):
         """
@@ -429,27 +422,32 @@ class MegatronT5Model(NLPModel):
                 
         """
         response = {}
-        self.eval()
+        self.freeze()
         # naive greedy slow loop
         # TODO: add option for BeamSearchDecoder
 
         response['prompt'] = request['prompt'][0]
+        response['completion'] = {}
         tokens_enc = request['masked_sample']
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
         enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
         enc_mask = enc_mask < 0.5
 
-        predicted_tokens_dec = (
-            self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']),).cpu().numpy()[0].tolist()
-        )
-        if self.tokenizer.eos_id in predicted_tokens_dec:
-            idx = predicted_tokens_dec.index(self.tokenizer.eos_id)
-            predicted_tokens_dec = predicted_tokens_dec[:idx]
+        predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
+        predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
+        log_probs = log_probs.cpu().numpy()[0].tolist()
+        if self.tokenizer.eos_id in predicted_tokens_ids:
+            idx = predicted_tokens_ids.index(self.tokenizer.eos_id)
+            predicted_tokens_ids = predicted_tokens_ids[:idx]
         else:
-            predicted_tokens_dec = [id for id in predicted_tokens_dec if id != self.tokenizer.pad_id]
-        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec)
-        response['completion'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
+            predicted_tokens_ids = [id for id in predicted_tokens_ids if id != self.tokenizer.pad_id]
+        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_ids)
+        response['completion']['text'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
+        response['completion']['tokens'] = list(
+            zip(predicted_tokens_ids, predicted_tokens_dec, log_probs)
+        )
+        self.unfreeze()
         return response
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
