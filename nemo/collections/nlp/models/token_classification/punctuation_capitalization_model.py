@@ -403,7 +403,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 possible options in :ref:`data config<data-config-label>`.
             optim (:obj:`Union[DictConfig, Dict[str, Any]]`, `optional`): optimization configuration. See possible
                 options in :ref:`optimization<optimization-label>` and in `primer
-                <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>_ tutorial.
+                <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_ tutorial.
         """
         allowed_keys = {'class_labels', 'common_dataset_parameters', 'train_ds', 'validation_ds', 'test_ds', 'optim'}
         unexpected_keys = set(kwargs) - allowed_keys
