@@ -925,7 +925,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("rank, master_device, features_pkl:", torch.distributed.get_rank(), master_device, features_pkl)
+        print("rank, master_device, features_pkl:", torch.distributed.get_rank() if torch.distributed.is_initialized() else None, master_device, features_pkl)
         features = None
         if master_device and not (features_pkl.is_file() and use_cache):
             if verbose:
