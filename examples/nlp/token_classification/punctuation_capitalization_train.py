@@ -70,6 +70,8 @@ def main(cfg: DictConfig) -> None:
     torch.manual_seed(42)
     cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationConfig()), cfg)
     trainer = pl.Trainer(**cfg.trainer)
+    print("(main)trainer.accelerator:", trainer.accelerator)
+    print("(main)after trainer init. torch.distributed.is_initialized() =", torch.distributed.is_initialized())
     exp_manager(trainer, cfg.get("exp_manager", None))
     if not cfg.do_training and not cfg.do_testing:
         raise ValueError("At least one of config parameters `do_training` and `do_testing` has to `true`.")
@@ -102,11 +104,13 @@ def main(cfg: DictConfig) -> None:
             optim=cfg.model.get('optim') if cfg.do_training else None,
         )
         model.set_trainer(trainer)
+    print("(main)model._trainer.accelerator:", model._trainer.accelerator)
     if cfg.do_training:
         model.setup_training_data()
         model.setup_validation_data()
         model.setup_optimization()
         trainer.fit(model)
+    print("(main)after after fit. torch.distributed.is_initialized() =", torch.distributed.is_initialized())
     if cfg.do_testing:
         model.setup_test_data()
         trainer.test(model)

@@ -499,7 +499,7 @@ class TokenizeCreateMasksClipWorker:
                 progress_made = 0
         self.progress_queue.put(progress_made)
         if self.verbose:
-            logging.info(f"Finished processing split with number {split_i}")
+            logging.info(f"Finished processing data split number {split_i}")
         return all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels
 
 
@@ -924,13 +924,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print("rank, master_device, features_pkl:", torch.distributed.get_rank() if torch.distributed.is_initialized() else None, master_device, features_pkl)
+        print("(BertPunctuationCapitalizationDataset.__init__)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("(BertPunctuationCapitalizationDataset.__init__)rank, master_device, features_pkl:", torch.distributed.get_rank() if torch.distributed.is_initialized() else None, master_device, features_pkl)
         features = None
         if master_device and not (features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(f'Processing {text_file}')
-            res = self._read_dataset(text_file, labels_file, num_samples, verbose)
+            res = self._read_dataset(text_file, labels_file, num_samples)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
             if punct_label_ids:
                 self._check_label_ids_vs_unique_labels(
@@ -1119,10 +1119,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     @staticmethod
     def _read_dataset(
-        text_file: Path, labels_file: Path, num_samples: int, verbose: bool
+        text_file: Path, labels_file: Path, num_samples: int
     ) -> Tuple[Tuple[str, ...], Tuple[str, ...], Tuple[str, ...], Set[str], Set[str]]:
-        if verbose:
-            logging.info(f'Processing {text_file}')
         with open(text_file, 'r') as f:
             text_lines = f.readlines()
         punct_unique_labels, capit_unique_labels = set(), set()
