@@ -24,7 +24,6 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -49,18 +48,32 @@ For more details about the config files and different ways of model restoration,
 *** Model training ***
 
 To run this script and train the model from scratch, use:
-    python punctuation_and_capitalization_train.py \
+    python punctuation_capitalization_train_evaluate.py \
         model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
         model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
 
 To use one of the pretrained versions of the model and finetune it, run:
-    python punctuation_and_capitalization_train.py \
+    python punctuation_capitalization_train_evaluate.py \
         pretrained_model=punctuation_en_bert \
         model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
         model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
     
     pretrained_model   - pretrained PunctuationCapitalization model from list_available_models() or 
         path to a .nemo file, for example: punctuation_en_bert or model.nemo
+
+If you wish to perform testing after training set `do_testing` to `true:
+    python punctuation_capitalization_train_evaluate.py \
+        +do_testing=true \
+        pretrained_model=punctuation_en_bert \
+        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
+        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
+
+Set `do_training` to `false` and `do_testing` to `true` to perform evaluation without training:
+    python punctuation_capitalization_train_evaluate.py \
+        +do_testing=true \
+        +do_training=false \
+        pretrained_model=punctuation_en_bert \
+        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
 
 """
 
