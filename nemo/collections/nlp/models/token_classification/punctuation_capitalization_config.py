@@ -266,7 +266,10 @@ class PunctuationCapitalizationModelConfig:
     """A configuration of a BERT-like language model which serves as a model body."""
 
     optim: Optional[Any] = None
-    """A configuration of optimizer and learning rate scheduler."""
+    """A configuration of optimizer and learning rate scheduler. There is much variability in such config. For
+    description see `Optimizers
+    <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/core/core.html#optimizers>`_ section in
+    documentation and `primer <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>_ tutorial."""
 
 
 @dataclass

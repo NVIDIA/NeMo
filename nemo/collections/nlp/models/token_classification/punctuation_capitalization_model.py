@@ -43,7 +43,6 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    OptimConfig,
     is_legacy_model_config,
     legacy_model_config_to_new_model_config,
 )
@@ -362,14 +361,18 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def update_config_after_restoring_from_checkpoint(self, **kwargs) -> None:
         """
         Set new values for some sections of config. Useful after restoring from checkpoint for fine tuning
-        and testing if config parameters of checkpoints are not suitable.
+        and testing if config parameters of a restored checkpoint are not suitable.
 
-        No need to provide values for all items in an updated config section. If an item is omitted in this method
+        For ``class_labels``, ``common_dataset_parameters``, ``train_ds``, ``validation_ds``, ``test_ds``, there is
+        no need to provide values for all items in an updated config section. If an item is omitted in this method
         parameter, then corresponding item in model config does not change. If the entire updated section is missing
         in the model config, then omitted items from this method parameters are set as default according to tables
         :ref:`here <run-config-label>`.
 
-        If one of parameters ``train_ds``, ``validation_ds``, ``test_ds``, ``optim`` is provided but its value is
+        .. warning::
+            Parameter ``optim`` is special, because an old config is replaced entirely.
+
+        If one of parameters ``train_ds``, ``validation_ds``, ``test_ds``, is provided but its value is
         ``None``, then corresponding section is replaced with ``None``.
 
         .. warning::
@@ -451,14 +454,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     base = OmegaConf.structured(PunctuationCapitalizationEvalDataConfig)
                 self._cfg.test_ds = OmegaConf.merge(base, OmegaConf.create(kwargs['test_ds']))
         if 'optim' in kwargs:
-            if kwargs['optim'] is None:
-                self._cfg.optim = None
-            else:
-                if 'optim' in self._cfg and self._cfg.optim is not None:
-                    base = self._cfg.optim
-                else:
-                    base = OmegaConf.structured(OptimConfig)
-                self._cfg.optim = OmegaConf.merge(base, OmegaConf.create(kwargs['optim']))
+            self._cfg.optim = kwargs['optim']
 
     def setup_training_data(self, train_data_config: Optional[Union[Dict[str, Any], DictConfig]] = None) -> None:
         """
