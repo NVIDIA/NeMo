@@ -816,7 +816,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
             .. warning::
                 If you spawned more then 1 processes BEFORE dataset creation, then the ``use_cache`` parameter
-                has to be ``True``. In PyTorch Lightning spawning is performed when ``Trainer.fit`` or ``Trainer.test``
+                has to be ``True``. In PyTorch Lightning spawning is performed when `Trainer.fit()
+                <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#fit>`_ or
+                `Trainer.test() <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#test>`_
                 are called.
         cache_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where cache (pickled features)
             is stored. By default, ``text_file`` parent directory is used. This parameter is useful if dataset
