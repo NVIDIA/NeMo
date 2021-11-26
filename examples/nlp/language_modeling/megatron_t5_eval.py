@@ -19,11 +19,10 @@ import torch
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import T5RequestDataset
+from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
-from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
 assert torch.cuda.is_available()
@@ -36,14 +35,7 @@ def main():
         "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
     )
     parser.add_argument(
-        "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
-    )
-    parser.add_argument(
-        "--stop_after_sentence",
-        type=bool,
-        default="True",
-        required=False,
-        help="True/False: whether to stop after full sentence has been generated.",
+        "--tokens_to_generate", type=int, default="16", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=1, required=True,
@@ -65,7 +57,6 @@ def main():
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,
-        "stop_after_sentence": args.stop_after_sentence,
     }
 
     dataset = T5RequestDataset(request, model.tokenizer)

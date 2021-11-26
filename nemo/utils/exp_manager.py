@@ -37,9 +37,10 @@ from pytorch_lightning.trainer.states import RunningStage
 from pytorch_lightning.utilities.distributed import rank_zero_info
 from pytorch_lightning.utilities.types import _METRIC
 
-from nemo.constants import NEMO_ENV_VARNAME_VERSION
-from nemo.utils import app_state, logging, timers
+from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
@@ -185,7 +186,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
-                trainer.checkpoint_connector.resume_checkpoint_path so that the trainer should auto-resume. exp_manager will move files
+                trainer.checkpoint_connector.resume_from_checkpoint_fit_path so that the trainer should auto-resume. exp_manager will move files
                 under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
                 we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
@@ -216,8 +217,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_gpus + local_rank
     logging.rank = global_rank
+    world_size = trainer.world_size
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -272,9 +275,19 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer._default_root_dir = log_dir
 
-    # Handle Loggers by creating file and handle DEBUG statements
-    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
-    logging.add_file_handler(log_file)
+    # Handle logging to file
+    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or world_size <= 32:
+        # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    elif world_size <= 256 and local_rank == 0:
+        # If less than 256 ranks, try to save 1 log file per "machine"
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    elif global_rank == 0:
+        # If running more than 256 ranks, only save 1 log file
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
@@ -364,7 +377,7 @@ def check_resume(
     resume_ignore_no_checkpoint: bool = False,
 ):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
-    trainer.checkpoint_connector.resume_checkpoint_path as necessary.
+    trainer.checkpoint_connector.resume_from_checkpoint_fit_path as necessary.
 
     Returns:
         log_dir (Path): the log_dir
@@ -421,11 +434,8 @@ def check_resume(
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
-    # # remove mp_rank from checkpoint if necessary
-    # if checkpoint is not None:
-    #     if 'mp_rank' in str(checkpoint):
-    #         checkpoint = checkpoint.parent.parent.joinpath(checkpoint.name)
-    trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
+
+    trainer.checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
@@ -695,7 +705,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
-            checkpoint = self._uninject_mp_rank(checkpoint)
+            if self.model_parallel_size is not None and self.model_parallel_size > 1:
+                checkpoint = self._uninject_mp_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
                 continue
@@ -728,10 +739,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.kth_best_model_path = best_k_models[-1]
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
-
-        # # uninject mp_rank from paths
-        # self.kth_best_model_path = self._uninject_mp_rank(self.kth_best_model_path)
-        # self.best_model_path = self._uninject_mp_rank(self.best_model_path)
 
     @staticmethod
     def _uninject_mp_rank(filepath):
@@ -817,7 +824,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
-        if app_state.model_parallel_size is not None:
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
             # TODO: figure out a good way to update these filepaths
             dirname = os.path.dirname(filepath)
@@ -893,8 +900,8 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
-    if params.model_parallel_size is not None:
+    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_from_checkpoint_fit_path or ""
+    if params.model_parallel_size is not None and params.model_parallel_size > 1:
         checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
             checkpoint_callback.last_model_path
         )

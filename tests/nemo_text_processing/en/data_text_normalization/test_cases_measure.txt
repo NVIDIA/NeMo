@@ -1,4 +1,5 @@
 12kg~twelve kilograms
+12KG~twelve kilograms
 12/kg~twelve per kilogram
 12kg/kg~twelve kilograms per kilogram
 1 mbps~one megabit per second

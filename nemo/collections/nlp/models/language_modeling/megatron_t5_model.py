@@ -16,6 +16,7 @@ import re
 from typing import Any, Dict, Optional
 
 import torch
+import torch.nn as nn
 from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -25,10 +26,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
 from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -36,12 +33,8 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    get_ltor_masks_and_position_ids,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPNativeBfloat16PrecisionPlugin, NLPNativeMixedPrecisionPlugin
 from nemo.utils import AppState, logging
 
 
@@ -56,6 +49,9 @@ class MegatronT5Model(NLPModel):
 
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
+
+        # buffer used during train_step for logging average loss over gradient accumulation steps
+        self._reduced_loss_buffer = []
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
@@ -150,12 +146,20 @@ class MegatronT5Model(NLPModel):
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
         # Reduced loss for logging.
-        averaged_loss = average_losses_across_data_parallel_group([loss])
-        self.log('reduced_train_loss', averaged_loss[0], prog_bar=True)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr)
-        self.log('global_step', self.trainer.global_step, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+        # cache reduced loss while accumulating gradients
+        self._reduced_loss_buffer.append(reduced_loss[0])
+
+        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
+            # Reduced loss for logging.
+            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+            lr = self._optimizer.param_groups[0]['lr']
+            self.log('lr', lr)
+            self.log('global_step', self.trainer.global_step, prog_bar=True)
+            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+            self._reduced_loss_buffer = []
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -165,11 +169,20 @@ class MegatronT5Model(NLPModel):
             tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
         )
         loss = self.loss_func(loss_mask, output_tensor)
-        return loss
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+        return reduced_loss
 
     def validation_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         self.log('val_loss', averaged_loss[0], prog_bar=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+
+    def test_step(self, batch, batch_idx):
+        return self.validation_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        averaged_loss = average_losses_across_data_parallel_group(outputs)
+        logging.info(f'test_loss: {averaged_loss[0]}')
 
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
@@ -196,15 +209,6 @@ class MegatronT5Model(NLPModel):
         enc_mask = data_b['enc_mask'] < 0.5
         dec_mask = data_b['dec_mask'] < 0.5
         enc_dec_mask = data_b['enc_dec_mask'] < 0.5
-
-        if self.cfg.debug:
-            logging.info('debugging')
-            tokens_enc_list = tokens_enc.detach().tolist()[0]
-            tokens_dec_list = tokens_dec.detach().tolist()[0]
-            labels_list = labels.detach().tolist()[0]
-            logging.info(f'detokenize enc tokens: {self.tokenizer.ids_to_text(tokens_enc_list)}')
-            logging.info(f'detokenize dec tokens: {self.tokenizer.ids_to_text(tokens_dec_list)}')
-            logging.info(f'detokenize labels: {self.tokenizer.ids_to_text(labels_list)}')
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask
 
@@ -316,8 +320,8 @@ class MegatronT5Model(NLPModel):
         )
         return int(consumed_samples)
 
-    def on_before_optimizer_step(self, optimizer, optimizer_idx):
-        """PTL hook that is called after unscaling gradients when using native amp.
+    def configure_gradient_clipping(self, *args, **kwargs):
+        """PTL hook to configure gradients.
            We use gradient clipping implementation from megatron-lm.
         """
         clip_val = self.trainer.gradient_clip_val
@@ -328,11 +332,8 @@ class MegatronT5Model(NLPModel):
         if clip_val <= 0:
             return
 
-        if isinstance(self.trainer.accelerator_connector.precision_plugin, NLPNativeMixedPrecisionPlugin):
-            parameters = self.model.parameters()
-            clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        else:
-            return
+        parameters = self.model.parameters()
+        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
@@ -358,36 +359,7 @@ class MegatronT5Model(NLPModel):
         history_mask = history_mask.expand(batch, length, length)
         return history_mask
 
-    def complete(self, request: Dict):
-        """
-            Autoregressively invokes language model in the inference mode
-        Args:	
-            request: Dictionary with the following fields
-                * prompt: a string which text the model should complete.
-                * tokens_to_generate: how many tokens to generate while doing prompt completion.
-        Returns:	
-            response: A python dictionary with the following fields
-                * prompt: original text of the prompt
-                * tokenized_prompt: list of (str) tokens from prompt
-                * completion: a python dictionary with the following subfields:
-                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
-                    * text: completion text (as a single string)
-                
-        """
-        response = {}
-        self.eval()
-        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-        # naive greedy slow loop
-        # TODO: add option for BeamSearchDecoder
-
-        response['prompt'] = request['prompt'][0]
-        tokens_enc = request['masked_sample']
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.cls_id]).unsqueeze(0).to(tokens_enc.device)
-
-        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
-        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
-        enc_mask = enc_mask < 0.5
-
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
             decoder_input_ids=None,
@@ -399,8 +371,9 @@ class MegatronT5Model(NLPModel):
             enc_hidden_states=None,
             output_enc_hidden=True,
         )
+        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
 
-        for i in range(request.get("tokens_to_generate", 16)):
+        for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
             enc_dec_mask = self.make_inference_attention_mask_3d(
                 predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
@@ -425,14 +398,54 @@ class MegatronT5Model(NLPModel):
                 output_enc_hidden=False,
             )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+            log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
+            if token_ids[:, -1] == self.tokenizer.eos_id:
+                break
 
-        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_dec[0])
-        if '[SEP]' in predicted_tokens_dec:
-            idx = predicted_tokens_dec.index('[SEP]')
-            predicted_tokens_dec = predicted_tokens_dec[:idx]
-        response['completion'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
+        return predicted_tokens_dec, log_probs
+
+    def complete(self, request: Dict):
+        """
+            Autoregressively invokes language model in the inference mode
+        Args:	
+            request: Dictionary with the following fields
+                * prompt: a string which text the model should complete.
+                * tokens_to_generate: how many tokens to generate while doing prompt completion.
+        Returns:	
+            response: A python dictionary with the following fields
+                * prompt: original text of the prompt
+                * tokenized_prompt: list of (str) tokens from prompt
+                * completion: a python dictionary with the following subfields:
+                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
+                    * text: completion text (as a single string)
+                
+        """
+        response = {}
+        self.freeze()
+        # naive greedy slow loop
+        # TODO: add option for BeamSearchDecoder
+
+        response['prompt'] = request['prompt'][0]
+        response['completion'] = {}
+        tokens_enc = request['masked_sample']
+
+        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
+        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
+        enc_mask = enc_mask < 0.5
+
+        predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
+        predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
+        log_probs = log_probs.cpu().numpy()[0].tolist()
+        if self.tokenizer.eos_id in predicted_tokens_ids:
+            idx = predicted_tokens_ids.index(self.tokenizer.eos_id)
+            predicted_tokens_ids = predicted_tokens_ids[:idx]
+        else:
+            predicted_tokens_ids = [id for id in predicted_tokens_ids if id != self.tokenizer.pad_id]
+        predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_ids)
+        response['completion']['text'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
+        response['completion']['tokens'] = list(zip(predicted_tokens_ids, predicted_tokens_dec, log_probs))
+        self.unfreeze()
         return response
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):

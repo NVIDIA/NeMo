@@ -44,14 +44,6 @@ class Text2SparqlModel(ModelPT):
             "labels": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "loss": NeuralType((), LossType()),
-            "decoder_hidden_states": NeuralType(("B", "T", "D"), ChannelType(), optional=True),
-            "encoder_hidden_states": NeuralType(("B", "T", "D"), ChannelType(), optional=True),
-        }
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         # must assign tokenizers before init
@@ -185,6 +177,7 @@ class Text2SparqlModel(ModelPT):
         perplexity = self.validation_perplexity.compute()
         tensorboard_logs = {"val_loss": avg_loss, "perplexity": perplexity}
         logging.info(f"evaluation perplexity {perplexity.item()}")
+        self.log("val_loss", avg_loss)
         return {"val_loss": avg_loss, "log": tensorboard_logs}
 
     @typecheck.disable_checks()
@@ -198,6 +191,7 @@ class Text2SparqlModel(ModelPT):
     def test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
         """Called at the end of test to aggregate outputs and decode them."""
         texts = [self.encoder_tokenizer.ids_to_text(seq) for batch in outputs for seq in batch]
+        self.test_output = [{"texts": texts}]
         return {"texts": texts}
 
     def setup_tokenizer(self, cfg: DictConfig):

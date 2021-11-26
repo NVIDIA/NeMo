@@ -241,6 +241,9 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
+        assert not (
+            constant_steps is not None and constant_ratio is not None
+        ), "Either use constant_steps or constant_ratio"
         assert warmup_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
 
         # It is necessary to assign all attributes *before* __init__,
@@ -254,8 +257,6 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
         else:
             self.warmup_steps = 0
 
-        assert constant_steps is not None or constant_ratio is not None
-
         if constant_steps is not None:
             self.constant_steps = constant_steps
             self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
@@ -264,6 +265,9 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
             self.constant_steps = int(constant_ratio * max_steps)
             self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
             assert self.decay_steps > 0
+        else:
+            self.constant_steps = 0
+            self.decay_steps = max_steps - self.warmup_steps
 
         self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)
@@ -765,7 +769,7 @@ def prepare_lr_scheduler(
         # we may need to override ModelPT setup_optimization
         if train_dataloader.batch_size is not None:
             batch_size = train_dataloader.batch_size
-        elif train_dataloader.batch_sampler is not None:
+        elif hasattr(train_dataloader, 'batch_sampler') and train_dataloader.batch_sampler is not None:
             if train_dataloader.batch_sampler.micro_batch_size is not None:
                 batch_size = train_dataloader.batch_sampler.micro_batch_size
             else:
@@ -846,8 +850,6 @@ def compute_max_steps(
     elif steps_per_epoch != float('inf'):
         # limit_train_batches is a percentage of batches per epoch
         steps_per_epoch = int(steps_per_epoch * limit_train_batches)
-        if accumulate_grad_batches == 1:
-            steps_per_epoch = max(steps_per_epoch, 1)
 
     return math.ceil(steps_per_epoch / accumulate_grad_batches) * max_epochs
 

@@ -15,12 +15,7 @@
 
 from collections import defaultdict
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SPACE,
-    GraphFst,
-    delete_space,
-)
+from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path, load_labels
 
 try:
@@ -88,6 +83,7 @@ class CardinalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="cardinal", kind="classify")
+        delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))

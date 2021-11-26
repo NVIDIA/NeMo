@@ -784,7 +784,7 @@ class BeamRNNTInfer(Typing):
 
             for bid, hyp in enumerate(B):
                 u = len(hyp.y_sequence) - 1
-                t = i - u + 1
+                t = i - u
 
                 if t > (h_length - 1):
                     batch_removal_ids.append(bid)
