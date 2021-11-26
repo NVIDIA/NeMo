@@ -444,9 +444,7 @@ class MegatronT5Model(NLPModel):
             predicted_tokens_ids = [id for id in predicted_tokens_ids if id != self.tokenizer.pad_id]
         predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_ids)
         response['completion']['text'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
-        response['completion']['tokens'] = list(
-            zip(predicted_tokens_ids, predicted_tokens_dec, log_probs)
-        )
+        response['completion']['tokens'] = list(zip(predicted_tokens_ids, predicted_tokens_dec, log_probs))
         self.unfreeze()
         return response
 
