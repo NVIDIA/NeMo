@@ -587,7 +587,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             return super().forward(
                 hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
             )
-        with torch.cuda.amp.autocast(dtype=self.dtype):
+        with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
                 hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
             )
