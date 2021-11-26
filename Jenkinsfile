@@ -1214,6 +1214,29 @@ pipeline {
         }
       }
     }
+    stage('Punctuation & Capitalization inference') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      stages {
+        stage('create and use tarred dataset') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuate_capitalize_infer.py \
+            --input_manifest /home/TestData/nlp/token_classification_punctuation/iwslt_tst2019.manifest \
+            --output_text iwslt_inference_result.txt \
+            --max_seq_length 92 \
+            --step 8 \
+            --margin 16 \
+            --pretrained_name punctuation_en_bert && \
+            rm iwslt_inference_result.txt'
+          }
+        }
+      }
+    }
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
