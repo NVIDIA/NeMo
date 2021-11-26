@@ -365,12 +365,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
         For ``class_labels``, ``common_dataset_parameters``, ``train_ds``, ``validation_ds``, ``test_ds``, there is
         no need to provide values for all items in an updated config section. If an item is omitted in this method
-        parameter, then corresponding item in model config does not change. If the entire updated section is missing
-        in the model config, then omitted items from this method parameters are set as default according to tables
+        parameter, then corresponding item in model config does not change.
+
+        If the entire updated section is missing in the model config, then omitted items from this method parameters
+        are set according to default values listed
         :ref:`here <run-config-label>`.
 
         .. warning::
-            Parameter ``optim`` is special, because an old config is replaced entirely.
+            Parameter ``optim`` is processed in a special way. ``optim`` contents are used not for updating of
+            model config, but for replacement of entire config section.
 
         If one of parameters ``train_ds``, ``validation_ds``, ``test_ds``, is provided but its value is
         ``None``, then corresponding section is replaced with ``None``.
@@ -384,7 +387,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 - ``class_labels.punct_labels_file``,
                 - ``class_labels.capit_labels_file``,
 
-            yet label ids in config and loaded from files must be equal to label ids loaded from checkpoint. Otherwise,
+            yet label ids in these parameters must be equal to label ids loaded from checkpoint. Otherwise,
             an error will be raised.
 
         Keyword Args:
@@ -413,9 +416,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"'class_labels' parameters is `None`, whereas you cannot remove section 'class_labels' from model "
                     f"config."
                 )
-            self._cfg.class_labels = OmegaConf.merge(
-                self._cfg.class_labels, OmegaConf.create(kwargs['class_labels'])
-            )
+            self._cfg.class_labels = OmegaConf.merge(self._cfg.class_labels, OmegaConf.create(kwargs['class_labels']))
         if 'common_dataset_parameters' in kwargs:
             if kwargs['common_dataset_parameters'] is None:
                 raise ValueError(

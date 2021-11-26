@@ -44,7 +44,7 @@ language model, such as `BERT: Pre-training of Deep Bidirectional Transformers f
 
     Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> select **GPU** for the hardware accelerator).
 
-    An example script on how to train the model can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train.py>`__.
+    An example script on how to train the model can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py>`__.
 
     An example script on how to run evaluation and inference can be found at: `NeMo/examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`__.
 
@@ -212,10 +212,10 @@ values from following tables.
 Run config
 ^^^^^^^^^^
 
-An example of config file is
+An example of a config file is
 `here <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/conf/punctuation_capitalization_config.yaml>`_.
 
-.. list-table:: Run config. The main config passed to scripts `punctuation_capitalization_train.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train.py>`_ and `punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_
+.. list-table:: Run config. The main config passed to scripts `punctuation_capitalization_train_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py>`_ and `punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_
    :widths: 5 5 10 25
    :header-rows: 1
 
@@ -324,10 +324,11 @@ model.
      - :ref:`language model config<language-model-config-label>`
      - A configuration of a BERT-like language model which serves as a model body.
    * - **optim**
-     - :ref:`optim config<optim-config-label>`
+     - optimization config
      - ``null``
      - A configuration of optimizer, learning rate scheduler, and L2 regularization. Cannot be omitted in `.yaml`
-       config if training is performed.
+       config if training is performed. For more information see :ref:`Optimization <optimization-label>` and
+       `primer <https://github.com/NVIDIA/NeMo/blob/main/tutorials/00_NeMo_Primer.ipynb>`_ tutorial.
 
 .. _class-labels-config-label:
 
@@ -483,7 +484,7 @@ For convenience, items of data config are described in 4 tables:
        (if ``use_tarred_dataset=false``). For ``validation_ds`` or ``test_ds`` you may specify a list of paths in
        ``ds_item``. If ``ds_item`` is a list, then evaluation will be performed on several datasets. To override
        ``ds_item`` config parameter with a list use following syntax:
-       ``python punctuation_capitalization_train.py model.validation_ds.ds_item=[path1,path2]`` (no spaces after ``=``
+       ``python punctuation_capitalization_train_evaluate.py model.validation_ds.ds_item=[path1,path2]`` (no spaces after ``=``
        sign).
    * - **label_info_save_dir**
      - string
@@ -767,106 +768,6 @@ A configuration of a source text tokenizer.
      - ``null``
      - A path to a tokenizer model required for ``'sentencepiece'`` tokenizer.
 
-.. _optim-config-label:
-
-Optimization config
-^^^^^^^^^^^^^^^^^^^
-
-.. list-table:: Location of optimization config in parent configs
-   :widths: 5 5
-   :header-rows: 1
-
-   * - **Parent config**
-     - **Key in parent config**
-   * - :ref:`Run config<run-config-label>`
-     - ``model.optim``
-   * - :ref:`Model config<model-config-label>`
-     - ``optim``
-
-An optimization configuration which includes L2 regularization and learning rate scheduling.
-
-.. list-table:: Language model config
-   :widths: 5 5 10 25
-   :header-rows: 1
-
-   * - **Parameter**
-     - **Data type**
-     - **Default value**
-     - **Description**
-   * - **name**
-     - string
-     - ???
-     - A name of an optimizer. For possible options see :ref:`optimizers-label`.
-   * - **lr**
-     - float
-     - ``1e-3``
-     - An initial learning rate value. If warmup is used, then ``lr`` is a learning rate after warmup.
-   * - **betas**
-     - ``Tuple[float, float]``
-     - ``[0.9,0.98]``
-     - An Adam optimizer momentum parameters.
-   * - **weight_decay**
-     - float
-     - ``0.0``
-     - A weight decay for L2 regularization.
-   * - **sched**
-     - :ref:`scheduler config<sched-config-label>`
-     - :ref:`scheduler config<sched-config-label>`
-     - A configuration of learning rate scheduler.
-
-.. _sched-config-label:
-
-Scheduler config
-^^^^^^^^^^^^^^^^
-
-.. list-table:: Location of scheduler config in parent configs
-   :widths: 5 5
-   :header-rows: 1
-
-   * - **Parent config**
-     - **Key in parent config**
-   * - :ref:`Run config<run-config-label>`
-     - ``model.optim.sched``
-   * - :ref:`Model config<model-config-label>`
-     - ``optim.sched``
-   * - :ref:`Optimization config<optim-config-label>`
-     - ``sched``
-
-A configuration of a learning rate scheduler.
-
-Warmup is a period in the beginning of training during which learning rate is increased linearly to its initial
-value.
-
-.. list-table:: Language model config
-   :widths: 5 5 10 25
-   :header-rows: 1
-
-   * - **Parameter**
-     - **Data type**
-     - **Default value**
-     - **Description**
-   * - **name**
-     - string
-     - ``'InverseSquareRootAnnealing'``
-     - A name of learning rate scheduler. For possible options see :ref:`learning-rate-schedulers-label`.
-   * - **warmup_steps**
-     - int
-     - ``null``
-     - Number of steps spent on warmup. You may specify at most one of parameters ``warmup_steps`` and ``warmup_ratio``.
-   * - **betas**
-     - ``Tuple[float, float]``
-     - ``[0.9,0.98]``
-     - An Adam optimizer momentum parameters.
-   * - **warmup_ratio**
-     - float
-     - ``null``
-     - The fraction of training steps spend on warmup. You may specify at most one of parameters ``warmup_steps`` and
-       ``warmup_ratio``.
-   * - **last_epoch**
-     - int
-     - ``-1``
-     - A number of an epoch from which to resume scheduling. Useful when restoring from checkpoint. See more in PyTorch
-       documentation. If ``last_epoch`` equals ``-1``, then start scheduling from the beginning.
 
 Model training
 ^^^^^^^^^^^^^^
@@ -951,14 +852,23 @@ Before calculating final predictions, probabilities for tokens marked by asteris
 Model Evaluation
 ----------------
 
-An example script on how to evaluate the pre-trained model, can be found at `examples/nlp/token_classification/punctuation_capitalization_evaluate.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_evaluate.py>`_.
+Model evaluation is performed by the same script
+`examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py
+<https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py>`_
+as training.
+
+Use :ref`config<run-config-lab>` parameter ``do_training=false`` to disable training and parameter ``do_testing=true``
+to enable testing. If both parameters ``do_training`` and ``do_testing`` are ``true``, then model is trained and then
+tested.
 
 To start evaluation of the pre-trained model, run:
 
 .. code::
 
-    python punctuation_capitalization_evaluate.py \
-           model.dataset.data_dir=<PATH/TO/DATA/DIR>  \
+    python punctuation_capitalization_train_evaluate.py \
+           +model.do_training=false \
+           +model.to_testing=true \
+           model.test_ds.ds_item=<PATH/TO/TEST/DATA/DIR>  \
            pretrained_model=punctuation_en_bert \
            model.test_ds.text_file=<text_dev.txt> \
            model.test_ds.labels_file=<labels_dev.txt>

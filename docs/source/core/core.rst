@@ -371,6 +371,8 @@ be instantiated and modified like any Python `Dataclass <https://docs.python.org
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
+.. _optimization-label:
+
 Optimization
 ------------
 
