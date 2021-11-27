@@ -167,9 +167,8 @@ class Float16Module(MegatronModule):
         return outputs
 
 
-# FIXME: remove "module" from the state.dict name
-#    def state_dict(self, destination=None, prefix='', keep_vars=False):
-#        return self.module.state_dict(destination, prefix, keep_vars)
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        return self.module.state_dict(destination, prefix, keep_vars)
 
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
