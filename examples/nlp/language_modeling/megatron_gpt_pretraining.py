@@ -34,8 +34,11 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
+    # Disable DDP communication hook when using AMP-O2 with FP32 gradient accumulation
+    no_ddp_communication_hook = cfg.model.optim.get('megatron_amp_o2', False) and \
+                                cfg.model.optim.get('fp32_grad_accum', False)
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes,
-                            fp32_grad_accum=cfg.model.optim.fp32_grad_accum,
+                            no_ddp_communication_hook=no_ddp_communication_hook,
                             gradient_as_bucket_view=cfg.gradient_as_bucket_view)]
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
@@ -44,7 +47,7 @@ def main(cfg) -> None:
                 init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
                 growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
             )
-        if cfg.model.optim.get('master_param', False):
+        if cfg.model.optim.get('megatron_amp_o2', False):
             plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
         else:
             plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))

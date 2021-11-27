@@ -58,14 +58,14 @@ class NLPDDPPlugin(DDPPlugin):
         cluster_environment: ClusterEnvironment = None,
         sync_batchnorm: bool = False,
         checkpoint_io: Optional[CheckpointIO] = None,
-        fp32_grad_accum: bool = False,
+        no_ddp_communication_hook: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
-        self.fp32_grad_accum = fp32_grad_accum
+        self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
         # call PTL init ddp
@@ -100,7 +100,7 @@ class NLPDDPPlugin(DDPPlugin):
                 **self._ddp_kwargs,
             )
 
-            if self.fp32_grad_accum:
+            if self.no_ddp_communication_hook:
                 # When using custom gradient accumulation and allreduce, disable
                 # DDP communication hook that works on the gradient bucket.
                 # Instead, use the custom gradient function and communication hook,

@@ -562,13 +562,15 @@ class ModelPT(LightningModule, Model):
                     raise e
 
         else:
-            use_master_param = optimizer_args.pop('master_param', False)
+            # Pop arguments for Megatron AMP-O2 training
+            megatron_amp_o2 = optimizer_args.pop('megatron_amp_o2', False)
             fp32_grad_accum = optimizer_args.pop('fp32_grad_accum', False)
             contiguous_grad_bucket = optimizer_args.pop('contiguous_grad_bucket', False)
             async_grad_allreduce = optimizer_args.pop('async_grad_allreduce', False)
+
             optimizer = optim.get_optimizer(optimizer_name)
             optimizer = optimizer(self.parameters(), **optimizer_args)
-            if use_master_param:
+            if megatron_amp_o2:
                 # Wrap the baseline optimizer with an optimizer class with master parameters
                 optimizer = MasterOptimizerWrapper(
                     optimizer,
