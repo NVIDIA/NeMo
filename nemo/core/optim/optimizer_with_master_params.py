@@ -116,10 +116,12 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         self.optimizer = optimizer
         assert self.optimizer, 'no optimizer is provided.'
         if contiguous_grad_bucket:
-            assert fp32_grad_accum, 'contiguous gradient buffer assumes using fp32 grad'
+            assert fp32_grad_accum, 'contiguous gradient buffer assumes using fp32 grad.'
         if async_grad_allreduce:
             assert fp32_grad_accum, 'async allreduce applies to master gradients only, ' \
-                                    'which is supposed to be accumulated after grad op'
+                                    'which is supposed to be accumulated after grad op.'
+            assert contiguous_grad_bucket, 'currently async_grad_allreduce is supported only ' \
+                                           'with async_grad_allreduce.'
 
         self._fp32_grad_accum = fp32_grad_accum
         self._contiguous_grad_bucket = contiguous_grad_bucket
