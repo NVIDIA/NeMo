@@ -371,7 +371,7 @@ class MegatronT5Model(NLPModel):
             enc_hidden_states=None,
             output_enc_hidden=True,
         )
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
+        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
@@ -400,8 +400,6 @@ class MegatronT5Model(NLPModel):
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
-            if token_ids[:, -1] == self.tokenizer.eos_id:
-                break
 
         return predicted_tokens_dec, log_probs
 

@@ -173,8 +173,11 @@ class Sst2Processor(DataProcessor):
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
-        return f"mrpc premise: {text_a} hypothesis: {text_b}"
+        assert text_b is None
+        return f"sentiment of {text_a}"
 
+    def label2string(self, label):
+        return "positive" if label == "1" else "negative"
 
 class StsbProcessor(DataProcessor):
     """Processor for the STS-B data set (GLUE version)."""
