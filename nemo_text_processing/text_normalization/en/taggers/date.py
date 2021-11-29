@@ -176,12 +176,7 @@ class DateFst(GraphFst):
 
         two_digit_year = NEMO_DIGIT ** (2) @ (cardinal.single_digits_graph | cardinal_graph)
         two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
-        graph_year = (
-            ((pynutil.insert(" year: \"") + pynini.accep(",")) | pynutil.insert(" year: \""))
-            + pynutil.delete(" ")
-            + year_graph
-            + pynutil.insert("\"")
-        )
+        graph_year = pynutil.insert(" year: \"") + pynutil.delete(" ") + year_graph + pynutil.insert("\"")
         optional_graph_year = pynini.closure(graph_year, 0, 1)
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
 
