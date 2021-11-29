@@ -189,7 +189,6 @@ def main() -> None:
             model = model.cpu()
     else:
         model = model.to(args.device)
-    model = model.cpu()
     if args.input_manifest is None:
         texts = []
         with args.input_text.open() as f:
