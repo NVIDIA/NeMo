@@ -61,7 +61,7 @@ class FixedPositionalEncoding(nn.Module):
     def forward(self, position_ids):
         max_pos_id = position_ids.max()
         # update positional encoding if needed
-        if (max_pos_id >= self._max_sequence_length):
+        if max_pos_id >= self._max_sequence_length:
             self._max_sequence_length = max_pos_id + 1
             self._build_pos_enc(hidden_size=self._hidden_size, max_sequence_length=self._max_sequence_length)
 
