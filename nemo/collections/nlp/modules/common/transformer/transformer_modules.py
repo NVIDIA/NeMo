@@ -96,6 +96,7 @@ class TransformerEmbedding(nn.Module):
         super().__init__()
 
         self.max_sequence_length = max_sequence_length
+        self.learn_positional_encodings = learn_positional_encodings
         self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
@@ -108,7 +109,8 @@ class TransformerEmbedding(nn.Module):
 
     def forward(self, input_ids, token_type_ids=None, start_pos=0):
         seq_length = input_ids.size(1)
-        if seq_length > self.max_sequence_length:
+        # we fail here only with parametric positional embedding. FixedPositionalEncoding automatically extends.
+        if self.learn_positional_encodings and (seq_length > self.max_sequence_length):
             raise ValueError(
                 f"Input sequence is longer than maximum allowed sequence length for positional encoding. "
                 f"Got {seq_length} and {self.max_sequence_length}"
