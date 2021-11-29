@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
+    NEMO_CHAR,
+    NEMO_DIGIT,
     NEMO_SIGMA,
+    NEMO_WHITE_SPACE,
     GraphFst,
+    convert_space,
     delete_preserve_order,
 )
 
@@ -49,20 +52,26 @@ class TimeFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="time", kind="verbalize", deterministic=deterministic)
 
-        night_to_early = pynini.invert(pynini.string_file(get_abs_path("data/time/hour_to_night.tsv"))).optimize()
+        # add weight so when using inverse text normalization this conversion is depriotized
+        night_to_early = pynutil.add_weight(
+            pynini.invert(pynini.string_file(get_abs_path("data/time/hour_to_night.tsv"))).optimize(), weight=0.0001
+        )
         hour_to = pynini.invert(pynini.string_file(get_abs_path("data/time/hour_to.tsv"))).optimize()
         minute_to = pynini.invert(pynini.string_file(get_abs_path("data/time/minute_to.tsv"))).optimize()
+        time_zone_graph = pynini.invert(
+            convert_space(pynini.union(*[x[1] for x in load_labels(get_abs_path("data/time/time_zone.tsv"))]))
+        )
 
         graph_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv"))).optimize()
         number_verbalization = graph_zero | cardinal.two_digit_non_zero
-        hour = pynutil.delete("hours: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        hour = pynutil.delete("hours: \"") + pynini.closure(NEMO_DIGIT, 1) + pynutil.delete("\"")
         hour_verbalized = hour @ number_verbalization @ pynini.cdrewrite(
             pynini.cross("eins", "ein"), "[BOS]", "[EOS]", NEMO_SIGMA
         ) + pynutil.insert(" uhr")
-        minute = pynutil.delete("minutes: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-        zone = pynutil.delete("zone: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        minute = pynutil.delete("minutes: \"") + pynini.closure(NEMO_DIGIT, 1) + pynutil.delete("\"")
+        zone = pynutil.delete("zone: \"") + time_zone_graph + pynutil.delete("\"")
         optional_zone = pynini.closure(pynini.accep(" ") + zone, 0, 1)
-        second = pynutil.delete("seconds: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        second = pynutil.delete("seconds: \"") + pynini.closure(NEMO_DIGIT, 1) + pynutil.delete("\"")
         graph_hms = (
             hour_verbalized
             + pynini.accep(" ")
@@ -72,7 +81,6 @@ class TimeFst(GraphFst):
             + second @ number_verbalization
             + pynutil.insert(" sekunden")
             + optional_zone
-            + delete_preserve_order
         )
         graph_hms @= pynini.cdrewrite(
             pynini.cross("eins minuten", "eine minute") | pynini.cross("eins sekunden", "eine sekunde"),
@@ -93,6 +101,7 @@ class TimeFst(GraphFst):
             minute @ min_30 @ (number_verbalization | pynini.cross("15", "viertel"))
             + pynini.accep(" ")
             + pynutil.insert("nach ")
+            # + hour @ number_verbalization
             + hour @ pynini.cdrewrite(night_to_early, "[BOS]", "[EOS]", NEMO_SIGMA) @ number_verbalization
         )
         graph_m30_h = (
@@ -107,6 +116,6 @@ class TimeFst(GraphFst):
             + hour @ pynini.cdrewrite(night_to_early, "[BOS]", "[EOS]", NEMO_SIGMA) @ hour_to @ number_verbalization
         )
 
-        graph = (graph_hms | graph_h | graph_hm | graph_m_past_h | graph_m30_h | graph_m_to_h) + optional_zone
-        delete_tokens = self.delete_tokens(graph)
+        self.graph = (graph_hms | graph_h | graph_hm | graph_m_past_h | graph_m30_h | graph_m_to_h) + optional_zone
+        delete_tokens = self.delete_tokens(self.graph + delete_preserve_order)
         self.fst = delete_tokens.optimize()

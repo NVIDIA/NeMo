@@ -18,14 +18,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, ins
 try:
     import pynini
     from pynini.lib import pynutil
-    
-    quantities = pynini.string_file(get_abs_path("data/numbers/quantities.tsv"))    
+
+    quantities = pynini.string_file(get_abs_path("data/numbers/quantities.tsv"))
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
     quantities = None
-
 
 
 def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
@@ -39,7 +38,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         cardinal_up_to_hundred: cardinal FST
     """
     numbers = cardinal_up_to_hundred
-    
+
     res = (
         pynutil.insert("integer_part: \"")
         + numbers

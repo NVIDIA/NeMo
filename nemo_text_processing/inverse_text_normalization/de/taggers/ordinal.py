@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, NEMO_NOT_QUOTE, convert_space
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, convert_space
 
 try:
     import pynini
@@ -35,13 +35,12 @@ class OrdinalFst(GraphFst):
 
     def __init__(self, itn_cardinal_tagger: GraphFst, tn_ordinal_verbalizer: GraphFst):
         super().__init__(name="ordinal", kind="classify")
-    
+
         tagger = tn_ordinal_verbalizer.graph.invert().optimize()
 
         graph = (
             pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         ) @ itn_cardinal_tagger.graph
-
 
         final_graph = tagger @ graph + pynutil.insert(".")
 

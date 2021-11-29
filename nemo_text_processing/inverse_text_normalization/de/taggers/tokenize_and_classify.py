@@ -32,6 +32,7 @@ from nemo_text_processing.text_normalization.de.taggers.cardinal import Cardinal
 from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst as TNDecimalTagger
 from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalVerbalizer
+from nemo_text_processing.text_normalization.de.verbalizers.time import TimeFst as TNTimeVerbalizer
 from nemo_text_processing.text_normalization.en.graph_utils import generator_main
 
 from nemo.utils import logging
@@ -72,6 +73,7 @@ class ClassifyFst(GraphFst):
             tn_decimal_tagger = TNDecimalTagger(cardinal=tn_cardinal_tagger, deterministic=False)
             tn_ordinal_verbalizer = TNOrdinalVerbalizer(deterministic=False)
             tn_fraction_verbalizer = TNFractionVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
+            tn_time_verbalizer = TNTimeVerbalizer(cardinal=tn_cardinal_tagger, deterministic=False)
 
             cardinal = CardinalFst(tn_cardinal=tn_cardinal_tagger)
             cardinal_graph = cardinal.fst
@@ -87,7 +89,7 @@ class ClassifyFst(GraphFst):
             # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
             # date_graph = DateFst(ordinal=ordinal, cardinal=cardinal).fst
             word_graph = WordFst().fst
-            # time_graph = TimeFst().fst
+            time_graph = TimeFst(tn_time=tn_time_verbalizer).fst
             # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
             # whitelist_graph = WhiteListFst().fst
             punct_graph = PunctuationFst().fst
@@ -97,7 +99,7 @@ class ClassifyFst(GraphFst):
             classify = (
                 pynutil.add_weight(cardinal_graph, 1.1)
                 # | pynutil.add_weight(whitelist_graph, 1.01)
-                # | pynutil.add_weight(time_graph, 1.1)
+                | pynutil.add_weight(time_graph, 1.1)
                 # | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(measure_graph, 1.1)

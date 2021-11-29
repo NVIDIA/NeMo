@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 from nemo_text_processing.text_normalization.de.taggers.decimal import get_quantity, quantities
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -40,16 +40,19 @@ class DecimalFst(GraphFst):
 
         delete_point = pynutil.delete(" komma")
 
-        allow_spelling = pynini.cdrewrite(pynini.cross("eine " , "eins ") + quantities, "[BOS]", "[EOS]", NEMO_SIGMA)
+        allow_spelling = pynini.cdrewrite(pynini.cross("eine ", "eins ") + quantities, "[BOS]", "[EOS]", NEMO_SIGMA)
 
         graph_fractional = pynutil.insert("fractional_part: \"") + self.graph + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + cardinal.graph_no_exception + pynutil.insert("\"")
         final_graph_wo_sign = graph_integer + delete_point + pynini.accep(" ") + graph_fractional
 
-        self.final_graph_wo_negative = allow_spelling @ (
-            final_graph_wo_sign
-            | get_quantity(final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit)
-        ).optimize()
+        self.final_graph_wo_negative = (
+            allow_spelling
+            @ (
+                final_graph_wo_sign
+                | get_quantity(final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit)
+            ).optimize()
+        )
 
         final_graph = cardinal.optional_minus_graph + self.final_graph_wo_negative
         final_graph += pynutil.insert(" preserve_order: true")

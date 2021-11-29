@@ -44,7 +44,11 @@ class OrdinalFst(GraphFst):
         cardinal_graph = cardinal.graph
         endings = ["ter", "tes", "tem", "te", "ten"]
         self.graph = (
-            (pynini.closure(NEMO_DIGIT | pynini.accep(".")) + pynutil.delete(pynutil.add_weight(pynini.union(*endings), weight=0.0001) | pynini.accep("."))) @ cardinal_graph
+            (
+                pynini.closure(NEMO_DIGIT | pynini.accep("."))
+                + pynutil.delete(pynutil.add_weight(pynini.union(*endings), weight=0.0001) | pynini.accep("."))
+            )
+            @ cardinal_graph
         ).optimize()
         final_graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
