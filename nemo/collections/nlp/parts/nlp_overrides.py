@@ -178,7 +178,10 @@ class NLPDDPPlugin(DDPPlugin):
             # filepath needs to be updated to include mp_rank
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+            if app_state.pipeline_model_parallel_size == 1:
+                filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
+            else:
+                filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
             return filepath
         else:
             return filepath

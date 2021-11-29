@@ -106,7 +106,8 @@ class MegatronGPTModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
         )
 
-        # TODO: Not sure how to use lists of modules with PTL
+        # TODO: Not sure how to use lists of modules with PTL.
+        # This means we can only use pipeline parallelism without the interleaved schedule.
         self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
 
         self.use_soft_prompts = False
@@ -171,8 +172,6 @@ class MegatronGPTModel(NLPModel):
         self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
-        # TODO: need to return a loss for PTL but we don't get one for all ranks with pipeline parallel
-        loss = torch.tensor([0.0])
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
@@ -184,11 +183,13 @@ class MegatronGPTModel(NLPModel):
                 forward_only=False,
                 tensor_shape=tensor_shape,
             )
-            # TODO: Figure out logging for pipeline parallel
-            if reduced_loss == []:
-                reduced_loss = [0]
+            if not reduced_loss:
+                # Only the last pipeline stages return losses so training_step should be skipped
+                # PTL will skip training_step if None is returned
+                return None
             else:
-                loss = reduced_loss[0]['avg']
+                # This keeps loss and reduced_loss consistent with non-pipeline parallel
+                loss = reduced_loss[0]['avg'].squeeze()
                 reduced_loss = [loss]
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
@@ -297,21 +298,24 @@ class MegatronGPTModel(NLPModel):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
-        # TODO: figure out how to log properly with pipeline parallel
-        averaged_loss = 0  # this should not be here
+        # TODO: need to figure out how to log on last rank to avoid deadlock
+        # for now will log 0.0 for ranks where output is None
         if self.cfg.pipeline_model_parallel_size > 1:
             if parallel_state.is_pipeline_last_stage():
                 outputs = [output[0]['avg'] for output in outputs]
             else:
+                # only the last pipeline parallel stages return loss
                 outputs = None
 
         if outputs is not None:
             averaged_loss = torch.stack(outputs).mean()
+        
+        else:
+            averaged_loss = 0.0
 
         self.log('val_loss', averaged_loss, prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
-
-        torch.distributed.barrier()
+        
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
