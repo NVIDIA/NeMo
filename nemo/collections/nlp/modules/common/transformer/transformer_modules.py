@@ -45,11 +45,11 @@ class FixedPositionalEncoding(nn.Module):
         self._max_sequence_length = max_sequence_length
         self._build_pos_enc(hidden_size=self._hidden_size, max_sequence_length=self._max_sequence_length)
 
-    def _build_pos_enc(self, hidden_size, max_sequence_length):
+    def _build_pos_enc(self, hidden_size, max_sequence_length, device=None):
         """
         Builds/replaces pre-computed positional encoding.
         """
-        pos_enc = torch.zeros(max_sequence_length, hidden_size)
+        pos_enc = torch.zeros(max_sequence_length, hidden_size, device=device)
         position = torch.arange(0.0, max_sequence_length).unsqueeze(1)
         coef = -math.log(10000.0) / hidden_size
         div_term = torch.exp(coef * torch.arange(0.0, hidden_size, 2))
@@ -63,7 +63,11 @@ class FixedPositionalEncoding(nn.Module):
         # update positional encoding if needed
         if max_pos_id >= self._max_sequence_length:
             self._max_sequence_length = max_pos_id + 1
-            self._build_pos_enc(hidden_size=self._hidden_size, max_sequence_length=self._max_sequence_length)
+            self._build_pos_enc(
+                hidden_size=self._hidden_size,
+                max_sequence_length=self._max_sequence_length,
+                device=position_ids.device,
+            )
 
         return torch.embedding(self.pos_enc, position_ids)
 
