@@ -61,6 +61,8 @@ if __name__ == '__main__':
     log_dir = os.path.join(args.output_dir, 'logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f'ctc_segmentation_{args.window_len}.log')
+    if os.path.exists(log_file):
+        os.remove(log_file)
     level = 'DEBUG' if args.debug else 'INFO'
 
     logger = logging.getLogger('CTC')
@@ -117,22 +119,14 @@ if __name__ == '__main__':
         )
         try:
             sample_rate, signal = wav.read(path_audio)
-            if sample_rate != args.sample_rate:
-                raise ValueError(
-                    f'Sampling rate of the audio file {path_audio} doesn\'t match --sample_rate={args.sample_rate}'
-                )
-        except ValueError:
-            logging.error(
-                f"{path_audio} should be a .wav mono file with the sampling rate used for the ASR model training"
-                f"specified with {args.sample_rate}."
-            )
-            raise
+            assert (
+                sample_rate == args.sample_rate
+            ), f'Sampling rate of the audio file {path_audio} doesn\'t match --sample_rate={args.sample_rate}'
 
-        original_duration = len(signal) / sample_rate
-        logging.debug(f'len(signal): {len(signal)}, sr: {sample_rate}')
-        logging.debug(f'Duration: {original_duration}s, file_name: {path_audio}')
-        log_probs = None
-        try:
+            original_duration = len(signal) / sample_rate
+            logging.debug(f'len(signal): {len(signal)}, sr: {sample_rate}')
+            logging.debug(f'Duration: {original_duration}s, file_name: {path_audio}')
+
             log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0]
             # move blank values to the first column (ctc-package compatibility)
             blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
@@ -151,30 +145,29 @@ if __name__ == '__main__':
     del asr_model
     torch.cuda.empty_cache()
 
-    if len(all_log_probs) == 0:
-        raise ValueError(f'No valid audio files found at {args.data}')
-    start_time = time.time()
-    index_duration = len(signal) / log_probs.shape[0] / sample_rate
-    normalized_lines = Parallel(n_jobs=args.num_jobs)(
-        delayed(get_segments)(
-            all_log_probs[i],
-            all_wav_paths[i],
-            all_transcript_file[i],
-            all_segment_file[i],
-            vocabulary,
-            tokenizer,
-            bpe_model,
-            index_duration,
-            args.window_len,
-            log_file=log_file,
-            debug=args.debug,
+    if len(all_log_probs) > 0:
+        start_time = time.time()
+        index_duration = len(signal) / log_probs.shape[0] / sample_rate
+        normalized_lines = Parallel(n_jobs=args.num_jobs)(
+            delayed(get_segments)(
+                all_log_probs[i],
+                all_wav_paths[i],
+                all_transcript_file[i],
+                all_segment_file[i],
+                vocabulary,
+                tokenizer,
+                bpe_model,
+                index_duration,
+                args.window_len,
+                log_file=log_file,
+                debug=args.debug,
+            )
+            for i in tqdm(range(len(all_log_probs)))
         )
-        for i in tqdm(range(len(all_log_probs)))
-    )
 
-    total_time = time.time() - start_time
-    logger.info(f'Total execution time: ~{round(total_time/60)}min')
-    logger.info(f'Saving logs to {log_file}')
+        total_time = time.time() - start_time
+        logger.info(f'Total execution time: ~{round(total_time/60)}min')
+        logger.info(f'Saving logs to {log_file}')
 
     if os.path.exists(log_file):
         with open(log_file, 'r') as f:

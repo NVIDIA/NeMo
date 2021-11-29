@@ -14,7 +14,7 @@ parser.add_argument(
     '--manifest', required=True, help='Path .json manifest file with ASR predictions saved' 'at `pred_text` field.',
 )
 parser.add_argument(
-    '--tail_len', type=int, help='Number of characters to use for CER calculation at the edges', default=5
+    '--tail_len', type=int, help='Number of characters to use for CER calculation at the edges', default=12
 )
 parser.add_argument(
     '--tail_duration',

@@ -9,12 +9,17 @@ LANGUAGE='en' # 'en', 'es', 'ru', 'other'
 MAX_SEGMENT_LEN=30
 ADDITIONAL_SPLIT_SYMBOLS=":|;|,"
 USE_NEMO_NORMALIZATION='True'
-NUM_JOBS=0 #-2 # The maximum number of concurrently running jobs, `-2` - all CPUs but one are used
+NUM_JOBS=-2 # The maximum number of concurrently running jobs, `-2` - all CPUs but one are used
 
 # Benchmarking
-DATA_DIR="/home/ebakhturina/data/segmentation/test/data"
-MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" #"QuartzNet15x5Base-En" #
-OUTPUT_DIR="output"
+DATA_DIR="/home/ebakhturina/data/segmentation/benchmark"
+MODEL_NAME_OR_PATH="QuartzNet15x5Base-En" #"stt_en_citrinet_512_gamma_0_25" #
+OUTPUT_DIR="${MODEL_NAME_OR_PATH}_new_process_fix_start"
+
+#CI
+DATA_DIR="/home/ebakhturina/data/jenkins/ctc_segmentation/eng"
+MODEL_NAME_OR_PATH="QuartzNet15x5Base-En" #"stt_en_citrinet_512_gamma_0_25" #
+OUTPUT_DIR="en_ci_${MODEL_NAME_OR_PATH}_new_process_fix_start"
 
 rm -rf ${OUTPUT_DIR}
 

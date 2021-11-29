@@ -70,6 +70,12 @@ if __name__ == '__main__':
     log_files = Path(log_dir).glob('*.log')
     dfs = []
     for log in log_files:
+        # with open(log, "r") as f:
+        #     log =  f.read()
+
+        # import pdb; pdb.set_trace()
+        # print()
+
         dfs.append(_process_log_file(log))
 
     dfs = pd.concat(dfs)

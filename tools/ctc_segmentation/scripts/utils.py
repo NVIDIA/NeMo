@@ -115,7 +115,7 @@ def get_segments(
         timings, char_probs, char_list = cs.ctc_segmentation(config, log_probs, ground_truth_mat)
         _print(ground_truth_mat, vocabulary)
         segments = determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text, char_list)
-
+        # segments = cs.determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text)
         write_output(output_file, path_wav, segments, text, text_no_preprocessing, text_normalized)
         for i, (word, segment) in enumerate(zip(text, segments)):
             if i < 5:
@@ -123,8 +123,7 @@ def get_segments(
         logging.info(f"segmentation of {transcript_file} complete.")
 
     except Exception as e:
-        logging.info(e)
-        logging.info(f"segmentation of {transcript_file} failed")
+        logging.info(f"{e} -- segmentation of {transcript_file} failed")
 
 
 def _prepare_tokenized_text_for_bpe_model(text: List[str], tokenizer, vocabulary: List[str], blank_idx: int = 0):
