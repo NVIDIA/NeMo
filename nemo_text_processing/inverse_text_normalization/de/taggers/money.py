@@ -47,11 +47,12 @@ class MoneyFst(GraphFst):
         # quantity, integer_part, fractional_part, currency
 
         cardinal_graph = (
-            pynini.cdrewrite(pynini.cross("ein", "eins"), "", "", NEMO_SIGMA) @ cardinal.graph_no_exception
+            pynini.cdrewrite(pynini.cross(pynini.union("ein", "eine"), "eins"), "[BOS]", "[EOS]", NEMO_SIGMA)
+            @ cardinal.graph_no_exception
         )
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        graph_unit = pynini.invert(pynini.string_map(maj_singular))
+        graph_unit = pynini.invert(maj_singular)
         graph_unit = pynutil.insert("currency: \"") + convert_space(graph_unit) + pynutil.insert("\"")
 
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)

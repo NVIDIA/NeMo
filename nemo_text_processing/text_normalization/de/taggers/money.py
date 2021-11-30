@@ -28,7 +28,7 @@ try:
 
     min_singular = pynini.string_file(get_abs_path("data/money/currency_minor_singular.tsv"))
     min_plural = pynini.string_file(get_abs_path("data/money/currency_minor_plural.tsv"))
-    maj_singular = load_labels(get_abs_path("data/money/currency.tsv"))
+    maj_singular = pynini.string_file((get_abs_path("data/money/currency.tsv")))
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -61,12 +61,12 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.fst
 
-        maj_singular = pynini.string_map(maj_singular)
-        maj_plural = convert_space(maj_singular)
-        maj_singular = convert_space(maj_singular)
+        maj_singular_labels = load_labels(get_abs_path("data/money/currency.tsv"))
+        maj_singular_graph = convert_space(maj_singular)
+        maj_plural_graph = maj_singular_graph
 
-        graph_maj_singular = pynutil.insert("currency_maj: \"") + maj_singular + pynutil.insert("\"")
-        graph_maj_plural = pynutil.insert("currency_maj: \"") + maj_plural + pynutil.insert("\"")
+        graph_maj_singular = pynutil.insert("currency_maj: \"") + maj_singular_graph + pynutil.insert("\"")
+        graph_maj_plural = pynutil.insert("currency_maj: \"") + maj_plural_graph + pynutil.insert("\"")
 
         optional_delete_fractional_zeros = pynini.closure(
             pynutil.delete(",") + pynini.closure(pynutil.delete("0"), 1), 0, 1
@@ -111,7 +111,7 @@ class MoneyFst(GraphFst):
 
         # format ** euro ** cent
         decimal_graph_with_minor = None
-        for curr_symbol, _ in maj_singular:
+        for curr_symbol, _ in maj_singular_labels:
             preserve_order = pynutil.insert(" preserve_order: true")
             integer_plus_maj = graph_integer + insert_space + pynutil.insert(curr_symbol) @ graph_maj_plural
             integer_plus_maj |= graph_integer_one + insert_space + pynutil.insert(curr_symbol) @ graph_maj_singular

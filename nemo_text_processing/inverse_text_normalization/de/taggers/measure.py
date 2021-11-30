@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+    NEMO_SIGMA,
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
-    get_singulars,
 )
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.de.taggers.measure import singular_to_plural, unit_singular
 
 try:
     import pynini
@@ -46,18 +46,21 @@ class MeasureFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst):
         super().__init__(name="measure", kind="classify")
 
-        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph = (
+            pynini.cdrewrite(pynini.cross(pynini.union("ein", "eine"), "eins"), "[BOS]", "[EOS]", NEMO_SIGMA)
+            @ cardinal.graph_no_exception
+        )
 
-        graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit_singular = pynini.invert(graph_unit)  # singular -> abbr
-        unit = get_singulars(graph_unit_singular) | graph_unit_singular  # plural -> abbr
+        graph_unit_singular = pynini.invert(unit_singular)  # singular -> abbr
+        unit = (pynini.invert(singular_to_plural()) @ graph_unit_singular) | graph_unit_singular  # plural -> abbr
+        unit = convert_space(unit)
+        graph_unit_singular = convert_space(graph_unit_singular)
 
         optional_graph_negative = pynini.closure(
             pynutil.insert("negative: ") + pynini.cross("minus", "\"true\"") + delete_extra_space, 0, 1
         )
 
-        unit = convert_space(unit)
-        unit_misc = pynutil.insert("/") + pynutil.delete("pro") + delete_space + convert_space(graph_unit_singular)
+        unit_misc = pynutil.insert("/") + pynutil.delete("pro") + delete_space + graph_unit_singular
 
         unit = (
             pynutil.insert("units: \"")
@@ -75,10 +78,11 @@ class MeasureFst(GraphFst):
         )
 
         subgraph_fraction = (
-            pynutil.insert("fraction { ")
+            pynutil.insert("decimal { ")
             + optional_graph_negative
-            + fraction.final_graph_wo_negative
-            + pynutil.insert(" }")
+            + pynutil.insert("integer_part: \"")
+            + fraction.graph
+            + pynutil.insert("\" }")
             + delete_extra_space
             + unit
         )
@@ -93,6 +97,6 @@ class MeasureFst(GraphFst):
             + delete_extra_space
             + unit
         )
-        final_graph = subgraph_decimal | subgraph_cardinal | subgraph_fraction
+        final_graph = subgraph_cardinal | subgraph_decimal | subgraph_fraction
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

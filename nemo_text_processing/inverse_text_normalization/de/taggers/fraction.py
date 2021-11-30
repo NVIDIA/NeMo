@@ -68,7 +68,7 @@ class FractionFst(GraphFst):
         ).optimize()
         verbalizer = delete_optional_sign + graph
 
-        final_graph = tagger @ verbalizer
+        self.graph = tagger @ verbalizer
 
-        graph = pynutil.insert("name: \"") + convert_space(final_graph) + pynutil.insert("\"")
+        graph = pynutil.insert("name: \"") + convert_space(self.graph) + pynutil.insert("\"")
         self.fst = graph.optimize()

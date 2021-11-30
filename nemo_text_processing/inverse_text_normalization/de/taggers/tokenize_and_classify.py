@@ -90,7 +90,7 @@ class ClassifyFst(GraphFst):
             fraction = FractionFst(itn_cardinal_tagger=cardinal, tn_fraction_verbalizer=tn_fraction_verbalizer)
             fraction_graph = fraction.fst
 
-            # measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
+            measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
             date_graph = DateFst(
                 itn_cardinal_tagger=cardinal, tn_date_verbalizer=tn_date_verbalizer, tn_date_tagger=tn_date_tagger
             ).fst
@@ -108,7 +108,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(date_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
-                # | pynutil.add_weight(measure_graph, 1.1)
+                | pynutil.add_weight(measure_graph, 1.1)
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(money_graph, 1.1)

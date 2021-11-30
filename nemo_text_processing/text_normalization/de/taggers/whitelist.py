@@ -44,8 +44,6 @@ class WhiteListFst(GraphFst):
             whitelist = load_labels(file)
             if input_case == "lower_cased":
                 whitelist = [[x[0].lower()] + x[1:] for x in whitelist]
-            else:
-                whitelist = [(x, y) for x, y in whitelist]
             graph = pynini.string_map(whitelist)
             return graph
 
