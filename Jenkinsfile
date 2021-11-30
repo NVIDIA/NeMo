@@ -1223,7 +1223,7 @@ pipeline {
       }
       failFast true
       stages {
-        stage('create and use tarred dataset') {
+        stage('Restore punctuation and capitalization in long text') {
           steps {
             sh 'python examples/nlp/token_classification/punctuate_capitalize_infer.py \
             --input_manifest /home/TestData/nlp/token_classification_punctuation/iwslt_tst2019.manifest \
@@ -1231,7 +1231,8 @@ pipeline {
             --max_seq_length 92 \
             --step 8 \
             --margin 16 \
-            --pretrained_name punctuation_en_bert && \
+            --pretrained_name punctuation_en_bert \
+            --batch_size 32 && \
             rm iwslt_inference_result.txt'
           }
         }
