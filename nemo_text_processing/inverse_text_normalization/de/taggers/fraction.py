@@ -14,13 +14,10 @@
 
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
     NEMO_NOT_QUOTE,
     GraphFst,
     convert_space,
-    delete_extra_space,
     delete_space,
-    insert_space,
 )
 
 try:
