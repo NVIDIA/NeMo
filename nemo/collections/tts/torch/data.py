@@ -124,7 +124,7 @@ class TTSDataset(Dataset):
         self.text_normalizer_call = (
             self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
         )
-        self.text_normalizer_call_args = text_normalizer_call_args
+        self.text_normalizer_call_args = text_normalizer_call_args if text_normalizer_call_args is not None else {}
 
         self.text_tokenizer = text_tokenizer
 

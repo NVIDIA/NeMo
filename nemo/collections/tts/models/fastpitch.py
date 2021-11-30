@@ -65,6 +65,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.learn_alignment = False
         if "learn_alignment" in cfg:
             self.learn_alignment = cfg.learn_alignment
+
+        self._normalizer = None
         self._parser = None
         self._tb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
@@ -152,6 +154,38 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return self._tb_logger
 
     @property
+    def normalizer(self):
+        if self._normalizer is not None:
+            return self._normalizer
+
+        if self.learn_alignment:
+            ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
+
+            if ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                logging.warning(
+                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
+                    "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
+                )
+                self._normalizer = lambda x: x
+            elif ds_class_name == "TTSDataset":
+                if "text_normalizer" not in self._cfg.train_ds.dataset:
+                    self._normalizer = lambda x: x
+                else:
+                    normalizer = instantiate(self._cfg.train_ds.dataset.text_normalizer)
+                    text_normalizer_call = normalizer.normalize
+                    text_normalizer_call_args = {}
+                    if "text_normalizer_call_args" in self._cfg.train_ds.dataset:
+                        text_normalizer_call_args = self._cfg.train_ds.dataset.text_normalizer_call_args
+                    self._normalizer = lambda text: text_normalizer_call(text, **text_normalizer_call_args)
+            else:
+                raise ValueError(f"Unknown dataset class: {ds_class_name}")
+        else:
+            # cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset"
+            self._normalizer = lambda x: x
+
+        return self._normalizer
+
+    @property
     def parser(self):
         if self._parser is not None:
             return self._parser
@@ -185,9 +219,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
         return self._parser
 
-    def parse(self, str_input: str) -> torch.tensor:
+    def parse(self, str_input: str, normalize=True, **kwargs) -> torch.tensor:
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
+
+        if normalize:
+            str_input = self.normalizer(str_input)
 
         tokens = self.parser(str_input)
 

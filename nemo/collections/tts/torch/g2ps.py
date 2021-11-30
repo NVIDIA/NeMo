@@ -20,7 +20,7 @@ import time
 import nltk
 import torch
 
-from nemo.collections.tts.torch.tts_tokenizers import english_text_preprocessing, english_word_tokenize
+from nemo.collections.tts.torch.en_utils import english_text_preprocessing, english_word_tokenize
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -135,7 +135,11 @@ class EnglishG2p(BaseG2p):
                 )
                 time.sleep(60)
 
-            logging.warning("phoneme_dict_path=None, English g2p_dict will be used from nltk.corpus.cmudict.dict()")
+            logging.warning(
+                f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
+                "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
+                "You can download recent official version of CMUDict via scripts/dataset_processing/get_cmudict.sh."
+            )
 
             return nltk.corpus.cmudict.dict()
 
