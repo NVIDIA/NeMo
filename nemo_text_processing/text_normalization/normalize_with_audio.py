@@ -19,7 +19,6 @@ from argparse import ArgumentParser
 from typing import List, Tuple
 
 from joblib import Parallel, delayed
-from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
@@ -39,6 +38,14 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+
+try:
+    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
+
+    NLP_AVAILABLE = True
+except (ModuleNotFoundError, ImportError):
+    NLP_AVAILABLE = False
 
 """
 The script provides multiple normalization options and chooses the best one that minimizes CER of the ASR output
@@ -125,6 +132,7 @@ class NormalizerWithAudio(Normalizer):
         Returns:
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
+        original_text = text
         if punct_pre_process:
             text = pre_process(text)
         text = text.strip()
@@ -148,12 +156,17 @@ class NormalizerWithAudio(Normalizer):
 
         if len(normalized_texts) == 0:
             raise ValueError()
-        if punct_post_process:
-            normalized_texts = [post_process_punctuation(t) for t in normalized_texts]
 
+        if punct_post_process:
             # do post-processing based on Moses detokenizer
             if self.processor:
                 normalized_texts = [self.processor.detokenize([t]) for t in normalized_texts]
+                normalized_texts = [
+                    post_process_punct(input=original_text, normalized_text=t) for t in normalized_texts
+                ]
+            else:
+                print("NEMO_NLP collection is not available: skipping punctuation post_processing")
+
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
