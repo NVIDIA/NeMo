@@ -51,6 +51,21 @@ def get_args():
 
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
 
+    parser.add_argument(
+        "--vocab_file",
+        type=str,
+        required=False,
+        default=None,
+        help="Custom vocab file path; overwrite current path stored in config",
+    )
+    parser.add_argument(
+        "--merge_file",
+        type=str,
+        required=False,
+        default=None,
+        help="Custom merge file path; overwrite current path stored in config",
+    )
+
     args = parser.parse_args()
     return args
 
@@ -81,6 +96,12 @@ def main():
         ckpt = ckpt["state_dict"]
         os.makedirs(os.path.dirname(t), exist_ok=True)
         torch.save(ckpt, t)
+
+    if args.vocab_file is not None:
+        conf.tokenizer.vocab_file = args.vocab_file
+    if args.merge_file is not None:
+        conf.tokenizer.merge_file = args.merge_file
+
     print("****** Conf: ", conf)
     print("****** Checkpoints processing time: ", time.time() - start_time)
 
