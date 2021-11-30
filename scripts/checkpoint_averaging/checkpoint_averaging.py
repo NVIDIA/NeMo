@@ -74,7 +74,9 @@ def main():
 
         # search for all checkpoints (ignore -last.ckpt)
         checkpoint_paths = [
-            os.path.join(model_folder_path, x) for x in os.listdir(model_folder_path) if x.endswith('.ckpt') and not x.endswith('-last.ckpt')
+            os.path.join(model_folder_path, x)
+            for x in os.listdir(model_folder_path)
+            if x.endswith('.ckpt') and not x.endswith('-last.ckpt')
         ]
         """ < Checkpoint Averaging Logic > """
         # load state dicts
