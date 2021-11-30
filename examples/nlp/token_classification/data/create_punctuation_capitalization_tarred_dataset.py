@@ -237,7 +237,7 @@ def get_args() -> argparse.Namespace:
         "-j",
         type=int,
         default=mp.cpu_count(),
-        help="Number of workers for creating tarred dataset. By default it is equal to the number of CPU cores."
+        help="Number of workers for creating tarred dataset. By default it is equal to the number of CPU cores.",
     )
     args = parser.parse_args()
     for name in [
