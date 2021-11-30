@@ -806,17 +806,14 @@ class ASR_DIAR_OFFLINE(object):
                 stt_sec, end_sec = round(word_ts_stt_end[0], 2), round(word_ts_stt_end[1], 2)
                 riva_dict = self.add_json_to_dict(riva_dict, words[j], stt_sec, end_sec, speaker)
 
-                if speaker == prev_speaker:
-                    terms_list.append({'start': stt_sec, 'end': end_sec, 'text': words[j], 'type': 'WORD'})
-                else:
+                if speaker != prev_speaker:
                     if len(terms_list) != 0:
                         gecko_dict['monologues'].append(
                             {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
                         )
-
                     terms_list = []
-                    terms_list.append({'start': stt_sec, 'end': end_sec, 'text': words[j], 'type': 'WORD'})
                     prev_speaker = speaker
+                terms_list.append({'start': stt_sec, 'end': end_sec, 'text': words[j], 'type': 'WORD'})
 
                 audacity_label_words = self.get_audacity_label(
                     words[j], stt_sec, end_sec, speaker, audacity_label_words
