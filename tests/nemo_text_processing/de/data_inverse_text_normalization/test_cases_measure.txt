@@ -8,6 +8,7 @@ zwei kilowattstunden~2 kwh
 eins komma null null null null zwei acht kubik zentimeter~1,000028 cm³
 eins komma eins zentimeter~1,1 cm
 drei stunden~3 h
+eine stunde~1 h
 ein millivolt~1 mv
 eine million millivolt~1 million mv
 zwei kubik meter~2 m³
@@ -18,6 +19,8 @@ vier hundert vierzig milliliter~440 ml
 drei hundert mikrometer~300 μm
 fünf und sechzig tausend quadrat kilometer~65000 km²
 zwei kilometer pro stunde~2 km/h
+zwei millionen kilometer pro stunde~2 millionen km/h
+zwei komma zwei millionen kilometer pro stunde~2,2 millionen km/h
 sechzig komma zwei vier null null kilogramm~60,2400 kg
 null fuß~0 ft
 ein halb fuß~1/2 ft

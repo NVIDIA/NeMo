@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_ALPHA, GraphFst, insert_space
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, convert_space
 
 try:
     import pynini
@@ -30,36 +29,12 @@ class ElectronicFst(GraphFst):
         e.g. c d f eins at a b c punkt e d u -> tokens { electronic { username: "cdf1" domain: "abc.edu" } }
     """
 
-    def __init__(self):
+    def __init__(self, tn_electronic_tagger: GraphFst, tn_electronic_verbalizer: GraphFst):
         super().__init__(name="electronic", kind="classify")
 
-        delete_extra_space = pynutil.delete(" ")
-        alpha_num = (
-            NEMO_ALPHA
-            | pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-            | pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
-        )
-        username = (
-            pynutil.insert("username: \"")
-            + pynini.closure(
-                alpha_num + delete_extra_space + pynini.closure(pynini.cross("punkt", '.') + delete_extra_space, 0, 1)
-            )
-            + alpha_num
-            + pynutil.insert("\"")
-        )
-        single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
-        server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
-        domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
-        domain_graph = (
-            pynutil.insert("domain: \"")
-            + server
-            + delete_extra_space
-            + pynini.cross("punkt", ".")
-            + delete_extra_space
-            + domain
-            + pynutil.insert("\"")
-        )
-        graph = username + delete_extra_space + pynutil.delete("at") + insert_space + delete_extra_space + domain_graph
+        tagger = pynini.invert(tn_electronic_verbalizer.graph).optimize()
+        verbalizer = pynini.invert(tn_electronic_tagger.graph).optimize()
+        final_graph = tagger @ verbalizer
 
-        final_graph = self.add_tokens(graph)
-        self.fst = final_graph.optimize()
+        graph = pynutil.insert("name: \"") + final_graph + pynutil.insert("\"")
+        self.fst = graph.optimize()

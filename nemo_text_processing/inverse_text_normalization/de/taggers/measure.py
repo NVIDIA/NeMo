@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+from nemo_text_processing.text_normalization.de.taggers.measure import singular_to_plural, unit_singular
+from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
 )
-from nemo_text_processing.text_normalization.de.taggers.measure import singular_to_plural, unit_singular
 
 try:
     import pynini

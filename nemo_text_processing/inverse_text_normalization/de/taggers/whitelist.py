@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, convert_space
 from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
 
 try:
     import pynini

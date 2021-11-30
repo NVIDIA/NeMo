@@ -14,7 +14,6 @@
 
 import os
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.date import DateFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.decimal import DecimalFst
@@ -31,11 +30,18 @@ from nemo_text_processing.inverse_text_normalization.en.taggers.word import Word
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as TNCardinalTagger
 from nemo_text_processing.text_normalization.de.taggers.date import DateFst as TNDateTagger
 from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst as TNDecimalTagger
+from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst as TNElectronicTagger
 from nemo_text_processing.text_normalization.de.verbalizers.date import DateFst as TNDateVerbalizer
+from nemo_text_processing.text_normalization.de.verbalizers.electronic import ElectronicFst as TNElectronicVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.time import TimeFst as TNTimeVerbalizer
-from nemo_text_processing.text_normalization.en.graph_utils import generator_main
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+    generator_main,
+)
 
 from nemo.utils import logging
 
@@ -78,6 +84,8 @@ class ClassifyFst(GraphFst):
             tn_fraction_verbalizer = TNFractionVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
             tn_time_verbalizer = TNTimeVerbalizer(cardinal=tn_cardinal_tagger, deterministic=False)
             tn_date_verbalizer = TNDateVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
+            tn_electronic_tagger = TNElectronicTagger(deterministic=False)
+            tn_electronic_verbalizer = TNElectronicVerbalizer(deterministic=False)
 
             cardinal = CardinalFst(tn_cardinal=tn_cardinal_tagger)
             cardinal_graph = cardinal.fst
@@ -99,7 +107,9 @@ class ClassifyFst(GraphFst):
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
             # whitelist_graph = WhiteListFst().fst
             punct_graph = PunctuationFst().fst
-            # electronic_graph = ElectronicFst().fst
+            electronic_graph = ElectronicFst(
+                tn_electronic_tagger=tn_electronic_tagger, tn_electronic_verbalizer=tn_electronic_verbalizer
+            ).fst
             # telephone_graph = TelephoneFst().fst
 
             classify = (
@@ -113,7 +123,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(money_graph, 1.1)
                 # | pynutil.add_weight(telephone_graph, 1.1)
-                # | pynutil.add_weight(electronic_graph, 1.1)
+                | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )
 

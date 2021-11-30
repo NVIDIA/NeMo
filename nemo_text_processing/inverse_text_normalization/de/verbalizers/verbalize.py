@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst
 from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst as CardinalTagger
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.decimal import DecimalFst
-from nemo_text_processing.inverse_text_normalization.de.verbalizers.electronic import ElectronicFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.money import MoneyFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.telephone import TelephoneFst
@@ -25,6 +23,7 @@ from nemo_text_processing.inverse_text_normalization.de.verbalizers.whitelist im
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as TNCardinalTagger
 from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst as TNCardinalFst
 from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst as TNDecimalFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 
 class VerbalizeFst(GraphFst):
@@ -50,7 +49,6 @@ class VerbalizeFst(GraphFst):
         time_graph = TimeFst().fst
         whitelist_graph = WhiteListFst().fst
         telephone_graph = TelephoneFst().fst
-        electronic_graph = ElectronicFst().fst
         graph = (
             time_graph
             | money_graph
@@ -60,6 +58,5 @@ class VerbalizeFst(GraphFst):
             | cardinal_graph
             | whitelist_graph
             | telephone_graph
-            | electronic_graph
         )
         self.fst = graph
