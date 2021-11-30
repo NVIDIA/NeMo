@@ -11,7 +11,7 @@ trainer:
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 500
+  val_check_interval: 100
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
@@ -31,7 +31,7 @@ exp_manager:
     save_top_k: 10
     mode: max
     always_save_nemo: False # TODO: add support
-    filename: 'megatron_t5--{val_acc:.2f}-{step}'
+    filename: 'megatron_t5--{val_acc:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
 
 model:
@@ -40,26 +40,26 @@ model:
 
   data:
     train_ds:
-      task_name: 'sst-2'
-      file_path: '/raid/Data/GLUE/SST-2/train.tsv'
-      batch_size: 48
+      task_name: 'mnli'
+      file_path: '/raid/Data/GLUE/MNLI/train.tsv'
+      batch_size: 64
       shuffle: True
       num_workers: 8
       pin_memory: True
       max_seq_length: 512
-    
+
     validation_ds:
-      task_name: 'sst-2'
-      file_path: '/raid/Data/GLUE/SST-2/dev.tsv'
+      task_name: 'mnli'
+      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       batch_size: 64
       shuffle: False
       num_workers: 8
       pin_memory: True
       max_seq_length: 512
-    
+
     test_ds:
-      task_name: 'sst-2'
-      file_path: '/raid/Data/GLUE/SST-2/test.tsv'
+      task_name: 'mnli'
+      file_path: '/raid/Data/GLUE/MNLI/test_matched.tsv'
       batch_size: 64
       shuffle: False
       num_workers: 8
@@ -68,7 +68,7 @@ model:
 
   optim:
     name: adam
-    lr: 0.0004
+    lr: 5e-6
     weight_decay: 0.0
     betas:
     - 0.9
