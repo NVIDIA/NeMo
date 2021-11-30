@@ -82,12 +82,14 @@ def get_tokenizer(
     Args:
         tokenizer_name: sentencepiece or pretrained model from the hugging face list,
             for example: bert-base-cased
-            To see the list of all HuggingFace pretrained models, use: nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
+            To see the list of all HuggingFace pretrained models, use:
+            nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
-        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation
+            procedure of BPE to help
             model better learn word compositionality and become robust to segmentation errors. 
             It has emperically been shown to improve inference time BLEU scores.
     """
@@ -120,7 +122,8 @@ def get_tokenizer(
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
 
     logging.info(
-        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, "
+        f"special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name,
