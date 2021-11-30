@@ -37,7 +37,7 @@ def update_model_config(
     Assumes the `update_cfg` is a DictConfig (either generated manually, via hydra or instantiated via yaml/model.cfg).
     This update_cfg is then used to override the default values preset inside the ModelPT config class.
 
-    If `drop_missing_subconfigs` is set, the certain sub-configs of the ModelPT config class will be removed, iff
+    If `drop_missing_subconfigs` is set, the certain sub-configs of the ModelPT config class will be removed, if
     they are not found in the mirrored `update_cfg`. The following sub-configs are subject to potential removal:
         -   `train_ds`
         -   `validation_ds`
