@@ -112,9 +112,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
-    def _prepare_for_export(self, **kwargs):
-        self.freeze()
-
     def input_example(self):
         """
         Generates input examples for tracing etc.
@@ -129,15 +126,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set([])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set([])
 
     def __init__(
         self,
@@ -706,7 +694,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             }
 
     def _prepare_for_export(self, **kwargs):
-        self.freeze()
         self._fuse_loss_wer = False
         self.log_softmax = False
 
@@ -726,10 +713,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         """Implement this method to return a set of input names disabled for export"""
         return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
 
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set()
 
     def __init__(
         self,
@@ -1092,3 +1075,54 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
 
     def set_fused_batch_size(self, fused_batch_size):
         self._fused_batch_size = fused_batch_size
+
+
+class RNNTDecoderJoint(torch.nn.Module, Exportable):
+    """
+    Utility class to export Decoder+Joint as a single module
+    """
+    def __init__(self, decoder, joint):
+        super().__init__()
+        self.decoder = decoder
+        self.joint = joint
+        self.training = False
+        
+    @property
+    def input_types(self):
+        mytypes = self.decoder.input_types
+        state_type = mytypes.pop('states')[0]
+        mytypes['input-state-1'] = state_type
+        mytypes['input-state-2'] = state_type
+        mytypes.update(self.joint.input_types)
+        return mytypes
+
+    def input_example(self):
+        decoder_example = self.decoder.input_example()
+        state1, state2 = decoder_example[-1]
+        print(state1.shape)
+        return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
+    
+    @property
+    def output_types(self):
+        return {
+            "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
+            "output-state-1": NeuralType((('D', 'B', 'D')), ElementType()),
+            "output-state-2": NeuralType((('D', 'B', 'D')), ElementType()),
+        }
+
+    def forward(self, encoder_output, decoder_inputs, decoder_lengths, state_h, state_c):
+        decoder_outputs = self.decoder(decoder_inputs, decoder_lengths, (state_h, state_c))
+        decoder_output = decoder_outputs[0]
+        decoder_length = decoder_outputs[1]
+        state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
+        joint_output = self.joint(encoder_output, decoder_output)
+        return (joint_output, decoder_length, state_h, state_c)
+
+    def freeze(self):
+        self.decoder.freeze()
+        self.joint.freeze()
+
+    def _prepare_for_export(self, **kwargs):
+        self.joint._prepare_for_export(**kwargs)
+        self.decoder._prepare_for_export(**kwargs)

@@ -293,6 +293,7 @@ class Exportable(ABC):
         if dynamic_axes is None and use_dynamic_axes:
             dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
             dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
+            print("dynamic axes:", dynamic_axes)
         return dynamic_axes
 
     def _export_torchscript(self, jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose):
