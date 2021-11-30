@@ -233,7 +233,11 @@ def get_args() -> argparse.Namespace:
         help="A string from which tar file names start.",
     )
     parser.add_argument(
-        "--n_jobs", "-j", type=int, default=mp.cpu_count(), help="Number of workers for creating tarred dataset."
+        "--n_jobs",
+        "-j",
+        type=int,
+        default=mp.cpu_count(),
+        help="Number of workers for creating tarred dataset. By default it is equal to the number of CPU cores."
     )
     args = parser.parse_args()
     for name in [
