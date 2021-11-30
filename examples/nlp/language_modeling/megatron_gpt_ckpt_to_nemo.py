@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import os
+import shutil
+import subprocess
+import tarfile
+import tempfile
+import time
 from argparse import ArgumentParser
 
-import torch.multiprocessing as mp
-from pytorch_lightning.trainer.trainer import Trainer
-
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import AppState, logging
+import torch
+import yaml
+from omegaconf import DictConfig, OmegaConf
+from omegaconf.omegaconf import open_dict
 
 
 def get_args():
@@ -56,31 +58,47 @@ def get_args():
     return args
 
 
-def convert(rank, world_size, args):
-
-    app_state = AppState()
-    app_state.data_parallel_rank = 0
-    trainer = Trainer(gpus=args.tensor_model_parallel_size)
-    # TODO: reach out to PTL For an API-safe local rank override
-    trainer.accelerator.training_type_plugin._local_rank = rank
-
-    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
-        # inject model parallel rank
-        checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
-    else:
-        checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
-
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
-    model._save_restore_connector = NLPSaveRestoreConnector()
-    model.save_to(args.nemo_file_path)
-    logging.info(f'NeMo model saved to: {args.nemo_file_path}')
-
-
-def main() -> None:
+def main():
     args = get_args()
-    world_size = args.tensor_model_parallel_size
-    mp.spawn(convert, args=(world_size, args), nprocs=world_size, join=True)
+    model_config_yaml = "model_config.yaml"
+    model_weights_ckpt = "model_weights.ckpt"
+
+    tmp_dir = tempfile.mkdtemp()
+    t_gpu_num = args.tensor_model_parallel_size
+
+    start_time = time.time()
+    config_yaml = os.path.join(tmp_dir, model_config_yaml)
+    if t_gpu_num == 1:
+        sources = [os.path.join(args.checkpoint_folder, args.checkpoint_name)]
+        model_weights = [os.path.join(tmp_dir, model_weights_ckpt)]
+    else:
+        sources = [
+            os.path.join(args.checkpoint_folder, f"mp_rank_{i:02d}", args.checkpoint_name) for i in range(t_gpu_num)
+        ]
+        model_weights = [os.path.join(tmp_dir, f"mp_rank_{i:02d}", model_weights_ckpt) for i in range(t_gpu_num)]
+
+    for s, t in zip(sources, model_weights):
+        print("****** Start converting...", s, t)
+        ckpt = torch.load(s, map_location="cpu")
+        conf = ckpt["hyper_parameters"]
+        ckpt = ckpt["state_dict"]
+        os.makedirs(os.path.dirname(t), exist_ok=True)
+        torch.save(ckpt, t)
+    print("****** Conf: ", conf)
+    print("****** Checkpoints processing time: ", time.time() - start_time)
+
+    tar_start_time = time.time()
+    with open(config_yaml, 'w') as fout:
+        OmegaConf.save(config=conf, f=fout, resolve=True)
+
+    print("****** Calling tar...")
+    subprocess.call(f'tar -czvf {args.nemo_file_path} ./*', cwd=tmp_dir, shell=True)
+
+    shutil.rmtree(tmp_dir)
+    print("****** Tar time: ", time.time() - tar_start_time)
+    print("****** Total converting time: ", time.time() - start_time)
+    print("****** Done.")
 
 
 if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    main()
