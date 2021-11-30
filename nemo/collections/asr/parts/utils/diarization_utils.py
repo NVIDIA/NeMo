@@ -340,6 +340,7 @@ class ASR_DIAR_OFFLINE(object):
             raise ValueError(f"ASR model name not found: {asr_model}")
         self.params['time_stride'] = self.model_stride_in_secs
         self.asr_batch_size = 16
+        asr_model.eval()
 
         self.audio_file_list = [value['audio_filepath'] for _, value in self.AUDIO_RTTM_MAP.items()]
 
