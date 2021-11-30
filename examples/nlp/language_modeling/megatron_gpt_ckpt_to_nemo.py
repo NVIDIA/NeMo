@@ -99,8 +99,10 @@ def main():
 
     if args.vocab_file is not None:
         conf.tokenizer.vocab_file = args.vocab_file
+        conf.vocab_file = args.vocab_file
     if args.merge_file is not None:
         conf.tokenizer.merge_file = args.merge_file
+        conf.merges_file = args.merge_file
 
     print("****** Conf: ", conf)
     print("****** Checkpoints processing time: ", time.time() - start_time)
