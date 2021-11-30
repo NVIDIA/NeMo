@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import (
+from nemo_text_processing.text_normalization.de.taggers.money import maj_singular, min_plural, min_singular
+from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
+    NEMO_SIGMA,
     GraphFst,
     convert_space,
     delete_extra_space,
     delete_space,
-    get_singulars,
     insert_space,
 )
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 
 try:
     import pynini
@@ -46,22 +46,22 @@ class MoneyFst(GraphFst):
         super().__init__(name="money", kind="classify")
         # quantity, integer_part, fractional_part, currency
 
-        cardinal_graph = cardinal.graph_no_exception
+        cardinal_graph = (
+            pynini.cdrewrite(pynini.cross("ein", "eins"), "", "", NEMO_SIGMA) @ cardinal.graph_no_exception
+        )
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        unit = pynini.string_file(get_abs_path("data/currency.tsv"))
-        unit_singular = pynini.invert(unit)
-        unit = get_singulars(unit_singular) | unit_singular
-
-        graph_unit = pynutil.insert("currency: \"") + convert_space(unit) + pynutil.insert("\"")
+        graph_unit = pynini.invert(pynini.string_map(maj_singular))
+        graph_unit = pynutil.insert("currency: \"") + convert_space(graph_unit) + pynutil.insert("\"")
 
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
+        min_unit = pynini.project(min_singular | min_plural, "output")
         # elf euro (und) vier cent, vier cent
         cents_standalone = (
             pynutil.insert("fractional_part: \"")
-            + (pynutil.add_weight(cardinal_graph, -0.7) @ add_leading_zero_to_double_digit)
+            + cardinal_graph @ add_leading_zero_to_double_digit
             + delete_space
-            + pynutil.delete("cent")
+            + pynutil.delete(min_unit)
             + pynutil.insert("\"")
         )
 
