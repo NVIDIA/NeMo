@@ -15,11 +15,8 @@
 
 from typing import Dict, List
 
-import numpy as np
 import torch
 from torch.utils.data.dataset import Dataset
-
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import build_training_sample
 
 
 class GPTRequestDataset(Dataset):

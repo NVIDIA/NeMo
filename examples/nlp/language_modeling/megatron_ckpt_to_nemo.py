@@ -22,7 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 
 def get_args():
@@ -63,7 +63,6 @@ def convert(rank, world_size, args):
     app_state.data_parallel_rank = 0
     trainer = Trainer(gpus=args.tensor_model_parallel_size)
     trainer.accelerator.training_type_plugin._local_rank = rank
-    checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
 
     if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
         # inject model parallel rank

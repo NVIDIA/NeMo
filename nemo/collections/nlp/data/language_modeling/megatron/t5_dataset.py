@@ -56,6 +56,14 @@ class T5Dataset(MegatronDataset):
         # Dataset.
         self.indexed_dataset = indexed_dataset
 
+        try:
+            from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
+
+            compile_helper()
+            from nemo.collections.nlp.data.language_modeling.megatron import helpers
+        except:
+            raise Exception(f'Could not compile helpers.')
+
         # Build the samples mapping.
         self.samples_mapping = get_samples_mapping(
             self.indexed_dataset,
