@@ -15,15 +15,12 @@
 import os
 import shutil
 import subprocess
-import tarfile
 import tempfile
 import time
 from argparse import ArgumentParser
 
 import torch
-import yaml
-from omegaconf import DictConfig, OmegaConf
-from omegaconf.omegaconf import open_dict
+from omegaconf import OmegaConf
 
 
 def get_args():
