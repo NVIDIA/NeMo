@@ -11,3 +11,4 @@ abbreviation. U.S.A..~abbreviation. u s a.
 1-4=5~one minus four equals five
 &gt;&gt;~&gt;&gt;
 abbreviation USA,~abbreviation u s a,
+23rd july, 1998~the twenty third of july, nineteen ninety eight

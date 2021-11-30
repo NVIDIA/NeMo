@@ -15,6 +15,7 @@
 import argparse
 import json
 from pathlib import Path
+from typing import Dict, List, Union
 
 import torch.cuda
 
@@ -40,7 +41,7 @@ For more details on this script usage look in argparse help.
 """
 
 
-def get_args():
+def get_args() -> argparse.Namespace:
     default_model_parameter = "pretrained_name"
     default_model = "punctuation_en_bert"
     parser = argparse.ArgumentParser(
@@ -166,7 +167,7 @@ def get_args():
     return args
 
 
-def load_manifest(manifest: Path):
+def load_manifest(manifest: Path) -> List[Dict[str, Union[str, float]]]:
     result = []
     with manifest.open() as f:
         for i, line in enumerate(f):
@@ -175,7 +176,7 @@ def load_manifest(manifest: Path):
     return result
 
 
-def main():
+def main() -> None:
     args = get_args()
     if args.pretrained_name is None:
         model = PunctuationCapitalizationModel.restore_from(args.model_path)
@@ -188,7 +189,6 @@ def main():
             model = model.cpu()
     else:
         model = model.to(args.device)
-    model = model.cpu()
     if args.input_manifest is None:
         texts = []
         with args.input_text.open() as f:
