@@ -18,6 +18,7 @@ from typing import Dict, List
 import torch
 from torch.utils.data.dataset import Dataset
 
+
 class GPTRequestDataset(Dataset):
     def __init__(self, requests: List, tokenizer) -> None:
         super().__init__()
