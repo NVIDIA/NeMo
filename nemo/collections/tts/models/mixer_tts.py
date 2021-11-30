@@ -59,12 +59,12 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
         cfg = self._cfg
-
-        self.normalizer = instantiate(cfg.train_ds.dataset.text_normalizer)
-        self.text_normalizer_call = self.normalizer.normalize
-        self.text_normalizer_call_args = {}
-        if cfg.train_ds.dataset.get("text_normalizer_call_args", None) is not None:
-            self.text_normalizer_call_args = cfg.train_ds.dataset.text_normalizer_call_args
+        if "text_normalizer" in cfg.train_ds.dataset:
+            self.normalizer = instantiate(cfg.train_ds.dataset.text_normalizer)
+            self.text_normalizer_call = self.normalizer.normalize
+            self.text_normalizer_call_args = {}
+            if cfg.train_ds.dataset.get("text_normalizer_call_args", None) is not None:
+                self.text_normalizer_call_args = cfg.train_ds.dataset.text_normalizer_call_args
 
         self.tokenizer = instantiate(cfg.train_ds.dataset.text_tokenizer)
         num_tokens = len(self.tokenizer.tokens)
@@ -540,7 +540,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             "text": NeuralType(('B', 'T'), TokenIndex(), optional=True),
             "text_len": NeuralType(('B'), LengthsType(), optional=True),
             "lm_tokens": NeuralType(('B', 'T'), TokenIndex(), optional=True),
-            "raw_texts": NeuralType(optional=True),
+            "raw_texts": [NeuralType(optional=True)],
             "lm_model": NeuralType(optional=True),
         }
     )
@@ -605,7 +605,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         return pred_spect
 
     def parse(self, text: str, normalize=True, **kwargs) -> torch.Tensor:
-        if normalize:
+        if normalize and getattr(self, "text_normalizer_call", None) is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_args)
         return torch.tensor(self.tokenizer.encode(text)).long().unsqueeze(0).to(self.device)
 
