@@ -470,5 +470,6 @@ class MegatronT5Model(NLPModel):
             additional_tokens = [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
             self.tokenizer.add_special_tokens(additional_tokens)
 
-    def list_available_models():
+    @classmethod
+    def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass

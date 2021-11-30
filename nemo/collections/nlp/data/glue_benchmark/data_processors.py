@@ -98,7 +98,7 @@ class MnliProcessor(DataProcessor):
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
-        return f"mrpc premise: {text_a} hypothesis: {text_b}"
+        return f"mnli hypothesis: {text_a} premise: {text_b}"
 
     def label2string(self, label):
         return label
@@ -174,7 +174,7 @@ class Sst2Processor(DataProcessor):
 
     def get_t5_prompted_query(self, text_a, text_b):
         assert text_b is None
-        return f"sentiment of {text_a}"
+        return f"sst2 sentence: {text_a}"
 
     def label2string(self, label):
         return "positive" if label == "1" else "negative"
@@ -239,6 +239,12 @@ class QqpProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"qqp question1: {text_a} question2: {text_b}"
+
+    def label2string(self, label):
+        return "duplicate" if label == "1" else "not_duplicate"
+
 
 class QnliProcessor(DataProcessor):
     """Processor for the QNLI data set (GLUE version)."""
@@ -296,6 +302,12 @@ class RteProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"rte sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return "not_entailment" if label == "1" else "entailment"
 
 
 class WnliProcessor(DataProcessor):
