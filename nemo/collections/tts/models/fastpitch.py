@@ -329,7 +329,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.log("t_bin_loss", bin_loss)
 
         # Log images to tensorboard
-        if self.log_train_images:
+        if self.log_train_images and isinstance(self.logger, TensorBoardLogger):
             self.log_train_images = False
 
             self.tb_logger.add_image(
@@ -412,17 +412,19 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.log("v_pitch_loss", pitch_loss)
 
         _, _, _, _, spec_target, spec_predict = outputs[0].values()
-        self.tb_logger.add_image(
-            "val_mel_target",
-            plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
-            self.global_step,
-            dataformats="HWC",
-        )
-        spec_predict = spec_predict[0].data.cpu().numpy()
-        self.tb_logger.add_image(
-            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-        )
-        self.log_train_images = True
+
+        if isinstance(self.logger, TensorBoardLogger):
+            self.tb_logger.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = spec_predict[0].data.cpu().numpy()
+            self.tb_logger.add_image(
+                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+            self.log_train_images = True
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):

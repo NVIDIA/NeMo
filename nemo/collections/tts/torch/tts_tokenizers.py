@@ -17,6 +17,7 @@ import itertools
 import string
 from typing import List
 
+from nemo.collections.tts.torch.de_utils import german_text_preprocessing, german_word_tokenize
 from nemo.collections.tts.torch.en_utils import english_text_preprocessing, english_word_tokenize
 from nemo.utils import logging
 
@@ -209,8 +210,8 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
         add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=None,
-        text_preprocessing_func=lambda x: x,
-        word_tokenize_func=lambda x: x,
+        text_preprocessing_func=german_text_preprocessing,
+        word_tokenize_func=german_word_tokenize,
     ):
         """Deutsch char-based tokenizer.
         Args:
