@@ -52,10 +52,14 @@ def main(cfg) -> None:
 
     megatron_amp_o2 = cfg.model.optim.get('megatron_amp_o2', False)
     fp32_grad_accum = cfg.model.optim.get('fp32_grad_accum', False)
-    plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes,
-                            no_ddp_communication_hook=(megatron_amp_o2 and fp32_grad_accum),
-                            strict_state_matching=(not megatron_amp_o2),
-                            gradient_as_bucket_view=cfg.gradient_as_bucket_view)]
+    plugins = [
+        NLPDDPPlugin(
+            num_nodes=cfg.trainer.num_nodes,
+            no_ddp_communication_hook=(megatron_amp_o2 and fp32_grad_accum),
+            strict_state_matching=(not megatron_amp_o2),
+            gradient_as_bucket_view=cfg.gradient_as_bucket_view,
+        )
+    ]
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
         if cfg.trainer.precision == 16:

@@ -113,6 +113,7 @@ def conversion_helper(val, conversion):
 
 def fp32_to_float16(val, float16_convertor):
     """Convert fp32 `val` to fp16/bf16"""
+
     def half_conversion(val):
         val_typecheck = val
         if isinstance(val_typecheck, (Parameter, Variable)):
@@ -120,11 +121,13 @@ def fp32_to_float16(val, float16_convertor):
         if isinstance(val_typecheck, _FLOAT_TYPES):
             val = float16_convertor(val)
         return val
+
     return conversion_helper(val, half_conversion)
 
 
 def float16_to_fp32(val):
     """Convert fp16/bf16 `val` to fp32"""
+
     def float_conversion(val):
         val_typecheck = val
         if isinstance(val_typecheck, (Parameter, Variable)):
@@ -132,31 +135,33 @@ def float16_to_fp32(val):
         if isinstance(val_typecheck, (_BF16_TYPES, _HALF_TYPES)):
             val = val.float()
         return val
+
     return conversion_helper(val, float_conversion)
 
 
 class Float16Module(MegatronModule):
-
     def __init__(self, module, precision):
         super().__init__()
 
         if precision == 16:
             self.add_module('module', module.half())
+
             def float16_convertor(val):
                 return val.half()
+
         elif precision == 'bf16':
             self.add_module('module', module.bfloat16())
+
             def float16_convertor(val):
                 return val.bfloat16()
+
         else:
             raise Exception('should not be here')
 
         self.float16_convertor = float16_convertor
 
-
     def set_input_tensor(self, input_tensor):
         return self.module.set_input_tensor(input_tensor)
-
 
     def forward(self, *inputs, **kwargs):
         if parallel_state.is_pipeline_first_stage():
@@ -166,14 +171,11 @@ class Float16Module(MegatronModule):
             outputs = float16_to_fp32(outputs)
         return outputs
 
-
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         return self.module.state_dict(destination, prefix, keep_vars)
 
-
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-
 
     def load_state_dict(self, state_dict, strict=True):
         self.module.load_state_dict(state_dict, strict=strict)

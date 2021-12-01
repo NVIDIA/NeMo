@@ -50,10 +50,7 @@ def _multi_tensor_copy_this_to_that(this, that, overflow_buf):
     with bfloat16."""
     if overflow_buf:
         # Scaling with factor `1.0` is equivalent to copy.
-        multi_tensor_applier(amp_C.multi_tensor_scale,
-                             overflow_buf,
-                             [this, that],
-                             1.0)
+        multi_tensor_applier(amp_C.multi_tensor_scale, overflow_buf, [this, that], 1.0)
     else:
         # FIXME: use multi-tensor applier for bf16
         for this_, that_ in zip(this, that):
@@ -64,12 +61,10 @@ class GradBucket(object):
     """
     Persistent buffer for main gradients that remains allocated between training iterations
     """
+
     def __init__(self, numel):
         self.numel = numel
-        self.data = torch.zeros(self.numel,
-                                dtype=torch.float,
-                                device=torch.cuda.current_device(),
-                                requires_grad=False)
+        self.data = torch.zeros(self.numel, dtype=torch.float, device=torch.cuda.current_device(), requires_grad=False)
 
     def zero(self):
         """Reset the buffer to zero."""
@@ -84,8 +79,7 @@ class GradBucket(object):
         """Return a tensor with the input `shape` as a view into the
         1-D data starting at `start_index`."""
         end_index = start_index + shape.numel()
-        assert end_index <= self.numel, \
-            'requested tensor is out of the buffer range.'
+        assert end_index <= self.numel, 'requested tensor is out of the buffer range.'
         buffer_tensor = self.data[start_index:end_index]
         buffer_tensor = buffer_tensor.view(shape)
         return buffer_tensor
@@ -106,22 +100,22 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
             along with the training step backprop.
     """
 
-    def __init__(self,
-                 optimizer,
-                 fp32_grad_accum=False,
-                 contiguous_grad_bucket=False,
-                 async_grad_allreduce=False,
-                 ):
+    def __init__(
+        self, optimizer, fp32_grad_accum=False, contiguous_grad_bucket=False, async_grad_allreduce=False,
+    ):
 
         self.optimizer = optimizer
         assert self.optimizer, 'no optimizer is provided.'
         if contiguous_grad_bucket:
             assert fp32_grad_accum, 'contiguous gradient buffer assumes using fp32 grad.'
         if async_grad_allreduce:
-            assert fp32_grad_accum, 'async allreduce applies to master gradients only, ' \
-                                    'which is supposed to be accumulated after grad op.'
-            assert contiguous_grad_bucket, 'currently async_grad_allreduce is supported only ' \
-                                           'with async_grad_allreduce.'
+            assert fp32_grad_accum, (
+                'async allreduce applies to master gradients only, '
+                'which is supposed to be accumulated after grad op.'
+            )
+            assert contiguous_grad_bucket, (
+                'currently async_grad_allreduce is supported only ' 'with async_grad_allreduce.'
+            )
 
         self._fp32_grad_accum = fp32_grad_accum
         self._contiguous_grad_bucket = contiguous_grad_bucket
@@ -148,9 +142,9 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
                 self._main_grad_buffers[i] = GradBucket(num_elements[i])
 
         # Three groups of parameters:
-        self.float16_groups = []            # original float16 parameters
+        self.float16_groups = []  # original float16 parameters
         self.fp32_from_float16_groups = []  # fp32 copy of float16 parameters
-        self.fp32_from_fp32_groups = []     # original fp32 parameters
+        self.fp32_from_fp32_groups = []  # original fp32 parameters
 
         # gradient function hooks
         if self._fp32_grad_accum:
@@ -165,8 +159,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
             for j, param in enumerate(param_group['params']):
                 if param.requires_grad:
                     # float16 params:
-                    if param.type() in ['torch.cuda.HalfTensor',
-                                        'torch.cuda.BFloat16Tensor']:
+                    if param.type() in ['torch.cuda.HalfTensor', 'torch.cuda.BFloat16Tensor']:
                         float16_params_this_group.append(param)
 
                         # Allocate the main parameter
@@ -180,8 +173,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
                         # Assign the grad buffer offset to main parameters
                         if self._contiguous_grad_bucket:
                             num_elements[i] -= param.data.nelement()
-                            main_param.grad = self._main_grad_buffers[i].get(
-                                param.data.shape, num_elements[i])
+                            main_param.grad = self._main_grad_buffers[i].get(param.data.shape, num_elements[i])
 
                         # Replace the optimizer params with the new fp32 copy.
                         param_group['params'][j] = main_param
@@ -195,11 +187,13 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
                         param_group['params'][j] = param
 
                     else:
-                        raise TypeError('Wrapped parameters must be one of '
-                                        'torch.cuda.FloatTensor,  '
-                                        'torch.cuda.HalfTensor, or '
-                                        'torch.cuda.BFloat16Tensor. '
-                                        'Received {}'.format(param.type()))
+                        raise TypeError(
+                            'Wrapped parameters must be one of '
+                            'torch.cuda.FloatTensor,  '
+                            'torch.cuda.HalfTensor, or '
+                            'torch.cuda.BFloat16Tensor. '
+                            'Received {}'.format(param.type())
+                        )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
                 if self._fp32_grad_accum:
@@ -234,9 +228,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
                 # Asynchronous gradients allreduce accross data_parallel ranks
                 if self._require_backward_grad_sync:
                     main_param.grad.div_(get_data_parallel_world_size())
-                    torch.distributed.all_reduce(main_param.grad,
-                                                 group=get_data_parallel_group(),
-                                                 async_op=True)
+                    torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
 
         return param_hook
 
@@ -259,8 +251,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
 
     def copy_model_grads_to_main_grads(self):
         # This only needs to be done for the float16 group.
-        for model_group, main_group in zip(self.float16_groups,
-                                           self.fp32_from_float16_groups):
+        for model_group, main_group in zip(self.float16_groups, self.fp32_from_float16_groups):
             for model_param, main_param in zip(model_group, main_group):
                 if model_param.grad is not None:
                     main_param.grad = model_param.grad.float()
@@ -274,8 +265,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         model_data = []
         main_data = []
         half_dtype = None
-        for model_group, main_group in zip(self.float16_groups,
-                                           self.fp32_from_float16_groups):
+        for model_group, main_group in zip(self.float16_groups, self.fp32_from_float16_groups):
             for model_param, main_param in zip(model_group, main_group):
                 if half_dtype == None:
                     half_dtype = model_param.data.dtype
@@ -294,15 +284,13 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         # Only needed for the float16 params.
         model_data, main_data, half_dtype = self._get_model_and_main_params_data_float16()
         self._set_overflow_buffer(half_dtype)
-        _multi_tensor_copy_this_to_that(this=main_data, that=model_data,
-                                        overflow_buf=self._dummy_overflow_buf)
+        _multi_tensor_copy_this_to_that(this=main_data, that=model_data, overflow_buf=self._dummy_overflow_buf)
 
     def _copy_model_params_to_main_params(self):
         # Only needed for the float16 params.
         model_data, main_data, half_dtype = self._get_model_and_main_params_data_float16()
         self._set_overflow_buffer(half_dtype)
-        _multi_tensor_copy_this_to_that(this=model_data, that=main_data,
-                                        overflow_buf=self._dummy_overflow_buf)
+        _multi_tensor_copy_this_to_that(this=model_data, that=main_data, overflow_buf=self._dummy_overflow_buf)
 
     def reload_model_params(self):
         self._copy_model_params_to_main_params()
@@ -319,33 +307,27 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         # Successful update.
         return True
 
-
     def state_dict(self):
         state_dict = {}
         state_dict['optimizer'] = self.optimizer.state_dict()
         state_dict['fp32_from_fp16_params'] = self.fp32_from_float16_groups
         return state_dict
 
-
     def load_state_dict(self, state_dict):
         # Optimizer.
         optimizer_key = 'optimizer'
         if optimizer_key not in state_dict:
             optimizer_key = 'optimizer_state_dict'
-            logging.info('***WARNING*** loading optimizer from '
-                         'an old checkpoint ...')
+            logging.info('***WARNING*** loading optimizer from ' 'an old checkpoint ...')
         self.optimizer.load_state_dict(state_dict[optimizer_key])
 
         # Copy data for the main params.
         fp32_from_float16_params_key = 'fp32_from_fp16_params'
         if fp32_from_float16_params_key not in state_dict:
             fp32_from_float16_params_key = 'fp32_from_fp16'
-        for current_group, saved_group in zip(
-                self.fp32_from_float16_groups,
-                state_dict[fp32_from_float16_params_key]):
+        for current_group, saved_group in zip(self.fp32_from_float16_groups, state_dict[fp32_from_float16_params_key]):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
-
 
     def allreduce_main_grads(self):
         for i in self._main_grad_buffers:
