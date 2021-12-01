@@ -156,7 +156,8 @@ class Float16Module(MegatronModule):
                 return val.bfloat16()
 
         else:
-            raise Exception('should not be here')
+            raise Exception(f'{precision} is not supported. Float16Module supports '
+                            'only fp16 and bf16.')
 
         self.float16_convertor = float16_convertor
 

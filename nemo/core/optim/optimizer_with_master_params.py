@@ -1,5 +1,4 @@
-# coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,19 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC
-from abc import abstractmethod
-
 from contextlib import contextmanager
 
 import torch
 
-from apex.multi_tensor_apply import multi_tensor_applier
-import amp_C
-
-from apex.transformer.parallel_state import get_data_parallel_world_size, get_data_parallel_group
-from apex.transformer.tensor_parallel import copy_tensor_model_parallel_attributes
 from nemo.utils import logging
+
+try:
+    from apex.multi_tensor_apply import multi_tensor_applier
+    from apex.transformer.parallel_state import get_data_parallel_world_size, get_data_parallel_group
+    from apex.transformer.tensor_parallel import copy_tensor_model_parallel_attributes
+    import amp_C
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 
 def _zero_grad_group_helper(group, set_to_none):
@@ -63,6 +66,9 @@ class GradBucket(object):
     """
 
     def __init__(self, numel):
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+
         self.numel = numel
         self.data = torch.zeros(self.numel, dtype=torch.float, device=torch.cuda.current_device(), requires_grad=False)
 
@@ -103,6 +109,8 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
     def __init__(
         self, optimizer, fp32_grad_accum=False, contiguous_grad_bucket=False, async_grad_allreduce=False,
     ):
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
         self.optimizer = optimizer
         assert self.optimizer, 'no optimizer is provided.'
@@ -267,7 +275,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         half_dtype = None
         for model_group, main_group in zip(self.float16_groups, self.fp32_from_float16_groups):
             for model_param, main_param in zip(model_group, main_group):
-                if half_dtype == None:
+                if half_dtype is None:
                     half_dtype = model_param.data.dtype
                 model_data.append(model_param.data)
                 main_data.append(main_param.data)
@@ -275,7 +283,7 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
 
     def _set_overflow_buffer(self, half_dtype):
         if half_dtype == torch.float16:
-            if self._dummy_overflow_buf == None:
+            if self._dummy_overflow_buf is None:
                 self._dummy_overflow_buf = torch.cuda.IntTensor([0])
             else:
                 self._dummy_overflow_buf.fill_(0)

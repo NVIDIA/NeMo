@@ -413,8 +413,8 @@ class GradScaler(torch.cuda.amp.GradScaler):
 class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
     """
     Plugin for Half (FP16 and BF16) precision training.
-    This plugin assumes the uase of the optimizer with master parameters (fp32).
-    This plugin uses half-precision at all operators in the model so need of inputer precision
+    This plugin assumes the use of the optimizer with master parameters (fp32).
+    This plugin uses half-precision at all operators in the model so need of input precision
     at each layer operator.
 
     Args:
@@ -445,9 +445,9 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             if optimizer.async_master_grads_allreudce:
                 # Execute the last step with asynchronous master gradients all-reduce
                 with optimizer.grad_sync():
-                    closure_result = closure()
+                    _ = closure()
             else:
-                closure_result = closure()
+                _ = closure()
                 optimizer.allreduce_main_grads()
 
             self._after_closure(model, optimizer, optimizer_idx)

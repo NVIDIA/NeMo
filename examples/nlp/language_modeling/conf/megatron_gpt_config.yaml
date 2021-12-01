@@ -1,6 +1,5 @@
 name: megatron_gpt
 restore_from_path: null # used when starting from a .nemo file
-gradient_as_bucket_view: True
 
 trainer:
   gpus: 1
@@ -61,6 +60,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
+  gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
 
   tokenizer:
     library: 'megatron'

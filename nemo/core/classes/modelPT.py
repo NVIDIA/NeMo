@@ -26,7 +26,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.plugins.training_type.parallel import ParallelPlugin
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
