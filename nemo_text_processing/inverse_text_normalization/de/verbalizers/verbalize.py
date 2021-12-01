@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import CardinalFst as CardinalTagger
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.decimal import DecimalFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.measure import MeasureFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.money import MoneyFst
-from nemo_text_processing.inverse_text_normalization.de.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst as TNCardinalTagger
-from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst as TNCardinalFst
-from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst as TNDecimalFst
+from nemo_text_processing.text_normalization.de.verbalizers.cardinal import CardinalFst as TNCardinalVerbalizer
+from nemo_text_processing.text_normalization.de.verbalizers.decimal import DecimalFst as TNDecimalVerbalizer
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 
@@ -35,28 +32,23 @@ class VerbalizeFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="verbalize", kind="verbalize")
-        tn_cardinal_verbalizer = TNCardinalFst(deterministic=False)
-        tn_decimal_verbalizer = TNDecimalFst(deterministic=False)
-        tn_cardinal_tagger = TNCardinalTagger(deterministic=False)
-        cardinal_tagger = CardinalTagger(tn_cardinal=tn_cardinal_tagger)
+        tn_cardinal_verbalizer = TNCardinalVerbalizer(deterministic=False)
+        tn_decimal_verbalizer = TNDecimalVerbalizer(deterministic=False)
 
-        cardinal = CardinalFst(tn_cardinal=tn_cardinal_verbalizer)
+        cardinal = CardinalFst(tn_cardinal_verbalizer=tn_cardinal_verbalizer)
         cardinal_graph = cardinal.fst
-        decimal = DecimalFst(tn_decimal=tn_decimal_verbalizer)
+        decimal = DecimalFst(tn_decimal_verbalizer=tn_decimal_verbalizer)
         decimal_graph = decimal.fst
         measure_graph = MeasureFst(decimal=decimal, cardinal=cardinal).fst
         money_graph = MoneyFst(decimal=decimal).fst
         time_graph = TimeFst().fst
         whitelist_graph = WhiteListFst().fst
-        telephone_graph = TelephoneFst().fst
         graph = (
             time_graph
             | money_graph
             | measure_graph
-            # | fraction_graph
             | decimal_graph
             | cardinal_graph
             | whitelist_graph
-            | telephone_graph
         )
         self.fst = graph

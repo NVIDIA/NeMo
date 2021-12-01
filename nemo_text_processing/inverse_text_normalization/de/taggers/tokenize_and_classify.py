@@ -37,6 +37,8 @@ from nemo_text_processing.text_normalization.de.verbalizers.electronic import El
 from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.time import TimeFst as TNTimeVerbalizer
+from nemo_text_processing.text_normalization.de.verbalizers.telephone import TelephoneFst as TNTelephoneVerbalizer
+from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst as TNTelephoneTagger
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -88,6 +90,8 @@ class ClassifyFst(GraphFst):
             tn_electronic_tagger = TNElectronicTagger(deterministic=False)
             tn_electronic_verbalizer = TNElectronicVerbalizer(deterministic=False)
             tn_whitelist_tagger = TNWhitelistTagger(input_case="cased", deterministic=False)
+            tn_telephone_tagger = TNTelephoneTagger(cardinal=tn_cardinal_tagger, deterministic=False)
+            tn_telephone_verbalizer = TNTelephoneVerbalizer(deterministic=False)
 
             cardinal = CardinalFst(tn_cardinal=tn_cardinal_tagger)
             cardinal_graph = cardinal.fst
@@ -112,7 +116,7 @@ class ClassifyFst(GraphFst):
             electronic_graph = ElectronicFst(
                 tn_electronic_tagger=tn_electronic_tagger, tn_electronic_verbalizer=tn_electronic_verbalizer
             ).fst
-            # telephone_graph = TelephoneFst().fst
+            telephone_graph = TelephoneFst(tn_cardinal_tagger=tn_cardinal_tagger).fst
 
             classify = (
                 pynutil.add_weight(cardinal_graph, 1.1)
@@ -124,7 +128,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(money_graph, 1.1)
-                # | pynutil.add_weight(telephone_graph, 1.1)
+                | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
             )
