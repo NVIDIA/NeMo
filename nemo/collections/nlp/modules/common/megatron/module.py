@@ -171,12 +171,3 @@ class Float16Module(MegatronModule):
         if parallel_state.is_pipeline_last_stage():
             outputs = float16_to_fp32(outputs)
         return outputs
-
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
-        return self.module.state_dict(destination, prefix, keep_vars)
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
-        return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-
-    def load_state_dict(self, state_dict, strict=True):
-        self.module.load_state_dict(state_dict, strict=strict)

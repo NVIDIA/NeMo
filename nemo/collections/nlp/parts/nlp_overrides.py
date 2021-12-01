@@ -51,8 +51,6 @@ class NLPDDPPlugin(DDPPlugin):
     Args:
         no_ddp_communication_hook: Disable DDP communication hook when using AMP-O2
         with FP32 gradient accumulation.
-        strict_state_matching: Match the name of checkpoint state_dict and model module
-        names, while loading the checkpoint
     """
 
     accelerator = "ddp"
@@ -64,7 +62,6 @@ class NLPDDPPlugin(DDPPlugin):
         cluster_environment: ClusterEnvironment = None,
         sync_batchnorm: bool = False,
         checkpoint_io: Optional[CheckpointIO] = None,
-        strict_state_matching: bool = True,
         no_ddp_communication_hook: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
@@ -72,7 +69,6 @@ class NLPDDPPlugin(DDPPlugin):
 
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
-        self.strict_state_matching = strict_state_matching
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -149,7 +145,7 @@ class NLPDDPPlugin(DDPPlugin):
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
-        self.lightning_module.load_state_dict(checkpoint["state_dict"], strict=self.strict_state_matching)
+        self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
     def remove_checkpoint(self, filepath: _PATH) -> None:
         # PTL override to accomodate model parallel checkpoints

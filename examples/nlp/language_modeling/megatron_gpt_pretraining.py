@@ -56,7 +56,6 @@ def main(cfg) -> None:
         NLPDDPPlugin(
             num_nodes=cfg.trainer.num_nodes,
             no_ddp_communication_hook=(megatron_amp_o2 and fp32_grad_accum),
-            strict_state_matching=(not megatron_amp_o2),
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         )
     ]
