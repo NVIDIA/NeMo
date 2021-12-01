@@ -131,12 +131,13 @@ In `./demo_asr_output/`, you can check the results as below.
     └── my_audio1.json
     └── my_audio1.txt
     └── my_audio1.rttm
+    └── my_audio1_gecko.json
 │
 └── ...
 ```
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  `*.json` files contains word-by-word json output with speaker label and time stamps.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  `*.json` files contains word-by-word json output with speaker label and time stamps. We also provide json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with ASR output.
 
 Example: `./demo_asr_output/pred_rttms/my_audio1.json`
 ```bash
