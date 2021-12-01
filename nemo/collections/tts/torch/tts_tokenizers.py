@@ -18,6 +18,7 @@ import string
 from typing import List
 
 from nemo.collections.tts.torch.en_utils import english_text_preprocessing, english_word_tokenize
+from nemo.utils import logging
 
 
 class BaseTokenizer(abc.ABC):
@@ -131,7 +132,8 @@ class BaseCharsTokenizer(BaseTokenizer):
             word[0] if isinstance(word, tuple) else word
             for word in self.word_tokenize_func(self.text_preprocessing_func(text))
         ]
-        for c in "".join(words):  # noqa
+        words_str = "".join(words)
+        for c in words_str:
             # Add space if last one isn't one
             if c == space and len(cs) > 0 and cs[-1] != space:
                 cs.append(c)
@@ -141,6 +143,9 @@ class BaseCharsTokenizer(BaseTokenizer):
             # Add punct
             elif (c in self.PUNCT_LIST) and self.punct:
                 cs.append(c)
+            # Warn about unknown char
+            elif c != space:
+                logging.warning(f"Text: [{words_str}] contains unknown char: [{c}]. Original text: [{text}]. Symbol will be skipped.")
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -186,7 +191,7 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
         )
 
 
-class DeutschCharsTokenizer(BaseCharsTokenizer):
+class GermanCharsTokenizer(BaseCharsTokenizer):
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
         ',', '.', '!', '?', '-',
@@ -319,8 +324,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
     def encode(self, text):
         """See base class."""
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
+        g2p_text = self.g2p(text)
 
-        for p in self.g2p(text):  # noqa
+        for p in g2p_text:  # noqa
             # Remove stress
             if p.isalnum() and len(p) == 3 and not self.stresses:
                 p = p[:2]
@@ -334,6 +340,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             # Add punct
             elif (p in self.PUNCT_LIST) and self.punct:
                 ps.append(p)
+            # Warn about unknown char/phoneme
+            elif p != space:
+                logging.warning(f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped.")
 
         # Remove trailing spaces
         while ps[-1] == space:

@@ -231,15 +231,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x
 
+    # T1 - text length, T2 - audio length, T3 - spectrogram length
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T'), TokenIndex()),
-            "durs": NeuralType(('B', 'T'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "text": NeuralType(('B', 'T1'), TokenIndex()),
+            "durs": NeuralType(('B', 'T1'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T2'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "spec": NeuralType(('B', 'D', 'T3'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T3', 'T1'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }

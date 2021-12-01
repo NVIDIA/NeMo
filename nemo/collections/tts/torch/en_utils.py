@@ -24,7 +24,7 @@ _synoglyphs = {
 }
 SYNOGLYPH2ASCII = {g: asc for asc, glyphs in _synoglyphs.items() for g in glyphs}
 
-# Example of parsing by groups via _words_re.
+# Example of parsing by groups via _WORDS_RE.
 # Groups:
 # 1st group -- valid english words,
 # 2nd group -- any substring starts from | to | (mustn't be nested), useful when you want to leave sequence unchanged,

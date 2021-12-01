@@ -173,16 +173,17 @@ class FastPitchModule(NeuralModule):
 
         self.proj = torch.nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
 
+    # T1 - text length, T2 - audio length, T3 - spectrogram length
     @property
     def input_types(self):
         return {
-            "text": NeuralType(('B', 'T'), TokenIndex()),
-            "durs": NeuralType(('B', 'T'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "text": NeuralType(('B', 'T1'), TokenIndex()),
+            "durs": NeuralType(('B', 'T1'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T2'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "spec": NeuralType(('B', 'D', 'T3'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T3', 'T1'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
@@ -190,16 +191,16 @@ class FastPitchModule(NeuralModule):
     @property
     def output_types(self):
         return {
-            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spect": NeuralType(('B', 'D', 'T3'), MelSpectrogramType()),
             "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
-            "attn_soft": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
-            "attn_logprob": NeuralType(('B', 'S', 'T', 'D'), LogprobsType()),
-            "attn_hard": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
-            "attn_hard_dur": NeuralType(('B', 'T'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "durs_predicted": NeuralType(('B', 'T1'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T1'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T1'), RegressionValuesType()),
+            "attn_soft": NeuralType(('B', 'S', 'T3', 'T1'), ProbsType()),
+            "attn_logprob": NeuralType(('B', 'S', 'T3', 'T1'), LogprobsType()),
+            "attn_hard": NeuralType(('B', 'S', 'T3', 'T1'), ProbsType()),
+            "attn_hard_dur": NeuralType(('B', 'T1'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T2'), RegressionValuesType()),
         }
 
     @typecheck()
