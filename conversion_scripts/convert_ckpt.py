@@ -5,6 +5,7 @@ import glob
 import hydra
 import torch
 import shutil
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 @hydra.main(config_path="../conf", config_name="config")
@@ -59,10 +60,10 @@ def main(cfg):
     ckpt_conf = load["hyper_parameters"]
     ckpt_merge_file = ckpt_conf.tokenizer.merge_file
     ckpt_vocab_file = ckpt_conf.tokenizer.vocab_file
-    if merge_file != ckpt_merge_file:
+    if merge_file != ckpt_merge_file and is_global_rank_zero():
         os.makedirs(os.path.dirname(ckpt_merge_file), exist_ok=True)
         shutil.copy2(merge_file, ckpt_merge_file)
-    if vocab_file != ckpt_vocab_file:
+    if vocab_file != ckpt_vocab_file and is_global_rank_zero():
         os.makedirs(os.path.dirname(ckpt_vocab_file), exist_ok=True)
         shutil.copy2(vocab_file, ckpt_vocab_file)
     del load
