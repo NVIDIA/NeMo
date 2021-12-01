@@ -115,7 +115,7 @@ def get_segments(
         timings, char_probs, char_list = cs.ctc_segmentation(config, log_probs, ground_truth_mat)
         _print(ground_truth_mat, vocabulary)
         segments = determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text, char_list)
-        # segments = cs.determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text)
+
         write_output(output_file, path_wav, segments, text, text_no_preprocessing, text_normalized)
         for i, (word, segment) in enumerate(zip(text, segments)):
             if i < 5:
@@ -188,9 +188,14 @@ def _get_blank_spans(char_list, blank='ε'):
 
 def _compute_time(index, align_type, timings):
     """Compute start and end time of utterance.
-    :param index:  frame index value
-    :param align_type:  one of ["begin", "end"]
-    :return: start/end time of utterance in seconds
+    Adapted from https://github.com/lumaku/ctc-segmentation
+
+    Args:
+        index:  frame index value
+        align_type:  one of ["begin", "end"]
+
+    Return:
+        start/end time of utterance in seconds
     """
     middle = (timings[index] + timings[index - 1]) / 2
     if align_type == "begin":
@@ -202,12 +207,15 @@ def _compute_time(index, align_type, timings):
 def determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text, char_list):
     """Utterance-wise alignments from char-wise alignments.
     Adapted from https://github.com/lumaku/ctc-segmentation
-    :param config: an instance of CtcSegmentationParameters
-    :param utt_begin_indices: list of time indices of utterance start
-    :param char_probs:  character positioned probabilities obtained from backtracking
-    :param timings: mapping of time indices to seconds
-    :param text: list of utterances
-    :return: segments, a list of: utterance start and end [s], and its confidence score
+
+    Args:
+        config: an instance of CtcSegmentationParameters
+        utt_begin_indices: list of time indices of utterance start
+        char_probs:  character positioned probabilities obtained from backtracking
+        timings: mapping of time indices to seconds
+        text: list of utterances
+    Return:
+        segments, a list of: utterance start and end [s], and its confidence score
     """
     segments = []
     min_prob = np.float64(-10000000000.0)
