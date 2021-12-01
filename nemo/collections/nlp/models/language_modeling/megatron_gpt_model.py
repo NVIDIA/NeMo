@@ -309,13 +309,12 @@ class MegatronGPTModel(NLPModel):
 
         if outputs is not None:
             averaged_loss = torch.stack(outputs).mean()
-        
+
         else:
             averaged_loss = 0.0
 
         self.log('val_loss', averaged_loss, prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
-        
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -636,6 +635,13 @@ class MegatronGPTModel(NLPModel):
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
         return request, positions, tokens_to_generate, compute_logprobs[0]
+
+    def get_parameters(self):
+        params = []
+        for param_group in self._optimizer_param_groups:
+            for param in param_group['params']:
+                params.append(param)
+        return params
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
