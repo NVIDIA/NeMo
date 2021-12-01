@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+r"""
+Conversion script to convert PTL checkpoints into nemo checkpoint.
+  Example to run this conversion script:
+    python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> megatron_gpt_ckpt_to_nemo.py.py \
+     --checkpoint_folder <path_to_PTL_checkpoints_folder> \
+     --checkpoint_name <checkpoint_name> \
+     --nemo_file_path <path_to_output_nemo_file> \
+     --tensor_model_parallel_size <tensor_model_parallel_size>
+"""
 
 import os
 from argparse import ArgumentParser
