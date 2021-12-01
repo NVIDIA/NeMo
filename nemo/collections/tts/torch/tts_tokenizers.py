@@ -145,7 +145,9 @@ class BaseCharsTokenizer(BaseTokenizer):
                 cs.append(c)
             # Warn about unknown char
             elif c != space:
-                logging.warning(f"Text: [{words_str}] contains unknown char: [{c}]. Original text: [{text}]. Symbol will be skipped.")
+                logging.warning(
+                    f"Text: [{words_str}] contains unknown char: [{c}]. Original text: [{text}]. Symbol will be skipped."
+                )
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -342,7 +344,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
             # Warn about unknown char/phoneme
             elif p != space:
-                logging.warning(f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped.")
+                logging.warning(
+                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped."
+                )
 
         # Remove trailing spaces
         while ps[-1] == space:
