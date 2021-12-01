@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 
 try:

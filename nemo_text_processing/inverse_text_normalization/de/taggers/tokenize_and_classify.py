@@ -31,6 +31,7 @@ from nemo_text_processing.text_normalization.de.taggers.cardinal import Cardinal
 from nemo_text_processing.text_normalization.de.taggers.date import DateFst as TNDateTagger
 from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst as TNDecimalTagger
 from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst as TNElectronicTagger
+from nemo_text_processing.text_normalization.de.taggers.whitelist import WhiteListFst as TNWhitelistTagger
 from nemo_text_processing.text_normalization.de.verbalizers.date import DateFst as TNDateVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.electronic import ElectronicFst as TNElectronicVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionVerbalizer
@@ -86,6 +87,7 @@ class ClassifyFst(GraphFst):
             tn_date_verbalizer = TNDateVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
             tn_electronic_tagger = TNElectronicTagger(deterministic=False)
             tn_electronic_verbalizer = TNElectronicVerbalizer(deterministic=False)
+            tn_whitelist_tagger = TNWhitelistTagger(input_case="cased", deterministic=False)
 
             cardinal = CardinalFst(tn_cardinal=tn_cardinal_tagger)
             cardinal_graph = cardinal.fst
@@ -105,7 +107,7 @@ class ClassifyFst(GraphFst):
             word_graph = WordFst().fst
             time_graph = TimeFst(tn_time=tn_time_verbalizer).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
-            # whitelist_graph = WhiteListFst().fst
+            whitelist_graph = WhiteListFst(tn_whitelist_tagger=tn_whitelist_tagger).fst
             punct_graph = PunctuationFst().fst
             electronic_graph = ElectronicFst(
                 tn_electronic_tagger=tn_electronic_tagger, tn_electronic_verbalizer=tn_electronic_verbalizer
@@ -114,7 +116,7 @@ class ClassifyFst(GraphFst):
 
             classify = (
                 pynutil.add_weight(cardinal_graph, 1.1)
-                # | pynutil.add_weight(whitelist_graph, 1.01)
+                | pynutil.add_weight(whitelist_graph, 1.0)
                 | pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(date_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)

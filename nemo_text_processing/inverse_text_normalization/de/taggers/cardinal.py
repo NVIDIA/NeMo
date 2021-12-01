@@ -12,18 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from collections import defaultdict
-
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path, load_labels
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -32,9 +21,6 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
-
-
-AND = "und"
 
 
 class CardinalFst(GraphFst):

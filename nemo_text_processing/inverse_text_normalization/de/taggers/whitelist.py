@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
 
 try:
@@ -32,9 +31,9 @@ class WhiteListFst(GraphFst):
     This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
     """
 
-    def __init__(self):
+    def __init__(self, tn_whitelist_tagger: GraphFst):
         super().__init__(name="whitelist", kind="classify")
 
-        whitelist = pynini.string_file(get_abs_path("data/whitelist.tsv")).invert()
+        whitelist = pynini.invert(tn_whitelist_tagger.graph)
         graph = pynutil.insert("name: \"") + convert_space(whitelist) + pynutil.insert("\"")
         self.fst = graph.optimize()
