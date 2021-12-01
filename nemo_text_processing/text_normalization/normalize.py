@@ -17,7 +17,6 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
-
 from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm

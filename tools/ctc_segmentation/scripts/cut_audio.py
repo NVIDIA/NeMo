@@ -35,7 +35,7 @@ parser.add_argument("--batch_size", type=int, default=64, help='Batch size for i
 parser.add_argument(
     '--num_samples',
     type=float,
-    help='Subset of samples to consider for calculation of mean absolute ' 'value at the edges',
+    help='Duration in seconds for mean absolute value calculation at the edges',
     default=0.05,
 )
 parser.add_argument('--sample_rate', type=int, help='Sample rate', default=16000)
@@ -99,8 +99,8 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
                         'text': text_processed,
                         'text_no_preprocessing': text_no_preprocessing,
                         'score': round(score, 2),
-                        'ta_start': np.mean(np.abs(segment[:num_samples])),
-                        'ta_end': np.mean(np.abs(segment[-num_samples:])),
+                        'start_abs': float(np.mean(np.abs(segment[:num_samples]))),
+                        'end_abs': float(np.mean(np.abs(segment[-num_samples:]))),
                     }
                     json.dump(info, f, ensure_ascii=False)
                     f.write('\n')

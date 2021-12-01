@@ -17,7 +17,6 @@ import os
 import re
 import string
 from pathlib import Path
-from shutil import copyfile
 from typing import List
 
 import regex
@@ -25,11 +24,10 @@ import scipy.io.wavfile as wav
 from joblib import Parallel, delayed
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
-from pydub import AudioSegment
-from pydub.utils import mediainfo
 from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.utils import model_utils
 
 try:
@@ -77,29 +75,6 @@ parser.add_argument(
 )
 
 
-def convert_audio(in_file: str, wav_file: str = None, sample_rate: int = 16000) -> str:
-    """
-    Convert .mp3 to .wav and/or change sample rate if needed
-
-    Args:
-        in_file: Path to .mp3 or .wav file
-        sample_rate: Desired sample rate
-
-    Returns:
-        path to .wav file
-    """
-    print(f"Converting {in_file} to .wav format with sample rate {sample_rate}")
-    if not os.path.exists(in_file):
-        raise ValueError(f'{in_file} not found')
-    if wav_file is None:
-        wav_file = in_file.replace(os.path.splitext(in_file)[-1], f"_{sample_rate}.wav")
-
-    os.system(
-        f'ffmpeg -i {in_file} -acodec pcm_s16le -ac 1 -af aresample=resampler=soxr -ar {sample_rate} {wav_file} -y'
-    )
-    return wav_file
-
-
 def process_audio(in_file: str, wav_file: str = None, cut_prefix: int = 0, sample_rate: int = 16000):
     """Process audio file: .mp3 to .wav conversion and cut a few seconds from the beginning of the audio
 
@@ -110,16 +85,8 @@ def process_audio(in_file: str, wav_file: str = None, cut_prefix: int = 0, sampl
         sample_rate: target sampling rate
     """
     try:
-        meta = mediainfo(in_file)
-        if meta["channels"] != "1" or meta["sample_rate"] != str(sample_rate) or meta["format_name"] != "wav":
-            wav_audio = convert_audio(str(in_file), wav_file, sample_rate)
-        else:
-            copyfile(in_file, wav_file)
-
-        if cut_prefix > 0:
-            # cut a few seconds of audio from the beginning
-            audio = AudioSegment.from_file(in_file, offset=cut_prefix)
-            wav.write(wav_audio, data=audio._samples, rate=sample_rate)
+        audio = AudioSegment.from_file(in_file, target_sr=sample_rate, offset=cut_prefix)
+        wav.write(wav_file, data=audio._samples, rate=sample_rate)
     except Exception as e:
         print(f'{in_file} skipped - {e}')
 

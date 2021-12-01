@@ -10,7 +10,7 @@ NUM_JOBS=-2 # The maximum number of concurrently running jobs, `-2` - all CPUs b
 # Thresholds for filtering
 CER_THRESHOLD=30
 WER_THRESHOLD=75
-CER_EDGE_THRESHOLD=35
+CER_EDGE_THRESHOLD=60
 LEN_DIFF_THRESHOLD=0.3
 
 for ARG in "$@"
@@ -40,11 +40,12 @@ else
 fi
 
 OUT_MANIFEST="$(dirname ${MANIFEST})"
+OUT_MANIFEST=$OUT_MANIFEST/manifest_transcribed.json
 # Add transcripts to the manifest file, ASR model predictions will be stored under "pred_text" field
 python ${SCRIPTS_DIR}/../../../examples/asr/transcribe_speech.py \
 $ARG_MODEL=$MODEL_NAME_OR_PATH \
 dataset_manifest=$MANIFEST \
-output_filename=${OUT_MANIFEST}_transcribed.json || exit
+output_filename=${OUT_MANIFEST} || exit
 
 echo "--- Calculating metrics and filtering out samples based on thresholds ---"
 echo "CER_THRESHOLD = ${CER_THRESHOLD}"
@@ -53,19 +54,9 @@ echo "CER_EDGE_THRESHOLD = ${CER_EDGE_THRESHOLD}"
 echo "LEN_DIFF_THRESHOLD = ${LEN_DIFF_THRESHOLD}"
 
 python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
---manifest=${OUT_MANIFEST}_transcribed.json \
+--manifest=${OUT_MANIFEST} \
 --audio_dir=${INPUT_AUDIO_DIR} \
 --max_cer=${CER_THRESHOLD} \
 --max_wer=${WER_THRESHOLD} \
 --max_len_diff=${LEN_DIFF_THRESHOLD} \
 --max_edge_cer=${CER_EDGE_THRESHOLD}
-
-#rm -rf ${MANIFEST}_transcribed.json
-
-
-# clean up
-##rm -rf ${OUTPUT_DIR}/processed
-
-#python ${SCRIPTS_DIR}/../../speech_data_explorer/data_explorer.py \
-#--disable-caching-metrics \
-#${OUTPUT_DIR}/manifests/all_transcribed.json
