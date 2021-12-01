@@ -32,9 +32,9 @@ class GPTRequestDataset(Dataset):
             self.tokens.append(torch.tensor(self.tokenizer.text_to_ids(request)))
 
         self.data = {
-                'data' : self.tokens,
-                'tokens_to_generate' : self.tokens_to_generate,
-                }
+            'data': self.tokens,
+            'tokens_to_generate': self.tokens_to_generate,
+        }
 
     def __len__(self):
         return 1

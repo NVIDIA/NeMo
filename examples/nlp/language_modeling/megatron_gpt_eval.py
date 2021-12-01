@@ -17,8 +17,8 @@ from argparse import ArgumentParser
 
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
-from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -87,9 +87,8 @@ def main():
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
-
     model.freeze()
-    
+
     def pad_collate(batch):
         tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
         lens = [len(token) for token in tokens]

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
@@ -326,13 +326,13 @@ class MegatronGPTModel(NLPModel):
         # chunk tokens by same length
         pre_buckets, lens = [], list(set(lens.tolist()))
         for lenn in lens:
-            pre_buckets.append([(tokens,index) for index,tokens in enumerate(batch[0]) if len(tokens)==lenn])
+            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch[0]) if len(tokens) == lenn])
 
         buckets, positions = [], []
 
         # get buckets and prompts initial positions
         for bucket in pre_buckets:
-            buckets.append(torch.tensor([item[0] for item in bucket]).to(device = 'cuda'))
+            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
             positions.append([item[1] for item in bucket])
         positions = [item for sublist in positions for item in sublist]
 
@@ -377,24 +377,23 @@ class MegatronGPTModel(NLPModel):
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
                 reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-                tokens_ids = torch.cat([tokens, torch.unsqueeze(token_ids[:,-1],1)], dim=1)
+                tokens_ids = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
 
                 # add to results as (text, tokens, log_probs, offsets)
             for token, prob in zip(tokens_ids, log_probs.tolist()):
-                results.append((self.tokenizer.ids_to_text(token[:-1]),
-                        self.tokenizer.ids_to_tokens(token[:-1]),
-                        prob,
-                        [0]))
+                results.append(
+                    (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0])
+                )
         # offsets calculation
         for item in results:
             for index, token in enumerate(item[1]):
-                if index != len(item[1])-1:
+                if index != len(item[1]) - 1:
                     item[3].append(len(token) + item[3][-1])
         # returnprompts in order they were inputted
         response = [0 for i in range(len(positions))]
         for item, index in zip(results, positions):
             response[index] = item
-            
+
         return response
 
     def list_available_models(self):
