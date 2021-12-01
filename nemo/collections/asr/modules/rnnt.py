@@ -1089,17 +1089,20 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         
     @property
     def input_types(self):
-        mytypes = self.decoder.input_types
-        state_type = mytypes.pop('states')[0]
-        mytypes['input-state-1'] = state_type
-        mytypes['input-state-2'] = state_type
-        mytypes.update(self.joint.input_types)
+        state_type = NeuralType(('D', 'B', 'D'), ElementType())
+        mytypes = {
+            'encoder_outputs': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "targets": NeuralType(('B', 'T'), LabelsType()),
+            "target_length": NeuralType(tuple('B'), LengthsType()),
+            'input-states-1': state_type,
+            'input-states-2': state_type
+        }
+    
         return mytypes
 
     def input_example(self):
         decoder_example = self.decoder.input_example()
         state1, state2 = decoder_example[-1]
-        print(state1.shape)
         return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
     
     @property
@@ -1107,16 +1110,16 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         return {
             "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "output-state-1": NeuralType((('D', 'B', 'D')), ElementType()),
-            "output-state-2": NeuralType((('D', 'B', 'D')), ElementType()),
+            "output-states-1": NeuralType((('D', 'B', 'D')), ElementType()),
+            "output-states-2": NeuralType((('D', 'B', 'D')), ElementType()),
         }
 
-    def forward(self, encoder_output, decoder_inputs, decoder_lengths, state_h, state_c):
+    def forward(self, encoder_outputs, decoder_inputs, decoder_lengths, state_h, state_c):
         decoder_outputs = self.decoder(decoder_inputs, decoder_lengths, (state_h, state_c))
         decoder_output = decoder_outputs[0]
         decoder_length = decoder_outputs[1]
         state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
-        joint_output = self.joint(encoder_output, decoder_output)
+        joint_output = self.joint(encoder_outputs, decoder_output)
         return (joint_output, decoder_length, state_h, state_c)
 
     def freeze(self):

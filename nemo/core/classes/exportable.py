@@ -293,7 +293,6 @@ class Exportable(ABC):
         if dynamic_axes is None and use_dynamic_axes:
             dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
             dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
-            print("dynamic axes:", dynamic_axes)
         return dynamic_axes
 
     def _export_torchscript(self, jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose):
@@ -307,7 +306,7 @@ class Exportable(ABC):
                 check_tolerance=check_tolerance,
             )
         if verbose:
-            print(jitted_model.code)
+            logging.info(f"JIT code:\n{jitted_model.code}")
         jitted_model.save(output)
         assert os.path.exists(output)
 
@@ -317,7 +316,7 @@ class Exportable(ABC):
             try:
                 jitted_model = torch.jit.script(module)
             except Exception as e:
-                print("jit.script() failed!", e)
+                logging.error(f"jit.script() failed!\{e}")
         return jitted_model
 
     def _set_eval(self, set_eval):
@@ -421,3 +420,8 @@ class Exportable(ABC):
             if name in output_names:
                 output_names.remove(name)
         return output_names
+
+    def _augment_output_filename(self, output, prepend: str):
+        path, filename = os.path.split(output)
+        filename = f"{prepend}-{filename}"
+        return os.path.join(path, filename)

@@ -884,11 +884,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 if param.grad is not None:
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
-
-    def _augment_output_filename(self, output, prepend: str):
-        path, filename = os.path.split(output)
-        filename = f"{prepend}-{filename}"
-        return os.path.join(path, filename)
                     
     def export(self,
                output: str,
@@ -906,7 +901,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         )
         decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
         decoder_exp, decoder_descr = decoder_joint.export(
-            self._augment_output_filename(output, 'DecJoint'),
+            self._augment_output_filename(output, 'Decoder-Joint'),
             # TODO: propagate from export()
             input_example=None,
             output_example=None,
