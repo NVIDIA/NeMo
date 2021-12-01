@@ -30,11 +30,11 @@ class MoneyFst(GraphFst):
         money { integer_part: "12" fractional_part: "05" currency: "$" } -> $12.05
 
     Args:
-        decimal: DecimalFst
+        decimal: ITN Decimal verbalizer
     """
 
-    def __init__(self, decimal: GraphFst):
-        super().__init__(name="money", kind="verbalize")
+    def __init__(self, decimal: GraphFst, deterministic: bool = True):
+        super().__init__(name="money", kind="verbalize", deterministic=deterministic)
         unit = (
             pynutil.delete("currency:")
             + delete_space

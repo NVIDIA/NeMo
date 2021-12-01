@@ -30,8 +30,8 @@ class VerbalizeFst(GraphFst):
     More details to deployment at NeMo/tools/text_processing_deployment.
     """
 
-    def __init__(self):
-        super().__init__(name="verbalize", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
         tn_cardinal_verbalizer = TNCardinalVerbalizer(deterministic=False)
         tn_decimal_verbalizer = TNDecimalVerbalizer(deterministic=False)
 
@@ -43,12 +43,5 @@ class VerbalizeFst(GraphFst):
         money_graph = MoneyFst(decimal=decimal).fst
         time_graph = TimeFst().fst
         whitelist_graph = WhiteListFst().fst
-        graph = (
-            time_graph
-            | money_graph
-            | measure_graph
-            | decimal_graph
-            | cardinal_graph
-            | whitelist_graph
-        )
+        graph = time_graph | money_graph | measure_graph | decimal_graph | cardinal_graph | whitelist_graph
         self.fst = graph

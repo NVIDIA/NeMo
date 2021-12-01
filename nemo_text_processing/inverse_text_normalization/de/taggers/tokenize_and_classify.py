@@ -37,8 +37,6 @@ from nemo_text_processing.text_normalization.de.verbalizers.electronic import El
 from nemo_text_processing.text_normalization.de.verbalizers.fraction import FractionFst as TNFractionVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.ordinal import OrdinalFst as TNOrdinalVerbalizer
 from nemo_text_processing.text_normalization.de.verbalizers.time import TimeFst as TNTimeVerbalizer
-from nemo_text_processing.text_normalization.de.verbalizers.telephone import TelephoneFst as TNTelephoneVerbalizer
-from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst as TNTelephoneTagger
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -68,8 +66,8 @@ class ClassifyFst(GraphFst):
         overwrite_cache: set to True to overwrite .far files
     """
 
-    def __init__(self, cache_dir: str = None, overwrite_cache: bool = False):
-        super().__init__(name="tokenize_and_classify", kind="classify")
+    def __init__(self, cache_dir: str = None, overwrite_cache: bool = False, deterministic: bool = True):
+        super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
 
         far_file = None
         if cache_dir is not None and cache_dir != 'None':
@@ -85,32 +83,32 @@ class ClassifyFst(GraphFst):
             tn_decimal_tagger = TNDecimalTagger(cardinal=tn_cardinal_tagger, deterministic=False)
             tn_ordinal_verbalizer = TNOrdinalVerbalizer(deterministic=False)
             tn_fraction_verbalizer = TNFractionVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
-            tn_time_verbalizer = TNTimeVerbalizer(cardinal=tn_cardinal_tagger, deterministic=False)
+            tn_time_verbalizer = TNTimeVerbalizer(cardinal_tagger=tn_cardinal_tagger, deterministic=False)
             tn_date_verbalizer = TNDateVerbalizer(ordinal=tn_ordinal_verbalizer, deterministic=False)
             tn_electronic_tagger = TNElectronicTagger(deterministic=False)
             tn_electronic_verbalizer = TNElectronicVerbalizer(deterministic=False)
             tn_whitelist_tagger = TNWhitelistTagger(input_case="cased", deterministic=False)
-            tn_telephone_tagger = TNTelephoneTagger(cardinal=tn_cardinal_tagger, deterministic=False)
-            tn_telephone_verbalizer = TNTelephoneVerbalizer(deterministic=False)
 
-            cardinal = CardinalFst(tn_cardinal=tn_cardinal_tagger)
+            cardinal = CardinalFst(tn_cardinal_tagger=tn_cardinal_tagger)
             cardinal_graph = cardinal.fst
 
             ordinal = OrdinalFst(itn_cardinal_tagger=cardinal, tn_ordinal_verbalizer=tn_ordinal_verbalizer)
             ordinal_graph = ordinal.fst
-            decimal = DecimalFst(cardinal=cardinal, tn_decimal=tn_decimal_tagger)
+            decimal = DecimalFst(itn_cardinal_tagger=cardinal, tn_decimal_tagger=tn_decimal_tagger)
             decimal_graph = decimal.fst
 
             fraction = FractionFst(itn_cardinal_tagger=cardinal, tn_fraction_verbalizer=tn_fraction_verbalizer)
             fraction_graph = fraction.fst
 
-            measure_graph = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction).fst
+            measure_graph = MeasureFst(
+                itn_cardinal_tagger=cardinal, itn_decimal_tagger=decimal, itn_fraction_tagger=fraction
+            ).fst
             date_graph = DateFst(
                 itn_cardinal_tagger=cardinal, tn_date_verbalizer=tn_date_verbalizer, tn_date_tagger=tn_date_tagger
             ).fst
             word_graph = WordFst().fst
-            time_graph = TimeFst(tn_time=tn_time_verbalizer).fst
-            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal).fst
+            time_graph = TimeFst(tn_time_verbalizer=tn_time_verbalizer).fst
+            money_graph = MoneyFst(itn_cardinal_tagger=cardinal, itn_decimal_tagger=decimal).fst
             whitelist_graph = WhiteListFst(tn_whitelist_tagger=tn_whitelist_tagger).fst
             punct_graph = PunctuationFst().fst
             electronic_graph = ElectronicFst(

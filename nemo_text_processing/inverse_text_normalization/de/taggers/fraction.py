@@ -31,17 +31,17 @@ except (ModuleNotFoundError, ImportError):
 class FractionFst(GraphFst):
     """
     Finite state transducer for classifying fraction
-        e.g. ein halb -> tokens { fraction { numerator: "1" denominator: "2" } }
-        e.g. eineinhalb -> tokens { fraction { integer_part: "1" numerator: "1" denominator: "2" } }
-        e.g. drei zwei hundertstel -> tokens { fraction { integer_part: "3" numerator: "2" denominator: "100" } }
+        e.g. ein halb -> tokens { name: "1/2" }
+        e.g. ein ein halb -> tokens { name: "1 1/2" }
+        e.g. drei zwei ein hundertstel -> tokens { name: "3 2/100" }
     
     Args:
-        cardinal: CardinalFst
+        itn_cardinal_tagger: ITN cardinal tagger
+        tn_fraction_verbalizer: TN fraction verbalizer
     """
 
-    def __init__(self, itn_cardinal_tagger: GraphFst, tn_fraction_verbalizer: GraphFst):
-        super().__init__(name="fraction", kind="classify")
-        # integer_part # numerator # denominator
+    def __init__(self, itn_cardinal_tagger: GraphFst, tn_fraction_verbalizer: GraphFst, deterministic: bool = True):
+        super().__init__(name="fraction", kind="classify", deterministic=deterministic)
         tagger = tn_fraction_verbalizer.graph.invert().optimize()
 
         delete_optional_sign = pynini.closure(pynutil.delete("negative: ") + pynini.cross("\"true\" ", "-"), 0, 1)

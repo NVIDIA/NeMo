@@ -27,12 +27,13 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for classifying whitelisted tokens
-        e.g. misses -> tokens { name: "mrs." }
-    This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
+        e.g. misses -> tokens { name: "Mrs." }
+    Args:
+        tn_whitelist_tagger: TN whitelist tagger
     """
 
-    def __init__(self, tn_whitelist_tagger: GraphFst):
-        super().__init__(name="whitelist", kind="classify")
+    def __init__(self, tn_whitelist_tagger: GraphFst, deterministic: bool = True):
+        super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
         whitelist = pynini.invert(tn_whitelist_tagger.graph)
         graph = pynutil.insert("name: \"") + convert_space(whitelist) + pynutil.insert("\"")

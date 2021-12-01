@@ -14,10 +14,8 @@
 
 from nemo_text_processing.text_normalization.de.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_SIGMA,
-    NEMO_WHITE_SPACE,
     GraphFst,
     convert_space,
     delete_preserve_order,
@@ -44,12 +42,12 @@ class TimeFst(GraphFst):
         time { minutes: "45" hours: "14" } -> "viertel vor drei"
 
     Args:
-        cardinal: cardinal tagger GraphFst
+        cardinal_tagger: cardinal_tagger tagger GraphFst
         deterministic: if True will provide a single transduction option,
         for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
+    def __init__(self, cardinal_tagger: GraphFst, deterministic: bool = True):
         super().__init__(name="time", kind="verbalize", deterministic=deterministic)
 
         # add weight so when using inverse text normalization this conversion is depriotized
@@ -63,7 +61,7 @@ class TimeFst(GraphFst):
         )
 
         graph_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv"))).optimize()
-        number_verbalization = graph_zero | cardinal.two_digit_non_zero
+        number_verbalization = graph_zero | cardinal_tagger.two_digit_non_zero
         hour = pynutil.delete("hours: \"") + pynini.closure(NEMO_DIGIT, 1) + pynutil.delete("\"")
         hour_verbalized = hour @ number_verbalization @ pynini.cdrewrite(
             pynini.cross("eins", "ein"), "[BOS]", "[EOS]", NEMO_SIGMA

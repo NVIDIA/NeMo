@@ -27,10 +27,13 @@ class CardinalFst(GraphFst):
     """
     Finite state transducer for verbalizing cardinal
         e.g. cardinal { integer: "23" negative: "-" } -> -23
+
+    Args:
+        tn_cardinal_verbalizer: TN cardinal verbalizer
     """
 
-    def __init__(self, tn_cardinal_verbalizer: GraphFst):
-        super().__init__(name="cardinal", kind="verbalize")
+    def __init__(self, tn_cardinal_verbalizer: GraphFst, deterministic: bool = True):
+        super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
         self.numbers = tn_cardinal_verbalizer.numbers
         optional_sign = pynini.closure(pynutil.delete("negative: \"") + NEMO_NOT_QUOTE + pynutil.delete("\" "), 0, 1)
         graph = optional_sign + self.numbers

@@ -38,19 +38,17 @@ class MoneyFst(GraphFst):
         e.g. elf euro und vier cent -> money { integer_part: "11" fractional_part: 04 currency: "€" }
 
     Args:
-        cardinal: CardinalFst
-        decimal: DecimalFst
+        itn_cardinal_tagger: ITN Cardinal Tagger
+        itn_decimal_tagger: ITN Decimal Tagger
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst):
-        super().__init__(name="money", kind="classify")
-        # quantity, integer_part, fractional_part, currency
-
+    def __init__(self, itn_cardinal_tagger: GraphFst, itn_decimal_tagger: GraphFst, deterministic: bool = True):
+        super().__init__(name="money", kind="classify", deterministic=deterministic)
         cardinal_graph = (
             pynini.cdrewrite(pynini.cross(pynini.union("ein", "eine"), "eins"), "[BOS]", "[EOS]", NEMO_SIGMA)
-            @ cardinal.graph_no_exception
+            @ itn_cardinal_tagger.graph_no_exception
         )
-        graph_decimal_final = decimal.final_graph_wo_negative
+        graph_decimal_final = itn_decimal_tagger.final_graph_wo_negative
 
         graph_unit = pynini.invert(maj_singular)
         graph_unit = pynutil.insert("currency: \"") + convert_space(graph_unit) + pynutil.insert("\"")

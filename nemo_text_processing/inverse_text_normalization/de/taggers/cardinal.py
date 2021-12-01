@@ -37,25 +37,28 @@ class CardinalFst(GraphFst):
         e.g. ein tausend -> cardinal { integer: "1000" } }
         e.g. eintausend -> cardinal { integer: "1000" } }
         e.g. ein tausend zwanzig -> cardinal { integer: "1020" } }
+    
+    Args:
+        tn_cardinal_tagger: TN cardinal tagger
     """
 
-    def __init__(self, tn_cardinal: GraphFst, deterministic: bool = True):
+    def __init__(self, tn_cardinal_tagger: GraphFst, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         # add_space_between_chars = pynini.cdrewrite(pynini.closure(insert_space, 0, 1), NEMO_CHAR, NEMO_CHAR, NEMO_SIGMA)
         optional_delete_space = pynini.closure(NEMO_SIGMA | pynutil.delete(" "))
 
-        graph = (tn_cardinal.graph @ optional_delete_space).invert().optimize()
+        graph = (tn_cardinal_tagger.graph @ optional_delete_space).invert().optimize()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
-            (tn_cardinal.graph_hundred_component_at_least_one_none_zero_digit @ optional_delete_space)
+            (tn_cardinal_tagger.graph_hundred_component_at_least_one_none_zero_digit @ optional_delete_space)
             .invert()
             .optimize()
         )
 
-        self.graph_ties = (tn_cardinal.two_digit_non_zero @ optional_delete_space).invert().optimize()
+        self.graph_ties = (tn_cardinal_tagger.two_digit_non_zero @ optional_delete_space).invert().optimize()
 
         self.graph_no_exception = graph
-        self.digit = tn_cardinal.digit.invert().optimize()
+        self.digit = tn_cardinal_tagger.digit.invert().optimize()
         graph_exception = pynini.project(self.digit, 'input')
         self.graph = (pynini.project(graph, "input") - graph_exception.arcsort()) @ graph
 

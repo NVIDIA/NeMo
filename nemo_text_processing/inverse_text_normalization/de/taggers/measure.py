@@ -33,22 +33,29 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure. Allows for plural form for unit.
-        e.g. minus elf kilogramm -> measure { negative: "true" cardinal { integer: "11" } units: "kg" }
+        e.g. minus elf kilogramm -> measure { cardinal { negative: "true" integer: "11" } units: "kg" }
         e.g. drei stunden -> measure { cardinal { integer: "3" } units: "h" }
-        e.g. ein halb kilogramm -> measure { fraction { numerator: "1" denominator: "2" } units: "h" }
+        e.g. ein halb kilogramm -> measure { decimal { integer_part: "1/2" } units: "kg" }
+        e.g. eins komma zwei kilogramm -> measure { decimal { integer_part: "1" fractional_part: "2" } units: "kg" }
 
     Args:
-        cardinal: CardinalFst
-        decimal: DecimalFst
-        fraction: FractionFst
+        itn_cardinal_tagger: ITN Cardinal tagger
+        itn_decimal_tagger: ITN Decimal tagger
+        itn_fraction_tagger: ITN Fraction tagger
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst):
-        super().__init__(name="measure", kind="classify")
+    def __init__(
+        self,
+        itn_cardinal_tagger: GraphFst,
+        itn_decimal_tagger: GraphFst,
+        itn_fraction_tagger: GraphFst,
+        deterministic: bool = True,
+    ):
+        super().__init__(name="measure", kind="classify", deterministic=deterministic)
 
         cardinal_graph = (
             pynini.cdrewrite(pynini.cross(pynini.union("ein", "eine"), "eins"), "[BOS]", "[EOS]", NEMO_SIGMA)
-            @ cardinal.graph_no_exception
+            @ itn_cardinal_tagger.graph_no_exception
         )
 
         graph_unit_singular = pynini.invert(unit_singular)  # singular -> abbr
@@ -71,7 +78,7 @@ class MeasureFst(GraphFst):
         subgraph_decimal = (
             pynutil.insert("decimal { ")
             + optional_graph_negative
-            + decimal.final_graph_wo_negative
+            + itn_decimal_tagger.final_graph_wo_negative
             + pynutil.insert(" }")
             + delete_extra_space
             + unit
@@ -81,7 +88,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("decimal { ")
             + optional_graph_negative
             + pynutil.insert("integer_part: \"")
-            + fraction.graph
+            + itn_fraction_tagger.graph
             + pynutil.insert("\" }")
             + delete_extra_space
             + unit

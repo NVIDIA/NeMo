@@ -31,8 +31,8 @@ class VerbalizeFinalFst(GraphFst):
     tokens { name: "jetzt" } tokens { name: "ist" } tokens { time { hours: "12" minutes: "30" } } -> jetzt ist 12:30 Uhr
     """
 
-    def __init__(self):
-        super().__init__(name="verbalize_final", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
         verbalize = VerbalizeFst().fst
         word = WordFst().fst
         types = verbalize | word

@@ -33,20 +33,27 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, in the form of (day) month (year) or year
-        e.g. vierundzwanzigster juli zwei tausend dreizehn -> date { day: "24" month: "juli" year: "2013" preserve_order: true }
-        e.g. neunzehnachtzig -> date { year: "1980" preserve_order: true }
-        e.g. neunzehnachtziger -> date { year: "1980er" preserve_order: true }
-        e.g. neunzehnhundertundachtzig -> date { year: "1980" preserve_order: true }
-        e.g. vierzehnter januar -> date { day: "24" month: "januar"  preserve_order: true }
-        e.g. zwanzig zwanzig -> date { year: "2020" preserve_order: true }
+        e.g. vierundzwanzigster juli zwei tausend dreizehn -> tokens { name: "24. Jul. 2013" }
+        e.g. neunzehnachtzig -> tokens { name: "1980" }
+        e.g. vierzehnter januar -> tokens { name: "14. Jan." }
+        e.g. zweiter dritter -> tokens { name: "02.03." }
+        e.g. januar neunzehnachtzig -> tokens { name: "Jan. 1980" }
+        e.g. zwanzigzwanzig -> tokens { name: "2020" }
 
     Args:
-        ordinal: OrdinalFst
-        cardinal: CardinalFst
+        itn_cardinal_tagger: ITN cardinal tagger
+        tn_date_tagger: TN date tagger
+        tn_date_verbalizer: TN date verbalizer
     """
 
-    def __init__(self, itn_cardinal_tagger: GraphFst, tn_date_tagger: GraphFst, tn_date_verbalizer: GraphFst):
-        super().__init__(name="date", kind="classify")
+    def __init__(
+        self,
+        itn_cardinal_tagger: GraphFst,
+        tn_date_tagger: GraphFst,
+        tn_date_verbalizer: GraphFst,
+        deterministic: bool = True,
+    ):
+        super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
         optional_delete_space = pynini.closure(NEMO_SIGMA | pynutil.delete(" ", weight=0.0001))

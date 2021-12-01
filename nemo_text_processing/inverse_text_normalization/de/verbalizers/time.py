@@ -26,13 +26,13 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for verbalizing time, e.g.
-        time { hours: "8" minutes: "30" suffix: "abends"} -> 20:30 Uhr abends
-        time { hours: "8" minutes: "30" } -> 08:30 Uhr
-        time { hours: "8" minutes: "30" suffix: "nachmittags"} -> 20:30 Uhr nachmittags 
+        time { hours: "8" minutes: "30" zone: "e s t" } -> 08:30 Uhr est
+        time { hours: "8" } -> 8 Uhr
+        time { hours: "8" minutes: "30" seconds: "10" } -> 08:30:10 Uhr 
     """
 
-    def __init__(self):
-        super().__init__(name="time", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="time", kind="verbalize", deterministic=deterministic)
 
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
         hour = pynutil.delete("hours: \"") + pynini.closure(NEMO_DIGIT, 1) + pynutil.delete("\"")

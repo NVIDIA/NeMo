@@ -30,8 +30,8 @@ class WhiteListFst(GraphFst):
         e.g. tokens { name: "mrs." } -> mrs.
     """
 
-    def __init__(self):
-        super().__init__(name="whitelist", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="whitelist", kind="verbalize", deterministic=deterministic)
         graph = (
             pynutil.delete("name:")
             + delete_space

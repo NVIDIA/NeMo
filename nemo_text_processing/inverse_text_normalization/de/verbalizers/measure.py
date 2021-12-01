@@ -27,16 +27,17 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, e.g.
-        measure { negative: "true" cardinal { integer: "12" } units: "kg" } -> -12 kg
+        measure { cardinal { negative: "true" integer: "12" } units: "kg" } -> -12 kg
+        measure { decimal { integer_part: "1/2" } units: "kg" } -> 1/2 kg
+        measure { decimal { integer_part: "1" fractional_part: "2" quantity: "million" } units: "kg" } -> 1,2 million kg
 
     Args:
-        decimal: DecimalFst
-        cardinal: CardinalFst
-        fraction: FractionFst
+        decimal: ITN Decimal verbalizer
+        cardinal: ITN Cardinal verbalizer
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst):
-        super().__init__(name="measure", kind="verbalize")
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool = True):
+        super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         unit = (
             pynutil.delete("units:")

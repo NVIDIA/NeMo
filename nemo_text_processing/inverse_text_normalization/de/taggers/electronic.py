@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 try:
     import pynini
@@ -26,11 +26,15 @@ except (ModuleNotFoundError, ImportError):
 class ElectronicFst(GraphFst):
     """
     Finite state transducer for classifying electronic: email addresses, etc.
-        e.g. c d f eins at a b c punkt e d u -> tokens { electronic { username: "cdf1" domain: "abc.edu" } }
+        e.g. c d f eins at a b c punkt e d u -> tokens { name: "cdf1.abc.edu" }
+    
+    Args:
+        tn_electronic_tagger: TN eletronic tagger
+        tn_electronic_verbalizer: TN eletronic verbalizer
     """
 
-    def __init__(self, tn_electronic_tagger: GraphFst, tn_electronic_verbalizer: GraphFst):
-        super().__init__(name="electronic", kind="classify")
+    def __init__(self, tn_electronic_tagger: GraphFst, tn_electronic_verbalizer: GraphFst, deterministic: bool = True):
+        super().__init__(name="electronic", kind="classify", deterministic=deterministic)
 
         tagger = pynini.invert(tn_electronic_verbalizer.graph).optimize()
         verbalizer = pynini.invert(tn_electronic_tagger.graph).optimize()

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
@@ -26,14 +26,15 @@ except (ImportError, ModuleNotFoundError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
-        e.g. dreizehnter -> ordinal { integer: "13" }
+        e.g. dreizehnter -> tokens { name: "13." }
 
     Args:
-        cardinal: CardinalFst
+        itn_cardinal_tagger: ITN Cardinal Tagger
+        tn_ordinal_verbalizer: TN Ordinal Verbalizer
     """
 
-    def __init__(self, itn_cardinal_tagger: GraphFst, tn_ordinal_verbalizer: GraphFst):
-        super().__init__(name="ordinal", kind="classify")
+    def __init__(self, itn_cardinal_tagger: GraphFst, tn_ordinal_verbalizer: GraphFst, deterministic: bool = True):
+        super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
         tagger = tn_ordinal_verbalizer.graph.invert().optimize()
 
