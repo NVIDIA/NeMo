@@ -41,7 +41,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch
-from numpy.typing import ArrayLike
 from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm import tqdm
 
@@ -440,7 +439,7 @@ class TokenizeCreateMasksClipWorker:
         punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         split_i: int,
-    ) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
+    ) -> Tuple[np.ndarray, List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
         """
         Tokenize, clip, encode labels, and create masks of first tokens in words.
 
@@ -515,7 +514,7 @@ def _get_features(
     verbose: bool = True,
     n_jobs: Optional[int] = 0,
     progress_queue: Optional[mp.Queue] = None,
-) -> Tuple[List[ArrayLike], List[ArrayLike], List[ArrayLike], List[ArrayLike]]:
+) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
     """
     Tokenizes data, encodes labels, creates masks of first tokens in words, clips sequences by number of tokens.
 
@@ -608,14 +607,14 @@ def _get_features(
 
 
 def create_masks_and_segment_ids(
-    input_ids: ArrayLike,
-    subtokens_mask: ArrayLike,
+    input_ids: np.ndarray,
+    subtokens_mask: np.ndarray,
     pad_id: int,
     cls_id: int,
     sep_id: int,
     ignore_start_end: bool,
     ignore_extra_tokens: bool,
-) -> Tuple[ArrayLike, ArrayLike, ArrayLike]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Creates segment ids array, input mask, loss mask.
 
@@ -750,7 +749,7 @@ def raise_not_equal_labels_error(
     raise ValueError(msg)
 
 
-def pad(vectors: List[ArrayLike], length: int, value: Union[int, float, bool]) -> ArrayLike:
+def pad(vectors: List[np.ndarray], length: int, value: Union[int, float, bool]) -> np.ndarray:
     """
     Pad vectors to length ``length`` and then stack.
     Args:
@@ -1173,7 +1172,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         text_lines, punct_labels_lines, capit_labels_lines = zip(*dataset)
         return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels
 
-    def _mark_up_batches(self, input_ids: List[ArrayLike]) -> Tuple[List[int], List[int], List[int]]:
+    def _mark_up_batches(self, input_ids: List[np.ndarray]) -> Tuple[List[int], List[int], List[int]]:
         """
         Computes indices of first samples in batch, batch sizes, seq lengths for batches. ``input_ids`` has to be
         sorted by number of tokens in ascending order.
@@ -1252,11 +1251,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     def _pack_into_batches(
         self,
-        input_ids: List[ArrayLike],
-        subtokens_mask: List[ArrayLike],
-        punct_labels: List[ArrayLike],
-        capit_labels: List[ArrayLike],
-    ) -> List[Dict[str, ArrayLike]]:
+        input_ids: List[np.ndarray],
+        subtokens_mask: List[np.ndarray],
+        punct_labels: List[np.ndarray],
+        capit_labels: List[np.ndarray],
+    ) -> List[Dict[str, np.ndarray]]:
         """
         Shuffle input sequences, sort them by number of tokens, pad, and pack into batches which satisfy following
         conditions:
@@ -1352,7 +1351,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
 
-    def _calculate_and_save_label_frequencies(self, all_labels: List[ArrayLike], name: str) -> Dict[str, float]:
+    def _calculate_and_save_label_frequencies(self, all_labels: List[np.ndarray], name: str) -> Dict[str, float]:
         """Calculates and saves labels frequencies in :attr:`label_info_save_dir`."""
         merged_labels = itertools.chain.from_iterable(all_labels)
         if self.verbose:
@@ -1394,7 +1393,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def __len__(self) -> int:
         return len(self.batches)
 
-    def collate_fn(self, batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
+    def collate_fn(self, batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Return zeroth batch from ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
@@ -1405,7 +1404,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             A ``batch_size`` parameter of a PyTorch data loader and sampler has to be ``1``.
 
         Args:
-            batches (:obj:`List[Dict[str, ArrayLike]]`): a list containing 1 batch passed for collating
+            batches (:obj:`List[Dict[str, np.ndarray]]`): a list containing 1 batch passed for collating
 
         Returns:
             :obj:`Dict[str, torch.Tensor]`: a batch dictionary with following items (for detailed description of batch
@@ -1425,7 +1424,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         batch['capit_labels'] = batch['capit_labels'].long()
         return batch
 
-    def __getitem__(self, idx: int) -> Dict[str, ArrayLike]:
+    def __getitem__(self, idx: int) -> Dict[str, np.ndarray]:
         """
         Return a batch with index ``idx``. The values of a batch dictionary are numpy arrays of identical shapes
         ``[Batch, Time]``. Labels are identical for all tokens in a word. For example, if
@@ -1440,7 +1439,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             idx: an index of returned batch
 
         Returns:
-            :obj:`Dict[str, ArrayLike]`: a dictionary with items:
+            :obj:`Dict[str, np.ndarray]`: a dictionary with items:
 
               - ``'input_ids'`` (:obj:`numpy.ndarray`): :obj:`numpy.int32` array containing encoded tokens,
               - ``'subtokens_mask'`` (:obj:`numpy.ndarray`): :obj:`bool` array which elements are ``True`` if they
