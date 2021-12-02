@@ -209,7 +209,7 @@ class ConvSubsampling(torch.nn.Module):
         self.out = torch.nn.Linear(conv_channels * out_length, feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
-    def forward(self, x, lengths, cache=None):
+    def forward(self, x, lengths, cache=None, cache_next=None):
         x = x.unsqueeze(1)
         x_length = x.size()[-2]
         input_x = x

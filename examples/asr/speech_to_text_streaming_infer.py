@@ -31,15 +31,13 @@ from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
-from nemo.utils import logging
-
+from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
-
-from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.utils import logging
 
 # can_gpu = torch.cuda.is_available()
 
@@ -172,9 +170,16 @@ def main():
     pre_encode_buffer_size = 5
     last_channel_buffer_size = cfg.encoder.att_context_size[0]
     last_time_buffer_size = cfg.encoder.conv_kernel_size - 1
-    cache_pre_encode = torch.zeros((1, 1, pre_encode_buffer_size,processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32)
-    cache_last_channel = torch.zeros((last_channel_num, 1, last_channel_buffer_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
-    cache_last_time = torch.zeros((last_time_num, 1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32)
+    cache_pre_encode = torch.zeros(
+        (1, 1, pre_encode_buffer_size, processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32
+    )
+    # cache_last_channel = torch.zeros((last_channel_num, 1, last_channel_buffer_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
+    cache_last_channel = torch.zeros(
+        (last_channel_num, 1, 0, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32
+    )
+    cache_last_time = torch.zeros(
+        (last_time_num, 1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32
+    )
 
     asr_out_stream = model_process(
         asr_model=asr_model,
@@ -184,7 +189,6 @@ def main():
         cache_last_time=cache_last_time,
         cache_pre_encode=cache_pre_encode,
     )
-
 
     print(asr_out_stream)
     # asr_model = asr_model.to(asr_model.device)

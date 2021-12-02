@@ -91,7 +91,17 @@ class ConformerLayer(torch.nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
 
-    def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None, cache_last_time=None, cache_last_channel=None):
+    def forward(
+        self,
+        x,
+        att_mask=None,
+        pos_emb=None,
+        pad_mask=None,
+        cache_last_time=None,
+        cache_last_channel=None,
+        cache_last_time_next=None,
+        cache_last_channel_next=None,
+    ):
         """
         Args:
             x (torch.Tensor): input signals (B, T, d_model)
@@ -109,16 +119,26 @@ class ConformerLayer(torch.nn.Module):
         residual = x
         x = self.norm_self_att(x)
         if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb, cache=cache_last_channel)
+            x = self.self_attn(
+                query=x,
+                key=x,
+                value=x,
+                mask=att_mask,
+                pos_emb=pos_emb,
+                cache=cache_last_channel,
+                cache_next=cache_last_channel_next,
+            )
         elif self.self_attention_model == 'abs_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel)
+            x = self.self_attn(
+                query=x, key=x, value=x, mask=att_mask, cache=cache_last_channel, cache_next=cache_last_channel_next
+            )
         else:
             x = None
         x = self.dropout(x) + residual
 
         residual = x
         x = self.norm_conv(x)
-        x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time)
+        x = self.conv(x, pad_mask=pad_mask, cache=cache_last_time, cache_next=cache_last_time_next)
         x = self.dropout(x) + residual
 
         residual = x
@@ -180,7 +200,7 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    def forward(self, x, pad_mask=None, cache=None):
+    def forward(self, x, pad_mask=None, cache=None, cache_next=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
         x = nn.functional.glu(x, dim=1)
@@ -188,7 +208,7 @@ class ConformerConvolution(nn.Module):
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
 
-        x = self.depthwise_conv(x, cache=cache)
+        x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)
         # if self.is_causal:
         #     x = x[:, :, : -self.depthwise_conv.padding[0]]
         if type(self.batch_norm) == nn.LayerNorm:
@@ -260,7 +280,7 @@ class CausalConv1D(nn.Conv1d):
             dtype,
         )
 
-    def forward(self, x, cache=None):
+    def forward(self, x, cache=None, cache_next=None):
         input_x = x
         x_length = x.size()[-1]
         if cache is None:
@@ -272,9 +292,9 @@ class CausalConv1D(nn.Conv1d):
             needed_cache = cache[:, :, -self._left_padding :]
             x = torch.cat((needed_cache, x), dim=-1)
         x = super().forward(x)
-        if cache is not None:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
-            cache[:, :, -x_length:] = input_x
+        if cache_next is not None:
+            cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
+            cache_next[:, :, -x_length:] = input_x
         # else:
         #     # x = x[:, :, : -self.padding[0]]
         #     x = x[:, :, : -self._padding]

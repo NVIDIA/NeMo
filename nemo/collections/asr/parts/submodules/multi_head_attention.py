@@ -168,7 +168,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         x = x[:, :, 1:].view(*x_size)  # (b, h, t1, t2)
         return x
 
-    def forward(self, query, key, value, mask, pos_emb, cache=None):
+    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -216,9 +216,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
 
         ret = self.forward_attention(v, scores, mask)
-        if cache is not None:
-            cache[:, :-q_length, :] = cache[:, -(cache_length - q_length) :, :].clone()
-            cache[:, -q_length:, :] = q_input
+        if cache_next is not None:
+            cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length) :, :].clone()
+            cache_next[:, -q_length:, :] = q_input
         return ret
 
 
@@ -320,7 +320,7 @@ class RelPositionalEncoding(PositionalEncoding):
             self.register_buffer('pe', pe, persistent=False)
         self.pe = pe
 
-    def forward(self, x):
+    def forward(self, x, cache_len=0):
         """Compute positional encoding.
         Args:
             x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
@@ -338,9 +338,10 @@ class RelPositionalEncoding(PositionalEncoding):
         # center_pos would be the index of position 0
         # negative positions would be used for right and positive for left tokens
         # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
+        input_len = x.size(1) + cache_len
         center_pos = self.pe.size(1) // 2
-        start_pos = center_pos - x.size(1) + 1
-        end_pos = center_pos + x.size(1)
+        start_pos = center_pos - input_len + 1
+        end_pos = center_pos + input_len
         pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)

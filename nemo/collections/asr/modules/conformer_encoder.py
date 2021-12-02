@@ -24,7 +24,7 @@ from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType, ChannelType
+from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ['ConformerEncoder']
 
@@ -104,6 +104,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "cache_last_channel_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
+                "cache_last_time_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+                "cache_pre_encode_next": NeuralType(('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
             }
         )
 
@@ -218,24 +221,52 @@ class ConformerEncoder(NeuralModule, Exportable):
     def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None):
         if length is None:
             length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
+
+        if cache_last_channel is not None:
+            cache_pre_encode_next = torch.zeros_like(cache_last_channel)
+            cache_last_time_next = torch.zeros_like(cache_last_time)
+        else:
+            cache_pre_encode_next = None
+            cache_last_time_next = None
+
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
-            audio_signal, length = self.pre_encode(audio_signal, length, cache_pre_encode)
+            audio_signal, length = self.pre_encode(
+                x=audio_signal, length=length, cache=cache_pre_encode, cache_next=cache_pre_encode_next
+            )
         else:
-            audio_signal = self.pre_encode(audio_signal)
+            audio_signal = self.pre_encode(x=audio_signal)
 
-        audio_signal, pos_emb = self.pos_enc(audio_signal)
         bs, xmax, idim = audio_signal.size()
 
         # Create the self-attention and padding masks
-        pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
+        if cache_last_channel is not None:
+            last_channel_num, bs, cache_len, channel_size = cache_last_channel.size().size()
+            cache_last_channel_next = torch.zeros(
+                (last_channel_num, bs, cache_len + xmax, channel_size),
+                device=cache_last_channel.device,
+                dtype=cache_last_channel.dtype,
+            )
+            xmax += cache_len
+            padding_length = length + cache_len
+            audio_signal, pos_emb = self.pos_enc(x=audio_signal, cache_len=cache_len)
+        else:
+            padding_length = length
+            cache_last_channel_next = None
+            audio_signal, pos_emb = self.pos_enc(x=audio_signal)
+
+        pad_mask = self.make_pad_mask(padding_length, max_time=xmax, device=audio_signal.device)
         att_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
         att_mask = att_mask & att_mask.transpose(1, 2)
         if self.att_context_size[0] >= 0:
             att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
         if self.att_context_size[1] >= 0:
             att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+
+        if cache_last_channel is not None:
+            pad_mask = pad_mask[:, cache_len:]
+            att_mask = att_mask[:, cache_len:]
         att_mask = ~att_mask
         pad_mask = ~pad_mask
 
@@ -247,13 +278,19 @@ class ConformerEncoder(NeuralModule, Exportable):
                 pad_mask=pad_mask,
                 cache_last_time=cache_last_time,
                 cache_last_channel=cache_last_channel,
+                cache_last_time_next=cache_last_time_next,
+                cache_last_channel_next=cache_last_channel_next,
             )
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
-        return audio_signal, length
+
+        if cache_last_channel is not None:
+            return audio_signal, length, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next
+        else:
+            return audio_signal, length
 
     @staticmethod
     def make_pad_mask(seq_lens, max_time, device=None):
