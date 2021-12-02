@@ -46,6 +46,7 @@ def main():
     )
     parser.add_argument(
         '--import_fname_list',
+        dest='import_fname_list',
         type=str,
         nargs='+',
         help='A list of Python file names to "from FILE import *" (Needed when some classes were defined in __main__ of a script)',
