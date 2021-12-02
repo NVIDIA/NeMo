@@ -27,6 +27,7 @@ find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpo
 import argparse
 import glob
 import os
+import sys
 
 import torch
 
@@ -43,7 +44,19 @@ def main():
         nargs='+',
         help='Input .nemo files (or folders who contains them) to parse',
     )
+    parser.add_argument(
+        '--import_fname_list',
+        type=str,
+        nargs='+',
+        help='A list of Python file names to "from FILE import *" (Needed when some classes were defined in __main__ of a script)',
+    )
     args = parser.parse_args()
+
+    for fn in args.import_fname_list:
+        import pudb; pudb.set_trace()
+        logging.info(f"Importing * from {fn}")
+        sys.path.insert(0, os.path.dirname(fn))
+        globals().update(importlib.import_module(os.path.splitext(os.path.basename(fn)))[0].__dict__)
 
     device = torch.device("cpu")
 
