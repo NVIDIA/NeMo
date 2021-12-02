@@ -6,8 +6,9 @@ validation_datasets: ???
 sup_data_path: ???
 sup_data_types: [ "duration_prior", "pitch" ]
 
-phoneme_dict_path: ???
-heteronyms_path: ???
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
+whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
 model:
   learn_alignment: true
@@ -49,6 +50,17 @@ model:
       pitch_norm: true
       pitch_avg: ${model.pitch_avg}
       pitch_std: ${model.pitch_std}
+
+      text_normalizer:
+        _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+        lang: "en"
+        input_case: "cased"
+        whitelist: ${whitelist_path}
+
+      text_normalizer_call_args:
+        verbose: False
+        punct_pre_process: True
+        punct_post_process: True
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
@@ -95,6 +107,17 @@ model:
       pitch_norm: true
       pitch_avg: ${model.pitch_avg}
       pitch_std: ${model.pitch_std}
+
+      text_normalizer:
+        _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+        lang: "en"
+        input_case: "cased"
+        whitelist: ${whitelist_path}
+
+      text_normalizer_call_args:
+        verbose: False
+        punct_pre_process: True
+        punct_post_process: True
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
