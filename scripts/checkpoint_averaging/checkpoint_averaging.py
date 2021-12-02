@@ -22,6 +22,10 @@ NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py my_model.nemo
 Usage example for building *-averaged.nemo files for all results in sub-directories under current path:
 
 find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py
+
+
+NOTE: if yout get the following error `AttributeError: Can't get attribute '???' on <module '__main__' from '???'>`
+      use --import_fname_list <FILE> with all files that contains missing classes.
 """
 
 import argparse
