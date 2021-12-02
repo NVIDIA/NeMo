@@ -17,6 +17,7 @@ from typing import List, Optional
 import editdistance
 import torch
 
+import k2
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
