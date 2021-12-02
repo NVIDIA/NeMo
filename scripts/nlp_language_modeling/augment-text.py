@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
 Augment text by corrupting words in a human-like manner.
+Support letetrs swap/drop, and AugLy <https://github.com/facebookresearch/AugLy>.
 """
 
 import os
@@ -9,7 +10,10 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 import numpy as np
 
-# TODO: add drop word
+try:
+    import augly.text as txtaugs
+except:
+    txtaugs = None
 
 #=============================================================================#
 # Augmentations
@@ -57,8 +61,14 @@ def main():
                         help="Rate of switching two consecutive letters in a word")
     parser.add_argument("--drop_letter", type=float, default=0.0,
                         help="Rate of dropping a letter in a word")
+    # AugLy
+    parser.add_argument("--augly_p", type=float, default=0.0,
+                        help="Probability of augly to apply a transformation (per word)")
 
     args = parser.parse_args()
+
+    if (args.augly_p > 0) and (txtaugs is None):
+        raise ImportError("Cannot use AugLy, module failed to import. Did you install it? (pip install augly)")
 
     # collect ops
     ops = []
@@ -71,6 +81,7 @@ def main():
             w,
             p=args.drop_letter))
 
+    # apply ops
     with open(args.target, 'w') as target_f:
         for line in open(args.source).readlines():
             line = line.strip()
@@ -80,7 +91,16 @@ def main():
             # clean double spaces from dropped words
             line = " ".join(words).replace("  ", " ")
 
+            if (args.augly_p > 0):
+                line = txtaugs.simulate_typos([line],
+                    aug_char_p=args.augly_p,
+                    aug_word_p=args.augly_p,
+                    aug_char_min=0,
+                    aug_word_min=0,
+                )[0]
+
             target_f.write(line + "\n")
+
 
 
 if __name__ == '__main__':
