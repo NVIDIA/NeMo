@@ -297,6 +297,7 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         # collecting prior knowledge for MAPLoss
         if loss_kwargs.get("criterion_type", "ml") == "map":
             self.token_lm = None
+            self.token_lm_cache_dict = None
             self.token_lm_path = self._cfg.get("token_lm", None)
             token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
             if token_lm_overwrite:
@@ -329,13 +330,10 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         if "wfst_graph.token_lm" in state_dict:
             # loading only if self.token_lm is not initialized in __init__
             if self.token_lm is None:
-                token_lm_dict = state_dict["wfst_graph.token_lm"]
-                self.token_lm = k2.Fsa.from_dict(token_lm_dict)
-                if self.loss.criterion_type == "map":
-                    self.loss.update_graph(self.token_lm)
-                if self.transcribe_decode:
-                    self.transcribe_decoder.update_graph(self.token_lm)
-            del state_dict["wfst_graph.token_lm"]
+                # we cannot load self.token_lm directly here
+                # because of a weird error at runtime
+                # TypeError: _broadcast_coalesced(): incompatible function arguments.
+                self.token_lm_cache_dict = state_dict.pop("wfst_graph.token_lm")
         super().load_state_dict(state_dict, strict=strict)
 
     def change_vocabulary(self, new_tokenizer_dir: str, new_tokenizer_type: str):
@@ -389,19 +387,28 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
             3) The greedy token predictions of the model of shape [B, T] (via argmax)
         """
-        # trying to load token_lm from token_lm_path if it hasn't been loaded yet
+        # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
         if self.loss.criterion_type == "map" and self.token_lm is None:
-            logging.warning(f"""Loading token_lm from {self.token_lm_path} at the first .forward() call.""")
-            self.token_lm = load_graph(self.token_lm_path)
-            if self.token_lm is None:
-                raise ValueError(f"""token_lm is empty.""")
+            if self.token_lm_cache_dict is not None:
+                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
+                self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
+                self.token_lm_cache_dict = None
+            elif self.token_lm_path is not None:
+                logging.warning(f"""Loading token_lm from {self.token_lm_path} at the first .forward() call.""")
+                self.token_lm = load_graph(self.token_lm_path)
+                if self.token_lm is None:
+                    raise ValueError(f"""Failed to load token_lm""")
+            else:
+                raise ValueError(f"""Failed to load token_lm""")
             self.loss.update_graph(self.token_lm)
             if self.transcribe_decode:
                 self.transcribe_decoder.update_graph(self.token_lm)
+
         log_probs, encoded_len, greedy_predictions = super().forward(input_signal=input_signal,
                                                                      input_signal_length=input_signal_length,
                                                                      processed_signal=processed_signal,
                                                                      processed_signal_length=processed_signal_length)
+
         if self.transcribe_decode:
             greedy_predictions, encoded_len, _ = self.transcribe_decoder.forward(log_probs=log_probs,
                                                                                  log_probs_length=encoded_len)
