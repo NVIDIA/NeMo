@@ -54,7 +54,7 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.info(f"\n\nIMPORTANT: Use --import_fname_list for all files that contain missing classes (AttributeError: Can't get attribute '???' on <module '__main__' from '???'>)")
+    logging.info(f"\n\nIMPORTANT: Use --import_fname_list for all files that contain missing classes (AttributeError: Can't get attribute '???' on <module '__main__' from '???'>)\n\n")
 
 
     for fn in args.import_fname_list:
