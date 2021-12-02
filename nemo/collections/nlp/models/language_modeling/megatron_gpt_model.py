@@ -14,7 +14,8 @@
 
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
+from pytorch_lightning.utilities.distributed import rank_zero_only
 
 import torch
 import torch.nn.functional as F
@@ -42,6 +43,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MasterOptimizerWrapper, prepare_lr_scheduler
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank, inject_model_parallel_rank
 from nemo.utils import AppState, logging
 
 try:
@@ -174,6 +176,8 @@ class MegatronGPTModel(NLPModel):
     def training_step(self, batch, batch_idx):
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # we zero grads here because we also call backward here
+            self._optimizer.zero_grad()
             batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
             reduced_loss = forward_backward_pipelining_without_interleaving(
@@ -184,13 +188,14 @@ class MegatronGPTModel(NLPModel):
                 tensor_shape=tensor_shape,
             )
             if not reduced_loss:
-                # Only the last pipeline stages return losses so training_step should be skipped
-                # PTL will skip training_step if None is returned
-                return None
+                loss = torch.tensor([0.0]).cuda()
             else:
-                # This keeps loss and reduced_loss consistent with non-pipeline parallel
-                loss = reduced_loss[0]['avg'].squeeze()
-                reduced_loss = [loss]
+                loss = reduced_loss[0]['avg']
+            torch.distributed.broadcast(loss, get_last_rank())
+
+            # This keeps loss and reduced_loss consistent with non-pipeline parallel
+            loss = loss.squeeze()
+            reduced_loss = [loss]
         else:
             output_tensor = self(tokens, position_ids, attention_mask, labels)
             loss = self.loss_func(loss_mask, output_tensor)
@@ -199,14 +204,24 @@ class MegatronGPTModel(NLPModel):
         # cache reduced loss while accumulating gradients
         self._reduced_loss_buffer.append(reduced_loss[0])
 
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
             average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True, rank_zero_only=True)
             lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+            self.log('lr', lr, rank_zero_only=True)
+            self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+            self.log(
+                'consumed_samples',
+                self.compute_consumed_samples(self.trainer.global_step),
+                prog_bar=True,
+                rank_zero_only=True,
+            )
             self._reduced_loss_buffer = []
             if self.cfg.precision == 16:
                 loss_scale = self.trainer.precision_plugin.scaler._scale
@@ -263,6 +278,17 @@ class MegatronGPTModel(NLPModel):
         else:
             super().backward(*args, **kwargs)
 
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing when using pipeline parallel as we are calling
+            backward during the training_step.
+        """
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            return
+
+        else:
+            super().optimizer_zero_grad(*args, **kwargs)
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             tokens, labels, loss_mask, attention_mask, position_ids = batch
@@ -298,8 +324,6 @@ class MegatronGPTModel(NLPModel):
         return reduced_loss
 
     def validation_epoch_end(self, outputs):
-        # TODO: need to figure out how to log on last rank to avoid deadlock
-        # for now will log 0.0 for ranks where output is None
         if self.cfg.pipeline_model_parallel_size > 1:
             if parallel_state.is_pipeline_last_stage():
                 outputs = [output[0]['avg'] for output in outputs]
@@ -311,10 +335,12 @@ class MegatronGPTModel(NLPModel):
             averaged_loss = torch.stack(outputs).mean()
 
         else:
-            averaged_loss = 0.0
+            averaged_loss = torch.tensor(0.0).cuda()
 
-        self.log('val_loss', averaged_loss, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
