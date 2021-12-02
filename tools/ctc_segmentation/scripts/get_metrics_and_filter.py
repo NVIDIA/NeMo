@@ -139,8 +139,8 @@ def filter(manifest):
                 audio_data = AudioSegment.from_file(audio)
                 duration = len(audio_data._samples) / audio_data._sample_rate
                 original_duration += duration
-            except:
-                print(f'Skipping {audio}')
+            except BaseException as e:
+                print(f'Skipping {audio} -- {e}')
 
     _apply_filters(
         manifest=manifest,
