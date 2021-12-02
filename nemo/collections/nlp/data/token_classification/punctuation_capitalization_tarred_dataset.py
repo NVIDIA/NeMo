@@ -22,10 +22,10 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
 
+import numpy as np
 import torch
 import webdataset as wds
 from joblib import Parallel, delayed
-from numpy.typing import ArrayLike
 from omegaconf import DictConfig
 from torch.utils.data import IterableDataset
 
@@ -1045,7 +1045,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
         return punct_label_ids_file, capit_label_ids_file
 
-    def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
+    def _build_sample(self, batch: Tuple[str, Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
         """
         Takes batch loaded from tarred dataset and transforms it for passing to the model. Adds ``'segment_ids'``,
         ``'input_mask'``, ``'loss_mask'`` items to the batch.
@@ -1080,13 +1080,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         batch['loss_mask'] = batch_loss_mask
         return batch
 
-    def __iter__(self) -> Iterator[Dict[str, ArrayLike]]:
+    def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
         """
         Constructs an iterator of batches. The values of one batch dictionary are numpy arrays of identical shapes
         ``[Batch, Time]``.
 
         Returns:
-            :obj:`Iterator[Dict[str, ArrayLike]]`: an iterator of batches with items:
+            :obj:`Iterator[Dict[str, np.ndarray]]`: an iterator of batches with items:
 
               - ``'input_ids'``: ``np.int32`` array containing encoded tokens,
               - ``'subtokens_mask'``: ``bool`` array which elements are ``True`` if they correspond to first token in
@@ -1105,7 +1105,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         return self.length
 
     @staticmethod
-    def collate_fn(batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
+    def collate_fn(batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Return zeroth batch of ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
@@ -1116,7 +1116,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             ``batch size`` parameter of a PyTorch data loader and sampler has to be ``1``.
 
         Args:
-            batches (:obj:`List[Dict[str, ArrayLike]]`): a list of batches passed for collating
+            batches (:obj:`List[Dict[str, np.ndarray]]`): a list of batches passed for collating
 
         Returns:
             :obj:`Dict[str, torch.Tensor]`: a batch dictionary with following items (for detailed description of batch
