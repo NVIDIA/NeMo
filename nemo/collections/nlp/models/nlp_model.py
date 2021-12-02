@@ -65,7 +65,8 @@ class NLPModel(ModelPT, Exportable):
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
     ):
-        """ Overrides ModelPT register_artifact default behavior. NLP models usually need artifacts that are optional."""
+        """ Overrides ModelPT register_artifact default behavior.
+        NLP models usually need artifacts that are optional."""
         return super().register_artifact(config_path, src, verify_src_exists=verify_src_exists)
 
     @rank_zero_only
