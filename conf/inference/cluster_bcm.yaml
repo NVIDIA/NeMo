@@ -8,5 +8,5 @@ slurm:
   job_name_prefix: "bignlp-"
 env:
   pyxis_container_workdir: /bignlp_workdir
-  pyxis_training_container_image:  nvcr.io/ea-bignlp/bignlp-training:21.10-py3-base
-  pyxis_inference_container_image:  nvcr.io/ea-bignlp/bignlp-inference:21.10-py3-base
+  pyxis_training_container_image:  nvcr.io/ea-bignlp/bignlp-training:21.12-py3
+  pyxis_inference_container_image:  nvcr.io/ea-bignlp/bignlp-inference:21.12-py3
