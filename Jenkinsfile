@@ -587,7 +587,7 @@ pipeline {
               steps {
                 sh 'cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
-            /bin/bash run_ctc_segmentation.sh \
+            /bin/bash run_segmentation.sh \
             --MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" \
             --DATA_DIR=/home/TestData/ctc_segmentation/eng \
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
@@ -603,7 +603,7 @@ pipeline {
               steps {
                 sh 'cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
-            /bin/bash run_sample.sh \
+            /bin/bash run_segmentation.sh \
             --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
             --DATA_DIR=/home/TestData/ctc_segmentation/ru \
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output${TIME} \
