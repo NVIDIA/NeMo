@@ -35,10 +35,14 @@ SYNOGLYPH2ASCII = {g: asc for asc, glyphs in _synoglyphs.items() for g in glyphs
 _WORDS_RE = re.compile("([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
 
 
-def english_text_preprocessing(text):
+def english_text_preprocessing(text, lower=True):
     text = unicode(text)
     text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
     text = ''.join(char if char not in SYNOGLYPH2ASCII else SYNOGLYPH2ASCII[char] for char in text)
+
+    if lower:
+        text = text.lower()
+
     return text
 
 
@@ -59,7 +63,7 @@ def english_word_tokenize(text):
             result.append((maybe_word.lower(), without_changes))
         elif maybe_punct != '':
             without_changes = False
-            result.append((re.sub(r'\s(\d)', r'\1', maybe_punct.upper()), without_changes))
+            result.append((maybe_punct, without_changes))
         elif maybe_without_changes != '':
             without_changes = True
             result.append((maybe_without_changes[1:-1].split(" "), without_changes))

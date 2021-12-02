@@ -17,8 +17,8 @@ import itertools
 import string
 from typing import List
 
-from nemo.collections.tts.torch.de_utils import german_text_preprocessing, german_word_tokenize
-from nemo.collections.tts.torch.en_utils import english_text_preprocessing, english_word_tokenize
+from nemo.collections.tts.torch.de_utils import german_text_preprocessing
+from nemo.collections.tts.torch.en_utils import english_text_preprocessing
 from nemo.utils import logging
 
 
@@ -91,7 +91,6 @@ class BaseCharsTokenizer(BaseTokenizer):
         pad_with_space=False,
         non_default_punct_list=None,
         text_preprocessing_func=lambda x: x,
-        word_tokenize_func=lambda x: x,
     ):
         """Base class for char-based tokenizer.
         Args:
@@ -102,8 +101,7 @@ class BaseCharsTokenizer(BaseTokenizer):
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            text_preprocessing_func: Function for preprocessing raw text.
-            word_tokenize_func: Function for tokenizing text to words.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
         """
 
         tokens = []
@@ -123,18 +121,13 @@ class BaseCharsTokenizer(BaseTokenizer):
         self.pad_with_space = pad_with_space
 
         self.text_preprocessing_func = text_preprocessing_func
-        self.word_tokenize_func = word_tokenize_func
 
     def encode(self, text):
         """See base class."""
         cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
-        words = [
-            word[0] if isinstance(word, tuple) else word
-            for word in self.word_tokenize_func(self.text_preprocessing_func(text))
-        ]
-        words_str = "".join(words)
-        for c in words_str:
+        text = self.text_preprocessing_func(text)
+        for c in text:
             # Add space if last one isn't one
             if c == space and len(cs) > 0 and cs[-1] != space:
                 cs.append(c)
@@ -146,9 +139,7 @@ class BaseCharsTokenizer(BaseTokenizer):
                 cs.append(c)
             # Warn about unknown char
             elif c != space:
-                logging.warning(
-                    f"Text: [{words_str}] contains unknown char: [{c}]. Original text: [{text}]. Symbol will be skipped."
-                )
+                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -169,7 +160,6 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
         pad_with_space=False,
         non_default_punct_list=None,
         text_preprocessing_func=english_text_preprocessing,
-        word_tokenize_func=english_word_tokenize,
     ):
         """English char-based tokenizer.
         Args:
@@ -179,8 +169,8 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            text_preprocessing_func: Function for preprocessing raw text.
-            word_tokenize_func: Function for tokenizing text to words.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Basically, it replaces all non-unicode characters with unicode ones and apply lower() function.
         """
         super().__init__(
             chars=string.ascii_lowercase,
@@ -190,7 +180,6 @@ class EnglishCharsTokenizer(BaseCharsTokenizer):
             pad_with_space=pad_with_space,
             non_default_punct_list=non_default_punct_list,
             text_preprocessing_func=text_preprocessing_func,
-            word_tokenize_func=word_tokenize_func,
         )
 
 
@@ -211,7 +200,6 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
         pad_with_space=False,
         non_default_punct_list=None,
         text_preprocessing_func=german_text_preprocessing,
-        word_tokenize_func=german_word_tokenize,
     ):
         """Deutsch char-based tokenizer.
         Args:
@@ -221,8 +209,8 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            text_preprocessing_func: Function for preprocessing raw text.
-            word_tokenize_func: Function for tokenizing text to words.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Currently, it only applies lower() function.
         """
 
         de_alphabet = "abcdefghijklmnopqrstuvwxyzäöüß"
@@ -234,7 +222,6 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
             pad_with_space=pad_with_space,
             non_default_punct_list=non_default_punct_list,
             text_preprocessing_func=text_preprocessing_func,
-            word_tokenize_func=word_tokenize_func,
         )
 
 
@@ -273,6 +260,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
+        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
     ):
         """English phoneme-based tokenizer.
         Args:
@@ -289,6 +277,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Basically, it replaces all non-unicode characters with unicode ones.
+             Note that lower() function shouldn't applied here, because text can contains phonemes (it will be handled by g2p).
         """
 
         tokens = []
@@ -322,11 +313,14 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         self.stresses = stresses
         self.pad_with_space = pad_with_space
 
+        self.text_preprocessing_func = text_preprocessing_func
         self.g2p = g2p
 
     def encode(self, text):
         """See base class."""
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
         g2p_text = self.g2p(text)
 
         for p in g2p_text:  # noqa

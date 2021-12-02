@@ -219,7 +219,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
         return self._parser
 
-    def parse(self, str_input: str, normalize=True, **kwargs) -> torch.tensor:
+    def parse(self, str_input: str, normalize=True) -> torch.tensor:
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
 
@@ -231,16 +231,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x
 
-    # T1 - text length, T2 - audio length, T3 - spectrogram length
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T1'), TokenIndex()),
-            "durs": NeuralType(('B', 'T1'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T2'), RegressionValuesType()),
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
+            "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
-            "spec": NeuralType(('B', 'D', 'T3'), MelSpectrogramType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T3', 'T1'), ProbsType(), optional=True),
+            "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
@@ -270,7 +269,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             input_lens=input_lens,
         )
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
+    @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
         # FIXME: return masks as well?
         self.eval()
@@ -517,17 +516,17 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         # Define input_types and output_types as required by export()
         self._input_types = {
-            "text": NeuralType(('B', 'T'), TokenIndex()),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
-            "pace": NeuralType(('B', 'T'), optional=True),
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
+            "pitch": NeuralType(('B', 'T_text'), RegressionValuesType()),
+            "pace": NeuralType(('B', 'T_text'), optional=True),
             "speaker": NeuralType(('B'), Index()),
         }
         self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
             "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
         }
 
     def _export_teardown(self):

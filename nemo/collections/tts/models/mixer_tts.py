@@ -213,26 +213,25 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         assert torch.all(torch.eq(attn_hard_dur.sum(dim=1), spect_len))
         return attn_soft, attn_logprob, attn_hard, attn_hard_dur
 
-    # T1 - text length, T2 - audio length, T3 - spectrogram length, T4 - lm_tokens length
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T1'), TokenIndex()),
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
             "text_len": NeuralType(('B',), LengthsType()),
-            "pitch": NeuralType(('B', 'T2'), RegressionValuesType(), optional=True),
-            "spect": NeuralType(('B', 'D', 'T3'), MelSpectrogramType(), optional=True),
+            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "spect_len": NeuralType(('B',), LengthsType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T3', 'T1'), ProbsType(), optional=True),
-            "lm_tokens": NeuralType(('B', 'T4'), TokenIndex(), optional=True),
+            "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
+            "lm_tokens": NeuralType(('B', 'T_lm_tokens'), TokenIndex(), optional=True),
         },
         output_types={
-            "pred_spect": NeuralType(('B', 'D', 'T3'), MelSpectrogramType()),
-            "durs_predicted": NeuralType(('B', 'T1'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T1'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T1'), RegressionValuesType()),
-            "attn_soft": NeuralType(('B', 'S', 'T3', 'T1'), ProbsType()),
-            "attn_logprob": NeuralType(('B', 'S', 'T3', 'T1'), LogprobsType()),
-            "attn_hard": NeuralType(('B', 'S', 'T3', 'T1'), ProbsType()),
-            "attn_hard_dur": NeuralType(('B', 'T1'), TokenDurationType()),
+            "pred_spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
+            "attn_soft": NeuralType(('B', 'S', 'T_spec', 'T_text'), ProbsType()),
+            "attn_logprob": NeuralType(('B', 'S', 'T_spec', 'T_text'), LogprobsType()),
+            "attn_hard": NeuralType(('B', 'S', 'T_spec', 'T_text'), ProbsType()),
+            "attn_hard_dur": NeuralType(('B', 'T_text'), TokenDurationType()),
         },
     )
     def forward(self, text, text_len, pitch=None, spect=None, spect_len=None, attn_prior=None, lm_tokens=None):
@@ -537,9 +536,9 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T'), TokenIndex(), optional=True),
+            "text": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),
             "text_len": NeuralType(('B'), LengthsType(), optional=True),
-            "lm_tokens": NeuralType(('B', 'T'), TokenIndex(), optional=True),
+            "lm_tokens": NeuralType(('B', 'T_lm_tokens'), TokenIndex(), optional=True),
             "raw_texts": [NeuralType(optional=True)],
             "lm_model": NeuralType(optional=True),
         }
@@ -580,12 +579,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 self.tokenizer, EnglishPhonemesTokenizer
             )
 
-            preprocess_texts_as_tts_input = [
-                self.tokenizer.g2p.text_preprocessing_func(t)
-                if isinstance(self.tokenizer, EnglishPhonemesTokenizer)
-                else self.tokenizer.text_preprocessing_func(t)
-                for t in raw_texts
-            ]
+            preprocess_texts_as_tts_input = [self.tokenizer.text_preprocessing_func(t) for t in raw_texts]
             lm_tokens_as_ids_list = [
                 lm_model_tokenizer.encode(t, add_special_tokens=False) for t in preprocess_texts_as_tts_input
             ]
@@ -604,7 +598,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         pred_spect = self.infer(tokens, tokens_len, lm_tokens=lm_tokens)
         return pred_spect
 
-    def parse(self, text: str, normalize=True, **kwargs) -> torch.Tensor:
+    def parse(self, text: str, normalize=True) -> torch.Tensor:
         if normalize and getattr(self, "text_normalizer_call", None) is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_args)
         return torch.tensor(self.tokenizer.encode(text)).long().unsqueeze(0).to(self.device)
@@ -640,14 +634,14 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
     @property
     def input_types(self):
         return {
-            "text": NeuralType(('B', 'T1'), TokenIndex()),
-            "lm_tokens": NeuralType(('B', 'T2'), TokenIndex(), optional=True),
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
+            "lm_tokens": NeuralType(('B', 'T_lm_tokens'), TokenIndex(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
-            "spect": NeuralType(('B', 'D', 'T3'), MelSpectrogramType()),
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
         }
 
     def forward_for_export(self, text, lm_tokens=None):
