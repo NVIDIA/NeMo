@@ -12,8 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Prompt tuning dataset"""
+"""
+Prompt tuning dataset
+Expects data to be in the format:
+{"prompt_tag": "tag1", "text": "example text1"}
+{"prompt_tag": "tag1", "text": "example text2"}
+{"prompt_tag": "tag2", "text": "example text3"}
+
+"""
 import json
+import torch
 
 from tqdm import tqdm
 
@@ -27,8 +35,8 @@ __all__ = ["PromptTuningDataset"]
 class GPTPromptTuningDataset(Dataset):
     def __init__(
         self, 
-        dataset_path: str,
-        tokenizer: Any,
+        dataset_path,
+        tokenizer,
         num_prompt_tokens: int,
         max_seq_length: int,
         min_seq_length: int = 1,
@@ -54,7 +62,7 @@ class GPTPromptTuningDataset(Dataset):
             sent = doc["text"]
             prompt_tag = doc["prompt_tag"]
 
-            sent_ids = tokenizer.text_to_ids(sent.decode('utf-8'))
+            sent_ids = tokenizer.text_to_ids(sent)
 
             if self.add_bos_eos:
                 sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
@@ -67,7 +75,7 @@ class GPTPromptTuningDataset(Dataset):
             else:
                 skipped += 1
 
-            logging.info(f'Skipped {skipped} sentences, sequence length too long or too short') 
+        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short') 
 
 
     def __len__(self):
@@ -78,7 +86,7 @@ class GPTPromptTuningDataset(Dataset):
         input_ids = self.input_ids[idx] 
         #labels = input_ids[1:].copy() + [self.tokenizer.eos_id]
 
-        return prompt_tag, input_ids
+        return prompt_tags, input_ids
 
     def collate_fn(self, batch):
         """Build masks and position id for left to right model with prompt tuning."""
@@ -97,44 +105,56 @@ class GPTPromptTuningDataset(Dataset):
         for ids in input_ids:
             text_length = len(ids)
 
-            # Loss mask starting with prompt tokens
-            text_loss_mask = [1.0] * (self.num_prompt_tokens + text_length)
+            # Loss mask starting with text after prompt tokens
+            prompt_loss_mask = [0.0] * self.num_prompt_tokens
+            text_loss_mask = [1.0] * (text_length)
+            text_loss_mask = prompt_loss_mask + text_loss_mask
             padding_length = batch_max - text_length
 
             # Pad loss mask and text tokens
-            ids.extend([self.tokenizer.eod_id] * padding_length)
+            ids.extend([self.tokenizer.eos_id] * padding_length)
             text_loss_mask.extend([0.0] * padding_length)
-            loss_masks.append(text_loss_mask)
+            loss_masks.append(torch.tensor(text_loss_mask, dtype=torch.float))
 
-        tokens = torch.tensor(input_ids, dtype=torch.long, device=data.device)
-        loss_mask = torch.stack(loss_masks, dtype=torch.float, device=data.device)
+        tokens = torch.tensor(input_ids, dtype=torch.long)
+        loss_mask = torch.stack(loss_masks)
 
         # Position ids for prompts
-        prompt_position_ids = torch.arange(self.num_prompt_tokens, dtype=torch.long, device=data.device)
-        prompt_position_ids = prompt_position_ids.unsqueeze(0).expand((batch_size, self.num_prompt_tokens))
+        prompt_position_ids = torch.arange(self.num_prompt_tokens, dtype=torch.long)
+        prompt_position_ids = prompt_position_ids.unsqueeze(0).expand((batch_size, self.num_prompt_tokens)).clone()
 
         # Position ids for text
-        text_position_ids = torch.arange(start=self.num_prompt_tokens, end=batch_max, dtype=torch.long, device=data.device)
-        text_position_ids = text_position_ids.unsqueeze(0).expand_as(tokens)
+        text_position_ids = torch.arange(start=self.num_prompt_tokens, 
+                                         end=batch_max_with_prompt, 
+                                         dtype=torch.long, 
+        )
+        text_position_ids = text_position_ids.unsqueeze(0).expand_as(tokens).clone()
 
         # Attention mask (lower triangular) starting with prompt tokens
-        attention_mask = torch.tril(torch.ones((batch_size, batch_max_with_prompt, batch_max_with_prompt), device=data.device)).view(
-            batch_size, 1, seq_length, seq_length
-        )
+        attention_mask = torch.tril(torch.ones((batch_size, batch_max_with_prompt, batch_max_with_prompt))).view(
+                                                batch_size, 1, batch_max_with_prompt, batch_max_with_prompt
+                                              )
 
         # Convert attention mask to binary:
         attention_mask = attention_mask < 0.5
         
+        # Labels for prompt tokens
+        prompt_token_labels = torch.full(
+                size=(batch_size, self.num_prompt_tokens),
+                fill_value=self.tokenizer.bos_id,
+                dtype=torch.long,
+        )
+
         # Should be a label for every token in batch
-        labels = tokens[:, 1:].contiguous()
-        final_label = torch.constant(self.tokenizer.eos_id, 
-                                     dtype=torch.long, 
-                                     shape=(batch_size, 1), 
-                                     device=data.device,
-                                     )
+        labels = torch.cat((prompt_token_labels, tokens[:, 1:].contiguous()), dim=1)
+        final_label = torch.full(
+                size=(batch_size, 1),
+                fill_value=self.tokenizer.eos_id, 
+                dtype=torch.long, 
+        )
 
         # Last label should be eos, even for longest sequence in batch
         labels = torch.cat((labels, final_label), dim=1)
 
-        return tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids
+        return tokens, labels, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids
 

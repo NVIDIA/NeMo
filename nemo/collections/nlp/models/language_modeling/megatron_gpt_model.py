@@ -38,7 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.prompt_tuning_utils import load_prompt_table
 from nemo.utils import AppState, logging
 
 
@@ -116,27 +115,34 @@ class MegatronGPTModel(NLPModel):
 
         if self.cfg.get('use_soft_prompts', False): 
             self.use_soft_prompts = True
-            self.prompt_table = {}
+            self.prompt_table = set([])
 
             if self.cfg.get('existing_prompt_tags', None):
-                prompt_tags = self.cfg.prompt_tags
-
-                for tag in prompt_tags:
-                    self._add_prompt_tag(tag)
+                self.prompt_table = set(self.cfg.existing_prompt_tags)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None, prompt_position_ids=None):
-        output_tensor = self.model(tokens, 
-                                   text_position_ids, 
-                                   attention_mask, 
-                                   labels=labels,
-                                   prompt_tags=prompt_tags, 
-                                   prompt_position_ids=prompt_position_ids, 
-                                   )
+        output_tensor = self.model(
+               tokens, 
+               text_position_ids, 
+               attention_mask, 
+               labels=labels,
+               prompt_tags=prompt_tags, 
+               prompt_position_ids=prompt_position_ids, 
+        )
+
         return output_tensor
 
     def training_step(self, batch, batch_idx):
         if self.use_soft_prompts:
-            tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
+            tokens, labels, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
+
+            tokens = tokens.to(self.device)
+            labels = labels.to(self.device)
+            attention_mask = attention_mask.to(self.device)
+            loss_mask = loss_mask.to(self.device)
+            prompt_position_ids = prompt_position_ids.to(self.device)
+            text_position_ids = text_position_ids.to(self.device)
+
             output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags, prompt_position_ids)
         else:
             tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
@@ -162,7 +168,14 @@ class MegatronGPTModel(NLPModel):
 
     def validation_step(self, batch, batch_idx):
         if self.use_soft_prompts:
-            tokens, lables, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
+            tokens, labels, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids = batch
+            tokens = tokens.to(self.device)
+            labels = labels.to(self.device)
+            attention_mask = attention_mask.to(self.device)
+            loss_mask = loss_mask.to(self.device)
+            prompt_position_ids = prompt_position_ids.to(self.device)
+            text_position_ids = text_position_ids.to(self.device)
+
             output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags, prompt_position_ids)
         else:
             tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
@@ -289,7 +302,7 @@ class MegatronGPTModel(NLPModel):
     def build_prompt_tuning_dataset(self, dataset_path):
         dataset = GPTPromptTuningDataset(dataset_path=dataset_path,
                                          tokenizer=self.tokenizer,
-                                         num_prompt_tokens=self.cfg.data.num_prompt_tokens,
+                                         num_prompt_tokens=self.cfg.prompt_length,
                                          max_seq_length=self.cfg.data.get('max_seq_length', 512),
                                          min_seq_length=self.cfg.data.get('min_seq_length', 1),
                                          add_bos_eos=self.cfg.data.get('add_bos_eos', True),
@@ -374,25 +387,17 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        parameters = self.model.parameters()
+        parameters = [param for param in self.model.parameters() if param.requires_grad]
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def prompt_tuning_freeze(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
         """
-
-        for param in self.model.language_model.embedding.parameters():
+        for param in self.model.parameters():
             param.requires_grad = False
-        for param in self.model.language_model.encoder.parameters():
-            param.requires_grad = False
-
-        if hasattr(self.model.language_model, 'decoder'):
-            for param in self.model.language_model.decoder.parameters():
-                param.requires_grad = False
-
-        if hasattr(self.model.language_model, 'pooler'):
-            for param in self.model.language_model.pooler.parameters():
-                param.requires_grad = False
+        for param in self.model.language_model.prompt_table.parameters():
+            param.requires_grad = True
+        
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
@@ -473,9 +478,7 @@ class MegatronGPTModel(NLPModel):
         self._add_prompt_tag(prompt_tag)
 
     def init_prompt_from_text(self, prompt_tag, init_text):
-        # TODO:get device properly
-        device = torch.device("cuda")
-        init_token_ids = torch.tensor(self.tokenizer.text_to_ids(init_text)).to(device)
+        init_token_ids = self.tokenizer.text_to_ids(init_text)
 
         self.model._init_prompt_from_text(prompt_tag, init_token_ids)
         self._add_prompt_tag(prompt_tag)

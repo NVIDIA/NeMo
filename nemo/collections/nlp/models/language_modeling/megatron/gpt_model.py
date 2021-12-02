@@ -51,6 +51,7 @@ def post_language_model_processing(
             loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
+
         return loss
 
 
@@ -200,8 +201,8 @@ class GPTModel(MegatronModule):
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
 
-    def _init_prompt_from_random(self, prompt_tag, prompt_length, init_method):
-        self.language_model._init_prompt_from_random(prompt_tag, prompt_length, init_method)
+    def _init_prompt_from_random(self, prompt_tag, init_method):
+        self.language_model._init_prompt_from_random(prompt_tag, init_method)
 
     def _init_prompt_from_text(self, prompt_tag, init_token_ids):
         self.language_model._init_prompt_from_text(prompt_tag, init_token_ids)
