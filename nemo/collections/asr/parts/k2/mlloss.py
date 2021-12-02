@@ -31,25 +31,26 @@ from typing import Optional, Tuple, Union
 import torch
 import k2
 
+from nemo.collections.asr.parts.k2.grad_utils import GradExpNormalize
 from nemo.collections.asr.parts.k2.utils import create_supervision
-from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
+from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_finite_mask
 from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
 from nemo.collections.asr.parts.k2.utils import make_blank_first
-from nemo.collections.asr.parts.k2.utils import GradExpNormalize
 
 
-class CTCLoss(torch.nn.Module):
+class MLLoss(torch.nn.Module):
     """
-    Connectionist Temporal Classification (CTC) loss.
-    Ported from https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/ctc.py
+    Maximum Likelihood criterion.
+    It is implemented as Connectionist Temporal Classification (CTC) loss,
+    but can be extended to support other loss functions (ASG, HMM, ...).
     """
     def __init__(
             self,
             num_classes: int,
             blank: int,
             reduction: str = 'mean',
-            topo_type: str = 'ctc_default',
+            topo_type: str = 'default',
             topo_with_selfloops: bool = True,
             graph_type: str = 'topo',
             aux_graph: Optional[Union[k2.Fsa, str]] = None,
@@ -59,7 +60,7 @@ class CTCLoss(torch.nn.Module):
         self.blank = blank
         self.num_classes = num_classes
         self.reduction = reduction
-        self.pad_fsavec = topo_type == "ctc_compact"
+        self.pad_fsavec = topo_type == "compact"
         if graph_type == 'topo':
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
             self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops)
@@ -105,8 +106,8 @@ class CTCLoss(torch.nn.Module):
             use_double_scores=True
         )
         tot_scores = num_tot_scores
-        tot_scores, valid_mask = get_tot_objf_and_num_frames(
+        tot_scores, valid_mask = get_tot_objf_and_finite_mask(
             tot_scores,
             self.reduction
         )
-        return - tot_scores[valid_mask]
+        return - tot_scores[valid_mask], valid_mask

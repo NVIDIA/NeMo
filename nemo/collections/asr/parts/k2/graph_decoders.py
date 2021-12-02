@@ -18,8 +18,6 @@ import torch
 import k2
 
 from nemo.collections.asr.parts.k2.topologies import build_topo
-from nemo.collections.asr.parts.k2.utils import compose_L_G
-from nemo.collections.asr.parts.k2.utils import compose_T_LG
 from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
 from nemo.collections.asr.parts.k2.utils import invert_permutation
@@ -31,6 +29,8 @@ from nemo.utils import logging
 
 
 class DecoderConf:
+    """TBD
+    """
     def __init__(self,
                  search_beam=20.0,
                  output_beam=10.0,
@@ -45,18 +45,20 @@ class DecoderConf:
 
 
 class BaseDecoder(object):
+    """TBD
+    """
     def __init__(self,
                  num_classes: int,
                  blank: int,
-                 pruned: bool = False,
-                 topo_type: str = "ctc_default",
+                 intersect_pruned: bool = False,
+                 topo_type: str = "default",
                  topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
         self.num_classes = num_classes
         self.blank = blank
-        self.pruned = pruned
+        self.intersect_pruned = intersect_pruned
         self.device = device
         self.topo_type = topo_type
         self.ctc_topo_inv = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops).invert_())
@@ -68,6 +70,9 @@ class BaseDecoder(object):
         if self.decode_graph is not None:
             self.decode_graph = self.decode_graph.to(device)
         self.device = device
+
+    def update_graph(self, graph: k2.Fsa):
+        raise NotImplementedError
 
     def decode(self,
                log_probs: torch.Tensor,
@@ -87,7 +92,7 @@ class BaseDecoder(object):
             self.to(log_probs.device)
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
-        if self.pruned:
+        if self.intersect_pruned:
             lats = k2.intersect_dense_pruned(a_fsas=self.decode_graph,
                                              b_fsas=dense_fsa_vec,
                                              search_beam=self.conf.search_beam,
@@ -112,9 +117,6 @@ class BaseDecoder(object):
             shortest_paths_fsa = k2.shortest_path(lats, True)
             shortest_paths_fsa = k2.index_fsa(shortest_paths_fsa, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device))
             scores = shortest_paths_fsa._get_tot_scores(True, False)
-            # assert torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]), (shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1])
-            # print((shortest_paths_fsa[0].labels[:-1], shortest_paths_fsa[0].aux_labels[:-1]), torch.all(shortest_paths_fsa[0].labels[:-1] == shortest_paths_fsa[0].aux_labels[:-1]))
-            # raise
             if return_ilabels:
                 shortest_paths = []
                 # direct iterating does not work as expected
@@ -137,96 +139,41 @@ class BaseDecoder(object):
 
 
 class TokenLMDecoder(BaseDecoder):
+    """TBD
+    """
     def __init__(self,
                  num_classes: int,
                  blank: int,
                  token_lm: Optional[Union[k2.Fsa, str]] = None,
-                 pruned: bool = False,
-                 topo_type: str = "ctc_default",
+                 intersect_pruned: bool = False,
+                 topo_type: str = "default",
                  topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  **kwargs
     ):
-        super().__init__(num_classes, blank, pruned, topo_type, topo_with_selfloops, device, **kwargs)
+        super().__init__(num_classes, blank, intersect_pruned, topo_type, topo_with_selfloops, device, **kwargs)
         if token_lm is not None:
             self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if self.token_lm is not None:
-                if hasattr(self.token_lm, 'aux_labels'):
-                    delattr(self.token_lm, 'aux_labels')
-                if self.pad_fsavec:
-                    shift_labels_inpl([self.token_lm], 1)
-                labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
-                if labels.max() != self.ctc_topo_inv.labels.max():
-                    raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
-                self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_())]).to(device)
+                self.update_graph(self.token_lm)
             else:
-                logging.warning(f"""token_lm was set to None. Use this for debug purposes only.""")
+                logging.warning(f"""token_lm was set to None. Use this for debug 
+                                purposes only or call .update_graph(token_lm) before using.""")
         else:
-            logging.warning(f"""token_lm was set to None. Use this for debug purposes only.""")
+            logging.warning(f"""token_lm was set to None. Use this for debug
+                            purposes only or call .update_graph(token_lm) before using.""")
             self.token_lm = None
         if self.token_lm is None:
             self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(device)
 
-'''
-class TLGDecoder(BaseDecoder):
-    def __init__(self,
-                 num_classes: int,
-                 blank: int,
-                 LG: Union[Tuple[Union[k2.Fsa, str]], k2.Fsa, str],
-                 token_lm: Optional[Union[k2.Fsa, str]],
-                 topo_type: str = "ctc_default",
-                 topo_with_selfloops: bool = True,
-                 device: torch.device = torch.device("cpu"),
-                 **kwargs
-    ):
-        super().__init__(num_classes, blank, True, topo_type, topo_with_selfloops, device, **kwargs)
-        # change them if you know what you are doing
-        if token_lm is None:
-            logging.warning(f"""token_lm was set to None. 
-                            Use this for debug purposes only.""")
-            self.token_lm = token_lm
-            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert_()]).to(device)
-        else:
-            self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
-            labels = self.token_lm.labels if isinstance(self.token_lm.labels, torch.Tensor) else self.token_lm.labels.values()
-            if labels.max() != self.ctc_topo_inv.labels.max():
-                raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
-            self.decode_graph = intersect_with_self_loops(self.ctc_topo_inv, self.token_lm).invert_()
-        self.labels_disambig_num = 2
-        self.aux_labels_disambig_num = 0
-        if isinstance(LG, tuple):
-            if len(LG) != 2:
-                raise ValueError(LG)
-            else:
-                L, G = LG
-                self.L = load_graph(L) if isinstance(L, str) else L
-                self.G = load_graph(G) if isinstance(G, str) else G
-                self.LG = compose_L_G(L, G)
-        else:
-            self.LG = load_graph(LG) if isinstance(LG, str) else LG
-        labels = self.LG.labels if isinstance(self.LG.labels, torch.Tensor) else self.LG.labels.values()
-        if labels.max() - self.labels_disambig_num - 1 != self.ctc_topo_inv.labels.max():
-            raise ValueError(f"LG is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
-        # TLG = compose_T_LG(self.ctc_topo_inv.invert_(), self.LG, self.labels_disambig_num, self.aux_labels_disambig_num)
-        TLG = compose_T_LG(self.decode_graph, self.LG, self.labels_disambig_num, self.aux_labels_disambig_num)
-        # print(TLG.labels.unique(), TLG.phones.unique())
-        # raise
-        self.decode_graph = k2.create_fsa_vec([TLG]).to(device)
-'''
-
-class TLGDecoder(BaseDecoder):
-    def __init__(self,
-                 num_classes: int,
-                 blank: int,
-                 decode_graph: Optional[Union[k2.Fsa, str]],
-                 pruned: bool = False,
-                 topo_type: str = "ctc_default",
-                 topo_with_selfloops: bool = True,
-                 device: torch.device = torch.device("cpu"),
-                 **kwargs
-    ):
-        super().__init__(num_classes, blank, True, topo_type, topo_with_selfloops, device, **kwargs)
-        TLG = load_graph(decode_graph) if isinstance(decode_graph, str) else decode_graph
-        # print(TLG.labels.unique())
-        # raise
-        self.decode_graph = k2.create_fsa_vec([TLG]).to(device)
+    def update_graph(self, graph: k2.Fsa):
+        self.token_lm = graph
+        token_lm = self.token_lm.clone()
+        if hasattr(token_lm, 'aux_labels'):
+            delattr(token_lm, 'aux_labels')
+        if self.pad_fsavec:
+            shift_labels_inpl([token_lm], 1)
+        labels = token_lm.labels if isinstance(token_lm.labels, torch.Tensor) else token_lm.labels.values()
+        if labels.max() != self.ctc_topo_inv.labels.max():
+            raise ValueError(f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}")
+        self.decode_graph = k2.create_fsa_vec([k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, token_lm).invert_())]).to(self.device)

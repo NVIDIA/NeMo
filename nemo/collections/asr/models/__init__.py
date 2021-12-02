@@ -22,7 +22,7 @@ try:
     from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
     from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
     from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
-    from nemo.collections.asr.models.sd_models import EncDecCTCSDModel, EncDecCTCSDModelBPE
+    from nemo.collections.asr.models.k2_sequence_models import EncDecK2SeqModel, EncDecK2SeqModelBPE
 except ModuleNotFoundError:
     from nemo.utils.exceptions import CheckInstall
 
@@ -35,6 +35,6 @@ except ModuleNotFoundError:
     class EncDecSpeakerLabelModel(CheckInstall): pass
     class EncDecRNNTBPEModel(CheckInstall): pass
     class EncDecRNNTModel(CheckInstall): pass
-    class EncDecCTCSDModel(CheckInstall): pass
-    class EncDecCTCSDModelBPE(CheckInstall): pass
+    class EncDecK2SeqModel(CheckInstall): pass
+    class EncDecK2SeqModelBPE(CheckInstall): pass
     # fmt: on

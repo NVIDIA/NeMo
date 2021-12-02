@@ -28,7 +28,6 @@
 
 import itertools
 import os
-import re
 from pickle import UnpicklingError
 from typing import List, Optional, Tuple, Union
 
@@ -38,73 +37,9 @@ import torch
 from nemo.utils import logging
 
 
-class GradScale(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, tensor_with_grad: torch.Tensor, scale: float):
-        ctx.save_for_backward(torch.tensor(scale))
-        return tensor_with_grad
-
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor):
-        return grad_output * ctx.saved_tensors[0], None
-
-
-class GradExpNormalize(torch.autograd.Function):
-    def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
-        batch_size = input_lengths.shape[0]
-        seq_range = torch.arange(0, seq_len, dtype=torch.int64)
-        seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, seq_len)
-        seq_length_expand = seq_range_expand.new(input_lengths.cpu()).unsqueeze(-1)
-        mask = seq_range_expand < seq_length_expand
-        return mask
-
-    @staticmethod
-    def forward(ctx, log_probs: torch.Tensor, input_lengths: torch.Tensor, reduction: str = "mean"):
-        mask = GradExpNormalize.make_non_pad_mask(input_lengths, log_probs.shape[1])
-        max_log_prob, _ = log_probs.max(-1)
-        probs = torch.exp(log_probs - max_log_prob.unsqueeze(-1))
-        norm_probs = torch.zeros_like(log_probs)
-        norm_probs[mask] += (probs / probs.sum(-1).unsqueeze(-1))[mask]
-        if reduction == "mean":
-            norm_probs /= norm_probs.shape[0]
-        ctx.save_for_backward(norm_probs)
-        return log_probs
-
-    @staticmethod
-    def backward(ctx, grad_output: torch.Tensor):
-        return grad_output + ctx.saved_tensors[0], None, None
-
-
-def compose_L_G(L: k2.Fsa, G: k2.Fsa):
-    assert L.device == G.device
-    LG = k2.connect(k2.compose(k2.arc_sort(L), k2.arc_sort(G)))
-    LG = k2.connect(k2.determinize(LG))
-    return LG.to(L.device)
-
-
-def compose_T_LG(T: k2.Fsa, LG: k2.Fsa, labels_disambig_num: int = 2, aux_labels_disambig_num: int = 0):
-    LG = LG.clone()
-    T = T.clone()
-    LG.convert_attr_to_ragged_(name='aux_labels')
-    labels_disambig_id_start = LG.labels.max() - labels_disambig_num
-    LG.labels[LG.labels > labels_disambig_id_start] = 0
-    # LG.labels[LG.labels > 0] -= 1
-    T.aux_labels[T.aux_labels > 0] += 1
-    aux_labels_disambig_id_start = LG.aux_labels.values().max() - aux_labels_disambig_num
-    LG.aux_labels.values()[LG.aux_labels.values() > aux_labels_disambig_id_start] = 0
-    LG = k2.connect(k2.remove_epsilon(LG))
-    LG.aux_labels = k2.ragged.remove_values_eq(LG.aux_labels, 0)
-    TLG = k2.compose(T, k2.arc_sort(LG), inner_labels='phones')
-    TLG = k2.arc_sort(k2.connect(TLG))
-    # make blank_id = 0
-    #if isinstance(TLG.phones, torch.Tensor):
-    #    TLG.phones[TLG.phones > 0] -= 1
-    #else:
-    #    TLG.phones.values()[TLG.phones.values() > 0] -= 1
-    return TLG
-
-
-def create_supervision(input_lengths: torch.Tensor):
+def create_supervision(input_lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """TBD
+    """
     supervisions = torch.stack(
         (
             torch.tensor(range(input_lengths.shape[0])),
@@ -118,18 +53,25 @@ def create_supervision(input_lengths: torch.Tensor):
     return supervisions[order], order
 
 def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
+    """TBD
+    """
     ans = torch.zeros(indices.shape, device=indices.device, dtype=torch.long)
     ans[indices] = torch.arange(0, indices.shape[0], device=indices.device)
     return ans
 
-def make_blank_first(blank_idx: int, log_probs: torch.Tensor, targets: torch.Tensor):
+def make_blank_first(blank_idx: int, log_probs: torch.Tensor, targets: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """TBD
+    """
     index = list(range(log_probs.shape[-1]))
     del index[blank_idx]
     index = torch.tensor([blank_idx] + index).to(log_probs.device)
-    # TODO: fix this to work in general
-    return torch.index_select(log_probs, -1, index), None if targets is None else targets + 1
+    new_log_probs = torch.index_select(log_probs, -1, index)
+    # TODO (alaptev): replace targets + 1 with torch.where to work for non-last blank_id
+    return new_log_probs, None if targets is None else targets + 1
 
-def load_graph(graph_path):
+def load_graph(graph_path: str) -> k2.Fsa:
+    """TBD
+    """
     if os.path.exists(graph_path):
         errors = []
         try:
@@ -151,16 +93,9 @@ def load_graph(graph_path):
         logging.warning(f"""No such file: '{graph_path}'""")
         return None
 
-def graph_to_den(graph: k2.Fsa, replicate_den: bool = False, times: int = 1) -> k2.Fsa:
-    graph_vec = k2.create_fsa_vec([graph.detach()])
-    if replicate_den:
-        indexes = torch.zeros(times, dtype=torch.int32, device=graph.device)
-        den = k2.index_fsa(graph_vec, indexes)
-    else:
-        den = graph_vec.to(graph.device)
-    return den
-
 def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
+    """TBD
+    """
     assert hasattr(base_graph, 'aux_labels')
     assert not hasattr(aux_graph, 'aux_labels')
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
@@ -169,31 +104,17 @@ def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     return result
 
 def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
+    """TBD
+    """
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
     return k2.compose(base_graph, aux_graph_with_self_loops, treat_epsilons_specially=False, inner_labels="phones")
-
-def intersect_dense_failsafe(**kwargs):
-    try:
-        return k2.intersect_dense(**kwargs)
-    except RuntimeError as e:
-        if "Some bad things" not in str(e):
-            raise e
-        else:
-            assert "b_fsas" in kwargs, "k2.intersect_dense failed and there is no b_fsas"
-            b_fsas = kwargs.get("b_fsas")
-            logging.warning(f"""k2.intersect_dense failed with RuntimeError on device {b_fsas.device}. 
-                            All lattices are set trivial.""")
-            bs = b_fsas.dim0() if "a_to_b_map" not in kwargs else len(kwargs.get("a_to_b_map"))
-            s = "0 1 -1 -1 0.0\n1"
-            fsa = k2.Fsa.from_str(s, acceptor=False)
-            fsa_vec = k2.create_fsa_vec([fsa.clone() for i in range(bs)])
-            fsa_vec.scores = torch.nn.Parameter(torch.full_like(fsa_vec.scores, -float("inf")), requires_grad=b_fsas.scores.requires_grad)
-            return fsa_vec.to(b_fsas.device)
 
 def create_sparse_wrapped(indices: List[torch.Tensor],
                           values: torch.Tensor,
                           size: Optional[Union[Tuple[int, int], Tuple[int, int, int]]] = None,
-                          min_col_index: Optional[int] = None):
+                          min_col_index: Optional[int] = None) -> torch.Tensor:
+    """TBD
+    """
     assert size is None or len(indices) == len(size)
 
     if len(indices) == 2:
@@ -225,7 +146,9 @@ def create_sparse_wrapped(indices: List[torch.Tensor],
     else:
         raise ValueError(f"len(indices) = {len(indices)}")
 
-def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor):
+def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor) -> k2.DenseFsaVec:
+    """TBD
+    """
     log_softmax_shifted = torch.cat([torch.full((log_softmax.shape[0], log_softmax.shape[1], 1), -float("inf"), device=log_softmax.device), log_softmax], axis=-1)
     log_softmax_padded = torch.zeros((log_softmax_shifted.shape[0], log_softmax_shifted.shape[1] * 2, log_softmax_shifted.shape[2]), device=log_softmax.device)
     log_softmax_padded[:,::2] = log_softmax_shifted
@@ -235,14 +158,17 @@ def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tenso
     return dense_log_softmax_padded
 
 def shift_labels_inpl(lattices: List[k2.Fsa], shift: int):
+    """TBD
+    """
     for lattice in lattices:
         mask = lattice.labels > 0
         lattice.labels[mask] += shift
         if hasattr(lattice, 'aux_labels'):
             mask = lattice.aux_labels > 0
             lattice.aux_labels[mask] += shift
+    return lattices
 
-def get_tot_objf_and_num_frames(
+def get_tot_objf_and_finite_mask(
         tot_scores: torch.Tensor,
         reduction: str
     ) -> Tuple[torch.Tensor, torch.Tensor]:

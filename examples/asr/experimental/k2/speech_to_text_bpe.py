@@ -55,7 +55,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models.sd_models import EncDecCTCSDModelBPE, EncDecCTCModelBPE
+from nemo.collections.asr.models.k2_sequence_models import EncDecK2SeqModelBPE
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -71,10 +71,10 @@ def main(cfg):
     with open_dict(cfg):
         restore_path = cfg.pop('init_from_nemo', None)
 
-    asr_model = EncDecCTCSDModelBPE(cfg=cfg.model, trainer=trainer)
+    asr_model = EncDecK2SeqModelBPE(cfg=cfg.model, trainer=trainer)
 
     if restore_path is not None:
-        checkpoint = EncDecCTCModelBPE.restore_from(
+        checkpoint = EncDecK2SeqModelBPE.restore_from(
             restore_path, map_location=torch.device('cpu')
         )
 

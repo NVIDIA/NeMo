@@ -34,77 +34,67 @@ import k2
 from nemo.collections.asr.parts.k2.autograd import sparse_abs
 from nemo.collections.asr.parts.k2.utils import create_supervision
 from nemo.collections.asr.parts.k2.utils import create_sparse_wrapped
-from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_num_frames
+from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_finite_mask
 from nemo.collections.asr.parts.k2.utils import make_blank_first
 from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
 from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
-from nemo.collections.asr.parts.k2.utils import GradExpNormalize
-from nemo.collections.asr.parts.k2.utils import GradScale
 from nemo.utils import logging
 
 
-class SDLoss(torch.nn.Module):
+class MAPLoss(torch.nn.Module):
     """
-    Sequence-discriminative loss.
-    Ported from https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
-    Implements Lattice-Free Maximum Mutual Information (LF-MMI) 
-    and Conditional Random Field based single-stage acoustic modeling (CRF) losses.
+    Maximum a Posteriori Probability criterion.
+    It is implemented as Lattice-Free Maximum Mutual Information (LF-MMI) 
+    and LF-boosted-MMI (LF-bMMI) losses.
     """
     def __init__(
             self,
             num_classes: int,
             blank: int,
             reduction: str = 'mean',
-            topo_type: str = 'ctc_default',
+            topo_type: str = 'default',
             topo_with_selfloops: bool = True,
-            sd_type: str = 'mmi',
+            loss_type: str = 'mmi',
             token_lm: Optional[Union[k2.Fsa, str]] = None,
-            token_lm_order: int = 2,
-            den_scale: float = 1.0,
             intersect_pruned: bool = False,
-            use_mbr: bool = False,
-            mbr_graph: Optional[Union[k2.Fsa, str]] = None,
+            boost_coeff: float = 0.0,
             **kwargs
     ):
         super().__init__()
         self.num_classes = num_classes
         self.blank = blank
         self.reduction = reduction
-        self.sd_type = sd_type
-        self.den_scale = den_scale
-        self.use_mbr = use_mbr
+        self.loss_type = loss_type
+        self.boost_coeff = boost_coeff
         self.intersect_calc_scores = self._intersect_calc_scores_mmi_pruned if intersect_pruned else self._intersect_calc_scores_mmi_exact
-        self.pad_fsavec = topo_type == "ctc_compact"
+        self.topo_type = topo_type
+        self.topo_with_selfloops = topo_with_selfloops
+        self.pad_fsavec = topo_type == "compact"
+        self.graph_compiler = None
         if token_lm is None:
             logging.warning(f"""token_lm is empty. 
-                            Sequence-discriminative loss will operate as a regular CTC.""")
-            self.lm_graph = token_lm
+                            Trainable token_lm is not supported yet. 
+                            Please call .update_graph(token_lm) before using.""")
         else:
             self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if self.lm_graph is None:
-                logging.warning(f"""Faled to load token_lm. 
-                                Sequence-discriminative loss will operate as a regular CTC.""")
+                raise ValueError(f"""lm_graph is empty.""")
             else:
-                if hasattr(self.lm_graph, 'aux_labels'):
-                    delattr(self.lm_graph, 'aux_labels')
-                if self.pad_fsavec:
-                    shift_labels_inpl([self.lm_graph], 1)
-        if sd_type == 'mmi':
+                self.update_graph(self.lm_graph)
+
+    def update_graph(self, graph: k2.Fsa):
+        self.lm_graph = graph
+        lm_graph = self.lm_graph.clone()
+        if hasattr(lm_graph, 'aux_labels'):
+            delattr(lm_graph, 'aux_labels')
+        if self.pad_fsavec:
+            shift_labels_inpl([lm_graph], 1)
+        if self.loss_type == 'mmi':
             from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
-        elif sd_type == 'crf':
-            from nemo.collections.asr.parts.k2.graph_compilers import CtcCrfTrainingGraphCompiler as compiler
         else:
-            raise ValueError(f"Invalid value of `sd_type`: {sd_type}.")
-        self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=self.lm_graph)
-        if self.lm_graph is None:
-            self.lm_graph = self.graph_compiler.den_graph
-        if use_mbr and mbr_graph is not None:
-            self.mbr_graph = load_graph(mbr_graph) if isinstance(mbr_graph, str) else mbr_graph
-            if len(self.mbr_graph.shape) == 2:
-                self.mbr_graph = k2.create_fsa_vec([self.mbr_graph])
-        else:
-            self.mbr_graph = None
+            raise ValueError(f"Invalid value of `loss_type`: {self.loss_type}.")
+        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_selfloops, aux_graph=lm_graph)
 
     def _intersect_calc_scores_mmi_exact(self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = True):
         device = dense_fsa_vec.device
@@ -198,6 +188,8 @@ class SDLoss(torch.nn.Module):
             input_lengths: torch.Tensor,
             target_lengths: torch.Tensor
     ) -> torch.Tensor:
+        assert self.graph_compiler is not None
+        boosted = self.boost_coeff != 0.0
         if self.blank != 0:
             # rearrange log_probs to put blank at the first place
             # and shift targets to emulate blank = 0
@@ -205,72 +197,51 @@ class SDLoss(torch.nn.Module):
         supervisions, order = create_supervision(input_lengths)
         targets = targets[order]
         target_lengths = target_lengths[order]
-        if self.sd_type == 'crf':
-            # Same as for CTC
-            log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction != "sum" else "none")
 
         if log_probs.device != self.graph_compiler.device:
             self.graph_compiler.to(log_probs.device)
-            self.lm_graph = self.lm_graph.to(log_probs.device)
-        if self.use_mbr and self.mbr_graph is not None and log_probs.device != self.mbr_graph.device:
-            self.mbr_graph = self.mbr_graph.to(log_probs.device)
 
         num_graphs, den_graph = self.graph_compiler.compile(targets + 1 if self.pad_fsavec else targets, target_lengths)
 
-        if self.use_mbr and self.mbr_graph is not None:
-            den_graph = self.mbr_graph
-
         dense_fsa_vec = prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
 
-        num_tot_scores, den_tot_scores, num_lats, den_lats = self.intersect_calc_scores(dense_fsa_vec, num_graphs, den_graph, self.use_mbr)
+        num_tot_scores, den_tot_scores, num_lats, den_lats = self.intersect_calc_scores(dense_fsa_vec, num_graphs, den_graph, boosted)
 
-        if self.sd_type == 'crf':
-            token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
-            label_graph = k2.linear_fsa(token_ids_list).to(num_tot_scores.device)
-            path_weight_graphs = k2.compose(self.lm_graph, label_graph, treat_epsilons_specially=False)
-            path_weight_graphs = k2.arc_sort(path_weight_graphs)
-            num_tot_scores += path_weight_graphs._get_tot_scores(False, True)
-        # tot_scores = num_tot_scores - self.den_scale * den_tot_scores
-        # alaptev: I believe it is better to vary only gradients for the sake of comparability
-        tot_scores = num_tot_scores - GradScale.apply(den_tot_scores, self.den_scale)
-        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_num_frames(
+        tot_scores = num_tot_scores - den_tot_scores
+        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_finite_mask(
             tot_scores,
             self.reduction
         )
 
-        # In crf training den_tot_scores can exceed num_tot_scores.
-        # It means that the model is going to diverge.
-        # It can also be triggered when switching the lm_graph, so I commented it out for now.
-        # assert tot_scores.nelement() == 0 or torch.all(tot_scores <= 0.0), "denominator took over"
-
-        if self.use_mbr:
+        if boosted:
             assert num_lats is not None and den_lats is not None
 
             size = (dense_fsa_vec.dim0(), dense_fsa_vec.scores.shape[0], dense_fsa_vec.scores.shape[1] - 1)
             row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
-            mbr_num_sparse = create_sparse_wrapped(indices=[k2.index_select(row_ids, num_lats.seqframe_idx),
-                                                            num_lats.seqframe_idx,
-                                                            num_lats.phones],
-                                                   values=num_lats.get_arc_post(True,True).exp(),
-                                                   size=size,
-                                                   min_col_index=0)
-            mbr_den_sparse = create_sparse_wrapped(indices=[k2.index_select(row_ids, den_lats.seqframe_idx),
-                                                            den_lats.seqframe_idx,
-                                                            den_lats.phones],
-                                                   values=den_lats.get_arc_post(True,True).exp(),
-                                                   size=size,
-                                                   min_col_index=0)
+            num_sparse = create_sparse_wrapped(indices=[k2.index_select(row_ids, num_lats.seqframe_idx),
+                                                        num_lats.seqframe_idx,
+                                                        num_lats.phones],
+                                               values=num_lats.get_arc_post(True,True).exp(),
+                                               size=size,
+                                               min_col_index=0)
+            den_sparse = create_sparse_wrapped(indices=[k2.index_select(row_ids, den_lats.seqframe_idx),
+                                                        den_lats.seqframe_idx,
+                                                        den_lats.phones],
+                                               values=den_lats.get_arc_post(True,True).exp(),
+                                               size=size,
+                                               min_col_index=0)
 
             # NOTE: Due to limited support of PyTorch's autograd for sparse tensors,
-            # we cannot use (mbr_num_sparse - mbr_den_sparse) here
-            # The following works only for torch >= 1.7.0
-            mbr_loss = torch.sparse.sum(sparse_abs((mbr_num_sparse + (-mbr_den_sparse)).coalesce()), (1,2)).to_dense()
-            mbr_tot_scores, mbr_valid_mask = get_tot_objf_and_num_frames(
-                mbr_loss,
+            # we cannot use (num_sparse - den_sparse) here
+            # TODO (alaptev): propose sparse_abs to k2
+            acc_loss = torch.sparse.sum(sparse_abs((num_sparse + (-den_sparse)).coalesce()), (1,2)).to_dense()
+            acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(
+                acc_loss,
                 self.reduction
             )
-            valid_mask = mmi_valid_mask & mbr_valid_mask
-            total_loss = mbr_tot_scores[valid_mask] - mmi_tot_scores[valid_mask]
+            valid_mask = mmi_valid_mask & acc_valid_mask
+            total_loss = self.boost_coeff * acc_tot_scores[valid_mask] - mmi_tot_scores[valid_mask]
         else:
+            valid_mask = mmi_valid_mask
             total_loss = - mmi_tot_scores[mmi_valid_mask]
-        return total_loss
+        return total_loss, valid_mask

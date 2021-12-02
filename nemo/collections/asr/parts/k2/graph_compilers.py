@@ -39,10 +39,12 @@ from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
 
 
 class CtcTrainingTopologyCompiler(object):
+    """TBD
+    """
 
     def __init__(self,
                  num_classes: int,
-                 topo_type: str = "ctc_default",
+                 topo_type: str = "default",
                  topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu")
     ):
@@ -71,10 +73,12 @@ class CtcTrainingTopologyCompiler(object):
 
 
 class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
+    """TBD
+    """
 
     def __init__(self,
                  num_classes: int,
-                 topo_type: str = "ctc_default",
+                 topo_type: str = "default",
                  topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  aux_graph: Optional[k2.Fsa] = None
@@ -95,41 +99,13 @@ class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
         return super().compile(targets, target_lengths)
 
 
-class CtcCrfTrainingGraphCompiler(CtcTrainingTopologyCompiler):
-
-    def __init__(self,
-                 num_classes: int,
-                 topo_type: str = "ctc_default",
-                 topo_with_selfloops: bool = True,
-                 device: torch.device = torch.device("cpu"),
-                 aux_graph: Optional[k2.Fsa] = None
-    ):
-        super().__init__(num_classes, topo_type, topo_with_selfloops, device)
-        if aux_graph is None:
-            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
-        else:
-            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
-            self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
-
-    def to(self, device: torch.device):
-        if self.den_graph is not None:
-            self.den_graph = self.den_graph.to(device)
-        super().to(device)
-
-    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> Tuple[k2.Fsa, k2.Fsa]:
-        if aux_graph is None and self.den_graph is None:
-            raise ValueError(f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}")
-        elif aux_graph is not None:
-            self.den_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert()
-            self.den_graph = k2.create_fsa_vec([self.den_graph.detach()]).to(self.device)
-        return super().compile(targets, target_lengths), self.den_graph
-
-
 class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
+    """TBD
+    """
 
     def __init__(self,
                  num_classes: int,
-                 topo_type: str = "ctc_default",
+                 topo_type: str = "default",
                  topo_with_selfloops: bool = True,
                  device: torch.device = torch.device("cpu"),
                  aux_graph: Optional[k2.Fsa] = None
