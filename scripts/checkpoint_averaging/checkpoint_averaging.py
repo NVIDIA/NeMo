@@ -58,10 +58,9 @@ def main():
 
 
     for fn in args.import_fname_list:
-        import pudb; pudb.set_trace()
         logging.info(f"Importing * from {fn}")
         sys.path.insert(0, os.path.dirname(fn))
-        globals().update(importlib.import_module(os.path.splitext(os.path.basename(fn)))[0].__dict__)
+        globals().update(importlib.import_module(os.path.splitext(os.path.basename(fn))[0]).__dict__)
 
     device = torch.device("cpu")
 
