@@ -25,6 +25,287 @@ from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
 
+def LCSubStrMerge(X, Y):
+    # LCSuff is the table with zero
+    # value initially in each cell
+    m = len(X)
+    n = len(Y)
+    LCSuff = [[0 for k in range(n + 1)] for l in range(m + 1)]
+
+    # To store the length of
+    # longest common substring
+    result = 0
+    result_idx = [0, 0, 0]  # Contains (i, j, slice_len)
+
+    # Following steps to build
+    # LCSuff[m+1][n+1] in bottom up fashion
+    for i in range(m + 1):
+        for j in range(n + 1):
+            if (i == 0 or j == 0):
+                LCSuff[i][j] = 0
+            elif (X[i - 1] == Y[j - 1]):
+                LCSuff[i][j] = LCSuff[i - 1][j - 1] + 1
+
+                if result <= LCSuff[i][j]:
+                    result = LCSuff[i][j]  # max(result, LCSuff[i][j])
+                    result_idx = [i, j, result]
+
+            else:
+                LCSuff[i][j] = 0
+
+    # Check if perfect alignment was found or not
+    # Perfect alignment is found if :
+    # Longest common subsequence extends to the final row of of the old buffer
+    # This means that there exists a diagonal LCS backtracking to the beginning of the new buffer
+    i, j = result_idx[0:2]
+    is_complete_merge = (i == m)
+
+    # Perfect alignment was found, slice eagerly
+    if is_complete_merge:
+        length = result_idx[-1]
+
+        # In case the LCS was incomplete - missing a few tokens at the beginning
+        # Perform backtrack to find the origin point of the slice (j) and how many tokens should be sliced
+        while length >= 0 and i > 0 and j > 0:
+            # Alignment exists at the required diagonal
+            if LCSuff[i - 1][j - 1] > 0:
+                length -= 1
+                i, j = i - 1, j - 1
+
+            else:
+                # End of longest alignment
+                i, j, length = i - 1, j - 1, length - 1
+                break
+
+    else:
+        # Expand hypothesis to catch partial mismatch
+
+        # There are 3 steps for partial mismatch in alignment
+        # 1) Backward search for leftmost LCS
+        # 2) Greedy expansion of leftmost LCS to the right
+        # 3) Backtrack final leftmost expanded LCS to find origin point of slice
+
+        # (1) Backward search for Leftmost LCS
+        # This is required for cases where multiple common subsequences exist
+        # We only need to select the leftmost one - since that corresponds
+        # to the last potential subsequence that matched with the new buffer.
+        # If we just chose the LCS (and not the leftmost LCS), then we can potentially
+        # slice off major sections of text which are repeated between two overlapping buffers.
+
+        # backward linear search for leftmost j with longest subsequence
+        max_j = 0
+        max_j_idx = n
+
+        i_partial = m  # Starting index of i for partial merge
+        j_partial = -1  # Index holder of j for partial merge
+        j_skip = 0  # Number of tokens that were skipped along the diagonal
+        slice_count = 0  # Number of tokens that should be sliced
+
+        # Select leftmost LCS
+        for i_idx in range(m, -1, -1):  # start from last timestep of old buffer
+            for j_idx in range(0, n + 1):  # start from first token from new buffer
+                # Select the longest LCSuff, while minimizing the index of j (token index for new buffer)
+                if LCSuff[i_idx][j_idx] > max_j and j_idx <= max_j_idx:
+                    max_j = LCSuff[i_idx][j_idx]
+                    max_j_idx = j_idx
+
+                    # Update the starting indices of the partial merge
+                    i_partial = i_idx
+                    j_partial = j_idx
+
+        # EARLY EXIT (if max subsequence length <= MIN merge length)
+        # Important case where there is long silence
+        # The end of one buffer will have many blank tokens, the beginning of new buffer may have many blank tokens
+        # As such, LCS will potentially be from the region of actual tokens.
+        # This can be detected as the max length of the suffix in LCS
+        # If this max length of the leftmost suffix is less than some margin, avoid slicing all together.
+        if max_j <= MIN_MERGE_SUBSEQUENCE_LEN:
+            # If the number of partiial tokens to be deleted are less than the minimum,
+            # dont delete any tokens at all.
+
+            i = i_partial
+            j = 0
+            result_idx[-1] = 0
+
+        else:
+            # Some valid long partial alignment was found
+            # (2) Expand this alignment along the diagonal *downwards* towards the end of the old buffer
+            # such that i_partial = m + 1.
+            # This is a common case where due to LSTM state or reduced buffer size, the alignment breaks
+            # in the middle but there are common subsequences between old and new buffers towards the end
+            # We can expand the current leftmost LCS in a diagonal manner downwards to include such potential
+            # merge regions.
+
+            # Expand current partial subsequence with co-located tokens
+            i_temp = i_partial + 1  # diagonal next i
+            j_temp = j_partial + 1  # diagonal next j
+
+            j_exp = 0  # number of tokens to expand along the diagonal
+            j_skip = 0  # how many diagonals didnt have the token. Incremented by 1 for every row i
+
+            for i_idx in range(i_temp, m + 1):  # walk from i_partial + 1 => m + 1
+                j_any_skip = 0  # If the diagonal element at this location is not found, set to 1
+                # j_any_skip expands the search space one place to the right
+                # This allows 1 diagonal misalignment per timestep i (and expands the search for the next timestep)
+
+                # walk along the diagonal corresponding to i_idx, plus allowing diagonal skips to occur
+                # diagonal elements may not be aligned due to ASR model predicting
+                # incorrect token in between correct tokens
+                for j_idx in range(j_temp, j_temp + j_skip + 1):
+                    if j_idx < n + 1:
+                        if LCSuff[i_idx][j_idx] == 0:
+                            j_any_skip = 1
+                        else:
+                            j_exp = 1 + j_skip + j_any_skip
+
+                # If the diagonal element existed, dont expand the search space,
+                # otherwise expand the search space 1 token to the right
+                j_skip += j_any_skip
+
+                # Move one step to the right for the next diagonal j corresponding to i
+                j_temp += 1
+
+            # reset j_skip, augment j_partial with expansions
+            j_skip = 0
+            j_partial += j_exp
+
+            # (3) Given new leftmost j_partial with expansions, backtrack the partial alignments
+            # counting how many diagonal skips occured to compute slice length
+            # as well as starting point of slice.
+
+            # Partial backward trace to find start of slice
+            while i_partial > 0 and j_partial > 0:
+                if LCSuff[i_partial][j_partial] == 0:
+                    # diagonal skip occured, move j to left 1 extra time
+                    j_partial -= 1
+                    j_skip += 1
+
+                if j_partial > 0:
+                    # If there are more steps to be taken to the left, slice off the current j
+                    # Then loop for next (i, j) diagonal to the upper left
+                    slice_count += 1
+                    i_partial -= 1
+                    j_partial -= 1
+
+            # Recompute total slice length as slice count along diagonal
+            # plus the number of diagonal skips
+            i = max(0, i_partial)
+            j = max(0, j_partial)
+            result_idx[-1] = slice_count + j_skip
+
+    # Set the value of i and j
+    result_idx[0] = i
+    result_idx[1] = j
+
+    return result_idx
+
+
+# def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=5):
+#     """
+#     Merges the new text from the current frame with the previous text contained in the buffer.
+
+#     The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
+#     the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
+#     will be incorrect (or at least obtain worse WER overall).
+#     """
+#     # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
+#     if timesteps < 1:
+#         buffer += data
+#         return buffer
+
+#     # If buffer is empty, simply concatenate the buffer and data.
+#     if len(buffer) == 0:
+#         buffer += data
+#         return buffer
+
+#     # Prepare a subset of the buffer that will be LCS Merged with new data
+#     search_size = int(timesteps * max_steps_per_timestep)
+#     buffer_slice = buffer[-search_size:]
+
+#     # Perform LCS Merge
+#     lcs_idx = LCSubStrMerge(buffer_slice, data)
+
+#     # Slice off new data
+#     i, j, slice_len = lcs_idx
+#     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
+#     data = data[slice_idx:]
+
+#     # Concat data to buffer
+#     buffer += data
+#     return buffer
+
+
+# def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=5):
+#     """
+#     Merges the new text from the current frame with the previous text contained in the buffer.
+
+#     The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
+#     the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
+#     will be incorrect (or at least obtain worse WER overall).
+#     """
+#     # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
+#     if timesteps < 1:
+#         buffer += data
+#         return buffer
+
+#     # If buffer is empty, simply concatenate the buffer and data.
+#     if len(buffer) == 0:
+#         buffer += data
+#         return buffer
+
+#     # Prepare a subset of the buffer that will be LCS Merged with new data
+#     search_size = int(timesteps * max_steps_per_timestep)
+#     buffer_slice = buffer# [-search_size:]
+
+#     # Perform LCS Merge
+# #     lcs_idx = LCSubStrMerge(buffer_slice, data)
+
+# #     # Slice off new data
+# #     i, j, slice_len = lcs_idx
+# #     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
+
+#     # data = data[slice_idx:]
+
+#     # Concat data to buffer
+#     buffer += data
+#     return buffer
+
+def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=5):
+    """
+    Merges the new text from the current frame with the previous text contained in the buffer.
+
+    The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
+    the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
+    will be incorrect (or at least obtain worse WER overall).
+    """
+    # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
+    if timesteps < 1:
+        buffer += data
+        return buffer
+
+    # If buffer is empty, simply concatenate the buffer and data.
+    if len(buffer) == 0:
+        buffer += data
+        return buffer
+
+    # Prepare a subset of the buffer that will be LCS Merged with new data
+    search_size = int(timesteps * max_steps_per_timestep)
+    buffer_slice = buffer  # [-search_size:]
+
+    # Perform LCS Merge
+    #     lcs_idx = LCSubStrMerge(buffer_slice, data)
+
+    #     # Slice off new data
+    #     i, j, slice_len = lcs_idx
+    #     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
+
+    #     data = data[slice_idx:]
+
+    # Concat data to buffer
+    buffer += data
+    return buffer
+
+
 class AudioFeatureIterator(IterableDataset):
     def __init__(self, samples, frame_len, preprocessor, device):
         self._samples = samples
@@ -276,7 +557,10 @@ class FrameBatchASR:
 
         self.unmerged = []
 
-        self.blank_id = len(asr_model.decoder.vocabulary)
+        if hasattr(asr_model.decoder, "vocabulary"):
+            self.blank_id = len(asr_model.decoder.vocabulary)
+        else:
+            self.blank_id = len(asr_model.joint.vocabulary)
         self.tokenizer = asr_model.tokenizer
         self.toks_unmerged = []
         self.frame_buffers = []
@@ -360,4 +644,133 @@ class FrameBatchASR:
                 decoded_prediction.append(p)
             previous = p
         hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
+        return hypothesis
+
+
+# class for streaming frame-based ASR
+# 1) use reset() method to reset FrameASR's state
+# 2) call transcribe(frame) to do ASR on
+#    contiguous signal's frames
+class FrameBatchASRRNNT(FrameBatchASR):
+    """
+    class for streaming frame-based ASR use reset() method to reset FrameASR's
+    state call transcribe(frame) to do ASR on contiguous signal's frames
+    """
+
+    def __init__(
+        self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, max_steps_per_timestep: int = 5, stateful_decoding: bool = False
+    ):
+        '''
+        Args:
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+          offset: number of symbols to drop for smooth streaming
+        '''
+        super().__init__(asr_model, frame_len, total_buffer, batch_size)
+
+        self.max_steps_per_timestep = max_steps_per_timestep
+        self.stateful_decoding = stateful_decoding
+
+        self.all_alignments = []
+        self.previous_hypotheses = None
+
+        try:
+            self.eos_id = self.asr_model.tokenizer.eos_id
+        except Exception:
+            self.eos_id = -1
+
+        print("Performing Stateful decoding :", self.stateful_decoding)
+
+    def reset(self):
+        """
+        Reset frame_history and decoder's state
+        """
+        super().reset()
+
+        self.all_alignments = []
+        self.previous_hypotheses = None
+
+    @torch.no_grad()
+    def infer_logits(self):
+        frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+        while len(frame_buffers) > 0:
+            self.frame_buffers += frame_buffers[:]
+            self.data_layer.set_signal(frame_buffers[:])
+            self._get_batch_preds()
+            frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+    @torch.no_grad()
+    def _get_batch_preds(self):
+        device = self.asr_model.device
+        for batch in iter(self.data_loader):
+
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            encoded, encoded_len = self.asr_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
+
+            best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+                encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+            )
+
+            if self.stateful_decoding:
+                # preserve last state from hypothesis
+                self.previous_hypotheses = best_hyp
+
+            for hyp in best_hyp:
+                self.all_alignments.append(hyp.alignments)
+
+            preds = [hyp.y_sequence for hyp in best_hyp]
+            for pred in preds:
+                self.all_preds.append(pred.cpu().numpy())
+
+            if self.stateful_decoding:
+                reset_states = self.asr_model.decoder.initialize_state(encoded)
+
+                for idx, pred in enumerate(preds):
+                    if len(pred) > 0 and pred[-1] == self.eos_id:
+                        # reset states :
+                        self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
+                        self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
+                            reset_states, idx)
+
+            del encoded, encoded_len
+            del best_hyp, pred
+
+    def transcribe(
+        self, tokens_per_chunk: int, delay: int,
+    ):
+        self.infer_logits()
+        self.unmerged = []
+        for idx, alignment in enumerate(self.all_alignments):
+            alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
+            ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+            if len(ids) > 0:
+                self.unmerged = inplace_buffer_merge(self.unmerged, ids, delay, model=self.asr_model,
+                                                     max_steps_per_timestep=self.max_steps_per_timestep)
+        return self.greedy_merge(self.unmerged)
+
+    def _alignment_decoder(self, alignments, tokenizer, blank_id):
+        s = []
+        ids = []
+
+        for t in range(len(alignments)):
+            for u in range(len(alignments[t])):
+                token_id = int(alignments[t][u])
+                if token_id != blank_id:
+                    token = tokenizer.ids_to_tokens([token_id])[0]
+                    s.append(token)
+                    ids.append(token_id)
+
+                else:
+                    # blank token
+                    pass
+
+        return ids, s
+
+    def greedy_merge(self, preds):
+        decoded_prediction = [p for p in preds]
+        hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
