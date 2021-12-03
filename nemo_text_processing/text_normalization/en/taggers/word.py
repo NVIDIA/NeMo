@@ -46,6 +46,6 @@ class WordFst(GraphFst):
         non_digit = pynini.difference(NEMO_CHAR, (NEMO_DIGIT | NEMO_WHITE_SPACE)).optimize()
         self.graph = pynini.closure(non_digit, 1)
 
-        if not deterministic:
-            self.graph = pynini.closure(NEMO_NOT_SPACE, 1)
+        # if not deterministic:
+        #     self.graph = pynini.closure(NEMO_NOT_SPACE, 1)
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

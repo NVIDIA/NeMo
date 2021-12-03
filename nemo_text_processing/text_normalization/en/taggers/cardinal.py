@@ -56,10 +56,15 @@ class CardinalFst(GraphFst):
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
         if not deterministic:
-            single_digits_graph = (
-                pynini.invert(graph_digit | graph_zero) | pynini.cross("0", "oh") | pynini.cross("0", "o")
+            # for a single token allow only the same normalization
+            # "007" -> {"oh oh seven", "zero zero seven"} not {"oh zero seven"}
+            single_digits_graph_zero = pynini.invert(graph_digit | graph_zero)
+            single_digits_graph_oh = pynini.invert(graph_digit) | pynini.cross("0", "oh")
+
+            self.single_digits_graph = single_digits_graph_zero + pynini.closure(
+                insert_space + single_digits_graph_zero
             )
-            self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
+            self.single_digits_graph |= single_digits_graph_oh + pynini.closure(insert_space + single_digits_graph_oh)
 
             single_digits_graph_with_commas = pynini.closure(
                 self.single_digits_graph + insert_space, 1, 3
@@ -97,12 +102,13 @@ class CardinalFst(GraphFst):
         if not deterministic:
             final_graph |= self.range_graph
             remove_leading_zeros = pynini.closure(pynutil.delete("0"), 1) + pynini.compose(
-                pynini.closure(NEMO_DIGIT, 1), self.graph
+                pynini.closure(pynini.difference(NEMO_DIGIT, "0"), 1), self.graph
             )
             final_graph |= remove_leading_zeros
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
+
         self.fst = final_graph.optimize()
 
     def get_serial_graph(self):
