@@ -83,13 +83,18 @@ def model_process(
     asr_model, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
 ):
 
-    encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = asr_model.encoder(
+    out = asr_model.encoder(
         audio_signal=audio_signal,
         length=length,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
         cache_pre_encode=cache_pre_encode,
     )
+    if len(out) == 5:
+        encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = out
+    else:
+        encoded, encoded_len = out
+        cache_last_channel_next = cache_last_time_next = cache_pre_encode_next = None
     log_probs = asr_model.decoder(encoder_output=encoded)
     greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
     return greedy_predictions, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next
