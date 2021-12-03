@@ -174,6 +174,10 @@ class MegatronGPTModel(NLPModel):
         self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
+        # currently our dataloaders are producing a micro-batch here,
+        # but we need this to be a "global batch" which will get split
+        # into micro batches by fwd/bwd function
+        # also need to add fwd/bwd function for non-pipeline case
         tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             # we zero grads here because we also call backward here
