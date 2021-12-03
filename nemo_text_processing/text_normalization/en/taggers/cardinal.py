@@ -15,7 +15,7 @@
 
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
-from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
+from nemo_text_processing.text_normalization.en.taggers.date import NEMO_SIGMA, get_hundreds_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
@@ -120,13 +120,19 @@ class CardinalFst(GraphFst):
             letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
             alpha |= letter_pronunciation
 
-        delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
+        delimiter = insert_space | pynini.accep("-") | pynini.cross("/", " ")
 
         letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
         num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
         next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
         serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
+
+        #  make sure at least on digit and alpha is present
+        alpha_num_check = (NEMO_SIGMA + num_graph + NEMO_SIGMA + alpha + NEMO_SIGMA) | (
+            NEMO_SIGMA + alpha + NEMO_SIGMA + num_graph + NEMO_SIGMA
+        )
+        serial_graph = pynini.compose(alpha_num_check, serial_graph)
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 

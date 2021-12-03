@@ -16,6 +16,7 @@
 import os
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -138,10 +139,23 @@ class ClassifyFst(GraphFst):
                 pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
             )
 
-            graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
+            graph = token_plus_punct + pynini.closure(
+                (pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space) | pynutil.insert(" "))
+                + token_plus_punct
+            )
             graph = delete_space + graph + delete_space
 
             self.fst = graph.optimize()
+
+            # from pynini.lib import rewrite
+            # def get_w(text, graph):
+            #     lattice = rewrite.rewrite_lattice(text, graph)
+            #     lattice = rewrite.lattice_to_nshortest(lattice, 2)
+            #     for x in lattice.paths().items():
+            #         print(f"{x[1]} -- {x[2]}")
+            #
+            # get_w("5p.m.,hello!", graph)
+            # import pdb; pdb.set_trace()
 
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})

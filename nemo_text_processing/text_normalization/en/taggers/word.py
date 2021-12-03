@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_DIGIT,
+    NEMO_NOT_SPACE,
+    NEMO_WHITE_SPACE,
+    GraphFst,
+)
 
 try:
     import pynini
@@ -37,5 +43,9 @@ class WordFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="word", kind="classify", deterministic=deterministic)
 
-        self.graph = pynini.closure(NEMO_NOT_SPACE, 1)
+        non_digit = pynini.difference(NEMO_CHAR, (NEMO_DIGIT | NEMO_WHITE_SPACE)).optimize()
+        self.graph = pynini.closure(non_digit, 1)
+
+        if not deterministic:
+            self.graph = pynini.closure(NEMO_NOT_SPACE, 1)
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

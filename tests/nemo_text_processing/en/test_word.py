@@ -60,4 +60,4 @@ class TestWord:
         pred_non_deterministic = self.normalizer_with_audio_en.normalize(
             test_input, n_tagged=100, punct_post_process=False
         )
-        assert expected in pred_non_deterministic
+        assert expected.replace(" ", "") in [x.replace(" ", "") for x in pred_non_deterministic]

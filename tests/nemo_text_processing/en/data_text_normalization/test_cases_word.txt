@@ -2,7 +2,7 @@
 May I come in?~May I come in?
 Yes you may.~Yes you may.
 On the mar.~On the mar.
-es3~e s three
+es3~es three
 x ~x
 X!~X!
 2!~two !
@@ -24,3 +24,4 @@ aalem~aalem
 a'ali~a'ali
 aaliyan's~aaliyan's
 mother-in-law~mother-in-law
+Hi it's 5pm,4A.M.-34. Hi,no,yes,34! 12,again,4 and NO?17 and $.01,here & there--0.004kg~Hi it's five p m , four A M minus thirty four . Hi,no,yes, thirty four ! twelve ,again, four and NO? seventeen and point o one dollars ,here and there-- zero point o o four kilograms
