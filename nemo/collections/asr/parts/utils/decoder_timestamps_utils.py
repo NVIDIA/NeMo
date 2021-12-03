@@ -348,7 +348,7 @@ class ASR_TIMESTAMPS:
         decoder_delay_in_sec is the amount of delay that is compensated during the word timestamp extraction.
         word_ts_anchor_offset is the reference point for a word and used for matching the word with diarization labels.
         Each ASR model has different optimal decoder delay and word timestamp anchor offset.
-        To obtain the optimized diarization result with ASR, decoder_delay_in_sec and word_ts_anchor_offset
+        To obtain an optimized diarization result with ASR, decoder_delay_in_sec and word_ts_anchor_offset
         need to be searched on a development set.
         """
         if 'quartznet' in ASR_model_name.lower():
