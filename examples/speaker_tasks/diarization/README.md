@@ -216,10 +216,10 @@ You should provide a trained [KenLM](https://github.com/kpu/kenlm) language mode
     ... <other paramerters> ...
     diarizer.asr.ctc_decoder_parameters.pretrained_language_model="/path/to/kenlm_language_model.binary"
 ```
-The following CTC decoder parameters can be modified to optimize the performance.
-`diarizer.asr.ctc_decoder_parameters.beam_width` (default: 32)    
-`diarizer.asr.ctc_decoder_parameters.alpha` (default: 0.5)     
-`diarizer.asr.ctc_decoder_parameters.beta` (default: 2.5)     
+The following CTC decoder parameters can be modified to optimize the performance.      
+`diarizer.asr.ctc_decoder_parameters.beam_width` (default: 32)      
+`diarizer.asr.ctc_decoder_parameters.alpha` (default: 0.5)       
+`diarizer.asr.ctc_decoder_parameters.beta` (default: 2.5)       
  
 #### Realign Words with a Language Model (Experimental)
 
