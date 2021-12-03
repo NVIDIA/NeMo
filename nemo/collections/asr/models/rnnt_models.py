@@ -29,8 +29,8 @@ from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
-from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import Exportable
@@ -884,12 +884,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 if param.grad is not None:
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
-                    
-    def export(self,
-               output: str,
-               input_example=None,
-               output_example=None,
-               **kwargs):
+
+    def export(self, output: str, input_example=None, output_example=None, **kwargs):
         self.encoder._rnnt_export = True
         self.decoder._rnnt_export = True
         self.joint._rnnt_export = True
@@ -897,7 +893,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self._augment_output_filename(output, 'Encoder'),
             input_example=input_example,
             output_example=None,
-            **kwargs
+            **kwargs,
         )
         decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
         decoder_exp, decoder_descr = decoder_joint.export(
@@ -905,4 +901,5 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             # TODO: propagate from export()
             input_example=None,
             output_example=None,
-            **kwargs)
+            **kwargs,
+        )

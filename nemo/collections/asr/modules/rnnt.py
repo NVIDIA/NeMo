@@ -126,7 +126,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
-
     def __init__(
         self,
         prednet: Dict[str, Any],
@@ -713,7 +712,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         """Implement this method to return a set of input names disabled for export"""
         return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
 
-
     def __init__(
         self,
         jointnet: Dict[str, Any],
@@ -1081,12 +1079,13 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
     """
     Utility class to export Decoder+Joint as a single module
     """
+
     def __init__(self, decoder, joint):
         super().__init__()
         self.decoder = decoder
         self.joint = joint
         self.training = False
-        
+
     @property
     def input_types(self):
         state_type = NeuralType(('D', 'B', 'D'), ElementType())
@@ -1095,16 +1094,16 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
             'input-states-1': state_type,
-            'input-states-2': state_type
+            'input-states-2': state_type,
         }
-    
+
         return mytypes
 
     def input_example(self):
         decoder_example = self.decoder.input_example()
         state1, state2 = decoder_example[-1]
         return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
-    
+
     @property
     def output_types(self):
         return {
