@@ -288,12 +288,14 @@ class CausalConv1D(nn.Conv1d):
         else:
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
+                cache_next = cache_next[self._cache_id]
             cache_length = cache.size()[-1]
+            cache_next_length = cache.size()[-1]
             needed_cache = cache[:, :, -self._left_padding :]
             x = torch.cat((needed_cache, x), dim=-1)
         x = super().forward(x)
         if cache_next is not None:
-            cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
+            cache_next[:, :, :-x_length] = cache[:, :, -(cache_next_length - x_length) :]
             cache_next[:, :, -x_length:] = input_x
         # else:
         #     # x = x[:, :, : -self.padding[0]]

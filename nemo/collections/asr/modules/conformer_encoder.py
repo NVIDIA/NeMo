@@ -223,7 +223,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
 
         if cache_last_channel is not None:
-            cache_pre_encode_next = torch.zeros_like(cache_last_channel)
+            cache_pre_encode_next = torch.zeros_like(cache_pre_encode)
             cache_last_time_next = torch.zeros_like(cache_last_time)
         else:
             cache_pre_encode_next = None
@@ -242,7 +242,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         # Create the self-attention and padding masks
         if cache_last_channel is not None:
-            last_channel_num, bs, cache_len, channel_size = cache_last_channel.size().size()
+            last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
             cache_last_channel_next = torch.zeros(
                 (last_channel_num, bs, cache_len + xmax, channel_size),
                 device=cache_last_channel.device,

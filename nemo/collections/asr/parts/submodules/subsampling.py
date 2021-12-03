@@ -63,7 +63,7 @@ class CausalConv2D(nn.Conv2d):
             dtype,
         )
 
-    def forward(self, x, cache=None):
+    def forward(self, x, cache=None, cache_next=None):
         if type(x) == tuple:
             if cache is not None:
                 raise ValueError("Cache can not be non-None when input x is a tuple!")
@@ -76,8 +76,10 @@ class CausalConv2D(nn.Conv2d):
         else:
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
+                cache_next = cache_next[self._cache_id]
 
             cache_length = cache.size()[-2]
+            cache_next_length = cache.size()[-2]
             needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
             x = torch.cat((needed_cache, x), dim=-1)
 
@@ -87,8 +89,8 @@ class CausalConv2D(nn.Conv2d):
                 # x = x[:, :, :-(self.padding[0]//2), :-(self.padding[0]//2)]
                 x = x[:, :, : -self._ignore_len, : -self._ignore_len]
         else:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :]
-            cache[:, :, -x_length:] = input_x
+            cache_next[:, :, :-x_length] = cache[:, :, -(cache_next_length - x_length) :]
+            cache_next[:, :, -x_length:] = input_x
 
         return x
 
@@ -217,8 +219,11 @@ class ConvSubsampling(torch.nn.Module):
         if cache is not None:
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
+                cache_next = cache_next[self._cache_id]
 
             cache_length = cache.size()[-2]
+            cache_next_length = cache.size()[-2]
+
             if x_length != 1:
                 needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
                 x = torch.cat((needed_cache, x), dim=-2)
@@ -226,8 +231,9 @@ class ConvSubsampling(torch.nn.Module):
         x = self.conv(x)
 
         if cache is not None:
-            cache[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
-            cache[:, :, -x_length:, :] = input_x
+            #cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
+            cache_next[:, :, :-x_length] = cache[:, :, -(cache_next_length - x_length) :]
+            cache_next[:, :, -x_length:, :] = input_x
 
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))

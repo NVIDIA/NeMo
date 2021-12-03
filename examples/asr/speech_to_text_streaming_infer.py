@@ -83,7 +83,7 @@ def model_process(
     asr_model, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
 ):
 
-    encoded, encoded_len = asr_model.encoder(
+    encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = asr_model.encoder(
         audio_signal=audio_signal,
         length=length,
         cache_last_channel=cache_last_channel,
@@ -92,7 +92,7 @@ def model_process(
     )
     log_probs = asr_model.decoder(encoder_output=encoded)
     greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-    return greedy_predictions
+    return greedy_predictions, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next
 
 
 def main():
@@ -153,7 +153,7 @@ def main():
         input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
     )
 
-    asr_out_whole = model_process(
+    asr_out_whole, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
         asr_model=asr_model,
         audio_signal=processed_signal,
         length=processed_signal_length,
@@ -181,7 +181,7 @@ def main():
         (last_time_num, 1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32
     )
 
-    asr_out_stream = model_process(
+    asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
         asr_model=asr_model,
         audio_signal=processed_signal[:, :, :init_buffer],
         length=torch.tensor([init_buffer]),

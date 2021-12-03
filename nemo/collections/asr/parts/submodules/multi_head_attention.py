@@ -183,8 +183,10 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         if cache is not None:
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
+                cache_next = cache_next[self._cache_id]
             q_length = query.size()[1]
             cache_length = cache.size()[1]
+            cache_next_length = cache_next.size()[1]
             q_input = query
             key = value = torch.cat((cache, key), dim=1)
 
@@ -217,7 +219,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
         ret = self.forward_attention(v, scores, mask)
         if cache_next is not None:
-            cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length) :, :].clone()
+            #cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :].clone()
+            cache_next[:, :-q_length, :] = cache[:, -(cache_next_length - q_length):, :].clone()
             cache_next[:, -q_length:, :] = q_input
         return ret
 
