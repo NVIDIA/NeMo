@@ -204,7 +204,7 @@ def main():
     for i in range(1, processed_signal.size(-1), buffer_size):
         asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
             asr_model=asr_model,
-            audio_signal=processed_signal[:, :, i:i+buffer_size],
+            audio_signal=processed_signal[:, :, i : i + buffer_size],
             length=torch.tensor([buffer_size]),
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
