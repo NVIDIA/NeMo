@@ -53,6 +53,7 @@ class ConformerLayer(torch.nn.Module):
         pos_bias_u=None,
         pos_bias_v=None,
         is_causal=False,
+        att_context_size=[-1, -1],
     ):
         super(ConformerLayer, self).__init__()
 
@@ -72,12 +73,24 @@ class ConformerLayer(torch.nn.Module):
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
+        if is_causal:
+            MHA_max_cache_len = att_context_size[0]
+        else:
+            MHA_max_cache_len = -1
+
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v,
+                max_cache_len=MHA_max_cache_len,
             )
         elif self_attention_model == 'abs_pos':
-            self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
+            self.self_attn = MultiHeadAttention(
+                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, max_cache_len=MHA_max_cache_len
+            )
         else:
             raise ValueError(
                 f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
@@ -269,6 +282,8 @@ class CausalConv1D(nn.Conv1d):
             self._right_padding = padding
 
         padding = 0
+        self._max_cache_len = kernel_size - 1
+
         super(CausalConv1D, self).__init__(
             in_channels,
             out_channels,
@@ -294,7 +309,7 @@ class CausalConv1D(nn.Conv1d):
                 cache_next = cache_next[self._cache_id]
             cache_length = cache.size()[-1]
             cache_next_length = cache.size()[-1]
-            needed_cache = cache[:, :, -self._left_padding :]
+            needed_cache = cache[:, :, -self._max_cache_len :]
             x = torch.cat((needed_cache, x), dim=-1)
         x = super().forward(x)
         if cache_next is not None:

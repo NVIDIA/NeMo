@@ -52,7 +52,7 @@ class MultiHeadAttention(nn.Module):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate):
+    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
         assert n_feat % n_head == 0
@@ -65,6 +65,8 @@ class MultiHeadAttention(nn.Module):
         self.linear_out = nn.Linear(n_feat, n_feat)
         self.attn = None
         self.dropout = nn.Dropout(p=dropout_rate)
+
+        self._max_cache_len = max_cache_len
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
@@ -134,9 +136,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v):
+    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0):
         """Construct an RelPositionMultiHeadedAttention object."""
-        super().__init__(n_head, n_feat, dropout_rate)
+        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=max_cache_len)
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable biases are used in matrix c and matrix d

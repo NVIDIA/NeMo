@@ -43,8 +43,8 @@ class CausalConv2D(nn.Conv2d):
             self._right_padding = padding
 
         self._stride = stride
-        self._needed_cache_len = kernel_size - stride
-        # self._needed_cache_len = 2 * stride + 1
+        self._max_cache_len = kernel_size - stride
+        # self._max_cache_len = 2 * stride + 1
         self._ignore_len = self._right_padding // self._stride
         # self._ignore_len = 0
 
@@ -80,7 +80,7 @@ class CausalConv2D(nn.Conv2d):
 
             cache_length = cache.size()[-2]
             cache_next_length = cache.size()[-2]
-            needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
+            needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
             x = torch.cat((needed_cache, x), dim=-1)
 
         x = super().forward(x)
@@ -160,11 +160,11 @@ class ConvSubsampling(torch.nn.Module):
             if self.is_causal:
                 self._left_padding = self._kernel_size - 1
                 self._right_padding = self._stride - 1
-                self._needed_cache_len = 5  # calculate it automatically
+                self._max_cache_len = 5  # calculate it automatically
             else:
                 self._left_padding = (self._kernel_size - 1) // 2
                 self._right_padding = (self._kernel_size - 1) // 2
-                self._needed_cache_len = None
+                self._max_cache_len = 0
 
             for i in range(self._sampling_num):
                 if self.is_causal:
@@ -225,8 +225,8 @@ class ConvSubsampling(torch.nn.Module):
             cache_next_length = cache.size()[-2]
 
             if x_length != 1:
-                # needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
-                needed_cache = cache[:, :, -self._needed_cache_len :]
+                # needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
+                needed_cache = cache[:, :, -self._max_cache_len :]
                 x = torch.cat((needed_cache, x), dim=-2)
 
         x = self.conv(x)
