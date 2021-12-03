@@ -375,14 +375,11 @@ class ASR_TIMESTAMPS:
         asr_model.eval()
         return asr_model
 
-    def load_LM_for_CTC_decoder(
-        self, asr_model: Type[Union[EncDecCTCModel, EncDecCTCModelBPE]]
-    ):
+    def load_LM_for_CTC_decoder(self, asr_model: Type[Union[EncDecCTCModel, EncDecCTCModelBPE]]):
         """
         Loads a language model for CTC decoder (pyctcdecode).
         Note that only EncDecCTCModel and EncDecCTCModelBPE models can use pyctcdecode.
         """
-        self.hot_words = {}
         kenlm_model = self.ctc_decoder_params['pretrained_language_model']
         logging.info(f"Loading language model : {self.ctc_decoder_params['pretrained_language_model']}")
 
@@ -400,7 +397,7 @@ class ASR_TIMESTAMPS:
         )
         return decoder
 
-    def run_ASR_QuartzNet_CTC(self, asr_model: Type[EncDecCTCModel]):
+    def run_ASR_QuartzNet_CTC(self, asr_model: Type[EncDecCTCModel]) -> Tuple[Dict, Dict]:
         """
         Launches QuartzNet ASR model and collect logit, timestamps and text output
 
@@ -458,7 +455,7 @@ class ASR_TIMESTAMPS:
         return words_dict, word_ts_dict
 
     @staticmethod
-    def clean_trans_and_TS(trans, char_ts):
+    def clean_trans_and_TS(trans: str, char_ts: List[str]) -> Tuple[str, List[str]]:
         """
         Removes the spaces in the beginning and the end.
         The char_ts need to be changed and synced accordingly.
@@ -488,7 +485,7 @@ class ASR_TIMESTAMPS:
             char_ts = char_ts[: -1 * diff_R]
         return trans, char_ts
 
-    def _get_spaces(self, trans, char_ts, time_stride):
+    def _get_spaces(self, trans: str, char_ts: List[str], time_stride: float) -> Tuple[float, List[str]]:
         """
         Collects the space symbols with a list of words.
 
@@ -521,7 +518,7 @@ class ASR_TIMESTAMPS:
 
         return spaces_in_sec, word_list
 
-    def run_ASR_CitriNet_CTC(self, asr_model: Type[EncDecCTCModelBPE]):
+    def run_ASR_CitriNet_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
         Launches CitriNet ASR model and collect logit, timestamps and text output
 
@@ -574,7 +571,7 @@ class ASR_TIMESTAMPS:
 
         return words_dict, word_ts_dict
 
-    def set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE]):
+    def set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[float, float, float]:
         """
         Prepares the parameters for the buffered inference
         """
@@ -607,7 +604,7 @@ class ASR_TIMESTAMPS:
 
         return onset_delay, mid_delay, tokens_per_chunk
 
-    def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[List[str], Dict[str, float]]:
+    def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
         Launches CTC-BPE based ASR model and collect logit, timestamps and text output
 
@@ -684,9 +681,7 @@ class ASR_TIMESTAMPS:
 
         return words_dict, word_ts_dict
 
-    def get_word_ts_from_spaces(
-        self, char_ts: List[float], spaces_in_sec: List[float], end_stamp: float
-    ) -> List[float]:
+    def get_word_ts_from_spaces(self, char_ts: List[float], spaces_in_sec: List[float], end_stamp: float) -> List[str]:
         """
         Takes word timestamps from the spaces from the decoded prediction.
 
@@ -716,7 +711,7 @@ class ASR_TIMESTAMPS:
 
     def run_pyctcdecode(
         self, logprob: np.ndarray, onset_delay_in_sec: float = 0, beam_width: int = 32
-    ) -> Tuple[List[str], List[float]]:
+    ) -> Tuple[List[str], List[str]]:
         """
         Launches pyctcdecode with the loaded pretrained language model.
 
