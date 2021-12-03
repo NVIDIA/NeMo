@@ -576,7 +576,8 @@ pipeline {
         stage('Install ctc_segmentation requirements') {
             steps {
             sh 'cd tools/ctc_segmentation && \
-            pip install -r requirements.txt'
+            pip install -r requirements.txt && \
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg'
             }
         }
 
