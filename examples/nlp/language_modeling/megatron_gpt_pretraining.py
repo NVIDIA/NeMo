@@ -50,8 +50,10 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.optim.get('megatron_amp_o2', False)
-    fp32_grad_accum = cfg.model.optim.get('fp32_grad_accum', False)
+    #megatron_amp_o2 = cfg.model.optim.get('megatron_amp_o2', False)
+    #fp32_grad_accum = cfg.model.optim.get('fp32_grad_accum', False)
+    megatron_amp_o2 = cfg.model.get('megatron_amp_o2', False)
+    fp32_grad_accum = cfg.model.get('fp32_grad_accum', False)
     plugins = [
         NLPDDPPlugin(
             num_nodes=cfg.trainer.num_nodes,

@@ -31,7 +31,6 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
@@ -413,7 +412,7 @@ class ModelPT(LightningModule, Model):
             if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
                 self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
+    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None, delayed_sched_init = False):
         """
         Prepares an optimizer from a string name and its optional config parameters.
 
@@ -561,31 +560,18 @@ class ModelPT(LightningModule, Model):
                     raise e
 
         else:
-            # Pop arguments for Megatron AMP-O2 training
-            megatron_amp_o2 = optimizer_args.pop('megatron_amp_o2', False)
-            fp32_grad_accum = optimizer_args.pop('fp32_grad_accum', False)
-            contiguous_grad_bucket = optimizer_args.pop('contiguous_grad_bucket', False)
-            async_grad_allreduce = optimizer_args.pop('async_grad_allreduce', False)
-
             optimizer = optim.get_optimizer(optimizer_name)
             optimizer = optimizer(self.parameters(), **optimizer_args)
-            if megatron_amp_o2:
-                # Wrap the baseline optimizer with an optimizer class with master parameters
-                optimizer = MasterOptimizerWrapper(
-                    optimizer,
-                    fp32_grad_accum=fp32_grad_accum,
-                    contiguous_grad_bucket=contiguous_grad_bucket,
-                    async_grad_allreduce=async_grad_allreduce,
-                )
 
             logging.info("Optimizer config = %s", str(optimizer))
 
             self._optimizer = optimizer
 
-        # Try to instantiate scheduler for optimizer
-        self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
-        )
+        if not delayed_sched_init:
+            # Try to instantiate scheduler for optimizer
+            self._scheduler = prepare_lr_scheduler(
+                optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
+            )
 
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created

@@ -76,6 +76,11 @@ model:
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
+  # Megatron O2-style half-precision
+  megatron_amp_o2: False # Enable O2-level automatic mixed precision using master parameters
+  fp32_grad_accum: False # Execute gradient accumulation and  all-reduce in fp32
+  contiguous_grad_bucket: False # Allocate master gradients in the contiguous memory space
+  async_grad_allreduce: False # Asynchronous master gradient all-reduce with a training step
 
   # miscellaneous
   seed: 1234
@@ -118,9 +123,3 @@ model:
       warmup_steps: 500
       constant_steps: 50000
       min_lr: 2e-5
-
-    # Megatron O2-style half-precision
-    megatron_amp_o2: False # Enable O2-level automatic mixed precision using master parameters
-    fp32_grad_accum: False # Execute gradient accumulation and  all-reduce in fp32
-    contiguous_grad_bucket: False # Allocate master gradients in the contiguous memory space
-    async_grad_allreduce: False # Asynchronous master gradient all-reduce with a training step

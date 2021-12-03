@@ -43,6 +43,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.core.optim import MasterOptimizerWrapper
+from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 
@@ -127,7 +129,7 @@ class MegatronGPTModel(NLPModel):
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
-        self.megatron_amp_o2 = cfg.optim.get('megatron_amp_o2', False)
+        self.megatron_amp_o2 = cfg.get('megatron_amp_o2', False)
         if self.megatron_amp_o2:
             # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
             self.model.cuda(torch.cuda.current_device())
@@ -426,6 +428,33 @@ class MegatronGPTModel(NLPModel):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+
+    def configure_optimizers(self):
+        self.setup_optimization(delayed_sched_init=self.megatron_amp_o2)
+
+        # Wrap the baseline optimizer with the optimizer class with master parameters
+        if self.megatron_amp_o2 and self._optimizer is not None:
+            fp32_grad_accum = self.cfg.get('fp32_grad_accum', False)
+            contiguous_grad_bucket = self.cfg.get('contiguous_grad_bucket', False)
+            async_grad_allreduce = self.cfg.get('async_grad_allreduce', False)
+
+            self._optimizer = MasterOptimizerWrapper(
+                self._optimizer,
+                fp32_grad_accum=fp32_grad_accum,
+                contiguous_grad_bucket=contiguous_grad_bucket,
+                async_grad_allreduce=async_grad_allreduce,
+            )
+            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
+            sched_config = self._cfg.optim.sched
+            sched_config['max_steps'] = self._trainer.max_steps
+            self._scheduler = prepare_lr_scheduler(
+                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
 
     def compute_consumed_samples(self, global_step):
         app_state = AppState()
