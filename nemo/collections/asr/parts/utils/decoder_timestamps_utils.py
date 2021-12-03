@@ -377,7 +377,7 @@ class ASR_TIMESTAMPS:
 
     def load_LM_for_CTC_decoder(
         self, asr_model: Type[Union[EncDecCTCModel, EncDecCTCModelBPE]]
-    ) -> Type[build_ctcdecoder]:
+    ):
         """
         Loads a language model for CTC decoder (pyctcdecode).
         Note that only EncDecCTCModel and EncDecCTCModelBPE models can use pyctcdecode.
