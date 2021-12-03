@@ -208,7 +208,8 @@ class ConformerConvolution(nn.Module):
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
 
-        x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)
+        if cache is not None:
+            x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)
         # if self.is_causal:
         #     x = x[:, :, : -self.depthwise_conv.padding[0]]
         if type(self.batch_norm) == nn.LayerNorm:

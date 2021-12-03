@@ -167,23 +167,26 @@ def main():
         cache_pre_encode=None,
     )
 
+    print(asr_out_whole)
+
     # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
 
     buffer_size = 4
     init_buffer = 1
+    bs = 1
 
     pre_encode_buffer_size = 5
     last_channel_buffer_size = cfg.encoder.att_context_size[0]
     last_time_buffer_size = cfg.encoder.conv_kernel_size - 1
     cache_pre_encode = torch.zeros(
-        (1, 1, pre_encode_buffer_size, processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32
+        (1, bs, pre_encode_buffer_size, processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32
     )
     # cache_last_channel = torch.zeros((last_channel_num, 1, last_channel_buffer_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
     cache_last_channel = torch.zeros(
-        (last_channel_num, 1, 0, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32
+        (last_channel_num, bs, 0, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32
     )
     cache_last_time = torch.zeros(
-        (last_time_num, 1, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32
+        (last_time_num, bs, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32
     )
 
     asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
@@ -194,10 +197,23 @@ def main():
         cache_last_time=cache_last_time,
         cache_pre_encode=cache_pre_encode,
     )
-
     print(asr_out_stream)
+    asr_out_stream_total = asr_out_stream
+    for i in range(1, processed_signal.size(-1), buffer_size):
+        asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
+            asr_model=asr_model,
+            audio_signal=processed_signal[:, :, i:i+buffer_size],
+            length=torch.tensor([buffer_size]),
+            cache_last_channel=cache_last_channel_next,
+            cache_last_time=cache_last_time_next,
+            cache_pre_encode=cache_pre_encode_next,
+        )
+        cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_buffer_size:, :]
+        print(asr_out_stream)
+        asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
     # asr_model = asr_model.to(asr_model.device)
-
+    print(asr_out_stream_total)
+    print(torch.sum(asr_out_stream_total != asr_out_whole))
     # with open(args.test_manifest, "r") as mfst_f:
     #     for l in mfst_f:
     #         # asr.reset()

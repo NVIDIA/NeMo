@@ -225,14 +225,17 @@ class ConvSubsampling(torch.nn.Module):
             cache_next_length = cache.size()[-2]
 
             if x_length != 1:
-                needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
+                #needed_cache = cache[:, :, -self._needed_cache_len :, -self._needed_cache_len :]
+                needed_cache = cache[:, :, -self._needed_cache_len :]
                 x = torch.cat((needed_cache, x), dim=-2)
 
         x = self.conv(x)
 
         if cache is not None:
-            #cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
-            cache_next[:, :, :-x_length] = cache[:, :, -(cache_next_length - x_length) :]
+            if x_length != 1:
+                x = x[:, :, 2:, :]
+            # cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
+            cache_next[:, :, :-x_length] = cache[:, :, cache_length - (cache_next_length - x_length):]
             cache_next[:, :, -x_length:, :] = input_x
 
         b, c, t, f = x.size()
