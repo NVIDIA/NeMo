@@ -619,13 +619,13 @@ class ASR_DIAR_OFFLINE(object):
             hyp_w_dict_list.append(word)
             spk_list.append(spk_label)
 
-        org_spk_list = copy.deepcopy(spk_list)
         realigned_list = []
+        org_spk_list = copy.deepcopy(spk_list)
         for k, line_dict in enumerate(word_dict_seq_list):
             if (
                 self.N_range[0] < k < (word_seq_len - self.N_range[0])
-                and org_spk_list[k] != org_spk_list[k + 1]
-                or org_spk_list[k] != org_spk_list[k - 1]
+                and spk_list[k] != org_spk_list[k + 1]
+                or spk_list[k] != org_spk_list[k - 1]
             ):
                 N1, N2 = self.get_realignment_ranges(k, word_seq_len)
                 hyp_former = self.realigning_lm.log_s(
@@ -638,8 +638,8 @@ class ASR_DIAR_OFFLINE(object):
                 p_order = np.argsort(log_p)[::-1]
                 if log_p[p_order[0]] > log_p[p_order[1]] + self.realigning_lm_params['logprob_diff_threshold']:
                     if p_order[0] == 0:
-                        org_spk_list[k] = spk_list[k + 1]
-                line_dict['speaker_label'] = org_spk_list[k]
+                        spk_list[k] = org_spk_list[k + 1]
+                line_dict['speaker_label'] = spk_list[k]
             realigned_list.append(line_dict)
         return realigned_list
 
