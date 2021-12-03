@@ -223,7 +223,7 @@ The following CTC decoder parameters can be modified to optimize the performance
  
 #### Realign Words with a Language Model (Experimental)
 
-Diarization result with ASR transcript can be enhanced by applying a language model. To use this feature, python package [arpa](https://pypi.org/project/arpa/) should be installed to use this feature.
+Diarization result with ASR transcript can be enhanced by applying a language model. To use this feature, python package [arpa](https://pypi.org/project/arpa/) should be installed.
 ```
 pip install arpa
 ```
