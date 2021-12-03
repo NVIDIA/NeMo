@@ -178,3 +178,40 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
 [00:13.97 - 00:15.78] speaker_1: but it's the fourth of july mm
 [00:16.90 - 00:21.80] speaker_0: so yeahg people still work tomorrow do you have to work tomorrow did you drive off yesterday
 ```
+ 
+### Optional Features
+ 
+#### Beam Search Decoder
+
+A beam-search decoder can be applied to CTC based ASR models. To use this feature, [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) should be installed. [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) supports word timestamp generation and can be applied to speaker diarization.
+```
+pip install pyctcdecode
+```
+You should provide a trained [KenLM](https://github.com/kpu/kenlm) language model to use pyctcdecode. Binary or `.arpa` format can be provided to hydra configuration as below.
+
+```bash
+  python offline_diarization_with_asr.py \
+    ...
+    diarizer.asr.ctc_decoder_parameters.pretrained_language_model="/path/to/kenlm_language_model.binary"
+```
+The following CTC decoder parameters can be modified to optimize the performance.
+`diarizer.asr.ctc_decoder_parameters.beam_width` (default: 32)    
+`diarizer.asr.ctc_decoder_parameters.alpha` (default: 0.5)     
+`diarizer.asr.ctc_decoder_parameters.beta` (default: 2.5)     
+ 
+#### Realign Words with a Language Model (Experimental)
+
+Diarization result with ASR transcript can be enhanced by applying a language model. To use this feature, python package [arpa](https://pypi.org/project/arpa/) should be installed to use this feature.
+```
+pip install arpa
+```
+
+`diarizer.asr.realigning_lm_parameters.logprob_diff_threshold` can be modified to optimize the diarization performance (default value is 1.2). The lower the threshold, the more changes are expected to be seen in the output transcript.   
+ 
+[Tedlium Language Model](https://kaldi-asr.org/models/5/4gram_big.arpa.gz) is one of the language models that are publicly available. Such ARPA model can be specified to hydra configuration as follows.
+
+```bash
+python offline_diarization_with_asr.py \
+    ...
+    diarizer.asr.realigning_lm_parameters.arpa_language_model="/path/to/kenlm_language_model.arpa"\
+```
