@@ -195,7 +195,7 @@ def remove_puncts(input_str):
     return input_str.translate(str.maketrans('', '', string.punctuation))
 
 
-def post_process_punct(input: str, nn_output: str):
+def post_process_punct(input: str, normalized_text: str):
     """
     Post-processing of the normalized output to match input in terms of spaces around punctuation marks.
     After NN normalization, Moses detokenization puts a space after
@@ -208,35 +208,34 @@ def post_process_punct(input: str, nn_output: str):
 
     Args:
         input: input text (original input to the NN, before normalization or tokenization)
-        nn_output: output text (output of the TN NN model)
+        normalized_text: output text (output of the TN NN model)
     """
     input = [x for x in input]
-    nn_output = [x for x in nn_output]
+    normalized_text = [x for x in normalized_text]
     punct_marks = string.punctuation
-
     try:
         for punct in punct_marks:
-            if input.count(punct) != nn_output.count(punct):
+            if input.count(punct) != normalized_text.count(punct):
                 continue
             idx_in, idx_out = 0, 0
             while punct in input[idx_in:]:
                 idx_in = input.index(punct, idx_in)
-                idx_out = nn_output.index(punct, idx_out)
+                idx_out = normalized_text.index(punct, idx_out)
                 if idx_in > 0 and idx_out > 0:
-                    if nn_output[idx_out - 1] == " " and input[idx_in - 1] != " ":
-                        nn_output[idx_out - 1] = ""
+                    if normalized_text[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        normalized_text[idx_out - 1] = ""
 
-                    elif nn_output[idx_out - 1] != " " and input[idx_in - 1] == " ":
-                        nn_output[idx_out - 1] += " "
+                    elif normalized_text[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        normalized_text[idx_out - 1] += " "
 
-                if idx_in < len(input) - 1 and idx_out < len(nn_output) - 1:
-                    if nn_output[idx_out + 1] == " " and input[idx_in + 1] != " ":
-                        nn_output[idx_out + 1] = ""
-                    elif nn_output[idx_out + 1] != " " and input[idx_in + 1] == " ":
-                        nn_output[idx_out] = nn_output[idx_out] + " "
+                if idx_in < len(input) - 1 and idx_out < len(normalized_text) - 1:
+                    if normalized_text[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        normalized_text[idx_out + 1] = ""
+                    elif normalized_text[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        normalized_text[idx_out] = normalized_text[idx_out] + " "
                 idx_out += 1
                 idx_in += 1
     except:
-        logging.warning(f"Skipping post-processing of {''.join(nn_output)}")
-    nn_output = "".join(nn_output)
-    return re.sub(r' +', ' ', nn_output)
+        logging.warning(f"Skipping post-processing of {''.join(normalized_text)}")
+    normalized_text = "".join(normalized_text)
+    return re.sub(r' +', ' ', normalized_text)

@@ -19,12 +19,14 @@ from copy import deepcopy
 import numpy as np
 import soundfile as sf
 import torch
+from typing import List, Dict
 from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
 from collections import Counter
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmse_clustering import COSclustering
+from nemo.utils.decorators.experimental import experimental
 from nemo.utils import logging
 
 
@@ -81,24 +83,59 @@ def audio_rttm_map(manifest):
 
     return AUDIO_RTTM_MAP
 
+@experimental
 def get_multiscale_time_stamps(multi_scale_emb_ts_spkrs, multi_scale_dict):
+    """
+    The embeddings and timestamps are indexed by scale. Rearrange the extracted speaker embedding
+    and timestamps by unique session ID to make the further processing more convenient.
+
+    Args:
+        multi_scale_emb_ts_spkrs (dict) :
+            Dictionary of embeddings and timestamps for each scale.
+        multi_scale_dict (dict) :
+            Dictionary of scale information: window, shift and multiscale weights.
+
+    Returns:
+        embeddings (dict) :
+            Dictionary containing embeddings of the base scale.
+        time_stamps (dict) :
+            Dictionary containing timestamps of the base scale.
+        multi_scale_data (dict)
+            Dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
+
+    """
     global_mapping_dict = multi_scale_segment_mapper(multi_scale_emb_ts_spkrs)
-    multi_scale_data = {uniq_id: {} for uniq_id in multi_scale_emb_ts_spkrs[0][0].keys() }
-    for scale_idx in sorted(multi_scale_dict.keys()):
+    multi_scale_data = {uniq_id: {'multiscale_weights': [], 'scale_dict': {} } for uniq_id in multi_scale_emb_ts_spkrs[0][0].keys() }
+    for scale_idx in sorted(multi_scale_dict['scale_dict'].keys()):
         embeddings, time_stamps = multi_scale_emb_ts_spkrs[scale_idx]
         for uniq_id in embeddings.keys():
+            multi_scale_data[uniq_id]['multiscale_weights'] = multi_scale_dict['multiscale_weights']
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
-            multi_scale_data[uniq_id][scale_idx]  = {'embeddings': embeddings[uniq_id],
+            multi_scale_data[uniq_id]['scale_dict'][scale_idx]  = {'embeddings': embeddings[uniq_id],
                                                      'time_stamps': time_stamps[uniq_id],
                                                      'mapping': global_mapping_dict[uniq_id][scale_idx]
                                                      }
 
-    # Return base scale
-    base_scale_idx = max(list(multi_scale_dict.keys()))
-    embeddings, time_stamps = multi_scale_emb_ts_spkrs[base_scale_idx] 
-    return embeddings, time_stamps, multi_scale_data
+    # Return the base scale embeddings and timestamps.
+    base_scale_idx = max(multi_scale_dict['scale_dict'].keys())
+    base_scale_embeddings, base_scale_time_stamps = multi_scale_emb_ts_spkrs[base_scale_idx] 
+    return base_scale_embeddings, base_scale_time_stamps, multi_scale_data
 
 def multi_scale_segment_mapper(multi_scale_emb_ts_spkrs):
+    """
+    Calculates the mapping between the base scale and other scales. A segment from a longer scale is
+    repeatedly mapped to a segment from a shorter scale or the base scale.
+
+    Args:
+        multi_scale_emb_ts_spkrs (dict) :
+            Dictionary of embeddings and timestamps for each scale.
+
+    Returns:
+        global_scale_mapping_dict (dict) :
+            Dictionary containing sub-dictionaries indexed by uniq ID.
+            Each sub-dictionary contains the indicies (argmin_mat) of the nearest segments in the longer scales from
+            the base scale segments. These argmin_mat array is calculated for each scale.
+    """
     segment_anchor_dict = {}
     for scale_idx, (_, time_stamps_dict) in multi_scale_emb_ts_spkrs.items():
         for uniq_id, time_stamp_list in time_stamps_dict.items(): 
@@ -127,7 +164,6 @@ def multi_scale_segment_mapper(multi_scale_emb_ts_spkrs):
                     repeat_list.append(count_dict[k])
                 else:
                     repeat_list.append(0)
-            # import ipdb; ipdb.set_trace()
             assert curr_scale_anchor.shape[0] == len(repeat_list)
             session_rate_mapping_dict[scale_idx] = argmin_mat
         global_scale_mapping_dict[uniq_id] = session_rate_mapping_dict
@@ -238,18 +274,18 @@ def rttm_to_labels(rttm_filename):
 def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
-    Args:
 
-    embeddings (dict): Embeddings with key as unique_id
-    time_stamps (dict): time stamps list for each audio recording
-    AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
-    out_rttm_dir (str): Path to write predicted rttms
-    clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
-    oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
+    Args:
+        embeddings (dict): Embeddings with key as unique_id
+        time_stamps (dict): time stamps list for each audio recording
+        AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
+        out_rttm_dir (str): Path to write predicted rttms
+        clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
+        oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
 
     Returns:
-    all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
-    all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
+        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     """
     all_hypothesis = []

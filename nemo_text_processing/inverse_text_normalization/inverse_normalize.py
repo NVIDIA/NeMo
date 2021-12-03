@@ -60,6 +60,11 @@ class InverseNormalizer(Normalizer):
             from nemo_text_processing.inverse_text_normalization.fr.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
+        elif lang == 'vi':
+            from nemo_text_processing.inverse_text_normalization.vi.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.vi.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
 
         self.tagger = ClassifyFst(cache_dir=cache_dir, overwrite_cache=overwrite_cache)
         self.verbalizer = VerbalizeFinalFst()
@@ -94,7 +99,9 @@ class InverseNormalizer(Normalizer):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=['en', 'de', 'es', 'ru', 'fr'], default="en", type=str)
+    parser.add_argument(
+        "--language", help="language", choices=['en', 'de', 'es', 'ru', 'fr', 'vi'], default="en", type=str
+    )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
     parser.add_argument(

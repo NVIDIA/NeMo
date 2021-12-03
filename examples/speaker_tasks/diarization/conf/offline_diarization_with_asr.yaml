@@ -31,9 +31,12 @@ diarizer:
   speaker_embeddings:
     model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
+      window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction 
       shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
       save_embeddings: False # save embeddings as pickle file for each audio input
+      multiscale_window_lengths_in_sec: null # Multiscale window lengths in comma seperated values.
+      multiscale_shift_lengths_in_sec: null # Multiscale shift lengths in comma seperated values.
+      multiscale_weights: null # The weights for each scale in multiscale processing. Use comma seperated values to match window/shift legnths.
   
   clustering:
     parameters:
@@ -45,14 +48,31 @@ diarizer:
   
   asr:
     model_path: ??? # Provie NGC cloud ASR model name
-    parameters:
-      asr_based_vad: False # if true, speech segmentation for diarization is based on word-timestamps from ASR inference.
+    asr_parameters:
+      asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
       asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
-      print_transcript: False # if true, the output transcript is displayed after the transcript is generated.
+      asr_batch_size: null # Batch size should be dependent on each model. Default batch sizes are applied if set to null.
       lenient_overlap_WDER: True # if true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
-      vad_threshold_for_word_ts: 0.7 # threshold for getting VAD stamps that compensate the word timestamps generated from ASR decoder.
-      max_word_ts_length_in_sec: 0.6 # Maximum length of each word timestamps 
-      word_gap_in_sec: 0.01 # The gap between the end of a word and the start of the following word.
+      decoder_delay_in_sec: null # native deocder delay. null is recommended to use the default values for each ASR model.
+      word_ts_anchor_offset: null # offset that compensates ASR delay.
+      word_ts_anchor_pos: "start" # select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
+      word_gap_in_sec: 0.01 # the gap between the end of a word and the start of the following word.
+      fix_word_ts_with_VAD: False # fix the word timestamp using VAD output. You must provide VAD model to use this feature.
+      colored_text: False # if True, use colored text to distiguish speakers in the output transcript.
+      print_time: True # if True, the start of end time of each speaker turn is printed in the output transcript.
+      break_lines: False # if True, the output transcript breaks the line to fix the line width (default is 90 chars)
+    
+    ctc_decoder_parameters: # Optional beam search decoder (pyctcdecode)
+     pretrained_language_model: null # KenLM model file: .arpa model file or .bin binary file.
+      beam_width: 32
+      alpha: 0.5
+      beta: 2.5
+
+    realigning_lm_parameters: # Experimental feature
+      arpa_language_model: null # Provide a KenLM language model in .arpa format.
+      min_number_of_words: 3 # Min number of words for the left context.
+      max_number_of_words: 10 # Max number of words for the right context.
+      logprob_diff_threshold: 1.2 # The threshold for the difference between two log probability values from two hypotheses.
 
 # json manifest line example
 # {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, label: "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath"="/path/to/uem/filepath"}

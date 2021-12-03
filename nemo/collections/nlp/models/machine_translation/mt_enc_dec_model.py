@@ -293,7 +293,7 @@ class MTEncDecModel(EncDecNLPModel):
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
+        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
             getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         else:
@@ -305,6 +305,7 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
@@ -344,8 +345,10 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
+            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(inputs)
             assert len(translations) == len(ground_truths)
 
             # Gather translations and ground truths from all workers
@@ -387,6 +390,7 @@ class MTEncDecModel(EncDecNLPModel):
                 for i in range(0, 3):
                     ind = random.randint(0, len(translations) - 1)
                     logging.info("    " + '\u0332'.join(f"Example {i}:"))
+                    logging.info(f"    Input:        {inputs[ind]}")
                     logging.info(f"    Prediction:   {translations[ind]}")
                     logging.info(f"    Ground Truth: {ground_truths[ind]}")
             else:

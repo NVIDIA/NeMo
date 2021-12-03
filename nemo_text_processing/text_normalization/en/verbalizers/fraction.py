@@ -52,7 +52,9 @@ class FractionFst(GraphFst):
 
         integer = pynini.closure(integer + insert_space + conjunction, 0, 1)
 
-        denominator_half = pynini.cross("numerator: \"one\" denominator: \"two\"", "a half")
+        denominator_half = pynutil.add_weight(
+            pynini.cross("numerator: \"one\" denominator: \"two\"", "a half"), -0.001
+        )
         denominator_one_two = pynini.cross("denominator: \"one\"", "over one") | pynini.cross(
             "denominator: \"two\"", "halves"
         )
@@ -63,9 +65,9 @@ class FractionFst(GraphFst):
             numerator_one + insert_space + denominator + pynutil.delete("\""), 0.0001
         )
 
-        graph = integer + denominator_half | (fraction_with_one | fraction_default)
+        graph = integer + (denominator_half | fraction_with_one | fraction_default)
         graph |= pynutil.add_weight(pynini.cross("numerator: \"one\" denominator: \"two\"", "one half"), -1)
-        graph |= (numerator | numerator_one) + insert_space + denominator_one_two
+        graph |= integer + (numerator | numerator_one) + insert_space + denominator_one_two
 
         self.graph = graph
         delete_tokens = self.delete_tokens(self.graph)
