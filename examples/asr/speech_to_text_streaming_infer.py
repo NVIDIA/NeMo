@@ -199,6 +199,8 @@ def main():
     )
     print(asr_out_stream)
     asr_out_stream_total = asr_out_stream
+
+    step_num = 1
     for i in range(1, processed_signal.size(-1), buffer_size):
         asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
             asr_model=asr_model,
@@ -211,9 +213,11 @@ def main():
         cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_buffer_size:, :]
         print(asr_out_stream)
         asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
+        step_num += 1
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
     print(torch.sum(asr_out_stream_total != asr_out_whole))
+    print(step_num)
     # with open(args.test_manifest, "r") as mfst_f:
     #     for l in mfst_f:
     #         # asr.reset()

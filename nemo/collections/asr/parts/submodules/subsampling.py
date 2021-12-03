@@ -236,7 +236,7 @@ class ConvSubsampling(torch.nn.Module):
                 x = x[:, :, 2:, :]
             # cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
             cache_next[:, :, :-x_length] = cache[:, :, cache_length - (cache_next_length - x_length):]
-            cache_next[:, :, -x_length:, :] = input_x
+            cache_next[:, :, -x_length:, :] = input_x[:, :, -cache_next_length:, :]
 
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
