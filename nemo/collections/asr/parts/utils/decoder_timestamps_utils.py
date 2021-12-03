@@ -13,52 +13,36 @@
 # limitations under the License.
 
 import copy
-import csv
-import json
 import math
-import os
 import sys
-import tempfile
-from collections import OrderedDict as od
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Tuple, Type, Union
 
-import diff_match_patch
 import librosa
 import numpy as np
 import soundfile as sf
 import torch
-import wget
-from nemo_text_processing.text_normalization.normalize import Normalizer
-from omegaconf import OmegaConf, open_dict
-from tqdm.auto import tqdm
+from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
-from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE
-from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
-    get_uniqname_from_filepath,
-    labels_to_rttmfile,
-    rttm_to_labels,
-    write_rttm2manifest,
-)
+from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
+from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 __all__ = ['ASR_TIMESTAMPS']
 
 try:
     from pyctcdecode import build_ctcdecoder
-except:
+except ImportError:
     logging.info("pyctcdecode is not installed. You must install kenlm and pyctcdecode to use language models")
 
 
 def if_none_get_default(param, default_value):
-    return (param, default_value)[param == None]
+    return (param, default_value)[param is None]
 
 
 class WERBPE_TS(WERBPE):
@@ -224,9 +208,6 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
     Creates a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
     """
-    hyps = []
-    tokens_list = []
-    logprobs_list = []
     asr.reset()
     asr.read_audio_file_and_return(audio_file_path, delay, model_stride_in_secs)
     hyp, tokens, log_prob = asr.transcribe_with_ts(tokens_per_chunk, delay)
@@ -275,7 +256,6 @@ class FrameBatchASR_Logits(FrameBatchASR):
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
         frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
         self.set_frame_reader(frame_reader)
-        del samples
 
     @torch.no_grad()
     def _get_batch_preds(self):
@@ -343,7 +323,7 @@ class ASR_TIMESTAMPS:
 
         To assign a proper decoding function for generating timestamp output,
         the name of .nemo file should include the architecture name such as:
-        'quartznet', 'conformer', 'citrinet' or 'conformer_transducer'.
+        'quartznet', 'conformer', and 'citrinet'.
 
         decoder_delay_in_sec is the amount of delay that is compensated during the word timestamp extraction.
         word_ts_anchor_offset is the reference point for a word and used for matching the word with diarization labels.

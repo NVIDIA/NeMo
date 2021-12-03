@@ -159,15 +159,10 @@ def getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data):
         base_scale_emb (np.array):
             The base scale embedding (the embeddings from the finest scale)
     """
-    sim_d = cosine_similarity(emb)
-    scaler.fit(sim_d)
-    sim_d = scaler.transform(sim_d)
     uniq_scale_dict = uniq_multi_scale_data['scale_dict']
     base_scale_idx = max(uniq_scale_dict.keys())
-    base_scale_mapping_argmat = uniq_scale_dict[base_scale_idx]['mapping']
     base_scale_emb = np.array(uniq_scale_dict[base_scale_idx]['embeddings'])
     multiscale_weights = uniq_multi_scale_data['multiscale_weights']
-    base_scale_score_mat = getCosAffinityMatrix(base_scale_emb)
     score_mat_list, repeated_mat_list = [], []
 
     for scale_idx in sorted(uniq_scale_dict.keys()):

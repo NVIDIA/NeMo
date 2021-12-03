@@ -17,7 +17,6 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASR_TIMESTAMPS
 from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

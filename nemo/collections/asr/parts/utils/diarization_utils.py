@@ -15,30 +15,18 @@
 import copy
 import csv
 import json
-import math
 import os
 import shutil
 import sys
-import tempfile
 from collections import OrderedDict as od
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Tuple
 
 import diff_match_patch
-import librosa
 import numpy as np
-import soundfile as sf
-import torch
-import wget
-from nemo_text_processing.text_normalization.normalize import Normalizer
-from omegaconf import OmegaConf, open_dict
-from tqdm.auto import tqdm
 
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
-from nemo.collections.asr.metrics.wer import WER, word_error_rate
-from nemo.collections.asr.metrics.wer_bpe import WERBPE
-from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_uniqname_from_filepath,
@@ -46,14 +34,12 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     rttm_to_labels,
     write_rttm2manifest,
 )
-from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 
 try:
     import arpa
-except:
+except ImportError:
     logging.info("arpa is not installed. You must install arpa to refine diarization result with LM.")
 
 __all__ = ['ASR_DIAR_OFFLINE']
@@ -622,10 +608,8 @@ class ASR_DIAR_OFFLINE(object):
         realigned_list = []
         org_spk_list = copy.deepcopy(spk_list)
         for k, line_dict in enumerate(word_dict_seq_list):
-            if (
-                self.N_range[0] < k < (word_seq_len - self.N_range[0])
-                and spk_list[k] != org_spk_list[k + 1]
-                or spk_list[k] != org_spk_list[k - 1]
+            if self.N_range[0] < k < (word_seq_len - self.N_range[0]) and (
+                spk_list[k] != org_spk_list[k + 1] or spk_list[k] != org_spk_list[k - 1]
             ):
                 N1, N2 = self.get_realignment_ranges(k, word_seq_len)
                 hyp_former = self.realigning_lm.log_s(
@@ -666,7 +650,6 @@ class ASR_DIAR_OFFLINE(object):
         ctm_ref_word_seq, ctm_info_list = [], []
         pred_word_seq, pred_info_list, pred_rttm_eval = [], [], []
 
-        ctm_spk_set = set()
         for ctm_line in ctm_content:
             spl = ctm_line.split()
             ctm_ref_word_seq.append(spl[4])
@@ -723,7 +706,6 @@ class ASR_DIAR_OFFLINE(object):
 
         if error_buffer != []:
             get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval)
-            error_buffer, w_range_buffer = [], []
 
         sum_wer = sum([ctm_error_dict[key] for key in ['asr_ins_count', 'asr_del_count', 'asr_sub_count']])
         ctm_error_dict['wer_ctm'] = round(sum_wer / ctm_error_dict['ref_word_count'], 4)
@@ -1009,17 +991,16 @@ class ASR_DIAR_OFFLINE(object):
         """
         if self.ctm_exists:
             self.write_session_level_result_in_csv(WDER_dict)
-
             logging.info(
                 f"\nDER                : {DER_result_dict['total']['DER']:.4f} \
                 \nFA                 : {DER_result_dict['total']['FA']:.4f} \
                 \nMISS               : {DER_result_dict['total']['MISS']:.4f} \
                 \nCER                : {DER_result_dict['total']['CER']:.4f} \
                 \nrttm WDER          : {WDER_dict['total_wder_rttm']:.4f} \
-                \nctm WDER-Ref.      : {WDER_dict['total_wder_ctm_ref_trans']:.4f} \
-                \nctm WDER-ASR       : {WDER_dict['total_wder_ctm_pred_asr']:.4f} \
+                \nctm WDER Ref.      : {WDER_dict['total_wder_ctm_ref_trans']:.4f} \
+                \nctm WDER ASR Hyp.  : {WDER_dict['total_wder_ctm_pred_asr']:.4f} \
                 \nctm diar-trans Acc.: {WDER_dict['total_diar_trans_acc']:.4f} \
-                \nmanifest-text WER  : {WDER_dict['total_WER']:.4f} \
+                \nmanifest text WER  : {WDER_dict['total_WER']:.4f} \
                 \nalignment ERR      : Mean: {WDER_dict['total_alignment_error_mean']:.4f} STD:{WDER_dict['total_alignment_error_std']:.4f} \
                 \nSpk. counting Acc. : {DER_result_dict['total']['spk_counting_acc']:.4f}"
             )
@@ -1043,7 +1024,7 @@ class ASR_DIAR_OFFLINE(object):
         else:
             string_out = previous_string
         if params['colored_text']:
-            color = self.color_palette[speaker]
+            color = self.color_palette.get(speaker, '\033[0;37m')
         else:
             color = ''
 

@@ -52,7 +52,7 @@ diarizer:
       asr_batch_size: null # Batch size should be dependent on each model. Default batch sizes are applied if set to null.
       lenient_overlap_WDER: True # If true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
       decoder_delay_in_sec: null # Native deocder delay. null is recommended to use the default values for each ASR model.
-      word_ts_anchor_offset: null # Offset that compensates ASR delay.
+      word_ts_anchor_offset: null # Offset to set a reference point from the start of the word.
       word_ts_anchor_pos: "start" # Select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
       fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide VAD model to use this feature.
       colored_text: False # If True, use colored text to distiguish speakers in the output transcript.
