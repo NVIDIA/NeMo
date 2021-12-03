@@ -87,11 +87,11 @@ Instead, you can also download the model from [vad_marblenet](https://ngc.nvidia
 
 Multiscale diarization system employs multiple scales at the same time to obtain a finer temporal resolution. To use multiscale feature, at least two scales and scale weights should be provided. The scales should be provided in descending order, from the longest scale to the base scale (the shortest). The below example shows how multiscale parameters are specified and the recommended parameters.
 
-#### Example script
+#### Example script: single-scale and multiscale
 Single-scale setting:
 ```bash
   python offline_diarization.py \
-     ...
+     ... <other paramerters> ...
      parameters.window_length_in_sec=1.5 \
      parameters.shift_length_in_sec=0.75 \
      parameters.multiscale_weights=null \
@@ -100,7 +100,7 @@ Single-scale setting:
 Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
 ```bash
   python offline_diarization.py \
-     ...
+     ... <other paramerters> ...
      parameters.window_length_in_sec='[1.5, 1.0, 0.5]' \
      parameters.shift_length_in_sec='[0.75, 0.5, 0.25]' \
      parameters.multiscale_weights='[0.33, 0.33, 0.33]' \
@@ -118,7 +118,7 @@ Using the script `offline_diarization_with_asr.py`, you can transcribe your audi
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
 ```
 
-Currently, offline_diarization_with_asr supports QuartzNet English model and ConformerCTC model (`QuartzNet15x5Base-En`, `stt_en_conformer_ctc_large`). 
+Currently, offline_diarization_with_asr supports QuartzNet English model, CitriNetCTC models and ConformerCTC models (e.g.,`QuartzNet15x5Base-En`, `stt_en_citrinet_1024` and `stt_en_conformer_ctc_large`). 
 
 #### Example script
 
@@ -142,7 +142,7 @@ python offline_diarization_with_asr.py \
     diarizer.clustering.parameters.oracle_num_speakers=True
 ```
 
-#### Output folders
+### Output folders
 
 The above script will create a folder named `./demo_asr_output/`.
 In `./demo_asr_output/`, you can check the results as below.
@@ -195,17 +195,17 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.json`
 Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
 ```
 [00:03.34 - 00:04.46] speaker_0: back from the gym oh good how's it going
-[00:04.46 - 00:09.96] speaker_1: pretty well it was really crowded today yeah i kind of assumed everylonewould be at the shore uhhuh
+[00:04.46 - 00:09.96] speaker_1: pretty well it was really crowded today yeah i kind of assumed everylone would be at the shore uhhuh
 [00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
-[00:13.97 - 00:15.78] speaker_1: but it's the fourth of july mm
-[00:16.90 - 00:21.80] speaker_0: so yeahg people still work tomorrow do you have to work tomorrow did you drive off yesterday
+[00:13.97 - 00:15.78] speaker_1: but it's the fourth of july 
+[00:16.90 - 00:21.80] speaker_0: so yeah people still work tomorrow do you have to work tomorrow 
 ```
  
-### Optional Features
+### Optional Features for Speech Recognition with Speaker Diarization
  
 #### Beam Search Decoder
 
-A beam-search decoder can be applied to CTC based ASR models. To use this feature, [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) should be installed. [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) supports word timestamp generation and can be applied to speaker diarization.
+Beam-search decoder can be applied to CTC based ASR models. To use this feature, [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) should be installed. [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) supports word timestamp generation and can be applied to speaker diarization.
 ```
 pip install pyctcdecode
 ```
@@ -213,7 +213,7 @@ You should provide a trained [KenLM](https://github.com/kpu/kenlm) language mode
 
 ```bash
   python offline_diarization_with_asr.py \
-    ...
+    ... <other paramerters> ...
     diarizer.asr.ctc_decoder_parameters.pretrained_language_model="/path/to/kenlm_language_model.binary"
 ```
 The following CTC decoder parameters can be modified to optimize the performance.
@@ -227,13 +227,14 @@ Diarization result with ASR transcript can be enhanced by applying a language mo
 ```
 pip install arpa
 ```
-
 `diarizer.asr.realigning_lm_parameters.logprob_diff_threshold` can be modified to optimize the diarization performance (default value is 1.2). The lower the threshold, the more changes are expected to be seen in the output transcript.   
  
-[Tedlium Language Model](https://kaldi-asr.org/models/5/4gram_big.arpa.gz) is one of the language models that are publicly available. Such ARPA model can be specified to hydra configuration as follows.
+You can download publicly available language models at [KALDI Tedlium Language Models](https://kaldi-asr.org/models/m5) and [4-gram Big ARPA](https://kaldi-asr.org/models/5/4gram_big.arpa.gz) is recommended. Such ARPA models can be specified to hydra configuration as follows.
+
 
 ```bash
 python offline_diarization_with_asr.py \
-    ...
-    diarizer.asr.realigning_lm_parameters.arpa_language_model="/path/to/kenlm_language_model.arpa"\
+    ... <other paramerters> ...
+    diarizer.asr.realigning_lm_parameters.logprob_diff_threshold=1.2 \
+    diarizer.asr.realigning_lm_parameters.arpa_language_model="/path/to/4gram_big.arpa"\
 ```
