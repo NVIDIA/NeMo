@@ -65,25 +65,47 @@ Some of important options in config file:
 
 - **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we have 'ecapa_tdnn' and 'speakerverification_speakernet'.
+Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we have 'ecapa_tdnn' and 'speakerverification_speakernet'.
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='ecapa_tdnn'`
+`diarizer.speaker_embeddings.model_path='ecapa_tdnn'`
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
+You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
 
- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='path/to/ecapa_tdnn.nemo'` 
+`diarizer.speaker_embeddings.model_path='path/to/ecapa_tdnn.nemo'` 
  
 - **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
+Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.vad.model_path='vad_telephony_marblenet'`
+`diarizer.vad.model_path='vad_telephony_marblenet'`
 
+Instead, you can also download the model from [vad_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet) and [vad_telephony_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet) and specify the full path name to the model as below.
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Instead, you can also download the model from [vad_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet) and [vad_telephony_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet) and specify the full path name to the model as below.
+`diarizer.vad.model_path='path/to/vad_telephony_marblenet.nemo'`
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.vad.model_path='path/to/vad_telephony_marblenet.nemo'`
+- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization (Experimental)**
 
+Multiscale diarization system employs multiple scales at the same time to obtain a finer temporal resolution. To use multiscale feature, at least two scales and scale weights should be provided. The scales should be provided in descending order, from the longest scale to the base scale (the shortest). The below example shows how multiscale parameters are specified and the recommended parameters.
+
+#### Example script
+Single-scale setting:
+```bash
+  python offline_diarization.py \
+     ...
+     parameters.window_length_in_sec=1.5 \
+     parameters.shift_length_in_sec=0.75 \
+     parameters.multiscale_weights=null \
+```
+
+Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
+```bash
+  python offline_diarization.py \
+     ...
+     parameters.window_length_in_sec='[1.5, 1.0, 0.5]' \
+     parameters.shift_length_in_sec='[0.75, 0.5, 0.25]' \
+     parameters.multiscale_weights='[0.33, 0.33, 0.33]' \
+```
+ 
 <br/>
 
 ## Run Speech Recognition with Speaker Diarization
