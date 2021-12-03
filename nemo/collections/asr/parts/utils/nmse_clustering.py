@@ -38,8 +38,8 @@ from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 
-from nemo.utils.decorators.experimental import experimental
 from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -121,6 +121,7 @@ def getMinimumConnection(mat, max_N, n_list):
 
     return affinity_mat, p_value
 
+
 def getRepeatedList(mapping_argmat, score_mat_size):
     """
     Count the numbers in the mapping dictionary and create lists that contain
@@ -135,6 +136,7 @@ def getRepeatedList(mapping_argmat, score_mat_size):
         else:
             repeat_list.append(0)
     return repeat_list
+
 
 @experimental
 def getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data):
@@ -167,7 +169,7 @@ def getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data):
     multiscale_weights = uniq_multi_scale_data['multiscale_weights']
     base_scale_score_mat = getCosAffinityMatrix(base_scale_emb)
     score_mat_list, repeated_mat_list = [], []
-    
+
     for scale_idx in sorted(uniq_scale_dict.keys()):
         mapping_argmat = uniq_scale_dict[scale_idx]['mapping']
         score_mat = getCosAffinityMatrix(uniq_scale_dict[scale_idx]['embeddings'])

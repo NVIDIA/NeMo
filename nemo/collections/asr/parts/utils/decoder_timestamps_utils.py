@@ -18,36 +18,34 @@ import json
 import math
 import os
 import sys
-from collections import OrderedDict as od
-from omegaconf import OmegaConf, open_dict
-from datetime import datetime
-from typing import Union, Optional, List, Type, Tuple, Dict
-
-import librosa
 import tempfile
+from collections import OrderedDict as od
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple, Type, Union
+
 import diff_match_patch
-import wget
-from tqdm.auto import tqdm
+import librosa
 import numpy as np
 import soundfile as sf
 import torch
-import nemo.collections.asr as nemo_asr
+import wget
+from nemo_text_processing.text_normalization.normalize import Normalizer
+from omegaconf import OmegaConf, open_dict
+from tqdm.auto import tqdm
 
+import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
-from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map,
     get_uniqname_from_filepath,
     labels_to_rttmfile,
     rttm_to_labels,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo_text_processing.text_normalization.normalize import Normalizer
-
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -58,8 +56,10 @@ try:
 except:
     logging.info("pyctcdecode is not installed. You must install kenlm and pyctcdecode to use language models")
 
+
 def if_none_get_default(param, default_value):
     return (param, default_value)[param == None]
+
 
 class WERBPE_TS(WERBPE):
     """
@@ -218,6 +218,7 @@ class WER_TS(WER):
 
         return hypotheses, timestamps
 
+
 def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs):
     """
     Creates a preprocessor to convert audio samples into raw features,
@@ -247,6 +248,7 @@ def get_samples(audio_file, target_sr=16000):
         del f
     return samples
 
+
 class FrameBatchASR_Logits(FrameBatchASR):
     """
     A class for streaming frame-based ASR.
@@ -254,10 +256,16 @@ class FrameBatchASR_Logits(FrameBatchASR):
     Please refer to FrameBatchASR for more detailed information.
     """
 
-    def __init__(self, asr_model: Type[EncDecCTCModelBPE], frame_len: float=1.6, total_buffer: float=4.0, batch_size: int=4):
+    def __init__(
+        self,
+        asr_model: Type[EncDecCTCModelBPE],
+        frame_len: float = 1.6,
+        total_buffer: float = 4.0,
+        batch_size: int = 4,
+    ):
         super().__init__(asr_model, frame_len, total_buffer, batch_size)
         self.all_logprobs = []
-    
+
     def clear_buffer(self):
         self.all_logprobs = []
         self.all_preds = []
@@ -268,7 +276,7 @@ class FrameBatchASR_Logits(FrameBatchASR):
         frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
         self.set_frame_reader(frame_reader)
         del samples
-    
+
     @torch.no_grad()
     def _get_batch_preds(self):
         device = self.asr_model.device
@@ -297,17 +305,19 @@ class FrameBatchASR_Logits(FrameBatchASR):
         for idx, pred in enumerate(self.all_preds):
             decoded = pred.tolist()
             _stt, _end = len(decoded) - 1 - delay, len(decoded) - 1 - delay + tokens_per_chunk
-            self.unmerged += decoded[len(decoded) - 1 - delay:len(decoded) - 1 - delay + tokens_per_chunk]
+            self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
             self.part_logprobs.append(self.all_logprobs[idx][_stt:_end, :])
         self.unmerged_logprobs = torch.cat(self.part_logprobs, 0)
-        assert len(self.unmerged) == self.unmerged_logprobs.shape[0], "Unmerged decoded result and log prob lengths are different."
+        assert (
+            len(self.unmerged) == self.unmerged_logprobs.shape[0]
+        ), "Unmerged decoded result and log prob lengths are different."
         return self.greedy_merge(self.unmerged), self.unmerged, self.unmerged_logprobs
-
 
 
 class ASR_TIMESTAMPS:
     """
-    A Class designed for performing ASR and diarization together.
+    A Class designed for extracting word timestamps while ASR decoding process.
+    This class contains a few setups for a slew of NeMo ASR models such as QuartzNet, CitriNet amd ConformerCTC models.
     """
 
     def __init__(self, **cfg_diarizer):
@@ -334,6 +344,12 @@ class ASR_TIMESTAMPS:
         To assign a proper decoding function for generating timestamp output,
         the name of .nemo file should include the architecture name such as:
         'quartznet', 'conformer', 'citrinet' or 'conformer_transducer'.
+
+        decoder_delay_in_sec is the amount of delay that is compensated during the word timestamp extraction.
+        word_ts_anchor_offset is the reference point for a word and used for matching the word with diarization labels.
+        Each ASR model has different optimal decoder delay and word timestamp anchor offset.
+        To obtain the optimized diarization result with ASR, decoder_delay_in_sec and word_ts_anchor_offset
+        need to be searched on a development set.
         """
         if 'quartznet' in ASR_model_name.lower():
             self.run_ASR = self.run_ASR_QuartzNet_CTC
@@ -350,7 +366,7 @@ class ASR_TIMESTAMPS:
             self.word_ts_anchor_offset = if_none_get_default(self.params['word_ts_anchor_offset'], 0.12)
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 16)
             self.model_stride_in_secs = 0.04
-            
+
             # Conformer requires buffered inference and the parameters for buffered processing.
             self.chunk_len_in_sec = 5
             self.total_buffer_in_secs = 25
@@ -365,22 +381,23 @@ class ASR_TIMESTAMPS:
 
         else:
             raise ValueError(f"Cannot find the ASR model class for: {self.params['ASR_model_name']}")
-        
+
         if ASR_model_name.endswith('.nemo'):
             asr_model = self.encdec_class.restore_from(restore_path=ASR_model_name)
         else:
             asr_model = self.encdec_class.from_pretrained(model_name=ASR_model_name, strict=False)
 
-        
         if self.ctc_decoder_params['pretrained_language_model'] and 'pyctcdecode' in sys.modules:
             self.beam_search_decoder = self.load_LM_for_CTC_decoder(asr_model)
         else:
             self.beam_search_decoder = None
-        
-        asr_model.eval() 
+
+        asr_model.eval()
         return asr_model
 
-    def load_LM_for_CTC_decoder(self, asr_model: Type[Union[EncDecCTCModel, EncDecCTCModelBPE]]) -> Type[build_ctcdecoder]:
+    def load_LM_for_CTC_decoder(
+        self, asr_model: Type[Union[EncDecCTCModel, EncDecCTCModelBPE]]
+    ) -> Type[build_ctcdecoder]:
         """
         Loads a language model for CTC decoder (pyctcdecode).
         Note that only EncDecCTCModel and EncDecCTCModelBPE models can use pyctcdecode.
@@ -397,12 +414,10 @@ class ASR_TIMESTAMPS:
             labels[0] = "<unk>"
         else:
             raise ValueError(f"Cannot find a vocabulary or tokenizer for: {self.params['ASR_model_name']}")
-        
+
         decoder = build_ctcdecoder(
-          labels,
-          kenlm_model, 
-          alpha=self.ctc_decoder_params['alpha'], 
-          beta=self.ctc_decoder_params['beta'])
+            labels, kenlm_model, alpha=self.ctc_decoder_params['alpha'], beta=self.ctc_decoder_params['beta']
+        )
         return decoder
 
     def run_ASR_QuartzNet_CTC(self, asr_model: Type[EncDecCTCModel]):
@@ -415,11 +430,11 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_list (list):
-                Dictionary of the sequence of words from hypothesis.
+                A dictionary of the sequence of words from hypothesis.
             words_ts_list (list):
-                Dictionary of the time-stamps of words.
+                A dictionary of the time-stamps of words.
         """
-        words_dict, word_ts_dict= {}, {}
+        words_dict, word_ts_dict = {}, {}
 
         wer_ts = WER_TS(
             vocabulary=asr_model.decoder.vocabulary,
@@ -431,11 +446,15 @@ class ASR_TIMESTAMPS:
         )
 
         with torch.cuda.amp.autocast():
-            transcript_logits_list = asr_model.transcribe(self.audio_file_list, batch_size=self.asr_batch_size, logprobs=True)
+            transcript_logits_list = asr_model.transcribe(
+                self.audio_file_list, batch_size=self.asr_batch_size, logprobs=True
+            )
             for idx, logit_np in enumerate(transcript_logits_list):
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
-                    logging.info(f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}")
+                    logging.info(
+                        f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}"
+                    )
                     hyp_words, word_ts = self.run_pyctcdecode(logit_np)
                 else:
                     log_prob = torch.from_numpy(logit_np)
@@ -452,12 +471,12 @@ class ASR_TIMESTAMPS:
                         char_ts_in_feature_frame_idx, spaces_in_sec, end_stamp=logit_np.shape[0]
                     )
                 word_ts = self.align_decoder_delay(word_ts, self.decoder_delay_in_sec)
-                assert len(hyp_words) == len(word_ts), "Words and word-timestamp list length does not match."
+                assert len(hyp_words) == len(word_ts), "Words and word timestamp list length does not match."
                 words_dict[uniq_id] = hyp_words
                 word_ts_dict[uniq_id] = word_ts
-            
-        return words_dict, word_ts_dict 
-    
+
+        return words_dict, word_ts_dict
+
     @staticmethod
     def clean_trans_and_TS(trans, char_ts):
         """
@@ -534,11 +553,11 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_list (list):
-                A Dictionary of the sequence of words from hypothesis.
+                A dictionary of the sequence of words from hypothesis.
             words_ts_list (list):
-                A Dictionary of the timestamps of hypothesis words.
+                A dictionary of the timestamps of hypothesis words.
         """
-        words_dict, word_ts_dict= {}, {}
+        words_dict, word_ts_dict = {}, {}
 
         werbpe_ts = WERBPE_TS(
             tokenizer=asr_model.tokenizer,
@@ -550,13 +569,17 @@ class ASR_TIMESTAMPS:
         )
 
         with torch.cuda.amp.autocast():
-            transcript_logits_list = asr_model.transcribe(self.audio_file_list, batch_size=self.asr_batch_size, logprobs=True)
+            transcript_logits_list = asr_model.transcribe(
+                self.audio_file_list, batch_size=self.asr_batch_size, logprobs=True
+            )
             for idx, logit_np in enumerate(transcript_logits_list):
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
-                    logging.info(f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}")
+                    logging.info(
+                        f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}"
+                    )
                     hyp_words, word_ts = self.run_pyctcdecode(logit_np)
-                else: 
+                else:
                     log_prob = torch.from_numpy(logit_np)
                     greedy_predictions = log_prob.argmax(dim=-1, keepdim=False).unsqueeze(0)
                     logits_len = torch.from_numpy(np.array([log_prob.shape[0]]))
@@ -565,16 +588,15 @@ class ASR_TIMESTAMPS:
                     )
                     hyp_words, word_ts = text[0].split(), word_ts[0]
                 word_ts = self.align_decoder_delay(word_ts, self.decoder_delay_in_sec)
-                assert len(hyp_words) == len(word_ts), "Words and word-timestamp list length does not match."
+                assert len(hyp_words) == len(word_ts), "Words and word timestamp list length does not match."
                 words_dict[uniq_id] = hyp_words
                 word_ts_dict[uniq_id] = word_ts
-            
-        return words_dict, word_ts_dict 
 
+        return words_dict, word_ts_dict
 
     def set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE]):
         """
-        Prepares the parameters for the buffered inference 
+        Prepares the parameters for the buffered inference
         """
         cfg = copy.deepcopy(asr_model._cfg)
         OmegaConf.set_struct(cfg.preprocessor, False)
@@ -587,11 +609,13 @@ class ASR_TIMESTAMPS:
         preprocessor.to(asr_model.device)
 
         if cfg.preprocessor.normalize != "per_feature":
-            logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
+            logging.error(
+                "Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently"
+            )
 
         # Disable config overwriting
         OmegaConf.set_struct(cfg.preprocessor, True)
-        
+
         onset_delay = (
             math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec) / 2) / self.model_stride_in_secs) + 1
         )
@@ -602,7 +626,6 @@ class ASR_TIMESTAMPS:
         tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
 
         return onset_delay, mid_delay, tokens_per_chunk
-        
 
     def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[List[str], Dict[str, float]]:
         """
@@ -616,9 +639,9 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_list (list):
-                Dictionary of the sequence of words from hypothesis.
+                A dictionary of the sequence of words from hypothesis.
             words_ts_list (list):
-                Dictionary of the time-stamps of words.
+                A dictionary of the time-stamps of words.
         """
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
@@ -642,7 +665,7 @@ class ASR_TIMESTAMPS:
 
         onset_delay, mid_delay, tokens_per_chunk = self.set_buffered_infer_params(asr_model)
         onset_delay_in_sec = round(onset_delay * self.model_stride_in_secs, 2)
-        
+
         with torch.cuda.amp.autocast():
             logging.info(f"Running ASR model {self.ASR_model_name}")
 
@@ -660,7 +683,9 @@ class ASR_TIMESTAMPS:
                     self.model_stride_in_secs,
                 )
                 if self.beam_search_decoder:
-                    logging.info(f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}")
+                    logging.info(
+                        f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}"
+                    )
                     log_prob = log_prob.unsqueeze(0).cpu().numpy()[0]
                     hyp_words, word_ts = self.run_pyctcdecode(log_prob, onset_delay_in_sec=onset_delay_in_sec)
                 else:
@@ -673,19 +698,21 @@ class ASR_TIMESTAMPS:
                     hyp_words, word_ts = text[0].split(), word_ts[0]
 
                 word_ts = self.align_decoder_delay(word_ts, self.decoder_delay_in_sec)
-                assert len(hyp_words) == len(word_ts), "Words and word-timestamp list length does not match."
+                assert len(hyp_words) == len(word_ts), "Words and word timestamp list length does not match."
                 words_dict[uniq_id] = hyp_words
                 word_ts_dict[uniq_id] = word_ts
 
         return words_dict, word_ts_dict
-    
-    def get_word_ts_from_spaces(self, char_ts: List[float], spaces_in_sec: List[float], end_stamp: float) -> List[float]:
+
+    def get_word_ts_from_spaces(
+        self, char_ts: List[float], spaces_in_sec: List[float], end_stamp: float
+    ) -> List[float]:
         """
-        Takes word-timestamps from the spaces from the decoded prediction.
+        Takes word timestamps from the spaces from the decoded prediction.
 
         Args:
             char_ts (list):
-                The time-stamps for each character.
+                A list containing the timestamp for each character.
             spaces_in_sec (list):
                 A list containing the start and the end time of each space token.
             end_stamp (float):
@@ -698,11 +725,7 @@ class ASR_TIMESTAMPS:
         start_stamp_in_sec = round(char_ts[0] * self.model_stride_in_secs, 2)
         end_stamp_in_sec = round(end_stamp * self.model_stride_in_secs, 2)
         word_timetamps_middle = [
-            [
-                round(spaces_in_sec[k][1], 2),
-                round(spaces_in_sec[k + 1][0], 2),
-            ]
-            for k in range(len(spaces_in_sec) - 1)
+            [round(spaces_in_sec[k][1], 2), round(spaces_in_sec[k + 1][0], 2),] for k in range(len(spaces_in_sec) - 1)
         ]
         word_timestamps = (
             [[start_stamp_in_sec, round(spaces_in_sec[0][0], 2)]]
@@ -711,12 +734,14 @@ class ASR_TIMESTAMPS:
         )
         return word_timestamps
 
-    def run_pyctcdecode(self, logprob: np.ndarray, onset_delay_in_sec: float=0, beam_width: int=32) -> Tuple[List[str], List[float]]:
+    def run_pyctcdecode(
+        self, logprob: np.ndarray, onset_delay_in_sec: float = 0, beam_width: int = 32
+    ) -> Tuple[List[str], List[float]]:
         """
         Launches pyctcdecode with the loaded pretrained language model.
 
         Args:
-            logprob (np.ndarray)
+            logprob (np.ndarray): The log probability from the ASR model inference in numpy array format.
 
         Return:
             hyp_words (list):
@@ -733,25 +758,29 @@ class ASR_TIMESTAMPS:
         hyp_words, word_ts = words_beam, word_ts_beam
         return hyp_words, word_ts
 
-
     @staticmethod
     def get_word_ts_from_wordframes(idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float):
         """
-        Extracts word timestamps from word frames generated from pyctcdecode.
+        Extracts word timestamps from word frames generated from pyctcdecode
         """
         offset = -1 * 2.25 * frame_duration - onset_delay
         frame_begin = word_frames[idx][1][0]
         if frame_begin == -1:
-            frame_begin = word_frames[idx-1][1][1] if idx != 0 else 0
+            frame_begin = word_frames[idx - 1][1][1] if idx != 0 else 0
         frame_end = word_frames[idx][1][1]
-        return [round(max(frame_begin*frame_duration + offset, 0), 2),
-                round(max(frame_end*frame_duration + offset, 0), 2)]
+        return [
+            round(max(frame_begin * frame_duration + offset, 0), 2),
+            round(max(frame_end * frame_duration + offset, 0), 2),
+        ]
 
-    @staticmethod 
+    @staticmethod
     def align_decoder_delay(word_ts, decoder_delay_in_sec: float):
         """
-        Subtracts decoder_delay_in_sec from the word timestamp output.
+        Subtracts decoder_delay_in_sec from the word timestamp output
         """
         for k in range(len(word_ts)):
-            word_ts[k] = [round(word_ts[k][0]-decoder_delay_in_sec, 2), round(word_ts[k][1]-decoder_delay_in_sec,2)]
+            word_ts[k] = [
+                round(word_ts[k][0] - decoder_delay_in_sec, 2),
+                round(word_ts[k][1] - decoder_delay_in_sec, 2),
+            ]
         return word_ts

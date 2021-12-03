@@ -14,20 +14,20 @@
 import json
 import math
 import os
+from collections import Counter
 from copy import deepcopy
+from typing import Dict, List
 
 import numpy as np
 import soundfile as sf
 import torch
-from typing import List, Dict
 from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
-from collections import Counter
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmse_clustering import COSclustering
-from nemo.utils.decorators.experimental import experimental
 from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 
 
 """
@@ -51,7 +51,7 @@ def audio_rttm_map(manifest):
     input: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
 
     returns:
-    AUDIO_RTTM_MAP (dict) : Dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
+    AUDIO_RTTM_MAP (dict) : A dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
     """
 
     AUDIO_RTTM_MAP = {}
@@ -83,6 +83,7 @@ def audio_rttm_map(manifest):
 
     return AUDIO_RTTM_MAP
 
+
 @experimental
 def get_multiscale_time_stamps(multi_scale_emb_ts_spkrs, multi_scale_dict):
     """
@@ -91,35 +92,39 @@ def get_multiscale_time_stamps(multi_scale_emb_ts_spkrs, multi_scale_dict):
 
     Args:
         multi_scale_emb_ts_spkrs (dict) :
-            Dictionary of embeddings and timestamps for each scale.
+            A dictionary of embeddings and timestamps for each scale.
         multi_scale_dict (dict) :
-            Dictionary of scale information: window, shift and multiscale weights.
+            A dictionary of scale information: window, shift and multiscale weights.
 
     Returns:
         embeddings (dict) :
-            Dictionary containing embeddings of the base scale.
+            A dictionary containing embeddings of the base scale.
         time_stamps (dict) :
-            Dictionary containing timestamps of the base scale.
+            A dictionary containing timestamps of the base scale.
         multi_scale_data (dict)
-            Dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
+            A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
 
     """
     global_mapping_dict = multi_scale_segment_mapper(multi_scale_emb_ts_spkrs)
-    multi_scale_data = {uniq_id: {'multiscale_weights': [], 'scale_dict': {} } for uniq_id in multi_scale_emb_ts_spkrs[0][0].keys() }
+    multi_scale_data = {
+        uniq_id: {'multiscale_weights': [], 'scale_dict': {}} for uniq_id in multi_scale_emb_ts_spkrs[0][0].keys()
+    }
     for scale_idx in sorted(multi_scale_dict['scale_dict'].keys()):
         embeddings, time_stamps = multi_scale_emb_ts_spkrs[scale_idx]
         for uniq_id in embeddings.keys():
             multi_scale_data[uniq_id]['multiscale_weights'] = multi_scale_dict['multiscale_weights']
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
-            multi_scale_data[uniq_id]['scale_dict'][scale_idx]  = {'embeddings': embeddings[uniq_id],
-                                                     'time_stamps': time_stamps[uniq_id],
-                                                     'mapping': global_mapping_dict[uniq_id][scale_idx]
-                                                     }
+            multi_scale_data[uniq_id]['scale_dict'][scale_idx] = {
+                'embeddings': embeddings[uniq_id],
+                'time_stamps': time_stamps[uniq_id],
+                'mapping': global_mapping_dict[uniq_id][scale_idx],
+            }
 
     # Return the base scale embeddings and timestamps.
     base_scale_idx = max(multi_scale_dict['scale_dict'].keys())
-    base_scale_embeddings, base_scale_time_stamps = multi_scale_emb_ts_spkrs[base_scale_idx] 
+    base_scale_embeddings, base_scale_time_stamps = multi_scale_emb_ts_spkrs[base_scale_idx]
     return base_scale_embeddings, base_scale_time_stamps, multi_scale_data
+
 
 def multi_scale_segment_mapper(multi_scale_emb_ts_spkrs):
     """
@@ -128,28 +133,28 @@ def multi_scale_segment_mapper(multi_scale_emb_ts_spkrs):
 
     Args:
         multi_scale_emb_ts_spkrs (dict) :
-            Dictionary of embeddings and timestamps for each scale.
+            A dictionary of embeddings and timestamps for each scale.
 
     Returns:
         global_scale_mapping_dict (dict) :
-            Dictionary containing sub-dictionaries indexed by uniq ID.
+            A dictionary containing sub-dictionaries indexed by uniq ID.
             Each sub-dictionary contains the indicies (argmin_mat) of the nearest segments in the longer scales from
             the base scale segments. These argmin_mat array is calculated for each scale.
     """
     segment_anchor_dict = {}
     for scale_idx, (_, time_stamps_dict) in multi_scale_emb_ts_spkrs.items():
-        for uniq_id, time_stamp_list in time_stamps_dict.items(): 
+        for uniq_id, time_stamp_list in time_stamps_dict.items():
             if uniq_id not in segment_anchor_dict:
-                segment_anchor_dict[uniq_id] = {} 
-            time_stamps_float = np.array([ [float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
+                segment_anchor_dict[uniq_id] = {}
+            time_stamps_float = np.array([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
             segment_anchor_dict[uniq_id][scale_idx] = np.mean(time_stamps_float, axis=1)
 
     scale_list = sorted(list(multi_scale_emb_ts_spkrs.keys()))
     base_scale_idx = max(scale_list)
     (_, base_time_stamps_dict) = multi_scale_emb_ts_spkrs[base_scale_idx]
     global_scale_mapping_dict = {}
-    
-    for uniq_id, _ in base_time_stamps_dict.items(): 
+
+    for uniq_id, _ in base_time_stamps_dict.items():
         base_scale_anchor = segment_anchor_dict[uniq_id][base_scale_idx]
         session_rate_mapping_dict = {}
         for scale_idx in scale_list:
@@ -271,7 +276,9 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None):
+def perform_clustering(
+    embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
+):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
 
@@ -308,7 +315,7 @@ def perform_clustering(embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, cl
 
         emb = embeddings[uniq_key]
         emb = np.asarray(emb)
-        
+
         if multi_scale_data:
             uniq_multi_scale_data = multi_scale_data[uniq_key]
         else:

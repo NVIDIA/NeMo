@@ -22,8 +22,8 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import List, Optional
 
-import torch
 import omegaconf
+import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.utilities import rank_zero_only
 from tqdm import tqdm
@@ -33,11 +33,11 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
+    get_multiscale_time_stamps,
     get_uniqname_from_filepath,
     perform_clustering,
     score_labels,
     segments_manifest_to_subsegments_manifest,
-    get_multiscale_time_stamps,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.vad_utils import (
@@ -47,8 +47,8 @@ from nemo.collections.asr.parts.utils.vad_utils import (
     prepare_manifest,
 )
 from nemo.core.classes import Model
-from nemo.utils.decorators.experimental import experimental
 from nemo.utils import logging, model_utils
+from nemo.utils.decorators.experimental import experimental
 
 try:
     from torch.cuda.amp import autocast
@@ -66,6 +66,7 @@ _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
 _LISTCONFIG_TYPE = type(omegaconf.listconfig.ListConfig([]))
+
 
 def get_available_model_names(class_name):
     "lists available pretrained model names from NGC"
@@ -263,12 +264,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
-    def _run_segmentation(self, window=None, shift=None, scale_tag: str=''):
-        
+    def _run_segmentation(self, window=None, shift=None, scale_tag: str = ''):
+
         if window is not None:
-            self._speaker_params.window_length_in_sec = window 
+            self._speaker_params.window_length_in_sec = window
         if shift is not None:
-            self._speaker_params.shift_length_in_sec = shift 
+            self._speaker_params.shift_length_in_sec = shift
 
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
@@ -364,7 +365,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._embeddings_file = name + f'_embeddings{scale_tag}.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
-    
 
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
         with open(manifest_filepath, 'w') as fp:
@@ -390,29 +390,40 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 parameters.shift_length_in_sec='[0.75, 0.5, 0.25]'
                 parameters.multiscale_weights='[0.33, 0.33, 0.33]'
         """
-        scale_configs = [type(params['window_length_in_sec']), 
-                         type(params['shift_length_in_sec']), 
-                         type(params['multiscale_weights'])]
-        if all( _type == _LISTCONFIG_TYPE for _type in scale_configs ):
-            
+        scale_configs = [
+            type(params['window_length_in_sec']),
+            type(params['shift_length_in_sec']),
+            type(params['multiscale_weights']),
+        ]
+        if all(_type == _LISTCONFIG_TYPE for _type in scale_configs):
+
             window_lengths = list(params['window_length_in_sec'])
             shift_lengths = list(params['shift_length_in_sec'])
             multiscale_weights = list(params['multiscale_weights'])
 
-            length_check = len(set([len(window_lengths), len(shift_lengths), len(multiscale_weights)])) == 1 and len(multiscale_weights) > 1
-            scale_order_check = window_lengths == sorted(window_lengths)[::-1] and shift_lengths == sorted(shift_lengths)[::-1]
-            shift_length = all([ w > s for w, s in zip(window_lengths, shift_lengths) ]) == True
-            
+            length_check = (
+                len(set([len(window_lengths), len(shift_lengths), len(multiscale_weights)])) == 1
+                and len(multiscale_weights) > 1
+            )
+            scale_order_check = (
+                window_lengths == sorted(window_lengths)[::-1] and shift_lengths == sorted(shift_lengths)[::-1]
+            )
+            shift_length = all([w > s for w, s in zip(window_lengths, shift_lengths)]) == True
+
             if all([length_check, scale_order_check, shift_length]) == True:
                 multi_scale_dict = {}
-                multi_scale_dict['scale_dict'] = { k : (w, s) for k, (w, s) in enumerate(zip(window_lengths, shift_lengths)) }
+                multi_scale_dict['scale_dict'] = {
+                    k: (w, s) for k, (w, s) in enumerate(zip(window_lengths, shift_lengths))
+                }
                 multi_scale_dict['multiscale_weights'] = multiscale_weights
                 return multi_scale_dict
             else:
                 raise ValueError('Multiscale parameters are not properly setup.')
 
-        elif any( _type == _LISTCONFIG_TYPE for _type in scale_configs ):
-            raise ValueError('You must provide list config for all three parameters: window, shift and multiscale weights.')
+        elif any(_type == _LISTCONFIG_TYPE for _type in scale_configs):
+            raise ValueError(
+                'You must provide list config for all three parameters: window, shift and multiscale weights.'
+            )
         else:
             return None
 
@@ -442,13 +453,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 raise ValueError("paths2audio_files must be of type list of paths to file containing audio file")
 
         self.AUDIO_RTTM_MAP = audio_rttm_map(self._diarizer_params.manifest_filepath)
-        
+
         out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         # Speech Activity Detection
         self._perform_speech_activity_detection()
-       
+
         # Segmentation
         self.multi_scale_dict = self.parse_scale_configs(**self._diarizer_params.speaker_embeddings.parameters)
         if self.multi_scale_dict:
@@ -457,14 +468,18 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
                 # Segmentation for the current scale (scale_idx)
                 self._run_segmentation(window=time_length, shift=shift_length, scale_tag=f'_scale{scale_idx}')
-                logging.info(f"Extracting multiscale embeddings for Diarization: scale-{scale_idx}, {self.subsegments_manifest_path}")
+                logging.info(
+                    f"Extracting multiscale embeddings for Diarization: scale-{scale_idx}, {self.subsegments_manifest_path}"
+                )
 
                 # Embedding Extraction for the current scale (scale_idx)
                 self._extract_embeddings(self.subsegments_manifest_path, scale_tag=f'_scale{scale_idx}')
 
                 multi_scale_emb_ts_spkrs[scale_idx] = [self.embeddings, self.time_stamps]
 
-            self.embeddings, self.time_stamps, multi_scale_data = get_multiscale_time_stamps(multi_scale_emb_ts_spkrs, self.multi_scale_dict)
+            self.embeddings, self.time_stamps, multi_scale_data = get_multiscale_time_stamps(
+                multi_scale_emb_ts_spkrs, self.multi_scale_dict
+            )
         else:
             # Single-scale Segmentation
             self._run_segmentation()
@@ -472,7 +487,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             # Single-scale Embedding Extraction
             self._extract_embeddings(self.subsegments_manifest_path)
             multi_scale_data = None
-            
+
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
             embeddings=self.embeddings,

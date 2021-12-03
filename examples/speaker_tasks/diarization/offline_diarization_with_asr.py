@@ -15,8 +15,8 @@
 
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE
 from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASR_TIMESTAMPS
+from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -50,17 +50,18 @@ def main(cfg):
     asr_ts_decoder = ASR_TIMESTAMPS(**cfg.diarizer)
     asr_model = asr_ts_decoder.set_asr_model(cfg.diarizer.asr.model_path)
     word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
-    
+
     asr_diar_offline = ASR_DIAR_OFFLINE(asr_ts_decoder, **cfg.diarizer)
     diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)
     total_riva_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
 
     if diar_score is not None:
-        
+
         metric, mapping_dict = diar_score
         DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, total_riva_dict)
         WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict)
         asr_diar_offline.print_errors(DER_result_dict, WDER_dict)
+
 
 if __name__ == '__main__':
     main()

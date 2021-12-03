@@ -17,37 +17,37 @@ import csv
 import json
 import math
 import os
-import sys
-from collections import OrderedDict as od
-from omegaconf import OmegaConf, open_dict
-from datetime import datetime
-from typing import Union, Optional, List, Type, Tuple, Dict
-
 import shutil
-import librosa
+import sys
 import tempfile
+from collections import OrderedDict as od
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple, Type, Union
+
 import diff_match_patch
-import wget
-from tqdm.auto import tqdm
+import librosa
 import numpy as np
 import soundfile as sf
 import torch
-import nemo.collections.asr as nemo_asr
+import wget
+from nemo_text_processing.text_normalization.normalize import Normalizer
+from omegaconf import OmegaConf, open_dict
+from tqdm.auto import tqdm
 
+import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
 from nemo.collections.asr.models import ClusteringDiarizer, EncDecCTCModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_uniqname_from_filepath,
     audio_rttm_map,
+    get_uniqname_from_filepath,
     labels_to_rttmfile,
     rttm_to_labels,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 
@@ -57,6 +57,7 @@ except:
     logging.info("arpa is not installed. You must install arpa to refine diarization result with LM.")
 
 __all__ = ['ASR_DIAR_OFFLINE']
+
 
 def dump_json_to_file(file_path, riva_dict):
     """
@@ -74,6 +75,7 @@ def write_txt(w_path, val):
         output.write(val + '\n')
     return None
 
+
 def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
     """
     Takes the alignment between two lists and get the difference
@@ -88,16 +90,17 @@ def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
     diff.diff_charsToLines(diffs, enc)
     return diffs
 
+
 def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval):
     """
-    Calculates insertion, deletion and substitution from diff result and the reference ctm file.
+    Calculates insertion, deletion and substitution from the diff result and the reference ctm file.
     """
     correct_count, error_count, align_error = 0, 0, []
     _pred, _ref = 0, 0
     for k, _d in enumerate(error_buffer):
         if _d[0] == 1:
             stt, end = w_range_buffer[k]
-            bool_list = [ _bool for _bool in pred_rttm_eval[stt:end] ]
+            bool_list = [_bool for _bool in pred_rttm_eval[stt:end]]
             error_count = len(bool_list) - sum(bool_list)
             _pred = len(_d[1].strip().split('\n'))
         if _d[0] == -1:
@@ -107,12 +110,13 @@ def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pre
         _sub, _ins, _del = _min, _pred - _min, 0
     if _pred < _ref:
         _sub, _ins, _del = _min, 0, _ref - _min
-    if _pred ==  _ref:
+    if _pred == _ref:
         _sub, _ins, _del = _min, 0, 0
     ctm_error_dict['diar_confuse_count'] += error_count
     ctm_error_dict['asr_ins_count'] += _ins
     ctm_error_dict['asr_del_count'] += _del
     ctm_error_dict['asr_sub_count'] += _sub
+
 
 def get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_list, mapping_dict):
     """
@@ -123,13 +127,14 @@ def get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_li
     for ref, prd in zip(range(w_range[0][0], w_range[0][1]), range(w_range[1][0], w_range[1][1])):
         ref_spk, ref_start, ref_end = ctm_info_list[ref]
         pred_spk, pred_start, pred_end = pred_info_list[prd]
-        if pred_spk in mapping_dict: 
+        if pred_spk in mapping_dict:
             error_count += 1 if ref_spk != mapping_dict[pred_spk] else 0
         else:
             error_count += 1
         align_error_list.append(ref_start - pred_start)
     ctm_error_dict['diar_confuse_count'] += error_count
     return error_count, align_error_list
+
 
 class ASR_DIAR_OFFLINE(object):
     """
@@ -161,21 +166,25 @@ class ASR_DIAR_OFFLINE(object):
         else:
             self.realigning_lm = None
 
-        self.color_palette = {'speaker_0': '\033[1;32m',
-                              'speaker_1': '\033[1;34m',
-                              'speaker_2': '\033[1;30m',
-                              'speaker_3': '\033[1;31m',
-                              'speaker_4': '\033[1;35m',
-                              'speaker_5': '\033[1;36m',
-                              'speaker_6': '\033[1;37m',
-                              'speaker_7': '\033[1;30m',
-                              'speaker_8': '\033[1;33m',
-                              'speaker_9': '\033[0;34m',
-                              'white': '\033[0;37m'}
+        self.color_palette = {
+            'speaker_0': '\033[1;32m',
+            'speaker_1': '\033[1;34m',
+            'speaker_2': '\033[1;30m',
+            'speaker_3': '\033[1;31m',
+            'speaker_4': '\033[1;35m',
+            'speaker_5': '\033[1;36m',
+            'speaker_6': '\033[1;37m',
+            'speaker_7': '\033[1;30m',
+            'speaker_8': '\033[1;33m',
+            'speaker_9': '\033[0;34m',
+            'white': '\033[0;37m',
+        }
 
-    def load_realigning_LM(self):    
-        self.N_range = (self.realigning_lm_params['min_number_of_words'], 
-                   self.realigning_lm_params['max_number_of_words'])
+    def load_realigning_LM(self):
+        self.N_range = (
+            self.realigning_lm_params['min_number_of_words'],
+            self.realigning_lm_params['max_number_of_words'],
+        )
         self.stt_end_tokens = ['</s>', '<s>']
         if 'arpa' in sys.modules:
             return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
@@ -239,11 +248,11 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             word_and_timestamps (list):
-                A list containing words and word-timestamps
+                A list containing words and word timestamps
 
         Returns:
             diar_hyp (dict):
-                A dictionary containing rttm results which are indexed by unique ID.
+                A dictionary containing rttm results which are indexed by a unique ID.
             score Tuple[pyannote object, dict]:
                 A tuple containing pyannote metric instance and mapping dictionary between
                 speakers in hypotheses and speakers in reference RTTM files.
@@ -291,10 +300,10 @@ class ASR_DIAR_OFFLINE(object):
 
         Inputs:
             metric (DiarizationErrorRate metric): DiarizationErrorRate metric pyannote object
-            mapping_dict (dict): A dictionary containing speaker mapping labels for each audio file with key as uniq name
+            mapping_dict (dict): A dictionary containing speaker mapping labels for each audio file with key as unique name
 
         Return:
-            DER_result_dict (dict): A dictionary containing scores for each audio file along with aggreated results
+            DER_result_dict (dict): A dictionary containing scores for each audio file along with aggregated results
         """
         results = metric.results_
         DER_result_dict = {}
@@ -308,16 +317,16 @@ class ASR_DIAR_OFFLINE(object):
             ref_rttm = self.AUDIO_RTTM_MAP[key]['rttm_filepath']
             ref_labels = rttm_to_labels(ref_rttm)
             ref_n_spk = self.get_num_of_spk_from_labels(ref_labels)
-                
+
             if self.cfg_diarizer['oracle_vad']:
                 score['missed detection'] = 0
                 score['false alarm'] = 0
-           
+
             _DER, _CER, _FA, _MISS = (
-                (score['confusion']+score['false alarm']+score['missed detection'])/score['total'],
-                score['confusion']/score['total'],
-                score['false alarm']/score['total'],
-                score['missed detection']/score['total'],
+                (score['confusion'] + score['false alarm'] + score['missed detection']) / score['total'],
+                score['confusion'] / score['total'],
+                score['false alarm'] / score['total'],
+                score['missed detection'] / score['total'],
             )
 
             DER_result_dict[key] = {
@@ -424,9 +433,7 @@ class ASR_DIAR_OFFLINE(object):
             enhanced_word_ts_dict[uniq_id] = enhanced_word_ts_buffer
         return enhanced_word_ts_dict
 
-    def get_transcript_with_speaker_labels(
-        self, diar_hyp, word_hyp, word_ts_hyp
-    ):
+    def get_transcript_with_speaker_labels(self, diar_hyp, word_hyp, word_ts_hyp):
         """
         Matches the diarization result with the ASR output.
         The words and the timestamps for the corresponding words are matched
@@ -462,7 +469,9 @@ class ASR_DIAR_OFFLINE(object):
             uniq_id = get_uniqname_from_filepath(audio_file_path)
             word_dict_seq_list = self.get_word_dict_seq_list(uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined)
             if self.realigning_lm:
-                logging.info(f"Realigning diarization results of {uniq_id} with the provided language model {self.realigning_lm_params['arpa_language_model']}")
+                logging.info(
+                    f"Realigning diarization results of {uniq_id} with the provided language model {self.realigning_lm_params['arpa_language_model']}"
+                )
                 word_dict_seq_list = self.realign_words_with_lm(word_dict_seq_list)
             self.make_json_output(uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict)
         return total_riva_dict
@@ -483,7 +492,9 @@ class ASR_DIAR_OFFLINE(object):
                 start_point, end_point, speaker = labels[idx].split()
             refined_word_ts_stt_end = word_ts_refined[uniq_id][j]
             stt_sec, end_sec = round(refined_word_ts_stt_end[0], 2), round(refined_word_ts_stt_end[1], 2)
-            word_dict_seq_list.append({'word': words[j], 'start_time': stt_sec, 'end_time': end_sec, 'speaker_label': speaker})
+            word_dict_seq_list.append(
+                {'word': words[j], 'start_time': stt_sec, 'end_time': end_sec, 'speaker_label': speaker}
+            )
         return word_dict_seq_list
 
     def make_json_output(self, uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict):
@@ -492,23 +503,21 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             uniq_id (str):
+                A unique ID (key) that identifies each input audio file.
             diar_hyp (list):
+                The word sequence from ASR output.
             word_dict_seq_list (list):
+                A list containing words and corresponding word timestamps in dictionary format.
 
         Returns:
             total_riva_dict (dict):
+                A dictionary containing overall results of diarization and ASR inference.
         """
         word_seq_list, audacity_label_words = [], []
         labels = diar_hyp[uniq_id]
         n_spk = self.get_num_of_spk_from_labels(labels)
         riva_dict = od(
-            {
-                'status': 'Success',
-                'session_id': uniq_id,
-                'transcription': '',
-                'speaker_count': n_spk,
-                'words': [],
-            }
+            {'status': 'Success', 'session_id': uniq_id, 'transcription': '', 'speaker_count': n_spk, 'words': [],}
         )
         gecko_dict = od({'schemaVersion': 2.0, 'monologues': []})
         start_point, end_point, speaker = labels[0].split()
@@ -525,11 +534,13 @@ class ASR_DIAR_OFFLINE(object):
                 if len(terms_list) != 0:
                     gecko_dict['monologues'].append(
                         {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
-                        )
+                    )
                     terms_list = []
                 string_out = self.print_time(speaker, start_point, end_point, self.params, previous_string=string_out)
             else:
-                string_out = self.print_time(speaker, start_point, end_point, self.params, previous_string=string_out, replace_time=True)
+                string_out = self.print_time(
+                    speaker, start_point, end_point, self.params, previous_string=string_out, replace_time=True
+                )
             stt_sec, end_sec = round(start_point, 2), round(end_point, 2)
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
             string_out = self.print_word(string_out, word, self.params)
@@ -537,7 +548,6 @@ class ASR_DIAR_OFFLINE(object):
             audacity_label_words.append(self.get_audacity_label(word, stt_sec, end_sec, speaker))
             total_riva_dict[uniq_id] = riva_dict
             prev_speaker = speaker
-        
 
         if self.params['break_lines']:
             string_out = self.break_lines(string_out)
@@ -545,7 +555,7 @@ class ASR_DIAR_OFFLINE(object):
         riva_dict['transcription'] = ' '.join(word_seq_list)
         self.write_and_log(uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict)
         return total_riva_dict
-    
+
     def get_realignment_ranges(self, k, word_seq_len):
         """
         Calculates word ranges for realignment operation.
@@ -559,8 +569,8 @@ class ASR_DIAR_OFFLINE(object):
             N2 = max(word_seq_len - k, self.N_range[0])
         else:
             N1, N2 = self.N_range[1], self.N_range[1]
-        return N1, N2     
-    
+        return N1, N2
+
     def get_word_timestamp_anchor(self, word_ts_stt_end: List[float]) -> float:
         """
         word_ts_anchor_pos  determines the position of a word in relation to the given diarization labels:
@@ -572,24 +582,25 @@ class ASR_DIAR_OFFLINE(object):
         It is recommended to use the default value.
         """
         if self.params['word_ts_anchor_pos'] == 'start':
-            word_pos = word_ts_stt_end[0] 
+            word_pos = word_ts_stt_end[0]
         elif self.params['word_ts_anchor_pos'] == 'end':
-            word_pos = word_ts_stt_end[1] 
+            word_pos = word_ts_stt_end[1]
         elif self.params['word_ts_anchor_pos'] == 'mid':
             word_pos = (word_ts_stt_end[0] + word_ts_stt_end[1]) / 2
         else:
-            logging.info(f"word_ts_anchor_pos: {self.params['word_ts_anchor']} is not a supported option. Using the default 'start' option.")
-            word_pos = word_ts_stt_end[0] 
+            logging.info(
+                f"word_ts_anchor_pos: {self.params['word_ts_anchor']} is not a supported option. Using the default 'start' option."
+            )
+            word_pos = word_ts_stt_end[0]
 
         word_pos = word_pos + self.word_ts_anchor_offset
         return word_pos
-
 
     @experimental
     def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]):
         """
         Realign speakers to the words using a language model.
-        The realigning process calculates the probablity of the around the words at the boundary between
+        The realigning process calculates the probability of the around the words at the boundary between
         two hypothetical sentences spoken by different speakers.
 
         <Example> k-th word: "but"
@@ -602,25 +613,32 @@ class ASR_DIAR_OFFLINE(object):
         logprob_diff_threshold parameter is used for reducing the false positive realigning.
         """
         word_seq_len = len(word_dict_seq_list)
-        hyp_w_dict_list, spk_list = [] , []
+        hyp_w_dict_list, spk_list = [], []
         for k, line_dict in enumerate(word_dict_seq_list):
             word, spk_label = line_dict['word'], line_dict['speaker_label']
             hyp_w_dict_list.append(word)
             spk_list.append(spk_label)
 
-        org_spk_list = copy.deepcopy(spk_list) 
+        org_spk_list = copy.deepcopy(spk_list)
         realigned_list = []
         for k, line_dict in enumerate(word_dict_seq_list):
-            if self.N_range[0] < k < (word_seq_len - self.N_range[0]) and \
-               org_spk_list[k] != org_spk_list[k+1] or org_spk_list[k] != org_spk_list[k-1]:
+            if (
+                self.N_range[0] < k < (word_seq_len - self.N_range[0])
+                and org_spk_list[k] != org_spk_list[k + 1]
+                or org_spk_list[k] != org_spk_list[k - 1]
+            ):
                 N1, N2 = self.get_realignment_ranges(k, word_seq_len)
-                hyp_former = self.realigning_lm.log_s(' '.join(hyp_w_dict_list[k-N1:k] + self.stt_end_tokens + hyp_w_dict_list[k:k+N2]))
-                hyp_latter = self.realigning_lm.log_s(' '.join(hyp_w_dict_list[k-N1:k+1] + self.stt_end_tokens +  hyp_w_dict_list[k+1:k+N2]))
-                log_p = [hyp_former, hyp_latter] 
+                hyp_former = self.realigning_lm.log_s(
+                    ' '.join(hyp_w_dict_list[k - N1 : k] + self.stt_end_tokens + hyp_w_dict_list[k : k + N2])
+                )
+                hyp_latter = self.realigning_lm.log_s(
+                    ' '.join(hyp_w_dict_list[k - N1 : k + 1] + self.stt_end_tokens + hyp_w_dict_list[k + 1 : k + N2])
+                )
+                log_p = [hyp_former, hyp_latter]
                 p_order = np.argsort(log_p)[::-1]
                 if log_p[p_order[0]] > log_p[p_order[1]] + self.realigning_lm_params['logprob_diff_threshold']:
                     if p_order[0] == 0:
-                        org_spk_list[k] = spk_list[k+1]
+                        org_spk_list[k] = spk_list[k + 1]
                 line_dict['speaker_label'] = org_spk_list[k]
             realigned_list.append(line_dict)
         return realigned_list
@@ -641,16 +659,16 @@ class ASR_DIAR_OFFLINE(object):
             hyp_word_count: Number of words in the hypothesis
             diar_confuse_count: Number of incorrectly diarized words
             all_correct_count: Counts the word if both hypothesis word and speaker label are correct.
-            hyp_based_wder: Number of incorrectly diarized words divided by the number of words in the hypthesis
+            hyp_based_wder: Number of incorrectly diarized words divided by the number of words in the hypothesis
             ref_based_wder: Number of incorrectly diarized words divided by the number of words in the reference transcript
         """
 
         ctm_ref_word_seq, ctm_info_list = [], []
         pred_word_seq, pred_info_list, pred_rttm_eval = [], [], []
-       
+
         ctm_spk_set = set()
         for ctm_line in ctm_content:
-            spl  = ctm_line.split()
+            spl = ctm_line.split()
             ctm_ref_word_seq.append(spl[4])
             ctm_info_list.append([spl[1], float(spl[2]), float(spl[3])])
 
@@ -658,32 +676,38 @@ class ASR_DIAR_OFFLINE(object):
             pred_rttm_eval.append(w_dict['diar_correct'])
             pred_word_seq.append(w_dict['word'])
             pred_info_list.append([w_dict['speaker_label'], w_dict['start_time'], w_dict['end_time']])
-        
-        ctm_text  = ' '.join(ctm_ref_word_seq)
+
+        ctm_text = ' '.join(ctm_ref_word_seq)
         pred_text = ' '.join(pred_word_seq)
         diff = get_diff_text(ctm_text, pred_text)
 
         ref_word_count, hyp_word_count, all_correct_count, wder_count = 0, 0, 0, 0
-        ctm_error_dict = {'asr_ins_count': 0,
-                          'asr_del_count': 0,
-                          'asr_sub_count': 0,
-                          'ref_word_count': 0,
-                          'hyp_word_count': 0,
-                          'diar_confuse_count':0,
-                          'all_correct_count': 0,
-                          'hyp_based_wder':0,
-                          'ref_based_wder':0,}
+        ctm_error_dict = {
+            'asr_ins_count': 0,
+            'asr_del_count': 0,
+            'asr_sub_count': 0,
+            'ref_word_count': 0,
+            'hyp_word_count': 0,
+            'diar_confuse_count': 0,
+            'all_correct_count': 0,
+            'hyp_based_wder': 0,
+            'ref_based_wder': 0,
+        }
 
         error_buffer, w_range_buffer, cumul_align_error = [], [], []
         for k, d in enumerate(diff):
             word_seq = d[1].strip().split('\n')
             if d[0] == 0:
                 if error_buffer != []:
-                    get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer,  pred_rttm_eval)
+                    get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval)
                     error_buffer, w_range_buffer = [], []
-                w_range = [(ctm_error_dict['ref_word_count'], ctm_error_dict['ref_word_count'] + len(word_seq)), 
-                           (ctm_error_dict['hyp_word_count'], ctm_error_dict['hyp_word_count'] + len(word_seq))]
-                error_count, align_error = get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_list, mapping_dict)
+                w_range = [
+                    (ctm_error_dict['ref_word_count'], ctm_error_dict['ref_word_count'] + len(word_seq)),
+                    (ctm_error_dict['hyp_word_count'], ctm_error_dict['hyp_word_count'] + len(word_seq)),
+                ]
+                error_count, align_error = get_speaker_error_match(
+                    ctm_error_dict, w_range, ctm_info_list, pred_info_list, mapping_dict
+                )
                 ctm_error_dict['all_correct_count'] += len(word_seq) - error_count
                 ctm_error_dict['ref_word_count'] += len(word_seq)
                 ctm_error_dict['hyp_word_count'] += len(word_seq)
@@ -696,18 +720,23 @@ class ASR_DIAR_OFFLINE(object):
                 error_buffer.append(d)
                 w_range_buffer.append((hyp_word_count, hyp_word_count + len(word_seq)))
                 ctm_error_dict['hyp_word_count'] += len(word_seq)
-        
-        if error_buffer != []:
-            get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer,  pred_rttm_eval)
-            error_buffer, w_range_buffer = [], []
-   
-        sum_wer = sum([ ctm_error_dict[key] for key in ['asr_ins_count', 'asr_del_count', 'asr_sub_count'] ])
-        ctm_error_dict['wer_ctm'] = round(sum_wer/ctm_error_dict['ref_word_count'], 4)
-        ctm_error_dict['hyp_based_wder'] = round(ctm_error_dict['diar_confuse_count']/ctm_error_dict['hyp_word_count'], 4)
-        ctm_error_dict['ref_based_wder'] = round(ctm_error_dict['diar_confuse_count']/ctm_error_dict['ref_word_count'], 4)
-        ctm_error_dict['diar_trans_acc'] = round(ctm_error_dict['all_correct_count']/ctm_error_dict['ref_word_count'], 4)
-        return cumul_align_error, ctm_error_dict
 
+        if error_buffer != []:
+            get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval)
+            error_buffer, w_range_buffer = [], []
+
+        sum_wer = sum([ctm_error_dict[key] for key in ['asr_ins_count', 'asr_del_count', 'asr_sub_count']])
+        ctm_error_dict['wer_ctm'] = round(sum_wer / ctm_error_dict['ref_word_count'], 4)
+        ctm_error_dict['hyp_based_wder'] = round(
+            ctm_error_dict['diar_confuse_count'] / ctm_error_dict['hyp_word_count'], 4
+        )
+        ctm_error_dict['ref_based_wder'] = round(
+            ctm_error_dict['diar_confuse_count'] / ctm_error_dict['ref_word_count'], 4
+        )
+        ctm_error_dict['diar_trans_acc'] = round(
+            ctm_error_dict['all_correct_count'] / ctm_error_dict['ref_word_count'], 4
+        )
+        return cumul_align_error, ctm_error_dict
 
     def get_WDER(self, total_riva_dict, DER_result_dict):
         """
@@ -733,7 +762,11 @@ class ASR_DIAR_OFFLINE(object):
         align_error_list = []
 
         count_dict['total_ctm_wder_count'], count_dict['total_asr_and_spk_correct_words'] = 0, 0
-        count_dict['grand_total_ctm_word_count'], count_dict['grand_total_pred_word_count'], count_dict['grand_total_correct_word_count'] = 0, 0, 0
+        (
+            count_dict['grand_total_ctm_word_count'],
+            count_dict['grand_total_pred_word_count'],
+            count_dict['grand_total_correct_word_count'],
+        ) = (0, 0, 0)
         for k, audio_file_path in enumerate(self.audio_file_list):
 
             uniq_id = get_uniqname_from_filepath(audio_file_path)
@@ -742,10 +775,12 @@ class ASR_DIAR_OFFLINE(object):
             ref_labels = rttm_to_labels(ref_rttm)
             mapping_dict = DER_result_dict[uniq_id]['mapping']
             hyp_w_dict_list = total_riva_dict[uniq_id]['words']
-            hyp_w_dict_list, word_seq_list, correct_word_count, rttm_wder = self.calculate_WDER_from_RTTM(hyp_w_dict_list, ref_labels, mapping_dict)            
+            hyp_w_dict_list, word_seq_list, correct_word_count, rttm_wder = self.calculate_WDER_from_RTTM(
+                hyp_w_dict_list, ref_labels, mapping_dict
+            )
             error_dict['rttm_based_wder'] = rttm_wder
             error_dict.update(DER_result_dict[uniq_id])
-            
+
             # If CTM files are provided, evaluate word-level diarization and wer with the CTM files.
             if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']:
                 ctm_content = open(self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']).readlines()
@@ -765,7 +800,7 @@ class ASR_DIAR_OFFLINE(object):
         """
         Calculates word-level diarization using the provided RTTM files.
         If lenient_overlap_WDER is True, the words are considered to be correctly diarized
-        if the words fall in to overlapped regions that include the correct speaker labels.
+        if the words fall into overlapped regions that include the correct speaker labels.
         Note that WDER values computed from RTTM may not be accurate if the word timestamps have limited accuracy.
         It is recommended to use CTM files to compute an accurate evaluation result.
         """
@@ -781,8 +816,9 @@ class ASR_DIAR_OFFLINE(object):
                 est_spk_label = mapping_dict[speaker_label]
             else:
                 continue
-            word_range = np.array([wdict['start_time'] + self.word_ts_anchor_offset,
-                                   wdict['end_time'] + self.word_ts_anchor_offset])
+            word_range = np.array(
+                [wdict['start_time'] + self.word_ts_anchor_offset, wdict['end_time'] + self.word_ts_anchor_offset]
+            )
             word_seq_list.append(wdict['word'])
             word_range_tile = np.tile(word_range, (ref_label_array.shape[0], 1))
             ovl_bool = self.isOverlapArray(ref_label_array, word_range_tile)
@@ -819,7 +855,6 @@ class ASR_DIAR_OFFLINE(object):
         count_dict['total_ctm_wder_count'] += ctm_error_dict['diar_confuse_count']
         self.align_error_list += align_errors
         error_dict.update(ctm_error_dict)
-        
 
     def get_wder_dict_values(self, asr_eval_dict, wder_dict, count_dict, align_error_list):
         """
@@ -828,17 +863,36 @@ class ASR_DIAR_OFFLINE(object):
         if '-' in asr_eval_dict['references_list'] or None in asr_eval_dict['references_list']:
             wer = None
         else:
-            wer = word_error_rate(hypotheses=asr_eval_dict['hypotheses_list'], references=asr_eval_dict['references_list'])
-        
-        wder_dict['total_WER'] = wer
-        wder_dict['total_wder_rttm'] = 1 - (count_dict['grand_total_correct_word_count'] / count_dict['grand_total_pred_word_count'])
-        wder_dict['total_wder_ctm_ref_trans'] = count_dict['total_ctm_wder_count']/ count_dict['grand_total_ctm_word_count'] if count_dict['grand_total_ctm_word_count'] > 0 else None
-        wder_dict['total_wder_ctm_pred_asr'] = count_dict['total_ctm_wder_count'] / count_dict['grand_total_pred_word_count'] if count_dict['grand_total_pred_word_count'] > 0 else None
-        wder_dict['total_diar_trans_acc'] = count_dict['total_asr_and_spk_correct_words'] / count_dict['grand_total_ctm_word_count'] if count_dict['grand_total_ctm_word_count'] > 0 else None
-        wder_dict['total_alignment_error_mean'] = np.mean(self.align_error_list).round(4) if self.align_error_list != [] else None
-        wder_dict['total_alignment_error_std'] = np.std(self.align_error_list).round(4) if self.align_error_list != [] else None
-        return wder_dict
+            wer = word_error_rate(
+                hypotheses=asr_eval_dict['hypotheses_list'], references=asr_eval_dict['references_list']
+            )
 
+        wder_dict['total_WER'] = wer
+        wder_dict['total_wder_rttm'] = 1 - (
+            count_dict['grand_total_correct_word_count'] / count_dict['grand_total_pred_word_count']
+        )
+        wder_dict['total_wder_ctm_ref_trans'] = (
+            count_dict['total_ctm_wder_count'] / count_dict['grand_total_ctm_word_count']
+            if count_dict['grand_total_ctm_word_count'] > 0
+            else None
+        )
+        wder_dict['total_wder_ctm_pred_asr'] = (
+            count_dict['total_ctm_wder_count'] / count_dict['grand_total_pred_word_count']
+            if count_dict['grand_total_pred_word_count'] > 0
+            else None
+        )
+        wder_dict['total_diar_trans_acc'] = (
+            count_dict['total_asr_and_spk_correct_words'] / count_dict['grand_total_ctm_word_count']
+            if count_dict['grand_total_ctm_word_count'] > 0
+            else None
+        )
+        wder_dict['total_alignment_error_mean'] = (
+            np.mean(self.align_error_list).round(4) if self.align_error_list != [] else None
+        )
+        wder_dict['total_alignment_error_std'] = (
+            np.std(self.align_error_list).round(4) if self.align_error_list != [] else None
+        )
+        return wder_dict
 
     def get_str_speech_labels(self, speech_labels_float):
         """
@@ -848,7 +902,7 @@ class ASR_DIAR_OFFLINE(object):
         for start, end in speech_labels_float:
             speech_labels.append("{:.3f} {:.3f} speech".format(start, end))
         return speech_labels
-    
+
     def write_result_in_csv(self, args, WDER_dict, DER_result_dict, effective_WDER):
         """
         This function is for development use.
@@ -871,33 +925,34 @@ class ASR_DIAR_OFFLINE(object):
 
     def write_session_level_result_in_csv(self, WDER_dict):
         """
-        This function is for development use when CTM file is provided.
+        This function is for development use when a CTM file is provided.
         Saves the session-level diarization and ASR result into a csv file.
         """
         target_path = f"{self.root_path}/pred_rttms/ctm_eval.csv"
         logging.info(f"Writing {target_path}")
-        csv_columns = ['uniq_id',
-                       'DER',
-                       'CER',
-                       'FA',
-                       'MISS',
-                       'est_n_spk',
-                       'is_spk_count_correct',
-                       'asr_ins_count', 
-                       'asr_del_count', 
-                       'asr_sub_count', 
-                       'ref_word_count', 
-                       'hyp_word_count', 
-                       'diar_confuse_count', 
-                       'all_correct_count', 
-                       'diar_trans_acc', 
-                       'hyp_based_wder', 
-                       'ref_based_wder', 
-                       'rttm_based_wder',
-                       'wer_ctm', 
-                       'mapping',
-                       ]
-        dict_data = [ x for k, x in WDER_dict['session_level'].items() ]
+        csv_columns = [
+            'uniq_id',
+            'DER',
+            'CER',
+            'FA',
+            'MISS',
+            'est_n_spk',
+            'is_spk_count_correct',
+            'asr_ins_count',
+            'asr_del_count',
+            'asr_sub_count',
+            'ref_word_count',
+            'hyp_word_count',
+            'diar_confuse_count',
+            'all_correct_count',
+            'diar_trans_acc',
+            'hyp_based_wder',
+            'ref_based_wder',
+            'rttm_based_wder',
+            'wer_ctm',
+            'mapping',
+        ]
+        dict_data = [x for k, x in WDER_dict['session_level'].items()]
         try:
             with open(target_path, 'w') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=csv_columns)
@@ -919,7 +974,7 @@ class ASR_DIAR_OFFLINE(object):
             if len(org_chunk) - color_str_len > max_chars_in_line:
                 color_str = org_chunk[:color_str_len] if color_str_len > 0 else ''
                 for i in range(color_str_len, len(org_chunk), max_chars_in_line):
-                    trans_str = org_chunk[i:i+max_chars_in_line]
+                    trans_str = org_chunk[i : i + max_chars_in_line]
                     if len(trans_str.strip()) > 0:
                         c_trans_str = color_str + trans_str
                         buffer.append(c_trans_str)
@@ -928,19 +983,17 @@ class ASR_DIAR_OFFLINE(object):
                 return_string_out.append(org_chunk)
         return '\n'.join(return_string_out)
 
-
-
     def write_and_log(self, uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict):
         """
-        Writes output files and display logging messages.
+        Writes output files and displays logging messages.
         """
         ROOT = self.root_path
-        
+
         logging.info(f"Writing files for id:{uniq_id} at {ROOT}/pred_rttms/")
-        
+
         logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.json")
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}.json', riva_dict)
-        
+
         logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}_gecko.json")
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
 
@@ -949,7 +1002,6 @@ class ASR_DIAR_OFFLINE(object):
 
         logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.w.label")
         write_txt(f'{ROOT}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
-        
 
     def print_errors(self, DER_result_dict, WDER_dict):
         """
@@ -1003,7 +1055,7 @@ class ASR_DIAR_OFFLINE(object):
         start_point, end_point = max(float(start_point), 0), max(float(end_point), 0)
         start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
         end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
-        
+
         if replace_time:
             old_start_point_str = string_out.split('\n')[-1].split(' - ')[0].split('[')[-1]
             word_sequence = string_out.split('\n')[-1].split(' - ')[-1].split(':')[-1].strip() + ' '
@@ -1012,7 +1064,7 @@ class ASR_DIAR_OFFLINE(object):
         else:
             time_str = "[{} - {}] ".format(start_point_str, end_point_str)
             word_sequence = ''
-        
+
         if not params['print_time']:
             time_str = ''
         strd = "\n{}{}{}: {}".format(color, time_str, speaker, word_sequence.lstrip())
@@ -1063,4 +1115,3 @@ class ASR_DIAR_OFFLINE(object):
     @staticmethod
     def add_json_to_dict(riva_dict, word, stt, end, speaker):
         riva_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
-
