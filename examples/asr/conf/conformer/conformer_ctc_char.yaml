@@ -71,6 +71,7 @@ model:
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 16
     d_model: 256
+    is_causal: False
 
     # Sub-sampling params
     subsampling: striding # vggnet or striding, vggnet may give better results but needs more memory
@@ -91,6 +92,7 @@ model:
 
     # Convolution module's params
     conv_kernel_size: 31
+    conv_norm: "batch_norm"
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules
