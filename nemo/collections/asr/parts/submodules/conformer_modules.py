@@ -210,6 +210,8 @@ class ConformerConvolution(nn.Module):
 
         if cache is not None:
             x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)
+        else:
+            x = self.depthwise_conv(x)
         # if self.is_causal:
         #     x = x[:, :, : -self.depthwise_conv.padding[0]]
         if type(self.batch_norm) == nn.LayerNorm:
