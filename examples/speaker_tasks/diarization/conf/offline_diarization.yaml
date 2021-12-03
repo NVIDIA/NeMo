@@ -27,14 +27,15 @@ diarizer:
       min_duration_on: 0.2 # threshold for small non_speech deletion
       min_duration_off: 0.2 # threshold for short speech segment deletion
       filter_speech_first: True 
-
+  
   speaker_embeddings:
     model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
-      shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
-      save_embeddings: False # save embeddings as pickle file for each audio input
-  
+      window_length_in_sec: 1.5 # Window length in sec for speaker embedding extraction. Single floating-point number or a list.
+      shift_length_in_sec: 0.75 # Shift length in sec for speaker embedding extraction. Single floating-point number or a list.
+      multiscale_weights: null # Weight for each scale. Should be list format and list length should be matched with window/shift length.
+      save_embeddings: False # Save embeddings as pickle file for each audio input
+
   clustering:
     parameters:
       oracle_num_speakers: False # if True, uses num of speakers value provided in manifest file

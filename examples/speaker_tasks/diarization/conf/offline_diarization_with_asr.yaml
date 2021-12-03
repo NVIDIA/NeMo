@@ -31,12 +31,10 @@ diarizer:
   speaker_embeddings:
     model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction 
-      shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
-      save_embeddings: False # save embeddings as pickle file for each audio input
-      multiscale_window_lengths_in_sec: null # Multiscale window lengths in comma seperated values.
-      multiscale_shift_lengths_in_sec: null # Multiscale shift lengths in comma seperated values.
-      multiscale_weights: null # The weights for each scale in multiscale processing. Use comma seperated values to match window/shift legnths.
+      window_length_in_sec: 1.5 # Window length in sec for speaker embedding extraction. Single floating-point number or a list.
+      shift_length_in_sec: 0.75 # Shift length in sec for speaker embedding extraction. Single floating-point number or a list.
+      multiscale_weights: null # Weight for each scale. Should be list format and list length should be matched with window/shift length.
+      save_embeddings: False # Save embeddings as pickle file for each audio input
   
   clustering:
     parameters:
@@ -52,14 +50,14 @@ diarizer:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
       asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
       asr_batch_size: null # Batch size should be dependent on each model. Default batch sizes are applied if set to null.
-      lenient_overlap_WDER: True # if true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
-      decoder_delay_in_sec: null # native deocder delay. null is recommended to use the default values for each ASR model.
-      word_ts_anchor_offset: null # offset that compensates ASR delay.
-      word_ts_anchor_pos: "start" # select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
-      fix_word_ts_with_VAD: False # fix the word timestamp using VAD output. You must provide VAD model to use this feature.
-      colored_text: False # if True, use colored text to distiguish speakers in the output transcript.
-      print_time: True # if True, the start of end time of each speaker turn is printed in the output transcript.
-      break_lines: False # if True, the output transcript breaks the line to fix the line width (default is 90 chars)
+      lenient_overlap_WDER: True # If true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
+      decoder_delay_in_sec: null # Native deocder delay. null is recommended to use the default values for each ASR model.
+      word_ts_anchor_offset: null # Offset that compensates ASR delay.
+      word_ts_anchor_pos: "start" # Select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
+      fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide VAD model to use this feature.
+      colored_text: False # If True, use colored text to distiguish speakers in the output transcript.
+      print_time: True # If True, the start of end time of each speaker turn is printed in the output transcript.
+      break_lines: False # If True, the output transcript breaks the line to fix the line width (default is 90 chars)
     
     ctc_decoder_parameters: # Optional beam search decoder (pyctcdecode)
       pretrained_language_model: null # KenLM model file: .arpa model file or .bin binary file.
