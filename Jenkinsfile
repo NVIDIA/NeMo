@@ -283,64 +283,6 @@ pipeline {
           }
         }
 
-        stage('Speech to Label') {
-          steps {
-            sh 'python examples/asr/speech_to_label.py \
-            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            ~model.preprocessor.window_size \
-            ~model.preprocessor.window_stride \
-            ~model.preprocessor.window \
-            ~model.preprocessor.n_mels \
-            ~model.preprocessor.n_mfcc \
-            ~model.preprocessor.n_fft \
-            exp_manager.exp_dir=examples/asr/speech_to_label_results'
-            sh 'rm -rf examples/asr/speech_to_label_results'
-          }
-        }
-
-        stage('Speaker Recognition') {
-          steps {
-            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=2 \
-            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
-          }
-        }
-
-        stage('Speaker Diarization Inference') {
-          steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
-          }
-        }
-
-        stage('Speaker Diarization with ASR Inference') {
-          steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.asr.model_path=QuartzNet15x5Base-En \
-            diarizer.asr.parameters.asr_based_vad=True \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
-          }
-        }
-
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
@@ -388,6 +330,76 @@ pipeline {
       }
     }
 
+    stage('L2: Speaker dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+
+        stage('Speaker Recognition') {
+          steps {
+            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=2 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
+          }
+        }
+
+        stage('Speech to Label') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+
+
+        stage('Speaker Diarization with ASR Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.asr.model_path=QuartzNet15x5Base-En \
+            diarizer.asr.parameters.asr_based_vad=True \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+          }
+        }
+
+        stage('Speaker Diarization Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
+      }
+    }
     // TODO: Enable test after 21.08 container is used.
     // stage('L2: ASR DALI dev run') {
     //   when {
