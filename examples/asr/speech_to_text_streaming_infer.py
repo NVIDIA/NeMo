@@ -38,6 +38,8 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 )
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
+from omegaconf import OmegaConf, open_dict
+
 
 # can_gpu = torch.cuda.is_available()
 
@@ -81,7 +83,7 @@ def set_streaming_mode(asr_model):
 
 
 def model_process(
-    asr_model, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
+    asr_model, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None, previous_hypotheses=None
 ):
 
     out = asr_model.encoder(
@@ -96,9 +98,17 @@ def model_process(
     else:
         encoded, encoded_len = out
         cache_last_channel_next = cache_last_time_next = cache_pre_encode_next = None
-    log_probs = asr_model.decoder(encoder_output=encoded)
-    greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-    return greedy_predictions, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next
+    if hasattr(asr_model, "decoding"):
+        best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
+            encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
+        )
+        greedy_predictions = [hyp.y_sequence for hyp in best_hyp][0]
+
+    else:
+        log_probs = asr_model.decoder(encoder_output=encoded)
+        greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+        best_hyp = None
+    return greedy_predictions, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp
 
 
 def main():
@@ -132,6 +142,13 @@ def main():
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
+    if hasattr(asr_model, "decoding"):
+        decoding_cfg = asr_model.cfg.decoding
+        with open_dict(decoding_cfg):
+            decoding_cfg.strategy = "greedy"
+            decoding_cfg.preserve_alignments = True
+        asr_model.change_decoding_strategy(decoding_cfg)
+
     last_channel_num, last_time_num = set_streaming_mode(asr_model)
     asr_model = asr_model.to("cuda")
 
@@ -159,13 +176,14 @@ def main():
         input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
     )
 
-    asr_out_whole, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
+    asr_out_whole, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp = model_process(
         asr_model=asr_model,
         audio_signal=processed_signal,
         length=processed_signal_length,
         cache_last_channel=None,
         cache_last_time=None,
         cache_pre_encode=None,
+        previous_hypotheses=None,
     )
 
     print(asr_out_whole)
@@ -190,29 +208,34 @@ def main():
         (last_time_num, bs, cfg.encoder.d_model, last_time_buffer_size), device=asr_model.device, dtype=torch.float32
     )
 
-    asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
+    asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp = model_process(
         asr_model=asr_model,
         audio_signal=processed_signal[:, :, :init_buffer],
         length=torch.tensor([init_buffer]),
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
         cache_pre_encode=cache_pre_encode,
+        previous_hypotheses=None
+
     )
     print(asr_out_stream)
     asr_out_stream_total = asr_out_stream
 
     step_num = 1
+    previous_hypotheses = best_hyp
     for i in range(1, processed_signal.size(-1), buffer_size):
-        asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = model_process(
+        asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, previous_hypotheses = model_process(
             asr_model=asr_model,
             audio_signal=processed_signal[:, :, i : i + buffer_size],
             length=torch.tensor([buffer_size]),
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
             cache_pre_encode=cache_pre_encode_next,
+            previous_hypotheses=previous_hypotheses
         )
         cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_buffer_size:, :]
-        print(asr_out_stream)
+        #print(asr_out_stream)
+        print(asr_out_stream.size())
         asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
         step_num += 1
     # asr_model = asr_model.to(asr_model.device)

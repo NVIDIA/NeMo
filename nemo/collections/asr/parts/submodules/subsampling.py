@@ -241,11 +241,15 @@ class ConvSubsampling(torch.nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).contiguous().view(b, t, c * f))
 
+        if cache is not None:
+            conv_right_padding = 0
+        else:
+            conv_right_padding = self._right_padding
         new_lengths = lengths
         for i in range(self._sampling_num):
             new_lengths = calc_length(
                 lengths=new_lengths,
-                padding=self._left_padding + self._right_padding,
+                padding=self._left_padding + conv_right_padding,
                 kernel_size=self._kernel_size,
                 stride=self._stride,
                 ceil_mode=self._ceil_mode,
