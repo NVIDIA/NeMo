@@ -135,7 +135,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def __init__(self, asr_ts_decoder, **cfg_diarizer):
         self.manifest_filepath = cfg_diarizer['manifest_filepath']
-        self.params = cfg_diarizer['asr']['asr_parameters']
+        self.params = cfg_diarizer['asr']['parameters']
         self.ctc_decoder_params = cfg_diarizer['asr']['ctc_decoder_parameters']
         self.realigning_lm_params = cfg_diarizer['asr']['realigning_lm_parameters']
         self.nonspeech_threshold = self.params['asr_based_vad_threshold']
@@ -250,7 +250,7 @@ class ASR_DIAR_OFFLINE(object):
                 speakers in hypotheses and speakers in reference RTTM files.
         """
 
-        if diar_model_config.diarizer.asr.asr_parameters.asr_based_vad:
+        if diar_model_config.diarizer.asr.parameters.asr_based_vad:
             self.save_VAD_labels_list(word_timestamps)
             oracle_manifest = os.path.join(self.root_path, 'asr_vad_manifest.json')
             oracle_manifest = write_rttm2manifest(self.VAD_RTTM_MAP, oracle_manifest)
@@ -259,7 +259,7 @@ class ASR_DIAR_OFFLINE(object):
 
         oracle_model = ClusteringDiarizer(cfg=diar_model_config)
         score = oracle_model.diarize()
-        if diar_model_config.diarizer.vad.model_path is not None:
+        if diar_model_config.diarizer.vad.model_path is not None and not diar_model_config.diarizer.oracle_vad:
             self.get_frame_level_VAD(vad_processing_dir=oracle_model.vad_pred_dir)
 
         diar_hyp = {}
@@ -851,7 +851,7 @@ class ASR_DIAR_OFFLINE(object):
         Calculates the total error rates for WDER, WER and alignment error.
         """
         if '-' in asr_eval_dict['references_list'] or None in asr_eval_dict['references_list']:
-            wer = None
+            wer = -1
         else:
             wer = word_error_rate(
                 hypotheses=asr_eval_dict['hypotheses_list'], references=asr_eval_dict['references_list']
@@ -866,23 +866,23 @@ class ASR_DIAR_OFFLINE(object):
             wder_dict['total_wder_ctm_ref_trans'] = (
                 count_dict['total_ctm_wder_count'] / count_dict['grand_total_ctm_word_count']
                 if count_dict['grand_total_ctm_word_count'] > 0
-                else None
+                else -1
             )
             wder_dict['total_wder_ctm_pred_asr'] = (
                 count_dict['total_ctm_wder_count'] / count_dict['grand_total_pred_word_count']
                 if count_dict['grand_total_pred_word_count'] > 0
-                else None
+                else -1
             )
             wder_dict['total_diar_trans_acc'] = (
                 count_dict['total_asr_and_spk_correct_words'] / count_dict['grand_total_ctm_word_count']
                 if count_dict['grand_total_ctm_word_count'] > 0
-                else None
+                else -1
             )
             wder_dict['total_alignment_error_mean'] = (
-                np.mean(self.align_error_list).round(4) if self.align_error_list != [] else None
+                np.mean(self.align_error_list).round(4) if self.align_error_list != [] else -1
             )
             wder_dict['total_alignment_error_std'] = (
-                np.std(self.align_error_list).round(4) if self.align_error_list != [] else None
+                np.std(self.align_error_list).round(4) if self.align_error_list != [] else -1
             )
         return wder_dict
 
