@@ -789,11 +789,12 @@ class ASR_DIAR_OFFLINE(object):
 
     def calculate_WDER_from_RTTM(self, hyp_w_dict_list, ref_labels, mapping_dict):
         """
-        Calculates word-level diarization using the provided RTTM files.
+        Calculates word-level diarization error rate (WDER) using the provided RTTM files.
         If lenient_overlap_WDER is True, the words are considered to be correctly diarized
         if the words fall into overlapped regions that include the correct speaker labels.
-        Note that WDER values computed from RTTM may not be accurate if the word timestamps have limited accuracy.
-        It is recommended to use CTM files to compute an accurate evaluation result.
+        Note that WDER values computed from RTTM may not be accurate if the word timestamps
+        have limited accuracy. It is recommended to use CTM files to compute an accurate
+        evaluation result.
         """
         correct_word_count = 0
         ref_label_list = [[float(x.split()[0]), float(x.split()[1])] for x in ref_labels]
