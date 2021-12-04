@@ -207,7 +207,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def get_speech_labels_from_decoded_prediction(self, input_word_ts):
         """
-        Extract speech labels from the ASR output (decoded predictions)
+        Extracts speech labels from the ASR output (decoded predictions)
 
         Args:
             input_word_ts (list):
@@ -272,6 +272,7 @@ class ASR_DIAR_OFFLINE(object):
     def get_frame_level_VAD(self, vad_processing_dir):
         """
         Reads frame-level VAD outputs.
+
         Args:
             oracle_model (ClusteringDiarizer):
                 ClusteringDiarizer instance.
@@ -351,7 +352,7 @@ class ASR_DIAR_OFFLINE(object):
     @staticmethod
     def closest_silence_start(vad_index_word_end, vad_frames, params, offset=10):
         """
-        Find the closest silence frame from the given starting position.
+        Finds the closest silence frame from the given starting position.
 
         Args:
             vad_index_word_end (float):
@@ -382,7 +383,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def compensate_word_ts_list(self, audio_file_list, word_ts_dict, params):
         """
-        Compensate the word timestamps based on the VAD output.
+        Compensates the word timestamps based on the VAD output.
         The length of each word is capped by self.max_word_ts_length_in_sec.
 
         Args:
@@ -501,7 +502,7 @@ class ASR_DIAR_OFFLINE(object):
             word_dict_seq_list (list):
                 A list containing words and corresponding word timestamps in dictionary format.
 
-        Returns:
+        Return:
             total_riva_dict (dict):
                 A dictionary containing overall results of diarization and ASR inference.
         """
@@ -565,7 +566,8 @@ class ASR_DIAR_OFFLINE(object):
 
     def get_word_timestamp_anchor(self, word_ts_stt_end: List[float]) -> float:
         """
-        word_ts_anchor_pos  determines the position of a word in relation to the given diarization labels:
+        Determines a reference point to match a word with the diarization results.
+        word_ts_anchor_pos determines the position of a word in relation to the given diarization labels:
             - 'start' uses the beginning of the word
             - 'end' uses the end of the word
             - 'mid' uses the mean of start and end of the word
@@ -591,7 +593,7 @@ class ASR_DIAR_OFFLINE(object):
     @experimental
     def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]):
         """
-        Realign speakers to the words using a language model.
+        Realigns the speaker labels to the words using a language model.
         The realigning process calculates the probability of the around the words at the boundary between
         two hypothetical sentences spoken by different speakers.
 
@@ -637,7 +639,7 @@ class ASR_DIAR_OFFLINE(object):
         """
         Computes a slew of errors using the provided CTM file and RTTM file.
 
-        The computed variables for computing errors:
+        The variables computed for CTM file based evaluation:
             error_count : Number of words that have wrong speaker labels
             align_error : (reference word timestamp - hypothesis word timestamp)
 
@@ -645,12 +647,12 @@ class ASR_DIAR_OFFLINE(object):
             asr_ins_count: ASR insertion error count
             asr_del_count: ASR deletion error count
             asr_sub_count: ASR subsitution error count
-            ref_word_count: Number of words in the reference transcript
-            hyp_word_count: Number of words in the hypothesis
+            ref_word_count: The number of words in the reference transcript
+            hyp_word_count: The number of words in the hypothesis
             diar_confuse_count: Number of incorrectly diarized words
             all_correct_count: Counts the word if both hypothesis word and speaker label are correct.
-            hyp_based_wder: Number of incorrectly diarized words divided by the number of words in the hypothesis
-            ref_based_wder: Number of incorrectly diarized words divided by the number of words in the reference transcript
+            hyp_based_wder: The number of incorrectly diarized words divided by the number of words in the hypothesis
+            ref_based_wder: The number of incorrectly diarized words divided by the number of words in the reference transcript
         """
 
         ctm_ref_word_seq, ctm_info_list = [], []
