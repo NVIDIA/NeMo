@@ -140,22 +140,11 @@ class ClassifyFst(GraphFst):
             )
 
             graph = token_plus_punct + pynini.closure(
-                (pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space) | pynutil.insert(" "))
-                + token_plus_punct
+                (pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space) | punct) + token_plus_punct
             )
             graph = delete_space + graph + delete_space
 
             self.fst = graph.optimize()
-
-            # from pynini.lib import rewrite
-            # def get_w(text, graph):
-            #     lattice = rewrite.rewrite_lattice(text, graph)
-            #     lattice = rewrite.lattice_to_nshortest(lattice, 2)
-            #     for x in lattice.paths().items():
-            #         print(f"{x[1]} -- {x[2]}")
-            #
-            # get_w("5p.m.,hello!", graph)
-            # import pdb; pdb.set_trace()
 
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
