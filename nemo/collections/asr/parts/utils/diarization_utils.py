@@ -22,7 +22,6 @@ from collections import OrderedDict as od
 from datetime import datetime
 from typing import Dict, List, Tuple
 
-import diff_match_patch
 import numpy as np
 
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -41,6 +40,13 @@ try:
     import arpa
 except ImportError:
     logging.info("arpa is not installed. You must install arpa to refine diarization result with LM.")
+
+try:
+    import diff_match_patch
+except ImportError:
+    logging.info(
+        "diff_match_patch is not installed. You must install diff_match_patch to use CTM file based evaluation."
+    )
 
 __all__ = ['ASR_DIAR_OFFLINE']
 
@@ -142,7 +148,7 @@ class ASR_DIAR_OFFLINE(object):
         self.cfg_diarizer = cfg_diarizer
         self.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
         self.run_ASR = None
-        self.ctm_exists = False
+        self.ctm_exists = {}
         self.frame_VAD = {}
         self.align_error_list = []
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
@@ -764,9 +770,12 @@ class ASR_DIAR_OFFLINE(object):
             error_dict.update(DER_result_dict[uniq_id])
 
             # If CTM files are provided, evaluate word-level diarization and wer with the CTM files.
-            if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']:
+            if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath'] and 'diff_match_patch' in sys.modules:
+                self.ctm_exists[uniq_id] = True
                 ctm_content = open(self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']).readlines()
                 self.get_ctm_based_eval(ctm_content, error_dict, count_dict, hyp_w_dict_list, mapping_dict)
+            else:
+                self.ctm_exists[uniq_id] = False
 
             wder_dict['session_level'][uniq_id] = error_dict
             asr_eval_dict['hypotheses_list'].append(' '.join(word_seq_list))
@@ -830,7 +839,6 @@ class ASR_DIAR_OFFLINE(object):
         """
         Calculates errors using the given CTM files.
         """
-        self.ctm_exists = True
         count_dict['grand_total_ctm_word_count'] += len(ctm_content)
         align_errors, ctm_error_dict = self.get_alignment_errors(ctm_content, hyp_w_dict_list, mapping_dict)
         count_dict['total_asr_and_spk_correct_words'] += ctm_error_dict['all_correct_count']
@@ -853,27 +861,29 @@ class ASR_DIAR_OFFLINE(object):
         wder_dict['total_wder_rttm'] = 1 - (
             count_dict['grand_total_correct_word_count'] / count_dict['grand_total_pred_word_count']
         )
-        wder_dict['total_wder_ctm_ref_trans'] = (
-            count_dict['total_ctm_wder_count'] / count_dict['grand_total_ctm_word_count']
-            if count_dict['grand_total_ctm_word_count'] > 0
-            else None
-        )
-        wder_dict['total_wder_ctm_pred_asr'] = (
-            count_dict['total_ctm_wder_count'] / count_dict['grand_total_pred_word_count']
-            if count_dict['grand_total_pred_word_count'] > 0
-            else None
-        )
-        wder_dict['total_diar_trans_acc'] = (
-            count_dict['total_asr_and_spk_correct_words'] / count_dict['grand_total_ctm_word_count']
-            if count_dict['grand_total_ctm_word_count'] > 0
-            else None
-        )
-        wder_dict['total_alignment_error_mean'] = (
-            np.mean(self.align_error_list).round(4) if self.align_error_list != [] else None
-        )
-        wder_dict['total_alignment_error_std'] = (
-            np.std(self.align_error_list).round(4) if self.align_error_list != [] else None
-        )
+
+        if all(x for x in self.ctm_exists.values()) == True:
+            wder_dict['total_wder_ctm_ref_trans'] = (
+                count_dict['total_ctm_wder_count'] / count_dict['grand_total_ctm_word_count']
+                if count_dict['grand_total_ctm_word_count'] > 0
+                else None
+            )
+            wder_dict['total_wder_ctm_pred_asr'] = (
+                count_dict['total_ctm_wder_count'] / count_dict['grand_total_pred_word_count']
+                if count_dict['grand_total_pred_word_count'] > 0
+                else None
+            )
+            wder_dict['total_diar_trans_acc'] = (
+                count_dict['total_asr_and_spk_correct_words'] / count_dict['grand_total_ctm_word_count']
+                if count_dict['grand_total_ctm_word_count'] > 0
+                else None
+            )
+            wder_dict['total_alignment_error_mean'] = (
+                np.mean(self.align_error_list).round(4) if self.align_error_list != [] else None
+            )
+            wder_dict['total_alignment_error_std'] = (
+                np.std(self.align_error_list).round(4) if self.align_error_list != [] else None
+            )
         return wder_dict
 
     def get_str_speech_labels(self, speech_labels_float):
@@ -989,7 +999,7 @@ class ASR_DIAR_OFFLINE(object):
         """
         Prints a slew of error metrics for ASR and Diarization.
         """
-        if self.ctm_exists:
+        if all(x for x in self.ctm_exists.values()) == True:
             self.write_session_level_result_in_csv(WDER_dict)
             logging.info(
                 f"\nDER                : {DER_result_dict['total']['DER']:.4f} \
