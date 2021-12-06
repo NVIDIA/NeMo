@@ -144,14 +144,16 @@ class MoneyFst(GraphFst):
             )
 
             decimal_graph_with_minor_curr = integer_plus_maj + pynini.cross(".", " ") + fractional_plus_min
-            decimal_graph_with_minor_curr |= pynutil.add_weight(
-                integer_plus_maj
-                + pynini.cross(".", " ")
-                + pynutil.insert("fractional_part: \"")
-                + two_digits_fractional_part @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-                + pynutil.insert("\""),
-                weight=0.0001,
-            )
+
+            if not deterministic:
+                decimal_graph_with_minor_curr |= pynutil.add_weight(
+                    integer_plus_maj
+                    + pynini.cross(".", " ")
+                    + pynutil.insert("fractional_part: \"")
+                    + two_digits_fractional_part @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+                    + pynutil.insert("\""),
+                    weight=0.0001,
+                )
             decimal_graph_with_minor_curr |= (
                 pynini.closure(pynutil.delete("0"), 0, 1) + pynutil.delete(".") + fractional_plus_min
             )
