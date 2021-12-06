@@ -148,7 +148,6 @@ class GPTModel(MegatronModule):
         attention_mask,
         labels=None,
         prompt_tags=None,
-        prompt_position_ids=None,
         tokentype_ids=None,
         layer_past=None,
         get_key_value=False,
@@ -160,7 +159,6 @@ class GPTModel(MegatronModule):
             position_ids, 
             attention_mask, 
             prompt_tags=prompt_tags, 
-            prompt_position_ids=prompt_position_ids,
             layer_past=layer_past, 
             get_key_value=get_key_value
         )
@@ -193,6 +191,7 @@ class GPTModel(MegatronModule):
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
+        print('USING CUSTOM LOAD STATE DICT FOR GPT MODEL')
 
         # Load word_embeddings.
         if self.post_process and not self.pre_process:

@@ -115,18 +115,18 @@ class MegatronGPTModel(NLPModel):
         if self.cfg.get('use_soft_prompts', False): 
             self.use_soft_prompts = True
             self.prompt_table = set([])
+            self.prompt_length = cfg.get('prompt_length', 10)
 
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
-    def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None, prompt_position_ids=None):
+    def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(
                tokens, 
                text_position_ids, 
                attention_mask, 
                labels=labels,
                prompt_tags=prompt_tags, 
-               prompt_position_ids=prompt_position_ids, 
         )
 
         return output_tensor
@@ -411,6 +411,7 @@ class MegatronGPTModel(NLPModel):
             Autoregressively invokes language model in the inference mode
         Args:	
             request: Dictionary with the following fields
+                * prompt_tag: a string specifying which prompt tag to use (optional)
                 * prompt: a string which text the model should complete.
                 * tokens_to_generate: how many tokens to generate while doing prompt completion.
                 * stop_after_sentence: (default True) whether to stop generation once sentence end is reached.
@@ -431,21 +432,35 @@ class MegatronGPTModel(NLPModel):
         logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
         response['tokenized_prompt'] = request['tokenized_prompt']
         tokens = request['tokens']
+        prompt_tag = request['prompt_tag']
         # naive greedy slow loop
         # TODO: add option for BeamSearchDecoder
         response['prompt'] = request['prompt']
         response['completion'] = {}
         response['completion']['stop reason'] = 'limit'
         for i in range(request.get("tokens_to_generate", 64)):
-            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=tokens,
-                eod_token=self.tokenizer.eos_id,
-                reset_position_ids=self.cfg.get('reset_position_ids', False),
-                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
-                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
-            )
+            if self.use_soft_prompts:
+                full_length = len(tokens) + self.prompt_length
+                position_ids = torch.arange(
+                    start=self.prompt_length,
+                    end=full_length,
+                    dtype=torch.long,
+                    device=self.device
+                )
+
+                attention_mask = torch.tril(torch.ones((1, 71 + i, 71 + i), device=self.device)).view(
+                        1, 1, 71 + i, 71 + i)
+                attention_mask = attention_mask < 0.5
+            else:
+                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                    data=tokens,
+                    eod_token=self.tokenizer.eos_id,
+                    reset_position_ids=self.cfg.get('reset_position_ids', False),
+                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                )
             # No labels during inference. Still need masks to not attend to the right
-            output_tensor = self(tokens, position_ids, attention_mask, labels=None)
+            output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tag, labels=None)
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
             reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id

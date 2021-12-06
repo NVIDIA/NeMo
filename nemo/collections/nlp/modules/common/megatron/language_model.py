@@ -379,6 +379,47 @@ class PromptEmbedding(Embedding):
 
         return embeddings
 
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """For easy load."""
+        print("SAVING PROMPT STATE DICT")
+        state_dict_ = {}
+        state_dict_[self._prompt_embeddings_key] = self.prompt_embeddings.state_dict(destination, prefix, keep_vars)
+        state_dict_[self._position_embeddings_key] = self.position_embeddings.state_dict(
+            destination, prefix, keep_vars
+        )
+        if self.num_tokentypes > 0:
+            state_dict_[self._tokentype_embeddings_key] = self.tokentype_embeddings.state_dict(
+                destination, prefix, keep_vars
+            )
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Customized load."""
+        print("LOADING PROMPT STATE DICT")
+
+        # Word embedding.
+        if self._prompt_embeddings_key in state_dict:
+            state_dict_ = state_dict[self._word_embeddings_key]
+        else:
+            # for backward compatibility.
+            state_dict_ = {}
+            for key in state_dict.keys():
+                if 'prompt_embeddings' in key:
+                    state_dict_[key.split('prompt_embeddings.')[1]] = state_dict[key]
+        self.prompt_embeddings.load_state_dict(state_dict_, strict=strict)
+
+        # Position embedding.
+        if self._position_embeddings_key in state_dict:
+            state_dict_ = state_dict[self._position_embeddings_key]
+        else:
+            # for backward compatibility.
+            state_dict_ = {}
+            for key in state_dict.keys():
+                if 'position_embeddings' in key:
+                    state_dict_[key.split('position_embeddings.')[1]] = state_dict[key]
+        self.position_embeddings.load_state_dict(state_dict_, strict=strict)
+
 
 class PromptTable(torch.nn.Module):
 
@@ -396,7 +437,8 @@ class PromptTable(torch.nn.Module):
 
         if prompt_tags:
             for tag in enumerate(prompt_tags):
-                self.prompt_table[tag] = PromptEmbeddings(
+                _, tag = tag
+                self.prompt_table[tag] = PromptEmbedding(
                         init_from_prompt_text=False,
                         hidden_size=self.hidden_size,
                         prompt_length=self.prompt_length,
@@ -463,10 +505,12 @@ class PromptTable(torch.nn.Module):
         self.prompt_table[prompt_tag] = prompt_embeddings
 
     def load_state_dict(self, state_dict_, strict):
+        print("LOADING PROMPT TABLE")
         for prompt_tag in self.prompt_table:
             self.prompt_table[prompt_tag].load_state_dict(state_dict_[prompt_tag], strict=strict) 
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        print("SAVING PROMPT TABLE")
         prompt_state_dict_ = {}
         for prompt_tag in self.prompt_table:
             prompt_state_dict_[prompt_tag] = self.prompt_table[prompt_tag].state_dict_for_save_checkpoint(
@@ -645,7 +689,6 @@ class TransformerLanguageModel(MegatronModule):
         enc_position_ids,
         enc_attn_mask,
         prompt_tags=None,
-        prompt_position_ids=None,
         dec_input_ids=None,
         dec_position_ids=None,
         dec_attn_mask=None,
@@ -712,6 +755,7 @@ class TransformerLanguageModel(MegatronModule):
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load."""
+        print("SAVING LM STATE DICT")
 
         state_dict_ = {}
         if self.pre_process:
@@ -739,6 +783,7 @@ class TransformerLanguageModel(MegatronModule):
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
+        print("LOADING LM STATE DICT")
 
         # Embedding.
         if self.pre_process:
