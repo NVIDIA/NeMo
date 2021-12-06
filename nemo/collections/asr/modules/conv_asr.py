@@ -92,16 +92,6 @@ class ConvASREncoder(NeuralModule, Exportable):
         return tuple([input_example, lens])
 
     @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set([])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set([])
-
-    @property
     def input_types(self):
         """Returns definitions of module input ports.
         """
