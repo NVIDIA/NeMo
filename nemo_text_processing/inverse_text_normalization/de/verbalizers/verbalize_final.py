@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.inverse_text_normalization.en.verbalizers.word import WordFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini
@@ -31,8 +31,8 @@ class VerbalizeFinalFst(GraphFst):
     tokens { name: "jetzt" } tokens { name: "ist" } tokens { time { hours: "12" minutes: "30" } } -> jetzt ist 12:30 Uhr
     """
 
-    def __init__(self):
-        super().__init__(name="verbalize_final", kind="verbalize")
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
         verbalize = VerbalizeFst().fst
         word = WordFst().fst
         types = verbalize | word

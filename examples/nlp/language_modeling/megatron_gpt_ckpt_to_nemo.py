@@ -12,11 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+r"""
+Conversion script to convert PTL checkpoints into nemo checkpoint.
+  Example to run this conversion script:
+    python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> megatron_gpt_ckpt_to_nemo.py.py \
+     --checkpoint_folder <path_to_PTL_checkpoints_folder> \
+     --checkpoint_name <checkpoint_name> \
+     --nemo_file_path <path_to_output_nemo_file> \
+     --tensor_model_parallel_size <tensor_model_parallel_size>
+"""
 
 import os
 from argparse import ArgumentParser
 
-import torch.multiprocessing as mp
+import torch
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -52,6 +61,8 @@ def get_args():
 
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
 
+    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+
     args = parser.parse_args()
     return args
 
@@ -71,16 +82,29 @@ def convert(rank, world_size, args):
         checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
 
     model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+
     model._save_restore_connector = NLPSaveRestoreConnector()
+
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
     model.save_to(args.nemo_file_path)
+
     logging.info(f'NeMo model saved to: {args.nemo_file_path}')
 
 
-def main() -> None:
+if __name__ == '__main__':
     args = get_args()
     world_size = args.tensor_model_parallel_size
-    mp.spawn(convert, args=(world_size, args), nprocs=world_size, join=True)
 
+    if args.local_rank == -1:
+        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    else:
+        torch.cuda.set_device(args.local_rank)
+        device = torch.device("cuda", args.local_rank)
+        # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+        torch.distributed.init_process_group(
+            backend='nccl', init_method='env://', rank=args.local_rank, world_size=world_size
+        )
 
-if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    convert(args.local_rank, world_size, args)
