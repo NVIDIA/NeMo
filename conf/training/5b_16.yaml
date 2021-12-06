@@ -9,7 +9,7 @@ bcp:
   workspace_results: "bignlp_ws_results_mk"
 
 run:
-  name: "5b-16f1"
+  name: "5b-16f"
   results_dir: /workspace-results/${.name}
   log_dir: ${.results_dir}
 
@@ -49,7 +49,11 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
-
+    model_parallel_size: ${training.model.tensor_model_parallel_size}
+  log_step_timing: True
+  step_timing_kwargs:
+    sync_cuda: True
+    buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
 
 model:
   # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. [1,4,32] for 40GB nodes 
