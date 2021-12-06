@@ -15,6 +15,7 @@ zwei dollar und zwanzig cent~$2,20
 zwei euro und zwanzig cent~€2,20
 zwei pfund und zwanzig pence~£2,20
 zwei euro zwanzig cent~€2,20
+zwei millionen euro~€2 millionen
 zwei komma zwei null null millionen euro~€2,200 millionen
 zwei komma zwei null eins millionen euro~€2,201 millionen
 zwei komma zwei eins millionen euro~€2,21 millionen
