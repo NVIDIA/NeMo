@@ -17,16 +17,13 @@ Augment text by corrupting words in a human-like manner.
 Support letetrs swap/drop, and AugLy <https://github.com/facebookresearch/AugLy>.
 """
 
-import os
-import sys
 from argparse import ArgumentParser
 
 import numpy as np
-from tqdm import tqdm
 
 try:
     import augly.text as txtaugs
-except:
+except Exception as e:
     txtaugs = None
 
 # =============================================================================#
