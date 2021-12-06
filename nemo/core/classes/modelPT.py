@@ -412,7 +412,7 @@ class ModelPT(LightningModule, Model):
             if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
                 self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None, delayed_sched_init = False):
+    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None, delayed_sched_init=False):
         """
         Prepares an optimizer from a string name and its optional config parameters.
 

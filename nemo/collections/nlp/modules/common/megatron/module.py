@@ -15,11 +15,9 @@
 """Megatron Module"""
 
 import torch
+from apex.transformer import parallel_state, tensor_parallel
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
-
-from apex.transformer import parallel_state, tensor_parallel
-
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
@@ -156,8 +154,7 @@ class Float16Module(MegatronModule):
                 return val.bfloat16()
 
         else:
-            raise Exception(f'{precision} is not supported. Float16Module supports '
-                            'only fp16 and bf16.')
+            raise Exception(f'{precision} is not supported. Float16Module supports ' 'only fp16 and bf16.')
 
         self.float16_convertor = float16_convertor
 

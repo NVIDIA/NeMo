@@ -14,9 +14,8 @@
 # limitations under the License.
 
 import torch
-
-from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
 from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
 
 
 class FusedLayerNorm(torch.nn.Module):

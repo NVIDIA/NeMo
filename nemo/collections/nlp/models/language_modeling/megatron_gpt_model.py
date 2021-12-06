@@ -43,8 +43,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.core.optim import MasterOptimizerWrapper
-from nemo.core.optim import prepare_lr_scheduler
+from nemo.core.optim import MasterOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 

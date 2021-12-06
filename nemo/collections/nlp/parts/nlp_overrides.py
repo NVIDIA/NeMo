@@ -16,24 +16,23 @@ import os
 import shutil
 import tempfile
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Union, Callable, Generator, Mapping
 from contextlib import contextmanager
+from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
 
-import torch
-from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.utilities.types import _PATH
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
-
 
 try:
     from apex.transformer import parallel_state

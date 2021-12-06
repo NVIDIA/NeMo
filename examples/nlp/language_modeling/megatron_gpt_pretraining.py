@@ -24,7 +24,7 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin, MegatronHalfPrecisionPlugin
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -50,8 +50,8 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    #megatron_amp_o2 = cfg.model.optim.get('megatron_amp_o2', False)
-    #fp32_grad_accum = cfg.model.optim.get('fp32_grad_accum', False)
+    # megatron_amp_o2 = cfg.model.optim.get('megatron_amp_o2', False)
+    # fp32_grad_accum = cfg.model.optim.get('fp32_grad_accum', False)
     megatron_amp_o2 = cfg.model.get('megatron_amp_o2', False)
     fp32_grad_accum = cfg.model.get('fp32_grad_accum', False)
     plugins = [
