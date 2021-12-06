@@ -306,7 +306,7 @@ class Exportable(ABC):
                 check_tolerance=check_tolerance,
             )
         if verbose:
-            print(jitted_model.code)
+            logging.info(f"JIT code:\n{jitted_model.code}")
         jitted_model.save(output)
         assert os.path.exists(output)
 
@@ -316,7 +316,7 @@ class Exportable(ABC):
             try:
                 jitted_model = torch.jit.script(module)
             except Exception as e:
-                print("jit.script() failed!", e)
+                logging.error(f"jit.script() failed!\{e}")
         return jitted_model
 
     def _set_eval(self, set_eval):
@@ -420,3 +420,8 @@ class Exportable(ABC):
             if name in output_names:
                 output_names.remove(name)
         return output_names
+
+    def _augment_output_filename(self, output, prepend: str):
+        path, filename = os.path.split(output)
+        filename = f"{prepend}-{filename}"
+        return os.path.join(path, filename)
