@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from numpy.typing import ArrayLike
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
@@ -874,7 +873,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         margin: int,
         is_first: Tuple[bool],
         is_last: Tuple[bool],
-    ) -> Tuple[List[ArrayLike], List[ArrayLike], List[int]]:
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[int]]:
         """
         Applies softmax to get punctuation and capitalization probabilities, applies ``subtokens_mask`` to extract
         probabilities for words from probabilities for tokens, removes ``margin`` probabilities near edges of a segment.
@@ -918,8 +917,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     @staticmethod
     def _move_acc_probs_to_token_preds(
-        pred: List[int], acc_prob: ArrayLike, number_of_probs_to_move: int
-    ) -> Tuple[List[int], ArrayLike]:
+        pred: List[int], acc_prob: np.ndarray, number_of_probs_to_move: int
+    ) -> Tuple[List[int], np.ndarray]:
         """
         ``number_of_probs_to_move`` rows in the beginning are removed from ``acc_prob``. From every remove row the label
         with the largest probability is selected and appended to ``pred``.
@@ -943,7 +942,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return pred, acc_prob
 
     @staticmethod
-    def _update_accumulated_probabilities(acc_prob: ArrayLike, update: ArrayLike) -> ArrayLike:
+    def _update_accumulated_probabilities(acc_prob: np.ndarray, update: np.ndarray) -> np.ndarray:
         """
         Args:
             acc_prob: numpy array of shape ``[A, L]``
@@ -1084,8 +1083,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             # input query. When all segments with a word are processed, a label with the highest probability
             # (or product of probabilities) is chosen and appended to an appropriate list in `all_preds`. After adding
             # prediction to `all_preds`, probabilities for a word are removed from `acc_probs`.
-            acc_punct_probs: List[Optional[ArrayLike]] = [None for _ in queries]
-            acc_capit_probs: List[Optional[ArrayLike]] = [None for _ in queries]
+            acc_punct_probs: List[Optional[np.ndarray]] = [None for _ in queries]
+            acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             d = self.device
             for batch_i, batch in tqdm(
                 enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"

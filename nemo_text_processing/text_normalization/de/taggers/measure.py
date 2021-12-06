@@ -26,10 +26,37 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
+
+    unit_singular = pynini.string_file(get_abs_path("data/measure/measurements.tsv"))
+    suppletive = pynini.string_file(get_abs_path("data/measure/suppletive.tsv"))
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+    unit_singular = None
+    suppletive = None
+
+
+def singular_to_plural():
+    # plural endung n/en maskuline Nomen mit den Endungen e, ent, and, ant, ist, or
+    _n = NEMO_SIGMA + pynini.union("e") + pynutil.insert("n")
+    _en = (
+        NEMO_SIGMA
+        + pynini.union("ent", "and", "ant", "ist", "or", "ion", "ik", "heit", "keit", "schaft", "tät", "ung")
+        + pynutil.insert("en")
+    )
+    _nen = NEMO_SIGMA + pynini.union("in") + (pynutil.insert("e") | pynutil.insert("nen"))
+    _fremd = NEMO_SIGMA + pynini.union("ma", "um", "us") + pynutil.insert("en")
+    # maskuline Nomen mit den Endungen eur, ich, ier, ig, ling, ör
+    _e = NEMO_SIGMA + pynini.union("eur", "ich", "ier", "ig", "ling", "ör") + pynutil.insert("e")
+    _s = NEMO_SIGMA + pynini.union("a", "i", "o", "u", "y") + pynutil.insert("s")
+
+    graph_plural = plurals._priority_union(
+        suppletive, pynini.union(_n, _en, _nen, _fremd, _e, _s), NEMO_SIGMA
+    ).optimize()
+
+    return graph_plural
 
 
 class MeasureFst(GraphFst):
@@ -52,8 +79,6 @@ class MeasureFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
-        unit_singular = pynini.string_file(get_abs_path("data/measure/measurements.tsv"))
-        suppletive = pynini.string_file(get_abs_path("data/measure/suppletive.tsv"))
 
         graph_unit_singular = convert_space(unit_singular)
         graph_unit_plural = graph_unit_singular @ pynini.cdrewrite(convert_space(suppletive), "", "[EOS]", NEMO_SIGMA)
@@ -73,7 +98,7 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        unit_singular = (
+        unit_singular_graph = (
             pynutil.insert("units: \"")
             + ((graph_unit_singular + optional_unit_denominator) | graph_unit_denominator)
             + pynutil.insert("\"")
@@ -94,7 +119,7 @@ class MeasureFst(GraphFst):
             @ pynini.cdrewrite(pynini.cross("eins", "ein"), "", "", NEMO_SIGMA)
             + insert_space
             + pynini.closure(pynutil.delete(" "), 0, 1)
-            + unit_singular
+            + unit_singular_graph
         )
 
         subgraph_fraction = fraction.fst + insert_space + pynini.closure(pynutil.delete(" "), 0, 1) + unit_plural

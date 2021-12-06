@@ -124,7 +124,7 @@ class TTSDataset(Dataset):
         self.text_normalizer_call = (
             self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
         )
-        self.text_normalizer_call_args = text_normalizer_call_args
+        self.text_normalizer_call_args = text_normalizer_call_args if text_normalizer_call_args is not None else {}
 
         self.text_tokenizer = text_tokenizer
 
@@ -564,10 +564,7 @@ class MixerTTSDataset(TTSDataset):
             assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(
                 self.text_tokenizer, EnglishCharsTokenizer
             )
-            if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
-                preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
-            else:
-                preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
+            preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
 
             lm_tokens_as_ids = self.lm_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
 

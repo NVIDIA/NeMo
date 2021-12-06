@@ -6,11 +6,15 @@ zwei und vierzig tausend zwei hundert neun und fünfzig pro quadrat meter~42259/
 minus sechs und sechzig kilogramm~-66 kg
 zwei kilowattstunden~2 kwh
 eins komma null null null null zwei acht kubik zentimeter~1,000028 cm³
+eins komma eins zentimeter~1,1 cm
 drei stunden~3 h
 ein stunde~1 h
 ein millivolt~1 mv
+eins million millivolt~1 million mv
 zwei kubik meter~2 m³
 neunzig gramm~90 g
+neunzig millionen gramm~90 millionen g
+neunzig komma vier millionen gramm~90,4 millionen g
 vier hundert vierzig milliliter~440 ml
 drei hundert mikrometer~300 μm
 fünf und sechzig tausend quadrat kilometer~65000 km²
