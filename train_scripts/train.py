@@ -35,9 +35,10 @@ def create_bcp_file(
     err_file,
     new_script_path="train_scripts/bcp_5b_script.sh"
 ):
-    with open(new_script_path, "w+") as f:
-        f.writelines(f'{bignlp_path}/bcprun2 -c "{train_cmd}" >> {log_file} 2>>{err_file} \n\n')
-        f.writelines("set +x\n") 
+    with open(new_script_path, "w") as f:
+        f.writelines(f'{bignlp_path}/bcprun2 -c \"{train_cmd}\" >> {log_file} 2>>{err_file} \n')
+        f.writelines("\n")
+        f.writelines("set +x \n") 
     os.chmod(new_script_path, 0o755)
 
 def run_training(cfg, hydra_args="", dependency=None):
