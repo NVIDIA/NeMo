@@ -65,7 +65,7 @@ class ElectronicFst(GraphFst):
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
         graph |= protocol + insert_space + (domain_graph | domain_common_graph)
-        graph += pynutil.insert(" preserve_order: true")
+        self.graph = graph
 
-        final_graph = self.add_tokens(graph)
+        final_graph = self.add_tokens(self.graph + pynutil.insert(" preserve_order: true"))
         self.fst = final_graph.optimize()
