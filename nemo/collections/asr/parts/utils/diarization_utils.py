@@ -451,7 +451,7 @@ class ASR_DIAR_OFFLINE(object):
         if self.fix_word_ts_with_VAD:
             if self.frame_VAD == {}:
                 logging.info(
-                    f"VAD timestamps are not provided and skipping word timestamp fix. Please check the VAD model."
+                    f"VAD timestamps are not provided. Fixing word timestamps without VAD. Please check the hydra configurations."
                 )
             word_ts_refined = self.compensate_word_ts_list(self.audio_file_list, word_ts_hyp, self.params)
         else:
@@ -602,7 +602,7 @@ class ASR_DIAR_OFFLINE(object):
             hyp_latter:
                 since i think like tuesday but </s> <s>  he's coming back to albuquerque
 
-        The joint probabilities of words in sentence are computed for these two hypotheses. In addition,
+        The joint probabilities of words in the sentence are computed for these two hypotheses. In addition,
         logprob_diff_threshold parameter is used for reducing the false positive realigning.
         """
         word_seq_len = len(word_dict_seq_list)
@@ -1013,7 +1013,7 @@ class ASR_DIAR_OFFLINE(object):
                 \nctm WDER ASR Hyp.  : {WDER_dict['total_wder_ctm_pred_asr']:.4f} \
                 \nctm diar-trans Acc.: {WDER_dict['total_diar_trans_acc']:.4f} \
                 \nmanifest text WER  : {WDER_dict['total_WER']:.4f} \
-                \nalignment ERR      : Mean: {WDER_dict['total_alignment_error_mean']:.4f} STD:{WDER_dict['total_alignment_error_std']:.4f} \
+                \nalignment Err.     : Mean: {WDER_dict['total_alignment_error_mean']:.4f} STD:{WDER_dict['total_alignment_error_std']:.4f} \
                 \nSpk. counting Acc. : {DER_result_dict['total']['spk_counting_acc']:.4f}"
             )
         else:
