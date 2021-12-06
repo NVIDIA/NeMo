@@ -349,8 +349,7 @@ class ASR_DIAR_OFFLINE(object):
 
         return DER_result_dict
 
-    @staticmethod
-    def closest_silence_start(vad_index_word_end, vad_frames, params, offset=10):
+    def get_the_closest_silence_start(self, vad_index_word_end, vad_frames, params, offset=10):
         """
         Finds the closest silence frame from the given starting position.
 
@@ -411,7 +410,7 @@ class ASR_DIAR_OFFLINE(object):
                     len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, 2)
                     if uniq_id in self.frame_VAD:
                         vad_index_word_end = int(100 * word_ts[1])
-                        closest_sil_stt = self.closest_silence_start(
+                        closest_sil_stt = self.get_the_closest_silence_start(
                             vad_index_word_end, self.frame_VAD[uniq_id], params
                         )
                         vad_est_len = round(closest_sil_stt - word_ts[0], 2)
