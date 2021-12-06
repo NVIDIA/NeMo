@@ -12,135 +12,86 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, delete_extra_space, delete_space
-from nemo_text_processing.inverse_text_normalization.de.taggers.cardinal import AND
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_DIGIT,
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    convert_space,
+)
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).optimize()
-    graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
-    ties_graph = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).optimize()
-    zero_graph = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).optimize()
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    graph_teen = None
-    graph_digit = None
-    ties_graph = None
 
     PYNINI_AVAILABLE = False
-
-
-def _get_month_graph():
-    """
-    Transducer for month, e.g. april -> april
-    """
-    month_graph = pynini.string_file(get_abs_path("data/months.tsv"))
-    return month_graph
-
-
-def _get_digit_or_teen():
-    """
-    Transducer for single digit or teens
-    """
-    return (
-        pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        | pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
-    ).optimize()
-
-
-def _get_single_digit():
-    """
-    Transducer for single digit
-    """
-    return pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize()
 
 
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, in the form of (day) month (year) or year
-        e.g. vierundzwanzigster juli zwei tausend dreizehn -> date { day: "24" month: "juli" year: "2013" preserve_order: true }
-        e.g. neunzehnachtzig -> date { year: "1980" preserve_order: true }
-        e.g. neunzehnachtziger -> date { year: "1980er" preserve_order: true }
-        e.g. neunzehnhundertundachtzig -> date { year: "1980" preserve_order: true }
-        e.g. vierzehnter januar -> date { day: "24" month: "januar"  preserve_order: true }
-        e.g. zwanzig zwanzig -> date { year: "2020" preserve_order: true }
+        e.g. vierundzwanzigster juli zwei tausend dreizehn -> tokens { name: "24. Jul. 2013" }
+        e.g. neunzehnachtzig -> tokens { name: "1980" }
+        e.g. vierzehnter januar -> tokens { name: "14. Jan." }
+        e.g. zweiter dritter -> tokens { name: "02.03." }
+        e.g. januar neunzehnachtzig -> tokens { name: "Jan. 1980" }
+        e.g. zwanzigzwanzig -> tokens { name: "2020" }
 
     Args:
-        ordinal: OrdinalFst
-        cardinal: CardinalFst
+        itn_cardinal_tagger: ITN cardinal tagger
+        tn_date_tagger: TN date tagger
+        tn_date_verbalizer: TN date verbalizer
     """
 
-    def __init__(self, ordinal: GraphFst, cardinal: GraphFst):
-        super().__init__(name="date", kind="classify")
+    def __init__(
+        self,
+        itn_cardinal_tagger: GraphFst,
+        tn_date_tagger: GraphFst,
+        tn_date_verbalizer: GraphFst,
+        deterministic: bool = True,
+    ):
+        super().__init__(name="date", kind="classify", deterministic=deterministic)
 
-        self.cardinal = cardinal
-        ordinal_graph = ordinal.graph
-        year_graph = self._get_year_graph()
-        YEAR_WEIGHT = 0.001
-        year_graph = pynutil.add_weight(year_graph, YEAR_WEIGHT)
-        month_graph = _get_month_graph()
+        add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
+        optional_delete_space = pynini.closure(NEMO_SIGMA | pynutil.delete(" ", weight=0.0001))
+        tagger = tn_date_verbalizer.graph.invert().optimize()
 
-        month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
+        delete_day_marker = (
+            pynutil.delete("day: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        ) @ itn_cardinal_tagger.graph_no_exception
 
-        day_graph = pynutil.insert("day: \"") + pynutil.add_weight(ordinal_graph, -0.7) + pynutil.insert("\"")
-        optional_graph_year = pynini.closure(
-            delete_extra_space
-            + pynutil.insert("year: \"")
-            + pynutil.add_weight(year_graph, -YEAR_WEIGHT)
-            + pynutil.insert("\""),
-            0,
-            1,
+        month_as_number = pynutil.delete("month: \"") + itn_cardinal_tagger.graph_no_exception + pynutil.delete("\"")
+        month_as_string = pynutil.delete("month: \"") + tn_date_tagger.month_abbr.invert() + pynutil.delete("\"")
+
+        convert_year = (tn_date_tagger.year @ optional_delete_space).invert().optimize()
+        delete_year_marker = (
+            pynutil.delete("year: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        ) @ convert_year
+
+        # day. month as string (year)
+        verbalizer = (
+            pynini.closure(delete_day_marker + pynutil.insert(".") + pynini.accep(" "), 0, 1)
+            + month_as_string
+            + pynini.closure(pynini.accep(" ") + delete_year_marker, 0, 1)
         )
-        graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
-        graph_year = (
-            pynutil.insert("year: \"")
-            + year_graph
-            + pynini.closure(pynini.accep('er') + pynini.closure(pynini.accep('n'), 0, 1), 0, 1)
-            + pynutil.insert("\"")
+
+        # day. month as number (year)
+        verbalizer |= (
+            delete_day_marker @ add_leading_zero_to_double_digit
+            + pynutil.insert(".")
+            + pynutil.delete(" ")
+            + month_as_number @ add_leading_zero_to_double_digit
+            + pynutil.insert(".")
+            + pynini.closure(pynutil.delete(" ") + delete_year_marker, 0, 1)
         )
 
-        final_graph = graph_dmy | graph_year
-        final_graph += pynutil.insert(" preserve_order: true")
-        final_graph = self.add_tokens(final_graph)
-        self.fst = final_graph.optimize()
+        # year
+        verbalizer |= delete_year_marker
 
-    def _get_year_graph(self):
-        """
-        Transducer for year
-        """
+        final_graph = tagger @ verbalizer
 
-        def _get_graph():
-            """
-            ein tausend (elf hundert) [vierzehn/sechs und zwanzig/sieben]
-            """
-            graph_hundred_prefix = (
-                _get_digit_or_teen()
-                + delete_space
-                + pynutil.delete("hundert")
-                + pynini.closure(delete_space + pynutil.delete(AND), 0, 1)
-            )
-            graph_thousand_prefix = (
-                _get_single_digit()
-                + delete_space
-                + pynutil.delete("tausend")
-                + pynini.closure(delete_space + pynutil.delete(AND), 0, 1)
-                + pynutil.insert('0')
-            )
-            graph = (
-                pynini.union(graph_hundred_prefix, graph_thousand_prefix)
-                + delete_space
-                + (graph_teen | self.cardinal.graph_ties | (pynutil.insert("0") + graph_digit))
-            )
-            return graph
-
-        year_graph = (
-            # 20 19, 40 12, 2012 - assuming no limit on the year
-            ((graph_teen | self.cardinal.graph_ties) + delete_space + (self.cardinal.graph_ties | graph_teen))
-            | _get_graph()
-        )
-        year_graph.optimize()
-        return year_graph
+        graph = pynutil.insert("name: \"") + convert_space(final_graph) + pynutil.insert("\"")
+        self.fst = graph.optimize()

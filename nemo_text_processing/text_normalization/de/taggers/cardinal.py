@@ -86,6 +86,7 @@ class CardinalFst(GraphFst):
         graph_digit_no_one = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
         graph_one = pynini.string_file(get_abs_path("data/numbers/ones.tsv")).invert()
         graph_digit = graph_digit_no_one | graph_one
+        self.digit = (graph_digit | graph_zero).optimize()
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
 
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
@@ -176,6 +177,7 @@ class CardinalFst(GraphFst):
             @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
+            @ pynini.cdrewrite(pynini.cross("  ", " "), "", "", NEMO_SIGMA)
         )
         self.graph |= graph_zero | pynini.cross("1", "eins")
 
