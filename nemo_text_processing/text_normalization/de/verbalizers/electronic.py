@@ -73,9 +73,8 @@ class ElectronicFst(GraphFst):
             + add_space_after_char() @ pynini.cdrewrite(graph_symbols, "", "", NEMO_SIGMA)
             + pynutil.delete("\"")
         )
-        graph = (pynini.closure(protocol + pynini.accep(" "), 0, 1) + domain) | (
+        self.graph = (pynini.closure(protocol + pynini.accep(" "), 0, 1) + domain) | (
             user_name + pynini.accep(" ") + pynutil.insert("at ") + domain
         )
-        graph += delete_preserve_order
-        delete_tokens = self.delete_tokens(graph)
+        delete_tokens = self.delete_tokens(self.graph + delete_preserve_order)
         self.fst = delete_tokens.optimize()
