@@ -84,6 +84,8 @@ class MegatronBertModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
         )
 
+        num_tokentypes = 2 if cfg.bert_binary_head else 0
+
         self.model = BertModel(
             vocab_size=padded_vocab_size,
             hidden_size=cfg.hidden_size,
@@ -93,7 +95,7 @@ class MegatronBertModel(NLPModel):
             apply_query_key_layer_scaling=cfg.get('apply_query_key_layer_scaling', True),
             kv_channels=cfg.get('kv_channels', None),
             ffn_hidden_size=cfg.ffn_hidden_size,
-            num_tokentypes=0,
+            num_tokentypes=num_tokentypes,
             parallel_output=True,
             pre_process=cfg.get('pre_process', True),
             post_process=cfg.get('post_process', True),
@@ -107,6 +109,7 @@ class MegatronBertModel(NLPModel):
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=cfg.get('onnx_safe', False),
+            add_binary_head=cfg.bert_binary_head
         )
 
     def forward(self, tokens, attention_mask, tokentype_ids, lm_labels):
@@ -115,6 +118,8 @@ class MegatronBertModel(NLPModel):
 
     def training_step(self, batch, batch_idx):
         tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
+        if not self.cfg.bert_binary_head:
+            types = None
         output_tensor = self(tokens, padding_mask, tokentype_ids=types, lm_labels=lm_labels)
         loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
         if 'sop loss' in loss_dict:
@@ -152,6 +157,8 @@ class MegatronBertModel(NLPModel):
 
     def validation_step(self, batch, batch_idx):
         tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
+        if not self.cfg.bert_binary_head:
+            types = None
         output_tensor = self(tokens, padding_mask, tokentype_ids=types, lm_labels=lm_labels)
         loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
         if 'sop loss' in loss_dict:
@@ -244,7 +251,7 @@ class MegatronBertModel(NLPModel):
             self.cfg.data.short_seq_prob,
             self.cfg.seed,
             self.cfg.data.get('skip_warmup', True),
-            binary_head=False,
+            binary_head=self.cfg.bert_binary_head,
             max_seq_length_dec=None,
             dataset_type='standard_bert',
             tokenizer=self.tokenizer.tokenizer
