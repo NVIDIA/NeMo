@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.text_normalization.de.taggers.decimal import quantities
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
     GraphFst,
@@ -36,7 +37,7 @@ class DecimalFst(GraphFst):
 
     """
 
-    def __init__(self, deterministic: bool):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
         delete_space = pynutil.delete(" ")
@@ -49,11 +50,7 @@ class DecimalFst(GraphFst):
         self.fractional = pynutil.insert(" komma ") + self.fractional_default
 
         self.quantity = (
-            delete_space
-            + insert_space
-            + pynutil.delete("quantity: \"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+            delete_space + insert_space + pynutil.delete("quantity: \"") + quantities + pynutil.delete("\"")
         )
         self.optional_quantity = pynini.closure(self.quantity, 0, 1)
 

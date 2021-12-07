@@ -111,20 +111,17 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-06'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-06'
           }
         }
         stage('German ITN and non-deterministic TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language de "zwanzig" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "101" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --language de'
-
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
           }
         }
         stage('Spanish ITN') {
@@ -134,8 +131,8 @@ pipeline {
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-06'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-06'
           }
         }
         stage('Run Ru ITN and non-deterministic TN & Run all Ru ITN tests') {
@@ -159,8 +156,9 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-06 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
+            sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
           }
@@ -168,7 +166,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-06 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -283,64 +281,6 @@ pipeline {
           }
         }
 
-        stage('Speech to Label') {
-          steps {
-            sh 'python examples/asr/speech_to_label.py \
-            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            ~model.preprocessor.window_size \
-            ~model.preprocessor.window_stride \
-            ~model.preprocessor.window \
-            ~model.preprocessor.n_mels \
-            ~model.preprocessor.n_mfcc \
-            ~model.preprocessor.n_fft \
-            exp_manager.exp_dir=examples/asr/speech_to_label_results'
-            sh 'rm -rf examples/asr/speech_to_label_results'
-          }
-        }
-
-        stage('Speaker Recognition') {
-          steps {
-            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=2 \
-            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
-          }
-        }
-
-        stage('Speaker Diarization Inference') {
-          steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
-          }
-        }
-
-        stage('Speaker Diarization with ASR Inference') {
-          steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.asr.model_path=QuartzNet15x5Base-En \
-            diarizer.asr.parameters.asr_based_vad=True \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
-          }
-        }
-
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
@@ -388,6 +328,76 @@ pipeline {
       }
     }
 
+    stage('L2: Speaker dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+
+        stage('Speaker Recognition') {
+          steps {
+            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=2 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
+          }
+        }
+
+        stage('Speech to Label') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+
+
+        stage('Speaker Diarization with ASR Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.asr.model_path=QuartzNet15x5Base-En \
+            diarizer.asr.parameters.asr_based_vad=True \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+          }
+        }
+
+        stage('Speaker Diarization Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
+      }
+    }
     // TODO: Enable test after 21.08 container is used.
     // stage('L2: ASR DALI dev run') {
     //   when {
@@ -1128,26 +1138,7 @@ pipeline {
               trainer.gpus=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
-            python punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              +model.test_ds.use_cache=false \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
-            python punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item=tmp_data2 \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-              +model.test_ds.use_cache=false \
-              trainer.gpus=[0,1] \
-              trainer.strategy=ddp \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+              exp_manager=null && \
             rm -r tmp_data2 && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
