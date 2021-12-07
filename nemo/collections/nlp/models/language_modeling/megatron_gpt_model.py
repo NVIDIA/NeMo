@@ -23,6 +23,7 @@ from apex.transformer.pipeline_parallel.schedules.common import build_model, _ge
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -75,6 +76,8 @@ class MegatronGPTModel(NLPModel):
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
+            micro_batch_size=cfg.get('micro_batch_size'),
+            global_batch_size=cfg.get('global_batch_size'),
             seed=self.cfg.get('seed', 1234),
         )
 
