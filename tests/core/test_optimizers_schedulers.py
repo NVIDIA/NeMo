@@ -722,6 +722,45 @@ class TestOptimizersSchedulers:
         assert final_lr == self.MIN_LR
 
     @pytest.mark.unit
+    def test_CosineAnnealing_with_noop_steps(self):
+        model = TempModel()
+        opt_cls = optim.get_optimizer('novograd')
+        opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+
+        # No warmup case
+        policy = optim.lr_scheduler.CosineAnnealing(opt, max_steps=self.MAX_STEPS, min_lr=self.MIN_LR)
+        initial_lr = policy.get_last_lr()[0]
+
+        assert initial_lr == self.INITIAL_LR
+
+        update_steps = 0
+        lrs = []
+        for i in range(self.MAX_STEPS):
+            assert policy.get_last_lr()[0] <= self.INITIAL_LR
+            opt.step()
+            policy.step()
+
+            # Perform a No-Op for scheduler every 2 steps
+            if i % 2 == 0:
+                policy.last_epoch -= 1
+            else:
+                update_steps += 1
+
+            lrs.append(policy.get_last_lr()[0])
+
+        policy.step()
+        update_steps += 1
+
+        assert update_steps < self.MAX_STEPS
+
+        final_lr = policy.get_last_lr()[0]
+        assert final_lr > self.MIN_LR
+
+        # update step = true number of updates performed after some number of skipped steps
+        true_end_lr = policy._get_lr(step=update_steps)[0]
+        assert final_lr == true_end_lr
+
+    @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
     def test_max_step_computation(self):
         def train(
