@@ -16,7 +16,7 @@ import os
 
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.de.taggers.date import DateFst
-from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
+from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst
 from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.de.taggers.fraction import FractionFst
 from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
