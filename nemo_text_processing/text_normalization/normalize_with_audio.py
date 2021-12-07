@@ -355,7 +355,7 @@ if __name__ == "__main__":
         raise ValueError("NeMo ASR collection is not installed.")
     start = time.time()
     args.whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
-    if args.text:
+    if args.text is not None:
         normalizer = NormalizerWithAudio(
             input_case=args.input_case,
             lang=args.language,
@@ -374,6 +374,7 @@ if __name__ == "__main__":
             punct_pre_process=not args.no_punct_pre_process,
             punct_post_process=not args.no_punct_post_process,
         )
+
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             pred_text = asr_model.transcribe([args.audio_data])[0]

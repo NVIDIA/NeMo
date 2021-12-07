@@ -14,13 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_LOWER,
-    NEMO_UPPER,
-    TO_LOWER,
-    GraphFst,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_UPPER, GraphFst, insert_space
 
 try:
     import pynini

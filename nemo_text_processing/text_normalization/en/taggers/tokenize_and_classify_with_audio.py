@@ -174,7 +174,7 @@ class ClassifyFst(GraphFst):
             graph = token_plus_punct + pynini.closure(
                 (
                     pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
-                    | (pynutil.insert(" ") + punct)
+                    | (punct + pynutil.insert(" "))
                 )
                 + token_plus_punct
             )

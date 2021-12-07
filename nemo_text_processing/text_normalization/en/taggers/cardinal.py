@@ -119,26 +119,24 @@ class CardinalFst(GraphFst):
         """
         alpha = NEMO_ALPHA
 
-        if self.deterministic:
-            num_graph = self.single_digits_graph
-        else:
-            num_graph = self.graph
+        num_graph = self.single_digits_graph
+
+        if not self.deterministic:
+            num_graph |= self.graph
             letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
             alpha |= letter_pronunciation
 
-        delimiter = insert_space | pynini.accep("-") | pynini.cross("/", " ")
+        delimiter = pynini.accep("-") | pynini.accep("/") | pynutil.insert(" ")
 
-        letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
-        num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
-        num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
-        next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
-        serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
-
-        #  make sure at least on digit and alpha is present
-        alpha_num_check = (NEMO_SIGMA + num_graph + NEMO_SIGMA + alpha + NEMO_SIGMA) | (
-            NEMO_SIGMA + alpha + NEMO_SIGMA + num_graph + NEMO_SIGMA
+        letter_num = pynini.closure(alpha, 1) + delimiter + num_graph
+        num_letter = num_graph + delimiter + alpha
+        next_alpha_or_num = pynini.closure(
+            (pynini.closure(pynini.accep("-") | pynini.accep("/")) + alpha) | (delimiter + num_graph)
         )
-        serial_graph = pynini.compose(alpha_num_check, serial_graph)
+
+        serial_graph = letter_num + next_alpha_or_num
+        serial_graph |= num_letter + next_alpha_or_num
+
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 
