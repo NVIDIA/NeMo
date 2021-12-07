@@ -67,8 +67,12 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--source", type=str, required=True, help="Input file")
     parser.add_argument("--target", type=str, required=True, help="Output file")
-    parser.add_argument("--p_switch_near_letters_order", type=float, default=0.0,
-        help="Probability of switching two consecutive letters in a word")
+    parser.add_argument(
+        "--p_switch_near_letters_order",
+        type=float,
+        default=0.0,
+        help="Probability of switching two consecutive letters in a word",
+    )
     parser.add_argument("--p_drop_letter", type=float, default=0.0, help="Probability of dropping a letter in a word")
     # AugLy
     parser.add_argument(
