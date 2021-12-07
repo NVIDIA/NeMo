@@ -15,7 +15,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.models.wav2vec.wav2vec_model import Wav2VecEncoderModel
+from nemo.collections.asr.models.wav2vec_models import Wav2VecEncoderModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

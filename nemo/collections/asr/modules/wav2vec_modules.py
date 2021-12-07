@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,290 +17,410 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Optional, Tuple
+import math
+from typing import List, Tuple
+from nemo.core.neural_types.elements import AcousticEncodedRepresentation
+from omegaconf.dictconfig import DictConfig
 
-import numpy as np
+from nemo.collections.asr.parts.submodules.jasper import (
+    init_weights, 
+    jasper_activations,
+)
+
 import torch
-import torch.nn.functional as F
 from torch import nn
+from torch.nn import functional as F
 
-from nemo.collections.asr.models.configs.wav2vec_config import Wav2VecMaskType
-from nemo.core import NeuralModule
-from nemo.core.neural_types import EncodedRepresentation, LossType, NeuralType
+from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, SpectrogramType, LogprobsType
+from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.module import NeuralModule
+
+from omegaconf import DictConfig
+from collections import OrderedDict
+from nemo.core.classes.common import typecheck
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+class TransposeLast(torch.nn.Module):
+    """
+    Transposes last dimension. Useful for adding to a sequential block.
+    """
+
+    def forward(self, x):
+        return x.transpose(-2, -1)
 
 
-class GumbelVectorQuantizer(NeuralModule):
-    def __init__(
-        self,
-        dim,
-        num_vars,
-        temp,
-        groups,
-        combine_groups,
-        vq_dim,
-        time_first,
-        activation=nn.GELU(),
-        weight_proj_depth=1,
-        weight_proj_factor=1,
-    ):
-        """Vector quantization using gumbel softmax
-
-        Args:
-            dim: input dimension (channels)
-            num_vars: number of quantized vectors per group
-            temp: temperature for training. this should be a tuple of 3 elements: (start, stop, decay factor)
-            groups: number of groups for vector quantization
-            combine_groups: whether to use the vectors for all groups
-            vq_dim: dimensionality of the resulting quantized vector
-            time_first: if true, expect input in BxTxC format, otherwise in BxCxT
-            activation: what activation to use (should be a module). this is only used if weight_proj_depth is > 1
-            weight_proj_depth: number of layers (with activation in between) to project input before computing logits
-            weight_proj_factor: this is used only if weight_proj_depth is > 1. scales the inner dimensionality of
-                                projections by this factor
-        """
+class SamePad(torch.nn.Module):
+    def __init__(self, kernel_size):
         super().__init__()
+        self.remove = kernel_size % 2 == 0
 
-        self.groups = groups
-        self.combine_groups = combine_groups
-        self.input_dim = dim
-        self.num_vars = num_vars
-        self.time_first = time_first
+    def forward(self, x):
+        if self.remove:
+            x = x[:, :, :-1]
+        return x
 
-        assert vq_dim % groups == 0, f"dim {vq_dim} must be divisible by groups {groups} for concatenation"
 
-        var_dim = vq_dim // groups
-        num_groups = groups if not combine_groups else 1
-
-        self.vars = nn.Parameter(torch.FloatTensor(1, num_groups * num_vars, var_dim))
-        nn.init.uniform_(self.vars)
-
-        if weight_proj_depth > 1:
-
-            def block(input_dim, output_dim):
-                return nn.Sequential(nn.Linear(input_dim, output_dim), activation)
-
-            inner_dim = self.input_dim * weight_proj_factor
-            self.weight_proj = nn.Sequential(
-                *[block(self.input_dim if i == 0 else inner_dim, inner_dim) for i in range(weight_proj_depth - 1)],
-                nn.Linear(inner_dim, groups * num_vars),
-            )
-        else:
-            self.weight_proj = nn.Linear(self.input_dim, groups * num_vars)
-            nn.init.normal_(self.weight_proj.weight, mean=0, std=1)
-            nn.init.zeros_(self.weight_proj.bias)
-
-        assert len(temp) == 3, "Quantize temperature should be a tuple of 3 elements: (start, stop, decay factor)"
-
-        self.max_temp, self.min_temp, self.temp_decay = temp
-        self.curr_temp = self.max_temp
-        self.codebook_indices = None
-
-    def set_num_updates(self, num_updates):
-        self.curr_temp = max(self.max_temp * self.temp_decay ** num_updates, self.min_temp)
-
-    def get_codebook_indices(self):
-        if self.codebook_indices is None:
-            from itertools import product
-
-            p = [range(self.num_vars)] * self.groups
-            inds = list(product(*p))
-            self.codebook_indices = torch.tensor(inds, dtype=torch.long, device=self.vars.device).flatten()
-
-            if not self.combine_groups:
-                self.codebook_indices = self.codebook_indices.view(self.num_vars ** self.groups, -1)
-                for b in range(1, self.groups):
-                    self.codebook_indices[:, b] += self.num_vars * b
-                self.codebook_indices = self.codebook_indices.flatten()
-        return self.codebook_indices
-
-    def sample_from_codebook(self, b, n):
-        indices = self.get_codebook_indices()
-        indices = indices.view(-1, self.groups)
-        cb_size = indices.size(0)
-        assert n < cb_size, f"sample size {n} is greater than size of codebook {cb_size}"
-        sample_idx = torch.randint(low=0, high=cb_size, size=(b * n,))
-        indices = indices[sample_idx]
-
-        z = self.vars.squeeze(0).index_select(0, indices.flatten()).view(b, n, -1)
-        return z
-
+class ConvFeatureEncoder(NeuralModule):
+    """
+        Converts input raw audio into features for downstream transformer model.
+        Uses 1D convolutional blocks with GeLU activation.
+    """
     @property
     def input_types(self):
         """Returns definitions of module input ports.
+        source:
+            0: AxisType(BatchTag)
+            1: AxisType(TimeTag)
+        length:
+            0: AxisType(BatchTag)
+        Note: length is in number of samples, not seconds
         """
-        if self.time_first:
-            return {"x": NeuralType(('B', 'T', 'D'), EncodedRepresentation())}
-        return {"x": NeuralType(('B', 'D', 'T'), EncodedRepresentation())}
+        return {
+            "source": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(
+                tuple('B'), LengthsType()
+            ),
+        }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
+        """Returns definitions of module output ports. 
+        For compatibility, processed features are treated as Spectrogram types
+        processed_signal:
+            0: AxisType(BatchTag)
+            1: AxisType(ChannelTag)
+            2: AxisType(ProcessedTimeTag)
+        processed_signal_length:
+            0: AxisType(BatchTag)
         """
-        if self.time_first:
-            return {
-                "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-                "quantize_prob_ppl": NeuralType(elements_type=LossType()),
-            }
         return {
-            "x": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
-            "quantize_prob_ppl": NeuralType(elements_type=LossType()),
+            "processed_signal": NeuralType(('B', 'C', 'T'), SpectrogramType()),
+            "processed_signal_length": NeuralType(tuple('B'), LengthsType()),
         }
 
-    def forward(self, x):
+    def __init__(
+        self,
+        conv_layers: List[Tuple[int, int, int]],
+        extractor_mode: str = "layer_norm",
+        conv_bias: bool = False,
+        feature_grad_mult = 1.0,
+        normalize_audio = True
+    ):
+        super().__init__()
 
-        if not self.time_first:
-            x = x.transpose(1, 2)
+        self.grad_mult = feature_grad_mult
+        self.normalize_input = normalize_audio
 
-        bsz, tsz, fsz = x.shape
-        x = x.reshape(-1, fsz)
-        x = self.weight_proj(x)
-        x = x.view(bsz * tsz * self.groups, -1)
+        def block(
+            n_in, n_out, k, stride, is_layer_norm=False, is_group_norm=False, conv_bias=False,
+        ):
+            def make_conv():
+                conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
+                nn.init.kaiming_normal_(conv.weight)
+                return conv
 
-        _, k = x.max(-1)
-        hard_x = x.new_zeros(*x.shape).scatter_(-1, k.view(-1, 1), 1.0).view(bsz * tsz, self.groups, -1)
+            assert (is_layer_norm and is_group_norm) is False, "layer norm and group norm are exclusive"
 
-        # Calculate quantize prob perplexity
-        num_vars = self.num_vars * self.groups
-        avg_probs = torch.softmax(x.view(bsz * tsz, self.groups, -1).float(), dim=-1).mean(dim=0)
-        quantize_prob_ppl = torch.exp(-torch.sum(avg_probs * torch.log(avg_probs + 1e-7), dim=-1)).sum()
-        quantize_prob_ppl = (num_vars - quantize_prob_ppl) / num_vars
+            if is_layer_norm:
+                return nn.Sequential(
+                    make_conv(),
+                    nn.Sequential(TransposeLast(), nn.LayerNorm(dim, elementwise_affine=True), TransposeLast()),
+                    nn.GELU(),
+                )
+            elif is_group_norm:
+                return nn.Sequential(make_conv(), nn.GroupNorm(dim, dim, affine=True), nn.GELU(),)
+            else:
+                return nn.Sequential(make_conv(), nn.GELU())
 
-        if self.training:
-            x = F.gumbel_softmax(x.float(), tau=self.curr_temp, hard=True).type_as(x)
-        else:
-            x = hard_x
+        in_d = 1
+        self.layer_cfg = conv_layers
+        self.conv_layers = nn.ModuleList()
+        for i, cl in enumerate(conv_layers):
+            assert len(cl) == 3, "invalid conv definition: " + str(cl)
+            (dim, k, stride) = cl
 
-        x = x.view(bsz * tsz, -1)
-
-        vars = self.vars
-        if self.combine_groups:
-            vars = vars.repeat(1, self.groups, 1)
-
-        x = x.unsqueeze(-1) * vars
-        x = x.view(bsz * tsz, self.groups, self.num_vars, -1)
-        x = x.sum(-2)
-        x = x.view(bsz, tsz, -1)
-
-        cur_codebook_temp = self.curr_temp
-
-        if not self.time_first:
-            x = x.transpose(1, 2)  # BTC -> BCT
-
-        return x, quantize_prob_ppl, cur_codebook_temp
-
-
-def compute_mask_indices(
-    shape: Tuple[int, int],
-    padding_mask: Optional[torch.Tensor],
-    mask_prob: float,
-    mask_length: int,
-    mask_type: Wav2VecMaskType = Wav2VecMaskType.static,
-    mask_other: float = 0.0,
-    min_masks: int = 0,
-    no_overlap: bool = False,
-    min_space: int = 0,
-) -> np.ndarray:
-    """
-    Computes random mask spans for a given shape
-    Args:
-        shape: the the shape for which to compute masks.
-            should be of size 2 where first element is batch size and 2nd is timesteps
-        padding_mask: optional padding mask of the same size as shape, which will prevent masking padded elements
-        mask_prob: probability for each token to be chosen as start of the span to be masked. this will be multiplied by
-            number of timesteps divided by length of mask span to mask approximately this percentage of all elements.
-            however due to overlaps, the actual number will be smaller (unless no_overlap is True)
-        mask_type: how to compute mask lengths
-            static = fixed size
-            uniform = sample from uniform distribution [mask_other, mask_length*2]
-            normal = sample from normal distribution with mean mask_length and stdev mask_other. mask is min 1 element
-            poisson = sample from possion distribution with lambda = mask length
-        min_masks: minimum number of masked spans
-        no_overlap: if false, will switch to an alternative recursive algorithm that prevents spans from overlapping
-        min_space: only used if no_overlap is True, this is how many elements to keep unmasked between spans
-    """
-
-    bsz, all_sz = shape
-    mask = np.full((bsz, all_sz), False)
-
-    all_num_mask = int(
-        # add a random number for probabilistic rounding
-        mask_prob * all_sz / float(mask_length)
-        + np.random.rand()
-    )
-
-    all_num_mask = max(min_masks, all_num_mask)
-
-    mask_idcs = []
-    for i in range(bsz):
-        if padding_mask is not None:
-            sz = all_sz - padding_mask[i].long().sum().item()
-            num_mask = int(
-                # add a random number for probabilistic rounding
-                mask_prob * sz / float(mask_length)
-                + np.random.rand()
+            self.conv_layers.append(
+                block(
+                    in_d,
+                    dim,
+                    k,
+                    stride,
+                    is_layer_norm=extractor_mode == "layer_norm",
+                    is_group_norm=extractor_mode == "group_norm" and i == 0, # Group norm is only for first layer
+                    conv_bias=conv_bias,
+                )
             )
-            num_mask = max(min_masks, num_mask)
+            in_d = dim
+    
+    def apply_layers(self, x):
+        for conv in self.conv_layers:
+            x = conv(x)
+        return x
+    
+    def normalize(self, source, lengths):
+        for i in range(lengths.size(0)):
+            orig = source[i, :lengths[i]]
+            norm = F.layer_norm(orig, orig.shape) # From FAIR
+            source[i, :lengths[i]] = norm
+        return source
+
+    def forward(self, source, length):
+        if self.normalize_input:
+            with torch.no_grad(): # Normalizes audio source
+                source = self.normalize(source, length)
+
+        # BxT -> BxCxT
+        processed_signal = source.unsqueeze(1)
+
+        # Applies grad mult scaling
+        if self.grad_mult > 0:
+            processed_signal = self.apply_layers(processed_signal)
+            if self.grad_mult != 1.0: 
+                processed_signal = GradMultiply.apply(processed_signal, self.grad_mult)
         else:
-            sz = all_sz
-            num_mask = all_num_mask
+            with torch.no_grad(): # We use 0 to deactivate training of convolutions
+                processed_signal = self.apply_layers(processed_signal)
+        
+        # Feature lengths will have been changed through convolutions
+        processed_signal_length = self.get_lengths(audio_lengths=length)
 
-        if mask_type.value is Wav2VecMaskType.static.value:
-            lengths = np.full(num_mask, mask_length)
-        elif mask_type.value is Wav2VecMaskType.uniform:
-            lengths = np.random.randint(mask_other, mask_length * 2 + 1, size=num_mask)
-        elif mask_type.value is Wav2VecMaskType.normal.value:
-            lengths = np.random.normal(mask_length, mask_other, size=num_mask)
-            lengths = [max(1, int(round(x))) for x in lengths]
-        elif mask_type.value is Wav2VecMaskType.poisson.value:
-            lengths = np.random.poisson(mask_length, size=num_mask)
-            lengths = [int(round(x)) for x in lengths]
-        else:
-            raise Exception("unknown mask selection " + str(mask_type))
+        return processed_signal, processed_signal_length
 
-        if sum(lengths) == 0:
-            lengths[0] = min(mask_length, sz - 1)
+    def get_lengths(self, audio_lengths): # from hugging face
+        # converts audio lengths to timestep lengths
+        with torch.no_grad():
+            for conv in self.layer_cfg:
+                kernel = conv[1]
+                stride = conv[2]
+                audio_lengths = torch.div(audio_lengths - kernel, stride, rounding_mode='floor') + 1 # from pytorch doc
+        return audio_lengths
 
-        if no_overlap:
-            mask_idc = []
 
-            def arrange(s, e, length, keep_length):
-                span_start = np.random.randint(s, e - length)
-                mask_idc.extend(span_start + i for i in range(length))
 
-                new_parts = []
-                if span_start - s - min_space >= keep_length:
-                    new_parts.append((s, span_start - min_space + 1))
-                if e - span_start - keep_length - min_space > keep_length:
-                    new_parts.append((span_start + length + min_space, e))
-                return new_parts
+class Wav2VecTransformerEncoder(NeuralModule):
+    def __init__(self, pos_embed: DictConfig, transformer: DictConfig):
+        super().__init__()
 
-            parts = [(0, sz)]
-            min_length = min(lengths)
-            for length in sorted(lengths, reverse=True):
-                lens = np.fromiter((e - s if e - s >= length + min_space else 0 for s, e in parts), np.int)
-                l_sum = np.sum(lens)
-                if l_sum == 0:
-                    break
-                probs = lens / np.sum(lens)
-                c = np.random.choice(len(parts), p=probs)
-                s, e = parts.pop(c)
-                parts.extend(arrange(s, e, length, min_length))
-            mask_idc = np.asarray(mask_idc)
-        else:
-            min_len = min(lengths)
-            if sz - min_len <= num_mask:
-                min_len = sz - num_mask - 1
 
-            mask_idc = np.random.choice(sz - min_len, num_mask, replace=False)
+        # positional convolutional embeddings
+        self.pos_conv = nn.Conv1d(
+            pos_embed.embedding_dim,
+            pos_embed.embedding_dim,
+            kernel_size=pos_embed.conv_pos,
+            padding=pos_embed.conv_pos // 2,
+            groups=pos_embed.conv_pos_groups,
+        )
 
-            mask_idc = np.asarray([mask_idc[j] + offset for j in range(len(mask_idc)) for offset in range(lengths[j])])
+        self.dropout = transformer.dropout # For initializing BERT parameters
+        std = math.sqrt((4 * (1.0 - self.dropout)) / (pos_embed.conv_pos * pos_embed.embedding_dim))
+        nn.init.normal_(self.pos_conv.weight, mean=0, std=std)
+        nn.init.constant_(self.pos_conv.bias, 0)
 
-        mask_idcs.append(np.unique(mask_idc[mask_idc < sz]))
+        self.pos_conv = nn.utils.weight_norm(self.pos_conv, name="weight", dim=2)
+        self.pos_conv = nn.Sequential(self.pos_conv, SamePad(pos_embed.conv_pos), nn.GELU())
 
-    min_len = min([len(m) for m in mask_idcs])
-    for i, mask_idc in enumerate(mask_idcs):
-        if len(mask_idc) > min_len:
-            mask_idc = np.random.choice(mask_idc, min_len, replace=False)
-        mask[i, mask_idc] = True
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer=nn.TransformerEncoderLayer(
+                d_model=transformer.embedding_dim,
+                nhead=transformer.num_attention_heads,
+                dim_feedforward=transformer.ffn_embedding_dim,
+                dropout=self.dropout,
+                activation=transformer.activation_fn,
+            ),
+            num_layers=transformer.encoder_layers,
+        )
+        self.layer_norm = nn.LayerNorm(transformer.embedding_dim)
+        self.apply(init_bert_params)
 
-    return mask
+    @property
+    def input_types(self):
+        """Returns definitions of module output ports. 
+        We treat features as SpectrogramType for Nemo compatibility
+        processed_signal:
+            0: AxisType(BatchTag)
+            1: AxisType(ChannelTag)
+            2: AxisType(ProcessedTimeTag)
+        processed_length:
+            0: AxisType(BatchTag)
+        """
+        return {
+            "processed_signal": NeuralType(('B', 'C', 'T'), SpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports. 
+        We're using SpectrogramType for now to keep things Nemo safe
+        processed_signal:
+            0: AxisType(BatchTag)
+            1: AxisType(ProcessedTimeTag)
+            2: AxisType(ChannelTag)
+        processed_length:
+            0: AxisType(BatchTag)
+        """
+        return {
+            "context_embed": NeuralType(('B', 'T', 'C'), AcousticEncodedRepresentation()),
+        }
+
+
+    def forward(self, signal, length):
+        signal = signal.transpose(1,2) #B, C, T -> B, T, C
+
+        padding_mask = self.create_padding_mask(length)
+        if padding_mask is not None:
+            signal[padding_mask] = 0.0
+
+        signal = signal.transpose(1,2)
+        signal_conv = self.pos_conv(signal) # B, C, T
+        signal_conv = signal_conv 
+        signal += signal_conv
+
+        signal = signal.transpose(1, 2) # B, C, T -> B, T, C
+        signal = self.layer_norm(signal)
+
+        signal = signal.transpose(0, 1) # B x T x C -> T x B x C
+        context_emb = self.transformer_encoder(signal, src_key_padding_mask=padding_mask)
+
+        # T x B x C -> B x T x C
+        context_emb = context_emb.transpose(0, 1)
+
+        return context_emb
+
+    def create_padding_mask(self, length):
+        # Broadcast to vectorize creating the padding mask
+        max_len = max(length)
+        padding_mask = torch.arange(max_len, device=DEVICE)
+        padding_mask = padding_mask.expand(len(length), max_len) < length.unsqueeze(1)
+        # Negate to false where no padding
+        padding_mask = ~padding_mask
+
+        return padding_mask
+
+class GradMultiply(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, scale):
+        ctx.scale = scale
+        res = x.new(x)
+        return res
+
+    @staticmethod
+    def backward(ctx, grad):
+        return grad * ctx.scale, None
+
+
+def init_bert_params(module):
+    """
+    Initialize the weights specific to the BERT Model.
+    This overrides the default initializations depending on the specified arguments.
+        1. If normal_init_linear_weights is set then weights of linear
+           layer will be initialized using the normal distribution and
+           bias will be set to the specified value.
+        2. If normal_init_embed_weights is set then weights of embedding
+           layer will be initialized using the normal distribution.
+        3. If normal_init_proj_weights is set then weights of
+           in_project_weight for MultiHeadAttention initialized using
+           the normal distribution (to be validated).
+    """
+
+    if isinstance(module, nn.Linear):
+        module.weight.data.normal_(mean=0.0, std=0.02)
+        if module.bias is not None:
+            module.bias.data.zero_()
+    if isinstance(module, nn.Embedding):
+        module.weight.data.normal_(mean=0.0, std=0.02)
+        if module.padding_idx is not None:
+            module.weight.data[module.padding_idx].zero_()
+    if isinstance(module, nn.TransformerEncoderLayer):
+        module.self_attn.in_proj_weight.data.normal_(mean=0.0, std=0.02)
+
+class Wav2VecLinearDecoder(NeuralModule, Exportable):
+    """Simple ASR Decoder for linear projection of Wav2Vec embeddings
+    """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
+
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
+        super().__init__()
+
+        if vocabulary is not None:
+            if num_classes != len(vocabulary):
+                raise ValueError(
+                    f"If vocabulary is specified, it's length should be equal to the num_classes. Instead got: num_classes={num_classes} and len(vocabulary)={len(vocabulary)}"
+                )
+            self.__vocabulary = vocabulary
+        self._feat_in = feat_in
+        # Add 1 for blank char
+        self._num_classes = num_classes + 1
+
+        self.projection = torch.nn.Linear(self._feat_in, self._num_classes, bias=False)
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+    @typecheck()
+    def forward(self, encoder_output):
+        return torch.nn.functional.log_softmax(self.projection(encoder_output), dim=-1)
+
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        bs = 8
+        seq = 64
+        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        return tuple([input_example])
+
+    def _prepare_for_export(self, **kwargs):
+        pass
+
+    @property
+    def vocabulary(self):
+        return self.__vocabulary
+
+    @property
+    def num_classes_with_blank(self):
+        return self._num_classes
+
+class Wav2VecLinearReconstruction(NeuralModule, Exportable):
+    """ ASR Decoder for reconstructing masked regions of spectrogram
+    """
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"audio_recon": NeuralType(('B', 'T', 'D'), SpectrogramType())})
+
+    
+    def __init__(self, feat_in, feat_out, init_mode="xavier_uniform", activation=None):
+        super().__init__()
+
+        self.feat_in = feat_in
+        self.feat_out = feat_out
+
+        self.projection = torch.nn.Linear(self.feat_in, self.feat_out, bias=False)
+
+        if activation:
+            self.projection = nn.Sequential(self.projection, jasper_activations[activation]())
+
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+    
+    @typecheck()
+    def forward(self, encoder_output):
+        return self.projection(encoder_output)
