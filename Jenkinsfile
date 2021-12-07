@@ -1137,26 +1137,7 @@ pipeline {
               trainer.gpus=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
-            python punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              +model.test_ds.use_cache=false \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ && \
-            python punctuation_capitalization_train_evaluate.py \
-              +do_training=false \
-              +do_testing=true \
-              ~model.train_ds \
-              ~model.validation_ds \
-              model.test_ds.ds_item=tmp_data2 \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
-              +model.test_ds.use_cache=false \
-              trainer.gpus=[0,1] \
-              trainer.strategy=ddp \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
+              exp_manager=null && \
             rm -r tmp_data2 && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
