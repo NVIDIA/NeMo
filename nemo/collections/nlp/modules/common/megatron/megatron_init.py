@@ -37,7 +37,14 @@ except (ImportError, ModuleNotFoundError):
 
 
 def initialize_model_parallel_for_nemo(
-    world_size, global_rank, local_rank, tensor_model_parallel_size=1, pipeline_model_parallel_size=1, seed=1234,
+    world_size,
+    global_rank,
+    local_rank,
+    tensor_model_parallel_size=1,
+    pipeline_model_parallel_size=1,
+    micro_batch_size=None,
+    global_batch_size=None,
+    seed=1234,
 ):
 
     # updating NeMo globals
@@ -67,6 +74,16 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
 
     _set_random_seed(seed)
+
+    if global_batch_size and micro_batch_size is not None:
+        # TODO: add rampup_batch_size here when we have it implemented
+        setup_microbatch_calculator(
+            rank=global_rank,
+            global_batch_size=global_batch_size,
+            micro_batch_size=micro_batch_size,
+            data_parallel_size=app_state.data_parallel_size,
+            rampup_batch_size=None,
+        )
 
     app_state._is_megatron_initialized = True
 

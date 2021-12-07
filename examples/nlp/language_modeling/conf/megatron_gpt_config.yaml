@@ -15,7 +15,7 @@ trainer:
   val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 1 # do not modify for training megatron models
   gradient_clip_val: 1.0
 
 exp_manager:
@@ -40,8 +40,10 @@ exp_manager:
 
 
 model:
-  # model parallelism 
+  # specify micro_batch_size, global_batch_size, and model parallelism
+  # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4
+  global_batch_size: 8 
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
 

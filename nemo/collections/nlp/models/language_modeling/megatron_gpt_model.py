@@ -47,6 +47,9 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank, inject_model_p
 from nemo.utils import AppState, logging
 
 try:
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.common import (
         build_model,
@@ -55,6 +58,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -89,6 +93,8 @@ class MegatronGPTModel(NLPModel):
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
+            micro_batch_size=cfg.get('micro_batch_size'),
+            global_batch_size=cfg.get('global_batch_size'),
             seed=self.cfg.get('seed', 1234),
         )
 
