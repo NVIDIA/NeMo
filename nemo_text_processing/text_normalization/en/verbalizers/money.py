@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_WHITE_SPACE,
     SINGULAR_TO_PLURAL,
     GraphFst,
+    delete_preserve_order,
     delete_space,
     get_abs_path,
     insert_space,
@@ -48,17 +49,45 @@ class MoneyFst(GraphFst):
 
     def __init__(self, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="verbalize", deterministic=deterministic)
+        keep_space = pynini.accep(" ")
+        maj = pynutil.delete("currency_maj: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        min = pynutil.delete("currency_min: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
-        unit = (
-            pynutil.delete("currency:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+        fractional_part = (
+            pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         )
-        graph = decimal.numbers + delete_space + pynutil.insert(" ") + unit
+
+        integer_part = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        optional_add_and = pynini.closure(pynutil.insert(" and "), 0, 1)
+
+        #  *** currency_maj
+        graph_integer = integer_part + keep_space + maj
+
+        #  *** currency_maj + (***) | ((and) *** current_min)
+        fractional = optional_add_and + fractional_part + keep_space + min
+        if not deterministic:
+            fractional |= fractional_part
+
+        graph_integer_with_minor = integer_part + keep_space + maj + keep_space + fractional + delete_preserve_order
+
+        # *** point *** currency_maj
+        graph_decimal = decimal.numbers + keep_space + maj
+
+        # *** current_min
+        graph_minor = fractional_part + keep_space + min + delete_preserve_order
+
+        graph = graph_integer | graph_integer_with_minor | graph_decimal | graph_minor
 
         if not deterministic:
+            unit = (
+                pynutil.delete("currency:")
+                + delete_space
+                + pynutil.delete("\"")
+                + pynini.closure(NEMO_NOT_QUOTE, 1)
+                + pynutil.delete("\"")
+            )
+            graph = decimal.numbers + delete_space + pynutil.insert(" ") + unit
+
             # For non-deterministic case, the currency symbol was not changed in the tagger, so here we need to
             # create a transducer to replace the currency symbol with the correct spoken equivalent
 
