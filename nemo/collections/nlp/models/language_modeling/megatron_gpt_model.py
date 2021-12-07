@@ -182,7 +182,7 @@ class MegatronGPTModel(NLPModel):
 
                 # If the grad scaler skipped its optimizer step due to infs/nans,
                 # decrement the step of all schedulers.
-                if grad_scaler.optimizer_update_skipped:
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
                     schedulers = self.trainer.lr_schedulers
 
                     if not schedulers or not self.trainer.lightning_module.automatic_optimization:
@@ -193,6 +193,10 @@ class MegatronGPTModel(NLPModel):
                         # as well as update the optimizer lr in all param groups
                         scheduler['scheduler'].last_epoch -= 2
                         scheduler['scheduler'].step()
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
         if self.use_soft_prompts:

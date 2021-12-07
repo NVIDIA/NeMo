@@ -232,7 +232,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
             growth_interval=growth_interval,
             enabled=enabled,
         )
-        self.optimizer_update_skipped = False
+        self.optimizer_update_skipped: Optional[bool] = None
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
