@@ -76,12 +76,12 @@ def main():
     parser.add_argument("--p_drop_letter", type=float, default=0.0, help="Probability of dropping a letter in a word")
     # AugLy
     parser.add_argument(
-        "--augly_p", type=float, default=0.0, help="Probability of augly to apply a transformation (per word)"
+        "--p_augly", type=float, default=0.0, help="Probability of augly to apply a transformation (per word)"
     )
 
     args = parser.parse_args()
 
-    if (args.augly_p > 0) and (txtaugs is None):
+    if (args.p_augly > 0) and (txtaugs is None):
         raise ImportError("Cannot use AugLy, module failed to import. Did you install it? (pip install augly)")
 
     # collect ops
@@ -101,9 +101,9 @@ def main():
             # clean double spaces from dropped words
             line = " ".join(words).replace("  ", " ")
 
-            if args.augly_p > 0:
+            if args.p_augly > 0:
                 line = txtaugs.simulate_typos(
-                    [line], aug_char_p=args.augly_p, aug_word_p=args.augly_p, aug_char_min=0, aug_word_min=0,
+                    [line], aug_char_p=args.p_augly, aug_word_p=args.p_augly, aug_char_min=0, aug_word_min=0,
                 )[0]
 
             target_f.write(line + "\n")
