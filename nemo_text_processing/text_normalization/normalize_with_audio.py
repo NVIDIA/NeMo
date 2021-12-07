@@ -110,14 +110,15 @@ class NormalizerWithAudio(Normalizer):
             whitelist=whitelist,
         )
 
-        self.normalizer_deterministic = Normalizer(
-            input_case=input_case,
-            lang=lang,
-            deterministic=True,
-            cache_dir=cache_dir,
-            overwrite_cache=overwrite_cache,
-            whitelist=whitelist,
-        )
+        if lang == "en":
+            self.normalizer_deterministic = Normalizer(
+                input_case=input_case,
+                lang=lang,
+                deterministic=True,
+                cache_dir=cache_dir,
+                overwrite_cache=overwrite_cache,
+                whitelist=whitelist,
+            )
 
     def normalize(
         self,
