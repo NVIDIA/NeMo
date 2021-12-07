@@ -25,7 +25,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -35,10 +34,10 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
-    get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 
 
 class MegatronBertModel(NLPModel):
@@ -222,7 +221,7 @@ class MegatronBertModel(NLPModel):
         padding_mask = data_b['padding_mask'].long()
         return tokens, types, sentence_order, loss_mask, lm_labels, padding_mask
 
-    def build_train_valid_test_datasets(self):
+    def _build_train_valid_test_datasets(self):
         logging.info('Building Bert datasets.')
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
@@ -236,16 +235,21 @@ class MegatronBertModel(NLPModel):
             test_iters * global_batch_size,
         ]
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self.cfg,
-            trainer=self.trainer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            seq_length=self.cfg.data.seq_length,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.get('skip_warmup', True),
+            self.cfg.data.data_prefix,
+            self.cfg.data.data_impl,
+            self.cfg.data.splits_string,
+            train_valid_test_num_samples,
+            self.cfg.data.seq_length,
+            self.cfg.data.masked_lm_prob,
+            self.cfg.data.short_seq_prob,
+            self.cfg.seed,
+            self.cfg.data.get('skip_warmup', True),
+            binary_head=False,
+            max_seq_length_dec=None,
+            dataset_type='standard_bert',
+            tokenizer=self.tokenizer.tokenizer
         )
+
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:
@@ -294,7 +298,7 @@ class MegatronBertModel(NLPModel):
             return
         # TODO: consider adding a ModelPT guard to check if model is being restored.
         # allowing restored models to optionally setup datasets
-        self.build_train_valid_test_datasets()
+        self._build_train_valid_test_datasets()
         self.setup_training_data(self.cfg.data)
         self.setup_validation_data(self.cfg.data)
         self.setup_test_data(self.cfg.data)

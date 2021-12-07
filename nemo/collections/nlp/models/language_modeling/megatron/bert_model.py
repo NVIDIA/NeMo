@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     openai_gelu,
     scaled_init_method_normal,
 )
+from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
 
 
 def bert_extended_attention_mask(attention_mask):
@@ -72,7 +73,7 @@ class BertLMHead(MegatronModule):
         super(BertLMHead, self).__init__()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
-        parallel_state.set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
+        set_tensor_model_parallel_attributes(self.bias, True, 0, 1)
         self.parallel_output = parallel_output
 
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
@@ -183,7 +184,10 @@ class BertModel(MegatronModule):
             onnx_safe=onnx_safe,
         )
 
-        self.initialize_word_embeddings(init_method_normal)
+        self.initialize_word_embeddings(
+            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+        )
+
         if self.post_process:
             self.lm_head = BertLMHead(
                 self.word_embeddings_weight().size(0),
