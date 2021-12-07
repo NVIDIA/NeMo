@@ -24,7 +24,11 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.tts.torch.helpers import beta_binomial_prior_distribution, general_padding
+from nemo.collections.tts.torch.helpers import (
+    BetaBinomialInterpolator,
+    beta_binomial_prior_distribution,
+    general_padding,
+)
 from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
     MAIN_DATA_TYPES,
@@ -35,6 +39,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     LMTokens,
     LogMel,
     Pitch,
+    SpeakerID,
     WithLens,
 )
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
@@ -106,6 +111,7 @@ class TTSDataset(Dataset):
         Keyword Args:
             durs_file (Optional[str]): String path to pickled durations location.
             durs_type (Optional[str]): Type of durations. Currently supported only "aligned-based".
+            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator. Defaults to False.
             pitch_fmin (Optional[float]): The fmin input to librosa.pyin. Defaults to librosa.note_to_hz('C2').
             pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
             pitch_avg (Optional[float]): The mean that we use to normalize the pitch.
@@ -118,7 +124,7 @@ class TTSDataset(Dataset):
         self.text_normalizer_call = (
             self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
         )
-        self.text_normalizer_call_args = text_normalizer_call_args
+        self.text_normalizer_call_args = text_normalizer_call_args if text_normalizer_call_args is not None else {}
 
         self.text_tokenizer = text_tokenizer
 
@@ -162,6 +168,7 @@ class TTSDataset(Dataset):
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "text_tokens": None,
+                        "speaker_id": item["speaker"] if "speaker" in item else None,
                     }
 
                     if "text" in item:
@@ -285,7 +292,10 @@ class TTSDataset(Dataset):
                 )
 
     def add_duration_prior(self, **kwargs):
-        pass
+        self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
+
+        if self.use_beta_binomial_interpolator:
+            self.beta_binomial_interpolator = BetaBinomialInterpolator()
 
     def add_pitch(self, **kwargs):
         self.pitch_fmin = kwargs.pop("pitch_fmin", librosa.note_to_hz('C2'))
@@ -295,6 +305,9 @@ class TTSDataset(Dataset):
         self.pitch_norm = kwargs.pop("pitch_norm", False)
 
     def add_energy(self, **kwargs):
+        pass
+
+    def add_speaker_id(self, **kwargs):
         pass
 
     def get_spec(self, audio):
@@ -346,15 +359,19 @@ class TTSDataset(Dataset):
 
         duration_prior = None
         if DurationPrior in self.sup_data_types_set:
-            prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
-
-            if prior_path.exists():
-                duration_prior = torch.load(prior_path)
+            if self.use_beta_binomial_interpolator:
+                mel_len = self.get_log_mel(audio).shape[2]
+                duration_prior = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
-                log_mel_length = torch.tensor(self.get_log_mel(audio).squeeze(0).shape[1]).long()
-                duration_prior = beta_binomial_prior_distribution(text_length, log_mel_length)
-                duration_prior = torch.from_numpy(duration_prior)
-                torch.save(duration_prior, prior_path)
+                prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
+
+                if prior_path.exists():
+                    duration_prior = torch.load(prior_path)
+                else:
+                    mel_len = self.get_log_mel(audio).shape[2]
+                    duration_prior = beta_binomial_prior_distribution(text_length, mel_len)
+                    duration_prior = torch.from_numpy(duration_prior)
+                    torch.save(duration_prior, prior_path)
 
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
@@ -398,6 +415,10 @@ class TTSDataset(Dataset):
 
             energy_length = torch.tensor(len(energy)).long()
 
+        speaker_id = None
+        if SpeakerID in self.sup_data_types_set:
+            speaker_id = torch.tensor(sample["speaker_id"]).long()
+
         return (
             audio,
             audio_length,
@@ -411,6 +432,7 @@ class TTSDataset(Dataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
         )
 
     def __len__(self):
@@ -440,6 +462,7 @@ class TTSDataset(Dataset):
             pitches_lengths,
             energies,
             energies_lengths,
+            _,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -461,7 +484,7 @@ class TTSDataset(Dataset):
             if DurationPrior in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies = [], [], [], [], [], []
+        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids = [], [], [], [], [], [], []
 
         for i, sample_tuple in enumerate(batch):
             (
@@ -477,6 +500,7 @@ class TTSDataset(Dataset):
                 pitch_length,
                 energy,
                 energy_length,
+                speaker_id,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -495,6 +519,8 @@ class TTSDataset(Dataset):
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
             if Energy in self.sup_data_types_set:
                 energies.append(general_padding(energy, energy_length.item(), max_energies_len))
+            if SpeakerID in self.sup_data_types_set:
+                speaker_ids.append(speaker_id)
 
         data_dict = {
             "audio": torch.stack(audios),
@@ -509,6 +535,7 @@ class TTSDataset(Dataset):
             "pitch_lens": torch.stack(pitches_lengths) if Pitch in self.sup_data_types_set else None,
             "energy": torch.stack(energies) if Energy in self.sup_data_types_set else None,
             "energy_lens": torch.stack(energies_lengths) if Energy in self.sup_data_types_set else None,
+            "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
         }
 
         return data_dict
@@ -537,10 +564,7 @@ class MixerTTSDataset(TTSDataset):
             assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(
                 self.text_tokenizer, EnglishCharsTokenizer
             )
-            if isinstance(self.text_tokenizer, EnglishPhonemesTokenizer):
-                preprocess_text_as_tts_input = self.text_tokenizer.g2p.text_preprocessing_func(raw_text)
-            else:
-                preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
+            preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
 
             lm_tokens_as_ids = self.lm_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
 
@@ -573,6 +597,7 @@ class MixerTTSDataset(TTSDataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
         ) = super().__getitem__(index)
 
         lm_tokens = None
@@ -592,13 +617,14 @@ class MixerTTSDataset(TTSDataset):
             pitch_length,
             energy,
             energy_length,
+            speaker_id,
             lm_tokens,
         )
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
-        data_dict = self.general_collate_fn(list(zip(*batch[:12])))
-        lm_tokens_list = batch[12]
+        data_dict = self.general_collate_fn(list(zip(*batch[:13])))
+        lm_tokens_list = batch[13]
 
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.full(

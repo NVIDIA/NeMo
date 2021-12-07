@@ -209,6 +209,9 @@ class _AudioTextDataset(Dataset):
         pad_id: int = 0,
         return_sample_id: bool = False,
     ):
+        if type(manifest_filepath) == str:
+            manifest_filepath = manifest_filepath.split(",")
+
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
@@ -1063,13 +1066,14 @@ class _TarredAudioToTextDataset(IterableDataset):
                 begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
                 end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
                 audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
+                self.length = len(self.collection) // world_size
                 logging.info(
                     "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
                 )
 
             elif shard_strategy == 'replicate':
+                self.length = len(self.collection)
                 logging.info("All tarred dataset shards will be replicated across all nodes.")
-
             else:
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
@@ -1441,3 +1445,52 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             world_size=world_size,
             return_sample_id=return_sample_id,
         )
+
+
+class BucketingDataset(IterableDataset):
+    """
+    A Dataset which wraps another IterableDataset and adopts it for bucketing
+
+    Args:
+        dataset (IterableDataset): The IterableDataset to get wrapped
+        bucketing_batch_size (int): Number of samples to build a batch
+    """
+
+    def __init__(
+        self, dataset: IterableDataset, bucketing_batch_size: int,
+    ):
+        self.wrapped_dataset = dataset
+        self.bucketing_batch_size = bucketing_batch_size
+        super().__init__()
+
+    def _collate_fn(self, batch):
+        return _speech_collate_fn(batch[0], self.wrapped_dataset.pad_id)
+
+    def __iter__(self):
+        return BucketingIterator(
+            wrapped_iter=self.wrapped_dataset._dataset.__iter__(), bucketing_batch_size=self.bucketing_batch_size
+        ).__iter__()
+
+    def __len__(self):
+        return int(math.ceil(len(self.wrapped_dataset.collection) / float(self.bucketing_batch_size)))
+
+
+class BucketingIterator:
+    def __init__(self, wrapped_iter, bucketing_batch_size):
+        self.wrapped_iter = wrapped_iter
+        self.bucketing_batch_size = bucketing_batch_size
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        batches = []
+        for idx in range(self.bucketing_batch_size):
+            try:
+                sample = next(self.wrapped_iter)
+            except StopIteration:
+                break
+            batches.append(sample)
+        if len(batches) == 0:
+            raise StopIteration
+        return batches

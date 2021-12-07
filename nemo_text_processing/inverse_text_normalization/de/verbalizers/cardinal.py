@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
@@ -27,28 +27,15 @@ class CardinalFst(GraphFst):
     """
     Finite state transducer for verbalizing cardinal
         e.g. cardinal { integer: "23" negative: "-" } -> -23
+
+    Args:
+        tn_cardinal_verbalizer: TN cardinal verbalizer
     """
 
-    def __init__(self):
-        super().__init__(name="cardinal", kind="verbalize")
-        optional_sign = pynini.closure(
-            pynutil.delete("negative:")
-            + delete_space
-            + pynutil.delete("\"")
-            + NEMO_NOT_QUOTE
-            + pynutil.delete("\"")
-            + delete_space,
-            0,
-            1,
-        )
-        graph = (
-            pynutil.delete("integer:")
-            + delete_space
-            + pynutil.delete("\"")
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
-        )
-        self.numbers = graph
-        graph = optional_sign + graph
+    def __init__(self, tn_cardinal_verbalizer: GraphFst, deterministic: bool = True):
+        super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
+        self.numbers = tn_cardinal_verbalizer.numbers
+        optional_sign = pynini.closure(pynutil.delete("negative: \"") + NEMO_NOT_QUOTE + pynutil.delete("\" "), 0, 1)
+        graph = optional_sign + self.numbers
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

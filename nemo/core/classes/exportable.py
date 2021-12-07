@@ -209,6 +209,7 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=True)
             if forward_method:
                 type(self).forward = old_forward_method
+            self._export_teardown()
         return ([output], [output_descr])
 
     def _verify_onnx_export(
@@ -305,7 +306,7 @@ class Exportable(ABC):
                 check_tolerance=check_tolerance,
             )
         if verbose:
-            print(jitted_model.code)
+            logging.info(f"JIT code:\n{jitted_model.code}")
         jitted_model.save(output)
         assert os.path.exists(output)
 
@@ -315,7 +316,7 @@ class Exportable(ABC):
             try:
                 jitted_model = torch.jit.script(module)
             except Exception as e:
-                print("jit.script() failed!", e)
+                logging.error(f"jit.script() failed!\{e}")
         return jitted_model
 
     def _set_eval(self, set_eval):
@@ -374,6 +375,12 @@ class Exportable(ABC):
         replace_1D_2D = kwargs.get('replace_1D_2D', False)
         replace_for_export(self, replace_1D_2D)
 
+    def _export_teardown(self):
+        """
+        Override this method for any teardown code after export.
+        """
+        pass
+
     def _wrap_forward_method(self):
         old_forward_method = None
 
@@ -413,3 +420,8 @@ class Exportable(ABC):
             if name in output_names:
                 output_names.remove(name)
         return output_names
+
+    def _augment_output_filename(self, output, prepend: str):
+        path, filename = os.path.split(output)
+        filename = f"{prepend}-{filename}"
+        return os.path.join(path, filename)

@@ -65,7 +65,8 @@ class NLPModel(ModelPT, Exportable):
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
     ):
-        """ Overrides ModelPT register_artifact default behavior. NLP models usually need artifacts that are optional."""
+        """ Overrides ModelPT register_artifact default behavior.
+        NLP models usually need artifacts that are optional."""
         return super().register_artifact(config_path, src, verify_src_exists=verify_src_exists)
 
     @rank_zero_only
@@ -249,7 +250,12 @@ class NLPModel(ModelPT, Exportable):
                 config_kwargs.pop('trainer')
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
 
-            model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+            if 'cfg' in kwargs:
+                model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+            else:
+                model = cls._load_model_state(
+                    checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
+                )
             checkpoint = model
 
         finally:

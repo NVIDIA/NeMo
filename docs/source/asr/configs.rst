@@ -313,7 +313,7 @@ Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder. The decoder
 | :code:`vocabulary`      | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
 |                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
+| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                              |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 For example, a decoder config corresponding to the encoder above should look similar to the following:
@@ -351,14 +351,14 @@ While the configs for Citrinet and QuartzNet are similar, we note the additional
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 | **Parameter**             | **Datatype**     | **Description**                                                                                           | **Supported Values**              |
 +===========================+==================+===========================================================================================================+===================================+
-| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`   |
+| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
+| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
+| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
-|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`            |
+| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                  |
+|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`              |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 
 A Citrinet-512 config should look similar to the following:

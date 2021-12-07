@@ -26,6 +26,7 @@ from nemo.collections.asr.models import (
     EncDecSpeakerLabelModel,
 )
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
+from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
@@ -86,11 +87,24 @@ class TestExportable:
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
             assert onnx_model.graph.output[0].name == 'logprobs'
 
-    @pytest.mark.skipif(
-        not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
-    )
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_EncDecCitrinetModel_limited_SE_export_to_onnx(self, citrinet_model):
+        model = citrinet_model.train()
+        asr_module_utils.change_conv_asr_se_context_window(model, context_window=24, update_config=False)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, 'citri_se.onnx')
+            model.export(output=filename, check_trace=True)
+            onnx_model = onnx.load(filename)
+            onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
+            assert onnx_model.graph.input[0].name == 'audio_signal'
+            assert onnx_model.graph.input[1].name == 'length'
+            assert onnx_model.graph.output[0].name == 'logprobs'
+
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
