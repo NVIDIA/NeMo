@@ -110,6 +110,16 @@ class NormalizerWithAudio(Normalizer):
             whitelist=whitelist,
         )
 
+        if lang == "en":
+            self.normalizer_deterministic = Normalizer(
+                input_case=input_case,
+                lang=lang,
+                deterministic=True,
+                cache_dir=cache_dir,
+                overwrite_cache=overwrite_cache,
+                whitelist=whitelist,
+            )
+
     def normalize(
         self,
         text: str,
@@ -149,6 +159,14 @@ class NormalizerWithAudio(Normalizer):
         # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
         if self.lang == 'en':
             normalized_texts = tagged_texts
+            normalized_texts.append(
+                self.normalizer_deterministic.normalize(
+                    text=original_text,
+                    verbose=verbose,
+                    punct_post_process=punct_post_process,
+                    punct_pre_process=punct_pre_process,
+                )
+            )
         else:
             normalized_texts = []
             for tagged_text in tagged_texts:
