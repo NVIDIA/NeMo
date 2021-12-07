@@ -734,7 +734,6 @@ class TestOptimizersSchedulers:
         assert initial_lr == self.INITIAL_LR
 
         update_steps = 0
-        lrs = []
         for i in range(self.MAX_STEPS):
             assert policy.get_last_lr()[0] <= self.INITIAL_LR
             opt.step()
@@ -745,8 +744,6 @@ class TestOptimizersSchedulers:
                 policy.last_epoch -= 1
             else:
                 update_steps += 1
-
-            lrs.append(policy.get_last_lr()[0])
 
         policy.step()
         update_steps += 1
