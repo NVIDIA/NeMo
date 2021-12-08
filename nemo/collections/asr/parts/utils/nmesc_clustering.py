@@ -45,11 +45,13 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 
 try:
     from torch.linalg import eigh as eigh
+
     TORCH_EIGN = True
 
 except ImportError:
     TORCH_EIGN = False
     from scipy.linalg import eigh as eigh
+
     logging.warning("Using eigen decomposition from scipy, upgrade torch to 1.9 or higher for faster clustering")
 
 
