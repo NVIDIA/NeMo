@@ -64,9 +64,9 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 0
-    time_masks: 20
+    time_masks: 100
     freq_width: 0
-    time_width: 10
+    time_width: 1
     mask_value: 0.0
 
   encoder:
@@ -87,13 +87,21 @@ model:
   decoder:
     _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecLinearReconstruction
     feat_in: *emb_dim
-    feat_out: *final_dim
+    feat_out: 128
 
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *emb_dim
-    proj_dim: *final_dim
+    proj_dim: 128
     sample_from_non_masked: false
+    combine_time_steps: 1
+    codebook_size: 320
+    prob_ppl_weight: .1
+    logit_temp: .1
+    num_groups: 2
+    quantizer_temp_start: 2
+    quantizer_temp_min: .5
+    quantizer_temp_decay: 0.999995
 
   optim:
     name: adamw

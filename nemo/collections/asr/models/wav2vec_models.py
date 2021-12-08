@@ -111,7 +111,7 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
         unmasked_features = features.clone() # These will be used for the loss function
 
         features = self.dropout_features(features).transpose(1,2) # B, C, T
-        unmasked_features = unmasked_features.transpose(1,2) # B, C, T
+        unmasked_features = self.dropout_features_q(unmasked_features).transpose(1,2) # B, C, T
 
         # B, C, T
         features = self.spec_augmentation(input_spec=features, length=feature_length)
@@ -126,6 +126,7 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
 
         # B, T, C
         logits = self.decoder_ssl(encoder_output=logits)
+
         return unmasked_features, feature_masks, logits
 
     def remove_pretraining_modules(self):
