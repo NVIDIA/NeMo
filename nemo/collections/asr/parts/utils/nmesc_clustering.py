@@ -39,18 +39,17 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 
 from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
 try:
     from torch.linalg import eigh as eigh
-
     TORCH_EIGN = True
 
 except ImportError:
     TORCH_EIGN = False
     from scipy.linalg import eigh as eigh
-
     logging.warning("Using eigen decomposition from scipy, upgrade torch to 1.9 or higher for faster clustering")
 
 
@@ -121,12 +120,67 @@ def getMinimumConnection(mat, max_N, n_list):
     return affinity_mat, p_value
 
 
+def getRepeatedList(mapping_argmat, score_mat_size):
+    """
+    Count the numbers in the mapping dictionary and create lists that contain
+    repeated indices to be used for creating the repeated affinity matrix for
+    fusing the affinity values.
+    """
+    count_dict = dict(Counter(mapping_argmat))
+    repeat_list = []
+    for k in range(score_mat_size):
+        if k in count_dict:
+            repeat_list.append(count_dict[k])
+        else:
+            repeat_list.append(0)
+    return repeat_list
+
+
+@experimental
+def getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data):
+    """
+    Calculates cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Args:
+        emb (np.array):
+            The input embedding from the emebedding extractor.
+        uniq_multi_scale_data: (dict)
+            The dictionary that contains mapping information, multiscale weights,
+            speaker embeddings for each scale.
+            If uniq_multi_scale_data is None, single scale diarization is performed.
+
+    Returns:
+        fused_sim_d (np.array):
+            This function generates an ffinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+        base_scale_emb (np.array):
+            The base scale embedding (the embeddings from the finest scale)
+    """
+    uniq_scale_dict = uniq_multi_scale_data['scale_dict']
+    base_scale_idx = max(uniq_scale_dict.keys())
+    base_scale_emb = np.array(uniq_scale_dict[base_scale_idx]['embeddings'])
+    multiscale_weights = uniq_multi_scale_data['multiscale_weights']
+    score_mat_list, repeated_mat_list = [], []
+
+    for scale_idx in sorted(uniq_scale_dict.keys()):
+        mapping_argmat = uniq_scale_dict[scale_idx]['mapping']
+        score_mat = getCosAffinityMatrix(uniq_scale_dict[scale_idx]['embeddings'])
+        score_mat_list.append(score_mat)
+        repeat_list = getRepeatedList(mapping_argmat, score_mat.shape[0])
+        repeated_mat = np.repeat(np.repeat(score_mat, repeat_list, axis=0), repeat_list, axis=1)
+        repeated_mat_list.append(repeated_mat)
+
+    fused_sim_d = np.average(np.array(repeated_mat_list), weights=multiscale_weights, axis=0)
+    return fused_sim_d, base_scale_emb
+
+
 def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     """
     Add randomly generated synthetic embeddings to make eigen analysis more stable.
     We refer to these embeddings as anchor embeddings.
 
-    emb (float):
+    emb (np.array):
         The input embedding from the emebedding extractor.
 
     anchor_sample_n (int):
@@ -500,6 +554,7 @@ def COSclustering(
     max_rp_threshold=0.25,
     sparse_search_volume=30,
     fixed_thres=None,
+    uniq_multi_scale_data=None,
     cuda=False,
 ):
     """
@@ -529,16 +584,26 @@ def COSclustering(
             Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
             to mitigate the effect of cluster sparsity.
             enhanced_count_thres = 80 is recommended.
-        
+
         max_rp_threshold: (float)
-                Limits the range of parameter search.
-                Clustering performance can vary depending on this range.
-                Default is 0.25.
-        
+            Limits the range of parameter search.
+            Clustering performance can vary depending on this range.
+            Default is 0.25.
+
         sparse_search_volume: (int)
-                The number of p_values we search during NME analysis.
-                Default is 30. The lower the value, the faster NME-analysis becomes.
-                Lower than 20 might cause a poor parameter estimation.
+            The number of p_values we search during NME analysis.
+            Default is 30. The lower the value, the faster NME-analysis becomes.
+            Lower than 20 might cause a poor parameter estimation.
+
+        fixed_thres: (float)
+            If fixed_thres value is provided, NME-analysis process will be skipped.
+            This value should be optimized on a development set to obtain a quality result.
+            Default is None and performs NME-analysis to estimate the threshold.
+
+        uniq_multi_scale_data: (dict)
+            The dictionary that contains mapping information, multiscale weights,
+            speaker embeddings for each scale.
+            If uniq_multi_scale_data is None, single scale diarization is performed.
 
     Returns:
         Y: (List[int])
@@ -554,7 +619,11 @@ def COSclustering(
     if oracle_num_speakers:
         max_num_speaker = oracle_num_speakers
 
-    mat = getCosAffinityMatrix(emb)
+    if uniq_multi_scale_data:
+        mat, emb = getMultiScaleCosAffinityMatrix(emb, uniq_multi_scale_data)
+    else:
+        mat = getCosAffinityMatrix(emb)
+
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,
