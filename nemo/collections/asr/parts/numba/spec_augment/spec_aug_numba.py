@@ -283,7 +283,7 @@ class SpecAugmentNumba(nn.Module, Typing):
                     torch.randint(0, time_width[idx] + 1, size=[1, self.time_masks], device=input_spec.device)
                 )
 
-            time_starts = torch.cat(time_lengths, 0)
+            time_starts = torch.cat(time_starts, 0)
             time_lengths = torch.cat(time_lengths, 0)
 
         else:
