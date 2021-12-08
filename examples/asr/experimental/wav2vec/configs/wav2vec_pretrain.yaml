@@ -38,6 +38,7 @@ model:
     conv_bias: False # Include bias in convolution feature extractor model
     feature_grad_mult: 1.0 # Multiply extracted feature gradients
     normalize_audio: true
+    embedding_dim: *emb_dim # Final dimensions of output
     conv_layers:
     - - 512
       - 10
@@ -123,7 +124,7 @@ trainer:
   gpus: -1 # number of gpus
   num_nodes: 1
   max_epochs: 100
-  max_steps: null # computed at runtime if not set
+  max_steps: 10000 # computed at runtime if not set
   val_check_interval: 0.5 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: ddp
   accumulate_grad_batches: 1
@@ -146,5 +147,5 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  resume_if_exists: false
-  resume_ignore_no_checkpoint: false
+  resume_if_exists: true
+  resume_ignore_no_checkpoint: true

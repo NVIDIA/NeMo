@@ -18,6 +18,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+import random
 from typing import List, Tuple
 from nemo.core.neural_types.elements import AcousticEncodedRepresentation
 from omegaconf.dictconfig import DictConfig
@@ -69,15 +70,15 @@ class ConvFeatureEncoder(NeuralModule):
     @property
     def input_types(self):
         """Returns definitions of module input ports.
-        source:
+        input_signal:
             0: AxisType(BatchTag)
             1: AxisType(TimeTag)
-        length:
+        input_signal_length:
             0: AxisType(BatchTag)
         Note: length is in number of samples, not seconds
         """
         return {
-            "source": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
             "length": NeuralType(
                 tuple('B'), LengthsType()
             ),
@@ -105,7 +106,8 @@ class ConvFeatureEncoder(NeuralModule):
         extractor_mode: str = "layer_norm",
         conv_bias: bool = False,
         feature_grad_mult = 1.0,
-        normalize_audio = True
+        normalize_audio = True,
+        embedding_dim = 512
     ):
         super().__init__()
 
@@ -153,6 +155,15 @@ class ConvFeatureEncoder(NeuralModule):
             )
             in_d = dim
     
+        # Model Layers
+        final_conv_dim = conv_layers[-1][0]  # Select last conv output layer dimension
+        self.post_extract_proj = ( # To project feature encodings to transformer
+            nn.Linear(final_conv_dim, embedding_dim)
+            if final_conv_dim != embedding_dim
+            else None
+        )
+        self.layer_norm = nn.LayerNorm(embedding_dim)
+    
     def apply_layers(self, x):
         for conv in self.conv_layers:
             x = conv(x)
@@ -165,10 +176,10 @@ class ConvFeatureEncoder(NeuralModule):
             source[i, :lengths[i]] = norm
         return source
 
-    def forward(self, source, length):
+    def forward(self, input_signal, length):
         if self.normalize_input:
             with torch.no_grad(): # Normalizes audio source
-                source = self.normalize(source, length)
+                source = self.normalize(input_signal, length)
 
         # BxT -> BxCxT
         processed_signal = source.unsqueeze(1)
@@ -181,7 +192,16 @@ class ConvFeatureEncoder(NeuralModule):
         else:
             with torch.no_grad(): # We use 0 to deactivate training of convolutions
                 processed_signal = self.apply_layers(processed_signal)
+
         
+        processed_signal = processed_signal.transpose(1, 2) # B,T,C
+        # Project to desired dim
+        if self.post_extract_proj is not None:
+            processed_signal = self.post_extract_proj(processed_signal)
+        # Adding normalization for output
+        processed_signal = self.layer_norm(processed_signal)
+        processed_signal = processed_signal.transpose(1, 2) # B,C,T
+
         # Feature lengths will have been changed through convolutions
         processed_signal_length = self.get_lengths(audio_lengths=length)
 
@@ -212,6 +232,8 @@ class Wav2VecTransformerEncoder(NeuralModule):
             groups=pos_embed.conv_pos_groups,
         )
 
+        self.layer_drop = transformer.encoder_layerdrop
+
         self.dropout = transformer.dropout # For initializing BERT parameters
         std = math.sqrt((4 * (1.0 - self.dropout)) / (pos_embed.conv_pos * pos_embed.embedding_dim))
         nn.init.normal_(self.pos_conv.weight, mean=0, std=std)
@@ -220,15 +242,17 @@ class Wav2VecTransformerEncoder(NeuralModule):
         self.pos_conv = nn.utils.weight_norm(self.pos_conv, name="weight", dim=2)
         self.pos_conv = nn.Sequential(self.pos_conv, SamePad(pos_embed.conv_pos), nn.GELU())
 
-        self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer=nn.TransformerEncoderLayer(
+        self.transformer_encoder = nn.ModuleList(
+        [ 
+            nn.TransformerEncoderLayer(
                 d_model=transformer.embedding_dim,
                 nhead=transformer.num_attention_heads,
                 dim_feedforward=transformer.ffn_embedding_dim,
                 dropout=self.dropout,
                 activation=transformer.activation_fn,
-            ),
-            num_layers=transformer.encoder_layers,
+            )
+            for _ in range(transformer.encoder_layers)
+        ]
         )
         self.layer_norm = nn.LayerNorm(transformer.embedding_dim)
         self.apply(init_bert_params)
@@ -237,16 +261,16 @@ class Wav2VecTransformerEncoder(NeuralModule):
     def input_types(self):
         """Returns definitions of module output ports. 
         We treat features as SpectrogramType for Nemo compatibility
-        processed_signal:
+        audio_signal:
             0: AxisType(BatchTag)
             1: AxisType(ChannelTag)
             2: AxisType(ProcessedTimeTag)
-        processed_length:
+        length:
             0: AxisType(BatchTag)
         """
         return {
-            "processed_signal": NeuralType(('B', 'C', 'T'), SpectrogramType()),
-            "processed_length": NeuralType(tuple('B'), LengthsType()),
+            "audio_signal": NeuralType(('B', 'C', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -261,12 +285,13 @@ class Wav2VecTransformerEncoder(NeuralModule):
             0: AxisType(BatchTag)
         """
         return {
-            "context_embed": NeuralType(('B', 'T', 'C'), AcousticEncodedRepresentation()),
+            "processed_signal": NeuralType(('B', 'T', 'C'), AcousticEncodedRepresentation()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
 
-    def forward(self, signal, length):
-        signal = signal.transpose(1,2) #B, C, T -> B, T, C
+    def forward(self, audio_signal, length):
+        signal = audio_signal.transpose(1,2) #B, C, T -> B, T, C
 
         padding_mask = self.create_padding_mask(length)
         if padding_mask is not None:
@@ -274,19 +299,32 @@ class Wav2VecTransformerEncoder(NeuralModule):
 
         signal = signal.transpose(1,2)
         signal_conv = self.pos_conv(signal) # B, C, T
-        signal_conv = signal_conv 
         signal += signal_conv
 
         signal = signal.transpose(1, 2) # B, C, T -> B, T, C
         signal = self.layer_norm(signal)
 
         signal = signal.transpose(0, 1) # B x T x C -> T x B x C
-        context_emb = self.transformer_encoder(signal, src_key_padding_mask=padding_mask)
+        context_emb = self.apply_transformer(signal, padding_mask=padding_mask)
 
         # T x B x C -> B x T x C
         context_emb = context_emb.transpose(0, 1)
 
-        return context_emb
+        return context_emb, length # Returning length for NeMo compatibility
+    
+    def apply_transformer(self, x, padding_mask=None):
+        # Applies transformer layers with layerdrop
+        if self.layer_drop:
+            for _, layer in enumerate(self.transformer_encoder):
+                p = random.random()
+                if p > self.layer_drop:
+                    x = layer(x, src_key_padding_mask=padding_mask)
+        else:
+            for _ , layer in enumerate(self.transformer_encoder):
+                x = layer(x, src_key_padding_mask=padding_mask)
+        
+        return x
+
 
     def create_padding_mask(self, length):
         # Broadcast to vectorize creating the padding mask
