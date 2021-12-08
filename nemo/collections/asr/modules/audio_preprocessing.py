@@ -491,6 +491,7 @@ class SpectrogramAugmentation(NeuralModule):
 
         # Check if numba is supported, and use a Numba kernel if it is
         if use_numba_spec_augment and numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__):
+            logging.info('Numba CUDA SpecAugment kernel is being used')
             self.spec_augment_numba = SpecAugmentNumba(
                 freq_masks=freq_masks,
                 time_masks=time_masks,
