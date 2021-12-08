@@ -314,7 +314,8 @@ class MegatronGPTModel(NLPModel):
         parameters = self.model.parameters()
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-    def buckets(self, batch):
+    @classmethod
+    def bucketize_gpt_inference(cls, batch):
         # unpad tokens
         lens, batch_size, tokens_to_generate = batch[1], len(batch[0]), batch[2][0]
         batch[0] = batch[0].tolist()
@@ -339,7 +340,7 @@ class MegatronGPTModel(NLPModel):
         return buckets, positions, tokens_to_generate
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        buckets, positions, tokens_to_generate = self.buckets(batch)
+        buckets, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch)
         response = self.complete(buckets, positions, tokens_to_generate)
 
         return response
