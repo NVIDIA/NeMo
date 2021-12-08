@@ -15,13 +15,13 @@ diarizer:
     model_path: null #.nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
 
-    parameters: # Tuned parameter for CH109! (with 11 moved multi-speech sessions as dev set) 
+    parameters: # tuned parameter for CH109 (using the 11 multi-speaker sessions as dev set) 
       window_length_in_sec: 0.15  # window length in sec for VAD context input 
       shift_length_in_sec: 0.01 # shift length in sec for generate frame level VAD prediction
       smoothing: "median" # False or type of smoothing method (eg: median)
-      overlap: 0.875 # Overlap ratio for overlapped mean/median smoothing filter
+      overlap: 0.875 # overlap ratio for overlapped mean/median smoothing filter
       onset: 0.4 # onset threshold for detecting the beginning and end of a speech 
-      offset: 0.7 # offset threshold for detecting the end of a speech. 
+      offset: 0.7 # offset threshold for detecting the end of a speech
       pad_onset: 0.05 # adding durations before each speech segment 
       pad_offset: -0.1 # adding durations after each speech segment 
       min_duration_on: 0.2 # threshold for small non_speech deletion
@@ -33,15 +33,16 @@ diarizer:
     parameters:
       window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
       shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
+      multiscale_weights: null # weight for each scale. should be list format and the list length should be matched with window/shift length.
       save_embeddings: False # save embeddings as pickle file for each audio input
   
   clustering:
     parameters:
       oracle_num_speakers: False # if True, uses num of speakers value provided in manifest file
       max_num_speakers: 20 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored.
-      enhanced_count_thres: 80
-      max_rp_threshold: 0.25
-      sparse_search_volume: 30
+      enhanced_count_thres: 80 # if the number of segments is lower than this number, enhanced speaker counting is activated.
+      max_rp_threshold: 0.25 # determines the range of p-value search: 0 < p <= max_rp_threshold. 
+      sparse_search_volume: 30 # the higher the number, the more values will be examined with more time. 
 
 # json manifest line example
 # {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, label: "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath"="/path/to/uem/filepath"}
