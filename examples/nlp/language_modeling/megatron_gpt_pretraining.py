@@ -25,6 +25,11 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_tensor_model_parallel_rank
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    NLPDDPPlugin,
+    NLPDataConnector,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -61,6 +66,8 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
+
+    trainer._data_connector = NLPDataConnector(trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 

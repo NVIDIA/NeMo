@@ -15,7 +15,6 @@
 import os
 import re
 from typing import Any, Dict, Optional
-from pytorch_lightning.utilities.distributed import rank_zero_only
 
 import torch
 import torch.nn.functional as F
@@ -43,6 +42,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MasterOptimizerWrapper, prepare_lr_scheduler
+from nemo.collections.nlp.parts.nlp_overrides import NLPDataConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, inject_model_parallel_rank
 from nemo.utils import AppState, logging
 
@@ -58,7 +58,6 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -184,7 +183,7 @@ class MegatronGPTModel(NLPModel):
         # but we need this to be a "global batch" which will get split
         # into micro batches by fwd/bwd function
         # also need to add fwd/bwd function for non-pipeline case
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+        tokens, labels, loss_mask, attention_mask, position_ids = self.process_micro_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             # we zero grads here because we also call backward here
             self._optimizer.zero_grad()
@@ -315,9 +314,8 @@ class MegatronGPTModel(NLPModel):
 
     def validation_step(self, batch, batch_idx):
         reduced_loss = None
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+        batch_for_pipeline = self.process_global_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
             reduced_loss = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
@@ -326,10 +324,10 @@ class MegatronGPTModel(NLPModel):
                 forward_only=True,
                 tensor_shape=tensor_shape,
             )
-        else:
-            output_tensor = self(tokens, position_ids, attention_mask, labels)
-            loss = self.loss_func(loss_mask, output_tensor)
-            reduced_loss = average_losses_across_data_parallel_group([loss])
+        # else:
+        #     output_tensor = self(tokens, position_ids, attention_mask, labels)
+        #     loss = self.loss_func(loss_mask, output_tensor)
+        #     reduced_loss = average_losses_across_data_parallel_group([loss])
 
         return reduced_loss
 
@@ -366,13 +364,14 @@ class MegatronGPTModel(NLPModel):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
-    def process_batch(self, batch):
+    def process_micro_batch(self, micro_batch):
+        """ Micro batch returned by MegatronGPT dataloader"""
 
         # Items and their type.
         keys = ['text']
         datatype = torch.int64
 
-        data = batch
+        data = micro_batch
         data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
         # Unpack.
@@ -390,6 +389,31 @@ class MegatronGPTModel(NLPModel):
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids
+
+    def process_global_batch(self, global_batch):
+        """ Prepares the global batch for apex fwd/bwd functions.
+            Global batch is a list of micro batches.
+        """
+        tokens_list = []
+        labels_list = []
+        loss_mask_list = []
+        attention_mask_list = []
+        position_ids_list = []
+        for micro_batch in global_batch:
+            tokens, labels, loss_mask, attention_mask, position_ids = self.process_micro_batch(micro_batch)
+            tokens_list.append(tokens)
+            labels_list.append(labels)
+            loss_mask_list.append(loss_mask)
+            attention_mask_list.append(attention_mask)
+            position_ids_list.append(position_ids)
+
+        tokens_tensor = torch.concat(tokens_list)
+        labels_tensor = torch.concat(labels_list)
+        loss_mask_tensor = torch.concat(loss_mask_list)
+        attention_mask_tensor = torch.concat(attention_mask_list)
+        position_ids_tensor = torch.concat(position_ids_list)
+
+        return tokens_tensor, labels_tensor, loss_mask_tensor, attention_mask_tensor, position_ids_tensor
 
     def build_train_valid_test_datasets(self):
         if self.use_soft_prompts:
@@ -458,7 +482,6 @@ class MegatronGPTModel(NLPModel):
         else:
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
-        # Torch dataloader.
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
