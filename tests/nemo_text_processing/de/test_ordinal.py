@@ -15,7 +15,6 @@
 
 import pytest
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
@@ -37,11 +36,6 @@ class TestOrdinal:
         pred = self.inverse_normalizer.inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer = (
-        Normalizer(input_case='cased', lang='de', cache_dir=CACHE_DIR, overwrite_cache=False)
-        if PYNINI_AVAILABLE
-        else None
-    )
 
     normalizer_with_audio = (
         NormalizerWithAudio(input_case='cased', lang='de', cache_dir=CACHE_DIR, overwrite_cache=False)
@@ -56,9 +50,7 @@ class TestOrdinal:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, expected, test_input):
-        pred = self.normalizer.normalize(test_input, verbose=False)
-        assert pred == expected
 
         if self.normalizer_with_audio:
-            pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=1000)
+            pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=1000, punct_post_process=False, punct_pre_process=False)
             assert expected in pred_non_deterministic

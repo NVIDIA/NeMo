@@ -78,3 +78,4 @@ class ElectronicFst(GraphFst):
         )
         delete_tokens = self.delete_tokens(self.graph + delete_preserve_order)
         self.fst = delete_tokens.optimize()
+

@@ -12,8 +12,8 @@ ein und zwanzigster~21.
 drei und zwanzigster~23.
 ein hundert elfter~111.
 ein tausendster~1000.
-dem ein tausendster~dem 1000.
+dem ein tausendstem~dem 1000.
 ein hundert erster~101.
 eine millionster~1000000.
 ein hundert ein und zwanzigster~121.
-ein hundert ein und zwanzigster~121tem
+ein hundert ein und zwanzigstem~121tem
