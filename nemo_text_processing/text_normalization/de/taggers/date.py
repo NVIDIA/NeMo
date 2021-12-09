@@ -113,7 +113,7 @@ class DateFst(GraphFst):
 
         month_name = (pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")).optimize()
         month_number = (
-            pynutil.insert("month: \"") + (digit_month | number_to_month) + pynutil.insert("\"")
+            pynutil.insert("month: \"") + (pynutil.add_weight(digit_month, weight=0.0001) | number_to_month) + pynutil.insert("\"")
         ).optimize()
 
         year = get_year_graph(cardinal=cardinal)
