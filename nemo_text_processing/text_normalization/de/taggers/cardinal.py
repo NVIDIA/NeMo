@@ -121,10 +121,7 @@ class CardinalFst(GraphFst):
         )
 
         graph_billion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("milliarde")
-            + optional_plural_quantity_n,
+            hundred_non_zero() + insert_space + pynutil.insert("milliarde") + optional_plural_quantity_n,
             pynutil.delete("000"),
         )
 
@@ -134,26 +131,17 @@ class CardinalFst(GraphFst):
         )
 
         graph_quadrillion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("billiarde")
-            + optional_plural_quantity_n,
+            hundred_non_zero() + insert_space + pynutil.insert("billiarde") + optional_plural_quantity_n,
             pynutil.delete("000"),
         )
 
         graph_quintillion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("trillion")
-            + optional_plural_quantity_en,
+            hundred_non_zero() + insert_space + pynutil.insert("trillion") + optional_plural_quantity_en,
             pynutil.delete("000"),
         )
 
         graph_sextillion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("trilliarde")
-            + optional_plural_quantity_n,
+            hundred_non_zero() + insert_space + pynutil.insert("trilliarde") + optional_plural_quantity_n,
             pynutil.delete("000"),
         )
         graph = pynini.union(
@@ -172,7 +160,13 @@ class CardinalFst(GraphFst):
             + thousand()
         )
 
-        fix_syntax = [("eins tausend", "ein tausend"), ("eins millionen", "eine million"), ("eins milliarden", "eine milliarde"), ("eins billionen", "eine billion"), ("eins billiarden", "eine billiarde")]
+        fix_syntax = [
+            ("eins tausend", "ein tausend"),
+            ("eins millionen", "eine million"),
+            ("eins milliarden", "eine milliarde"),
+            ("eins billionen", "eine billion"),
+            ("eins billiarden", "eine billiarde"),
+        ]
         fix_syntax = pynini.union(*[pynini.cross(*x) for x in fix_syntax])
         self.graph = (
             ((NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0)) - "0" - "1")
@@ -182,7 +176,7 @@ class CardinalFst(GraphFst):
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
             @ pynini.cdrewrite(pynini.cross("  ", " "), "", "", NEMO_SIGMA)
-            @ pynini.cdrewrite(fix_syntax, "", "", NEMO_SIGMA)
+            @ pynini.cdrewrite(fix_syntax, "[BOS]", "", NEMO_SIGMA)
         )
         self.graph |= graph_zero | pynini.cross("1", "eins")
 
@@ -195,7 +189,6 @@ class CardinalFst(GraphFst):
             @ NEMO_DIGIT ** 3
             @ hundred_non_zero()
         ) | pynini.cross("1", "eins")
-
 
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             self.graph_hundred_component_at_least_one_none_zero_digit.optimize()

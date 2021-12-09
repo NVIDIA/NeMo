@@ -43,7 +43,7 @@ class OrdinalFst(GraphFst):
 
         graph = pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
-        suffixes = pynini.union("ten", "tem", "ter", "tes", "te")
+        suffixes = pynini.union("ten", "tem", pynutil.add_weight("ter", weight=-0.001), "tes", "te")
         convert_rest = pynutil.insert(suffixes, weight=0.01)
         self.ordinal_stem = graph_digit | graph_ties | graph_thousands
 

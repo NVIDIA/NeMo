@@ -27,9 +27,7 @@ class TestNormalizeWithAudio:
         else None
     )
 
-    @parameterized.expand(
-        get_test_cases_multiple('de/data_text_normalization/test_cases_cardinal_normalize_with_audio.txt')
-    )
+    @parameterized.expand(get_test_cases_multiple('de/data_text_normalization/test_cases_normalize_with_audio.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
@@ -37,6 +35,9 @@ class TestNormalizeWithAudio:
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
         pred = self.normalizer_de.normalize(test_input, n_tagged=1000)
+        print(expected)
+        print("pred")
+        print(pred)
         assert len(set(pred).intersection(set(expected))) == len(
             expected
         ), f'missing: {set(expected).difference(set(pred))}'
