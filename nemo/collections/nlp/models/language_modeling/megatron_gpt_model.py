@@ -205,7 +205,7 @@ class MegatronGPTModel(NLPModel):
             loss_mean = loss_tensor.mean()
         else:
             # we're not on the last pipeline stage so no losses
-            loss_mean = torch.tensor([0.0]).cuda()
+            loss_mean = torch.tensor(0.0).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(loss_mean, get_last_rank())
