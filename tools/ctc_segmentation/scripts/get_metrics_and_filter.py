@@ -24,18 +24,18 @@ from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 
 parser = argparse.ArgumentParser("Calculate metrics and filters out samples based on thresholds")
 parser.add_argument(
-    '--manifest', required=True, help='Path .json manifest file with ASR predictions saved' 'at `pred_text` field.',
+    "--manifest", required=True, help="Path .json manifest file with ASR predictions saved" "at `pred_text` field.",
 )
 parser.add_argument(
-    '--tail_len', type=int, help='Number of characters to use for CER calculation at the edges', default=5
+    "--edge_len", type=int, help="Number of characters to use for CER calculation at the edges", default=5
 )
-parser.add_argument('--sample_rate', type=int, help='Audio sample rate', default=16000)
-parser.add_argument('--audio_dir', type=str, help='Path to original .wav files', default=None)
-parser.add_argument('--max_cer', type=int, help='Threshold CER value', default=30)
-parser.add_argument('--max_wer', type=int, help='Threshold WER value', default=75)
-parser.add_argument('--max_len_diff', type=float, help='Threshold for len diff', default=0.3)
-parser.add_argument('--max_edge_cer', type=int, help='Threshold edge CER value', default=60)
-parser.add_argument('--max_duration', type=int, help='Max duration of a segment', default=-1)
+parser.add_argument("--sample_rate", type=int, help="Audio sample rate", default=16000)
+parser.add_argument("--audio_dir", type=str, help="Path to original .wav files", default=None)
+parser.add_argument("--max_cer", type=int, help="Threshold CER value", default=30)
+parser.add_argument("--max_wer", type=int, help="Threshold WER value", default=75)
+parser.add_argument("--max_len_diff", type=float, help="Threshold for len diff", default=0.3)
+parser.add_argument("--max_edge_cer", type=int, help="Threshold edge CER value", default=60)
+parser.add_argument("--max_duration", type=int, help="Max duration of a segment", default=-1)
 parser.add_argument(
     "--num_jobs",
     default=-2,
@@ -43,28 +43,28 @@ parser.add_argument(
     help="The maximum number of concurrently running jobs, `-2` - all CPUs but one are used",
 )
 parser.add_argument(
-    '--only_filter',
-    action='store_true',
-    help='Set to True to perform only filtering (when transcripts' 'are already available)',
+    "--only_filter",
+    action="store_true",
+    help="Set to True to perform only filtering (when transcripts" "are already available)",
 )
 
 
-def _calculate(line, tail_len):
+def _calculate(line, edge_len):
     eps = 1e-9
 
-    text = line['text'].split()
-    pred_text = line['pred_text'].split()
+    text = line["text"].split()
+    pred_text = line["pred_text"].split()
 
     num_words = max(len(text), eps)
     word_dist = editdistance.eval(text, pred_text)
-    line['WER'] = word_dist / num_words * 100.0
-    num_chars = max(len(line['text']), eps)
-    char_dist = editdistance.eval(line['text'], line['pred_text'])
-    line['CER'] = char_dist / num_chars * 100.0
+    line["WER"] = word_dist / num_words * 100.0
+    num_chars = max(len(line["text"]), eps)
+    char_dist = editdistance.eval(line["text"], line["pred_text"])
+    line["CER"] = char_dist / num_chars * 100.0
 
-    line['start_CER'] = editdistance.eval(line['text'][:tail_len], line['pred_text'][:tail_len]) / tail_len * 100
-    line['end_CER'] = editdistance.eval(line['text'][-tail_len:], line['pred_text'][-tail_len:]) / tail_len * 100
-    line['len_diff'] = 1.0 * abs(len(text) - len(pred_text)) / max(len(pred_text), eps)
+    line["start_CER"] = editdistance.eval(line["text"][:edge_len], line["pred_text"][:edge_len]) / edge_len * 100
+    line["end_CER"] = editdistance.eval(line["text"][-edge_len:], line["pred_text"][-edge_len:]) / edge_len * 100
+    line["len_diff"] = 1.0 * abs(len(text) - len(pred_text)) / max(len(pred_text), eps)
     return line
 
 
@@ -75,27 +75,27 @@ def get_metrics():
         lines = f.readlines()
 
     lines = Parallel(n_jobs=args.num_jobs)(
-        delayed(_calculate)(json.loads(line), tail_len=args.tail_len) for line in tqdm(lines)
+        delayed(_calculate)(json.loads(line), edge_len=args.edge_len) for line in tqdm(lines)
     )
     with open(manifest_out, "w") as f_out:
         for line in lines:
-            f_out.write(json.dumps(line) + '\n')
+            f_out.write(json.dumps(line) + "\n")
     print(f"Metrics save at {manifest_out}")
     return manifest_out
 
 
 def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_dur=-1, original_duration=0):
-    manifest_out = manifest.replace(".json", "_thresholded.json")
+    manifest_out = manifest.replace(".json", "_filtered.json")
 
     remaining_duration = 0
     segmented_duration = 0
-    with open(manifest, 'r') as f, open(manifest_out, "w") as f_out:
+    with open(manifest, "r") as f, open(manifest_out, "w") as f_out:
         for line in f:
             item = json.loads(line)
             cer = item["CER"]
             wer = item["WER"]
             len_diff = item["len_diff"]
-            duration = item['duration']
+            duration = item["duration"]
             segmented_duration += duration
             if (
                 cer <= max_cer
@@ -106,7 +106,7 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
                 and (max_dur == -1 or (max_dur > -1 and duration < max_dur))
             ):
                 remaining_duration += duration
-                f_out.write(json.dumps(item) + '\n')
+                f_out.write(json.dumps(item) + "\n")
 
     print("-" * 50)
     print("Threshold values:")
@@ -125,9 +125,9 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
         f"Segmented duration: {round(segmented_duration, 2)} min ({round(100 * segmented_duration / original_duration, 2)}% of original audio)"
     )
     print(
-        f'Retained {round(remaining_duration, 2)} min ({round(100*remaining_duration/original_duration, 2)}% of original or {round(100 * remaining_duration / segmented_duration, 2)}% of segmented audio).'
+        f"Retained {round(remaining_duration, 2)} min ({round(100*remaining_duration/original_duration, 2)}% of original or {round(100 * remaining_duration / segmented_duration, 2)}% of segmented audio)."
     )
-    print(f'Retained data saved to {manifest_out}')
+    print(f"Retained data saved to {manifest_out}")
 
 
 def filter(manifest):
@@ -140,7 +140,7 @@ def filter(manifest):
                 duration = len(audio_data._samples) / audio_data._sample_rate
                 original_duration += duration
             except BaseException as e:
-                print(f'Skipping {audio} -- {e}')
+                print(f"Skipping {audio} -- {e}")
 
     _apply_filters(
         manifest=manifest,
@@ -153,7 +153,7 @@ def filter(manifest):
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.only_filter:

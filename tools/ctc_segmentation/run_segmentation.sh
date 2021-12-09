@@ -75,7 +75,7 @@ python $SCRIPTS_DIR/prepare_data.py \
 # Run CTC-segmentation. One might want to perform alignment with various window sizes
 # Note, if the alignment with the initial window size isn't found, the window size will be double to re-attempt alignment
 echo "SEGMENTATION STEP..."
-for WINDOW in 8000 #12000
+for WINDOW in 8000 12000
 do
   python $SCRIPTS_DIR/run_ctc_segmentation.py \
   --output_dir=$OUTPUT_DIR \

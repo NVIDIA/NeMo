@@ -42,36 +42,36 @@ parser = argparse.ArgumentParser(description="Prepares text and audio files for 
 parser.add_argument("--in_text", type=str, help='Path to a text file or a directory with .txt files')
 parser.add_argument("--output_dir", type=str, required=True, help='Path to output directory')
 parser.add_argument("--audio_dir", type=str, help='Path to folder with .mp3 or .wav audio files')
-parser.add_argument('--sample_rate', type=int, default=16000, help='Sampling rate used during ASR model training')
+parser.add_argument("--sample_rate", type=int, default=16000, help='Sampling rate used during ASR model training, Hz')
 parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
 parser.add_argument(
-    '--language',
+    "--language",
     type=str,
-    default='en',
-    choices=['en', 'ru', 'de', 'es', 'other'],
+    default="en",
+    choices=["en", "ru", "de", "es", 'other'],
     help='Add target language based on the num2words list of supported languages',
 )
 parser.add_argument(
-    '--cut_prefix', type=int, default=0, help='Number of seconds to cut from the beginning of the audio files.',
+    "--cut_prefix", type=int, default=0, help="Number of seconds to cut from the beginning of the audio files.",
 )
 parser.add_argument(
-    '--model', type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
+    "--model", type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
 )
 parser.add_argument(
-    '--max_length', type=int, default=40, help='Max number of words of the text segment for alignment.'
+    "--max_length", type=int, default=40, help="Max number of words of the text segment for alignment."
 )
 parser.add_argument(
-    '--additional_split_symbols',
+    "--additional_split_symbols",
     type=str,
-    default='',
-    help='Additional symbols to use for \
-    sentence split if eos sentence split resulted in sequence longer than --max_length. '
-    'Use "|" as a separator between symbols, for example: ";|:" ',
+    default="",
+    help="Additional symbols to use for \
+    sentence split if eos sentence split resulted in sequence longer than --max_length. "
+    "Use '|' as a separator between symbols, for example: ';|:' ",
 )
 parser.add_argument(
-    '--use_nemo_normalization',
-    action='store_true',
-    help='Set to True to use NeMo Normalization tool to convert numbers from written to spoken format.',
+    "--use_nemo_normalization",
+    action="store_true",
+    help="Set to True to use NeMo Normalization tool to convert numbers from written to spoken format.",
 )
 
 
@@ -95,7 +95,7 @@ def split_text(
     in_file: str,
     out_file: str,
     vocabulary: List[str],
-    language='eng',
+    language="en",
     remove_brackets=True,
     do_lower_case=True,
     max_length=100,
@@ -121,7 +121,7 @@ def split_text(
             format. Normalization using num2words will be applied afterwards to make sure there are no numbers present
             in the text, otherwise they will be replaced with a space and that could deteriorate segmentation results.
     """
-    print(f'Splitting text in {in_file} into sentences.')
+    print(f"Splitting text in {in_file} into sentences.")
     with open(in_file, "r") as f:
         transcript = f.read()
 
@@ -136,8 +136,8 @@ def split_text(
         .replace("‘", "’")
     )
     # remove extra space
-    transcript = re.sub(r' +', ' ', transcript)
-    transcript = re.sub(r'(\.+)', '. ', transcript)
+    transcript = re.sub(r" +", " ", transcript)
+    transcript = re.sub(r"(\.+)", ". ", transcript)
 
     if remove_brackets:
         transcript = re.sub(r'(\[.*?\])', ' ', transcript)
@@ -146,11 +146,11 @@ def split_text(
 
     lower_case_unicode = ''
     upper_case_unicode = ''
-    if language == 'ru':
+    if language == "ru":
         lower_case_unicode = '\u0430-\u04FF'
         upper_case_unicode = '\u0410-\u042F'
-    elif language not in ['ru', 'en']:
-        print(f'Consider using {language} unicode letters for better sentence split.')
+    elif language not in ["ru", "en"]:
+        print(f"Consider using {language} unicode letters for better sentence split.")
 
     # remove space in the middle of the lower case abbreviation to avoid splitting into separate sentences
     matches = re.findall(r'[a-z' + lower_case_unicode + ']\.\s[a-z' + lower_case_unicode + ']\.', transcript)
@@ -183,7 +183,7 @@ def split_text(
         if len(split_on_symbols) == 0:
             return sentences
 
-        split_on_symbols = split_on_symbols.split('|')
+        split_on_symbols = split_on_symbols.split("|")
 
         def _split(sentences, delimiter):
             result = []
@@ -212,7 +212,7 @@ def split_text(
         for sent in sentences:
             split_sent = [sent]
             for delimiter in split_on_symbols:
-                split_sent = _split(split_sent, delimiter + ' ')
+                split_sent = _split(split_sent, delimiter + " ")
             another_sent_split.extend(split_sent)
 
         sentences = [s.strip() for s in another_sent_split if s.strip()]
@@ -222,14 +222,14 @@ def split_text(
 
     vocabulary_symbols = []
     for x in vocabulary:
-        if x != '<unk>':
+        if x != "<unk>":
             # for BPE models
             vocabulary_symbols.extend([x for x in x.replace("##", "").replace("▁", "")])
     vocabulary_symbols = list(set(vocabulary_symbols))
     # check to make sure there will be no utterances for segmentation with only OOV symbols
     vocab_no_space_with_digits = set(vocabulary_symbols + [i for i in range(10)])
     if " " in vocab_no_space_with_digits:
-        vocab_no_space_with_digits.remove(' ')
+        vocab_no_space_with_digits.remove(" ")
     sentences = [
         s.strip() for s in sentences if len(vocab_no_space_with_digits.intersection(set(s))) > 0 and s.strip()
     ]
@@ -244,26 +244,26 @@ def split_text(
 
     # save split text with original punctuation and case
     out_dir, out_file_name = os.path.split(out_file)
-    with open(os.path.join(out_dir, out_file_name[:-4] + '_with_punct.txt'), "w") as f:
+    with open(os.path.join(out_dir, out_file_name[:-4] + "_with_punct.txt"), "w") as f:
         f.write("\n".join(sentences))
 
     # substitute common abbreviations before applying lower case
-    if language == 'ru':
+    if language == "ru":
         for k, v in RU_ABBREVIATIONS.items():
             sentences = [s.replace(k, v) for s in sentences]
         # replace Latin characters with Russian
         for k, v in LATIN_TO_RU.items():
             sentences = [s.replace(k, v) for s in sentences]
 
-    if language == 'en' and use_nemo_normalization:
+    if language == "en" and use_nemo_normalization:
         if not NEMO_NORMALIZATION_AVAILABLE:
-            raise ValueError(f'NeMo normalization tool is not installed.')
+            raise ValueError("NeMo normalization tool is not installed.")
 
-        print('Using NeMo normalization tool...')
-        normalizer = Normalizer(input_case='cased', cache_dir=os.path.join(os.path.dirname(out_file), 'en_grammars'))
+        print("Using NeMo normalization tool...")
+        normalizer = Normalizer(input_case="cased", cache_dir=os.path.join(os.path.dirname(out_file), "en_grammars"))
         sentences_norm = normalizer.normalize_list(sentences, verbose=False, punct_post_process=True)
         if len(sentences_norm) != len(sentences):
-            raise ValueError(f'Normalization failed, number of sentences does not match.')
+            raise ValueError("Normalization failed, number of sentences does not match.")
         else:
             sentences = sentences_norm
 
@@ -272,7 +272,7 @@ def split_text(
     # replace numbers with num2words
     try:
         p = re.compile("\d+")
-        new_text = ''
+        new_text = ""
         match_end = 0
         for i, m in enumerate(p.finditer(sentences)):
             match = m.group()
@@ -287,8 +287,8 @@ def split_text(
         sentences = new_text
     except NotImplementedError:
         print(
-            f'{language} might be missing in "num2words" package. Add required language to the choices for the'
-            f'--language argument.'
+            f"{language} might be missing in 'num2words' package. Add required language to the choices for the"
+            f"--language argument."
         )
         raise
 
@@ -329,7 +329,7 @@ def split_text(
     )
     sentences_norm = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * ' '))
 
-    with open(os.path.join(out_dir, out_file_name[:-4] + '_with_punct_normalized.txt'), "w") as f:
+    with open(os.path.join(out_dir, out_file_name[:-4] + "_with_punct_normalized.txt"), "w") as f:
         f.write(sentences_norm)
 
     if do_lower_case:
@@ -343,7 +343,7 @@ def split_text(
         f.write(sentences)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -371,7 +371,7 @@ if __name__ == '__main__':
             text_files.append(Path(args.in_text))
         for text in text_files:
             base_name = os.path.basename(text)[:-4]
-            out_text_file = os.path.join(args.output_dir, base_name + '.txt')
+            out_text_file = os.path.join(args.output_dir, base_name + ".txt")
 
             split_text(
                 text,
@@ -382,11 +382,11 @@ if __name__ == '__main__':
                 additional_split_symbols=args.additional_split_symbols,
                 use_nemo_normalization=args.use_nemo_normalization,
             )
-        print(f'Processed text saved at {args.output_dir}')
+        print(f"Processed text saved at {args.output_dir}")
 
     if args.audio_dir:
         if not os.path.exists(args.audio_dir):
-            raise ValueError(f'{args.audio_dir} not found. "--audio_dir" should contain .mp3 or .wav files.')
+            raise ValueError(f"{args.audio_dir} not found. '--audio_dir' should contain .mp3 or .wav files.")
 
         audio_paths = list(Path(args.audio_dir).glob("*"))
 
@@ -399,4 +399,4 @@ if __name__ == '__main__':
             )
             for i in tqdm(range(len(audio_paths)))
         )
-    print('Done.')
+    print("Data preparation is complete.")

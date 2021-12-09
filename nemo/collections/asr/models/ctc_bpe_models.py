@@ -303,7 +303,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': batch_size,
             'shuffle': False,
-            'num_workers': min(batch_size - 1, os.cpu_count() - 1),
+            'num_workers': 0 if batch_size == 1 else min(batch_size, os.cpu_count() - 1),
             'pin_memory': True,
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }

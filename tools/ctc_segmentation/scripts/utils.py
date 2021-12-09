@@ -37,7 +37,7 @@ def get_segments(
     bpe_model: bool,
     index_duration: float,
     window_size: int = 8000,
-    log_file: str = 'log.log',
+    log_file: str = "log.log",
     debug: bool = False,
 ) -> None:
     """
@@ -55,7 +55,7 @@ def get_segments(
         window_size: the length of each utterance (in terms of frames of the CTC outputs) fits into that window.
         index_duration: corresponding time duration of one CTC output index (in seconds)
     """
-    level = 'DEBUG' if debug else 'INFO'
+    level = "DEBUG" if debug else "INFO"
     file_handler = logging.FileHandler(filename=log_file)
     stdout_handler = logging.StreamHandler(sys.stdout)
     handlers = [file_handler, stdout_handler]
@@ -67,28 +67,28 @@ def get_segments(
             text = [t.strip() for t in text if t.strip()]
 
         # add corresponding original text without pre-processing
-        transcript_file_no_preprocessing = transcript_file.replace('.txt', '_with_punct.txt')
+        transcript_file_no_preprocessing = transcript_file.replace(".txt", "_with_punct.txt")
         if not os.path.exists(transcript_file_no_preprocessing):
-            raise ValueError(f'{transcript_file_no_preprocessing} not found.')
+            raise ValueError(f"{transcript_file_no_preprocessing} not found.")
 
         with open(transcript_file_no_preprocessing, "r") as f:
             text_no_preprocessing = f.readlines()
             text_no_preprocessing = [t.strip() for t in text_no_preprocessing if t.strip()]
 
         # add corresponding normalized original text
-        transcript_file_normalized = transcript_file.replace('.txt', '_with_punct_normalized.txt')
+        transcript_file_normalized = transcript_file.replace(".txt", "_with_punct_normalized.txt")
         if not os.path.exists(transcript_file_normalized):
-            raise ValueError(f'{transcript_file_normalized} not found.')
+            raise ValueError(f"{transcript_file_normalized} not found.")
 
         with open(transcript_file_normalized, "r") as f:
             text_normalized = f.readlines()
             text_normalized = [t.strip() for t in text_normalized if t.strip()]
 
         if len(text_no_preprocessing) != len(text):
-            raise ValueError(f'{transcript_file} and {transcript_file_no_preprocessing} do not match')
+            raise ValueError(f"{transcript_file} and {transcript_file_no_preprocessing} do not match")
 
         if len(text_normalized) != len(text):
-            raise ValueError(f'{transcript_file} and {transcript_file_normalized} do not match')
+            raise ValueError(f"{transcript_file} and {transcript_file_normalized} do not match")
 
         config = cs.CtcSegmentationParameters()
         config.char_list = vocabulary
@@ -158,7 +158,7 @@ def _print(ground_truth_mat, vocabulary, limit=20):
         logging.debug(x)
 
 
-def _get_blank_spans(char_list, blank='ε'):
+def _get_blank_spans(char_list, blank="ε"):
     """
     Returns a list of tuples:
         (start index, end index (exclusive), count)
@@ -286,10 +286,10 @@ def write_output(
                     start, end, score = x
                     score = -0.2
                     outfile.write(
-                        f'{start} {end} {score} | {text[i][j]} | {text_no_preprocessing[i][j]} | {text_normalized[i][j]}\n'
+                        f"{start} {end} {score} | {text[i][j]} | {text_no_preprocessing[i][j]} | {text_normalized[i][j]}\n"
                     )
             else:
                 start, end, score = segment
                 outfile.write(
-                    f'{start} {end} {score} | {text[i]} | {text_no_preprocessing[i]} | {text_normalized[i]}\n'
+                    f"{start} {end} {score} | {text[i]} | {text_no_preprocessing[i]} | {text_normalized[i]}\n"
                 )

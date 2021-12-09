@@ -22,23 +22,23 @@ from scipy.io import wavfile
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description="Cut audio on the segments based on segments")
-parser.add_argument("--output_dir", type=str, help='Path to output directory', required=True)
+parser.add_argument("--output_dir", type=str, help="Path to output directory", required=True)
 parser.add_argument(
     "--alignment",
     type=str,
     required=True,
-    help='Path to a data directory with alignments or a single .txt file with timestamps - result of the ctc-segmentation',
+    help="Path to a data directory with alignments or a single .txt file with timestamps - result of the ctc-segmentation",
 )
-parser.add_argument("--threshold", type=float, default=-5, help='Minimum score value accepted')
-parser.add_argument('--offset', type=int, default=0, help='Offset in seconds')
-parser.add_argument("--batch_size", type=int, default=64, help='Batch size for inference')
+parser.add_argument("--threshold", type=float, default=-5, help="Minimum score value accepted")
+parser.add_argument("--offset", type=int, default=0, help="Offset in seconds")
+parser.add_argument("--batch_size", type=int, default=64, help="Batch size for inference")
 parser.add_argument(
-    '--num_samples',
+    "--edge_duration",
     type=float,
-    help='Duration in seconds for mean absolute value calculation at the edges',
+    help="Duration in seconds for mean absolute value calculation at the edges",
     default=0.05,
 )
-parser.add_argument('--sample_rate', type=int, help='Sample rate', default=16000)
+parser.add_argument("--sample_rate", type=int, help="Sample rate, Hz", default=16000)
 
 
 def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
@@ -52,17 +52,17 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
         args: main script args
     """
     if not os.path.exists(alignment_file):
-        raise ValueError(f'{alignment_file} not found')
+        raise ValueError(f"{alignment_file} not found")
 
-    base_name = os.path.basename(alignment_file).replace('_segments.txt', '')
+    base_name = os.path.basename(alignment_file).replace("_segments.txt", "")
 
     # read the segments, note the first line contains the path to the original audio
     segments = []
     ref_text_processed = []
     ref_text_no_preprocessing = []
-    with open(alignment_file, 'r') as f:
+    with open(alignment_file, "r") as f:
         for line in f:
-            line = line.split('|')
+            line = line.split("|")
             # read audio file name from the first line
             if len(line) == 1:
                 audio_file = line[0].strip()
@@ -79,7 +79,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
     num_samples = int(args.num_samples * args.sample_rate)
     low_score_dur = 0
     high_score_dur = 0
-    with open(manifest, 'a', encoding='utf8') as f:
+    with open(manifest, "a", encoding="utf8") as f:
         for i, (st, end, score) in enumerate(segments):
             segment = signal[round(st * sampling_rate) : round(end * sampling_rate)]
             duration = len(segment) / sampling_rate
@@ -88,22 +88,22 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
                 text_no_preprocessing = ref_text_no_preprocessing[i].strip()
                 if score >= args.threshold:
                     high_score_dur += duration
-                    audio_filepath = os.path.join(clips_dir, f'{base_name}_{i:04}.wav')
+                    audio_filepath = os.path.join(clips_dir, f"{base_name}_{i:04}.wav")
                     wavfile.write(audio_filepath, sampling_rate, segment)
 
                     assert len(signal.shape) == 1 and sampling_rate == args.sample_rate, "check sampling rate"
 
                     info = {
-                        'audio_filepath': audio_filepath,
-                        'duration': duration,
-                        'text': text_processed,
-                        'text_no_preprocessing': text_no_preprocessing,
-                        'score': round(score, 2),
-                        'start_abs': float(np.mean(np.abs(segment[:num_samples]))),
-                        'end_abs': float(np.mean(np.abs(segment[-num_samples:]))),
+                        "audio_filepath": audio_filepath,
+                        "duration": duration,
+                        "text": text_processed,
+                        "text_no_preprocessing": text_no_preprocessing,
+                        "score": round(score, 2),
+                        "start_abs": float(np.mean(np.abs(segment[:num_samples]))),
+                        "end_abs": float(np.mean(np.abs(segment[-num_samples:]))),
                     }
                     json.dump(info, f, ensure_ascii=False)
-                    f.write('\n')
+                    f.write("\n")
                 else:
                     low_score_dur += duration
 
@@ -133,9 +133,9 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
     return stats
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parser.parse_args()
-    print('Splitting audio files into segments...')
+    print("Splitting audio files into segments...")
 
     if os.path.isdir(args.alignment):
         alignment_files = glob(f"{args.alignment}/*.txt")
@@ -153,9 +153,9 @@ if __name__ == '__main__':
     if os.path.exists(manifest):
         os.remove(manifest)
 
-    stats_file = os.path.join(args.output_dir, 'stats.tsv')
-    with open(stats_file, 'w') as f:
-        f.write('Folder\tSegment\tOriginal dur (s)\tHigh quality dur (s)\tLow quality dur (s)\tDeleted dur (s)\n')
+    stats_file = os.path.join(args.output_dir, "stats.tsv")
+    with open(stats_file, "w") as f:
+        f.write("Folder\tSegment\tOriginal dur (s)\tHigh quality dur (s)\tLow quality dur (s)\tDeleted dur (s)\n")
 
         high_score_dur = 0
         low_score_dur = 0
@@ -168,14 +168,14 @@ if __name__ == '__main__':
             high_score_dur += stats[-3]
             low_score_dur += stats[-2]
             del_duration += stats[-1]
-            stats = '\t'.join([str(t) for t in stats]) + '\n'
+            stats = "\t".join([str(t) for t in stats]) + "\n"
             f.write(stats)
 
-        f.write(f'Total\t\t{round(high_score_dur)}\t{round(low_score_dur)}\t{del_duration}')
+        f.write(f"Total\t\t{round(high_score_dur)}\t{round(low_score_dur)}\t{del_duration}")
 
-    print(f'Original duration  : {round(original_dur / 60)}min')
-    print(f'High score segments: {round(high_score_dur / 60)}min ({round(high_score_dur/original_dur*100)}%)')
-    print(f'Low score segments : {round(low_score_dur / 60)}min ({round(low_score_dur/original_dur*100)}%)')
-    print(f'Deleted segments   : {round(del_duration / 60)}min ({round(del_duration/original_dur*100)}%)')
-    print(f'Stats saved at {stats_file}')
-    print(f'Manifest saved at {manifest}')
+    print(f"Original duration  : {round(original_dur / 60)}min")
+    print(f"High score segments: {round(high_score_dur / 60)}min ({round(high_score_dur/original_dur*100)}%)")
+    print(f"Low score segments : {round(low_score_dur / 60)}min ({round(low_score_dur/original_dur*100)}%)")
+    print(f"Deleted segments   : {round(del_duration / 60)}min ({round(del_duration/original_dur*100)}%)")
+    print(f"Stats saved at {stats_file}")
+    print(f"Manifest saved at {manifest}")
