@@ -26,5 +26,3 @@ python megatron_gpt_prompt_tuning.py \
 	model.optim.sched.warmup_steps=200 \
 	model.optim.sched.constant_steps=1000 \
 	model.encoder_seq_length=2048
-
-
