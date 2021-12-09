@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_WHITE_SPACE,
     GraphFst,
 )
+from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 
 try:
     import pynini
@@ -43,9 +44,11 @@ class WordFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="word", kind="classify", deterministic=deterministic)
 
-        non_digit = pynini.difference(NEMO_CHAR, (NEMO_DIGIT | NEMO_WHITE_SPACE)).optimize()
-        self.graph = pynini.closure(non_digit, 1)
+        punct = PunctuationFst().graph
+        self.graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, (NEMO_DIGIT | punct.project("input"))), 1)
 
-        # if not deterministic:
-        #     self.graph = pynini.closure(NEMO_NOT_SPACE, 1)
+        # # non_digit = pynini.difference(NEMO_CHAR, (NEMO_DIGIT | NEMO_WHITE_SPACE)).optimize()
+        # # self.graph = pynini.closure(non_digit, 1)
+        # from pynini.lib.rewrite import top_rewrite
+        # import pdb; pdb.set_trace()
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

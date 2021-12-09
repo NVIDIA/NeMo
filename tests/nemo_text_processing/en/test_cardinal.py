@@ -54,7 +54,7 @@ class TestCardinal:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
-        pred = self.normalizer_en.normalize(test_input, verbose=False)
+        pred = self.normalizer_en.normalize(test_input, verbose=False, punct_post_process=False)
         assert pred == expected
 
         if self.normalizer_with_audio_en:

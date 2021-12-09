@@ -154,7 +154,7 @@ class MeasureFst(GraphFst):
         alpha_dash_decimal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")
             + decimal.final_graph_wo_negative

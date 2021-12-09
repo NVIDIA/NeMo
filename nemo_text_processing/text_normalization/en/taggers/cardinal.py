@@ -59,7 +59,7 @@ class CardinalFst(GraphFst):
             # for a single token allow only the same normalization
             # "007" -> {"oh oh seven", "zero zero seven"} not {"oh zero seven"}
             single_digits_graph_zero = pynini.invert(graph_digit | graph_zero)
-            single_digits_graph_oh = pynini.invert(graph_digit) | pynini.cross("0", "oh")
+            single_digits_graph_oh = pynini.invert(graph_digit) | pynini.cross("0", "zero")
 
             self.single_digits_graph = single_digits_graph_zero + pynini.closure(
                 insert_space + single_digits_graph_zero
@@ -129,9 +129,12 @@ class CardinalFst(GraphFst):
         delimiter = pynini.accep("-") | pynini.accep("/") | pynutil.insert(" ")
 
         letter_num = pynini.closure(alpha, 1) + delimiter + num_graph
-        num_letter = num_graph + delimiter + alpha
+        num_letter = num_graph + delimiter + pynini.closure(alpha)
         next_alpha_or_num = pynini.closure(
-            (pynini.closure(pynini.accep("-") | pynini.accep("/")) + alpha) | (delimiter + num_graph)
+            (delimiter + pynini.closure(alpha, 1) + pynini.closure(delimiter + num_graph, 1))
+            | (pynutil.insert(" ") + alpha + delimiter + num_graph)
+            | (delimiter + num_graph)
+            | (delimiter + pynini.closure(alpha, 1))
         )
 
         serial_graph = letter_num + next_alpha_or_num
@@ -141,4 +144,4 @@ class CardinalFst(GraphFst):
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 
         serial_graph.optimize()
-        return pynutil.add_weight(serial_graph, 10)
+        return pynutil.add_weight(serial_graph, 2)
