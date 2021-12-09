@@ -15,6 +15,7 @@
 import os
 import re
 from typing import Any, Dict, Optional
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 import torch
 import torch.nn.functional as F
@@ -187,7 +188,7 @@ class MegatronGPTModel(NLPModel):
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             # we zero grads here because we also call backward here
             self._optimizer.zero_grad()
-            batch_for_pipeline = [tokens, labels, loss_mask, attention_mask, position_ids]
+            batch_for_pipeline = self.process_global_batch(batch)
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
             reduced_loss = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
@@ -210,33 +211,22 @@ class MegatronGPTModel(NLPModel):
             loss = self.loss_func(loss_mask, output_tensor)
             reduced_loss = average_losses_across_data_parallel_group([loss])
 
-        # cache reduced loss while accumulating gradients
-        self._reduced_loss_buffer.append(reduced_loss[0])
-
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
 
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
-            # Reduced loss for logging.
-            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True, rank_zero_only=True)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr, rank_zero_only=True)
-            self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-            self.log(
-                'consumed_samples',
-                self.compute_consumed_samples(self.trainer.global_step),
-                prog_bar=True,
-                rank_zero_only=True,
-            )
-            self._reduced_loss_buffer = []
-            if self.cfg.precision == 16:
-                loss_scale = self.trainer.precision_plugin.scaler._scale
-                if loss_scale is not None:
-                    self.log('loss_scale', loss_scale)
-
+        # Reduced loss for logging.
+        self.log('reduced_train_loss', loss, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step),
+            prog_bar=True,
+            rank_zero_only=True,
+        )
         return loss
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
@@ -313,23 +303,25 @@ class MegatronGPTModel(NLPModel):
         return fwd_output_and_loss_func
 
     def validation_step(self, batch, batch_idx):
-        reduced_loss = None
+        # TODO: add non-pipeline parallel fwd/bwd
+        losses_reduced_per_micro_batch = None
         batch_for_pipeline = self.process_global_batch(batch)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
-            reduced_loss = forward_backward_pipelining_without_interleaving(
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
                 model=self.model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
             )
-        # else:
-        #     output_tensor = self(tokens, position_ids, attention_mask, labels)
-        #     loss = self.loss_func(loss_mask, output_tensor)
-        #     reduced_loss = average_losses_across_data_parallel_group([loss])
 
-        return reduced_loss
+        # average loss across micro batches
+        loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+        loss_tensor = torch.concat(loss_tensors_list)
+        loss_mean = loss_tensor.mean()
+
+        return loss_mean
 
     def validation_epoch_end(self, outputs):
         if self.cfg.pipeline_model_parallel_size > 1:
@@ -339,12 +331,14 @@ class MegatronGPTModel(NLPModel):
                 # only the last pipeline parallel stages return loss
                 outputs = None
 
+        # average loss across validation steps
         if outputs is not None:
             averaged_loss = torch.stack(outputs).mean()
 
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
