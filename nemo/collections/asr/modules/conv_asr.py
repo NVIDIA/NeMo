@@ -75,7 +75,6 @@ class ConvASREncoder(NeuralModule, Exportable):
 
             if isinstance(m, SqueezeExcite):
                 m.set_max_len(int(one_hour // stride))  # One hour divided by current stride level
-                m.forward = m.forward_for_export
 
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
@@ -195,9 +194,6 @@ class ConvASREncoder(NeuralModule, Exportable):
 
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
-
-        # Flag needed for RNNT export support
-        self._rnnt_export = False
 
     @typecheck()
     def forward(self, audio_signal, length=None):

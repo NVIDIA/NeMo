@@ -136,7 +136,12 @@ class Exportable(ABC):
         check_tolerance=0.01,
     ):
         my_args = locals()
-        del my_args['self']
+        my_args.pop('self')
+
+        exportables = []
+        for m in self.modules():
+            if isinstance(m, Exportable):
+                exportables.append(m)
 
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
         format = self.get_format(output)
@@ -155,16 +160,19 @@ class Exportable(ABC):
             if input_example is None:
                 input_example = self._get_input_example()
 
-            my_args['input_example'] = input_example
+            # Remove i/o examples from args we propagate to enclosed Exportables
+            my_args.pop('output')
+            my_args.pop('input_example')
+            my_args.pop('output_example')
 
-            # Run (posibly overridden) prepare method before calling forward()
-            self._prepare_for_export(**my_args)
+            # Run (posibly overridden) prepare methods before calling forward()
+            for ex in exportables:
+                ex._prepare_for_export(**my_args)
+            self._prepare_for_export(output=output, input_example=input_example, **my_args)
 
             input_list, input_dict = self._setup_input_example(input_example)
-
             input_names = self._process_input_names()
             output_names = self._process_output_names()
-
             output_example = tuple(self.forward(*input_list, **input_dict))
 
             with torch.jit.optimized_execution(True), torch.no_grad():
@@ -321,9 +329,7 @@ class Exportable(ABC):
 
     def _set_eval(self, set_eval):
         if set_eval:
-            self.freeze()
-            self.input_module.freeze()
-            self.output_module.freeze()
+            self.eval()
 
     @property
     def disabled_deployment_input_names(self):

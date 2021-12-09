@@ -162,9 +162,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             dropout=dropout,
         )
 
-        # Flag needed for RNNT export support
-        self._rnnt_export = False
-
     @typecheck()
     def forward(self, targets, target_length, states=None):
         # y: (B, U)
@@ -172,12 +169,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         # state maintenance is unnecessary during training forward call
         # to get state, use .predict() method.
-        if self._rnnt_export:
-            add_sos = False
-        else:
-            add_sos = True
-
-        g, states = self.predict(y, state=states, add_sos=add_sos)  # (B, U, D)
+        g, states = self.predict(y, state=states, add_sos=self.training)  # (B, U, D)
         g = g.transpose(1, 2)  # (B, D, U)
 
         return g, target_length, states
@@ -695,6 +687,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def _prepare_for_export(self, **kwargs):
         self._fuse_loss_wer = False
         self.log_softmax = False
+        super()._prepare_for_export(**kwargs)
 
     def input_example(self):
         """
@@ -1084,7 +1077,6 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         super().__init__()
         self.decoder = decoder
         self.joint = joint
-        self.training = False
 
     @property
     def input_types(self):
@@ -1120,11 +1112,3 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
         joint_output = self.joint(encoder_outputs, decoder_output)
         return (joint_output, decoder_length, state_h, state_c)
-
-    def freeze(self):
-        self.decoder.freeze()
-        self.joint.freeze()
-
-    def _prepare_for_export(self, **kwargs):
-        self.joint._prepare_for_export(**kwargs)
-        self.decoder._prepare_for_export(**kwargs)
