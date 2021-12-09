@@ -22,6 +22,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.config_utils import update_model_config
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
     default_cfg = OmegaConf.to_yaml(cfg)
@@ -47,6 +48,7 @@ def main(cfg) -> None:
 
     logging.info(f'\nCurrent soft prompts include {model.get_prompt_table()}')
     trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()

@@ -21,27 +21,25 @@ Expects data to be in the format:
 
 """
 import json
-import torch
 
+import torch
 from tqdm import tqdm
 
 from nemo.core import Dataset
 from nemo.utils import logging
-
 
 __all__ = ["GPTPromptTuningDataset"]
 
 
 class GPTPromptTuningDataset(Dataset):
     def __init__(
-        self, 
+        self,
         dataset_path,
         tokenizer,
         num_prompt_tokens: int,
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos_eos: bool = True,
-
     ):
         self.tokenizer = tokenizer
         self.add_bos_eos = add_bos_eos
@@ -75,15 +73,14 @@ class GPTPromptTuningDataset(Dataset):
             else:
                 skipped += 1
 
-        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short') 
-
+        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
 
     def __len__(self):
         return len(self.input_ids)
 
     def __getitem__(self, idx):
         prompt_tags = self.prompt_tags[idx]
-        input_ids = self.input_ids[idx] 
+        input_ids = self.input_ids[idx]
 
         return prompt_tags, input_ids
 
@@ -119,37 +116,27 @@ class GPTPromptTuningDataset(Dataset):
         loss_mask = torch.stack(loss_masks)
 
         # Position ids for text
-        text_position_ids = torch.arange(start=self.num_prompt_tokens, 
-                                         end=batch_max_with_prompt, 
-                                         dtype=torch.long, 
-        )
+        text_position_ids = torch.arange(start=self.num_prompt_tokens, end=batch_max_with_prompt, dtype=torch.long,)
         text_position_ids = text_position_ids.unsqueeze(0).expand_as(tokens).clone()
 
         # Attention mask (lower triangular) starting with prompt tokens
         attention_mask = torch.tril(torch.ones((batch_size, batch_max_with_prompt, batch_max_with_prompt))).view(
-                                                batch_size, 1, batch_max_with_prompt, batch_max_with_prompt
-                                              )
+            batch_size, 1, batch_max_with_prompt, batch_max_with_prompt
+        )
 
         # Convert attention mask to binary:
         attention_mask = attention_mask < 0.5
-        
+
         # Labels for prompt tokens
         prompt_token_labels = torch.full(
-                size=(batch_size, self.num_prompt_tokens),
-                fill_value=self.tokenizer.bos_id,
-                dtype=torch.long,
+            size=(batch_size, self.num_prompt_tokens), fill_value=self.tokenizer.bos_id, dtype=torch.long,
         )
 
         # Should be a label for every token in batch
         labels = torch.cat((prompt_token_labels, tokens[:, 1:].contiguous()), dim=1)
-        final_label = torch.full(
-                size=(batch_size, 1),
-                fill_value=self.tokenizer.eos_id, 
-                dtype=torch.long, 
-        )
+        final_label = torch.full(size=(batch_size, 1), fill_value=self.tokenizer.eos_id, dtype=torch.long,)
 
         # Last label should be eos, even for longest sequence in batch
         labels = torch.cat((labels, final_label), dim=1)
 
         return tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids
-

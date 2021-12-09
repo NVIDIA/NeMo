@@ -112,7 +112,7 @@ class MegatronGPTModel(NLPModel):
 
         self.use_soft_prompts = False
 
-        if self.cfg.get('use_soft_prompts', False): 
+        if self.cfg.get('use_soft_prompts', False):
             self.use_soft_prompts = True
             self.prompt_table = set([])
             self.prompt_length = cfg.get('prompt_length', 10)
@@ -121,13 +121,7 @@ class MegatronGPTModel(NLPModel):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
-        output_tensor = self.model(
-               tokens, 
-               text_position_ids, 
-               attention_mask, 
-               labels=labels,
-               prompt_tags=prompt_tags, 
-        )
+        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
 
         return output_tensor
 
@@ -297,24 +291,23 @@ class MegatronGPTModel(NLPModel):
 
     def build_prompt_tuning_dataset(self, dataset_path):
         dataset = GPTPromptTuningDataset(
-                dataset_path=dataset_path,
-                tokenizer=self.tokenizer,
-                num_prompt_tokens=self.cfg.prompt_length,
-                max_seq_length=self.cfg.data.get('max_seq_length', 512),
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos_eos=self.cfg.data.get('add_bos_eos', True),
+            dataset_path=dataset_path,
+            tokenizer=self.tokenizer,
+            num_prompt_tokens=self.cfg.prompt_length,
+            max_seq_length=self.cfg.data.get('max_seq_length', 512),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos_eos=self.cfg.data.get('add_bos_eos', True),
         )
 
         dataloader = torch.utils.data.DataLoader(
-                dataset, 
-                batch_size=self.cfg.data.batch_size,
-                collate_fn=dataset.collate_fn,
-                num_workers=self.cfg.data.num_workers, 
-                pin_memory=True
+            dataset,
+            batch_size=self.cfg.data.batch_size,
+            collate_fn=dataset.collate_fn,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
         )
 
         return dataset, dataloader
-
 
     def setup(self, stage=None):
         if stage == 'predict':
@@ -324,7 +317,7 @@ class MegatronGPTModel(NLPModel):
             # Load prompt tuning datasets
             self._train_ds, self._train_dl = self.build_prompt_tuning_dataset(self.cfg.data.train_ds)
             self._validation_ds, self._validation_dl = self.build_prompt_tuning_dataset(self.cfg.data.valid_ds)
-            self._test_ds, self._test_dl  = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
+            self._test_ds, self._test_dl = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
 
             # Freeze all weights except prompt embeddings
             self.prompt_tuning_freeze()
@@ -399,7 +392,6 @@ class MegatronGPTModel(NLPModel):
             param.requires_grad = False
         for param in self.model.language_model.prompt_table.parameters():
             param.requires_grad = True
-        
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request = batch
@@ -451,14 +443,12 @@ class MegatronGPTModel(NLPModel):
             if self.use_soft_prompts:
                 full_length = len(tokens[0]) + self.prompt_length
                 position_ids = torch.arange(
-                    start=self.prompt_length,
-                    end=full_length,
-                    dtype=torch.long,
-                    device=self.device
+                    start=self.prompt_length, end=full_length, dtype=torch.long, device=self.device
                 )
 
                 attention_mask = torch.tril(torch.ones((1, full_length, full_length), device=self.device)).view(
-                        1, 1, full_length, full_length)
+                    1, 1, full_length, full_length
+                )
                 attention_mask = attention_mask < 0.5
 
             else:
@@ -517,7 +507,7 @@ class MegatronGPTModel(NLPModel):
     def _add_prompt_tag(self, prompt_tag):
         if not hasattr(self, 'prompt_table'):
             raise AttributeError('Please set "use_soft_prompts" in cfg to True')
-        
+
         self.prompt_table.add(prompt_tag)
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):

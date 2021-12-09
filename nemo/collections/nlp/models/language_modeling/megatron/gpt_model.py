@@ -155,12 +155,12 @@ class GPTModel(MegatronModule):
     ):
 
         lm_output = self.language_model(
-            input_ids, 
-            position_ids, 
-            attention_mask, 
-            prompt_tags=prompt_tags, 
-            layer_past=layer_past, 
-            get_key_value=get_key_value
+            input_ids,
+            position_ids,
+            attention_mask,
+            prompt_tags=prompt_tags,
+            layer_past=layer_past,
+            get_key_value=get_key_value,
         )
 
         if self.post_process:
