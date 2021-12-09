@@ -569,7 +569,7 @@ def _build_train_valid_test_datasets(
                 name=name,
                 data_prefix=data_prefix,
                 num_epochs=None,
-                max_num_samples=train_valid_test_num_samples[index],
+                max_num_samples=int(train_valid_test_num_samples[index]),
                 max_seq_length=max_seq_length,
                 seed=seed,
             )
@@ -702,7 +702,7 @@ def get_samples_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
             num_epochs,
-            int(max_num_samples),
+            max_num_samples,
             max_seq_length,
             short_seq_prob,
             seed,

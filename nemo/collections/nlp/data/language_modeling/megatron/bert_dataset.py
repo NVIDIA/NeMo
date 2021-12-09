@@ -24,22 +24,24 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_samples_mapping,
     truncate_segments,
 )
+from typing import Optional, Any
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
 
 
 class BertDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        name=None,
-        indexed_dataset=None,
-        data_prefix=None,
-        num_epochs=None,
-        max_num_samples=None,
-        masked_lm_prob=None,
-        max_seq_length=None,
-        short_seq_prob=None,
-        seed=None,
-        binary_head=None,
-        tokenizer=None,
+        name: str = None,
+        indexed_dataset: MMapIndexedDataset = None,
+        data_prefix: str = None,
+        num_epochs: Optional[int] = None,
+        max_num_samples: int = None,
+        masked_lm_prob: float = None,
+        max_seq_length: int = None,
+        short_seq_prob: float = None,
+        seed: int = None,
+        binary_head: bool = None,
+        tokenizer: Any = None,
     ):
 
         # Params to store.
