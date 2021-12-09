@@ -2,7 +2,7 @@ name: megatron_bert
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  gpus: 1
+  gpus: 2
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -41,7 +41,7 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 4
-  tensor_model_parallel_size: 1
+  tensor_model_parallel_size: 2
 
   # model architecture
   encoder_seq_length: 512
@@ -58,7 +58,7 @@ model:
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
   pre_process: True # add embedding
   post_process: True # add pooler
-  bert_binary_head: False # BERT binary head
+  bert_binary_head: True # BERT binary head
 
   tokenizer:
     library: 'megatron'
