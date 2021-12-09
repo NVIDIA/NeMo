@@ -31,3 +31,4 @@ there--0.4kg~there - minus zero point four kilograms
 there -0.4kg~there minus zero point four kilograms
 there- -0.4kg~there - minus zero point four kilograms
 ÀÁÂÃ check §- and ƛ, also ɧ~ÀÁÂÃ check § - and ƛ , also ɧ
+[0.4] and [5 and 4]~[0 . 4] and [5 and 4]

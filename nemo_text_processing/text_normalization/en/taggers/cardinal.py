@@ -15,7 +15,7 @@
 
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
-from nemo_text_processing.text_normalization.en.taggers.date import NEMO_SIGMA, get_hundreds_graph
+from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
