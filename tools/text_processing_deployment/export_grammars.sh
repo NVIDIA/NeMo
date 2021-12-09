@@ -36,6 +36,7 @@ LANGUAGE="en" # language, 'en' supports both TN and ITN, {'de', 'ru', 'es', 'fr'
 MODE="export"
 CACHE_DIR="None" # path to cache dir with .far files (to speed the export)
 OVERWRITE_CACHE="True" # Set to False to re-use .far files
+FORCE_REBUILD="True" # Set to True to re-build docker file
 
 for ARG in "$@"
 do
@@ -60,9 +61,14 @@ if [[ ${OVERWRITE_CACHE,,} == "true" ]]; then
   else OVERWRITE_CACHE=""
 fi
 
+if [[ ${FORCE_REBUILD,,} == "true" ]]; then
+  FORCE_REBUILD="--no-cache"
+  else FORCE_REBUILD=""
+fi
+
 python3 pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE} --cache_dir=${CACHE_DIR} ${OVERWRITE_CACHE}|| exit 1
 find . -name "Makefile" -type f -delete
-bash docker/build.sh $FORCE
+bash docker/build.sh $FORCE_REBUILD
 
 if [[ $MODE == "test" ]]; then
   MODE=${MODE}_${GRAMMARS}
