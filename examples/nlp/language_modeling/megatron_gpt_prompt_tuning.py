@@ -15,36 +15,35 @@
 import torch
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
-from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-from nemo.utils.config_utils import update_model_config
+from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
-    default_cfg = OmegaConf.to_yaml(cfg)
-    cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
-
-    if cfg.get('cluster_type', None) == 'BCP':
-        plugins.append(TorchElasticEnvironment())
-
     trainer = Trainer(plugins=plugins, **cfg.trainer)
     exp_manager(trainer, cfg.exp_manager)
+
     model = MegatronGPTModel.restore_from(cfg.restore_from_path, cfg.model, trainer=trainer)
 
     # Init all new prompts
-    for new_prompt in cfg.model.new_prompts:
-        if new_prompt.init_method == 'random':
-            model.init_prompt_from_random(new_prompt.tag)
+    for idx, tag in enumerate(cfg.model.new_prompt_tags):
+        init_method = cfg.model.new_prompt_init_methods[idx]
+
+        if init_method == 'text':
+            init_text = cfg.model.new_prompt_init_text[idx]
+            model.init_prompt_from_text(tag, init_text)
+        elif init_method == 'random':
+            model.init_prompt_from_random(tag)
         else:
-            model.init_prompt_from_text(new_prompt.tag, new_prompt.init_text)
+            logging.info(f'\nTag init method {init_method} is not recognized, must be random or text')
 
     logging.info(f'\nCurrent soft prompts include {model.get_prompt_table()}')
     trainer.fit(model)
