@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment

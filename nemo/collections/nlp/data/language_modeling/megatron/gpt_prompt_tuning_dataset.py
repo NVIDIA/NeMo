@@ -29,7 +29,7 @@ from nemo.core import Dataset
 from nemo.utils import logging
 
 
-__all__ = ["PromptTuningDataset"]
+__all__ = ["GPTPromptTuningDataset"]
 
 
 class GPTPromptTuningDataset(Dataset):
