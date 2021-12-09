@@ -76,7 +76,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
     sampling_rate, signal = wavfile.read(audio_file)
     original_duration = len(signal) / sampling_rate
 
-    num_samples = int(args.num_samples * args.sample_rate)
+    num_samples = int(args.edge_duration * args.sample_rate)
     low_score_dur = 0
     high_score_dur = 0
     with open(manifest, "a", encoding="utf8") as f:

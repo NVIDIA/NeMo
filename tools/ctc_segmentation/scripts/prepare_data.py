@@ -15,7 +15,6 @@
 import argparse
 import os
 import re
-import string
 from pathlib import Path
 from typing import List
 
@@ -39,10 +38,10 @@ except (ModuleNotFoundError, ImportError):
 
 
 parser = argparse.ArgumentParser(description="Prepares text and audio files for segmentation")
-parser.add_argument("--in_text", type=str, help='Path to a text file or a directory with .txt files')
-parser.add_argument("--output_dir", type=str, required=True, help='Path to output directory')
-parser.add_argument("--audio_dir", type=str, help='Path to folder with .mp3 or .wav audio files')
-parser.add_argument("--sample_rate", type=int, default=16000, help='Sampling rate used during ASR model training, Hz')
+parser.add_argument("--in_text", type=str, default=None, help="Path to a text file or a directory with .txt files")
+parser.add_argument("--output_dir", type=str, required=True, help="Path to output directory")
+parser.add_argument("--audio_dir", type=str, help="Path to folder with .mp3 or .wav audio files")
+parser.add_argument("--sample_rate", type=int, default=16000, help="Sampling rate used during ASR model training, Hz")
 parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
 parser.add_argument(
     "--language",
@@ -55,7 +54,7 @@ parser.add_argument(
     "--cut_prefix", type=int, default=0, help="Number of seconds to cut from the beginning of the audio files.",
 )
 parser.add_argument(
-    "--model", type=str, default='QuartzNet15x5Base-En', help='Pre-trained model name or path to model checkpoint'
+    "--model", type=str, default="QuartzNet15x5Base-En", help="Pre-trained model name or path to model checkpoint"
 )
 parser.add_argument(
     "--max_length", type=int, default=40, help="Max number of words of the text segment for alignment."
@@ -133,7 +132,6 @@ def split_text(
         .replace("\\", " ")
         .replace("--", " -- ")
         .replace(". . .", "...")
-        .replace("‘", "’")
     )
     # remove extra space
     transcript = re.sub(r" +", " ", transcript)
@@ -226,12 +224,15 @@ def split_text(
             # for BPE models
             vocabulary_symbols.extend([x for x in x.replace("##", "").replace("▁", "")])
     vocabulary_symbols = list(set(vocabulary_symbols))
+    vocabulary_symbols += [x.upper() for x in vocabulary_symbols]
+
     # check to make sure there will be no utterances for segmentation with only OOV symbols
-    vocab_no_space_with_digits = set(vocabulary_symbols + [i for i in range(10)])
+    vocab_no_space_with_digits = set(vocabulary_symbols + [str(i) for i in range(10)])
     if " " in vocab_no_space_with_digits:
         vocab_no_space_with_digits.remove(" ")
+
     sentences = [
-        s.strip() for s in sentences if len(vocab_no_space_with_digits.intersection(set(s))) > 0 and s.strip()
+        s.strip() for s in sentences if len(vocab_no_space_with_digits.intersection(set(s.lower()))) > 0 and s.strip()
     ]
 
     # when no punctuation marks present in the input text, split based on max_length
@@ -245,7 +246,7 @@ def split_text(
     # save split text with original punctuation and case
     out_dir, out_file_name = os.path.split(out_file)
     with open(os.path.join(out_dir, out_file_name[:-4] + "_with_punct.txt"), "w") as f:
-        f.write("\n".join(sentences))
+        f.write(re.sub(r' +', ' ', "\n".join(sentences)))
 
     # substitute common abbreviations before applying lower case
     if language == "ru":
@@ -292,51 +293,17 @@ def split_text(
         )
         raise
 
-    sentences = (
-        sentences.replace("’", "'")
-        .replace("»", '"')
-        .replace("«", '"')
-        .replace("\\", "")
-        .replace("”", '"')
-        .replace("„", '"')
-        .replace("´", "'")
-        .replace("-- --", "--")
-        .replace("--", " -- ")
-        .replace("’", "'")
-        .replace('“', '"')
-        .replace('“', '"')
-        .replace("‘", "'")
-        .replace('—', '-')
-        .replace("- -", "--")
-        .replace('`', "'")
-        .replace(' !', '!')
-        .replace(' ?', '?')
-        .replace(' ,', ',')
-        .replace(' .', '.')
-        .replace(' ;', ';')
-        .replace(' :', ':')
-        .replace('!!', '!')
-        .replace('--', '-')
-        .replace('“', '"')
-        .replace(', , ', ', ')
-        .replace('=', '')
-    )
-
-    allowed_punct = [',', '.', '?', '!', ':', ';', '-', '"', '(', ')']
-    # clean up normalized text and keep only allowed_punct and ASR vocabulary (lower and upper case)
-    symbols_to_remove = ''.join(
-        set(sentences).difference(set(vocabulary + [s.upper() for s in vocabulary] + ['\n'] + allowed_punct))
-    )
-    sentences_norm = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * ' '))
+    sentences = re.sub(r' +', ' ', sentences)
 
     with open(os.path.join(out_dir, out_file_name[:-4] + "_with_punct_normalized.txt"), "w") as f:
-        f.write(sentences_norm)
+        f.write(sentences)
 
     if do_lower_case:
         sentences = sentences.lower()
 
-    symbols_to_remove = string.punctuation.replace("'", "")
-    sentences = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * ' '))
+    symbols_to_remove = ''.join(set(sentences).difference(set(vocabulary_symbols + ["\n", " "])))
+    sentences = sentences.translate(''.maketrans(symbols_to_remove, len(symbols_to_remove) * " "))
+
     # remove extra space
     sentences = re.sub(r' +', ' ', sentences)
     with open(out_file, "w") as f:
@@ -399,4 +366,5 @@ if __name__ == "__main__":
             )
             for i in tqdm(range(len(audio_paths)))
         )
+
     print("Data preparation is complete.")

@@ -10,6 +10,7 @@ MAX_SEGMENT_LEN=30
 ADDITIONAL_SPLIT_SYMBOLS=":|;"
 USE_NEMO_NORMALIZATION='True'
 NUM_JOBS=-2 # The maximum number of concurrently running jobs, `-2` - all CPUs but one are used
+SAMPLE_RATE=16000 # Target sample rate (default for ASR data - 16000 Hz)
 
 for ARG in "$@"
 do
@@ -32,6 +33,7 @@ echo "OFFSET = $OFFSET"
 echo "LANGUAGE = $LANGUAGE"
 echo "MIN_SEGMENT_LEN = $MIN_SEGMENT_LEN"
 echo "MAX_SEGMENT_LEN = $MAX_SEGMENT_LEN"
+echo "SAMPLE_RATE = $SAMPLE_RATE"
 echo "ADDITIONAL_SPLIT_SYMBOLS = $ADDITIONAL_SPLIT_SYMBOLS"
 echo "USE_NEMO_NORMALIZATION = $USE_NEMO_NORMALIZATION"
 
@@ -69,6 +71,7 @@ python $SCRIPTS_DIR/prepare_data.py \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
 --max_length=$MAX_SEGMENT_LEN \
+--sample_rate=$SAMPLE_RATE \
 --additional_split_symbols=$ADDITIONAL_SPLIT_SYMBOLS $NEMO_NORMALIZATION || exit
 
 # STEP #2
@@ -80,6 +83,7 @@ do
   python $SCRIPTS_DIR/run_ctc_segmentation.py \
   --output_dir=$OUTPUT_DIR \
   --data=$OUTPUT_DIR/processed \
+  --sample_rate=$SAMPLE_RATE \
   --model=$MODEL_NAME_OR_PATH  \
   --window_len $WINDOW || exit
 done
@@ -98,4 +102,5 @@ python $SCRIPTS_DIR/cut_audio.py \
 --output_dir=$OUTPUT_DIR \
 --alignment=$OUTPUT_DIR/verified_segments \
 --threshold=$MIN_SCORE \
---offset=$OFFSET || exit
+--offset=$OFFSET \
+--sample_rate=$SAMPLE_RATE || exit

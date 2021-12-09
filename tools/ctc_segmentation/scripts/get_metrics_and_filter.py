@@ -14,6 +14,7 @@
 
 import argparse
 import json
+import os
 from glob import glob
 
 import editdistance
@@ -21,6 +22,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.utils import logging
 
 parser = argparse.ArgumentParser("Calculate metrics and filters out samples based on thresholds")
 parser.add_argument(
@@ -29,7 +31,6 @@ parser.add_argument(
 parser.add_argument(
     "--edge_len", type=int, help="Number of characters to use for CER calculation at the edges", default=5
 )
-parser.add_argument("--sample_rate", type=int, help="Audio sample rate", default=16000)
 parser.add_argument("--audio_dir", type=str, help="Path to original .wav files", default=None)
 parser.add_argument("--max_cer", type=int, help="Threshold CER value", default=30)
 parser.add_argument("--max_wer", type=int, help="Threshold WER value", default=75)
@@ -80,7 +81,7 @@ def get_metrics():
     with open(manifest_out, "w") as f_out:
         for line in lines:
             f_out.write(json.dumps(line) + "\n")
-    print(f"Metrics save at {manifest_out}")
+    logging.info(f"Metrics save at {manifest_out}")
     return manifest_out
 
 
@@ -108,39 +109,39 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
                 remaining_duration += duration
                 f_out.write(json.dumps(item) + "\n")
 
-    print("-" * 50)
-    print("Threshold values:")
-    print(f"max WER: {max_wer}")
-    print(f"max CER: {max_cer}")
-    print(f"max edge CER: {max_edge_cer}")
-    print(f"max Word len diff: {max_len_diff}")
-    print(f"max Duration: {max_dur}")
-    print("-" * 50)
+    logging.info("-" * 50)
+    logging.info("Threshold values:")
+    logging.info(f"max WER: {max_wer}")
+    logging.info(f"max CER: {max_cer}")
+    logging.info(f"max edge CER: {max_edge_cer}")
+    logging.info(f"max Word len diff: {max_len_diff}")
+    logging.info(f"max Duration: {max_dur}")
+    logging.info("-" * 50)
 
     remaining_duration = remaining_duration / 60
     original_duration = original_duration / 60
     segmented_duration = segmented_duration / 60
-    print(f"Original audio dur: {round(original_duration, 2)} min")
-    print(
+    logging.info(f"Original audio dur: {round(original_duration, 2)} min")
+    logging.info(
         f"Segmented duration: {round(segmented_duration, 2)} min ({round(100 * segmented_duration / original_duration, 2)}% of original audio)"
     )
-    print(
+    logging.info(
         f"Retained {round(remaining_duration, 2)} min ({round(100*remaining_duration/original_duration, 2)}% of original or {round(100 * remaining_duration / segmented_duration, 2)}% of segmented audio)."
     )
-    print(f"Retained data saved to {manifest_out}")
+    logging.info(f"Retained data saved to {manifest_out}")
 
 
 def filter(manifest):
     original_duration = 0
     if args.audio_dir:
-        audio_files = glob(f"{args.audio_dir}*")
+        audio_files = glob(f"{os.path.abspath(args.audio_dir)}/*")
         for audio in audio_files:
             try:
                 audio_data = AudioSegment.from_file(audio)
                 duration = len(audio_data._samples) / audio_data._sample_rate
                 original_duration += duration
             except BaseException as e:
-                print(f"Skipping {audio} -- {e}")
+                logging.info(f"Skipping {audio} -- {e}")
 
     _apply_filters(
         manifest=manifest,

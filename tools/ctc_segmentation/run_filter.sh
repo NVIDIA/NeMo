@@ -27,7 +27,7 @@ done
 if [[ -z $MODEL_NAME_OR_PATH ]] || [[ -z $INPUT_AUDIO_DIR ]] || [[ -z $MANIFEST ]]; then
   echo "Usage: $(basename "$0")
   --MODEL_NAME_OR_PATH=[path to .nemo ASR model or a pre-trained model name to use for metrics calculation]
-  --INPUT_AUDIO_DIR=[path to original directory with audio files used for segmentation]
+  --INPUT_AUDIO_DIR=[path to original directory with audio files used for segmentation (for retention rate estimate)]
   --MANIFEST=[path to manifest file generated during segmentation]"
   exit 1
 fi
@@ -40,12 +40,13 @@ else
 fi
 
 OUT_MANIFEST="$(dirname ${MANIFEST})"
-OUT_MANIFEST=$OUT_MANIFEST/manifest_transcribed.json
+OUT_MANIFEST=$OUT_MANIFEST/manifest_filtered.json
 # Add transcripts to the manifest file, ASR model predictions will be stored under "pred_text" field
 python ${SCRIPTS_DIR}/../../../examples/asr/transcribe_speech.py \
 $ARG_MODEL=$MODEL_NAME_OR_PATH \
 dataset_manifest=$MANIFEST \
-output_filename=${OUT_MANIFEST} || exit
+output_filename=${OUT_MANIFEST} \
+num_workers=0 || exit
 
 echo "--- Calculating metrics and filtering out samples based on thresholds ---"
 echo "CER_THRESHOLD = ${CER_THRESHOLD}"
