@@ -15,11 +15,13 @@
 """BERT model."""
 
 import torch
-from apex.transformer.enums import AttnMaskType
 from apex.transformer import parallel_state, tensor_parallel
-from nemo.collections.nlp.modules.common.megatron.transformer import LayerNorm
+from apex.transformer.enums import AttnMaskType
+from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
+
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.transformer import LayerNorm
 from nemo.collections.nlp.modules.common.megatron.utils import (
     erf_gelu,
     get_linear_layer,
@@ -27,7 +29,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     openai_gelu,
     scaled_init_method_normal,
 )
-from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
 
 
 def bert_extended_attention_mask(attention_mask):
@@ -67,8 +68,9 @@ class BertLMHead(MegatronModule):
         parallel_output: whether output logits being distributed or not.
     """
 
-    def __init__(self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon,
-                 parallel_output, use_openai_gelu, onnx_safe):
+    def __init__(
+        self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon, parallel_output, use_openai_gelu, onnx_safe
+    ):
 
         super(BertLMHead, self).__init__()
 
@@ -142,7 +144,7 @@ class BertModel(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
-        add_binary_head=True
+        add_binary_head=True,
     ):
         super(BertModel, self).__init__()
         # args = get_args()
@@ -196,7 +198,7 @@ class BertModel(MegatronModule):
                 layernorm_epsilon,
                 parallel_output,
                 openai_gelu,
-                onnx_safe
+                onnx_safe,
             )
             self._lm_head_key = 'lm_head'
             self.binary_head = None

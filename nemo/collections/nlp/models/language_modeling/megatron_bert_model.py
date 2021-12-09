@@ -25,6 +25,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -32,12 +33,9 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 
 
 class MegatronBertModel(NLPModel):
@@ -56,7 +54,6 @@ class MegatronBertModel(NLPModel):
         self._reduced_loss_buffer = []
         self._reduced_lm_loss_buffer = []
         self._reduced_sop_loss_buffer = []
-
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
@@ -109,7 +106,7 @@ class MegatronBertModel(NLPModel):
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=cfg.get('onnx_safe', False),
-            add_binary_head=cfg.bert_binary_head
+            add_binary_head=cfg.bert_binary_head,
         )
 
     def forward(self, tokens, attention_mask, tokentype_ids, lm_labels):
@@ -188,13 +185,10 @@ class MegatronBertModel(NLPModel):
 
         lm_loss_ = lm_loss_.float()
         loss_mask = loss_mask.float()
-        lm_loss = torch.sum(
-            lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
+        lm_loss = torch.sum(lm_loss_.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
 
         if sop_logits is not None:
-            sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(),
-                                       sentence_order.view(-1),
-                                       ignore_index=-1)
+            sop_loss = F.cross_entropy(sop_logits.view(-1, 2).float(), sentence_order.view(-1), ignore_index=-1)
             sop_loss = sop_loss.float()
             return {'lm loss': lm_loss, 'sop loss': sop_loss}
             # loss = lm_loss + sop_loss
@@ -215,7 +209,7 @@ class MegatronBertModel(NLPModel):
         # Items and their type.
         keys = ['text', 'types', 'labels', 'is_random', 'loss_mask', 'padding_mask']
         datatype = torch.int64
-        
+
         data = batch
         data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
@@ -254,7 +248,7 @@ class MegatronBertModel(NLPModel):
             binary_head=self.cfg.bert_binary_head,
             max_seq_length_dec=None,
             dataset_type='standard_bert',
-            tokenizer=self.tokenizer.tokenizer
+            tokenizer=self.tokenizer.tokenizer,
         )
 
         if self._train_ds is not None:

@@ -434,7 +434,7 @@ def build_train_valid_test_datasets(
     binary_head=False,
     max_seq_length_dec=None,
     dataset_type='standard_bert',
-    tokenizer=None
+    tokenizer=None,
 ):
 
     if len(data_prefix) == 1:
@@ -451,7 +451,7 @@ def build_train_valid_test_datasets(
             binary_head,
             max_seq_length_dec,
             dataset_type=dataset_type,
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
         )
     # Blending dataset.
     # Parse the values.
@@ -475,7 +475,7 @@ def build_train_valid_test_datasets(
             skip_warmup,
             binary_head,
             dataset_type=dataset_type,
-            tokenizer=tokenizer
+            tokenizer=tokenizer,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -511,7 +511,7 @@ def _build_train_valid_test_datasets(
     binary_head,
     max_seq_length_dec,
     dataset_type='standard_bert',
-    tokenizer=None
+    tokenizer=None,
 ):
 
     if dataset_type not in DSET_TYPES:

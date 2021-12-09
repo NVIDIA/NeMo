@@ -14,6 +14,8 @@
 
 """BERT Style dataset."""
 
+from typing import Any, Optional
+
 import numpy as np
 import torch
 
@@ -24,7 +26,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_samples_mapping,
     truncate_segments,
 )
-from typing import Optional, Any
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
 
 
