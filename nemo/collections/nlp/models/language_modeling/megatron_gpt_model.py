@@ -316,25 +316,21 @@ class MegatronGPTModel(NLPModel):
                 tensor_shape=tensor_shape,
             )
 
-        # average loss across micro batches
-        loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
-        loss_tensor = torch.concat(loss_tensors_list)
-        loss_mean = loss_tensor.mean()
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = []
 
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        if self.cfg.pipeline_model_parallel_size > 1:
-            if parallel_state.is_pipeline_last_stage():
-                outputs = [output[0]['avg'] for output in outputs]
-            else:
-                # only the last pipeline parallel stages return loss
-                outputs = None
-
-        # average loss across validation steps
-        if outputs is not None:
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
-
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
