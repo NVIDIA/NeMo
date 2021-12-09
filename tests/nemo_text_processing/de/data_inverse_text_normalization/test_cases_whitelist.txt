@@ -1,5 +1,6 @@
-doktor dao~dr. dao
-miss smith~ms. smith
-misses smith~mrs. smith
-mister dao~mr. dao
-ich mag essen zum beispiel eis~ich mag essen z.b. eis
+doktor dao~Dr. dao
+miss smith~Ms. smith
+misses smith~Mrs. smith
+mister dao~Mr. dao
+ich mag essen zum beispiel eis~ich mag essen z.B. eis
+Chanel nummer fünf~Chanel Nr. fünf

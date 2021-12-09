@@ -19,9 +19,12 @@ try:
     import pynini
     from pynini.lib import pynutil
 
+    quantities = pynini.string_file(get_abs_path("data/numbers/quantities.tsv"))
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+    quantities = None
 
 
 def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':
@@ -35,30 +38,17 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         cardinal_up_to_hundred: cardinal FST
     """
     numbers = cardinal_up_to_hundred
-    suffix = pynini.union(
-        "million",
-        "millionen",
-        "milliarde",
-        "milliarden",
-        "billion",
-        "billionen",
-        "billiarde",
-        "billiarden",
-        "trillion",
-        "trillionen",
-        "trilliarde",
-        "trilliarden",
-    )
+
     res = (
         pynutil.insert("integer_part: \"")
         + numbers
         + pynutil.insert("\"")
         + pynini.accep(" ")
         + pynutil.insert("quantity: \"")
-        + suffix
+        + quantities
         + pynutil.insert("\"")
     )
-    res |= decimal + pynini.accep(" ") + pynutil.insert("quantity: \"") + suffix + pynutil.insert("\"")
+    res |= decimal + pynini.accep(" ") + pynutil.insert("quantity: \"") + quantities + pynutil.insert("\"")
     return res
 
 
@@ -73,7 +63,7 @@ class DecimalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
