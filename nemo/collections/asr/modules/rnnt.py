@@ -126,6 +126,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
+    def _prepare_for_export(self, **kwargs):
+        self._rnnt_export = True
+        super()._prepare_for_export(**kwargs)
+
     def __init__(
         self,
         prednet: Dict[str, Any],
@@ -161,6 +165,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
         )
+        self._rnnt_export = False
 
     @typecheck()
     def forward(self, targets, target_length, states=None):
@@ -169,7 +174,12 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         # state maintenance is unnecessary during training forward call
         # to get state, use .predict() method.
-        g, states = self.predict(y, state=states, add_sos=self.training)  # (B, U, D)
+        if self._rnnt_export:
+            add_sos = False
+        else:
+            add_sos = True
+
+        g, states = self.predict(y, state=states, add_sos=add_sos)  # (B, U, D)
         g = g.transpose(1, 2)  # (B, D, U)
 
         return g, target_length, states
