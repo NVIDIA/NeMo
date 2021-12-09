@@ -79,23 +79,10 @@ model:
       activation_fn: gelu # Activation for transformer
 
   decoder:
-    _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecLinearReconstruction
-    feat_in: *emb_dim
-    feat_out: 384
-
-  loss:
-    _target_: nemo.collections.asr.losses.ContrastiveLoss
-    in_dim: *emb_dim
-    proj_dim: 384
-    sample_from_non_masked: false
-    combine_time_steps: 1
-    codebook_size: 320
-    prob_ppl_weight: .1
-    logit_temp: .1
-    num_groups: 2
-    quantizer_temp_start: 2
-    quantizer_temp_min: .1
-    quantizer_temp_decay: 0.999995
+    _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecLinearDecoder
+    feat_in: *final_dim
+    num_classes: -1  # filled with vocabulary size from tokenizer at runtime
+    vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
   optim:
     name: adamw

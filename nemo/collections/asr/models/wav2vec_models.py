@@ -91,27 +91,22 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
                 " with ``processed_signal`` and ``processed_signal_len`` arguments."
             )
 
-        # B, D, T
+        # B, C, T
         if not has_processed_signal:
             features, feature_length = self.preprocessor(
-                source=input_signal, length=input_signal_length,
+                input_signal=input_signal, length=input_signal_length,
             )
         else:
             features, feature_length = processed_signal, processed_signal_length # Changing variables for clarity
-
-        features = features.transpose(1, 2) # B,T,C
-        features = self.layer_norm(features)
-
-        if self.post_extract_proj is not None: # Projected to transformer input size
-            features = self.post_extract_proj(features)
         
         if not self._pretraining: # Just gives features in current encoder config
-            return None, None, self.encoder(features.transpose(1,2), feature_length)
+            return None, None, self.encoder(features, feature_length)
 
+        # B, C, T
         unmasked_features = features.clone() # These will be used for the loss function
 
-        features = self.dropout_features(features).transpose(1,2) # B, C, T
-        unmasked_features = self.dropout_features_q(unmasked_features).transpose(1,2) # B, C, T
+        features = self.dropout_features(features)
+        unmasked_features = self.dropout_features_q(unmasked_features)
 
         # B, C, T
         features = self.spec_augmentation(input_spec=features, length=feature_length)
@@ -121,8 +116,8 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
         for idx, proc_len in enumerate(feature_length):
             feature_masks[idx, :, proc_len:] = 0.0
 
-        # B, C, T
-        logits = self.encoder(features, feature_length)
+        # B, C, T, For compatibility, encoder outputs length as second var.
+        logits, _ = self.encoder(features, feature_length)
 
         # B, T, C
         logits = self.decoder_ssl(encoder_output=logits)

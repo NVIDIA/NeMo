@@ -17,7 +17,7 @@ model:
   train_ds:
     manifest_filepath: ???
     sample_rate: *sample_rate
-    batch_size: 4
+    batch_size: ???
     trim_silence: false
     max_duration: null
     shuffle: true
@@ -28,7 +28,7 @@ model:
   validation_ds:
     manifest_filepath: ???
     sample_rate: *sample_rate
-    batch_size: 4
+    batch_size: ???
     shuffle: false
     use_start_end_token: false
 
@@ -65,7 +65,7 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 0
-    time_masks: 100
+    time_masks: 20
     freq_width: 0
     time_width: 1
     mask_value: 0.0
@@ -123,8 +123,8 @@ model:
 trainer:
   gpus: -1 # number of gpus
   num_nodes: 1
+  max_steps: null
   max_epochs: 100
-  max_steps: 10000 # computed at runtime if not set
   val_check_interval: 0.5 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: ddp
   accumulate_grad_batches: 1
@@ -147,5 +147,5 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
-  resume_if_exists: true
+  resume_if_exists: false
   resume_ignore_no_checkpoint: true
