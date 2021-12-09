@@ -191,7 +191,6 @@ class GPTModel(MegatronModule):
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
-        print('USING CUSTOM LOAD STATE DICT FOR GPT MODEL')
 
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
@@ -200,8 +199,8 @@ class GPTModel(MegatronModule):
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
 
-    def _init_prompt_from_random(self, prompt_tag, init_method):
-        self.language_model._init_prompt_from_random(prompt_tag, init_method)
+    def _init_prompt_from_random(self, prompt_tag):
+        self.language_model._init_prompt_from_random(prompt_tag)
 
     def _init_prompt_from_text(self, prompt_tag, init_token_ids):
         self.language_model._init_prompt_from_text(prompt_tag, init_token_ids)

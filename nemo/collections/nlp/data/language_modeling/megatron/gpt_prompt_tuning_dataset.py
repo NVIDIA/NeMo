@@ -84,7 +84,6 @@ class GPTPromptTuningDataset(Dataset):
     def __getitem__(self, idx):
         prompt_tags = self.prompt_tags[idx]
         input_ids = self.input_ids[idx] 
-        #labels = input_ids[1:].copy() + [self.tokenizer.eos_id]
 
         return prompt_tags, input_ids
 
@@ -119,10 +118,6 @@ class GPTPromptTuningDataset(Dataset):
         tokens = torch.tensor(input_ids, dtype=torch.long)
         loss_mask = torch.stack(loss_masks)
 
-        # Position ids for prompts
-        prompt_position_ids = torch.arange(self.num_prompt_tokens, dtype=torch.long)
-        prompt_position_ids = prompt_position_ids.unsqueeze(0).expand((batch_size, self.num_prompt_tokens)).clone()
-
         # Position ids for text
         text_position_ids = torch.arange(start=self.num_prompt_tokens, 
                                          end=batch_max_with_prompt, 
@@ -156,5 +151,5 @@ class GPTPromptTuningDataset(Dataset):
         # Last label should be eos, even for longest sequence in batch
         labels = torch.cat((labels, final_label), dim=1)
 
-        return tokens, labels, prompt_tags, attention_mask, loss_mask, prompt_position_ids, text_position_ids
+        return tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids
 

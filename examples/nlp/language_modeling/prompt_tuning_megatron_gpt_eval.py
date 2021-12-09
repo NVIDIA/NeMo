@@ -48,7 +48,7 @@ assert torch.cuda.is_available()
 # +
 precision = 16
 tensor_model_parallel_size = 1
-model_file = "prompt_tuned_megatron_gpt.nemo"
+model_file = "prompt_tuned_megatron_gpt3.nemo"
 
 # cast precision to int if 32 or 16
 if precision in ["32", "16"]:
@@ -82,7 +82,6 @@ cfg.model.existing_prompt_tags = ["NER-Yes-No", "NER-Complete"]
 cfg.model.optim.sched.warmup_steps = 50
 cfg.model.optim.sched.constant_steps = 100
 cfg.trainer.max_steps = 200
-cfg.restore_from_path = 'prompt_tuning_megatron_gpt2.nemo'
     
 model = MegatronGPTModel.restore_from(model_file, cfg.model, trainer=trainer)
 
@@ -91,8 +90,56 @@ model.freeze()
 # +
 request = [
             {
+                "prompt_tag": "NER-Yes-No",
+                "prompt": 'are there entities in: "Fine needle aspiration cytology of primary thyroid lymphoma: a report of ten cases" answer: "',
+                "tokens_to_generate": 4,
+                "stop_after_sentence": False,
+            },
+            {
+                "prompt_tag": "NER-Yes-No",
+                "prompt": 'are there entities in: "All the patients received combination chemotherapy (CHOP regime) with local radiotherapy.  Five patients are alive and are free of disease till date, whereas, two patients died of the disease." answer: "',
+                "tokens_to_generate": 4,
+                "stop_after_sentence": False,
+            },
+            {
+                "prompt_tag": "NER-Complete",
+                "prompt": 'find entities: "All the patients received combination chemotherapy (CHOP regime) with local radiotherapy.  Five patients are alive and are free of disease till date, whereas, two patients died of the disease." answer: "',
+                "tokens_to_generate": 64,
+                "stop_after_sentence": True,
+            },
+            {
+                "prompt_tag": "NER-Yes-No",
+                "prompt": 'are there entities in: "Over the last two decades there has been rapid progress in synthetic organic chemistry associated with the search for new organic compound derivatives with desirable properties.  Such compounds are widely used in the pharmaceutical industry.  Among the several FDA approved pharmaceutical drugs, the pyrazole core is found in rimonabant (1), and celecoxib (2) (Figure\u00a0 1) [1]." answer: "',
+                "tokens_to_generate": 4,
+                "stop_after_sentence": True,
+            },
+            {
+                "prompt_tag": "NER-Complete",
+                "prompt": 'find entities: "Over the last two decades there has been rapid progress in synthetic organic chemistry associated with the search for new organic compound derivatives with desirable properties.  Such compounds are widely used in the pharmaceutical industry.  Among the several FDA approved pharmaceutical drugs, the pyrazole core is found in rimonabant (1), and celecoxib (2) (Figure\u00a0 1) [1]." answer: "',
+                "tokens_to_generate": 64,
+                "stop_after_sentence": True,
+            },
+            {
+                "prompt_tag": "NER-Yes-No",
+                "prompt": 'are there entities in: "Downregulation of survivin expression and concomitant induction of apoptosis by celecoxib and its non-cyclooxygenase-2-inhibitory analog, dimethyl-celecoxib (DMC), in tumor cells in vitro and in vivo"',
+                "tokens_to_generate": 4,
+                "stop_after_sentence": True,
+            },
+            {
                 "prompt_tag": "NER-Complete",
                 "prompt": 'find entities: "Downregulation of survivin expression and concomitant induction of apoptosis by celecoxib and its non-cyclooxygenase-2-inhibitory analog, dimethyl-celecoxib (DMC), in tumor cells in vitro and in vivo" answer: "',
+                "tokens_to_generate": 64,
+                "stop_after_sentence": True,
+            },
+            {
+                "prompt_tag": "NER-Yes-No",
+                "prompt": 'are there entities in: "Each progeny DEN-4 sequence was compared with the parent DEN-4 DNA sequence (GenBank accession number: AF375822).  The results in Table 2 revealed that there were 18 nucleotide mutations resulting in 13 amino acid changes in DEN-4 propagated in Vero cells using serum-containing medium, and 11 nucleotide mutations resulting in 6 amino acid changes in DEN-4 propagated in Vero cells grown in serum-free medium." answer: "',
+                "tokens_to_generate": 4,
+                "stop_after_sentence": True,
+            },
+            {
+                "prompt_tag": "NER-Complete",
+                "prompt": 'find entities: "Each progeny DEN-4 sequence was compared with the parent DEN-4 DNA sequence (GenBank accession number: AF375822).  The results in Table 2 revealed that there were 18 nucleotide mutations resulting in 13 amino acid changes in DEN-4 propagated in Vero cells using serum-containing medium, and 11 nucleotide mutations resulting in 6 amino acid changes in DEN-4 propagated in Vero cells grown in serum-free medium." answer: "',
                 "tokens_to_generate": 64,
                 "stop_after_sentence": True,
             }
@@ -101,84 +148,8 @@ request = [
 dataset = GPTRequestDataset(request, model.tokenizer)
 request_dl = DataLoader(dataset)
 response = trainer.predict(model, request_dl)
-
-print(response)
-
-
 # -
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument("--model_file", type=str, default="", required=True, help="Pass path to model's .nemo file")
-    parser.add_argument(
-        "--path_to_file", type=str, default="", required=False, help="Path to file with prompts (a text to complete)"
-    )
-    parser.add_argument(
-        "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
-    )
-    parser.add_argument(
-        "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
-    )
-    parser.add_argument(
-        "--stop_after_sentence",
-        type=bool,
-        default="True",
-        required=False,
-        help="True/False: whether to stop after full sentence has been generated.",
-    )
-    parser.add_argument(
-        "--tensor_model_parallel_size", type=int, default=1, required=False,
-    )
-    parser.add_argument("--precision", default=32, help="PyTorch Lightning Trainer precision flag")
-
-    args = parser.parse_args()
-
-    # cast precision to int if 32 or 16
-    if args.precision in ["32", "16"]:
-        args.precision = int(float(args.precision))
-
-    # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
-
-    app_state = AppState()
-    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
-        app_state.model_parallel_size = args.tensor_model_parallel_size
-        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
-
-    model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
-
-    model.freeze()
-
-    # defining type of request
-    if args.path_to_file != "":
-        data = []
-        prompts = open(args.path_to_file, 'r')
-
-        for prompt in prompts.readlines():
-            request = {
-                "prompt": prompt.split('\n')[0],
-                "tokens_to_generate": args.tokens_to_generate,
-                "stop_after_sentence": args.stop_after_sentence,
-            }
-            data.append(request)
-
-        dataset = GPTRequestDataset(data, model.tokenizer)
-        request_dl = DataLoader(dataset)
-        response = trainer.predict(model, request_dl)
-    else:
-        request = [
-            {
-                "prompt": args.prompt,
-                "tokens_to_generate": args.tokens_to_generate,
-                "stop_after_sentence": args.stop_after_sentence,
-            }
-        ]
-        dataset = GPTRequestDataset(request, model.tokenizer)
-        request_dl = DataLoader(dataset)
-        response = trainer.predict(model, request_dl)
-
-    print("***************************")
-    print(response)
-    print("***************************")
-
-
+for res in response[0]:
+    print(res['completion']['text'])
+    print('\n')
