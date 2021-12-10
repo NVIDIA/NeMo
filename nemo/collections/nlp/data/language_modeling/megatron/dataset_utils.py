@@ -474,6 +474,7 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             binary_head,
+            max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
         )
@@ -716,6 +717,7 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
+    torch.distributed.barrier()
     # This should be a barrier but nccl barrier assumes
     # device_index=rank which is not the case for model
     # parallel case
