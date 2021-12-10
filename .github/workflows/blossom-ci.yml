@@ -91,15 +91,14 @@ jobs:
           CI_SERVER: ${{ secrets.CI_SERVER }}
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               
-  Post-processing:
-    name: Post processing
+  Upload-Log:
+    name: Upload log
     runs-on: blossom
     if : github.event_name == 'workflow_dispatch'
     steps:
-      - name: Start post processing
+      - name: Jenkins log for pull request ${{ fromJson(github.event.inputs.args).pr }} (click here)
         run: blossom-ci
         env:
           OPERATION: 'POST-PROCESSING'
           CI_SERVER: ${{ secrets.CI_SERVER }}
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
