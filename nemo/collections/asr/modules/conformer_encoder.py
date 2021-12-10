@@ -169,7 +169,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_v = None
 
         self.pos_emb_max_len = pos_emb_max_len
-        cur_audio_len = 80
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
