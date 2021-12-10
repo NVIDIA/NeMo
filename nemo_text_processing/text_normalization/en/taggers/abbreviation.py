@@ -14,13 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_LOWER,
-    NEMO_UPPER,
-    TO_LOWER,
-    GraphFst,
-    insert_space,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_UPPER, GraphFst, insert_space
 
 try:
     import pynini
@@ -45,27 +39,21 @@ class AbbreviationFst(GraphFst):
     def __init__(self, whitelist: 'pynini.FstLike', deterministic: bool = True):
         super().__init__(name="abbreviation", kind="classify", deterministic=deterministic)
 
-        main_graph = NEMO_UPPER + pynini.closure(insert_space + NEMO_UPPER, 1)
-        misc_graph = pynutil.add_weight(
-            TO_LOWER + pynini.closure(insert_space + pynini.union(TO_LOWER | NEMO_LOWER)), 110
-        )
-        misc_graph |= pynutil.add_weight(
-            pynini.closure(NEMO_UPPER, 2) + pynini.closure(insert_space + NEMO_LOWER, 1), 110
-        )
-        misc_graph |= (
-            NEMO_UPPER + pynutil.delete(".") + pynini.closure(insert_space + NEMO_UPPER + pynutil.delete("."))
-        )
-        misc_graph |= pynutil.add_weight(
-            TO_LOWER + pynutil.delete(".") + pynini.closure(insert_space + TO_LOWER + pynutil.delete(".")), 110
-        )
-
-        # set weight of the misc graph to the value higher then word
-        graph = pynutil.add_weight(main_graph.optimize(), 10) | pynutil.add_weight(misc_graph.optimize(), 101)
+        dot = pynini.accep(".")
+        # A.B.C. -> A. B. C.
+        graph = NEMO_UPPER + dot + pynini.closure(insert_space + NEMO_UPPER + dot, 1)
+        # A.B.C. -> A.B.C.
+        graph |= NEMO_UPPER + dot + pynini.closure(NEMO_UPPER + dot, 1)
+        # ABC -> ABC
+        graph |= NEMO_UPPER + pynini.closure(NEMO_UPPER, 1)
+        # ABC -> A B C
+        graph |= NEMO_UPPER + pynini.closure(insert_space + NEMO_UPPER, 1)
 
         # exclude words that are included in the whitelist
         graph = pynini.compose(
             pynini.difference(pynini.project(graph, "input"), pynini.project(whitelist.graph, "input")), graph
         )
+
         graph = pynutil.insert("value: \"") + graph.optimize() + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
