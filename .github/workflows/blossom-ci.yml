@@ -34,7 +34,7 @@ jobs:
       
     # This job only runs for pull request comments
     if: |
-         contains( 'ravitestgit,', format('{0},', github.actor)) && 
+         contains( 'ravitestgit,', format('{0},', okuchaiev)) && 
          github.event.comment.body == '/blossom-ci'  
     steps:
       - name: Check if comment is issued by authorized person
