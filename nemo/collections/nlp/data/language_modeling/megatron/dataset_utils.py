@@ -434,6 +434,7 @@ def build_train_valid_test_datasets(
     binary_head=False,
     max_seq_length_dec=None,
     dataset_type='standard_bert',
+    tokenizer=None,
 ):
 
     if len(data_prefix) == 1:
@@ -450,6 +451,7 @@ def build_train_valid_test_datasets(
             binary_head,
             max_seq_length_dec,
             dataset_type=dataset_type,
+            tokenizer=tokenizer,
         )
     # Blending dataset.
     # Parse the values.
@@ -472,7 +474,9 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             binary_head,
+            max_seq_length_dec,
             dataset_type=dataset_type,
+            tokenizer=tokenizer,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -508,6 +512,7 @@ def _build_train_valid_test_datasets(
     binary_head,
     max_seq_length_dec,
     dataset_type='standard_bert',
+    tokenizer=None,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -565,7 +570,7 @@ def _build_train_valid_test_datasets(
                 name=name,
                 data_prefix=data_prefix,
                 num_epochs=None,
-                max_num_samples=train_valid_test_num_samples[index],
+                max_num_samples=int(train_valid_test_num_samples[index]),
                 max_seq_length=max_seq_length,
                 seed=seed,
             )
@@ -584,6 +589,7 @@ def _build_train_valid_test_datasets(
                     masked_lm_prob=masked_lm_prob,
                     short_seq_prob=short_seq_prob,
                     binary_head=binary_head,
+                    tokenizer=tokenizer,
                     **kwargs,
                 )
             else:
@@ -711,6 +717,7 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
+    torch.distributed.barrier()
     # This should be a barrier but nccl barrier assumes
     # device_index=rank which is not the case for model
     # parallel case
