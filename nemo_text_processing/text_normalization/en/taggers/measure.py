@@ -62,7 +62,6 @@ class MeasureFst(GraphFst):
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit)
-        graph_unit |= pynini.compose(pynini.closure(NEMO_ALPHA) + pynutil.delete("."), graph_unit)
 
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)
