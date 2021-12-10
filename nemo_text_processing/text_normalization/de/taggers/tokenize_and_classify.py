@@ -69,10 +69,6 @@ class ClassifyFst(GraphFst):
         whitelist: str = None,
     ):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
-        if deterministic:
-            raise ValueError(
-                'German TN only supports non-deterministic cases and produces multiple normalization options.'
-            )
         far_file = None
         if cache_dir is not None and cache_dir != "None":
             os.makedirs(cache_dir, exist_ok=True)

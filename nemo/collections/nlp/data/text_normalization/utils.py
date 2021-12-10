@@ -215,12 +215,27 @@ def post_process_punct(input: str, normalized_text: str):
     punct_marks = string.punctuation
     try:
         for punct in punct_marks:
+            equal = True
             if input.count(punct) != normalized_text.count(punct):
-                continue
+                equal = False
             idx_in, idx_out = 0, 0
             while punct in input[idx_in:]:
-                idx_in = input.index(punct, idx_in)
                 idx_out = normalized_text.index(punct, idx_out)
+                idx_in = input.index(punct, idx_in)
+
+                def _is_valid(idx_out, idx_in, normalized_text, input):
+                    """Check if previous or next word match (for cases when punctuation marks are part of
+                    semiotic token, i.e. some punctuation can be missing in the normalized text)"""
+                    return (idx_out > 0 and idx_in > 0 and normalized_text[idx_out - 1] == input[idx_in - 1]) or (
+                        idx_out < len(normalized_text) - 1
+                        and idx_in < len(input) - 1
+                        and normalized_text[idx_out + 1] == input[idx_in + 1]
+                    )
+
+                if not equal and not _is_valid(idx_out, idx_in, normalized_text, input):
+                    idx_in += 1
+                    continue
+
                 if idx_in > 0 and idx_out > 0:
                     if normalized_text[idx_out - 1] == " " and input[idx_in - 1] != " ":
                         normalized_text[idx_out - 1] = ""
@@ -236,6 +251,7 @@ def post_process_punct(input: str, normalized_text: str):
                 idx_out += 1
                 idx_in += 1
     except:
-        logging.warning(f"Skipping post-processing of {''.join(normalized_text)}")
+        logging.debug(f"Skipping post-processing of {''.join(normalized_text)} for '{punct}'")
+
     normalized_text = "".join(normalized_text)
     return re.sub(r' +', ' ', normalized_text)
