@@ -62,11 +62,8 @@ class FractionFst(GraphFst):
             @ change_numerator_two
             + pynutil.delete("\"")
         )
-        conjunction = pynutil.insert("und ")
-        if not deterministic:
-            conjunction = pynini.closure(conjunction, 0, 1)
 
-        integer = pynini.closure(integer + insert_space + conjunction, 0, 1)
+        integer += insert_space + pynini.closure(pynutil.insert("und ", weight=0.001), 0, 1)
 
         denominator_one_half = pynini.cdrewrite(pynini.cross("ein halbe", "ein halb"), "[BOS]", "[EOS]", NEMO_SIGMA)
 
