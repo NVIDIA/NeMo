@@ -121,7 +121,7 @@ pipeline {
         }
         stage('German ITN and non-deterministic TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-9'
           }
         }
         stage('Spanish ITN') {
