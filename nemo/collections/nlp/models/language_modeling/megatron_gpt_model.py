@@ -23,6 +23,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.optim.optimizer import Optimizer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -287,6 +288,60 @@ class MegatronGPTModel(NLPModel):
 
         else:
             super().optimizer_zero_grad(*args, **kwargs)
+
+    def allreduce_gradients(self):
+        """Reduce gradients across data parallel ranks.
+           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        """
+        # Bucketize and all-reduce
+        buckets = {}
+        # Pack the buckets.
+        for param in self.parameters():
+            if param.requires_grad and param.grad is not None:
+                tp = param.data.type()
+                if tp not in buckets:
+                    buckets[tp] = []
+                buckets[tp].append(param)
+                # param.main_grad = param.grad
+
+        # For each bucket, all-reduce and copy all-reduced grads.
+        for tp in buckets:
+            bucket = buckets[tp]
+            grads = [param.grad.data for param in bucket]
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            coalesced /= parallel_state.get_data_parallel_world_size()
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
+
+    def on_before_optimizer_step(self, optimizer: Optimizer, optimizer_idx: int) -> None:
+        # all-reduce gradients
+        self.allreduce_gradients()
+
+        # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
+        # # All-reduce word_embeddings' grad across first and last stages to ensure
+        # # that word_embeddings parameters stay in sync.
+        # # This should only run for models that support pipelined model parallelism
+        # # (BERT and GPT-2).
+        # timers('backward-embedding-all-reduce').start()
+        # if mpu.is_rank_in_embedding_group(ignore_virtual=True) and \
+        #         mpu.get_pipeline_model_parallel_world_size() > 1:
+        #     if mpu.is_pipeline_first_stage(ignore_virtual=True):
+        #         unwrapped_model = model[0]
+        #     elif mpu.is_pipeline_last_stage(ignore_virtual=True):
+        #         unwrapped_model = model[-1]
+        #     else:  # We do not support the interleaved schedule for T5 yet.
+        #         unwrapped_model = model[0]
+        #     unwrapped_model = unwrap_model(
+        #         unwrapped_model, (torchDDP, LocalDDP, Float16Module))
+
+        #     if unwrapped_model.share_word_embeddings:
+        #         word_embeddings_weight = unwrapped_model.word_embeddings_weight()
+        #         if args.DDP_impl == 'local':
+        #             grad = word_embeddings_weight.main_grad
+        #         else:
+        #             grad = word_embeddings_weight.grad
+        #         torch.distributed.all_reduce(grad, group=mpu.get_embedding_group())
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
