@@ -216,14 +216,12 @@ class ConvASREncoder(NeuralModule, Exportable):
             global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
             # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(
-                global_max_len, op=torch.distributed.ReduceOp.MAX
-            )
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
 
             seq_length = global_max_len.int().item()
 
         if seq_length > self._max_seq_length:
-            self._max_seq_length = seq_length
+            self._max_seq_length = seq_length * 2
 
             # Update all submodules
             for name, m in self.named_modules():
