@@ -251,6 +251,7 @@ def post_process_punct(input: str, normalized_text: str):
                 idx_out += 1
                 idx_in += 1
     except:
-        logging.warning(f"Skipping post-processing of {''.join(normalized_text)}")
+        logging.debug(f"Skipping post-processing of {''.join(normalized_text)} for '{punct}'")
+
     normalized_text = "".join(normalized_text)
     return re.sub(r' +', ' ', normalized_text)

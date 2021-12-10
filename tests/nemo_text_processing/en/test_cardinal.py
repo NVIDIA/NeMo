@@ -58,5 +58,7 @@ class TestCardinal:
         assert pred == expected
 
         if self.normalizer_with_audio_en:
-            pred_non_deterministic = self.normalizer_with_audio_en.normalize(test_input, n_tagged=1000)
+            pred_non_deterministic = self.normalizer_with_audio_en.normalize(
+                test_input, n_tagged=1000, punct_post_process=False, punct_pre_process=False
+            )
             assert expected in pred_non_deterministic

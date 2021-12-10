@@ -44,5 +44,7 @@ class TestPunctuation:
         assert pred == expected
 
         if self.normalizer_with_audio_en:
-            pred_non_deterministic = self.normalizer_with_audio_en.normalize(test_input, n_tagged=2000,)
+            pred_non_deterministic = self.normalizer_with_audio_en.normalize(
+                test_input, n_tagged=2000, punct_post_process=True, punct_pre_process=False
+            )
             assert expected in pred_non_deterministic

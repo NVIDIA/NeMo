@@ -77,30 +77,24 @@ class CardinalFst(GraphFst):
                 + single_digits_graph,
                 1,
             )
-            self.graph = (
-                self.graph
-                | self.single_digits_graph
-                | get_hundreds_graph()
-                | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
-            )
+            self.graph = self.graph | get_hundreds_graph() | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
 
-            self.range_graph = (
-                pynini.closure(pynutil.insert("from "), 0, 1)
-                + self.graph
-                + (pynini.cross("-", " to ") | pynini.cross("-", " "))
-                + self.graph
-            )
+            self.range_graph = pynutil.insert("from ") + self.graph + pynini.cross("-", " to ") + self.graph
 
             self.range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
             self.range_graph = self.range_graph.optimize()
 
+            self.graph |= self.single_digits_graph
+
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-        final_graph = self.graph | self.get_serial_graph() | pynutil.add_weight(long_numbers, -0.001)
+        if deterministic:
+            long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
+            final_graph = self.graph | self.get_serial_graph() | pynutil.add_weight(long_numbers, -0.001)
 
-        if not deterministic:
-            final_graph |= self.range_graph
+        else:
+            # to remove options like "1300" -> "thirteen zero zero"
+            final_graph = self.graph | self.get_serial_graph() | self.range_graph
             remove_leading_zeros = pynini.closure(pynutil.delete("0"), 1) + pynini.compose(
                 pynini.closure(pynini.difference(NEMO_DIGIT, "0"), 1), self.graph
             )
@@ -123,13 +117,11 @@ class CardinalFst(GraphFst):
 
         if not self.deterministic:
             num_graph |= self.graph
-            letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
-            alpha |= letter_pronunciation
 
         delimiter = pynini.accep("-") | pynini.accep("/") | pynutil.insert(" ")
 
         letter_num = pynini.closure(alpha, 1) + delimiter + num_graph
-        num_letter = num_graph + delimiter + pynini.closure(alpha)
+        num_letter = pynini.closure(num_graph + delimiter, 1) + pynini.closure(alpha, 1)
         next_alpha_or_num = pynini.closure(
             (delimiter + pynini.closure(alpha, 1) + pynini.closure(delimiter + num_graph, 1))
             | (pynutil.insert(" ") + alpha + delimiter + num_graph)
