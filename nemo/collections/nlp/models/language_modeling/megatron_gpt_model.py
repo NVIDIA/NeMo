@@ -365,7 +365,7 @@ class MegatronGPTModel(NLPModel):
         request = request
         for tokens in request:
             logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-            for i in range(tokens_to_generate):
+            for i in range(tokens_to_generate + 1):
                 attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                     data=tokens,
                     eod_token=self.tokenizer.eos_id,
@@ -378,10 +378,10 @@ class MegatronGPTModel(NLPModel):
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
                 reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-                tokens_ids = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
 
                 # add to results as (text, tokens, log_probs, offsets)
-            for token, prob in zip(tokens_ids, log_probs.tolist()):
+            for token, prob in zip(tokens, log_probs.tolist()):
                 results.append(
                     (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0])
                 )
