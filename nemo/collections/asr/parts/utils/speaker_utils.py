@@ -14,9 +14,7 @@
 import json
 import math
 import os
-from collections import Counter
 from copy import deepcopy
-from typing import Dict, List
 
 import numpy as np
 import soundfile as sf
@@ -47,7 +45,7 @@ def get_uniqname_from_filepath(filepath):
 def audio_rttm_map(manifest):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
-    cluster and unify time stamps 
+    cluster and unify time stamps
     input: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
 
     returns:
@@ -85,100 +83,42 @@ def audio_rttm_map(manifest):
 
 
 @experimental
-def get_multiscale_time_stamps(multi_scale_emb_ts_spkrs, multi_scale_dict):
+def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
-    The embeddings and timestamps are indexed by scale. This function rearranges
-    the extracted speaker embedding and timestamps by unique session ID to make
-    the further processing more convenient.
+    The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
+    indexed by scale index. This function rearranges the extracted speaker embedding and
+    timestamps by unique ID to make the further processing more convenient.
 
     Args:
-        multi_scale_emb_ts_spkrs (dict) :
-            The dictionary of embeddings and timestamps for each scale.
-        multi_scale_dict (dict) :
-            The dictionary of scale information: window, shift and multiscale weights.
+        multiscale_embeddings_and_timestamps (dict):
+            Dictionary of embeddings and timestamps for each scale.
+        multiscale_args_dict (dict):
+            Dictionary of scale information: window, shift and multiscale weights.
 
     Returns:
-        embeddings (dict) :
-            A dictionary containing embeddings of the base scale.
-        time_stamps (dict) :
-            A dictionary containing timestamps of the base scale.
-        multi_scale_data (dict)
+        embs_and_timestamps (dict)
             A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
-
     """
-    global_mapping_dict = multi_scale_segment_mapper(multi_scale_emb_ts_spkrs)
-    multi_scale_data = {
-        uniq_id: {'multiscale_weights': [], 'scale_dict': {}} for uniq_id in multi_scale_emb_ts_spkrs[0][0].keys()
+    embs_and_timestamps = {
+        uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
+        for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
     }
-    for scale_idx in sorted(multi_scale_dict['scale_dict'].keys()):
-        embeddings, time_stamps = multi_scale_emb_ts_spkrs[scale_idx]
+    for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
+        embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
         for uniq_id in embeddings.keys():
-            multi_scale_data[uniq_id]['multiscale_weights'] = multi_scale_dict['multiscale_weights']
+            embs_and_timestamps[uniq_id]['multiscale_weights'] = multiscale_args_dict['multiscale_weights']
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
-            multi_scale_data[uniq_id]['scale_dict'][scale_idx] = {
+            embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
                 'embeddings': embeddings[uniq_id],
                 'time_stamps': time_stamps[uniq_id],
-                'mapping': global_mapping_dict[uniq_id][scale_idx],
             }
 
-    # Return the base scale embeddings and timestamps.
-    base_scale_idx = max(multi_scale_dict['scale_dict'].keys())
-    base_scale_embeddings, base_scale_time_stamps = multi_scale_emb_ts_spkrs[base_scale_idx]
-    return base_scale_embeddings, base_scale_time_stamps, multi_scale_data
-
-
-def multi_scale_segment_mapper(multi_scale_emb_ts_spkrs):
-    """
-    Calculates the mapping between the base scale and other scales. A segment from a longer scale is
-    repeatedly mapped to a segment from a shorter scale or the base scale.
-
-    Args:
-        multi_scale_emb_ts_spkrs (dict) :
-            A dictionary of embeddings and timestamps for each scale.
-
-    Returns:
-        global_scale_mapping_dict (dict) :
-            A dictionary containing sub-dictionaries indexed by uniq ID.
-            Each sub-dictionary contains the indicies (argmin_mat) of the nearest segments in the longer scales from
-            the base scale segments. These argmin_mat array is calculated for each scale.
-    """
-    segment_anchor_dict = {}
-    for scale_idx, (_, time_stamps_dict) in multi_scale_emb_ts_spkrs.items():
-        for uniq_id, time_stamp_list in time_stamps_dict.items():
-            if uniq_id not in segment_anchor_dict:
-                segment_anchor_dict[uniq_id] = {}
-            time_stamps_float = np.array([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
-            segment_anchor_dict[uniq_id][scale_idx] = np.mean(time_stamps_float, axis=1)
-
-    scale_list = sorted(list(multi_scale_emb_ts_spkrs.keys()))
-    base_scale_idx = max(scale_list)
-    (_, base_time_stamps_dict) = multi_scale_emb_ts_spkrs[base_scale_idx]
-    global_scale_mapping_dict = {}
-
-    for uniq_id, _ in base_time_stamps_dict.items():
-        base_scale_anchor = segment_anchor_dict[uniq_id][base_scale_idx]
-        session_rate_mapping_dict = {}
-        for scale_idx in scale_list:
-            curr_scale_anchor = segment_anchor_dict[uniq_id][scale_idx]
-            curr_mat = np.tile(curr_scale_anchor, (base_scale_anchor.shape[0], 1))
-            base_mat = np.tile(base_scale_anchor, (curr_scale_anchor.shape[0], 1)).T
-            argmin_mat = np.argmin(np.abs(curr_mat - base_mat), axis=1)
-            count_dict = dict(Counter(argmin_mat))
-            repeat_list = []
-            for k in range(curr_scale_anchor.shape[0]):
-                if k in count_dict:
-                    repeat_list.append(count_dict[k])
-                else:
-                    repeat_list.append(0)
-            assert curr_scale_anchor.shape[0] == len(repeat_list)
-            session_rate_mapping_dict[scale_idx] = argmin_mat
-        global_scale_mapping_dict[uniq_id] = session_rate_mapping_dict
-    return global_scale_mapping_dict
+    return embs_and_timestamps
 
 
 def get_contiguous_stamps(stamps):
     """
-    Return contiguous time stamps 
+    Return contiguous time stamps
     """
     lines = deepcopy(stamps)
     contiguous_stamps = []
@@ -277,15 +217,17 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def perform_clustering(
-    embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
-):
+# embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
+
+
+def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
 
     Args:
-        embeddings (dict): Embeddings with key as unique_id
-        time_stamps (dict): time stamps list for each audio recording
+        embs_and_timestamps (dict): This dictionary contains the following items indexed by unique IDs.
+            'embeddings' : Embeddings with key as unique_id
+            'time_stamps' : Time stamps list for each audio recording
         AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
         out_rttm_dir (str): Path to write predicted rttms
         clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
@@ -306,7 +248,7 @@ def perform_clustering(
         logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_key, value in tqdm(AUDIO_RTTM_MAP.items()):
+    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
         if clustering_params.oracle_num_speakers:
             num_speakers = value.get('num_speakers', None)
             if num_speakers is None:
@@ -314,27 +256,18 @@ def perform_clustering(
         else:
             num_speakers = None
 
-        emb = embeddings[uniq_key]
-        emb = np.asarray(emb)
-
-        if multi_scale_data:
-            uniq_multi_scale_data = multi_scale_data[uniq_key]
-        else:
-            uniq_multi_scale_data = None
-
         cluster_labels = COSclustering(
-            uniq_key,
-            emb,
+            uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
             oracle_num_speakers=num_speakers,
             max_num_speaker=max_num_speakers,
             enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
             sparse_search_volume=clustering_params.sparse_search_volume,
-            uniq_multi_scale_data=uniq_multi_scale_data,
             cuda=cuda,
         )
 
-        lines = time_stamps[uniq_key]
+        base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
+        lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
         assert len(cluster_labels) == len(lines)
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
@@ -343,15 +276,15 @@ def perform_clustering(
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
         if out_rttm_dir:
-            labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
-        hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_key)
-        all_hypothesis.append([uniq_key, hypothesis])
+            labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+        hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
+        all_hypothesis.append([uniq_id, hypothesis])
 
         rttm_file = value.get('rttm_filepath', None)
         if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
-            reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_key)
-            all_reference.append([uniq_key, reference])
+            reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
+            all_reference.append([uniq_id, reference])
         else:
             no_references = True
             all_reference = []

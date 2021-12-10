@@ -56,7 +56,7 @@ def main(wav_scp, text_scp=None, rttm_scp=None, uem_scp=None, ctm_scp=None, mani
         text_scp = read_file(text_scp)
         assert len(text_scp) == len_wavs
     else:
-        text_scp = len(wav_scp)*[None]
+        text_scp = len(wav_scp) * [None]
 
     if rttm_scp is not None:
         rttm_scp = read_file(rttm_scp)
@@ -69,7 +69,7 @@ def main(wav_scp, text_scp=None, rttm_scp=None, uem_scp=None, ctm_scp=None, mani
         assert len(uem_scp) == len_wavs
     else:
         uem_scp = len(wav_scp) * [None]
-    
+
     if ctm_scp is not None:
         ctm_scp = read_file(ctm_scp)
     else:
@@ -87,12 +87,12 @@ def main(wav_scp, text_scp=None, rttm_scp=None, uem_scp=None, ctm_scp=None, mani
 
         if uem is not None:
             uem = uem.strip()
-        
+
         if text is not None:
             text = open(text.strip()).readlines()[0].strip()
         else:
             text = "-"
-        
+
         if ctm is not None:
             ctm = ctm.strip()
 
@@ -127,5 +127,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.paths2audio_files, args.paths2txt_files, args.paths2rttm_files, args.paths2uem_files, args.paths2ctm_files, args.manifest_filepath)
-
+    main(
+        args.paths2audio_files,
+        args.paths2txt_files,
+        args.paths2rttm_files,
+        args.paths2uem_files,
+        args.paths2ctm_files,
+        args.manifest_filepath,
+    )

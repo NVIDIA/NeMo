@@ -33,7 +33,7 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    get_multiscale_time_stamps,
+    get_embs_and_timestamps,
     get_uniqname_from_filepath,
     perform_clustering,
     score_labels,
@@ -99,6 +99,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 self._init_vad_model()
 
         # init speaker model
+        self.multiscale_embeddings_and_timestamps = {}
         self._init_speaker_model()
         self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
         self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
@@ -116,7 +117,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     def _init_vad_model(self):
         """
-        Initialize vad model with model name or path passed through config
+        Initialize VAD model with model name or path passed through config
         """
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
@@ -154,6 +155,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 model_path = "ecapa_tdnn"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
+
+        self.multiscale_args_dict = self.parse_scale_configs(
+            self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
+        )
 
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
@@ -272,6 +279,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._speaker_params.shift_length_in_sec = shift
 
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
+        logging.info(
+            f"Subsegmentation for embedding extraction: {scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
+        )
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             subsegments_manifest_file=self.subsegments_manifest_path,
@@ -318,7 +328,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
             )
 
-    def _extract_embeddings(self, manifest_file, scale_tag=''):
+    def _extract_embeddings(self, manifest_file):
         """
         This method extracts speaker embeddings from segments passed through manifest_file
         Optionally you may save the intermediate speaker embeddings for debugging or any use. 
@@ -360,8 +370,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 os.makedirs(embedding_dir, exist_ok=True)
 
             prefix = get_uniqname_from_filepath(manifest_file)
-
             name = os.path.join(embedding_dir, prefix)
+            scale_tag = manifest_file.split('subsegments').split('.json')[0]
             self._embeddings_file = name + f'_embeddings{scale_tag}.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
@@ -374,54 +384,71 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 fp.write(json.dumps(entry) + '\n')
 
     @experimental
-    def parse_scale_configs(self, **params):
+    def parse_scale_configs(self, window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
         """
-        Checks whether multiscale parameters are provided correctly.  window_lengths_in_sec, shift_lengfhs_in_sec and
+        Checks whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
         multiscale_weights should be all provided in omegaconf.listconfig.ListConfig type. In addition, the scales
         should be provided in descending order, from the longest scale to the base scale (the shortest).
 
         Example:
             Single-scale setting:
-                parameters.window_length_in_sec=1.5
-                parameters.shift_length_in_sec=0.75
+                parameters.window_length_in_sec=[1.5]
+                parameters.shift_length_in_sec=[0.75]
                 parameters.multiscale_weights=null
 
             Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
-                parameters.window_length_in_sec='[1.5, 1.0, 0.5]'
-                parameters.shift_length_in_sec='[0.75, 0.5, 0.25]'
-                parameters.multiscale_weights='[0.33, 0.33, 0.33]'
+                parameters.window_length_in_sec=[1.5,1.0,0.5]
+                parameters.shift_length_in_sec=[0.75,0.5,0.25]
+                parameters.multiscale_weights=[0.33,0.33,0.33]
         """
-        scale_configs = [
-            type(params['window_length_in_sec']),
-            type(params['shift_length_in_sec']),
-            type(params['multiscale_weights']),
+        checkFloatConfig = [type(var) == float for var in (window_lengths_in_sec, shift_lengths_in_sec)]
+        checkListConfig = [
+            type(var) == _LISTCONFIG_TYPE for var in (window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights)
         ]
-        if all(_type == _LISTCONFIG_TYPE for _type in scale_configs):
+        if all(checkListConfig) or all(checkFloatConfig):
 
-            window_lengths = list(params['window_length_in_sec'])
-            shift_lengths = list(params['shift_length_in_sec'])
-            multiscale_weights = list(params['multiscale_weights'])
+            # If bare floating numbers are provided, convert them to list format.
+            if all(checkFloatConfig):
+                window_lengths, shift_lengths, multiscale_weights = (
+                    [window_lengths_in_sec],
+                    [shift_lengths_in_sec],
+                    [1.0],
+                )
+            else:
+                window_lengths, shift_lengths, multiscale_weights = (
+                    window_lengths_in_sec,
+                    shift_lengths_in_sec,
+                    multiscale_weights,
+                )
 
             length_check = (
                 len(set([len(window_lengths), len(shift_lengths), len(multiscale_weights)])) == 1
-                and len(multiscale_weights) > 1
+                and len(multiscale_weights) > 0
             )
             scale_order_check = (
                 window_lengths == sorted(window_lengths)[::-1] and shift_lengths == sorted(shift_lengths)[::-1]
             )
-            shift_length = all([w > s for w, s in zip(window_lengths, shift_lengths)]) == True
 
-            if all([length_check, scale_order_check, shift_length]) == True:
-                multi_scale_dict = {}
-                multi_scale_dict['scale_dict'] = {
-                    k: (w, s) for k, (w, s) in enumerate(zip(window_lengths, shift_lengths))
-                }
-                multi_scale_dict['multiscale_weights'] = multiscale_weights
-                return multi_scale_dict
+            # Check whether window lengths are longer than shift lengths
+            if len(window_lengths) > 1:
+                shift_length_check = all([w > s for w, s in zip(window_lengths, shift_lengths)]) == True
+            else:
+                shift_length_check = window_lengths[0] > shift_lengths[0]
+
+            multiscale_args_dict = {}
+            if all([length_check, scale_order_check, shift_length_check]) == True:
+                if len(window_lengths) > 1:
+                    multiscale_args_dict['scale_dict'] = {
+                        k: (w, s) for k, (w, s) in enumerate(zip(window_lengths, shift_lengths))
+                    }
+                else:
+                    multiscale_args_dict['scale_dict'] = {0: (window_lengths[0], shift_lengths[0])}
+                multiscale_args_dict['multiscale_weights'] = multiscale_weights
+                return multiscale_args_dict
             else:
                 raise ValueError('Multiscale parameters are not properly setup.')
 
-        elif any(_type == _LISTCONFIG_TYPE for _type in scale_configs):
+        elif any(checkListConfig):
             raise ValueError(
                 'You must provide list config for all three parameters: window, shift and multiscale weights.'
             )
@@ -462,43 +489,26 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._perform_speech_activity_detection()
 
         # Segmentation
-        self.multi_scale_dict = self.parse_scale_configs(**self._diarizer_params.speaker_embeddings.parameters)
-        if self.multi_scale_dict:
+        for scale_idx, (time_length, shift_length) in self.multiscale_args_dict['scale_dict'].items():
 
-            # Multi-scale Segmentation
-            multi_scale_emb_ts_spkrs = {}
-            for scale_idx, (time_length, shift_length) in self.multi_scale_dict['scale_dict'].items():
+            # Segmentation for the current scale (scale_idx)
+            self._run_segmentation(window=time_length, shift=shift_length, scale_tag=f'_scale{scale_idx}')
 
-                # Segmentation for the current scale (scale_idx)
-                self._run_segmentation(window=time_length, shift=shift_length, scale_tag=f'_scale{scale_idx}')
-                logging.info(
-                    f"Extracting multiscale embeddings for Diarization: scale-{scale_idx}, {self.subsegments_manifest_path}"
-                )
-
-                # Embedding Extraction for the current scale (scale_idx)
-                self._extract_embeddings(self.subsegments_manifest_path, scale_tag=f'_scale{scale_idx}')
-
-                multi_scale_emb_ts_spkrs[scale_idx] = [self.embeddings, self.time_stamps]
-
-            self.embeddings, self.time_stamps, multi_scale_data = get_multiscale_time_stamps(
-                multi_scale_emb_ts_spkrs, self.multi_scale_dict
-            )
-        else:
-            # Single-scale Segmentation
-            self._run_segmentation()
-
-            # Single-scale Embedding Extraction
+            # Embedding Extraction for the current scale (scale_idx)
             self._extract_embeddings(self.subsegments_manifest_path)
-            multi_scale_data = None
+
+            self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+
+        embs_and_timestamps = get_embs_and_timestamps(
+            self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
+        )
 
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
-            embeddings=self.embeddings,
-            time_stamps=self.time_stamps,
+            embs_and_timestamps=embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,
-            multi_scale_data=multi_scale_data,
         )
 
         # TODO Resegmentation -> Coming Soon
