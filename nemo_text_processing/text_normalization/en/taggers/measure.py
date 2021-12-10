@@ -61,7 +61,7 @@ class MeasureFst(GraphFst):
             cardinal_graph |= cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1), graph_unit)
+        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit)
 
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)
@@ -117,7 +117,7 @@ class MeasureFst(GraphFst):
         cardinal_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
             + cardinal_graph
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\" } units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
             + pynutil.insert("\"")
@@ -126,7 +126,7 @@ class MeasureFst(GraphFst):
         alpha_dash_cardinal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
             + cardinal_graph
@@ -153,7 +153,7 @@ class MeasureFst(GraphFst):
         alpha_dash_decimal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")
             + decimal.final_graph_wo_negative
