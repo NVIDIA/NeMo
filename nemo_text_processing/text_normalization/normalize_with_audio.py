@@ -52,7 +52,7 @@ The script provides multiple normalization options and chooses the best one that
 (most of the semiotic classes use deterministic=False flag).
 
 To run this script with a .json manifest file, the manifest file should contain the following fields:
-    "audio_filepath" - path to the audio file
+    "audio_data" - path to the audio file
     "text" - raw text
     "pred_text" - ASR model prediction
     
@@ -186,6 +186,23 @@ class NormalizerWithAudio(Normalizer):
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
         normalized_texts = set(normalized_texts)
+        if self.lang == "en":
+            normalized_texts = self._filter_texts(normalized_texts)
+        return normalized_texts
+
+    def _filter_texts(self, normalized_texts: List[str]):
+        """
+        Filter out options from normalized_texts that have remaining digits,
+        i.e. removes options like `1 seven` if "no digits" options are present
+
+        Returns:
+            filtered options
+        """
+        digits = set([str(i) for i in range(10)])
+        filtered = [t for t in normalized_texts if len(digits.intersection(set(t))) == 0]
+
+        if len(filtered) > 0:
+            normalized_texts = filtered
         return normalized_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):
@@ -373,7 +390,7 @@ if __name__ == "__main__":
         raise ValueError("NeMo ASR collection is not installed.")
     start = time.time()
     args.whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
-    if args.text:
+    if args.text is not None:
         normalizer = NormalizerWithAudio(
             input_case=args.input_case,
             lang=args.language,
@@ -392,20 +409,21 @@ if __name__ == "__main__":
             punct_pre_process=not args.no_punct_pre_process,
             punct_post_process=not args.no_punct_post_process,
         )
+
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             pred_text = asr_model.transcribe([args.audio_data])[0]
             normalized_text, cer = normalizer.select_best_match(
                 normalized_texts, pred_text, args.verbose, args.remove_punct
             )
-            print(f'Transcript: {pred_text}')
-            print(f'Normalized: {normalized_text}')
+            print(f"Transcript: {pred_text}")
+            print(f"Normalized: {normalized_text}")
         else:
-            print('Normalization options:')
+            print("Normalization options:")
             for norm_text in normalized_texts:
                 print(norm_text)
     elif not os.path.exists(args.audio_data):
-        raise ValueError(f'{args.audio_data} not found.')
+        raise ValueError(f"{args.audio_data} not found.")
     elif args.audio_data.endswith('.json'):
         normalize_manifest(args)
     else:

@@ -1066,13 +1066,11 @@ class _TarredAudioToTextDataset(IterableDataset):
                 begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
                 end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
                 audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
-                self.length = len(self.collection) // world_size
                 logging.info(
                     "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
                 )
 
             elif shard_strategy == 'replicate':
-                self.length = len(self.collection)
                 logging.info("All tarred dataset shards will be replicated across all nodes.")
             else:
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
