@@ -36,7 +36,6 @@ class TestOrdinal:
         pred = self.inverse_normalizer.inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
-
     normalizer_with_audio = (
         NormalizerWithAudio(input_case='cased', lang='de', cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE and CACHE_DIR
@@ -52,5 +51,7 @@ class TestOrdinal:
     def test_norm(self, expected, test_input):
 
         if self.normalizer_with_audio:
-            pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=1000, punct_post_process=False, punct_pre_process=False)
+            pred_non_deterministic = self.normalizer_with_audio.normalize(
+                test_input, n_tagged=1000, punct_post_process=False, punct_pre_process=False
+            )
             assert expected in pred_non_deterministic
