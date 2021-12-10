@@ -32,17 +32,17 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import
 class BertDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        name: str = None,
-        indexed_dataset: MMapIndexedDataset = None,
-        data_prefix: str = None,
-        num_epochs: Optional[int] = None,
-        max_num_samples: int = None,
-        masked_lm_prob: float = None,
-        max_seq_length: int = None,
-        short_seq_prob: float = None,
-        seed: int = None,
-        binary_head: bool = None,
-        tokenizer: Any = None,
+        name: str,
+        indexed_dataset: MMapIndexedDataset,
+        data_prefix: str,
+        num_epochs: Optional[int],
+        max_num_samples: int,
+        masked_lm_prob: float,
+        max_seq_length: int,
+        short_seq_prob: float,
+        seed: int,
+        binary_head: bool,
+        tokenizer: Any,
     ):
 
         # Params to store.
