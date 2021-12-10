@@ -367,8 +367,8 @@ class MaskedConv1d(nn.Module):
 
         return out, lens
 
-    def update_masked_length(self, global_max_len, device):
-        self.lens, self.max_len = _masked_conv_init_lens(self.lens, global_max_len, self.max_len)
+    def update_masked_length(self, max_len, device):
+        self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
         self.lens = self.lens.to(device)
 
     def mask_input(self, x, lens):
