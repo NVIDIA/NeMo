@@ -373,7 +373,7 @@ class MaskedConv1d(nn.Module):
 
     def mask_input(self, x, lens):
         max_len = x.size(2)
-        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+        mask = self.lens[:max_len].unsqueeze(0).to(lens.device) < lens.unsqueeze(1)
         x = x * mask.unsqueeze(1).to(device=x.device)
         return x
 
