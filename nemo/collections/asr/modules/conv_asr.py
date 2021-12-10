@@ -199,7 +199,7 @@ class ConvASREncoder(NeuralModule, Exportable):
 
         # Flag needed for RNNT export support
         self._rnnt_export = False
-        self._max_seq_length = torch.tensor(0, dtype=torch.int32)
+        self.max_audio_length = torch.tensor(0, dtype=torch.int32)
 
     @typecheck()
     def forward(self, audio_signal, length):
@@ -220,17 +220,17 @@ class ConvASREncoder(NeuralModule, Exportable):
 
             seq_length = global_max_len.int().item()
 
-        if seq_length > self._max_seq_length:
-            self._max_seq_length = seq_length * 2
+        if seq_length > self.max_audio_length:
+            self.max_audio_length = seq_length * 2
 
             # Update all submodules
             for name, m in self.named_modules():
                 if isinstance(m, MaskedConv1d):
                     if m.use_mask:
-                        m.update_masked_length(self._max_seq_length, device=device)
+                        m.update_masked_length(self.max_audio_length, device=device)
 
                 if isinstance(m, SqueezeExcite):
-                    m.set_max_len(self._max_seq_length)
+                    m.set_max_len(self.max_audio_length)
 
 
 class ParallelConvASREncoder(NeuralModule, Exportable):
