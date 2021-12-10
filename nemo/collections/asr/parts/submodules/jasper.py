@@ -373,7 +373,8 @@ class MaskedConv1d(nn.Module):
 
     def mask_input(self, x, lens):
         max_len = x.size(2)
-        mask = self.lens[:max_len].unsqueeze(0).to(lens.device) < lens.unsqueeze(1)
+        self.lens = self.lens.to(lens.device)
+        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
         x = x * mask.unsqueeze(1).to(device=x.device)
         return x
 
@@ -503,14 +504,10 @@ class SqueezeExcite(nn.Module):
         """ Sets maximum input length.
             Pre-calculates internal seq_range mask.
         """
-        device = next(self.parameters()).device
         self.max_len = max_len
+        device = next(self.parameters()).device
         seq_range = torch.arange(0, self.max_len, device=device)
-
-        if hasattr(self, 'seq_range'):
-            self.seq_range = seq_range
-        else:
-            self.register_buffer('seq_range', seq_range, persistent=False)
+        self.register_buffer('seq_range', seq_range, persistent=False)
 
     def make_pad_mask(self, seq_lens, max_audio_length, device=None):
         """Make masking for padding."""
