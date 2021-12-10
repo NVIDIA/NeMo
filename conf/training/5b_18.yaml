@@ -1,15 +1,15 @@
 bcp:
   job_name: bignlp-${training.run.name}
-  nodes: 20
+  nodes: 18
   ntasks_per_node: 8
   gpus_per_task: 1
   time_limit: "8D"
-  instance: "dgxa100.40g.8.norm"
+  instance: "dgxa100.80g.8.norm"
   workspace_common: "bignlp_ws_common"
   workspace_scripts: "bignlp_ws_scripts_mk"
 
 run:
-  name: "5b-20f-1m4t32a"
+  name: "5b-18f1"
   results_dir: /workspace-scripts/results/${.name}
   log_dir: ${.results_dir}
 
@@ -29,7 +29,7 @@ trainer:
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 32 # AGB=8 for 80GB, 32 for 40 GB nodes
+  accumulate_grad_batches: 10 # AGB=8 for 80GB/20-nodes, 10 for 80GB/16-node, 32 for 40GB/20-nodes
   gradient_clip_val: 1.0
 
 exp_manager:
@@ -57,8 +57,8 @@ exp_manager:
 
 model:
   # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. [1,4,32] for 40GB nodes 
-  micro_batch_size: 1
-  tensor_model_parallel_size: 4
+  micro_batch_size: 2
+  tensor_model_parallel_size: 2
 
   # model architecture
   encoder_seq_length: 2048

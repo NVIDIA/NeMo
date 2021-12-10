@@ -6,11 +6,11 @@ bcp:
   time_limit: "4D"
   instance: "dgxa100.80g.8.norm"
   workspace_common: "bignlp_ws_common"
-  workspace_results: "bignlp_ws_results_mk"
+  workspace_scripts: "bignlp_ws_scripts_mk"
 
 run:
   name: "126m-8f2"
-  results_dir: /workspace-results/${.name}
+  results_dir: /workspace-scripts/results/${.name}
   log_dir: ${.results_dir}
 
 trainer:

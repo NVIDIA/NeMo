@@ -9,7 +9,7 @@ def create_bcp_submit_cmd(
     job_name,
     container,
     workspace_common,
-    workspace_results,
+    workspace_scripts,
     bignlp_path,
     bcp_script,
     instance,
@@ -21,7 +21,7 @@ def create_bcp_submit_cmd(
     base_cmd = f"cd {bignlp_path}; NGC_NTASKS_PER_NODE=8 {bcp_script}"
     submit_cmd = f"ngc batch run --name \"{job_name}\" --image \"{container}\" \
     --commandline \"{base_cmd}\" --workspace {workspace_common}:/workspace-common \
-    --workspace {workspace_results}:/workspace-results --result /result \
+    --workspace {workspace_scripts}:/workspace-scripts --result /result \
     --preempt RUNONCE --instance {instance} --replicas {num_nodes} \
     --array-type {array_type} --total-runtime {total_runtime}"
     
@@ -83,7 +83,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         job_name=bcp_cfg.get("job_name"),
         container=container,
         workspace_common=bcp_cfg.get("workspace_common"),
-        workspace_results=bcp_cfg.get("workspace_results"),
+        workspace_scripts=bcp_cfg.get("workspace_scripts"),
         bignlp_path=bignlp_path,
         bcp_script=new_script_path,
         instance=instance,

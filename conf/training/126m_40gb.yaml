@@ -1,16 +1,16 @@
 bcp:
   job_name: bignlp-${training.run.name}
-  nodes: 2
+  nodes: 8
   ntasks_per_node: 8
   gpus_per_task: 1
   time_limit: "4D"
   instance: "dgxa100.40g.8.norm"
   workspace_common: "bignlp_ws_common"
-  workspace_results: "bignlp_ws_results_mk"
+  workspace_scripts: "bignlp_ws_scripts_mk"
 
 run:
-  name: "126m-2f1"
-  results_dir: /workspace-results/${.name}
+  name: "126m-8g1"
+  results_dir: /workspace-scripts/results/${.name}
   log_dir: ${.results_dir}
 
 trainer:
