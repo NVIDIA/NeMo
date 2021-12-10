@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import math
 from collections import OrderedDict
 
@@ -285,5 +286,11 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     def _prepare_for_export(self, **kwargs):
         # extend masks to configured maximum
-        self.set_max_audio_length(self.pos_emb_max_len)
+        max_len = self.pos_emb_max_len
+        if 'input_example' in kwargs:
+            m_len = kwargs['input_example'][0].size(-1)
+            if m_len > max_len:
+                max_len = m_len
+        logging.info(f"Extending input audio length to {max_len}")
+        self.set_max_audio_length(max_len)
         Exportable._prepare_for_export(self, **kwargs)
