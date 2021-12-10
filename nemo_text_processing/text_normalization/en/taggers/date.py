@@ -166,6 +166,7 @@ class DateFst(GraphFst):
 
         day_graph = (
             pynutil.insert("day: \"")
+            + pynini.closure(pynutil.delete("the "), 0, 1)
             + (
                 ((pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT)
                 + pynini.closure(pynutil.delete(endings), 0, 1)
