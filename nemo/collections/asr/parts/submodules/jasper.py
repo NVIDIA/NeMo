@@ -345,9 +345,7 @@ class MaskedConv1d(nn.Module):
             # Generally will be called by ConvASREncoder, but kept as single gpu backup.
             if x.size(2) > self.max_len:
                 self.update_masked_length(x.size(2), device=lens.device)
-
-            # Mask the input tensor
-            self.mask_input(x, lens)
+            x = self.mask_input(x, lens)
 
         # Update lengths
         lens = self.get_seq_len(lens)
