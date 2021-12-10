@@ -319,33 +319,22 @@ class MegatronGPTModel(NLPModel):
         self.allreduce_gradients()
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-        # # All-reduce word_embeddings' grad across first and last stages to ensure
-        # # that word_embeddings parameters stay in sync.
-        # # This should only run for models that support pipelined model parallelism
-        # # (BERT and GPT-2).
-        # timers('backward-embedding-all-reduce').start()
-        # if mpu.is_rank_in_embedding_group(ignore_virtual=True) and \
-        #         mpu.get_pipeline_model_parallel_world_size() > 1:
-        #     if mpu.is_pipeline_first_stage(ignore_virtual=True):
-        #         unwrapped_model = model[0]
-        #     elif mpu.is_pipeline_last_stage(ignore_virtual=True):
-        #         unwrapped_model = model[-1]
-        #     else:  # We do not support the interleaved schedule for T5 yet.
-        #         unwrapped_model = model[0]
-        #     unwrapped_model = unwrap_model(
-        #         unwrapped_model, (torchDDP, LocalDDP, Float16Module))
-
-        #     if unwrapped_model.share_word_embeddings:
-        #         word_embeddings_weight = unwrapped_model.word_embeddings_weight()
-        #         if args.DDP_impl == 'local':
-        #             grad = word_embeddings_weight.main_grad
-        #         else:
-        #             grad = word_embeddings_weight.grad
-        #         torch.distributed.all_reduce(grad, group=mpu.get_embedding_group())
+        # All-reduce word_embeddings' grad across first and last stages to ensure
+        # that word_embeddings parameters stay in sync.
+        # This should only run for models that support pipelined model parallelism
+        # (BERT and GPT-2).
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
+        ):
+            if self.model.share_word_embeddings:
+                word_embeddings_weight = self.model.word_embeddings_weight()
+                grad = word_embeddings_weight.grad
+                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             tokens, labels, loss_mask, attention_mask, position_ids = batch
+            attention_mask = attention_mask[0:1]
             output_tensor = model(tokens, position_ids, attention_mask, labels)
 
             def loss_func(output_tensor):
@@ -445,10 +434,12 @@ class MegatronGPTModel(NLPModel):
         position_ids_list = []
         for micro_batch in global_batch:
             tokens, labels, loss_mask, attention_mask, position_ids = self.process_micro_batch(micro_batch)
+            micro_batch_size = tokens.shape[0]
             tokens_list.append(tokens)
             labels_list.append(labels)
             loss_mask_list.append(loss_mask)
-            attention_mask_list.append(attention_mask)
+            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            attention_mask_list.append(attention_mask_repeat)
             position_ids_list.append(position_ids)
 
         tokens_tensor = torch.concat(tokens_list)
