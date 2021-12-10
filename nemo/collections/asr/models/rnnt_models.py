@@ -54,6 +54,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.world_size
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize components
