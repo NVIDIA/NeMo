@@ -77,7 +77,7 @@ model:
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
   # Megatron O2-style half-precision
-  megatron_amp_o2: False # Enable O2-level automatic mixed precision using master parameters
+  megatron_amp_O2: False # Enable O2-level automatic mixed precision using master parameters
   fp32_grad_accum: False # Execute gradient accumulation and  all-reduce in fp32
   contiguous_grad_bucket: False # Allocate master gradients in the contiguous memory space
   async_grad_allreduce: False # Asynchronous master gradient all-reduce with a training step

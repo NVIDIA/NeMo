@@ -412,7 +412,7 @@ class ModelPT(LightningModule, Model):
             if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
                 self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None, delayed_sched_init=False):
+    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
         """
         Prepares an optimizer from a string name and its optional config parameters.
 
@@ -567,11 +567,10 @@ class ModelPT(LightningModule, Model):
 
             self._optimizer = optimizer
 
-        if not delayed_sched_init:
-            # Try to instantiate scheduler for optimizer
-            self._scheduler = prepare_lr_scheduler(
-                optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
-            )
+        # Try to instantiate scheduler for optimizer
+        self._scheduler = prepare_lr_scheduler(
+            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
+        )
 
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created
