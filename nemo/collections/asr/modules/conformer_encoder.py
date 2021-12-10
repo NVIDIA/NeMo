@@ -16,6 +16,7 @@ import math
 from collections import OrderedDict
 
 import torch
+import torch.distributed
 import torch.nn as nn
 
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
@@ -168,7 +169,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_v = None
 
         self.pos_emb_max_len = pos_emb_max_len
-        cur_audio_len = 80
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
@@ -207,7 +207,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.out_proj = None
             self._feat_out = d_model
-        self.set_max_audio_length(cur_audio_len)
+        self.set_max_audio_length(self.pos_emb_max_len)
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -224,9 +224,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, audio_signal, length=None):
-        max_audio_length: int = audio_signal.size(-1)
-        if max_audio_length > self.max_audio_length:
-            self.set_max_audio_length(max_audio_length * 2)
+        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_for_export(audio_signal=audio_signal, length=length)
 
     @typecheck()
@@ -266,6 +264,19 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
         return audio_signal, length
+
+    def update_max_seq_length(self, seq_length: int, device):
+        # Find global max audio length across all nodes
+        if torch.distributed.is_initialized():
+            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+
+            # Update across all ranks in the distributed system
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+
+            seq_length = global_max_len.int().item()
+
+        if seq_length > self.max_audio_length:
+            self.set_max_audio_length(seq_length * 2)
 
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""

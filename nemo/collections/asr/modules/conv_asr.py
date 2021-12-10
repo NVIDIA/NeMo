@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
 import torch
+import torch.distributed
 import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import MISSING, ListConfig, OmegaConf
@@ -198,14 +199,38 @@ class ConvASREncoder(NeuralModule, Exportable):
 
         # Flag needed for RNNT export support
         self._rnnt_export = False
+        self.max_audio_length = torch.tensor(0, dtype=torch.int32)
 
     @typecheck()
-    def forward(self, audio_signal, length=None):
+    def forward(self, audio_signal, length):
+        self.update_max_sequence_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         s_input, length = self.encoder(([audio_signal], length))
         if length is None:
             return s_input[-1]
 
         return s_input[-1], length
+
+    def update_max_sequence_length(self, seq_length: int, device):
+        # Find global max audio length across all nodes
+        if torch.distributed.is_initialized():
+            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+
+            # Update across all ranks in the distributed system
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+
+            seq_length = global_max_len.int().item()
+
+        if seq_length > self.max_audio_length:
+            self.max_audio_length = seq_length * 2
+
+            # Update all submodules
+            for name, m in self.named_modules():
+                if isinstance(m, MaskedConv1d):
+                    if m.use_mask:
+                        m.update_masked_length(self.max_audio_length, device=device)
+
+                if isinstance(m, SqueezeExcite):
+                    m.set_max_len(self.max_audio_length)
 
 
 class ParallelConvASREncoder(NeuralModule, Exportable):
