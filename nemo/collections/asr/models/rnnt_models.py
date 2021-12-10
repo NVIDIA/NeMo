@@ -58,7 +58,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.world_size
 
         super().__init__(cfg=cfg, trainer=trainer)
 
