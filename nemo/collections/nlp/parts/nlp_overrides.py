@@ -36,6 +36,7 @@ from pytorch_lightning.utilities.fetching import (
 
 import pytorch_lightning as pl
 import torch
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -120,6 +121,7 @@ class NLPDDPPlugin(DDPPlugin):
                 process_group=parallel_state.get_data_parallel_group(),
                 **self._ddp_kwargs,
             )
+            self._model.require_backward_grad_sync = False
             self._register_ddp_hooks()
 
             if self.no_ddp_communication_hook:

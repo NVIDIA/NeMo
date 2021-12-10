@@ -14,6 +14,7 @@
 
 import os
 from pathlib import Path
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
