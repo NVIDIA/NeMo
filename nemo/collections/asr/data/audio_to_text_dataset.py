@@ -250,7 +250,7 @@ def calc_bucketing_batch_sizes(cfg, datasets_len):
         for idx in range(datasets_len):
             scale_factor = datasets_len - idx
             bucketing_batch_sizes.append(scale_factor * cfg['bucketing_batch_size'])
-    elif type(cfg['bucketing_batch_size']) == list:
+    elif isinstance(cfg['bucketing_batch_size'], ListConfig) or isinstance(cfg['bucketing_batch_size'], list):
         bucketing_batch_sizes = cfg['bucketing_batch_size']
     else:
         raise ValueError(
