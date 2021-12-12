@@ -80,11 +80,11 @@ class Variant:
             else None
         )
         parameters_to_be_included_in_name = [
-            ("mbs", self.max_batch_size),
+            ("io", io),
+            ("half", self.is_half),
             ("pp", self.pipeline_parallel_size),
             ("tp", self.tensor_parallel_size),
-            ("half", self.is_half),
-            ("io", io),
+            ("mbs", self.max_batch_size),
         ]
         parameters = "-".join([f"{k}_{v}" for k, v in parameters_to_be_included_in_name if v is not None])
         if parameters:
@@ -154,6 +154,7 @@ class TritonServerSet:
         enable_gpus_allocation: bool = True,
         max_time_min: int,
         verbose: bool = False,
+        job_name_prefix: str,
     ):
         self._job = self._submit(
             executor=executor,
@@ -165,6 +166,7 @@ class TritonServerSet:
             max_time_min=max_time_min,
             verbose=verbose,
             config_name=config_name,
+            job_name_prefix=job_name_prefix,
         )
         self._run_since_s = math.inf
 
@@ -180,13 +182,15 @@ class TritonServerSet:
         max_time_min,
         verbose,
         config_name,
+        job_name_prefix,
     ) -> submitit.Job:
+
         executor.update_parameters(
             nodes=num_nodes,
             ntasks_per_node=servers_per_node,
             exclusive=True,
             time=max_time_min,
-            job_name=f"joc-bermuda:tritonserver_set_{config_name}",
+            job_name=f"{job_name_prefix}tritonserver_set_{config_name}",
             comment=f"Triton Server serving {repository_path}",
             setup=[
                 f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, gpus_per_server)))}",
@@ -553,6 +557,10 @@ def run_perf_test(
         verbose=verbose,
     )
 
+    with config_path.open("r") as config_file:
+        config = yaml.load(config_file, Loader=yaml.SafeLoader)
+
+    batch_size = min(4, int(config.get("max_batch_size", 1)))
     accuracy_report_path = workspace_path / f"{variant.extended_name}-lambada_metrics.csv"
     accuracy_script_path = bignlp_scripts_path / "infer_scripts/evaluate_lambada.py"
     python3 = sh.Command("python3")
@@ -567,7 +575,7 @@ def run_perf_test(
         "-d",
         dataset_dir,
         "-b",
-        4,
+        batch_size,
         "-m",
         variant.model_name,
         "--n-gram-disabled",
@@ -763,7 +771,7 @@ def run_analyze(
         "--inference-output-fields",
         *inference_output_fields,
         "--objectives",
-        "perf_throughput_normalized=10"
+        "perf_throughput_normalized=10",
     )
 
     cluster_suffix = get_cluster_suffix()

@@ -1,0 +1,8 @@
+decoder_layers: 24
+head_num: 32
+size_per_head: 128
+inter_size: 3072
+tensor_para_size: 8
+vocab_size: 51200
+start_id: 50256
+end_id: 50256
