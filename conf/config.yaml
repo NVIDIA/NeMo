@@ -17,9 +17,9 @@ run_conversion: False
 run_evaluation: False
 
 training_config: 126m_40gb  # Must match - training above.
-bignlp_path: /workspace-scripts/bignlp-scripts # Path to where the bignlp-scripts repo is. Should end with /.../bignlp-scripts
+bignlp_path: /workspace-scripts/bignlp-scripts # Path should end with bignlp-scripts
 data_dir: /workspace-common/data/the_pile  # Location to store and read the data. Absolute or relative
-container_mounts: # List of additional paths to mount to the container. They will be mounted to the same path.
+container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
 container: nvcr.io/ea-bignlp/bignlp-training:21.12-py3
-code_dir: /opt/bignlp/NeMo # or /workspace-common/NeMo
+code_dir: /opt/bignlp/NeMo
