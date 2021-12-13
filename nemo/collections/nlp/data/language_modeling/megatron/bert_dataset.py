@@ -14,6 +14,8 @@
 
 """BERT Style dataset."""
 
+from typing import Any, Optional
+
 import numpy as np
 import torch
 
@@ -24,22 +26,23 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_samples_mapping,
     truncate_segments,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
 
 
 class BertDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        name,
-        indexed_dataset,
-        data_prefix,
-        num_epochs,
-        max_num_samples,
-        masked_lm_prob,
-        max_seq_length,
-        short_seq_prob,
-        seed,
-        binary_head,
-        tokenizer,
+        name: str,
+        indexed_dataset: MMapIndexedDataset,
+        data_prefix: str,
+        num_epochs: Optional[int],
+        max_num_samples: int,
+        masked_lm_prob: float,
+        max_seq_length: int,
+        short_seq_prob: float,
+        seed: int,
+        binary_head: bool,
+        tokenizer: Any,
     ):
 
         # Params to store.
@@ -66,12 +69,12 @@ class BertDataset(torch.utils.data.Dataset):
         )
 
         # Vocab stuff.
-        self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        self.vocab_id_to_token_dict = tokenizer.inv_vocab
-        self.cls_id = tokenizer.cls_id
-        self.sep_id = tokenizer.sep_id
-        self.mask_id = tokenizer.mask_id
-        self.pad_id = tokenizer.pad_id
+        self.vocab_id_list = list(tokenizer.ids_to_tokens.keys())
+        self.vocab_id_to_token_dict = tokenizer.ids_to_tokens
+        self.cls_id = tokenizer.cls_token_id
+        self.sep_id = tokenizer.sep_token_id
+        self.mask_id = tokenizer.mask_token_id
+        self.pad_id = tokenizer.pad_token_id
 
     def __len__(self):
         return self.samples_mapping.shape[0]

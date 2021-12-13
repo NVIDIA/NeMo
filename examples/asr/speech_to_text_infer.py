@@ -77,6 +77,7 @@ def main():
             'labels': asr_model.decoder.vocabulary,
             'batch_size': args.batch_size,
             'normalize_transcripts': not args.dont_normalize_text,
+            'shuffle': False,
         }
     )
     if can_gpu:
