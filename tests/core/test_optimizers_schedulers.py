@@ -98,8 +98,34 @@ class Callback(pl.callbacks.Callback):
             logging.debug(f"drop_last: {module.drop_last}")
             logging.debug(f"{len(trainer.train_dataloader)}")
             logging.debug(f"{trainer.num_training_batches }")
+
+        self.assert_counts(trainer, module, count)
+
+    def assert_counts(self, trainer, module, count):
         assert trainer.global_step == count, f"{trainer.global_step} != {count} != {module.max_steps}"
         assert trainer.global_step == module.max_steps, f"{trainer.global_step} != {count} != {module.max_steps}"
+
+
+class SchedulerNoOpCallback(Callback):
+    def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx):
+        # pl_module.max_steps is "original" max steps without trainer extra steps.
+        if (trainer.global_step + 1) % 3 == 0 and (trainer.global_step + 1) < pl_module.max_steps:
+            schedulers = trainer.lr_schedulers
+
+            for scheduler in schedulers:
+                # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                # as well as update the optimizer lr in all param groups
+                scheduler['scheduler'].last_epoch -= 2
+                scheduler['scheduler'].step()
+
+            # Increase the max step count by 1
+            trainer.fit_loop.max_steps = trainer.fit_loop.max_steps + 1
+
+    def assert_counts(self, trainer, module, count):
+        num_skips = module.max_steps // 3
+        extra_steps = module.max_steps + num_skips
+        assert trainer.global_step == count, f"{trainer.global_step} != {count} != {extra_steps}"
+        assert trainer.global_step == extra_steps, f"{trainer.global_step} != {count} != {extra_steps}"
 
 
 class TestOptimizersSchedulers:
@@ -843,3 +869,34 @@ class TestOptimizersSchedulers:
                 dataset_len,
                 drop_last,
             )
+
+    @pytest.mark.unit
+    # @pytest.mark.run_only_on('CPU')
+    def test_max_step_computation_with_sched_no_ops(self):
+        def train(
+            max_steps, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last
+        ):
+            trainer = pl.Trainer(
+                max_steps=max_steps,
+                accelerator="ddp_cpu",
+                num_processes=num_processes,
+                accumulate_grad_batches=accumulate_grad_batches,
+                limit_train_batches=limit_train_batches,
+                checkpoint_callback=False,
+                progress_bar_refresh_rate=0,
+                weights_summary=None,
+            )
+            model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
+            trainer.callbacks.append(SchedulerNoOpCallback())
+            trainer.fit(model)
+
+        # This test will break once we and lightning upgrade to pytorch 1.7.0 due to a bug fix in pytorch 1.7.0
+        train(
+            max_steps=20,
+            accumulate_grad_batches=1,
+            limit_train_batches=1.0,
+            num_processes=4,
+            batch_size=60,
+            dataset_len=2000,
+            drop_last=True,
+        )
