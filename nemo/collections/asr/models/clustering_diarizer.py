@@ -35,6 +35,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     get_embs_and_timestamps,
     get_uniqname_from_filepath,
+    parse_scale_configs,
     perform_clustering,
     score_labels,
     segments_manifest_to_subsegments_manifest,
@@ -65,7 +66,6 @@ __all__ = ['ClusteringDiarizer']
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model.nemo"
 _SPEAKER_MODEL = "speaker_model.nemo"
-_LISTCONFIG_TYPE = type(omegaconf.listconfig.ListConfig([]))
 
 
 def get_available_model_names(class_name):
@@ -156,7 +156,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
 
-        self.multiscale_args_dict = self.parse_scale_configs(
+        self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
@@ -382,78 +382,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 audio_file = audio_file.strip()
                 entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
                 fp.write(json.dumps(entry) + '\n')
-
-    @experimental
-    def parse_scale_configs(self, window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
-        """
-        Checks whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
-        multiscale_weights should be all provided in omegaconf.listconfig.ListConfig type. In addition, the scales
-        should be provided in descending order, from the longest scale to the base scale (the shortest).
-
-        Example:
-            Single-scale setting:
-                parameters.window_length_in_sec=[1.5]
-                parameters.shift_length_in_sec=[0.75]
-                parameters.multiscale_weights=null
-
-            Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
-                parameters.window_length_in_sec=[1.5,1.0,0.5]
-                parameters.shift_length_in_sec=[0.75,0.5,0.25]
-                parameters.multiscale_weights=[0.33,0.33,0.33]
-        """
-        checkFloatConfig = [type(var) == float for var in (window_lengths_in_sec, shift_lengths_in_sec)]
-        checkListConfig = [
-            type(var) == _LISTCONFIG_TYPE for var in (window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights)
-        ]
-        if all(checkListConfig) or all(checkFloatConfig):
-
-            # If bare floating numbers are provided, convert them to list format.
-            if all(checkFloatConfig):
-                window_lengths, shift_lengths, multiscale_weights = (
-                    [window_lengths_in_sec],
-                    [shift_lengths_in_sec],
-                    [1.0],
-                )
-            else:
-                window_lengths, shift_lengths, multiscale_weights = (
-                    window_lengths_in_sec,
-                    shift_lengths_in_sec,
-                    multiscale_weights,
-                )
-
-            length_check = (
-                len(set([len(window_lengths), len(shift_lengths), len(multiscale_weights)])) == 1
-                and len(multiscale_weights) > 0
-            )
-            scale_order_check = (
-                window_lengths == sorted(window_lengths)[::-1] and shift_lengths == sorted(shift_lengths)[::-1]
-            )
-
-            # Check whether window lengths are longer than shift lengths
-            if len(window_lengths) > 1:
-                shift_length_check = all([w > s for w, s in zip(window_lengths, shift_lengths)]) == True
-            else:
-                shift_length_check = window_lengths[0] > shift_lengths[0]
-
-            multiscale_args_dict = {}
-            if all([length_check, scale_order_check, shift_length_check]) == True:
-                if len(window_lengths) > 1:
-                    multiscale_args_dict['scale_dict'] = {
-                        k: (w, s) for k, (w, s) in enumerate(zip(window_lengths, shift_lengths))
-                    }
-                else:
-                    multiscale_args_dict['scale_dict'] = {0: (window_lengths[0], shift_lengths[0])}
-                multiscale_args_dict['multiscale_weights'] = multiscale_weights
-                return multiscale_args_dict
-            else:
-                raise ValueError('Multiscale parameters are not properly setup.')
-
-        elif any(checkListConfig):
-            raise ValueError(
-                'You must provide list config for all three parameters: window, shift and multiscale weights.'
-            )
-        else:
-            return None
 
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 0):
         """
