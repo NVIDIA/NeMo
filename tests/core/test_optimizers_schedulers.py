@@ -588,6 +588,30 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+        # Warmup + Constant steps available
+        policy = optim.lr_scheduler.CosineAnnealing(
+            opt, warmup_steps=3, constant_steps=2, max_steps=self.MAX_STEPS, min_lr=self.MIN_LR
+        )
+        initial_lr = policy.get_last_lr()[0]
+
+        assert initial_lr < self.INITIAL_LR
+
+        for i in range(self.MAX_STEPS):
+            if i <= 3:
+                assert policy.get_last_lr()[0] <= self.INITIAL_LR + 1e-5
+            elif i > 3 and i <= 8:
+                assert policy.get_last_lr()[0] == policy._get_lr(i)[0]
+            else:
+                assert policy.get_last_lr()[0] == self.MIN_LR
+
+            opt.step()
+            policy.step()
+
+        policy.step()
+        final_lr = policy.get_last_lr()[0]
+
+        assert final_lr == self.MIN_LR
+
     @pytest.mark.unit
     def test_PolynomialDecayAnnealing(self):
         model = TempModel()
@@ -871,7 +895,7 @@ class TestOptimizersSchedulers:
             )
 
     @pytest.mark.unit
-    # @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on('CPU')
     def test_max_step_computation_with_sched_no_ops(self):
         def train(
             max_steps, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last
