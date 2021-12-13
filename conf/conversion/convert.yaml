@@ -13,12 +13,12 @@ run:
   convert_name: "convert_nemo"
   model_train_name: "126m-8g1"
   results_dir: /workspace-scripts/results/${.model_train_name}
-  output_path: ${.results_dir}/${.convert_name}/checkpoints
+  output_path: ${.results_dir}/${.convert_name}
   nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
 
 model:
   checkpoint_folder: ${conversion.run.results_dir}/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1 # 1 for 126m, 2 for 5b
   vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
   merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt

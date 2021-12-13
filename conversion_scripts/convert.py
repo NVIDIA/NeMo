@@ -54,7 +54,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     model_cfg = convert_cfg.get("model")
 
     # BCP parameters
-    bcp_cfg = eval_cfg.get("bcp")
+    bcp_cfg = convert_cfg.get("bcp")
     nodes = bcp_cfg.get("nodes")
     ntasks_per_node = bcp_cfg.get("ntasks_per_node")
     gpus_per_task = bcp_cfg.get("gpus_per_task")

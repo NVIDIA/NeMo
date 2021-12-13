@@ -15,7 +15,7 @@ run:
   model_train_name: "126m-8g1"
   tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
   results_dir: /workspace-scripts/results/${.model_train_name}
-  checkpoint_dir: ${.results_dir}/${.convert_name}/checkpoints
+  checkpoints_dir: ${.results_dir}/${.convert_name}
   output_path: ${.results_dir}/${.eval_name}
 
 model:

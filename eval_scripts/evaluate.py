@@ -41,7 +41,7 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         # Replace {bignlp_path}/bcprun2 below by bcprun once new bcprun is deployed
         f.writelines(f'{bignlp_path}/bcprun2 -n {num_nodes} --npernode 1 -c "{eval_cmd1}" >> {log_file} 2>>{err_file} \n\n')
-        f.writelines(f'{bignlp_path}/bcprun2 -n {num-nodes} --npernode {ntasks_per_node} -c "{eval_cmd2}" >> {log_file} 2>>{err_file} \n\n')
+        f.writelines(f'{bignlp_path}/bcprun2 -n {num_nodes} --npernode {ntasks_per_node} -c "{eval_cmd2}" >> {log_file} 2>>{err_file} \n\n')
         f.writelines("set +x\n") 
     os.chmod(new_script_path, 0o755)
     

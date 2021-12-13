@@ -13,7 +13,7 @@ def create_bcp_submit_cmd(
     bignlp_path,
     bcp_script,
     instance,
-    num_nodes=1,
+    num_nodes,
     ntasks_per_node=8,
     array_type="PYTORCH",
     total_runtime="10H"
@@ -25,17 +25,17 @@ def create_bcp_submit_cmd(
     --preempt RUNONCE --instance {instance} --replicas {num_nodes} \
     --array-type {array_type} --total-runtime {total_runtime}"
     
-    print(f"\n Submit command: {submit_cmd}")
-    print(f"\n Script file: {bcp_script}")
+    return submit_cmd
 
 def create_bcp_file(
     bignlp_path,
     train_cmd,
     log_file,
     err_file,
-    new_script_path="train_scripts/bcp_5b_script.sh"
+    new_script_path
 ):
     with open(new_script_path, "w") as f:
+        # Replace {bignlp_path}/bcprun2 below by bcprun once new bcprun is deployed
         f.writelines(f'{bignlp_path}/bcprun2 -c \"{train_cmd}\" >> {log_file} 2>>{err_file} \n')
         f.writelines("\n")
         f.writelines("set +x \n") 
@@ -73,13 +73,13 @@ def run_training(cfg, hydra_args="", dependency=None):
     
     # BCP submit command
     bcp_cfg = train_cfg.get("bcp")
-    nodes = bcp_cfg.get("nodes")
+    num_nodes = bcp_cfg.get("nodes")
     ntasks_per_node = bcp_cfg.get("ntasks_per_node")
     gpus_per_task = bcp_cfg.get("gpus_per_task")
     instance = bcp_cfg.get("instance")
     time_limit = bcp_cfg.get("time_limit")
 
-    create_bcp_submit_cmd(
+    submit_cmd = create_bcp_submit_cmd(
         job_name=bcp_cfg.get("job_name"),
         container=container,
         workspace_common=bcp_cfg.get("workspace_common"),
@@ -87,8 +87,12 @@ def run_training(cfg, hydra_args="", dependency=None):
         bignlp_path=bignlp_path,
         bcp_script=new_script_path,
         instance=instance,
-        num_nodes=nodes,
+        num_nodes=num_nodes,
         ntasks_per_node=ntasks_per_node,
         array_type="PYTORCH",
         total_runtime=time_limit
     )
+
+    print(f"\n Submit command after data is ready:\n {submit_cmd}")
+    print(f"\n Script file: {new_script_path}")
+    

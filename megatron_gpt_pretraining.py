@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 
 from omegaconf.omegaconf import OmegaConf
@@ -31,8 +32,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-
-
+    
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
@@ -50,22 +50,26 @@ def main(cfg) -> None:
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
-
+    
+    logging.info(f'\n MGPT Initializing trainer: {os.environ.get("RANK")}')
     trainer = Trainer(plugins=plugins, **cfg.trainer)
-
+    
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
     resume_from_checkpoint = trainer.resume_from_checkpoint
+    logging.info(f'\n MGPT before resume from ckpt: {os.environ.get("RANK")}')
     if resume_from_checkpoint is not None:
-        mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
-        resume_from_checkpoint = Path(resume_from_checkpoint)
-        resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
-            resume_from_checkpoint.name
-        )
-        resume_from_checkpoint = str(resume_from_checkpoint)
-        logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+        # inject mp_rank into resume_from_checkpoint
+        if cfg.model.tensor_model_parallel_size is not None and cfg.model.tensor_model_parallel_size > 1:
+            mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
+            resume_from_checkpoint = Path(resume_from_checkpoint)
+            resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
+                resume_from_checkpoint.name
+            )
+            resume_from_checkpoint = str(resume_from_checkpoint)
 
+    logging.info(f'\n MGPT checkpoint connector: {os.environ.get("RANK")}')
     trainer.checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
     # Override timer callback to a stateless one
     for idx, callback in enumerate(trainer.callbacks):
