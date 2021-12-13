@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst, insert_space
 
 try:
     import pynini
@@ -33,34 +33,40 @@ class TelephoneFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="telephone", kind="classify")
-        delete_space = pynutil.delete(' ')
         # country code, number_part, extension
-        add_separator = pynutil.insert(" ")  # between components
-        digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize() | pynini.cross(
-            "0", pynini.union("o", "oh", "zero")
-        )
+        digit_to_str = pynini.invert(
+            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        ).optimize() | pynini.cross("0", pynini.union("o", "oh", "zero"))
 
-        number_part = (
-            (
-                (pynini.closure(digit + insert_space, 2, 2) + digit + pynutil.delete("-"))
-                | (
-                    pynutil.delete("(")
-                    + pynini.closure(digit + insert_space, 2, 2)
-                    + digit
-                    + pynutil.delete(")")
-                    + pynini.closure(pynutil.delete("-"), 0, 1)
-                    + delete_space
+        double_digit = pynini.union(
+            *[
+                pynini.cross(
+                    pynini.project(str(i) @ digit_to_str, "output")
+                    + pynini.accep(" ")
+                    + pynini.project(str(i) @ digit_to_str, "output"),
+                    pynutil.insert("double ") + pynini.project(str(i) @ digit_to_str, "output"),
                 )
-            )
-            + add_separator
-            + pynini.closure(digit + insert_space, 2, 2)
-            + digit
-            + pynutil.delete("-")
-            + add_separator
-            + pynini.closure(digit + insert_space, 3, 3)
-            + digit
+                for i in range(10)
+            ]
         )
-        number_part = pynutil.insert("number_part: \"") + pynini.invert(number_part) + pynutil.insert("\"")
+        double_digit.invert()
+        number_part = (
+            pynini.closure(digit_to_str + insert_space, 2, 2)
+            + digit_to_str
+            + pynutil.delete("-")
+            + insert_space
+            + pynini.closure(digit_to_str + insert_space, 2, 2)
+            + digit_to_str
+            + pynutil.delete("-")
+            + insert_space
+            + pynini.closure(digit_to_str + insert_space, 3, 3)
+            + digit_to_str
+        )
+        number_part = (
+            pynutil.insert("number_part: \"")
+            + pynini.cdrewrite(double_digit, "", "", NEMO_SIGMA) @ pynini.invert(number_part)
+            + pynutil.insert("\"")
+        )
 
         graph = number_part
         final_graph = self.add_tokens(graph)
