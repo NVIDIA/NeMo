@@ -95,6 +95,7 @@ class MegatronGPTModel(NLPModel):
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
             seed=self.cfg.get('seed', 1234),
+            apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
 
         self.tokenizer = get_nmt_tokenizer(
@@ -653,12 +654,11 @@ class MegatronGPTModel(NLPModel):
             return [self._optimizer], [self._scheduler]
 
     def compute_consumed_samples(self, global_step):
+        # TODO: this should be a counter self.consumed_samples
+        # and updated after every train_step: self.consumed_samples += global_batch_size
         app_state = AppState()
         consumed_samples = (
-            global_step
-            * app_state.data_parallel_size
-            * self.cfg.micro_batch_size
-            * self.trainer.accumulate_grad_batches
+            global_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 
