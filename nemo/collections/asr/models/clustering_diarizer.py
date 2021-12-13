@@ -271,12 +271,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
-    def _run_segmentation(self, window=None, shift=None, scale_tag: str = ''):
+    def _run_segmentation(self, window, shift, scale_tag: str = ''):
 
-        if window is not None:
-            self._speaker_params.window_length_in_sec = window
-        if shift is not None:
-            self._speaker_params.shift_length_in_sec = shift
+        self._speaker_params.window_length_in_sec = window
+        self._speaker_params.shift_length_in_sec = shift
 
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
         logging.info(
@@ -420,7 +418,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         for scale_idx, (time_length, shift_length) in self.multiscale_args_dict['scale_dict'].items():
 
             # Segmentation for the current scale (scale_idx)
-            self._run_segmentation(window=time_length, shift=shift_length, scale_tag=f'_scale{scale_idx}')
+            self._run_segmentation(time_length, shift_length, scale_tag=f'_scale{scale_idx}')
 
             # Embedding Extraction for the current scale (scale_idx)
             self._extract_embeddings(self.subsegments_manifest_path)

@@ -31,10 +31,10 @@ diarizer:
   speaker_embeddings:
     model_path: ??? #.nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.5 # window length in sec for speaker embedding extraction
-      shift_length_in_sec: 0.75 # shift length in sec for speaker embedding extraction
-      multiscale_weights: null # weight for each scale. should be list format and the list length should be matched with window/shift length.
-      save_embeddings: False # save embeddings as pickle file for each audio input
+      window_length_in_sec: 1.5 # window length(s) in sec (floating-point number). either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
+      shift_length_in_sec: 0.75 # shift length(s) in sec (floating-point number). either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
+      multiscale_weights: null # weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [0.33,0.33,0.33]
+      save_embeddings: False # save embeddings as pickle file for each audio input.
   
   clustering:
     parameters:
