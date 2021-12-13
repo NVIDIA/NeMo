@@ -49,9 +49,6 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank, inject_model_p
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.common import (
         build_model,
@@ -60,6 +57,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -198,6 +196,14 @@ class MegatronGPTModel(NLPModel):
                 forward_only=False,
                 tensor_shape=tensor_shape,
             )
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+            )
 
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -273,21 +279,14 @@ class MegatronGPTModel(NLPModel):
             When using pipeline parallel, we run backward in the fwd/bwd function.
             No need to call it here.
         """
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            return
-        else:
-            super().backward(*args, **kwargs)
+        return
 
     def optimizer_zero_grad(self, *args, **kwargs):
         """ LightningModule hook to zero grad.
-            We want this to do nothing when using pipeline parallel as we are calling
-            backward during the training_step.
+            We want this to do nothing when using pipeline parallel as we are
+            zeroing grads during the training_step.
         """
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            return
-
-        else:
-            super().optimizer_zero_grad(*args, **kwargs)
+        return
 
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks.
@@ -347,11 +346,18 @@ class MegatronGPTModel(NLPModel):
         return fwd_output_and_loss_func
 
     def validation_step(self, batch, batch_idx):
-        # TODO: add non-pipeline parallel fwd/bwd
         batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+            )
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
                 model=self.model,
