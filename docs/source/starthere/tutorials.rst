@@ -141,4 +141,4 @@ To run a tutorial:
      - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_
    * - Text Processing
      - Constructing Normalization Grammars with WFSTs
-     - `WFST Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`_
+     - `WFST Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/WFST_Tutorial.ipynb>`_
