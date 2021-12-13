@@ -86,7 +86,7 @@ def audio_rttm_map(manifest):
 @experimental
 def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
     """
-    Checks whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
+    Check whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
     multiscale_weights should be all provided in omegaconf.listconfig.ListConfig type. In addition, the scales
     should be provided in descending order, from the longest scale to the base scale (the shortest).
 

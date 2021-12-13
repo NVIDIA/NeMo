@@ -22,7 +22,6 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import List, Optional
 
-import omegaconf
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.utilities import rank_zero_only
@@ -49,7 +48,6 @@ from nemo.collections.asr.parts.utils.vad_utils import (
 )
 from nemo.core.classes import Model
 from nemo.utils import logging, model_utils
-from nemo.utils.decorators.experimental import experimental
 
 try:
     from torch.cuda.amp import autocast
@@ -271,7 +269,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
-    def _run_segmentation(self, window, shift, scale_tag: str = ''):
+    def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
 
         self._speaker_params.window_length_in_sec = window
         self._speaker_params.shift_length_in_sec = shift
@@ -326,7 +324,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
             )
 
-    def _extract_embeddings(self, manifest_file):
+    def _extract_embeddings(self, manifest_file: str):
         """
         This method extracts speaker embeddings from segments passed through manifest_file
         Optionally you may save the intermediate speaker embeddings for debugging or any use. 
@@ -369,8 +367,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
             prefix = get_uniqname_from_filepath(manifest_file)
             name = os.path.join(embedding_dir, prefix)
-            scale_tag = manifest_file.split('subsegments').split('.json')[0]
-            self._embeddings_file = name + f'_embeddings{scale_tag}.pkl'
+            self._embeddings_file = name + f'_embeddings.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
 
