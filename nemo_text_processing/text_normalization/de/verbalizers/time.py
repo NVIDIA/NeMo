@@ -114,6 +114,13 @@ class TimeFst(GraphFst):
             + hour @ pynini.cdrewrite(night_to_early, "[BOS]", "[EOS]", NEMO_SIGMA) @ hour_to @ number_verbalization
         )
 
-        self.graph = (graph_hms | graph_h | graph_hm | graph_m_past_h | graph_m30_h | graph_m_to_h) + optional_zone
+        self.graph = (
+            graph_hms
+            | graph_h
+            | graph_hm
+            | pynutil.add_weight(graph_m_past_h, weight=0.0001)
+            | pynutil.add_weight(graph_m30_h, weight=0.0001)
+            | pynutil.add_weight(graph_m_to_h, weight=0.0001)
+        ) + optional_zone
         delete_tokens = self.delete_tokens(self.graph + delete_preserve_order)
         self.fst = delete_tokens.optimize()

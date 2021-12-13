@@ -107,7 +107,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    if args.language in ['ru', 'de'] and args.grammars == 'tn_grammars':
+    if args.language in ['ru'] and args.grammars == 'tn_grammars':
         raise ValueError('Only ITN grammars could be deployed in Sparrowhawk for the selected languages.')
 
     if args.language == 'en':
@@ -121,13 +121,6 @@ if __name__ == '__main__':
             ClassifyFst as TNClassifyFst,
         )
         from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
-    elif args.language == 'ru':
-        from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import (
-            ClassifyFst as ITNClassifyFst,
-        )
-        from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize import (
-            VerbalizeFst as ITNVerbalizeFst,
-        )
     elif args.language == 'de':
         from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
@@ -135,9 +128,17 @@ if __name__ == '__main__':
         from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
-
-        if args.grammars == 'tn_grammars':
-            raise ValueError(f'"{args.language}" only supports Inverse Text Normalization task.')
+        from nemo_text_processing.text_normalization.de.taggers.tokenize_and_classify import (
+            ClassifyFst as TNClassifyFst,
+        )
+        from nemo_text_processing.text_normalization.de.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
+    elif args.language == 'ru':
+        from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
     elif args.language == 'es':
         from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
