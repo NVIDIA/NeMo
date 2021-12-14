@@ -21,6 +21,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 """
 Example Usage:
 
@@ -81,6 +82,7 @@ def main(cfg) -> None:
 
     logging.info(f'\nCurrent soft prompts include {model.get_prompt_table()}')
     trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()

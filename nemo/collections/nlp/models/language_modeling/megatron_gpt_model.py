@@ -393,7 +393,7 @@ class MegatronGPTModel(NLPModel):
             param.requires_grad = False
         for param in self.model.language_model.prompt_table.parameters():
             param.requires_grad = True
-            
+
     @classmethod
     def bucketize_gpt_inference(cls, batch):
         batch_tokens, lens, tokens_to_generate, prompt_tags = batch
@@ -406,7 +406,6 @@ class MegatronGPTModel(NLPModel):
         indxs = [index for index in range(batch_size)]
         for lenn, index in zip(lens, indxs):
             batch_tokens[index] = batch_tokens[index][:lenn]
-
 
         # chunk tokens by same length
         pre_buckets, lens = [], list(set(lens.tolist()))
@@ -464,7 +463,7 @@ class MegatronGPTModel(NLPModel):
                 prompt_tags = request["prompt_tags"][idx]
             else:
                 prompt_tags = None
-            
+
             logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
 
             for i in range(tokens_to_generate + 1):
@@ -479,9 +478,9 @@ class MegatronGPTModel(NLPModel):
                     position_ids = position_ids.unsqueeze(0).expand_as(tokens).clone()
 
                     # Make attention mask starting with first token in soft prompt
-                    attention_mask = torch.tril(torch.ones((batch_size, full_length, full_length), device=self.device)).view(
-                        batch_size, 1, full_length, full_length
-                    )
+                    attention_mask = torch.tril(
+                        torch.ones((batch_size, full_length, full_length), device=self.device)
+                    ).view(batch_size, 1, full_length, full_length)
                     attention_mask = attention_mask < 0.5
 
                 else:

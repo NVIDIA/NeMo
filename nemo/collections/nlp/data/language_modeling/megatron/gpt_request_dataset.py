@@ -35,7 +35,7 @@ class GPTRequestDataset(Dataset):
                 self.prompt_tags.append(prompt_tag)
                 text = request['text']
             else:
-                text = request 
+                text = request
 
             self.tokens.append(torch.tensor(self.tokenizer.text_to_ids(text)))
 
