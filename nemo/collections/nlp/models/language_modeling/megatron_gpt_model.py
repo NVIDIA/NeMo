@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
@@ -314,78 +314,87 @@ class MegatronGPTModel(NLPModel):
         parameters = self.model.parameters()
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request = batch
-        responses = []
-        for prompt in request:
-            response = self.complete(prompt)
-            responses.append(response)
-        return responses
+    @classmethod
+    def bucketize_gpt_inference(cls, batch):
+        # unpad tokens
+        lens, batch_size, tokens_to_generate = batch[1], len(batch[0]), batch[2][0]
+        batch[0] = batch[0].tolist()
 
-    def complete(self, request: Dict):
+        indxs = [index for index in range(batch_size)]
+        for lenn, index in zip(lens, indxs):
+            batch[0][index] = batch[0][index][:lenn]
+
+        # chunk tokens by same length
+        pre_buckets, lens = [], list(set(lens.tolist()))
+        for lenn in lens:
+            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch[0]) if len(tokens) == lenn])
+
+        buckets, positions = [], []
+
+        # get buckets and prompts initial positions
+        for bucket in pre_buckets:
+            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
+            positions.append([item[1] for item in bucket])
+        positions = [item for sublist in positions for item in sublist]
+
+        return buckets, positions, tokens_to_generate
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        buckets, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch)
+        response = self.complete(buckets, positions, tokens_to_generate)
+
+        return response
+
+    def complete(self, request: List, positions: List, tokens_to_generate: int):
         """
             Autoregressively invokes language model in the inference mode
         Args:	
-            request: Dictionary with the following fields
-                * prompt: a string which text the model should complete.
-                * tokens_to_generate: how many tokens to generate while doing prompt completion.
-                * stop_after_sentence: (default True) whether to stop generation once sentence end is reached.
+            request: List of "buckets" with unpadded tokens of the same length
+            positions: List with initial prompts positions
+            tokens_to_generate: int value denoting amount of tokens model should generate
         Returns:	
-            response: A python dictionary with the following fields
-                * prompt: original text of the prompt
-                * tokenized_prompt: list of (str) tokens from prompt
-                * completion: a python dictionary with the following subfields:
-                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
-                    * stop reason: either 'eos', 'sentence_end' or 'limit' indicating why generation stopped
-                    * text: completion text (as a single string)
+            response: A python list of tuples
+                (text, tokens, log_probs, offsets)
+                * text: string, inputted prompt + generated text by model
+                * tokens: list of tokens correspond to text
+                * log_probs: list of tokens log probabilities
+                * offsets: list of tokens start positions in text
                 
         """
-        response = {}
-        self.freeze()
-        is_completion_begin = True
-        offsets = [0]
-        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-        response['tokenized_prompt'] = request['tokenized_prompt']
-        tokens = request['tokens']
-        # naive greedy slow loop
-        # TODO: add option for BeamSearchDecoder
-        response['prompt'] = request['prompt']
-        response['completion'] = {}
-        response['completion']['stop reason'] = 'limit'
-        for i in range(request.get("tokens_to_generate", 64)):
-            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=tokens,
-                eod_token=self.tokenizer.eos_id,
-                reset_position_ids=self.cfg.get('reset_position_ids', False),
-                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
-                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
-            )
-            # No labels during inference. Still need masks to not attend to the right
-            output_tensor = self(tokens, position_ids, attention_mask, labels=None)
-            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
-            reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-            tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
-            # offsets calculation
-            if is_completion_begin:
-                for index, token in enumerate(self.tokenizer.ids_to_tokens(tokens), start=1):
-                    offsets.append(len(token) + offsets[-1])
-                is_completion_begin = False
-            else:
-                offsets.append(len(self.tokenizer.ids_to_tokens(tokens)[-1]) + offsets[-1])
-            response['completion']["tokens"] = list(
-                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0], offsets)
-            )
-            completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
-            if reached_eos:  # Will it actually ever reach that?
-                response['completion']['stop reason'] = 'eos'
-                break
-            elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
-                response['completion']['stop reason'] = 'sentence_end'
-                break
-            tokens = torch.unsqueeze(tokens, 0)
-        response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
-        self.unfreeze()
+        results = []
+        request = request
+        for tokens in request:
+            logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+            for i in range(tokens_to_generate + 1):
+                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                    data=tokens,
+                    eod_token=self.tokenizer.eos_id,
+                    reset_position_ids=self.cfg.get('reset_position_ids', False),
+                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                )
+                # No labels during inference. Still need masks to not attend to the right
+                output_tensor = self(tokens, position_ids, attention_mask, labels=None)
+                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+                reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
+                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+
+                # add to results as (text, tokens, log_probs, offsets)
+            for token, prob in zip(tokens, log_probs.tolist()):
+                results.append(
+                    (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0])
+                )
+        # offsets calculation
+        for item in results:
+            for index, token in enumerate(item[1]):
+                if index != len(item[1]) - 1:
+                    item[3].append(len(token) + item[3][-1])
+        # returnprompts in order they were inputted
+        response = [0 for i in range(len(positions))]
+        for item, index in zip(results, positions):
+            response[index] = item
+
         return response
 
     def list_available_models(self):
