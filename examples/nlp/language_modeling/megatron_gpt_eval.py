@@ -42,6 +42,14 @@ Usage:
             --model_file=PATH_TO_MODEL \
             --tokens_to_generate=32 \
             --prompt=YOUR_PROMPT
+
+    c. If you don't need to generate tokens and need model to compute logprobs:
+         python megatron_gpt_eval.py \
+            --model_file=PATH_TO_MODEL \
+            --path_to_file=PATH_TO_FILE \
+            --batch_size=16 \
+            --compute_logprobs=True \
+            --prompt .
 """
 
 assert torch.cuda.is_available()
@@ -71,6 +79,9 @@ def main():
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
     parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
+    parser.add_argument(
+        "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
+    )
 
     args = parser.parse_args()
 
@@ -91,12 +102,13 @@ def main():
 
     def pad_collate(batch):
         tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
+        compute_logprobs = batch[0]['compute_logprobs']
         lens = [len(token) for token in tokens]
 
         tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=50256)
         data = []
         for token, lenn in zip(tokens_pad.T, lens):
-            data.append((token, lenn, tokens_to_generate))
+            data.append((token, lenn, tokens_to_generate, compute_logprobs))
         return data
 
     # defining type of request
@@ -107,12 +119,12 @@ def main():
         for prompt in prompts.readlines():
             request.append(prompt.split('\n')[0])
 
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=int(args.batch_size))
         response = trainer.predict(model, request_dl)
     else:
         request = [args.prompt]
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
         response = trainer.predict(model, request_dl)
 
