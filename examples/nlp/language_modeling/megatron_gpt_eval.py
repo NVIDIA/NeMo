@@ -80,9 +80,6 @@ def main():
 
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
-    args = parser.parse_args()
-
-    torch.set_grad_enabled(False)
 
     app_state = AppState()
     if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:

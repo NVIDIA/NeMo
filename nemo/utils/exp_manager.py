@@ -87,6 +87,8 @@ class CallbackParams:
 @dataclass
 class StepTimingParams:
     reduction: Optional[str] = "mean"
+    # if True torch.cuda.synchronize() is called on start/stop
+    sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
     buffer_size: Optional[int] = -1
 
@@ -135,7 +137,7 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, prog_bar=True)
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         self._on_batch_start("train_step_timing")
@@ -154,6 +156,12 @@ class TimingCallback(Callback):
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         self._on_batch_end("test_step_timing", pl_module)
+    
+    def on_before_backward(self, trainer, pl_module, loss):
+        self._on_batch_start("train_backward_timing")
+
+    def on_after_backward(self, trainer, pl_module):
+        self._on_batch_end("train_backward_timing", pl_module)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
@@ -389,7 +397,6 @@ def check_resume(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
-    app_state = AppState()
 
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
@@ -427,7 +434,6 @@ def check_resume(
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
         if 'mp_rank' in str(last_checkpoints[0]):
-            # checkpoint = last_checkpoints[0].parent.parent.joinpath(last_checkpoints[0].name)
             checkpoint = last_checkpoints[0]
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
