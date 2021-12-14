@@ -13,358 +13,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import dataclasses
 import datetime
 import logging
 import pathlib
 import shutil
-import sys
-import typing
 
-import submitit
 import yaml
 
+from inference_lib.cluster.executor import ClusterExecutor
+from inference_lib.cluster.job import JobDefinition
 from inference_lib.inference import (
-    DEFAULT_BENCHMARK_TIME_MIN,
+    BIGNLP_SCRIPTS_PATH,
     DEFAULT_MAX_CONFIG_TIME_MIN,
-    Paths,
-    TritonServerSet,
-    Variant,
-    convert_model,
-    get_dirs_to_mount,
-    run_perf_test,
-    triton_config_model,
+    get_convert_model_cmds,
+    get_triton_config_model_cmds,
 )
-from inference_lib.slurm import (
-    DEFAULT_JOB_NAME_PREFIX,
-    TRITON_MODEL_REPOSITORY,
-    ContainerImageType,
-    PyxisExecutor,
-    PyxisTritonExecutor,
-    get_common_slurm_parameters,
-    setup_job,
-)
-from inference_lib.utils import config_logger, get_YN_input, monkeypatch_submitit
+from inference_lib.triton import DEFAULT_GRPC_PORT, DEFAULT_HTTP_PORT, DEFAULT_METRIC_PORT, TritonServerSet, Variant
+from inference_lib.utils import CLUSTER_DIR_NAME, FS_SYNC_TIMEOUT_S, MIN2S, config_logger, get_YN_input, wait_for
 
 LOGGER = logging.getLogger("prepare_model_repo")
 
-
-def _convert_model(
-    *,
-    config,
-    paths,
-    model_name,
-    verbose: bool = False,
-):
-    conversion_job = None
-
-    def _init_executor():
-        job_name_prefix = config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
-        dirs_to_mount = get_dirs_to_mount(
-            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
-        )
-        slurm_common_parameters = get_common_slurm_parameters(
-            cluster_config=config,
-            dirs_to_mount=dirs_to_mount,
-            container_image_type=ContainerImageType.TRAINING,
-        )
-        executor_ = PyxisExecutor(folder=paths.submit_dir_path)
-        executor_.update_parameters(
-            **slurm_common_parameters,
-            nodes=1,
-            time=DEFAULT_MAX_CONFIG_TIME_MIN,
-            job_name=f"{job_name_prefix}convert_model",
-            comment="Task for converting Megatron/NeMo model to Fastertransformer format",
-            setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
-        )
-        if config["slurm"].get("enable_gpus_allocation", True):
-            executor_.update_parameters(
-                gpus_per_node=8,
-            )
-        return executor_
-
-    try:
-        executor = _init_executor()
-        parameters_to_override = {}
-        model_path = paths.original_model_path
-        if not model_path.suffix:
-            parameters_to_override["model_format"] = "megatron"
-
-        conversion_job = executor.submit(
-            convert_model,
-            config_path=paths.navigator_config_path,
-            workspace_path=paths.workspace_path,
-            model_name=model_name,
-            model_path=model_path,
-            verbose=verbose,
-            parameters_to_override=parameters_to_override,
-        )
-        setup_job(conversion_job)
-        job_name = conversion_job.get_info().get("JobName")
-        LOGGER.info(f"[{conversion_job.job_id}/{job_name}] Submitted conversion for model {paths.original_model_path}")
-        LOGGER.info(f"[{conversion_job.job_id}/{job_name}] logs: {conversion_job.paths.stdout}")
-        converted_model_path = conversion_job.result()
-        LOGGER.info(f"[{conversion_job.job_id}/{job_name}] converted model: {converted_model_path}")
-        return pathlib.Path(converted_model_path)
-    finally:
-        if conversion_job is not None:
-            conversion_job.cancel()
-
-
-def _prepare_triton_model_repository(
-    *,
-    config,
-    paths,
-    model_name,
-    verbose: bool = False,
-):
-    preparation_job = None
-
-    def _init_executor():
-        job_name_prefix = config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
-        dirs_to_mount = get_dirs_to_mount(
-            paths=paths, triton_model_repository_readonly=False, container_image_type=ContainerImageType.TRAINING
-        )
-        slurm_common_parameters = get_common_slurm_parameters(
-            cluster_config=config,
-            dirs_to_mount=dirs_to_mount,
-            container_image_type=ContainerImageType.TRAINING,
-        )
-        executor_ = PyxisExecutor(folder=paths.submit_dir_path)
-        executor_.update_parameters(
-            **slurm_common_parameters,
-            nodes=1,
-            time=DEFAULT_MAX_CONFIG_TIME_MIN,
-            job_name=f"{job_name_prefix}config_model",
-            comment="Task for preparing Triton Inference Server Model Repository "
-            "with model in FasterTransformer format",
-            setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
-        )
-        if config["slurm"].get("enable_gpus_allocation", True):
-            executor_.update_parameters(
-                gpus_per_node=8,
-            )
-        return executor_
-
-    try:
-        executor = _init_executor()
-
-        variant = Variant(model_name=model_name)
-
-        preparation_job = executor.submit(
-            triton_config_model,
-            config_path=paths.navigator_config_path,
-            workspace_path=paths.workspace_path,
-            model_path=paths.converted_model_path,
-            variants=[variant],
-            verbose=verbose,
-        )
-        setup_job(preparation_job)
-        job_name = preparation_job.get_info().get("JobName")
-        LOGGER.info(
-            f"[{preparation_job.job_id}/{job_name}] Submitted task for preparation set of Triton Model Repositories "
-            f"for model {paths.converted_model_path}"
-        )
-
-        model_repository_paths = preparation_job.result()
-        LOGGER.info(f"[{preparation_job.job_id}/{job_name}] Triton Model Repositories:")
-        for model_repository_path in model_repository_paths:
-            LOGGER.info(f"[{preparation_job.job_id}/{job_name}]     - {model_repository_path}")
-        return model_repository_paths[0] if model_repository_paths else None
-    finally:
-        if preparation_job is not None:
-            preparation_job.cancel()
-
-
-def _load_triton_model_and_run_benchmark(
-    *,
-    paths: Paths,
-    config: typing.Dict,
-    dataset_dir: pathlib.Path,
-    accuracy_tests: bool = False,
-    performance_tests: bool = False,
-    verbose: bool = False,
-):
-    triton_server_set = None
-    perf_job = None
-
-    triton_config_path = list(paths.host_triton_model_repository_path.rglob("config.pbtxt"))[0]
-    variant = Variant.from_triton_config(triton_config_path)
-    job_name_prefix = config["slurm"].get("job_name_prefix", DEFAULT_JOB_NAME_PREFIX)
-
-    def _init_triton_set():
-        dirs_to_mount = get_dirs_to_mount(
-            paths=paths, triton_model_repository_readonly=True, container_image_type=ContainerImageType.INFERENCE
-        )
-        slurm_common_parameters = get_common_slurm_parameters(
-            cluster_config=config,
-            dirs_to_mount=dirs_to_mount,
-            container_image_type=ContainerImageType.INFERENCE,
-        )
-
-        triton_executor = PyxisTritonExecutor(folder=paths.submit_dir_path)
-        triton_executor.update_parameters(
-            **slurm_common_parameters,
-            time=DEFAULT_BENCHMARK_TIME_MIN,
-            comment="Task for handling set of Triton Inference Servers",
-        )
-
-        return TritonServerSet(
-            executor=triton_executor,
-            triton_model_repository_path=paths.container_triton_model_repository_path,
-            num_nodes=variant.pipeline_parallel_size,
-            gpus_per_server=variant.tensor_parallel_size,
-            max_time_min=DEFAULT_BENCHMARK_TIME_MIN,
-            enable_gpus_allocation=config["slurm"].get("enable_gpus_allocation", True),
-            verbose=verbose,
-            config_name=variant.extended_name,
-            job_name_prefix=job_name_prefix,
-        )
-
-    def _init_perf_jobs_executor():
-        dirs_to_mount = get_dirs_to_mount(
-            paths=paths,
-            additional_path_pairs=[(dataset_dir, dataset_dir)],
-            triton_model_repository_readonly=False,
-            container_image_type=ContainerImageType.TRAINING,
-        )
-        slurm_common_parameters = get_common_slurm_parameters(
-            cluster_config=config,
-            dirs_to_mount=dirs_to_mount,
-            container_image_type=ContainerImageType.TRAINING,
-        )
-        executor_ = PyxisExecutor(folder=paths.submit_dir_path)
-        executor_.update_parameters(
-            **slurm_common_parameters,
-            time=DEFAULT_BENCHMARK_TIME_MIN,
-            job_name=f"{job_name_prefix}eval_{variant.extended_name}",
-            comment="Task for profiling of models",
-            setup=["export NO_COLOR=1", f"export PYTHONPATH={sys.path[0]}"],
-        )
-        if config["slurm"].get("enable_gpus_allocation", True):
-            executor_.update_parameters(
-                gpus_per_node=8,
-            )
-        return executor_
-
-    try:
-        triton_server_set = _init_triton_set()
-        triton_server_set_job = triton_server_set._job
-        job_name = triton_server_set_job.get_info().get("JobName")
-        LOGGER.info(
-            f"[{triton_server_set_job.job_id}/{job_name}] Submitted set of Triton Servers "
-            f"for Triton Model Repository {paths.host_triton_model_repository_path}"
-        )
-        LOGGER.info(f"[{triton_server_set_job.job_id}/{job_name}] logs: {triton_server_set_job.paths.stdout}")
-        triton_server_set.wait_job_is_running_or_failed()
-        if triton_server_set.failed_or_missing:
-            LOGGER.info(
-                f"[{triton_server_set_job.job_id}/{job_name}] Stopping benchmarking this config "
-                f"(job state: {triton_server_set.state})"
-            )
-        else:
-            executor = _init_perf_jobs_executor()
-            perf_job = executor.submit(
-                run_perf_test,
-                config_path=paths.navigator_config_path,
-                workspace_path=paths.workspace_path,
-                bignlp_scripts_path=paths.host_cwd,
-                triton_endpoint_url=triton_server_set.grpc_endpoints[0],
-                accuracy_tests=accuracy_tests,
-                performance_tests=performance_tests,
-                dataset_dir=dataset_dir.resolve().absolute(),
-                variant=variant,
-                verbose=verbose,
-            )
-            job_name = perf_job.get_info().get("JobName")
-            LOGGER.info(
-                f"[{perf_job.job_id}/{job_name}] Submitted profiling job "
-                f"for Triton Model Repository {paths.host_triton_model_repository_path}"
-            )
-            LOGGER.info(f"[{perf_job.job_id}/{job_name}] logs: {perf_job.paths.stdout}")
-
-            perf_job.cancel_at_deletion()
-            perf_job_results = perf_job.result()
-            LOGGER.info(f"[{perf_job.job_id}/{job_name}] Evaluation results: {perf_job_results}")
-    except submitit.core.utils.UncompletedJobError as e:
-        LOGGER.warning(str(e))
-    finally:
-        if perf_job is not None:
-            perf_job.cancel()
-        if triton_server_set is not None:
-            triton_server_set.stop()
-
-
-def main():
-    parser = _prepare_args_parser()
-    args = parser.parse_args()
-
-    config_logger(args.verbose)
-    monkeypatch_submitit()
-
-    output_model_repository_path = pathlib.Path(args.model_repository_path).resolve().absolute()
-    if output_model_repository_path.exists():
-        delete_output_model_repository = get_YN_input(
-            f"{output_model_repository_path} exists. Do you want to remove it? [y/N] ", False
-        )
-        if delete_output_model_repository:
-            LOGGER.info(f"Removing {output_model_repository_path}")
-            shutil.rmtree(output_model_repository_path)
-        else:
-            LOGGER.warning(f"{output_model_repository_path} exists.")
-            return -1
-
-    cluster_config_path = pathlib.Path(args.cluster_config_path).resolve().absolute()
-    with cluster_config_path.open("r") as config_file:
-        cluster_config = yaml.load(config_file, Loader=yaml.SafeLoader)
-
-    paths = Paths(
-        host_cwd=pathlib.Path.cwd(),
-        workspace_path=pathlib.Path(args.workspace_path).resolve().absolute(),
-        original_model_path=pathlib.Path(args.model_path).resolve().absolute(),
-        converted_model_path=None,
-        navigator_config_path=pathlib.Path(args.navigator_config_path).resolve().absolute(),
-        host_triton_model_repository_path=None,
-        container_workdir=pathlib.Path(cluster_config["env"]["pyxis_container_workdir"]).resolve().absolute(),
-        container_triton_model_repository_path=pathlib.Path(TRITON_MODEL_REPOSITORY),
-    )
-
-    for name, value in vars(args).items():
-        LOGGER.info(f"{name}: {value}")
-    for name, value in vars(paths).items():
-        LOGGER.info(f"{name}: {value}")
-
-    converted_model_path = _convert_model(
-        paths=paths,
-        config=cluster_config,
-        model_name=args.model_name,
-        verbose=args.verbose,
-    )
-    converted_paths = dataclasses.replace(paths, converted_model_path=converted_model_path)
-    triton_model_repository_path = _prepare_triton_model_repository(
-        paths=converted_paths,
-        config=cluster_config,
-        model_name=args.model_name,
-        verbose=args.verbose,
-    )
-    deployed_paths = dataclasses.replace(
-        converted_paths, host_triton_model_repository_path=triton_model_repository_path
-    )
-
-    if any([args.accuracy_tests, args.performance_tests]):
-        _load_triton_model_and_run_benchmark(
-            paths=deployed_paths,
-            config=cluster_config,
-            accuracy_tests=args.accuracy_tests,
-            performance_tests=args.performance_tests,
-            dataset_dir=pathlib.Path(args.dataset_dir).resolve().absolute(),
-            verbose=args.verbose,
-        )
-
-    LOGGER.info(
-        f"Copying result Triton Model Repository to {output_model_repository_path} (model inside repository is symlink)"
-    )
-    shutil.copytree(triton_model_repository_path, output_model_repository_path, symlinks=True)
+ACCURACY_REPORT_FILENAME = "lambada_metrics.csv"
+OFFLINE_PERFORMANCE_REPORT_FILENAME = "triton_performance_offline.csv"
+ONLINE_PERFORMANCE_REPORT_FILENAME = "triton_performance_online.csv"
 
 
 def _prepare_args_parser():
@@ -393,6 +64,215 @@ def _prepare_args_parser():
     parser.add_argument("--performance-tests", help="Run performance tests", action="store_true", default=False)
     parser.add_argument("--verbose", "-v", help="Provides verbose output", action="store_true", default=False)
     return parser
+
+
+def main():
+    parser = _prepare_args_parser()
+    args = parser.parse_args()
+
+    workspace_path = pathlib.Path(args.workspace_path).resolve().absolute()
+    config_logger(workspace_path, args.verbose)
+
+    LOGGER.info(f"Arguments:")
+    for name, value in vars(args).items():
+        LOGGER.info(f"  {name}: {value}")
+
+    triton_model_repository_path = pathlib.Path(args.model_repository_path).resolve().absolute()
+    if triton_model_repository_path.exists():
+        delete_output_model_repository = get_YN_input(
+            f"{triton_model_repository_path} exists. Do you want to remove it? [y/N] ", False
+        )
+        if delete_output_model_repository:
+            LOGGER.info(f"Removing {triton_model_repository_path}")
+            shutil.rmtree(triton_model_repository_path)
+        else:
+            LOGGER.warning(f"{triton_model_repository_path} exists.")
+            return -1
+
+    cluster_config_path = pathlib.Path(args.cluster_config_path).resolve().absolute()
+    with cluster_config_path.open("r") as config_file:
+        cluster_config = yaml.load(config_file, Loader=yaml.SafeLoader)
+
+    src_model_path = pathlib.Path(args.model_path).resolve().absolute()
+    navigator_config_path = pathlib.Path(args.navigator_config_path).resolve().absolute()
+    cluster_dir_path = workspace_path / CLUSTER_DIR_NAME
+    navigator_workspace_path = workspace_path / "navigator_workspace"
+
+    job_name_prefix = cluster_config["env"]["job_name_prefix"]
+    training_container_image = cluster_config["env"]["training_container_image"]
+    inference_container_image = cluster_config["env"]["inference_container_image"]
+
+    navigator_config_on_workspace_path = workspace_path / navigator_config_path.name
+    navigator_config_on_workspace_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(navigator_config_path, navigator_config_on_workspace_path)
+
+    executor = ClusterExecutor(cluster_dir_path=cluster_dir_path, cluster_config=cluster_config["cluster"])
+
+    # convert
+    variant = Variant(model_name=args.model_name)
+    converted_model_path = workspace_path / f"{args.model_name}-converted.ft"
+    triton_prepare_model_repository_job_def = JobDefinition(
+        name=f"{job_name_prefix}prepare_model_repository",
+        description=f"{src_model_path} model conversion and preparation of Triton Model Repository",
+        max_time_s=DEFAULT_MAX_CONFIG_TIME_MIN * MIN2S,
+        container_image=training_container_image,
+        tasks_number=1,
+        gpus_number_per_task=8,
+        commands=[
+            f"export BIGNLP_SCRIPTS_PATH={BIGNLP_SCRIPTS_PATH}",
+            "export PYTHONPATH=${BIGNLP_SCRIPTS_PATH}:${PYTHONPATH}",
+            "export PYTHONUNBUFFERED=1",
+            "export NO_COLOR=1",
+            *get_convert_model_cmds(
+                workspace_path=navigator_workspace_path,
+                navigator_config_path=navigator_config_on_workspace_path,
+                model_name=args.model_name,
+                src_model_path=src_model_path,
+                output_model_path=converted_model_path,
+                verbose=True,
+            ),
+            *get_triton_config_model_cmds(
+                variant=variant,
+                workspace_path=navigator_workspace_path,
+                navigator_config_path=navigator_config_on_workspace_path,
+                src_model_path=converted_model_path,
+                triton_model_repository_path=triton_model_repository_path,
+                verbose=True,
+            ),
+        ],
+        directories_to_mount=[
+            navigator_config_on_workspace_path.parent,
+            src_model_path.parent,
+            converted_model_path.parent,
+            triton_model_repository_path.parent,
+        ],
+    )
+
+    LOGGER.info(f"[-] Running job for {triton_prepare_model_repository_job_def.description}")
+    triton_prepare_model_repository_job = executor.run(triton_prepare_model_repository_job_def)
+    LOGGER.info(
+        f"[{triton_prepare_model_repository_job.job_id}] " f"Triton Model Repository: {triton_model_repository_path}"
+    )
+
+    if any([args.accuracy_tests, args.performance_tests]):
+        wait_for(
+            "Triton Server Model configurations",
+            predicate_fn=lambda: list(triton_model_repository_path.rglob("config.pbtxt")),
+            timeout_s=FS_SYNC_TIMEOUT_S,
+        )
+        # run Triton server if tests requested
+        variant = Variant.from_triton_model_repository(triton_model_repository_path)
+        tritonserver_set_job_def = JobDefinition(
+            name=f"{job_name_prefix}tritonserver_set_{variant.extended_name}",
+            description=f"Run Triton Inference Server for {triton_model_repository_path}",
+            max_time_s=DEFAULT_MAX_CONFIG_TIME_MIN * MIN2S,
+            container_image=inference_container_image,
+            commands=[
+                f"export CUDA_VISIBLE_DEVICES={','.join(map(str, range(0, variant.tensor_parallel_size)))}",
+                "export NCCL_LAUNCH_MODE=GROUP",
+                f"tritonserver --model-repository {triton_model_repository_path} "
+                f"{'--log-verbose 1' if args.verbose else ''}",
+            ],
+            directories_to_mount=[triton_model_repository_path],
+            ports=[DEFAULT_HTTP_PORT, DEFAULT_GRPC_PORT, DEFAULT_METRIC_PORT],
+            tasks_number=variant.pipeline_parallel_size,
+            tasks_number_per_node=1,
+            gpus_number_per_task=variant.tensor_parallel_size,
+        )
+        LOGGER.info(f"[-] Submitted job for {tritonserver_set_job_def.description}")
+        triton_server_set_job = executor.submit(tritonserver_set_job_def)
+        triton_server_set = TritonServerSet(triton_server_set_job)
+        triton_server_set.wait_until_job_is_running_or_done()
+
+        if triton_server_set.state.is_done():
+            LOGGER.warning(
+                f"[{triton_server_set_job.job_id}] Stopping benchmarking this config "
+                f"(job state: {triton_server_set.state})"
+            )
+        else:
+            server_url = triton_server_set.http_endpoints[0]
+
+            accuracy_report_path = workspace_path / ACCURACY_REPORT_FILENAME
+            offline_performance_report_path = workspace_path / OFFLINE_PERFORMANCE_REPORT_FILENAME
+            online_performance_report_path = workspace_path / ONLINE_PERFORMANCE_REPORT_FILENAME
+            commands = [
+                f"export BIGNLP_SCRIPTS_PATH={BIGNLP_SCRIPTS_PATH}",
+                "export PYTHONPATH=${BIGNLP_SCRIPTS_PATH}:${PYTHONPATH}",
+                "export PYTHONUNBUFFERED=1",
+                "export NO_COLOR=1",
+            ]
+            directories_to_mount = [navigator_config_on_workspace_path.parent]
+
+            if args.accuracy_tests:
+                protocol, host_and_port = server_url.split("://")
+                dataset_dir = pathlib.Path(args.dataset_dir).resolve().absolute()
+                batch_size = 128
+                commands.append(
+                    "${BIGNLP_SCRIPTS_PATH}/infer_scripts/evaluate_lambada.py "
+                    f"-u {host_and_port} "
+                    f"--protocol {protocol} "
+                    f"-m {args.model_name} "
+                    f"-d {dataset_dir} "
+                    f"-b {batch_size} "
+                    f"--output_csv {accuracy_report_path} "
+                    "--n-gram-disabled "
+                    f"{'--verbose' if args.verbose else ''}"
+                )
+                directories_to_mount.append(dataset_dir)
+
+            if args.performance_tests:
+                # WAR for bug in perf_analyzer which fails if count search window is used
+                # and if there are batch_sizes higher than max_batch_size
+                with navigator_config_on_workspace_path.open("r") as config_file:
+                    config = yaml.load(config_file, Loader=yaml.SafeLoader)
+                    max_batch_size = config.get("max_batch_size")
+                    batch_sizes = [bs for bs in config.get("batch_sizes", []) if bs <= max_batch_size]
+                    batch_sizes_arg = f"--batch-sizes {' '.join(map(str, batch_sizes))} " if batch_sizes else ""
+
+                commands.extend(
+                    [
+                        f"model-navigator triton-evaluate-model "
+                        f"--config-path {navigator_config_on_workspace_path} "
+                        f"--server-url {server_url} "
+                        f"--batching-mode static "
+                        f"--evaluation-mode online "
+                        f"--model-name {args.model_name} "
+                        f"--latency-report-file {offline_performance_report_path} "
+                        f"{'--verbose ' if args.verbose else ''}" + batch_sizes_arg,
+                        f"model-navigator triton-evaluate-model "
+                        f"--config-path {navigator_config_on_workspace_path} "
+                        f"--server-url {server_url} "
+                        f"--batching-mode dynamic "
+                        f"--evaluation-mode online "
+                        f"--model-name {args.model_name} "
+                        f"--latency-report-file {online_performance_report_path} "
+                        f"{'--verbose ' if args.verbose else ''}" + batch_sizes_arg,
+                    ]
+                )
+
+            test_job_def = JobDefinition(
+                name=f"{job_name_prefix}test_{args.model_name}",
+                description=f"Testing of {server_url}/{args.model_name}",
+                max_time_s=DEFAULT_MAX_CONFIG_TIME_MIN * MIN2S,
+                container_image=training_container_image,
+                commands=commands,
+                directories_to_mount=directories_to_mount,
+                tasks_number=1,
+            )
+            LOGGER.info(f"[-] Running job for {test_job_def.description}")
+            test_job = executor.run(test_job_def, dependencies=[triton_server_set_job])
+
+            if args.accuracy_tests:
+                LOGGER.info(f"[{test_job.job_id}] Accuracy results: \n{accuracy_report_path.read_text()}")
+            if args.performance_tests:
+                LOGGER.info(
+                    f"[{test_job.job_id}] "
+                    f"Static batching benchmark results: \n{offline_performance_report_path.read_text()}"
+                )
+                LOGGER.info(
+                    f"[{test_job.job_id}] "
+                    f"Dynamic batching benchmark results: \n{online_performance_report_path.read_text()}"
+                )
 
 
 if __name__ == "__main__":

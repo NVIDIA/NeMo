@@ -55,7 +55,7 @@ index a5d2044..64bf38b 100644
  
              if self._client.load_model(model_name=variant_name) == -1:
 diff --git a/model_analyzer/perf_analyzer/perf_analyzer.py b/model_analyzer/perf_analyzer/perf_analyzer.py
-index af9225b..064d11f 100644
+index af9225b..35e8128 100644
 --- a/model_analyzer/perf_analyzer/perf_analyzer.py
 +++ b/model_analyzer/perf_analyzer/perf_analyzer.py
 @@ -34,8 +34,9 @@
@@ -70,10 +70,29 @@ index af9225b..064d11f 100644
      PERF_ANALYZER_MINIMUM_REQUEST_COUNT
  
  from subprocess import Popen, STDOUT, PIPE
-@@ -97,6 +98,18 @@ def __init__(self, path, config, max_retries, timeout, max_cpu_util):
+@@ -70,7 +71,15 @@ class PerfAnalyzer:
+         PerfServerComputeOutput: "_parse_perf_server_compute_output"
+     }
+ 
+-    def __init__(self, path, config, max_retries, timeout, max_cpu_util):
++    def __init__(
++            self,
++            path,
++            config,
++            max_retries,
++            timeout,
++            max_cpu_util,
++            measurement_relative_step: int = PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP
++    ):
+         """
+         Parameters
+         ----------
+@@ -96,6 +105,19 @@ def __init__(self, path, config, max_retries, timeout, max_cpu_util):
+         self._output = None
          self._perf_records = None
          self._max_cpu_util = max_cpu_util
- 
++        self._measurement_relative_step = measurement_relative_step
++
 +        self._initial_measurement_interval = int(
 +            self._config['measurement-interval']
 +            if self._config['measurement-interval'] is not None
@@ -85,19 +104,11 @@ index af9225b..064d11f 100644
 +            if self._config['measurement-request-count'] is not None
 +            else PERF_ANALYZER_MINIMUM_REQUEST_COUNT
 +        )
-+
+ 
      def run(self, metrics, env=None):
          """
-         Runs the perf analyzer with the
-@@ -229,26 +242,28 @@ def _auto_adjust_parameters(self, cmd, process):
-         if self._output.find("Failed to obtain stable measurement"
-                             ) != -1 or self._output.find(
+@@ -231,24 +253,21 @@ def _auto_adjust_parameters(self, cmd, process):
                                  "Please use a larger time window") != -1:
-+            relative_step = float(
-+                self._config['measurement-relative-step']
-+                if self._config['measurement-relative-step'] is not None
-+                else PERF_ANALYZER_MEASUREMENT_RELATIVE_STEP
-+            )
              if self._config['measurement-mode'] == 'time_windows':
                  if self._config['measurement-interval'] is None:
 -                    self._config[
@@ -107,8 +118,8 @@ index af9225b..064d11f 100644
 -                        self._config['measurement-interval']
 -                    ) + MEASUREMENT_WINDOW_STEP
 +                    self._config['measurement-interval'] = self._initial_measurement_interval
-+                self._config['measurement-interval'] += int(
-+                    self._initial_measurement_interval * relative_step
++                self._config['measurement-interval'] = int(self._config['measurement-interval']) + int(
++                    self._initial_measurement_interval * self._measurement_relative_step
 +                )
 +
                  logger.info(
@@ -124,26 +135,27 @@ index af9225b..064d11f 100644
 -                        self._config['measurement-request-count']
 -                    ) + MEASUREMENT_REQUEST_COUNT_STEP
 +                    self._config['measurement-request-count'] = self._initial_measurement_request_count
-+                self._config['measurement-request-count'] += int(
-+                    self._initial_measurement_request_count * relative_step
++                self._config['measurement-request-count'] = int(self._config['measurement-request-count']) + int(
++                    self._initial_measurement_request_count * self._measurement_relative_step
 +                )
                  logger.info(
                      "perf_analyzer's request count is too small, "
                      f"increased to {self._config['measurement-request-count']}."
-diff --git a/model_analyzer/perf_analyzer/perf_config.py b/model_analyzer/perf_analyzer/perf_config.py
-index e224aef..ec2804c 100644
---- a/model_analyzer/perf_analyzer/perf_config.py
-+++ b/model_analyzer/perf_analyzer/perf_config.py
-@@ -30,7 +30,8 @@ class PerfAnalyzerConfig:
-         'stability-percentage', 'max-trials', 'percentile', 'input-data',
-         'shared-memory', 'output-shared-memory-size', 'shape',
-         'sequence-length', 'string-length', 'string-data', 'measurement-mode',
--        'measurement-request-count', 'streaming', 'grpc-compression-algorithm',
-+        'measurement-request-count', 'measurement-request-count',
-+        'streaming', 'grpc-compression-algorithm',
-         'triton-server-directory', 'model-repository'
-     ]
+diff --git a/model_analyzer/record/metrics_manager.py b/model_analyzer/record/metrics_manager.py
+index e9666c5..93e42ad 100644
+--- a/model_analyzer/record/metrics_manager.py
++++ b/model_analyzer/record/metrics_manager.py
+@@ -291,7 +291,9 @@ def _get_perf_analyzer_metrics(self,
+             config=perf_config,
+             max_retries=self._config.perf_analyzer_max_auto_adjusts,
+             timeout=self._config.perf_analyzer_timeout,
+-            max_cpu_util=self._config.perf_analyzer_cpu_util)
++            max_cpu_util=self._config.perf_analyzer_cpu_util,
++            measurement_relative_step=self._config.perf_analyzer_measurement_relative_step
++        )
  
+         # IF running with C_API, need to set CUDA_VISIBLE_DEVICES here
+         if self._config.triton_launch_mode == 'c_api':
 diff --git a/model_analyzer/record/types/perf_throughput_normalized.py b/model_analyzer/record/types/perf_throughput_normalized.py
 new file mode 100644
 index 0000000..25311b2
