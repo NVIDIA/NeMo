@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 import torch
 from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -93,9 +94,6 @@ class MegatronGPTModel(NLPModel):
             ffn_hidden_size=cfg.ffn_hidden_size,
             num_tokentypes=0,
             parallel_output=True,
-            use_soft_prompts=cfg.get('use_soft_prompts', False),
-            prompt_length=cfg.get('prompt_length', 10),
-            prompt_tags=cfg.get('existing_prompt_tags', None),
             pre_process=cfg.get('pre_process', True),
             post_process=cfg.get('post_process', True),
             init_method_std=cfg.get('init_method_std', 0.02),
@@ -108,6 +106,9 @@ class MegatronGPTModel(NLPModel):
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=cfg.get('onnx_safe', False),
+            use_soft_prompts=cfg.get('use_soft_prompts', False),
+            prompt_length=cfg.get('prompt_length', 10),
+            prompt_tags=cfg.get('existing_prompt_tags', None),
         )
 
         self.use_soft_prompts = False
@@ -395,32 +396,41 @@ class MegatronGPTModel(NLPModel):
             
     @classmethod
     def bucketize_gpt_inference(cls, batch):
-        # unpad tokens
-        lens, batch_size, tokens_to_generate = batch[1], len(batch[0]), batch[2][0]
-        batch[0] = batch[0].tolist()
+        batch_tokens, lens, tokens_to_generate, prompt_tags = batch
+        batch_size = len(batch_tokens)
+        tokens_to_generate = tokens_to_generate[0]
 
+        batch_tokens = batch_tokens.tolist()
+
+        # unpad tokens
         indxs = [index for index in range(batch_size)]
         for lenn, index in zip(lens, indxs):
-            batch[0][index] = batch[0][index][:lenn]
+            batch_tokens[index] = batch_tokens[index][:lenn]
+
 
         # chunk tokens by same length
         pre_buckets, lens = [], list(set(lens.tolist()))
         for lenn in lens:
-            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch[0]) if len(tokens) == lenn])
+            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
 
-        buckets, positions = [], []
+        buckets, positions, bucket_prompt_tags = [], [], []
 
         # get buckets and prompts initial positions
         for bucket in pre_buckets:
             buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
             positions.append([item[1] for item in bucket])
+            bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
+
+        # Flatten position list
         positions = [item for sublist in positions for item in sublist]
 
-        return buckets, positions, tokens_to_generate
+        request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
+
+        return request, positions, tokens_to_generate
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        buckets, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch)
-        response = self.complete(buckets, positions, tokens_to_generate)
+        request, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch)
+        response = self.complete(request, positions, tokens_to_generate)
 
         return response
 
@@ -431,7 +441,7 @@ class MegatronGPTModel(NLPModel):
             request: 
                 * tokens: List of "buckets" with unpadded tokens of the same length
                 * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
-                               specifying which prompt tag to use (optional)
+                               specifying the prompt tag to use (optional)
             positions: List with initial prompts positions
             tokens_to_generate: int value denoting amount of tokens model should generate
 
@@ -447,14 +457,16 @@ class MegatronGPTModel(NLPModel):
         results = []
         request_tokens = request["tokens"]
 
-        # For prompt tuned GPT models
-        if self.use_soft_prompts:
-            prompt_tags = request["prompt_tags"]
-        else:
-            prompt_tags = None
+        for idx, tokens in enumerate(request_tokens):
 
-        for tokens in request_tokens:
+            # For prompt tuned GPT models
+            if self.use_soft_prompts:
+                prompt_tags = request["prompt_tags"][idx]
+            else:
+                prompt_tags = None
+            
             logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+
             for i in range(tokens_to_generate + 1):
                 if self.use_soft_prompts:
                     batch_size = len(tokens)
@@ -526,6 +538,10 @@ class MegatronGPTModel(NLPModel):
             raise AttributeError('Please set "use_soft_prompts" in cfg to True')
 
         self.prompt_table.add(prompt_tag)
+
+        # Add new prompt tag to cfg for loading prompt table at inference
+        with open_dict(self.cfg):
+            self.cfg.existing_prompt_tags = list(self.prompt_table)
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and

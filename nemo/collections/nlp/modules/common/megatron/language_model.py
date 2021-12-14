@@ -63,9 +63,6 @@ def get_language_model(
     scaled_init_method=None,
     add_decoder=False,
     decoder_attn_mask_type=AttnMaskType.causal,
-    use_soft_prompts=False,
-    prompt_length=10,
-    prompt_tags=None,
     pre_process=True,
     post_process=True,
     init_method_std=0.02,
@@ -79,6 +76,9 @@ def get_language_model(
     bias_gelu_fusion=True,
     openai_gelu=False,
     onnx_safe=False,
+    use_soft_prompts=False,
+    prompt_length=10,
+    prompt_tags=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -111,9 +111,6 @@ def get_language_model(
         add_decoder=add_decoder,
         decoder_attn_mask_type=decoder_attn_mask_type,
         add_pooler=add_pooler,
-        use_soft_prompts=use_soft_prompts,
-        prompt_length=prompt_length,
-        prompt_tags=prompt_tags,
         pre_process=pre_process,
         post_process=post_process,
         use_cpu_initialization=use_cpu_initialization,
@@ -126,6 +123,9 @@ def get_language_model(
         bias_gelu_fusion=bias_gelu_fusion,
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
+        use_soft_prompts=use_soft_prompts,
+        prompt_length=prompt_length,
+        prompt_tags=prompt_tags,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -363,7 +363,7 @@ class PromptEmbedding(MegatronModule):
 
         return embeddings
 
-    # This save and load methods don't actually seemed to be called during training and when restoring the model
+    # These save and load methods don't actually seem to be called during training or when restoring the model
     # But I've added them because the other transformer submodules have them
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load."""
@@ -521,9 +521,6 @@ class TransformerLanguageModel(MegatronModule):
         add_decoder=False,
         decoder_attn_mask_type=AttnMaskType.causal,
         add_pooler=False,
-        use_soft_prompts=False,
-        prompt_length=10,
-        prompt_tags=None,
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
@@ -536,6 +533,9 @@ class TransformerLanguageModel(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
+        use_soft_prompts=False,
+        prompt_length=10,
+        prompt_tags=None,
     ):
         super(TransformerLanguageModel, self).__init__()
 

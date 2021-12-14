@@ -70,9 +70,6 @@ class GPTModel(MegatronModule):
         kv_channels=None,
         num_tokentypes=0,
         parallel_output=True,
-        use_soft_prompts=False,
-        prompt_length=10,
-        prompt_tags=None,
         pre_process=True,
         post_process=True,
         init_method_std=0.02,
@@ -87,6 +84,9 @@ class GPTModel(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
+        use_soft_prompts=False,
+        prompt_length=10,
+        prompt_tags=None,
     ):
         super(GPTModel, self).__init__()
 
@@ -116,9 +116,6 @@ class GPTModel(MegatronModule):
             encoder_attn_mask_type=AttnMaskType.causal,
             init_method=init_method_normal(init_method_std),
             scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
-            use_soft_prompts=use_soft_prompts,
-            prompt_length=prompt_length,
-            prompt_tags=prompt_tags,
             pre_process=self.pre_process,
             post_process=self.post_process,
             init_method_std=init_method_std,
@@ -131,6 +128,9 @@ class GPTModel(MegatronModule):
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            use_soft_prompts=use_soft_prompts,
+            prompt_length=prompt_length,
+            prompt_tags=prompt_tags,
         )
 
         self.initialize_word_embeddings(
