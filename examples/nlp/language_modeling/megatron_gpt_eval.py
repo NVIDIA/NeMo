@@ -16,6 +16,7 @@ import json
 from argparse import ArgumentParser
 
 import torch
+import pickle as pkl
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
@@ -132,7 +133,7 @@ def main():
                 data.append((token, lenn, tokens_to_generate, prompt_tag))
         else:
             for token, lenn in zip(tokens_pad.T, lens):
-                data.append((token, lenn, tokens_to_generate, None))
+                data.append((token, lenn, tokens_to_generate))
 
         return data
 
@@ -144,24 +145,28 @@ def main():
         for prompt in prompts.readlines():
             prompt = prompt.split('\n')[0]
 
-            if args.use_soft_prompts:
+            if args.use_soft_prompts and model.use_soft_prompts:
                 prompt = json.loads(prompt)
 
             request.append(prompt)
 
         dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=int(args.batch_size))
-        response = trainer.predict(model, request_dl)
 
     else:
-        if args.use_soft_prompts:
+        if args.use_soft_prompts and model.use_soft_prompts:
             request = [{'prompt_tag': args.prompt_tag, 'text': args.prompt}]
         else:
             request = [args.prompt]
 
         dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
-        response = trainer.predict(model, request_dl)
+
+    # For GPT models that have had soft prompt tuning but you don't want to use any soft prompts
+    if not args.use_soft_prompts and model.use_soft_prompts:
+        model.use_soft_prompts = False
+
+    response = trainer.predict(model, request_dl)
 
     print("***************************")
     print(response)

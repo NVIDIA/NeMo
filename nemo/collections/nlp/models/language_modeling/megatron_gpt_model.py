@@ -395,12 +395,14 @@ class MegatronGPTModel(NLPModel):
             param.requires_grad = True
 
     @classmethod
-    def bucketize_gpt_inference(cls, batch):
-        batch_tokens, lens, tokens_to_generate, prompt_tags = batch
+    def bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
+        batch_tokens, lens, tokens_to_generate = batch[:3]
         batch_size = len(batch_tokens)
         tokens_to_generate = tokens_to_generate[0]
-
         batch_tokens = batch_tokens.tolist()
+
+        if use_soft_prompts:
+            prompt_tags = batch[3]
 
         # unpad tokens
         indxs = [index for index in range(batch_size)]
@@ -418,17 +420,21 @@ class MegatronGPTModel(NLPModel):
         for bucket in pre_buckets:
             buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
             positions.append([item[1] for item in bucket])
-            bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
+
+            # bucket prompt tags identically to their corresponding examples
+            if use_soft_prompts:
+                bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
 
         # Flatten position list
         positions = [item for sublist in positions for item in sublist]
 
+        # Form request
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
         return request, positions, tokens_to_generate
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch)
+        request, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch, self.use_soft_prompts)
         response = self.complete(request, positions, tokens_to_generate)
 
         return response
