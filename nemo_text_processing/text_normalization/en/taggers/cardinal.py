@@ -56,10 +56,15 @@ class CardinalFst(GraphFst):
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
         if not deterministic:
-            single_digits_graph = (
-                pynini.invert(graph_digit | graph_zero) | pynini.cross("0", "oh") | pynini.cross("0", "o")
+            # for a single token allow only the same normalization
+            # "007" -> {"oh oh seven", "zero zero seven"} not {"oh zero seven"}
+            single_digits_graph_zero = pynini.invert(graph_digit | graph_zero)
+            single_digits_graph_oh = pynini.invert(graph_digit) | pynini.cross("0", "zero")
+
+            self.single_digits_graph = single_digits_graph_zero + pynini.closure(
+                insert_space + single_digits_graph_zero
             )
-            self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
+            self.single_digits_graph |= single_digits_graph_oh + pynini.closure(insert_space + single_digits_graph_oh)
 
             single_digits_graph_with_commas = pynini.closure(
                 self.single_digits_graph + insert_space, 1, 3
@@ -72,37 +77,32 @@ class CardinalFst(GraphFst):
                 + single_digits_graph,
                 1,
             )
-            self.graph = (
-                self.graph
-                | self.single_digits_graph
-                | get_hundreds_graph()
-                | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
-            )
+            self.graph = self.graph | get_hundreds_graph() | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
 
-            self.range_graph = (
-                pynini.closure(pynutil.insert("from "), 0, 1)
-                + self.graph
-                + (pynini.cross("-", " to ") | pynini.cross("-", " "))
-                + self.graph
-            )
+            self.range_graph = pynutil.insert("from ") + self.graph + pynini.cross("-", " to ") + self.graph
 
             self.range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
             self.range_graph = self.range_graph.optimize()
 
+            self.graph |= self.single_digits_graph
+
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-        final_graph = self.graph | self.get_serial_graph() | pynutil.add_weight(long_numbers, -0.001)
+        if deterministic:
+            long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
+            final_graph = self.graph | self.get_serial_graph() | pynutil.add_weight(long_numbers, -0.001)
 
-        if not deterministic:
-            final_graph |= self.range_graph
+        else:
+            # to remove options like "1300" -> "thirteen zero zero"
+            final_graph = self.graph | self.get_serial_graph() | self.range_graph
             remove_leading_zeros = pynini.closure(pynutil.delete("0"), 1) + pynini.compose(
-                pynini.closure(NEMO_DIGIT, 1), self.graph
+                pynini.closure(pynini.difference(NEMO_DIGIT, "0"), 1), self.graph
             )
             final_graph |= remove_leading_zeros
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
+
         self.fst = final_graph.optimize()
 
     def get_serial_graph(self):
@@ -113,22 +113,27 @@ class CardinalFst(GraphFst):
         """
         alpha = NEMO_ALPHA
 
-        if self.deterministic:
-            num_graph = self.single_digits_graph
-        else:
-            num_graph = self.graph
-            letter_pronunciation = pynini.string_map(load_labels(get_abs_path("data/letter_pronunciation.tsv")))
-            alpha |= letter_pronunciation
+        num_graph = self.single_digits_graph
 
-        delimiter = insert_space | pynini.cross("-", " ") | pynini.cross("/", " ")
+        if not self.deterministic:
+            num_graph |= self.graph
 
-        letter_num = pynini.closure(alpha + delimiter, 1) + num_graph
-        num_letter = pynini.closure(num_graph + delimiter, 1) + alpha
-        num_delimiter_num = pynini.closure(num_graph + delimiter, 1) + num_graph
-        next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
-        serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
+        delimiter = pynini.accep("-") | pynini.accep("/") | pynutil.insert(" ")
+
+        letter_num = pynini.closure(alpha, 1) + delimiter + num_graph
+        num_letter = pynini.closure(num_graph + delimiter, 1) + pynini.closure(alpha, 1)
+        next_alpha_or_num = pynini.closure(
+            (delimiter + pynini.closure(alpha, 1) + pynini.closure(delimiter + num_graph, 1))
+            | (pynutil.insert(" ") + alpha + delimiter + num_graph)
+            | (delimiter + num_graph)
+            | (delimiter + pynini.closure(alpha, 1))
+        )
+
+        serial_graph = letter_num + next_alpha_or_num
+        serial_graph |= num_letter + next_alpha_or_num
+
         if not self.deterministic:
             serial_graph += pynini.closure(pynini.accep("s") | pynini.cross("s", "es"), 0, 1)
 
         serial_graph.optimize()
-        return pynutil.add_weight(serial_graph, 10)
+        return pynutil.add_weight(serial_graph, 2)

@@ -26,6 +26,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 
+# from megatron import get_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+
 
 class T5Dataset(MegatronDataset):
     def __init__(

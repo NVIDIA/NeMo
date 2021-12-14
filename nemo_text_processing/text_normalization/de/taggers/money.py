@@ -26,9 +26,16 @@ try:
     import pynini
     from pynini.lib import pynutil
 
+    min_singular = pynini.string_file(get_abs_path("data/money/currency_minor_singular.tsv"))
+    min_plural = pynini.string_file(get_abs_path("data/money/currency_minor_plural.tsv"))
+    maj_singular = pynini.string_file((get_abs_path("data/money/currency.tsv")))
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+    min_singular = None
+    min_plural = None
+    maj_singular = None
 
 
 class MoneyFst(GraphFst):
@@ -55,12 +62,11 @@ class MoneyFst(GraphFst):
         graph_decimal_final = decimal.fst
 
         maj_singular_labels = load_labels(get_abs_path("data/money/currency.tsv"))
-        maj_singular = pynini.string_map(maj_singular_labels)
-        maj_plural = convert_space(maj_singular)
-        maj_singular = convert_space(maj_singular)
+        maj_singular_graph = convert_space(maj_singular)
+        maj_plural_graph = maj_singular_graph
 
-        graph_maj_singular = pynutil.insert("currency_maj: \"") + maj_singular + pynutil.insert("\"")
-        graph_maj_plural = pynutil.insert("currency_maj: \"") + maj_plural + pynutil.insert("\"")
+        graph_maj_singular = pynutil.insert("currency_maj: \"") + maj_singular_graph + pynutil.insert("\"")
+        graph_maj_plural = pynutil.insert("currency_maj: \"") + maj_plural_graph + pynutil.insert("\"")
 
         optional_delete_fractional_zeros = pynini.closure(
             pynutil.delete(",") + pynini.closure(pynutil.delete("0"), 1), 0, 1
@@ -100,8 +106,6 @@ class MoneyFst(GraphFst):
             | ((NEMO_DIGIT - "0") + NEMO_DIGIT)
         )
 
-        min_singular = pynini.string_file(get_abs_path("data/money/currency_minor_singular.tsv"))
-        min_plural = pynini.string_file(get_abs_path("data/money/currency_minor_plural.tsv"))
         graph_min_singular = pynutil.insert(" currency_min: \"") + min_singular + pynutil.insert("\"")
         graph_min_plural = pynutil.insert(" currency_min: \"") + min_plural + pynutil.insert("\"")
 
@@ -127,12 +131,13 @@ class MoneyFst(GraphFst):
             )
 
             decimal_graph_with_minor_curr = integer_plus_maj + pynini.cross(",", " ") + fractional_plus_min
-            decimal_graph_with_minor_curr |= (
+            decimal_graph_with_minor_curr |= pynutil.add_weight(
                 integer_plus_maj
                 + pynini.cross(",", " ")
                 + pynutil.insert("fractional_part: \"")
                 + two_digits_fractional_part @ cardinal.two_digit_non_zero
-                + pynutil.insert("\"")
+                + pynutil.insert("\""),
+                weight=0.0001,
             )
 
             decimal_graph_with_minor_curr |= pynutil.delete("0,") + fractional_plus_min
