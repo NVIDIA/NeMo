@@ -375,7 +375,10 @@ class HifiGanModel(Vocoder, Exportable):
         Base version does common necessary module replacements (Apex etc)
         """
         if self.generator is not None:
-            self.generator.remove_weight_norm()
+            try:
+                self.generator.remove_weight_norm()
+            except ValueError:
+                return
 
     def input_example(self):
         """

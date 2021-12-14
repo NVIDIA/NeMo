@@ -886,9 +886,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     param.grad.data.div_(norm)
 
     def export(self, output: str, input_example=None, output_example=None, **kwargs):
-        self.encoder._rnnt_export = True
-        self.decoder._rnnt_export = True
-        self.joint._rnnt_export = True
         encoder_exp, encoder_descr = self.encoder.export(
             self._augment_output_filename(output, 'Encoder'),
             input_example=input_example,
@@ -903,3 +900,4 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             output_example=None,
             **kwargs,
         )
+        return encoder_exp + decoder_exp, encoder_descr + decoder_descr

@@ -126,6 +126,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
+    def _prepare_for_export(self, **kwargs):
+        self._rnnt_export = True
+        super()._prepare_for_export(**kwargs)
+
     def __init__(
         self,
         prednet: Dict[str, Any],
@@ -161,8 +165,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
         )
-
-        # Flag needed for RNNT export support
         self._rnnt_export = False
 
     @typecheck()
@@ -695,6 +697,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def _prepare_for_export(self, **kwargs):
         self._fuse_loss_wer = False
         self.log_softmax = False
+        super()._prepare_for_export(**kwargs)
 
     def input_example(self):
         """
@@ -1084,7 +1087,6 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         super().__init__()
         self.decoder = decoder
         self.joint = joint
-        self.training = False
 
     @property
     def input_types(self):
@@ -1120,11 +1122,3 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
         joint_output = self.joint(encoder_outputs, decoder_output)
         return (joint_output, decoder_length, state_h, state_c)
-
-    def freeze(self):
-        self.decoder.freeze()
-        self.joint.freeze()
-
-    def _prepare_for_export(self, **kwargs):
-        self.joint._prepare_for_export(**kwargs)
-        self.decoder._prepare_for_export(**kwargs)
