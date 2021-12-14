@@ -20,18 +20,24 @@ from torch.utils.data.dataset import Dataset
 
 
 class GPTRequestDataset(Dataset):
-    def __init__(self, requests: List, tokenizer) -> None:
+    def __init__(self, requests: List, tokenizer, tokens_to_generate: int) -> None:
         super().__init__()
         self.requests = requests
         self.tokenizer = tokenizer
+        self.tokens_to_generate = tokens_to_generate
+        self.tokens = []
 
         # tokenize prompt
         for request in self.requests:
-            request['tokenized_prompt'] = self.tokenizer.text_to_tokens(request['prompt'])
-            request['tokens'] = torch.tensor(self.tokenizer.text_to_ids(request['prompt']))
+            self.tokens.append(torch.tensor(self.tokenizer.text_to_ids(request)))
+
+        self.data = {
+            'data': self.tokens,
+            'tokens_to_generate': self.tokens_to_generate,
+        }
 
     def __len__(self):
         return 1
 
     def __getitem__(self, index):
-        return self.requests
+        return self.data
