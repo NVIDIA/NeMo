@@ -109,6 +109,7 @@ class WER(Metric):
         ctc_decode=True,
         log_prediction=True,
         dist_sync_on_step=False,
+        remove_consecutive=True,
     ):
         super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
         self.batch_dim_index = batch_dim_index
@@ -117,6 +118,7 @@ class WER(Metric):
         self.use_cer = use_cer
         self.ctc_decode = ctc_decode
         self.log_prediction = log_prediction
+        self.remove_consecutive = remove_consecutive
 
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
@@ -149,16 +151,22 @@ class WER(Metric):
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
         for ind in range(prediction_cpu_tensor.shape[0]):
-            prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
-            if predictions_len is not None:
-                prediction = prediction[: predictions_len[ind]]
-            # CTC decoding procedure
-            decoded_prediction = []
-            previous = self.blank_id
-            for p in prediction:
-                if (p != previous or previous == self.blank_id) and p != self.blank_id:
-                    decoded_prediction.append(p)
-                previous = p
+            if self.remove_consecutive:
+                prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
+                if predictions_len is not None:
+                    prediction = prediction[: predictions_len[ind]]
+                # CTC decoding procedure
+                decoded_prediction = []
+                previous = self.blank_id
+                for p in prediction:
+                    if (p != previous or previous == self.blank_id) and p != self.blank_id:
+                        decoded_prediction.append(p)
+                    previous = p
+            else:
+                prediction = prediction_cpu_tensor[ind].detach()
+                if predictions_len is not None:
+                    prediction = prediction[: predictions_len[ind]]
+                decoded_prediction = prediction[prediction != self.blank_id].tolist()
 
             text = self.decode_tokens_to_str(decoded_prediction)
 

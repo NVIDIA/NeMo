@@ -125,7 +125,7 @@ class BaseDecoder(object):
                     if self.blank != 0:
                         # suppose self.blank == self.num_classes - 1
                         labels = torch.where(labels == 0, self.blank, labels - 1)
-                    shortest_paths.append(labels)
+                    shortest_paths.append(labels[::2] if self.pad_fsavec else labels)
             else:
                 shortest_paths = []
                 # direct iterating does not work as expected
@@ -134,7 +134,7 @@ class BaseDecoder(object):
                     aux_labels = aux_labels[aux_labels != 0][:-1]
                     if self.blank != 0:
                         aux_labels -= 1
-                    shortest_paths.append(aux_labels)
+                    shortest_paths.append(aux_labels[::2] if self.pad_fsavec else aux_labels)
             return shortest_paths, scores
 
 
