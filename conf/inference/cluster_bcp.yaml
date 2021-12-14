@@ -1,0 +1,8 @@
+cluster:
+  type: base_command
+  instance_with_gpu: dgxa100.80g.8.norm
+  instance_without_gpu: dgxa100.80g.1.norm
+env:
+  job_name_prefix: "bignlp-"
+  training_container_image: gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:main-py3-base
+  inference_container_image: gitlab-master.nvidia.com:5005/dl/dgx/bignlp/infer:main-py3-base
