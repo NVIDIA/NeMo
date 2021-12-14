@@ -1,7 +1,7 @@
 name: megatron_t5_glue
 
 trainer:
-  gpus: 2
+  gpus: 1
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -35,13 +35,13 @@ exp_manager:
     model_parallel_size: ${model.tensor_model_parallel_size}
 
 model:
-  restore_from_path: /raid/Data/NMT/Models/t5_730m/megatron_t5--val_loss=1.33-step=193999-consumed_samples=794619904.0.nemo
+  restore_from_path: /raid/Data/NMT/Models/t5_1b/megatron_t5--val_loss=1.28-step=495249-consumed_samples=1014269952.0.nemo
   tensor_model_parallel_size: 1
 
   data:
     train_ds:
-      task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/train.tsv'
+      task_name: 'sst-2'
+      file_path: '/raid/Data/GLUE/SST-2/train.tsv'
       batch_size: 64
       shuffle: True
       num_workers: 8
@@ -49,8 +49,8 @@ model:
       max_seq_length: 512
 
     validation_ds:
-      task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      task_name: 'sst-2'
+      file_path: '/raid/Data/GLUE/SST-2/dev.tsv'
       batch_size: 64
       shuffle: False
       num_workers: 8
@@ -58,8 +58,8 @@ model:
       max_seq_length: 512
 
     test_ds:
-      task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/test_matched.tsv'
+      task_name: 'sst-2'
+      file_path: '/raid/Data/GLUE/SST-2/test.tsv'
       batch_size: 64
       shuffle: False
       num_workers: 8
