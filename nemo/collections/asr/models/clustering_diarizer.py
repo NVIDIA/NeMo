@@ -276,7 +276,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
         logging.info(
-            f"Subsegmentation for embedding extraction: {scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
+            f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
         )
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
