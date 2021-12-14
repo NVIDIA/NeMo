@@ -13,7 +13,7 @@ Documentation section for speaker related tasks can be found at:
 
 ## Training
 Speaker Recognition models can be trained in a similar way as other models in NeMo using train and dev manifest files. Steps on how to create manifest files for voxceleb are provided below.
-We provide three model configurations based on titanet, speakernet and modified ecapa_tdnn, with pretrained models provided for each of them. 
+We provide three model configurations based on TitaNet, SpeakerNet and modified ECAPA_TDNN, with pretrained models provided for each of them. 
 
 For training speakernet (x-vector) model:
 For training titanet_large (channel-attention) model:
