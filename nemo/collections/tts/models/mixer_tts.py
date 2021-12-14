@@ -542,9 +542,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             "raw_texts": [NeuralType(optional=True)],
             "lm_model": NeuralType(optional=True),
         },
-        output_types={
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-        }
+        output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),},
     )
     def generate_spectrogram(
         self,
