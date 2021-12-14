@@ -16,7 +16,6 @@ import json
 from argparse import ArgumentParser
 
 import torch
-import pickle as pkl
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
