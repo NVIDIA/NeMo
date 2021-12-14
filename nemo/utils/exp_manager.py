@@ -758,28 +758,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-        # Load the best model and then re-save it
-        app_state = AppState()
-        # since we are creating tarfile artifacts we need to update .nemo path
-        app_state.model_restore_path = os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-        )
-        if self.save_best_model:
-            if not os.path.exists(self.best_model_path):
-                return output
-
-            if self.best_model_path == self.previous_best_path:
-                return output
-
-            self.previous_model_path = self.best_model_path
-            old_state_dict = deepcopy(pl_module.state_dict())
-            checkpoint = torch.load(self.best_model_path, map_location='cpu')
-            if 'state_dict' in checkpoint:
-                checkpoint = checkpoint['state_dict']
-            # get a new instanace of the model
-            pl_module.load_state_dict(checkpoint, strict=True)
-            pl_module.save_to(save_path=app_state.model_restore_path)
-            pl_module.load_state_dict(old_state_dict, strict=True)
         else:
             # Load the best model and then re-save it
             app_state = AppState()
@@ -832,7 +810,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state = AppState()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
-            # TODO: figure out a good way to update these filepaths
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
