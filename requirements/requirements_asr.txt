@@ -19,3 +19,4 @@ pyannote.metrics
 torch-stft
 ipywidgets
 matplotlib
+git+https://github.com/k2-fsa/k2@v1.11#egg=k2
