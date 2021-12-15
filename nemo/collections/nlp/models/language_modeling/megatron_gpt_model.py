@@ -83,9 +83,6 @@ class MegatronGPTModel(NLPModel):
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
-        # buffer used during train_step for logging average loss over gradient accumulation steps
-        self._reduced_loss_buffer = []
-
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
@@ -180,10 +177,12 @@ class MegatronGPTModel(NLPModel):
         self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
-        # currently our dataloaders are producing a micro-batch here,
-        # but we need this to be a "global batch" which will get split
-        # into micro batches by fwd/bwd function
-        # also need to add fwd/bwd function for non-pipeline case
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
         batch_for_pipeline = self.process_global_batch(batch)
         # we zero grads here because we also call backward here
         self._optimizer.zero_grad()
@@ -347,6 +346,12 @@ class MegatronGPTModel(NLPModel):
         return fwd_output_and_loss_func
 
     def validation_step(self, batch, batch_idx):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
         batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
