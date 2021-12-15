@@ -46,6 +46,7 @@ model:
     kernel_size_factor: 0.25
     filters: 1024
     decoder_out_channels: 128
+    enc_final: 1024
 
 
   preprocessor:
@@ -385,7 +386,7 @@ model:
 
 
 
-      - filters: &enc_final 1024
+      - filters: ${model.model_defaults.enc_final}
         repeat: 1
         kernel: [41]
         stride: [1]
@@ -400,7 +401,7 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
-    feat_in: *enc_final
+    feat_in: ${model.model_defaults.enc_final}
     feat_hidden: 128
     feat_out: ${model.model_defaults.decoder_out_channels}
     stride_layers: 1
