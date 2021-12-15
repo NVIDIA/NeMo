@@ -121,7 +121,7 @@ pipeline {
         }
         stage('German ITN and non-deterministic TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-9'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-14'
           }
         }
         stage('Spanish ITN') {
@@ -2054,7 +2054,12 @@ pipeline {
       }
       failFast true
       steps {
-        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
+            pretrained_name=QuartzNet15x5Base-En  \
+            dataset_manifest=/home/TestData/librispeech/librivox-dev-other.json \
+            batch_size=64 \
+            tolerance=0.1012'
+        sh 'rm -f examples/asr/evaluation_transcripts.json'
       }
     }
   }
