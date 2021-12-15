@@ -17,6 +17,7 @@ from argparse import ArgumentParser
 
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
@@ -33,6 +34,7 @@ Usage:
             --model_file=PATH_TO_MODEL \
             --path_to_file=PATH_TO_FILE \
             --tokens_to_generate=32 \
+            --batch_size=16 \
             --prompt .
 
     b. If you need to run model on a prompt from the CLI:
@@ -55,7 +57,7 @@ def main():
         "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
     )
     parser.add_argument(
-        "--tokens_to_generate", type=int, default="64", required=False, help="How many tokens to add to prompt"
+        "--tokens_to_generate", type=int, default="1", required=False, help="How many tokens to add to prompt"
     )
     parser.add_argument(
         "--stop_after_sentence",
@@ -67,7 +69,8 @@ def main():
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=1, required=False,
     )
-    parser.add_argument("--precision", default=32, help="PyTorch Lightning Trainer precision flag")
+    parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
+    parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
 
     args = parser.parse_args()
 
@@ -84,35 +87,33 @@ def main():
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
-
     model.freeze()
+
+    def pad_collate(batch):
+        tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
+        lens = [len(token) for token in tokens]
+
+        tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=50256)
+        data = []
+        for token, lenn in zip(tokens_pad.T, lens):
+            data.append((token, lenn, tokens_to_generate))
+        return data
 
     # defining type of request
     if args.path_to_file != "":
-        data = []
+        request = []
         prompts = open(args.path_to_file, 'r')
 
         for prompt in prompts.readlines():
-            request = {
-                "prompt": prompt.split('\n')[0],
-                "tokens_to_generate": args.tokens_to_generate,
-                "stop_after_sentence": args.stop_after_sentence,
-            }
-            data.append(request)
+            request.append(prompt.split('\n')[0])
 
-        dataset = GPTRequestDataset(data, model.tokenizer)
-        request_dl = DataLoader(dataset)
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=int(args.batch_size))
         response = trainer.predict(model, request_dl)
     else:
-        request = [
-            {
-                "prompt": args.prompt,
-                "tokens_to_generate": args.tokens_to_generate,
-                "stop_after_sentence": args.stop_after_sentence,
-            }
-        ]
-        dataset = GPTRequestDataset(request, model.tokenizer)
-        request_dl = DataLoader(dataset)
+        request = [args.prompt]
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
         response = trainer.predict(model, request_dl)
 
     print("***************************")

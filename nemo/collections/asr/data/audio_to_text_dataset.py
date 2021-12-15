@@ -219,7 +219,7 @@ def get_tarred_dataset(
         datasets.append(dataset)
 
     if len(datasets) > 1:
-        if config.get('bucketing_batch_size', None) is not None and config['bucketing_batch_size'] > 0:
+        if config.get('bucketing_batch_size', None) is not None:
             bucketing_batch_sizes = calc_bucketing_batch_sizes(config, len(datasets))
             logging.info(
                 f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
@@ -250,7 +250,7 @@ def calc_bucketing_batch_sizes(cfg, datasets_len):
         for idx in range(datasets_len):
             scale_factor = datasets_len - idx
             bucketing_batch_sizes.append(scale_factor * cfg['bucketing_batch_size'])
-    elif type(cfg['bucketing_batch_size']) == list:
+    elif isinstance(cfg['bucketing_batch_size'], ListConfig) or isinstance(cfg['bucketing_batch_size'], list):
         bucketing_batch_sizes = cfg['bucketing_batch_size']
     else:
         raise ValueError(

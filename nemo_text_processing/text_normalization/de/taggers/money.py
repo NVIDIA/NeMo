@@ -131,12 +131,13 @@ class MoneyFst(GraphFst):
             )
 
             decimal_graph_with_minor_curr = integer_plus_maj + pynini.cross(",", " ") + fractional_plus_min
-            decimal_graph_with_minor_curr |= (
+            decimal_graph_with_minor_curr |= pynutil.add_weight(
                 integer_plus_maj
                 + pynini.cross(",", " ")
                 + pynutil.insert("fractional_part: \"")
                 + two_digits_fractional_part @ cardinal.two_digit_non_zero
-                + pynutil.insert("\"")
+                + pynutil.insert("\""),
+                weight=0.0001,
             )
 
             decimal_graph_with_minor_curr |= pynutil.delete("0,") + fractional_plus_min
