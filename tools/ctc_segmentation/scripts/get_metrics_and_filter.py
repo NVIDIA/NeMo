@@ -32,11 +32,11 @@ parser.add_argument(
     "--edge_len", type=int, help="Number of characters to use for CER calculation at the edges", default=5
 )
 parser.add_argument("--audio_dir", type=str, help="Path to original .wav files", default=None)
-parser.add_argument("--max_cer", type=int, help="Threshold CER value", default=30)
-parser.add_argument("--max_wer", type=int, help="Threshold WER value", default=75)
+parser.add_argument("--max_cer", type=int, help="Threshold CER value, %", default=30)
+parser.add_argument("--max_wer", type=int, help="Threshold WER value, %", default=75)
 parser.add_argument("--max_len_diff", type=float, help="Threshold for len diff", default=0.3)
-parser.add_argument("--max_edge_cer", type=int, help="Threshold edge CER value", default=60)
-parser.add_argument("--max_duration", type=int, help="Max duration of a segment", default=-1)
+parser.add_argument("--max_edge_cer", type=int, help="Threshold edge CER value, %", default=60)
+parser.add_argument("--max_duration", type=int, help="Max duration of a segment, s", default=-1)
 parser.add_argument(
     "--num_jobs",
     default=-2,
@@ -69,10 +69,9 @@ def _calculate(line, edge_len):
     return line
 
 
-def get_metrics():
-    manifest_out = args.manifest.replace(".json", "_metrics.json")
-
-    with open(args.manifest, "r") as f:
+def get_metrics(manifest, manifest_out):
+    """Calculate metrics for sample in manifest and saves the results to manifest_out"""
+    with open(manifest, "r") as f:
         lines = f.readlines()
 
     lines = Parallel(n_jobs=args.num_jobs)(
@@ -82,7 +81,6 @@ def get_metrics():
         for line in lines:
             f_out.write(json.dumps(line) + "\n")
     logging.info(f"Metrics save at {manifest_out}")
-    return manifest_out
 
 
 def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_dur=-1, original_duration=0):
@@ -111,11 +109,11 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
 
     logging.info("-" * 50)
     logging.info("Threshold values:")
-    logging.info(f"max WER: {max_wer}")
-    logging.info(f"max CER: {max_cer}")
-    logging.info(f"max edge CER: {max_edge_cer}")
+    logging.info(f"max WER, %: {max_wer}")
+    logging.info(f"max CER, %: {max_cer}")
+    logging.info(f"max edge CER, %: {max_edge_cer}")
     logging.info(f"max Word len diff: {max_len_diff}")
-    logging.info(f"max Duration: {max_dur}")
+    logging.info(f"max Duration, s: {max_dur}")
     logging.info("-" * 50)
 
     remaining_duration = remaining_duration / 60
@@ -132,6 +130,12 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
 
 
 def filter(manifest):
+    """
+    Filters out samples that do not satisfy specified threshold values.
+
+    Args:
+        manifest: path to .json manifest
+    """
     original_duration = 0
     if args.audio_dir:
         audio_files = glob(f"{os.path.abspath(args.audio_dir)}/*")
@@ -158,7 +162,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.only_filter:
-        manifest_with_metrics = get_metrics()
+        manifest_with_metrics = args.manifest.replace(".json", "_metrics.json")
+        get_metrics(args.manifest, manifest_with_metrics)
     else:
         manifest_with_metrics = args.manifest
     filter(manifest_with_metrics)

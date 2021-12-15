@@ -201,7 +201,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
-        num_workers: int = 2,
+        num_workers: int = None,
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -228,6 +228,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 "Either `return_hypotheses` or `logprobs` can be True at any given time."
                 "Returned hypotheses will contain the logprobs."
             )
+
+        if num_workers is None:
+            num_workers = min(batch_size, os.cpu_count() - 1)
 
         # We will store transcriptions here
         hypotheses = []
@@ -671,7 +674,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             temp_dir: (str) A temporary directory where the audio manifest is temporarily
                 stored.
             num_workers: (int) number of workers. Depends of the batch_size and machine. \
-                0 - only the main process will load batches, 1 - onw worker (not main process)
+                0 - only the main process will load batches, 1 - one worker (not main process)
 
         Returns:
             A pytorch DataLoader for the given audio file(s).

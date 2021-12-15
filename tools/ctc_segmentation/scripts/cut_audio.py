@@ -30,12 +30,12 @@ parser.add_argument(
     help="Path to a data directory with alignments or a single .txt file with timestamps - result of the ctc-segmentation",
 )
 parser.add_argument("--threshold", type=float, default=-5, help="Minimum score value accepted")
-parser.add_argument("--offset", type=int, default=0, help="Offset in seconds")
+parser.add_argument("--offset", type=int, default=0, help="Offset, s")
 parser.add_argument("--batch_size", type=int, default=64, help="Batch size for inference")
 parser.add_argument(
     "--edge_duration",
     type=float,
-    help="Duration in seconds for mean absolute value calculation at the edges",
+    help="Duration of audio for mean absolute value calculation at the edges, s",
     default=0.05,
 )
 parser.add_argument("--sample_rate", type=int, help="Sample rate, Hz", default=16000)

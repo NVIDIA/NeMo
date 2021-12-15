@@ -301,7 +301,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             temp_dir: (str) A temporary directory where the audio manifest is temporarily
                 stored.
             num_workers: (int) number of workers. Depends of the batch_size and machine. \
-                0 - only the main process will load batches, 1 - onw worker (not main process)
+                0 - only the main process will load batches, 1 - one worker (not main process)
 
         Returns:
             A pytorch DataLoader for the given audio file(s).
