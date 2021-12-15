@@ -40,27 +40,27 @@ model:
 
   data:
     train_ds:
-      task_name: 'sst-2'
-      file_path: '/raid/Data/GLUE/SST-2/train.tsv'
-      batch_size: 64
+      task_name: 'rte'
+      file_path: '/raid/Data/GLUE/RTE/train.tsv'
+      batch_size: 4
       shuffle: True
       num_workers: 8
       pin_memory: True
       max_seq_length: 512
 
     validation_ds:
-      task_name: 'sst-2'
-      file_path: '/raid/Data/GLUE/SST-2/dev.tsv'
-      batch_size: 64
+      task_name: 'rte'
+      file_path: '/raid/Data/GLUE/RTE/dev.tsv'
+      batch_size: 4
       shuffle: False
       num_workers: 8
       pin_memory: True
       max_seq_length: 512
 
     test_ds:
-      task_name: 'sst-2'
-      file_path: '/raid/Data/GLUE/SST-2/test.tsv'
-      batch_size: 64
+      task_name: 'rte'
+      file_path: '/raid/Data/GLUE/RTE/test.tsv'
+      batch_size: 4
       shuffle: False
       num_workers: 8
       pin_memory: True
