@@ -50,7 +50,7 @@ Optional: Use tarred dataset to speech up data loading.
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="SpeakerNet_recognition_3x2x512.yaml")
+@hydra_runner(config_path="conf", config_name="SpeakerNet_verification_3x2x256.yaml")
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
