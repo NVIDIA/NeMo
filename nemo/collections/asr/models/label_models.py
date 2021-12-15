@@ -63,12 +63,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             List of available pre-trained models.
         """
         result = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="speakerrecognition_speakernet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerrecognition_speakernet/versions/1.0.0rc1/files/speakerrecognition_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn models",
-        )
-        result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="speakerverification_speakernet",
@@ -78,16 +72,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="speakerdiarization_speakernet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerdiarization_speakernet/versions/1.0.0rc1/files/speakerdiarization_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn model",
+            pretrained_model_name="ecapa_tdnn",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ecapa_tdnn/versions/v1/files/ecapa_tdnn.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="ecapa_tdnn",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ecapa_tdnn/versions/v1/files/ecapa_tdnn.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn",
+            pretrained_model_name="titanet_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/titanet_large/versions/v0/files/titanet-l.nemo",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large",
         )
         result.append(model)
 
