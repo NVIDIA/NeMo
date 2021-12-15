@@ -553,6 +553,8 @@ def get_log_dir(
         name = name or "default"
         version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
+        print(version)
+
         if not version:
             if resume_if_exists:
                 logging.warning(
