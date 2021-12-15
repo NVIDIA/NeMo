@@ -45,13 +45,14 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers
 
 __all__ = ['MTEncDecModel']
 
 
-class MTEncDecModel(EncDecNLPModel):
+class MTEncDecModel(EncDecNLPModel, Exportable):
     """
     Encoder-decoder machine translation model.
     """
@@ -913,6 +914,22 @@ class MTEncDecModel(EncDecNLPModel):
                 return_val = (return_val, timing)
 
         return return_val
+
+    def export(self, output: str, input_example=None, output_example=None, **kwargs):
+        encoder_exp, encoder_descr = self.encoder.export(
+            self._augment_output_filename(output, 'Encoder'),
+            input_example=input_example,
+            output_example=None,
+            **kwargs,
+        )
+        decoder_exp, decoder_descr = self.decoder.export(
+            self._augment_output_filename(output, 'Decoder'),
+            # TODO: propagate from export()
+            input_example=None,
+            output_example=None,
+            **kwargs,
+        )
+        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
