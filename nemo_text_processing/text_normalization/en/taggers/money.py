@@ -186,7 +186,8 @@ class MoneyFst(GraphFst):
                     else pynini.union(decimal_default_reordered, decimal_default_reordered_curr)
                 ).optimize()
 
-        final_graph |= decimal_graph_with_minor
+        # weight for SH
+        final_graph |= pynutil.add_weight(decimal_graph_with_minor, -0.001)
 
         if not deterministic:
             final_graph |= integer_graph_reordered | decimal_default_reordered

@@ -179,4 +179,4 @@ class CardinalFst(GraphFst):
         serial_graph |= (
             num_graph + delimiter + num_graph + delimiter + num_graph + pynini.closure(delimiter + num_graph)
         )
-        return serial_graph.optimize()
+        return pynutil.add_weight(serial_graph, 2)
