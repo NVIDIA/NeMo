@@ -367,7 +367,7 @@ class MegatronGPTModel(NLPModel):
             if cfg.get('test_ds', None):
                 self._test_ds, self._test_dl = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
             else:
-                logging.info('No prompt tuning test dataset file provided in config, skipping') 
+                logging.info('No prompt tuning test dataset file provided in config, skipping')
 
         elif hasattr(self, '_test_ds'):
             consumed_samples = 0
@@ -449,7 +449,9 @@ class MegatronGPTModel(NLPModel):
         return request, positions, tokens_to_generate
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request, positions, tokens_to_generate = MegatronGPTModel._bucketize_gpt_inference(batch, self.use_soft_prompts)
+        request, positions, tokens_to_generate = MegatronGPTModel._bucketize_gpt_inference(
+            batch, self.use_soft_prompts
+        )
         response = self.complete(request, positions, tokens_to_generate)
 
         return response

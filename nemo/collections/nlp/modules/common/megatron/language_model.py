@@ -418,7 +418,9 @@ class PromptTable(torch.nn.Module):
             for tag in enumerate(prompt_tags):
                 _, tag = tag
                 self.prompt_table[tag] = PromptEmbedding(
-                    init_from_prompt_text=False, hidden_size=self.hidden_size, num_prompt_tokens=self.num_prompt_tokens,
+                    init_from_prompt_text=False,
+                    hidden_size=self.hidden_size,
+                    num_prompt_tokens=self.num_prompt_tokens,
                 )
 
     def forward(self, prompt_tag):
@@ -467,7 +469,9 @@ class PromptTable(torch.nn.Module):
         device = next(word_embeddings.parameters()).device
         embedding_weights = word_embeddings(torch.tensor(init_token_ids, device=device)).detach().clone()
         position_weights = (
-            position_embeddings(torch.tensor([i for i in range(self.num_prompt_tokens)], device=device)).detach().clone()
+            position_embeddings(torch.tensor([i for i in range(self.num_prompt_tokens)], device=device))
+            .detach()
+            .clone()
         )
 
         prompt_embeddings = PromptEmbedding(
