@@ -1,4 +1,4 @@
-# It contains the default values for self-supervised pre-training of a Conformer ASR model, large size (~120M).
+# This config contains the default values for self-supervised pre-training of a Conformer ASR model, large size (~120M).
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective

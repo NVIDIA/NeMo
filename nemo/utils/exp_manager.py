@@ -562,9 +562,9 @@ def get_log_dir(
             elif is_global_rank_zero():
                 if use_datetime_version:
                     version = time.strftime('%Y-%m-%d_%H-%M-%S')
-                else:
-                    tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
-                    version = f"version_{tensorboard_logger.version}"
+                #else:
+                #    tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
+                #    version = f"version_{tensorboard_logger.version}"
                 os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
 
     log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
