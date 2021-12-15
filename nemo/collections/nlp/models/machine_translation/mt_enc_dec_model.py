@@ -197,10 +197,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # tie embedding weights
         if self.shared_embeddings:
             # validate vocabulary size and embedding dimension
-            if self.encoder.embedding.token_embedding.weight.shape != self.decoder.embedding.token_embedding.weight.shape:
-                raise ValueError(f"Cannot tie encoder and decoder embeddings due to mismatch in embedding sizes "
-                                 f"(num_embeddings, embedding_dim): {self.encoder.embedding.token_embedding.weight.shape} (encoder) "
-                                 f"{self.decoder.embedding.token_embedding.weight.shape} (decoder)")
+            if (
+                self.encoder.embedding.token_embedding.weight.shape
+                != self.decoder.embedding.token_embedding.weight.shape
+            ):
+                raise ValueError(
+                    f"Cannot tie encoder and decoder embeddings due to mismatch in embedding sizes "
+                    f"(num_embeddings, embedding_dim): {self.encoder.embedding.token_embedding.weight.shape} (encoder) "
+                    f"{self.decoder.embedding.token_embedding.weight.shape} (decoder)"
+                )
 
             self.encoder.embedding.token_embedding.weight = self.decoder.embedding.token_embedding.weight
 
