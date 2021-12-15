@@ -518,32 +518,30 @@ class ASRTarredDatasetBuilder:
             if squashed_filename not in count:
                 tar.add(audio_filepath, arcname=squashed_filename)
 
-            if 'label' in entry:
-                base, ext = os.path.splitext(squashed_filename)
-                # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
-                if squashed_filename not in count:
-                    to_write = squashed_filename
-                    count[squashed_filename] = 1
-                else:
-                    to_write = base + "-sub" + str(count[squashed_filename]) + ext
-                    count[squashed_filename] += 1
-
-                new_entry = {
-                    'audio_filepath': to_write,
-                    'duration': entry['duration'],
-                    'text': entry['text'],
-                    'label': entry['label'],
-                    'offset': entry['offset'],
-                    'shard_id': shard_id,  # Keep shard ID for recordkeeping
-                }
-            else:
+            base, ext = os.path.splitext(squashed_filename)
+            # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
+            if squashed_filename not in count:
+                to_write = squashed_filename
                 count[squashed_filename] = 1
-                new_entry = {
-                    'audio_filepath': squashed_filename,
-                    'duration': entry['duration'],
-                    'text': entry['text'],
-                    'shard_id': shard_id,  # Keep shard ID for recordkeeping
-                }
+            else:
+                to_write = base + "-sub" + str(count[squashed_filename]) + ext
+                count[squashed_filename] += 1
+
+            new_entry = {
+                'audio_filepath': to_write,
+                'duration': entry['duration'],
+                'text': entry['text'],
+                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+            }
+
+            if 'label' in entry:
+                new_entry['label'] = entry['label']
+
+            if 'text' in entry:
+                new_entry['text'] = entry['text']
+
+            if 'offset' in entry:
+                new_entry['offset'] = entry['offset']
 
             new_entries.append(new_entry)
 

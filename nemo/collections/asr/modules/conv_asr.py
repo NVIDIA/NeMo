@@ -465,16 +465,15 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         feat_out,
         feat_hidden,
         stride_layers,
+        non_stride_layers=0,
         kernel_size=11,
         init_mode="xavier_uniform",
         activation="relu",
     ):
         super().__init__()
 
-        if stride_layers > 0 and (kernel_size < 3 or kernel_size % 2 == 0):
-            raise ValueError(
-                "Kernel size in this decoder needs to be >= 3 and odd when using at least 1 stride layer."
-            )
+        if ((stride_layers + non_stride_layers) > 0) and (kernel_size < 3 or kernel_size % 2 == 0):
+            raise ValueError("Kernel size in this decoder needs to be >= 3 and odd when using at least 1 conv layer.")
 
         activation = jasper_activations[activation]()
 
@@ -483,6 +482,20 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         self.feat_hidden = feat_hidden
 
         self.decoder_layers = [nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)]
+        for i in range(non_stride_layers):
+            self.decoder_layers.append(activation)
+            self.decoder_layers.append(
+                nn.Conv1d(
+                    self.feat_hidden,
+                    self.feat_hidden,
+                    kernel_size,
+                    bias=True,
+                    groups=self.feat_hidden,
+                    padding=kernel_size // 2,
+                )
+            )
+            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
+            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
         for i in range(stride_layers):
             self.decoder_layers.append(activation)
             self.decoder_layers.append(
@@ -494,6 +507,7 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
                     padding=(kernel_size - 3) // 2 + 1,
                     output_padding=1,
                     bias=True,
+                    groups=self.feat_hidden,
                 )
             )
             self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
