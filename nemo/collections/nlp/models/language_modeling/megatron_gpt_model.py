@@ -107,7 +107,7 @@ class MegatronGPTModel(NLPModel):
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=cfg.get('onnx_safe', False),
             use_soft_prompts=cfg.get('use_soft_prompts', False),
-            prompt_length=cfg.get('prompt_length', 10),
+            num_prompt_tokens=cfg.get('num_prompt_tokens', 10),
             prompt_tags=cfg.get('existing_prompt_tags', None),
         )
 
@@ -116,7 +116,7 @@ class MegatronGPTModel(NLPModel):
         if self.cfg.get('use_soft_prompts', False):
             self.use_soft_prompts = True
             self.prompt_table = set([])
-            self.prompt_length = cfg.get('prompt_length', 10)
+            self.num_prompt_tokens = cfg.get('num_prompt_tokens', 10)
 
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
@@ -224,6 +224,9 @@ class MegatronGPTModel(NLPModel):
         return tokens, labels, loss_mask, attention_mask, position_ids
 
     def build_train_valid_test_datasets(self):
+        if self.use_soft_prompts:
+            return
+
         logging.info('Building GPT datasets.')
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
@@ -254,6 +257,7 @@ class MegatronGPTModel(NLPModel):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
+
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
@@ -294,7 +298,7 @@ class MegatronGPTModel(NLPModel):
         dataset = GPTPromptTuningDataset(
             dataset_path=dataset_path,
             tokenizer=self.tokenizer,
-            num_prompt_tokens=self.cfg.prompt_length,
+            num_prompt_tokens=self.cfg.num_prompt_tokens,
             max_seq_length=self.cfg.data.get('max_seq_length', 512),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos_eos=self.cfg.data.get('add_bos_eos', True),
@@ -313,16 +317,6 @@ class MegatronGPTModel(NLPModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-
-        elif self.use_soft_prompts:
-            # Load prompt tuning datasets
-            self._train_ds, self._train_dl = self.build_prompt_tuning_dataset(self.cfg.data.train_ds)
-            self._validation_ds, self._validation_dl = self.build_prompt_tuning_dataset(self.cfg.data.valid_ds)
-            self._test_ds, self._test_dl = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
-
-            # Freeze all weights except prompt embeddings
-            self.prompt_tuning_freeze()
-
         else:
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
@@ -332,7 +326,16 @@ class MegatronGPTModel(NLPModel):
             self.setup_test_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds'):
+        if self.use_soft_prompts:
+            if cfg.get('train_ds', None):
+                self._train_ds, self._train_dl = self.build_prompt_tuning_dataset(self.cfg.data.train_ds)
+            else:
+                raise AttributeError('No prompt tuning train dataset was specified in the cfg file')
+
+            # Freeze all weights except prompt embeddings
+            self.prompt_tuning_freeze()
+
+        elif hasattr(self, '_train_ds'):
             resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
             if resume_checkpoint_path:
                 consumed_samples = int(
@@ -346,7 +349,13 @@ class MegatronGPTModel(NLPModel):
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds'):
+        if self.use_soft_prompts:
+            if cfg.get('valid_ds', None):
+                self._validation_ds, self._validation_dl = self.build_prompt_tuning_dataset(self.cfg.data.valid_ds)
+            else:
+                raise AttributeError('No prompt tuning validation dataset was specified in the cfg file')
+
+        elif hasattr(self, '_validation_ds'):
             consumed_samples = 0
             logging.info(
                 f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
@@ -354,7 +363,13 @@ class MegatronGPTModel(NLPModel):
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds'):
+        if self.use_soft_prompts:
+            if cfg.get('test_ds', None):
+                self._test_ds, self._test_dl = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
+            else:
+                logging.info('No prompt tuning test dataset file provided in config, skipping') 
+
+        elif hasattr(self, '_test_ds'):
             consumed_samples = 0
             logging.info(
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
@@ -395,7 +410,7 @@ class MegatronGPTModel(NLPModel):
             param.requires_grad = True
 
     @classmethod
-    def bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
+    def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
         batch_tokens, lens, tokens_to_generate = batch[:3]
         batch_size = len(batch_tokens)
         tokens_to_generate = tokens_to_generate[0]
@@ -434,7 +449,7 @@ class MegatronGPTModel(NLPModel):
         return request, positions, tokens_to_generate
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request, positions, tokens_to_generate = MegatronGPTModel.bucketize_gpt_inference(batch, self.use_soft_prompts)
+        request, positions, tokens_to_generate = MegatronGPTModel._bucketize_gpt_inference(batch, self.use_soft_prompts)
         response = self.complete(request, positions, tokens_to_generate)
 
         return response
@@ -475,11 +490,11 @@ class MegatronGPTModel(NLPModel):
             for i in range(tokens_to_generate + 1):
                 if self.use_soft_prompts:
                     batch_size = len(tokens)
-                    full_length = len(tokens[0]) + self.prompt_length
+                    full_length = len(tokens[0]) + self.num_prompt_tokens
 
                     # Get postion ids for text after soft prompt
                     position_ids = torch.arange(
-                        start=self.prompt_length, end=full_length, dtype=torch.long, device=self.device
+                        start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
                     )
                     position_ids = position_ids.unsqueeze(0).expand_as(tokens).clone()
 

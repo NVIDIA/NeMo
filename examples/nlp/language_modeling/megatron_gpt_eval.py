@@ -35,7 +35,6 @@ Usage:
             --path_to_file=PATH_TO_FILE \
             --tokens_to_generate=32 \
             --batch_size=16 \
-            --prompt .
 
     b. If you need to run model on a prompt from the CLI:
         python megatron_gpt_eval.py \
@@ -50,14 +49,13 @@ Usage:
             --path_to_file=PATH_TO_FILE \
             --tokens_to_generate=32 \
             --batch_size=16 \
-            --prompt .
 
         The path_to_file containing the model prompts should be a json with prompts in the format:
             {'prompt_tag': tag1, 'text': prompt1}
             {'prompt_tag': tag1, 'text': prompt2}
             {'prompt_tag': tag3, 'text': prompt3}
 
-    d. If you need to run the model ona prompt from the CLI:
+    d. If you need to run the model on a prompt from the CLI:
         python megatron_gpt_eval.py \
             --use_soft_prompts \
             --model_file=PATH_TO_MODEL \
@@ -77,7 +75,7 @@ def main():
         "--path_to_file", type=str, default="", required=False, help="Path to file with prompts (a text to complete)"
     )
     parser.add_argument(
-        "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
+        "--prompt", type=str, default="", required=False, help="Prompt for the model (a text to complete)"
     )
     parser.add_argument(
         "--prompt_tag", type=str, default="", required=False, help="Prompt tag string for task specific soft prompt"
@@ -124,8 +122,6 @@ def main():
 
         if 'prompt_tags' in batch[0]:
             # Keep track of soft prompt tags
-            use_soft_prompts = False
-            use_soft_prompts = True
             prompt_tags = batch[0]['prompt_tags']
 
             for token, lenn, prompt_tag in zip(tokens_pad.T, lens, prompt_tags):

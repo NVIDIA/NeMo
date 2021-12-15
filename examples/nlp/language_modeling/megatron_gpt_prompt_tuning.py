@@ -27,7 +27,7 @@ Example Usage:
 
 GPUS=1
 MAX_STEPS=3000
-PROMPT_LENGTH=10
+NUM_PROMPT_TOKENS=10
 RESTORE_PATH='megatron_gpt.nemo'
 
 echo "Prompt tuning starting"
@@ -37,7 +37,7 @@ python megatron_gpt_prompt_tuning.py \
         trainer.max_steps=$MAX_STEPS \
         restore_from_path=$RESTORE_PATH \
         +model.use_soft_prompts=True \
-        +model.prompt_length=$PROMPT_LENGTH \
+        +model.num_prompt_tokens=$NUM_PROMPT_TOKENS \
         +model.new_prompt_tags=['NER-Yes-No, NER-Complete'] \
         +model.new_prompt_init_text=['named entities yes no, None'] \
         +model.new_prompt_init_methods=['text, random'] \

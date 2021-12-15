@@ -77,7 +77,7 @@ def get_language_model(
     openai_gelu=False,
     onnx_safe=False,
     use_soft_prompts=False,
-    prompt_length=10,
+    num_prompt_tokens=10,
     prompt_tags=None,
 ):
     """Build language model and return along with the key to save."""
@@ -124,7 +124,7 @@ def get_language_model(
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
         use_soft_prompts=use_soft_prompts,
-        prompt_length=prompt_length,
+        num_prompt_tokens=num_prompt_tokens,
         prompt_tags=prompt_tags,
     )
     # key used for checkpoints.
@@ -312,7 +312,10 @@ class PromptEmbedding(MegatronModule):
                                from from certain lm embeddings
                                corresponding to a prompt string
         hidden_size: hidden size should match lm embedding size
-        prompt_length: length of prompt initalized from torch init method
+        num_prompt_tokens: length of prompt initalized from torch init method
+        position_embedding_weights: embedding vectors for positions 0 through 
+                                    num_prompt_tokens
+        word_embedding_weights: token embedding vectors for text init option
         init_method: pytorch init method
         embedding_weights: token embeddings from prompt text
         prompt_embedding_dropout_prob: dropout probablity
@@ -322,7 +325,7 @@ class PromptEmbedding(MegatronModule):
         self,
         init_from_prompt_text,
         hidden_size,
-        prompt_length,
+        num_prompt_tokens,
         position_embedding_weights=None,
         word_embedding_weights=None,
         init_method=init.xavier_normal_,
@@ -331,8 +334,8 @@ class PromptEmbedding(MegatronModule):
         super().__init__()
 
         self.hidden_size = hidden_size
-        self.prompt_length = prompt_length
-        self.prompt_embeddings = torch.nn.Embedding(self.prompt_length, self.hidden_size)
+        self.num_prompt_tokens = num_prompt_tokens
+        self.prompt_embeddings = torch.nn.Embedding(self.num_prompt_tokens, self.hidden_size)
         init_method(self.prompt_embeddings.weight)
 
         if init_from_prompt_text:
@@ -342,13 +345,13 @@ class PromptEmbedding(MegatronModule):
 
         self._prompt_embeddings_key = 'prompt_embeddings'
 
-        self.position_embeddings = torch.nn.Embedding(self.prompt_length, self.hidden_size)
+        self.position_embeddings = torch.nn.Embedding(self.num_prompt_tokens, self.hidden_size)
         self._position_embeddings_key = 'position_embeddings'
 
         if position_embedding_weights != None:
             self.position_embeddings.weight = nn.Parameter(position_embedding_weights)
 
-        self.prompt_ids = torch.tensor([i for i in range(self.prompt_length)])
+        self.prompt_ids = torch.tensor([i for i in range(self.num_prompt_tokens)])
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
     def forward(self, tokentype_ids=None):
@@ -403,11 +406,11 @@ class PromptEmbedding(MegatronModule):
 
 class PromptTable(torch.nn.Module):
     def __init__(
-        self, prompt_tags, prompt_length, hidden_size,
+        self, prompt_tags, num_prompt_tokens, hidden_size,
     ):
         super().__init__()
 
-        self.prompt_length = prompt_length
+        self.num_prompt_tokens = num_prompt_tokens
         self.hidden_size = hidden_size
         self.prompt_table = torch.nn.ModuleDict()
 
@@ -415,7 +418,7 @@ class PromptTable(torch.nn.Module):
             for tag in enumerate(prompt_tags):
                 _, tag = tag
                 self.prompt_table[tag] = PromptEmbedding(
-                    init_from_prompt_text=False, hidden_size=self.hidden_size, prompt_length=self.prompt_length,
+                    init_from_prompt_text=False, hidden_size=self.hidden_size, num_prompt_tokens=self.num_prompt_tokens,
                 )
 
     def forward(self, prompt_tag):
@@ -431,14 +434,14 @@ class PromptTable(torch.nn.Module):
         """
         device = next(position_embeddings.parameters()).device
         position_weights = (
-            position_embeddings(torch.tensor([i for i in range(self.prompt_length)]).to(device)).detach().clone()
+            position_embeddings(torch.tensor([i for i in range(self.num_prompt_tokens)]).to(device)).detach().clone()
         )
 
         # Initalize prompt embeddings from a pytorch random init method
         prompt_embeddings = PromptEmbedding(
             init_from_prompt_text=False,
             hidden_size=self.hidden_size,
-            prompt_length=self.prompt_length,
+            num_prompt_tokens=self.num_prompt_tokens,
             position_embedding_weights=position_weights,
         )
 
@@ -451,7 +454,7 @@ class PromptTable(torch.nn.Module):
         """
         # Trim or iterate until num_text_tokens matches num_prompt_tokens
         num_text_tokens = len(init_token_ids)
-        num_prompt_tokens = self.prompt_length
+        num_prompt_tokens = self.num_prompt_tokens
 
         if num_text_tokens > num_prompt_tokens:
             init_token_ids = init_token_ids[:num_prompt_tokens]
@@ -464,13 +467,13 @@ class PromptTable(torch.nn.Module):
         device = next(word_embeddings.parameters()).device
         embedding_weights = word_embeddings(torch.tensor(init_token_ids, device=device)).detach().clone()
         position_weights = (
-            position_embeddings(torch.tensor([i for i in range(self.prompt_length)], device=device)).detach().clone()
+            position_embeddings(torch.tensor([i for i in range(self.num_prompt_tokens)], device=device)).detach().clone()
         )
 
         prompt_embeddings = PromptEmbedding(
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
-            prompt_length=self.prompt_length,
+            num_prompt_tokens=self.num_prompt_tokens,
             word_embedding_weights=embedding_weights,
             position_embedding_weights=position_weights,
         )
@@ -534,7 +537,7 @@ class TransformerLanguageModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         use_soft_prompts=False,
-        prompt_length=10,
+        num_prompt_tokens=10,
         prompt_tags=None,
     ):
         super(TransformerLanguageModel, self).__init__()
@@ -555,7 +558,7 @@ class TransformerLanguageModel(MegatronModule):
         self.output_layer_init_method = output_layer_init_method
         self.use_soft_prompts = use_soft_prompts
         self.prompt_tags = prompt_tags
-        self.prompt_length = prompt_length
+        self.num_prompt_tokens = num_prompt_tokens
 
         if kv_channels is None:
 
@@ -580,7 +583,7 @@ class TransformerLanguageModel(MegatronModule):
         # Soft Prompts
         if self.use_soft_prompts:
             self.prompt_table = PromptTable(
-                prompt_tags=self.prompt_tags, prompt_length=self.prompt_length, hidden_size=self.hidden_size,
+                prompt_tags=self.prompt_tags, num_prompt_tokens=self.num_prompt_tokens, hidden_size=self.hidden_size,
             )
             self._prompt_table_key = 'prompt_table'
 

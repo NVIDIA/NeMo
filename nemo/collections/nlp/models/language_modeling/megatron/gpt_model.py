@@ -85,7 +85,7 @@ class GPTModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         use_soft_prompts=False,
-        prompt_length=10,
+        num_prompt_tokens=10,
         prompt_tags=None,
     ):
         super(GPTModel, self).__init__()
@@ -129,7 +129,7 @@ class GPTModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             use_soft_prompts=use_soft_prompts,
-            prompt_length=prompt_length,
+            num_prompt_tokens=num_prompt_tokens,
             prompt_tags=prompt_tags,
         )
 

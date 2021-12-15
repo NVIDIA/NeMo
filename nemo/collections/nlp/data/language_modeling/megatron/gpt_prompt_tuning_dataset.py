@@ -47,8 +47,12 @@ class GPTPromptTuningDataset(Dataset):
         self.min_seq_length = min_seq_length
         self.num_prompt_tokens = num_prompt_tokens
         self.max_sent_length = max_seq_length - num_prompt_tokens
-        self.prompt_tags = []
-        self.input_ids = []
+        self.tags_and_tokens = []
+
+        assert min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
+        assert max_seq_length > 0, "Max sequence length should be greater than 0"
+        assert num_prompt_tokens > 0, "There should be at least one soft prompt token"
+        assert num_prompt_tokens < max_seq_length, "Soft prompt tokens should not exceed max sequence length"
 
         dataset_file = open(dataset_path, 'r', encoding='utf-8')
 
@@ -67,8 +71,7 @@ class GPTPromptTuningDataset(Dataset):
 
             # Need to leave space for prompt tokens in sequence
             if self.min_seq_length <= len(sent_ids) <= self.max_sent_length:
-                self.prompt_tags.append(prompt_tag)
-                self.input_ids.append(sent_ids)
+                self.tags_and_tokens.append((prompt_tag, sent_ids))
 
             else:
                 skipped += 1
@@ -76,13 +79,10 @@ class GPTPromptTuningDataset(Dataset):
         logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
 
     def __len__(self):
-        return len(self.input_ids)
+        return len(self.tags_and_tokens)
 
     def __getitem__(self, idx):
-        prompt_tags = self.prompt_tags[idx]
-        input_ids = self.input_ids[idx]
-
-        return prompt_tags, input_ids
+        return self.tags_and_tokens[idx]
 
     def collate_fn(self, batch):
         """Build masks and position id for left to right model with prompt tuning."""
