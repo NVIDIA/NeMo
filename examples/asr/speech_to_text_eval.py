@@ -57,6 +57,7 @@ python speech_to_text_eval.py \
 """
 
 import json
+import os
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
@@ -93,6 +94,9 @@ def main(cfg: EvaluationConfig):
             "If manifest file is available, submit it via `dataset_manifest` argument."
         )
 
+    if not os.path.exists(cfg.dataset_manifest):
+        raise FileNotFoundError(f"The dataset manifest file could not be found at path : {cfg.dataset_manifest}")
+
     if not cfg.only_score_manifest:
         # Transcribe speech into an output directory
         transcription_cfg = transcribe_speech.main(cfg)  # type: EvaluationConfig
@@ -104,6 +108,7 @@ def main(cfg: EvaluationConfig):
         logging.info("Finished transcribing speech dataset. Computing ASR metrics..")
 
     else:
+        cfg.output_filename = cfg.dataset_manifest
         transcription_cfg = cfg
 
     ground_truth_text = []
