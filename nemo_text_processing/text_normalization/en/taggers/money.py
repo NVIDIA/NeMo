@@ -26,7 +26,7 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_
 
 try:
     import pynini
-    from pynini.lib import pynutil, rewrite
+    from pynini.lib import pynutil
 
     min_singular = pynini.string_file(get_abs_path("data/currency/currency_minor_singular.tsv"))
     min_plural = pynini.string_file(get_abs_path("data/currency/currency_minor_plural.tsv"))

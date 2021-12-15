@@ -15,7 +15,6 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_NOT_SPACE, GraphFst
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.utils import load_labels
 
 try:
     import pynini

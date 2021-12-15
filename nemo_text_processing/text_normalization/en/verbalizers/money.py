@@ -14,17 +14,10 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
     NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    NEMO_WHITE_SPACE,
-    SINGULAR_TO_PLURAL,
     GraphFst,
     delete_extra_space,
     delete_preserve_order,
-    delete_space,
-    get_abs_path,
-    insert_space,
 )
 
 try:
