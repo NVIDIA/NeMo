@@ -126,7 +126,8 @@ class NormalizerWithAudio(Normalizer):
         """
         original_text = text
 
-        text = pre_process(text)
+        if self.lang == "en":
+            text = pre_process(text)
         text = text.strip()
         if not text:
             if verbose:
