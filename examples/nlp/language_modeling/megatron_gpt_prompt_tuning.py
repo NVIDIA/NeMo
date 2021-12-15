@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -23,12 +23,21 @@ from nemo.utils.exp_manager import exp_manager
 
 
 """
-Example Usage:
+Can currently only prompt tune on one task at a time, but can
+run inference with multiple soft-prompts/tasks within a batch.
 
-GPUS=1
-MAX_STEPS=3000
-NUM_PROMPT_TOKENS=10
+Datasets should be formatted with in a json file like:
+{"prompt_tag": <tag1>, "text": <text1>}
+{"prompt_tag": <tag1>, "text": <text2>}
+{"prompt_tag": <tag2>, "text": <text3>}
+
+Example Usage for first prompt tuning task:
+
+EXPR_NAME='winogrande_prompt_tuning'
 RESTORE_PATH='megatron_gpt.nemo'
+GPUS=1
+MAX_STEPS=4800
+PROMPT_LENGTH=20
 
 echo "Prompt tuning starting"
 python megatron_gpt_prompt_tuning.py \
@@ -36,20 +45,91 @@ python megatron_gpt_prompt_tuning.py \
         trainer.gpus=$GPUS \
         trainer.max_steps=$MAX_STEPS \
         restore_from_path=$RESTORE_PATH \
+        exp_manager.name=$EXPR_NAME \
         +model.use_soft_prompts=True \
-        +model.num_prompt_tokens=$NUM_PROMPT_TOKENS \
-        +model.new_prompt_tags=['NER-Yes-No, NER-Complete'] \
-        +model.new_prompt_init_text=['named entities yes no, None'] \
-        +model.new_prompt_init_methods=['text, random'] \
+        +model.num_prompt_tokens=$PROMPT_LENGTH \
+        +model.existing_prompt_tags=[] \
+        +model.new_prompt_tags=['Winogrande'] \
+        +model.new_prompt_init_text=['disambiguate pronoun noun names pick correct name fill blank'] \
+        +model.new_prompt_init_methods=['text'] \
         model.data.data_prefix=None \
-        +model.data.train_ds='prompt_tuning_ner_train.json' \
-        +model.data.valid_ds='prompt_tuning_ner_val.json' \
-        +model.data.test_ds='prompt_tuning_ner_test.json' \
+        +model.data.train_ds='winogrande_prompt_tuning_train.jsonl' \
+        +model.data.valid_ds='winogrande_prompt_tuning_val.jsonl' \
         +model.data.batch_size=32 \
         model.optim.lr=2e-3 \
         model.optim.sched.min_lr=2e-6 \
-        model.optim.sched.warmup_steps=200 \
-        model.optim.sched.constant_steps=1000 \
+        model.optim.sched.warmup_steps=320 \
+        model.optim.sched.constant_steps=2240 \
+        model.encoder_seq_length=2048
+
+
+Example Usage for second prompt tuning task:
+Be sure to update model.exsiting_prompt_tags with tags from previous prompt tuning session
+and to use the .nemo file saved at the end of the last prompt tuning session
+
+EXPR_NAME='rte_prompt_tuning'
+RESTORE_PATH='winograde_megatron_gpt.nemo'
+GPUS=1
+MAX_STEPS=780
+PROMPT_LENGTH=20
+VAL_CHECK_INTERVAL=50
+
+echo "Prompt tuning starting"
+python megatron_gpt_prompt_tuning.py \
+        --config-name=megatron_gpt_config \
+        trainer.gpus=$GPUS \
+        trainer.max_steps=$MAX_STEPS \
+        trainer.val_check_interval=$VAL_CHECK_INTERVAL \
+        restore_from_path=$RESTORE_PATH \
+        exp_manager.name=$EXPR_NAME \
+        +model.use_soft_prompts=True \
+        +model.num_prompt_tokens=$PROMPT_LENGTH \
+        +model.existing_prompt_tags=['Winogrande'] \
+        +model.new_prompt_tags=['RTE'] \
+        +model.new_prompt_init_text=['entailment cause relationship imply label text'] \
+        +model.new_prompt_init_methods=['text'] \
+        model.data.data_prefix=None \
+        +model.data.train_ds='RTE_prompt_tuning_train.jsonl' \
+        +model.data.valid_ds='RTE_prompt_tuning_val.jsonl' \
+        +model.data.batch_size=32 \
+        model.optim.lr=2e-4 \
+        model.optim.sched.min_lr=2e-6 \
+        model.optim.sched.warmup_steps=78 \
+        model.optim.sched.constant_steps=545 \
+        model.encoder_seq_length=2048
+
+
+Example Usage for third prompt tuning task:
+Be sure to update model.exsiting_prompt_tags with tags from previous prompt tuning sessions
+and to use the .nemo file saved at the end of the last prompt tuning sessions
+
+EXPR_NAME='boolq_prompt_tune'
+GPUS=1
+MAX_STEPS=2950
+PROMPT_LENGTH=20
+RESTORE_PATH='rte_winogrande_megatron_gpt.nemo'
+
+echo "Prompt tuning starting"
+python megatron_gpt_prompt_tuning.py \
+        --config-name=megatron_gpt_config \
+        trainer.gpus=$GPUS \
+        trainer.max_steps=$MAX_STEPS \
+        exp_manager.name=$EXPR_NAME \
+        restore_from_path=$RESTORE_PATH \
+        +model.use_soft_prompts=True \
+        +model.num_prompt_tokens=$PROMPT_LENGTH \
+        +model.existing_prompt_tags=['Winogrande, RTE'] \
+        +model.new_prompt_tags=['BoolQ'] \
+        +model.new_prompt_init_text=['true false question answer reading comprehension'] \
+        +model.new_prompt_init_methods=['text'] \
+        model.data.data_prefix=None \
+        +model.data.train_ds='boolq_prompt_tuning_train.jsonl' \
+        +model.data.valid_ds='boolq_prompt_tuning_val.jsonl' \
+        +model.data.batch_size=32 \
+        model.optim.lr=2e-4 \
+        model.optim.sched.min_lr=2e-6 \
+        model.optim.sched.warmup_steps=295 \
+        model.optim.sched.constant_steps=2063 \
         model.encoder_seq_length=2048
 
 """

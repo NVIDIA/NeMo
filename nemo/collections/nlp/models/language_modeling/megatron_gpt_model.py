@@ -115,11 +115,13 @@ class MegatronGPTModel(NLPModel):
 
         if self.cfg.get('use_soft_prompts', False):
             self.use_soft_prompts = True
+            self.prompts_to_tune = set([])
             self.prompt_table = set([])
             self.num_prompt_tokens = cfg.get('num_prompt_tokens', 10)
 
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
+
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
@@ -406,9 +408,16 @@ class MegatronGPTModel(NLPModel):
         """
         for param in self.model.parameters():
             param.requires_grad = False
-        for param in self.model.language_model.prompt_table.parameters():
-            param.requires_grad = True
 
+        # Only want new prompt tags to be tunable, leave existing prompt tags alone
+        for prompt_tag in self.model.language_model.prompt_table.prompt_table.keys():
+            if prompt_tag in self.prompts_to_tune:
+                for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
+                    param.requires_grad = True
+            else:
+                for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
+                    param.requires_grad = False
+            
     @classmethod
     def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
         batch_tokens, lens, tokens_to_generate = batch[:3]
@@ -560,6 +569,7 @@ class MegatronGPTModel(NLPModel):
             raise AttributeError('Please set "use_soft_prompts" in cfg to True')
 
         self.prompt_table.add(prompt_tag)
+        self.prompts_to_tune.add(prompt_tag)
 
         # Add new prompt tag to cfg for loading prompt table at inference
         with open_dict(self.cfg):
