@@ -285,17 +285,17 @@ class CausalConv1D(nn.Conv1d):
         self._max_cache_len = kernel_size - 1
 
         super(CausalConv1D, self).__init__(
-            in_channels,
-            out_channels,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-            padding_mode,
-            device,
-            dtype,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+            device=device,
+            dtype=dtype,
         )
 
     def forward(self, x, cache=None, cache_next=None):
