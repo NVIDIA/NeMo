@@ -29,7 +29,7 @@ diarizer:
       filter_speech_first: True 
 
   speaker_embeddings:
-    model_path: ??? # .nemo local model path or pretrained model name (ecapa_tdnn or speakerverification_speakernet)
+    model_path: ??? # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
     parameters:
       window_length_in_sec: 1.5 # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
       shift_length_in_sec: 0.75 # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
