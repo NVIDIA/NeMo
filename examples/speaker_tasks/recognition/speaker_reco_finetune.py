@@ -41,7 +41,7 @@ from nemo.utils.exp_manager import exp_manager
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--pretrained_model", type=str, default="ecapa_tdnn", required=False, help="Pass your trained .nemo model",
+        "--pretrained_model", type=str, default="titanet_large", required=False, help="Pass your trained .nemo model",
     )
     parser.add_argument(
         "--finetune_config_file",

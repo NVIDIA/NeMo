@@ -536,12 +536,13 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),
-            "text_len": NeuralType(('B'), LengthsType(), optional=True),
+            "tokens": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),
+            "tokens_len": NeuralType(('B'), LengthsType(), optional=True),
             "lm_tokens": NeuralType(('B', 'T_lm_tokens'), TokenIndex(), optional=True),
             "raw_texts": [NeuralType(optional=True)],
             "lm_model": NeuralType(optional=True),
-        }
+        },
+        output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),},
     )
     def generate_spectrogram(
         self,
@@ -595,7 +596,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             for i, lm_tokens_i in enumerate(lm_tokens_as_ids_list):
                 lm_tokens[i, : len(lm_tokens_i)] = torch.tensor(lm_tokens_i, device=tokens.device)
 
-        pred_spect = self.infer(tokens, tokens_len, lm_tokens=lm_tokens)
+        pred_spect = self.infer(tokens, tokens_len, lm_tokens=lm_tokens).transpose(1, 2)
         return pred_spect
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
