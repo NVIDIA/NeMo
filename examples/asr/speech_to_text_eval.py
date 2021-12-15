@@ -57,16 +57,16 @@ python speech_to_text_eval.py \
 """
 
 import json
-import torch
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
-from omegaconf import OmegaConf, open_dict, MISSING
+
+import torch
+import transcribe_speech
+from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-import transcribe_speech
 
 
 @dataclass
@@ -88,8 +88,10 @@ def main(cfg: EvaluationConfig):
         cfg = OmegaConf.structured(cfg)
 
     if cfg.audio_dir is not None:
-        raise RuntimeError("Evaluation script requires ground truth labels to be passed via a manifest file. "
-                           "If manifest file is available, submit it via `dataset_manifest` argument.")
+        raise RuntimeError(
+            "Evaluation script requires ground truth labels to be passed via a manifest file. "
+            "If manifest file is available, submit it via `dataset_manifest` argument."
+        )
 
     if not cfg.only_score_manifest:
         # Transcribe speech into an output directory
@@ -120,8 +122,10 @@ def main(cfg: EvaluationConfig):
 
     # Test for invalid manifest supplied
     if invalid_manifest:
-        raise ValueError(f"Invalid manifest provided: {transcription_cfg.output_filename} does not "
-                         f"contain value for `pred_text`.")
+        raise ValueError(
+            f"Invalid manifest provided: {transcription_cfg.output_filename} does not "
+            f"contain value for `pred_text`."
+        )
 
     # Compute the WER
     metric_name = 'CER' if cfg.use_cer else 'WER'

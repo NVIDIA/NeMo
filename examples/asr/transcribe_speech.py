@@ -164,8 +164,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
     if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
-        logging.info(f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
-                     f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text.")
+        logging.info(
+            f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
+            f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
+        )
 
         return cfg
 

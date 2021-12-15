@@ -68,7 +68,7 @@ from typing import Optional
 
 import pytorch_lightning as ptl
 import torch
-from omegaconf import OmegaConf, MISSING
+from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
