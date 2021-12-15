@@ -122,7 +122,6 @@ class MegatronGPTModel(NLPModel):
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
-
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
 
@@ -417,7 +416,7 @@ class MegatronGPTModel(NLPModel):
             else:
                 for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = False
-            
+
     @classmethod
     def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
         batch_tokens, lens, tokens_to_generate = batch[:3]
