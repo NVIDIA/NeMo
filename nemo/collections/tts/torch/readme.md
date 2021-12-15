@@ -54,7 +54,7 @@ print(f"PITCH_MEAN, PITCH_STD = {pitch_tensor.mean().item()}, {pitch_tensor.std(
 
  - [ ] Populate *torch_tts*
    - [x] Create a new datalayer that can be used interchangeably
-   - [ ] Add TTS models with new dataset
+   - [x] Add TTS models with new dataset
  - [ ] Split Lightning away from core
    - [x] v0.1 that import checks a lot of lightning
    - [ ] Split up code (core, collections, utils) better

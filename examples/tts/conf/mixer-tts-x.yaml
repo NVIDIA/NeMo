@@ -6,6 +6,8 @@ validation_datasets: ???
 sup_data_path: ???
 sup_data_types: [ "duration_prior", "pitch", "lm_tokens" ]
 
+whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
+
 # LJSpeech stats (per frame), train
 pitch_mean: 212.35873413085938
 pitch_std: 68.52806091308594
@@ -70,6 +72,17 @@ model:
 
       lm_model: ${lm_model}
 
+      text_normalizer:
+        _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+        lang: "en"
+        input_case: "cased"
+        whitelist: ${whitelist_path}
+
+      text_normalizer_call_args:
+        verbose: False
+        punct_pre_process: True
+        punct_post_process: True
+
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer"
         punct: True
@@ -106,6 +119,17 @@ model:
       pitch_fmax: ${pitch_fmax}
 
       lm_model: ${lm_model}
+
+      text_normalizer:
+        _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+        lang: "en"
+        input_case: "cased"
+        whitelist: ${whitelist_path}
+
+      text_normalizer_call_args:
+        verbose: False
+        punct_pre_process: True
+        punct_post_process: True
 
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer"

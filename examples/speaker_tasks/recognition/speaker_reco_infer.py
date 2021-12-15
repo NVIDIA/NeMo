@@ -54,7 +54,7 @@ can_gpu = torch.cuda.is_available()
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--spkr_model", type=str, default="ecapa_tdnn", required=True, help="Pass your trained .nemo model",
+        "--spkr_model", type=str, default="titanet_large", required=True, help="Pass your trained .nemo model",
     )
     parser.add_argument(
         "--train_manifest", type=str, required=True, help="path to train manifest file to match labels"

@@ -111,20 +111,17 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
           }
         }
         stage('German ITN and non-deterministic TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language de "zwanzig" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13'
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "101" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --language de'
-
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-9'
           }
         }
         stage('Spanish ITN') {
@@ -134,8 +131,8 @@ pipeline {
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/11-29'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
           }
         }
         stage('Run Ru ITN and non-deterministic TN & Run all Ru ITN tests') {
@@ -159,47 +156,44 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
-            sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py.txt || exit 1'
+            sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
+            sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py_12-10.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_norm/output/*'
           }
         }
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
           }
         }
-        // stage('L2: TN with Audio (audio and raw text)') {
-        //   steps {
-        //     sh 'cd nemo_text_processing/text_normalization && \
-        //     python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --text "The total amounts to \\$4.76." \
-        //     --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt 2>&1 && \
-        //     cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-        //     sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_raw.txt'
-        //   }
-        // }
-        // stage('L2: TN with Audio (audio and text file)') {
-        //   steps {
-        //     sh 'cd nemo_text_processing/text_normalization && \
-        //     python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
-        //     --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /home/TestData/nlp/text_norm/audio_based/output/out_file.txt 2>&1 && \
-        //     cmp --silent /home/TestData/nlp/text_norm/audio_based/output/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
-        //     sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/output/out_file.txt'
-        //   }
-        // }
-        // stage('L2: TN with Audio (manifest)') {
-        //   steps {
-        //     sh 'cd nemo_text_processing/text_normalization && \
-        //     python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/9-13 && \
-        //     cmp --silent /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json /home/TestData/nlp/text_norm/audio_based/manifest_result.json || exit 1'
-        //     sh 'rm -rf /home/TestData/nlp/text_norm/audio_based/manifest_normalized.json'
-        //   }
-        // }
+        stage('L2: TN with Audio (audio and raw text)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --text "The total amounts to \\$4.76." \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_raw.txt 2>&1 && \
+            cmp --silent /tmp/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+          }
+        }
+        stage('L2: TN with Audio (audio and text file)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_file.txt 2>&1 && \
+            cmp --silent /tmp/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
+          }
+        }
+        stage('L2: TN with Audio (manifest)') {
+          steps {
+            sh 'cd nemo_text_processing/text_normalization && \
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
+          }
+        }
       }
     }
 
@@ -283,64 +277,6 @@ pipeline {
           }
         }
 
-        stage('Speech to Label') {
-          steps {
-            sh 'python examples/asr/speech_to_label.py \
-            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
-            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            ~model.preprocessor.window_size \
-            ~model.preprocessor.window_stride \
-            ~model.preprocessor.window \
-            ~model.preprocessor.n_mels \
-            ~model.preprocessor.n_mfcc \
-            ~model.preprocessor.n_fft \
-            exp_manager.exp_dir=examples/asr/speech_to_label_results'
-            sh 'rm -rf examples/asr/speech_to_label_results'
-          }
-        }
-
-        stage('Speaker Recognition') {
-          steps {
-            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
-            model.train_ds.batch_size=10 \
-            model.validation_ds.batch_size=2 \
-            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
-            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
-            trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
-            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
-            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
-          }
-        }
-
-        stage('Speaker Diarization Inference') {
-          steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
-          }
-        }
-
-        stage('Speaker Diarization with ASR Inference') {
-          steps {
-            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
-            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
-            diarizer.asr.model_path=QuartzNet15x5Base-En \
-            diarizer.asr.parameters.asr_based_vad=True \
-            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
-            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
-          }
-        }
-
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
@@ -388,6 +324,83 @@ pipeline {
       }
     }
 
+    stage('L2: Speaker dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+
+        stage('Speaker Recognition') {
+          steps {
+            sh 'python examples/speaker_tasks/recognition/speaker_reco.py \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=2 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/speaker_tasks/recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_tasks/recognition/speaker_recognition_results'
+          }
+        }
+
+        stage('Speech to Label') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            model.preprocessor._target_=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            ~model.preprocessor.window_size \
+            ~model.preprocessor.window_stride \
+            ~model.preprocessor.window \
+            ~model.preprocessor.n_mels \
+            ~model.preprocessor.n_mfcc \
+            ~model.preprocessor.n_fft \
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+
+
+        stage('Speaker Diarization with ASR Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.speaker_embeddings.parameters.save_embeddings=True \
+            diarizer.speaker_embeddings.parameters.window_length_in_sec=[1.5] \
+            diarizer.speaker_embeddings.parameters.shift_length_in_sec=[0.75] \
+            diarizer.speaker_embeddings.parameters.multiscale_weights=[1.0] \
+            diarizer.asr.model_path=QuartzNet15x5Base-En \
+            diarizer.asr.parameters.asr_based_vad=True \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_asr_results'
+          }
+        }
+
+        stage('Speaker Diarization Inference') {
+          steps {
+            sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
+	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
+            diarizer.speaker_embeddings.parameters.save_embeddings=True \
+            diarizer.speaker_embeddings.parameters.window_length_in_sec=1.5 \
+            diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
+            diarizer.speaker_embeddings.parameters.multiscale_weights=null \
+            diarizer.vad.model_path=/home/TestData/an4_diarizer/MatchboxNet_VAD_3x2.nemo \
+            diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_results'
+            sh 'rm -rf examples/speaker_tasks/diarization/speaker_diarization_results'
+          }
+        }
+      }
+    }
     // TODO: Enable test after 21.08 container is used.
     // stage('L2: ASR DALI dev run') {
     //   when {
@@ -699,20 +712,28 @@ pipeline {
         }
        stage('Test Restore with AlBERT') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+            +do_training=false \
+            +do_testing=true \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
-            model.dataset.use_cache=false \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            +model.test_ds.use_cache=false \
+            ~model.train_ds \
+            ~model.validation_ds \
+            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             exp_manager=null'
           }
         }
         stage('Test Restore with RoBERTa') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+            +do_training=false \
+            +do_testing=true \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
-            model.dataset.use_cache=false \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            +model.test_ds.use_cache=false \
+            ~model.train_ds \
+            ~model.validation_ds \
+            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             exp_manager=null'
           }
@@ -1043,12 +1064,16 @@ pipeline {
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization_train.py \
+            python punctuation_capitalization_train_evaluate.py \
             pretrained_model=punctuation_en_bert \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+            model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+            +model.train_ds.use_cache=false \
+            +model.validation_ds.use_cache=false \
+            +model.test_ds.use_cache=false \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
-            model.dataset.use_cache=false \
             exp_manager.exp_dir=null'
           }
         }
@@ -1068,35 +1093,145 @@ pipeline {
           steps {
             sh 'python examples/nlp/token_classification/token_classification_evaluate.py \
             model.dataset.data_dir=/home/TestData/nlp/ner/ \
+            model.dataset.use_cache=false \
             pretrained_model=/home/TestData/nlp/pretrained_models/NER_Model_with_BERT_base_uncased.nemo'
           }
         }
         stage('Evaluation script for Punctuation') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_evaluate.py \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            sh 'python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+            +do_training=false \
+            +do_testing=true \
+            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+            ~model.train_ds \
+            ~model.validation_ds \
+            +model.test_ds.use_cache=false \
             pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo'
           }
         }
-        stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
+        stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT, Fine-tuning on different data') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization_train.py \
-            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-            model.language_model.pretrained_model_name=distilbert-base-uncased \
-            model.dataset.use_cache=false \
-            trainer.gpus=[0,1] \
-            trainer.accelerator=ddp \
-            trainer.max_epochs=1 \
-            +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output && \
-            python punctuation_capitalization_evaluate.py \
-            pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo && \
+            mkdir -p tmp_data && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
+            python punctuation_capitalization_train_evaluate.py \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item=tmp_data \
+              model.validation_ds.ds_item=tmp_data \
+              model.test_ds.ds_item=tmp_data \
+              model.language_model.pretrained_model_name=distilbert-base-uncased \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.gpus=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +do_testing=true && \
+            mv tmp_data tmp_data2 && \
+            python punctuation_capitalization_train_evaluate.py \
+              model.train_ds.use_tarred_dataset=false \
+              model.train_ds.ds_item=tmp_data2 \
+              model.validation_ds.ds_item=tmp_data2 \
+              model.test_ds.ds_item=tmp_data2 \
+              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.gpus=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              exp_manager=null && \
+            rm -r tmp_data2 && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
       }
+      post {
+        always {
+          sh 'pwd && ls nemo_* && rm -rf nemo_experiments && ls nemo_*'
+        }
+      }
     }
-
+    stage('Punctuation & Capitalization tarred dataset') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      stages {
+        stage('create and use tarred dataset') {
+          steps {
+            sh 'data_dir=/home/TestData/nlp/token_classification_punctuation && \
+            usual_data=${data_dir}/wmt_wiki_10000 && \
+            tarred_data=${data_dir}/train_tarred && \
+            output=${data_dir}/output && \
+            tokens_in_batch=2000 && \
+            max_seq_length=512 && \
+            lm_model=distilbert-base-uncased && \
+            python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
+              --text ${usual_data}/input.txt \
+              --labels ${usual_data}/labels.txt \
+              --output_dir ${tarred_data} \
+              --tokens_in_batch ${tokens_in_batch} \
+              --max_seq_length 512 \
+              --lines_per_dataset_fragment 2000 \
+              --num_batches_per_tarfile 5 \
+              --tar_file_prefix punctuation_capitalization \
+              --tokenizer_name ${lm_model} \
+              --use_fast_tokenizer \
+              --pad_label O \
+              --n_jobs 3 && \
+            echo "Number of tarred files in dataset:" && \
+            ls ${tarred_data}/*.tar | wc -l && \
+            echo "Label id files in dataset:" && \
+            ls ${tarred_data}/*.csv && \
+            metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.train_ds.ds_item=${tarred_data} \
+              model.language_model.pretrained_model_name=${lm_model} \
+              model.train_ds.use_tarred_dataset=true \
+              model.train_ds.tar_metadata_file=${metadata_file} \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.gpus=[0,1] \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=${output} && \
+            rm -rf ${output}/* ${tarred_data}'
+          }
+        }
+      }
+    }
+    stage('Punctuation & Capitalization inference') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      stages {
+        stage('Restore punctuation and capitalization in long text') {
+          steps {
+            sh 'python examples/nlp/token_classification/punctuate_capitalize_infer.py \
+            --input_manifest /home/TestData/nlp/token_classification_punctuation/iwslt_tst2019.manifest \
+            --output_text iwslt_inference_result.txt \
+            --max_seq_length 92 \
+            --step 8 \
+            --margin 16 \
+            --pretrained_name punctuation_en_bert \
+            --batch_size 32 && \
+            rm iwslt_inference_result.txt'
+          }
+        }
+      }
+    }
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf {
@@ -1670,7 +1805,71 @@ pipeline {
     //     }
     //   }
     // }
-
+    stage('L2: Megatron Bert Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        trainer.gpus=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=2 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence]"
+        sh "python examples/nlp/language_modeling/megatron_bert_pretraining.py \
+        trainer.gpus=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=2 \
+        trainer.max_steps=20 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/bert_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_bert/data/bert/vocab.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence,.5,/home/TestData/nlp/megatron_bert/data/bert/simple_wiki_bert_preproc_text_sentence]"
+        sh "rm -rf examples/nlp/language_modeling/bert_pretrain_results"
+      }
+    }
     stage('L2: Megatron GPT Pretraining and Resume Training') {
       when {
         anyOf {

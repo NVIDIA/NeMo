@@ -15,4 +15,5 @@
 
 #!/bin/bash
 
-docker build . --rm -t sparrowhawk
+FORCE_REBUILD=${1:-""}
+docker build . --rm -t sparrowhawk $FORCE_REBUILD

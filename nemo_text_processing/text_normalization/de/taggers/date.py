@@ -28,16 +28,18 @@ try:
     graph_teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv"))).optimize()
     graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
     ties_graph = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv"))).optimize()
+    delete_leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     graph_teen = None
     graph_digit = None
     ties_graph = None
+    delete_leading_zero = None
     PYNINI_AVAILABLE = True
 
 
-def get_year_graph(leading_zero: 'pynini.FstLike', cardinal: GraphFst) -> 'pynini.FstLike':
+def get_year_graph(cardinal: GraphFst) -> 'pynini.FstLike':
     """
     Returns year verbalizations as fst
 
@@ -45,13 +47,13 @@ def get_year_graph(leading_zero: 'pynini.FstLike', cardinal: GraphFst) -> 'pynin
     **00 ** hundert
 
     Args:
-        leading_zero: removed leading zero
+        delete_leading_zero: removed leading zero
         cardinal: cardinal GraphFst
     """
 
     year_gt_2000 = (pynini.union("21", "20") + NEMO_DIGIT ** 2) @ cardinal.graph
 
-    graph_two_digit = leading_zero @ cardinal.two_digit_non_zero
+    graph_two_digit = delete_leading_zero @ cardinal.two_digit_non_zero
     hundred = pynutil.insert("hundert")
     graph_double_double = (
         (pynini.accep("1") + NEMO_DIGIT) @ graph_two_digit
@@ -90,16 +92,17 @@ class DateFst(GraphFst):
         month_graph = pynini.union(*[x[1] for x in month_abbr_graph]).optimize()
         month_abbr_graph = pynini.string_map(month_abbr_graph)
         month_abbr_graph = (
-            month_abbr_graph | ((TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph)
-        ) + pynini.closure(pynutil.delete("."), 0, 1)
+            pynutil.add_weight(month_abbr_graph, weight=0.0001)
+            | ((TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_abbr_graph)
+        ) + pynini.closure(pynutil.delete(".", weight=-0.0001), 0, 1)
 
+        self.month_abbr = month_abbr_graph
         month_graph |= (TO_LOWER + pynini.closure(NEMO_CHAR)) @ month_graph
         # jan.-> januar, Jan-> januar, januar-> januar
         month_graph |= month_abbr_graph
 
         numbers = cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
-        optional_leading_zero = leading_zero | NEMO_DIGIT
+        optional_leading_zero = delete_leading_zero | NEMO_DIGIT
         # 01, 31, 1
         digit_day = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 32)]) @ numbers
         day = (pynutil.insert("day: \"") + digit_day + pynutil.insert("\"")).optimize()
@@ -110,10 +113,14 @@ class DateFst(GraphFst):
 
         month_name = (pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")).optimize()
         month_number = (
-            pynutil.insert("month: \"") + (digit_month | number_to_month) + pynutil.insert("\"")
+            pynutil.insert("month: \"")
+            + (pynutil.add_weight(digit_month, weight=0.0001) | number_to_month)
+            + pynutil.insert("\"")
         ).optimize()
 
-        year = get_year_graph(leading_zero=leading_zero, cardinal=cardinal)
+        # prefer cardinal over year
+        year = pynutil.add_weight(get_year_graph(cardinal=cardinal), weight=0.001)
+        self.year = year
 
         year_only = pynutil.insert("year: \"") + year + pynutil.insert("\"")
 

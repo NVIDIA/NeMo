@@ -87,6 +87,8 @@ class CallbackParams:
 @dataclass
 class StepTimingParams:
     reduction: Optional[str] = "mean"
+    # if True torch.cuda.synchronize() is called on start/stop
+    sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
     buffer_size: Optional[int] = -1
 
@@ -135,7 +137,7 @@ class TimingCallback(Callback):
 
     def _on_batch_end(self, name, pl_module):
         self.timer.stop(name)
-        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False, prog_bar=True)
+        pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
         self._on_batch_start("train_step_timing")
@@ -154,6 +156,12 @@ class TimingCallback(Callback):
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         self._on_batch_end("test_step_timing", pl_module)
+    
+    def on_before_backward(self, trainer, pl_module, loss):
+        self._on_batch_start("train_backward_timing")
+
+    def on_after_backward(self, trainer, pl_module):
+        self._on_batch_end("train_backward_timing", pl_module)
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
@@ -389,7 +397,6 @@ def check_resume(
         NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
         ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
-    app_state = AppState()
 
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
@@ -427,7 +434,6 @@ def check_resume(
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
         if 'mp_rank' in str(last_checkpoints[0]):
-            # checkpoint = last_checkpoints[0].parent.parent.joinpath(last_checkpoints[0].name)
             checkpoint = last_checkpoints[0]
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
@@ -752,28 +758,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-        # Load the best model and then re-save it
-        app_state = AppState()
-        # since we are creating tarfile artifacts we need to update .nemo path
-        app_state.model_restore_path = os.path.abspath(
-            os.path.expanduser(os.path.join(self.dirpath, self.prefix + self.postfix))
-        )
-        if self.save_best_model:
-            if not os.path.exists(self.best_model_path):
-                return output
-
-            if self.best_model_path == self.previous_best_path:
-                return output
-
-            self.previous_model_path = self.best_model_path
-            old_state_dict = deepcopy(pl_module.state_dict())
-            checkpoint = torch.load(self.best_model_path, map_location='cpu')
-            if 'state_dict' in checkpoint:
-                checkpoint = checkpoint['state_dict']
-            # get a new instanace of the model
-            pl_module.load_state_dict(checkpoint, strict=True)
-            pl_module.save_to(save_path=app_state.model_restore_path)
-            pl_module.load_state_dict(old_state_dict, strict=True)
         else:
             # Load the best model and then re-save it
             app_state = AppState()
@@ -826,7 +810,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state = AppState()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
-            # TODO: figure out a good way to update these filepaths
             dirname = os.path.dirname(filepath)
             basename = os.path.basename(filepath)
             filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'

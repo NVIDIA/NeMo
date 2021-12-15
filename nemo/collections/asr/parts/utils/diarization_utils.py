@@ -340,6 +340,7 @@ class ASR_DIAR_OFFLINE(object):
             raise ValueError(f"ASR model name not found: {asr_model}")
         self.params['time_stride'] = self.model_stride_in_secs
         self.asr_batch_size = 16
+        asr_model.eval()
 
         self.audio_file_list = [value['audio_filepath'] for _, value in self.AUDIO_RTTM_MAP.items()]
 
@@ -781,9 +782,12 @@ class ASR_DIAR_OFFLINE(object):
                     'words': [],
                 }
             )
+            gecko_dict = od({'schemaVersion': 2.0, 'monologues': []})
 
             start_point, end_point, speaker = labels[0].split()
             words = word_list[k]
+            prev_speaker = ''
+            terms_list = []
 
             logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
             string_out = self.print_time(string_out, speaker, start_point, end_point, self.params)
@@ -803,12 +807,22 @@ class ASR_DIAR_OFFLINE(object):
                 stt_sec, end_sec = round(word_ts_stt_end[0], 2), round(word_ts_stt_end[1], 2)
                 riva_dict = self.add_json_to_dict(riva_dict, words[j], stt_sec, end_sec, speaker)
 
-                total_riva_dict[uniq_id] = riva_dict
+                if speaker != prev_speaker:
+                    if len(terms_list) != 0:
+                        gecko_dict['monologues'].append(
+                            {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
+                        )
+                    terms_list = []
+                    prev_speaker = speaker
+                terms_list.append({'start': stt_sec, 'end': end_sec, 'text': words[j], 'type': 'WORD'})
+
                 audacity_label_words = self.get_audacity_label(
                     words[j], stt_sec, end_sec, speaker, audacity_label_words
                 )
 
-            self.write_and_log(uniq_id, riva_dict, string_out, audacity_label_words)
+            total_riva_dict[uniq_id] = riva_dict
+            gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
+            self.write_and_log(uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict)
 
         return total_riva_dict
 
@@ -945,17 +959,14 @@ class ASR_DIAR_OFFLINE(object):
 
         return spaces_in_sec, word_list
 
-    def write_and_log(self, uniq_id, riva_dict, string_out, audacity_label_words):
+    def write_and_log(self, uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict):
         """Writes output files and display logging messages.
         """
         ROOT = self.root_path
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.json")
+        logging.info(f"Writing files for id:{uniq_id} at {ROOT}/pred_rttms/")
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}.json', riva_dict)
-
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.txt")
+        dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
         write_txt(f'{ROOT}/pred_rttms/{uniq_id}.txt', string_out.strip())
-
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.w.label")
         write_txt(f'{ROOT}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
     @staticmethod

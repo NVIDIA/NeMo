@@ -24,7 +24,6 @@ neunzig~90
 drei und zwanzig~23
 ein hundert~100
 ein hundert drei und zwanzig~123
-ein hundert und drei und zwanzig~123
 ein hundert eins~101
 ein tausend~1000
 ein hundert tausend~100000
