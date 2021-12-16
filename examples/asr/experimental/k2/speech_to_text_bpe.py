@@ -63,29 +63,33 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
     print(OmegaConf.to_yaml(cfg))
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     with open_dict(cfg):
-        restore_path = cfg.pop('init_from_nemo', None)
+        restore_path = cfg.pop("init_from_nemo", None)
 
     asr_model = EncDecK2SeqModelBPE(cfg=cfg.model, trainer=trainer)
 
     if restore_path is not None:
         checkpoint = EncDecK2SeqModelBPE.restore_from(
-            restore_path, map_location=torch.device('cpu')
+            restore_path, map_location=torch.device("cpu")
         )
 
         try:
-            asr_model.encoder.load_state_dict(checkpoint.encoder.state_dict(), strict=False)
+            asr_model.encoder.load_state_dict(
+                checkpoint.encoder.state_dict(), strict=False
+            )
             logging.info("Loaded encoder checkpoint")
         except Exception:
             logging.info("Could not load encoder checkpoint")
 
         try:
-            asr_model.decoder.load_state_dict(checkpoint.decoder.state_dict(), strict=False)
+            asr_model.decoder.load_state_dict(
+                checkpoint.decoder.state_dict(), strict=False
+            )
             logging.info("Loaded decoder checkpoint")
         except Exception:
             logging.info("Could not load decoder checkpoint")
@@ -94,7 +98,10 @@ def main(cfg):
 
     trainer.fit(asr_model)
 
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+    if (
+        hasattr(cfg.model, "test_ds")
+        and cfg.model.test_ds.manifest_filepath is not None
+    ):
         gpu = 1 if cfg.trainer.gpus != 0 else 0
         test_trainer = pl.Trainer(
             gpus=gpu,
@@ -106,5 +113,5 @@ def main(cfg):
             test_trainer.test(asr_model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

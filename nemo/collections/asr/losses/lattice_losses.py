@@ -18,7 +18,13 @@ from torch import nn
 
 from nemo.collections.asr.parts.k2.grad_utils import PartialGrad
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.neural_types import (
+    LabelsType,
+    LengthsType,
+    LogprobsType,
+    LossType,
+    NeuralType,
+)
 from nemo.utils import logging
 
 
@@ -31,10 +37,10 @@ class LatticeLoss(Loss):
         """Input types definitions for LatticeLoss.
         """
         return {
-            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "input_lengths": NeuralType(tuple('B'), LengthsType()),
-            "target_lengths": NeuralType(tuple('B'), LengthsType()),
+            "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "input_lengths": NeuralType(tuple("B"), LengthsType()),
+            "target_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -45,28 +51,43 @@ class LatticeLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction='mean_batch', backend='k2', criterion_type='ml', split_batch_size=0, **loss_kwargs):
+    def __init__(
+        self,
+        num_classes,
+        reduction="mean_batch",
+        backend="k2",
+        criterion_type="ml",
+        split_batch_size=0,
+        **loss_kwargs,
+    ):
         super().__init__()
         self._blank = num_classes
         self.split_batch_size = split_batch_size
-        if reduction == 'mean_batch':
-            ctc_reduction = 'none'
+        if reduction == "mean_batch":
+            ctc_reduction = "none"
             self._apply_batch_mean = True
-        elif reduction in ['sum', 'mean', 'none']:
+        elif reduction in ["sum", "mean", "none"]:
             ctc_reduction = reduction
             self._apply_batch_mean = False
 
         # we assume that self._blank + 1 == num_classes
-        if backend == 'k2':
-            if criterion_type == 'ml':
+        if backend == "k2":
+            if criterion_type == "ml":
                 from nemo.collections.asr.parts.k2.mlloss import MLLoss as K2Loss
-            elif criterion_type == 'map':
+            elif criterion_type == "map":
                 from nemo.collections.asr.parts.k2.maploss import MAPLoss as K2Loss
             else:
-                raise ValueError(f"Invalid value of `criterion_type`: {criterion_type}.")
+                raise ValueError(
+                    f"Invalid value of `criterion_type`: {criterion_type}."
+                )
 
-            self._loss = K2Loss(num_classes=self._blank+1, blank=self._blank, reduction=ctc_reduction, **loss_kwargs)
-        elif backend == 'gtn':
+            self._loss = K2Loss(
+                num_classes=self._blank + 1,
+                blank=self._blank,
+                reduction=ctc_reduction,
+                **loss_kwargs,
+            )
+        elif backend == "gtn":
             from nemo.collections.asr.parts.gtn.ctc import CTCLoss as GTNCTCLoss
         else:
             raise ValueError(f"Invalid value of `backend`: {backend}.")
@@ -79,7 +100,7 @@ class LatticeLoss(Loss):
             self._partial_loss = PartialGrad(self._loss)
 
     def update_graph(self, graph):
-        if self.criterion_type != 'ml':
+        if self.criterion_type != "ml":
             self._loss.update_graph(graph)
 
     @typecheck()
@@ -103,7 +124,21 @@ class LatticeLoss(Loss):
                 targets_part = targets[begin:end]
                 input_lengths_part = input_lengths[begin:end]
                 target_lengths_part = target_lengths[begin:end]
-                loss_part, _ = self._partial_loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part) if log_probs_part.requires_grad else self._loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part)
+                loss_part, _ = (
+                    self._partial_loss(
+                        log_probs_part,
+                        targets_part,
+                        input_lengths_part,
+                        target_lengths_part,
+                    )
+                    if log_probs_part.requires_grad
+                    else self._loss(
+                        log_probs_part,
+                        targets_part,
+                        input_lengths_part,
+                        target_lengths_part,
+                    )
+                )
                 loss_list.append(loss_part)
             loss = torch.cat(loss_list, 0)
         else:

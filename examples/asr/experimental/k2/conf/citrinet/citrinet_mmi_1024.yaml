@@ -437,7 +437,7 @@ model:
     backend: k2 # Only k2 is supported
     criterion_type: map # Choices: mle for a CTC-like criterion, map for using a propri linluistic information
     loss_type: mmi # Only mmi is supported for criterion_type=map
-    topo_type: default # Choices: default, compact, shared_blank, forced_blank, identity
+    topo_type: default # Choices: default, compact, shared_blank, minimal
     topo_with_selfloops: true # Whether to add token-to-epsilon self-loops to a topology
     boost_coeff: 0.0 # Boosting for boosted-mmi. Disabled if set to 0
     intersect_pruned: false # Whether to use pruned intersection with denominator graph

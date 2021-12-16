@@ -57,8 +57,10 @@ class EncDecK2SeqModel(EncDecCTCModel):
             self.token_lm_path = self._cfg.get("token_lm", None)
             token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
             if token_lm_overwrite:
-                logging.info(f"""Overwriting token_lm with `{self.token_lm_path}`. 
-                             Previously saved token_lm, if it exists, will be ignored.""")
+                logging.info(
+                    f"""Overwriting token_lm with `{self.token_lm_path}`. 
+                             Previously saved token_lm, if it exists, will be ignored."""
+                )
                 self.token_lm = load_graph(self.token_lm_path)
                 loss_kwargs["token_lm"] = self.token_lm
 
@@ -75,22 +77,34 @@ class EncDecK2SeqModel(EncDecCTCModel):
         self.loss = LatticeLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            **loss_kwargs
+            **loss_kwargs,
         )
-        remove_consecutive = loss_kwargs.get("topo_with_selfloops", True) and loss_kwargs.get("topo_type", "default") not in ["forced_blank", "identity"]
+        remove_consecutive = loss_kwargs.get(
+            "topo_with_selfloops", True
+        ) and loss_kwargs.get("topo_type", "default") not in [
+            "forced_blank",
+            "identity",
+        ]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
         transcribe_training = self._cfg.get("transcribe_training", False)
         if transcribe_training and criterion_type == "ml":
-            logging.warning(f"""You do not need to use transcribe_training=`{transcribe_training}` 
-                            with criterion_type=`{criterion_type}`. transcribe_training will be set to False.""")
+            logging.warning(
+                f"""You do not need to use transcribe_training=`{transcribe_training}` 
+                            with criterion_type=`{criterion_type}`. transcribe_training will be set to False."""
+            )
             transcribe_training = False
         self.transcribe_training = transcribe_training
         if self.use_graph_lm:
-            self.transcribe_decoder = ViterbiDecoderWithGraph(num_classes=self.decoder.num_classes_with_blank - 1, dec_type='tokenlm', return_type='1best', **loss_kwargs)
+            self.transcribe_decoder = ViterbiDecoderWithGraph(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                dec_type="tokenlm",
+                return_type="1best",
+                **loss_kwargs,
+            )
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
         """
         Custom state_dict method to save token_lm graph.
         """
@@ -140,14 +154,20 @@ class EncDecK2SeqModel(EncDecCTCModel):
             self.token_lm = None
             self.token_lm_cache_dict = None
             self.token_lm_path = None
-            logging.warning(f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
-                            either a new token_lm or a token_lm_path has to be set manually.""")
+            logging.warning(
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
+                            either a new token_lm or a token_lm_path has to be set manually."""
+            )
 
         self._update_k2_modules(loss_kwargs)
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -172,11 +192,15 @@ class EncDecK2SeqModel(EncDecCTCModel):
         # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
         if self.use_graph_lm and self.token_lm is None:
             if self.token_lm_cache_dict is not None:
-                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
+                logging.info(
+                    f"""Loading token_lm from the dict cache at the first .forward() call."""
+                )
                 self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
                 self.token_lm_cache_dict = None
             elif self.token_lm_path is not None:
-                logging.warning(f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call.""")
+                logging.warning(
+                    f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call."""
+                )
                 self.token_lm = load_graph(self.token_lm_path)
                 if self.token_lm is None:
                     raise ValueError(f"""Failed to load token_lm""")
@@ -186,16 +210,19 @@ class EncDecK2SeqModel(EncDecCTCModel):
             if self.use_graph_lm:
                 self.transcribe_decoder.update_graph(self.token_lm)
 
-        log_probs, encoded_len, greedy_predictions = super().forward(input_signal=input_signal,
-                                                                     input_signal_length=input_signal_length,
-                                                                     processed_signal=processed_signal,
-                                                                     processed_signal_length=processed_signal_length)
+        log_probs, encoded_len, greedy_predictions = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
 
         # greedy_predictions from .forward() are incorrect for criterion_type=`map`
         # getting correct greedy_predictions, if needed
         if self.use_graph_lm and (not self.training or self.transcribe_training):
-            greedy_predictions, encoded_len, _ = self.transcribe_decoder.forward(log_probs=log_probs,
-                                                                                 log_probs_length=encoded_len)
+            greedy_predictions, encoded_len, _ = self.transcribe_decoder.forward(
+                log_probs=log_probs, log_probs_length=encoded_len
+            )
         return log_probs, encoded_len, greedy_predictions
 
 
@@ -225,8 +252,10 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
             self.token_lm_path = self._cfg.get("token_lm", None)
             token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
             if token_lm_overwrite:
-                logging.info(f"""Overwriting token_lm with `{self.token_lm_path}`. 
-                             Previously saved token_lm, if it exists, will be ignored.""")
+                logging.info(
+                    f"""Overwriting token_lm with `{self.token_lm_path}`. 
+                             Previously saved token_lm, if it exists, will be ignored."""
+                )
                 self.token_lm = load_graph(self.token_lm_path)
                 loss_kwargs["token_lm"] = self.token_lm
 
@@ -243,22 +272,34 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         self.loss = LatticeLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            **loss_kwargs
+            **loss_kwargs,
         )
-        remove_consecutive = loss_kwargs.get("topo_with_selfloops", True) and loss_kwargs.get("topo_type", "default") not in ["forced_blank", "identity"]
+        remove_consecutive = loss_kwargs.get(
+            "topo_with_selfloops", True
+        ) and loss_kwargs.get("topo_type", "default") not in [
+            "forced_blank",
+            "identity",
+        ]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
         transcribe_training = self._cfg.get("transcribe_training", False)
         if transcribe_training and criterion_type == "ml":
-            logging.warning(f"""You do not need to use transcribe_training=`{transcribe_training}` 
-                            with criterion_type=`{criterion_type}`. transcribe_training will be set to False.""")
+            logging.warning(
+                f"""You do not need to use transcribe_training=`{transcribe_training}` 
+                            with criterion_type=`{criterion_type}`. transcribe_training will be set to False."""
+            )
             transcribe_training = False
         self.transcribe_training = transcribe_training
         if self.use_graph_lm:
-            self.transcribe_decoder = ViterbiDecoderWithGraph(num_classes=self.decoder.num_classes_with_blank - 1, dec_type='tokenlm', return_type='1best', **loss_kwargs)
+            self.transcribe_decoder = ViterbiDecoderWithGraph(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                dec_type="tokenlm",
+                return_type="1best",
+                **loss_kwargs,
+            )
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
         """
         Custom state_dict method to save token_lm graph.
         """
@@ -308,14 +349,20 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
             self.token_lm = None
             self.token_lm_cache_dict = None
             self.token_lm_path = None
-            logging.warning(f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
-                            either a new token_lm or a token_lm_path has to be set manually.""")
+            logging.warning(
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
+                            either a new token_lm or a token_lm_path has to be set manually."""
+            )
 
         self._update_k2_modules(loss_kwargs)
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -340,11 +387,15 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
         if self.use_graph_lm and self.token_lm is None:
             if self.token_lm_cache_dict is not None:
-                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
+                logging.info(
+                    f"""Loading token_lm from the dict cache at the first .forward() call."""
+                )
                 self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
                 self.token_lm_cache_dict = None
             elif self.token_lm_path is not None:
-                logging.warning(f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call.""")
+                logging.warning(
+                    f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call."""
+                )
                 self.token_lm = load_graph(self.token_lm_path)
                 if self.token_lm is None:
                     raise ValueError(f"""Failed to load token_lm""")
@@ -354,14 +405,17 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
             if self.use_graph_lm:
                 self.transcribe_decoder.update_graph(self.token_lm)
 
-        log_probs, encoded_len, greedy_predictions = super().forward(input_signal=input_signal,
-                                                                     input_signal_length=input_signal_length,
-                                                                     processed_signal=processed_signal,
-                                                                     processed_signal_length=processed_signal_length)
+        log_probs, encoded_len, greedy_predictions = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
 
         # greedy_predictions from .forward() are incorrect for criterion_type=`map`
         # getting correct greedy_predictions, if needed
         if self.use_graph_lm and (not self.training or self.transcribe_training):
-            greedy_predictions, encoded_len, _ = self.transcribe_decoder.forward(log_probs=log_probs,
-                                                                                 log_probs_length=encoded_len)
+            greedy_predictions, encoded_len, _ = self.transcribe_decoder.forward(
+                log_probs=log_probs, log_probs_length=encoded_len
+            )
         return log_probs, encoded_len, greedy_predictions

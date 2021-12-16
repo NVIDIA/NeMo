@@ -16,7 +16,8 @@ import torch
 
 
 class GradExpNormalize(torch.autograd.Function):
-    """TBD
+    """Function for fast gradient normalization.
+    Typical use case is normalization for mle loss.
     """
 
     def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
@@ -28,7 +29,12 @@ class GradExpNormalize(torch.autograd.Function):
         return mask
 
     @staticmethod
-    def forward(ctx, log_probs: torch.Tensor, input_lengths: torch.Tensor, reduction: str = "mean"):
+    def forward(
+        ctx,
+        log_probs: torch.Tensor,
+        input_lengths: torch.Tensor,
+        reduction: str = "mean",
+    ):
         mask = GradExpNormalize.make_non_pad_mask(input_lengths, log_probs.shape[1])
         max_log_prob, _ = log_probs.max(-1)
         probs = torch.exp(log_probs - max_log_prob.unsqueeze(-1))
@@ -45,11 +51,18 @@ class GradExpNormalize(torch.autograd.Function):
 
 
 class GradInsert(torch.autograd.Function):
-    """TBD
+    """Function to attach a pre-computed gradient to a tensor.
+    Typical use case is gradient computation before calling loss.backward().
     """
 
     @staticmethod
-    def forward(ctx, input_tensor: torch.Tensor, output_tensor: torch.Tensor, grad: torch.Tensor, mask: torch.Tensor):
+    def forward(
+        ctx,
+        input_tensor: torch.Tensor,
+        output_tensor: torch.Tensor,
+        grad: torch.Tensor,
+        mask: torch.Tensor,
+    ):
         assert input_tensor.requires_grad
         assert not output_tensor.requires_grad and not grad.requires_grad
 
@@ -60,20 +73,29 @@ class GradInsert(torch.autograd.Function):
     def backward(ctx, grad_output: torch.Tensor):
         saved_grad, mask = ctx.saved_tensors
         # TODO (alaptev): make it work for grad_output with arbitrary shape
-        padded_grad_output = torch.zeros(saved_grad.shape[0], dtype=grad_output.dtype, device=grad_output.device)
+        padded_grad_output = torch.zeros(
+            saved_grad.shape[0], dtype=grad_output.dtype, device=grad_output.device
+        )
         padded_grad_output[mask] = grad_output
         return (padded_grad_output * saved_grad.T).T, None, None, None
 
 
 class PartialGrad(torch.nn.Module):
-    """TBD
+    """Module for partial gradient computation.
+    Useful when computing loss on batch splits to save memory.
     """
 
     def __init__(self, func: torch.nn.Module):
         super().__init__()
         self.func = func
 
-    def forward(self, input_tensor: torch.Tensor, targets: torch.Tensor, input_lengths: torch.Tensor, target_lengths: torch.Tensor):
+    def forward(
+        self,
+        input_tensor: torch.Tensor,
+        targets: torch.Tensor,
+        input_lengths: torch.Tensor,
+        target_lengths: torch.Tensor,
+    ):
         # break the gradient chain
         loc_tensor = input_tensor.detach()
         loc_tensor.requires_grad_(True)

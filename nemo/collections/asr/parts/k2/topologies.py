@@ -18,8 +18,17 @@ import k2
 import torch
 
 
-def build_topo(name: str, tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
-    """TBD
+def build_topo(name: str, tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+    """Helper function to build a topology.
+    Args:
+      name:
+        The topology name. Choices: default, compact, shared_blank, minimal
+      tokens:
+        A list of tokens, e.g., phones, characters, etc.
+      with_selfloops:
+        Whether to add token-to-epsilon self-loops to a topology
+    Returns:
+      Returns a topology FST.
     """
     if name == "default":
         return build_default_topo(tokens, with_selfloops)
@@ -27,26 +36,14 @@ def build_topo(name: str, tokens: List[int], with_selfloops: bool=True) -> k2.Fs
         return build_compact_topo(tokens, with_selfloops)
     elif name == "shared_blank":
         return build_shared_blank_topo(tokens, with_selfloops)
-    elif name == "forced_blank":
-        return build_forced_blank_topo(tokens)
-    elif name == "identity":
-        return build_identity_topo(tokens)
+    elif name == "minimal":
+        return build_minimal_topo(tokens)
     else:
         raise ValueError(f"Unknown topo name: {name}")
 
-def build_default_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
-    """Build CTC topology.
-    A token which appears once on the right side (i.e. olabels) may
-    appear multiple times on the left side (ilabels), possibly with
-    epsilons in between.
-    When 0 appears on the left side, it represents the blank symbol;
-    when it appears on the right side, it indicates an epsilon. That
-    is, 0 has two meanings here.
-    Args:
-      tokens:
-        A list of tokens, e.g., phones, characters, etc.
-    Returns:
-      Returns an FST that converts repeated tokens to a single token.
+
+def build_default_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+    """Build the default CTC topology.
     """
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
@@ -66,8 +63,10 @@ def build_default_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     ans = k2.arc_sort(ans)
     return ans
 
-def build_compact_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
-    """TBD
+
+def build_compact_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+    """Build the compact CTC topology.
+    See https://arxiv.org/abs/2110.03098
     """
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
@@ -88,11 +87,12 @@ def build_compact_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
     ans = k2.arc_sort(ans)
     return ans
 
-def build_shared_blank_topo(tokens: List[int], with_selfloops: bool=True) -> k2.Fsa:
-    """TBD
+
+def build_shared_blank_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+    """Build the shared blank CTC topology.
     See https://github.com/k2-fsa/k2/issues/746#issuecomment-856421616
     """
-    assert 0 in tokens, 'We assume 0 is the ID of the blank symbol'
+    assert 0 in tokens, "We assume 0 is the ID of the blank symbol"
 
     tokens = tokens.copy()
     tokens.remove(0)
@@ -112,33 +112,16 @@ def build_shared_blank_topo(tokens: List[int], with_selfloops: bool=True) -> k2.
             arcs.append([i, i, p, 0, 0])
     arcs = sorted(arcs, key=lambda arc: arc[0])
     arcs = [[str(i) for i in arc] for arc in arcs]
-    arcs = [' '.join(arc) for arc in arcs]
-    arcs = '\n'.join(arcs)
+    arcs = [" ".join(arc) for arc in arcs]
+    arcs = "\n".join(arcs)
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans
 
-def build_forced_blank_topo(tokens):
-    """TBD
-    """
-    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
-    num_tokens = len(tokens)
-    final_state = num_tokens
-    arcs = "0 0 0 0 0.0\n"
-    for i in range(1, num_tokens):
-        arcs += f"0 {i} {tokens[i]} {tokens[i]} 0.0\n"
-    arcs += f"0 {final_state} -1 -1 0.0\n"
-    for i in range(1, num_tokens):
-        arcs += f"{i} 0 0 0 0.0\n"
-        arcs += f"{i} {final_state} -1 -1 0.0\n"
-    arcs += f"{final_state}"
-    ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
-    ans = k2.arc_sort(ans)
-    return ans
-
-def build_identity_topo(tokens: List[int]) -> k2.Fsa:
-    """TBD
+def build_minimal_topo(tokens: List[int]) -> k2.Fsa:
+    """Build the minimal topology.
+    See https://arxiv.org/abs/2110.03098
     """
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 

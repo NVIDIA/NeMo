@@ -39,18 +39,22 @@ from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
 
 
 class CtcTrainingTopologyCompiler(object):
-    """TBD
+    """Default training graph compiler.
+    It applies its topology to the input token sequence to compile the numerator graph.
     """
 
-    def __init__(self,
-                 num_classes: int,
-                 topo_type: str = "default",
-                 topo_with_selfloops: bool = True,
-                 device: torch.device = torch.device("cpu")
+    def __init__(
+        self,
+        num_classes: int,
+        topo_type: str = "default",
+        topo_with_selfloops: bool = True,
+        device: torch.device = torch.device("cpu"),
     ):
         self.topo_type = topo_type
         self.device = device
-        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops)).to(self.device)
+        self.base_graph = k2.arc_sort(
+            build_topo(topo_type, list(range(num_classes)), topo_with_selfloops)
+        ).to(self.device)
         self.ctc_topo_inv = k2.arc_sort(self.base_graph.invert())
 
     def to(self, device: torch.device):
@@ -73,58 +77,89 @@ class CtcTrainingTopologyCompiler(object):
 
 
 class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
-    """TBD
+    """Training graph compiler with auxiliary graph to compose with the topology.
+    The numerator graph contains the auxiliary graph information.
     """
 
-    def __init__(self,
-                 num_classes: int,
-                 topo_type: str = "default",
-                 topo_with_selfloops: bool = True,
-                 device: torch.device = torch.device("cpu"),
-                 aux_graph: Optional[k2.Fsa] = None
+    def __init__(
+        self,
+        num_classes: int,
+        topo_type: str = "default",
+        topo_with_selfloops: bool = True,
+        device: torch.device = torch.device("cpu"),
+        aux_graph: Optional[k2.Fsa] = None,
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device)
         if aux_graph is None:
-            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(
+                self.device
+            )
         else:
-            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
+            self.base_graph = intersect_with_self_loops(
+                self.ctc_topo_inv, aux_graph
+            ).invert_()
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
 
-    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> k2.Fsa:
+    def compile(
+        self,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        aux_graph: Optional[k2.Fsa] = None,
+    ) -> k2.Fsa:
         if aux_graph is None and self.base_graph is None:
-            raise ValueError(f"At least one of aux_graph and self.base_graph must be set: {aux_graph}, {self.base_graph}")
+            raise ValueError(
+                f"At least one of aux_graph and self.base_graph must be set: {aux_graph}, {self.base_graph}"
+            )
         elif aux_graph is not None:
-            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert()
+            self.base_graph = intersect_with_self_loops(
+                self.ctc_topo_inv, aux_graph
+            ).invert()
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
         return super().compile(targets, target_lengths)
 
 
 class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
-    """TBD
+    """Training graph compiler for MMI loss.
+    The denominator graph is a composition of the auxiliary graph and the topology.
+    It is returned along with the numerator graph on every compile() call.
     """
 
-    def __init__(self,
-                 num_classes: int,
-                 topo_type: str = "default",
-                 topo_with_selfloops: bool = True,
-                 device: torch.device = torch.device("cpu"),
-                 aux_graph: Optional[k2.Fsa] = None
+    def __init__(
+        self,
+        num_classes: int,
+        topo_type: str = "default",
+        topo_with_selfloops: bool = True,
+        device: torch.device = torch.device("cpu"),
+        aux_graph: Optional[k2.Fsa] = None,
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device, aux_graph)
         if aux_graph is None:
-            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(
+                self.device
+            )
         else:
-            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(self.device)
+            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(
+                self.device
+            )
 
     def to(self, device: torch.device):
         if self.den_graph is not None:
             self.den_graph = self.den_graph.to(device)
         super().to(device)
 
-    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None) -> Tuple[k2.Fsa, k2.Fsa]:
+    def compile(
+        self,
+        targets: torch.Tensor,
+        target_lengths: torch.Tensor,
+        aux_graph: Optional[k2.Fsa] = None,
+    ) -> Tuple[k2.Fsa, k2.Fsa]:
         num_graphs = super().compile(targets, target_lengths, aux_graph)
         if aux_graph is None and self.den_graph is None:
-            raise ValueError(f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}")
+            raise ValueError(
+                f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}"
+            )
         elif aux_graph is not None:
-            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(self.device)
+            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(
+                self.device
+            )
         return num_graphs, self.den_graph

@@ -31,10 +31,9 @@ import torch
 
 
 class _AbsFunction(torch.autograd.Function):
-
     @staticmethod
     def forward(ctx, sparse_tensor: torch.Tensor) -> torch.Tensor:
-        '''Compute the `abs` of a sparse tensor.
+        """Compute the `abs` of a sparse tensor.
         Args:
           sparse_tensor:
             A sparse tensor. It has to satisfy::
@@ -42,7 +41,7 @@ class _AbsFunction(torch.autograd.Function):
         Returns:
           The absolute value of the sparse tensor.
           The `abs` operation is applied element-wise.
-        '''
+        """
         assert sparse_tensor.is_sparse
         assert sparse_tensor.is_coalesced()
 
@@ -52,18 +51,20 @@ class _AbsFunction(torch.autograd.Function):
 
         values_abs = values.abs()
 
-        ans = torch.sparse_coo_tensor(indices=indices,
-                                      values=values_abs,
-                                      size=size,
-                                      dtype=sparse_tensor.dtype,
-                                      device=sparse_tensor.device)
+        ans = torch.sparse_coo_tensor(
+            indices=indices,
+            values=values_abs,
+            size=size,
+            dtype=sparse_tensor.dtype,
+            device=sparse_tensor.device,
+        )
 
         ctx.save_for_backward(sparse_tensor)
         return ans
 
     @staticmethod
     def backward(ctx, ans_grad: torch.Tensor) -> torch.Tensor:
-        sparse_tensor, = ctx.saved_tensors
+        (sparse_tensor,) = ctx.saved_tensors
 
         indices = sparse_tensor.indices().clone()
         values = sparse_tensor.values()
@@ -76,13 +77,14 @@ class _AbsFunction(torch.autograd.Function):
             values=sparse_tensor_grad_values,
             size=size,
             dtype=sparse_tensor.dtype,
-            device=sparse_tensor.device)
+            device=sparse_tensor.device,
+        )
 
         return sparse_tensor_grad
 
 
 def sparse_abs(sparse_tensor: torch.Tensor) -> torch.Tensor:
-    '''Compute the `abs` of a sparse tensor.
+    """Compute the `abs` of a sparse tensor.
     It supports autograd.
     Args:
       sparse_tensor:
@@ -91,5 +93,5 @@ def sparse_abs(sparse_tensor: torch.Tensor) -> torch.Tensor:
     Returns:
       The absolute value of the sparse tensor.
       The `abs` operation is applied element-wise.
-    '''
+    """
     return _AbsFunction.apply(sparse_tensor)
