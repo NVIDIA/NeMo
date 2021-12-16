@@ -110,24 +110,7 @@ class NormalizerWithAudio(Normalizer):
             whitelist=whitelist,
         )
 
-        if lang == "en":
-            self.normalizer_deterministic = Normalizer(
-                input_case=input_case,
-                lang=lang,
-                deterministic=True,
-                cache_dir=cache_dir,
-                overwrite_cache=overwrite_cache,
-                whitelist=whitelist,
-            )
-
-    def normalize(
-        self,
-        text: str,
-        n_tagged: int,
-        punct_pre_process: bool = True,
-        punct_post_process: bool = True,
-        verbose: bool = False,
-    ) -> str:
+    def normalize(self, text: str, n_tagged: int, punct_post_process: bool = True, verbose: bool = False,) -> str:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
@@ -135,7 +118,6 @@ class NormalizerWithAudio(Normalizer):
         Args:
             text: string that may include semiotic classes
             n_tagged: number of tagged options to consider, -1 - to get all possible tagged options
-            punct_pre_process: whether to perform punctuation pre-processing, for example, [25] -> [ 25 ]
             punct_post_process: whether to normalize punctuation
             verbose: whether to print intermediate meta information
 
@@ -143,7 +125,8 @@ class NormalizerWithAudio(Normalizer):
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
         original_text = text
-        if punct_pre_process:
+
+        if self.lang == "en":
             text = pre_process(text)
         text = text.strip()
         if not text:
@@ -153,20 +136,25 @@ class NormalizerWithAudio(Normalizer):
         text = pynini.escape(text)
 
         if n_tagged == -1:
-            tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+            if self.lang == "en":
+                try:
+                    tagged_texts = rewrite.rewrites(text, self.tagger.fst_no_digits)
+                except pynini.lib.rewrite.Error:
+                    tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+            else:
+                tagged_texts = rewrite.rewrites(text, self.tagger.fst)
         else:
-            tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+            if self.lang == "en":
+                try:
+                    tagged_texts = rewrite.top_rewrites(text, self.tagger.fst_no_digits, nshortest=n_tagged)
+                except pynini.lib.rewrite.Error:
+                    tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+            else:
+                tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+
         # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
-        if self.lang == 'en':
+        if self.lang == "en":
             normalized_texts = tagged_texts
-            normalized_texts.append(
-                self.normalizer_deterministic.normalize(
-                    text=original_text,
-                    verbose=verbose,
-                    punct_post_process=punct_post_process,
-                    punct_pre_process=punct_pre_process,
-                )
-            )
         else:
             normalized_texts = []
             for tagged_text in tagged_texts:
@@ -186,23 +174,6 @@ class NormalizerWithAudio(Normalizer):
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
         normalized_texts = set(normalized_texts)
-        if self.lang == "en":
-            normalized_texts = self._filter_texts(normalized_texts)
-        return normalized_texts
-
-    def _filter_texts(self, normalized_texts: List[str]):
-        """
-        Filter out options from normalized_texts that have remaining digits,
-        i.e. removes options like `1 seven` if "no digits" options are present
-
-        Returns:
-            filtered options
-        """
-        digits = set([str(i) for i in range(10)])
-        filtered = [t for t in normalized_texts if len(digits.intersection(set(t))) == 0]
-
-        if len(filtered) > 0:
-            normalized_texts = filtered
         return normalized_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):
@@ -232,13 +203,19 @@ class NormalizerWithAudio(Normalizer):
                 continue
 
     def select_best_match(
-        self, normalized_texts: List[str], pred_text: str, verbose: bool = False, remove_punct: bool = False
+        self,
+        normalized_texts: List[str],
+        input_text: str,
+        pred_text: str,
+        verbose: bool = False,
+        remove_punct: bool = False,
     ):
         """
         Selects the best normalization option based on the lowest CER
 
         Args:
             normalized_texts: normalized text options
+            input_text: input text
             pred_text: ASR model transcript of the audio file corresponding to the normalized text
             verbose: whether to print intermediate meta information
             remove_punct: whether to remove punctuation before calculating CER
@@ -246,6 +223,8 @@ class NormalizerWithAudio(Normalizer):
         Returns:
             normalized text with the lowest CER and CER value
         """
+        if pred_text == "":
+            return input_text, 1000
         normalized_texts = calculate_cer(normalized_texts, pred_text, remove_punct)
         normalized_texts = sorted(normalized_texts, key=lambda x: x[1])
         normalized_text, cer = normalized_texts[0]
@@ -313,14 +292,11 @@ def parse_args():
     parser.add_argument(
         "--n_tagged",
         type=int,
-        default=10000,
+        default=30,
         help="number of tagged options to consider, -1 - return all possible tagged options",
     )
     parser.add_argument("--verbose", help="print info for debugging", action="store_true")
     parser.add_argument("--remove_punct", help="remove punctuation before calculating cer", action="store_true")
-    parser.add_argument(
-        "--no_punct_pre_process", help="set to True to disable punctuation pre processing", action="store_true"
-    )
     parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
@@ -338,18 +314,23 @@ def parse_args():
 
 def _normalize_line(normalizer: NormalizerWithAudio, line: str):
     line = json.loads(line)
-    pred_text = line['pred_text']
+    pred_text = line["pred_text"]
 
     normalized_texts = normalizer.normalize(
-        text=line['text'],
+        text=line["text"],
         verbose=args.verbose,
         n_tagged=args.n_tagged,
-        punct_pre_process=not args.no_punct_pre_process,
         punct_post_process=not args.no_punct_post_process,
     )
-    normalized_text, cer = normalizer.select_best_match(normalized_texts, pred_text, args.verbose, args.remove_punct)
-    line['nemo_normalized'] = normalized_text
-    line['CER_nemo_normalized'] = cer
+    normalized_text, cer = normalizer.select_best_match(
+        normalized_texts=normalized_texts,
+        input_text=line["text"],
+        pred_text=pred_text,
+        verbose=args.verbose,
+        remove_punct=args.remove_punct,
+    )
+    line["nemo_normalized"] = normalized_text
+    line["CER_nemo_normalized"] = cer
     return line
 
 
@@ -406,7 +387,6 @@ if __name__ == "__main__":
             text=args.text,
             verbose=args.verbose,
             n_tagged=args.n_tagged,
-            punct_pre_process=not args.no_punct_pre_process,
             punct_post_process=not args.no_punct_post_process,
         )
 
@@ -414,7 +394,11 @@ if __name__ == "__main__":
             asr_model = get_asr_model(args.model)
             pred_text = asr_model.transcribe([args.audio_data])[0]
             normalized_text, cer = normalizer.select_best_match(
-                normalized_texts, pred_text, args.verbose, args.remove_punct
+                normalized_texts=normalized_texts,
+                pred_text=pred_text,
+                input_text=args.text,
+                verbose=args.verbose,
+                remove_punct=args.remove_punct,
             )
             print(f"Transcript: {pred_text}")
             print(f"Normalized: {normalized_text}")
