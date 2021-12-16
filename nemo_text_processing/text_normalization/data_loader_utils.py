@@ -231,11 +231,10 @@ def pre_process(text: str) -> str:
 
     Returns: text with spaces around punctuation marks
     """
-    space_both = '*<=>^[]{}'
+    space_both = '[]'
     for punct in space_both:
         text = text.replace(punct, ' ' + punct + ' ')
 
-    text = text.replace('--', ' ' + '--' + ' ')
     # remove extra space
     text = re.sub(r' +', ' ', text)
     return text

@@ -15,14 +15,15 @@ $2~two dollars
 $2.00~two dollars
 $2.000~two dollars
 $20~twenty dollars
-$20.506~twenty point five oh six dollars
+$20.506~twenty point five zero six dollars
 $20.50~twenty dollars fifty cents
 $20.5~twenty dollars fifty cents
 $20.01~twenty dollars one cent
 $20.010~twenty dollars one cent
 $0.010~one cent
 $0.02~two cents
-$.506~point five oh six dollars
+$.01~one cent
+$.506~point five zero six dollars
 $18~eighteen dollars
 $18925000~eighteen million nine hundred twenty five thousand dollars
 $18,925,000~eighteen million nine hundred twenty five thousand dollars
@@ -49,3 +50,5 @@ $18124~eighteen thousand one hundred twenty four dollars
 $18129~eighteen thousand one hundred twenty nine dollars
 £18000~eighteen thousand pounds
 $50.00-$100.00~fifty dollars - one hundred dollars
+$1,925.21~one thousand nine hundred twenty five dollars twenty one cents
+$1,234.123~one thousand two hundred thirty four point one two three dollars
