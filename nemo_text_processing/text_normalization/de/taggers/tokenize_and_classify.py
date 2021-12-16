@@ -25,6 +25,7 @@ from nemo_text_processing.text_normalization.de.taggers.ordinal import OrdinalFs
 from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.de.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.de.taggers.whitelist import WhiteListFst
+from nemo_text_processing.text_normalization.de.taggers.word import WordFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -32,7 +33,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     generator_main,
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 
 from nemo.utils import logging
 

@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,40 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from unicodedata import category
-
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-class PunctuationFst(GraphFst):
+class WordFst(GraphFst):
     """
-    Finite state transducer for classifying punctuation
-        e.g. a, -> tokens { name: "a" } tokens { name: "," }
+    Finite state transducer for classifying word.
+        e.g. sleep -> tokens { name: "sleep" }
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
-
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
-
-        s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
-
-        punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
-        punct_unicode.remove('[')
-        punct_unicode.remove(']')
-        punct = pynini.union(*s) | pynini.union(*punct_unicode)
-
-        self.graph = punct
-        self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
+        super().__init__(name="word", kind="classify")
+        word = pynutil.insert("name: \"") + pynini.closure(NEMO_NOT_SPACE, 1) + pynutil.insert("\"")
+        self.fst = word.optimize()
