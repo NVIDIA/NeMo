@@ -1,7 +1,7 @@
 name: megatron_t5_glue
 
 trainer:
-  gpus: 1
+  gpus: 2
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -11,7 +11,7 @@ trainer:
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 5000
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
@@ -40,27 +40,27 @@ model:
 
   data:
     train_ds:
-      task_name: 'rte'
-      file_path: '/raid/Data/GLUE/RTE/train.tsv'
-      batch_size: 4
+      task_name: 'mnli'
+      file_path: '/raid/Data/GLUE/MNLI/train.tsv'
+      batch_size: 32
       shuffle: True
       num_workers: 8
       pin_memory: True
       max_seq_length: 512
 
     validation_ds:
-      task_name: 'rte'
-      file_path: '/raid/Data/GLUE/RTE/dev.tsv'
-      batch_size: 4
+      task_name: 'mnli'
+      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      batch_size: 32
       shuffle: False
       num_workers: 8
       pin_memory: True
       max_seq_length: 512
 
     test_ds:
-      task_name: 'rte'
-      file_path: '/raid/Data/GLUE/RTE/test.tsv'
-      batch_size: 4
+      task_name: 'mnli'
+      file_path: '/raid/Data/GLUE/MNLI/test_matched.tsv'
+      batch_size: 32
       shuffle: False
       num_workers: 8
       pin_memory: True
@@ -68,7 +68,7 @@ model:
 
   optim:
     name: adam
-    lr: 5e-6
+    lr: 1e-5
     weight_decay: 0.0
     betas:
     - 0.9

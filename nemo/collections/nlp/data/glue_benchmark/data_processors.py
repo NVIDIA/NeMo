@@ -307,7 +307,7 @@ class RteProcessor(DataProcessor):
         return f"rte sentence1: {text_a} sentence2: {text_b}"
 
     def label2string(self, label):
-        return "not_entailment" if label == "1" else "entailment"
+        return label
 
 
 class WnliProcessor(DataProcessor):
