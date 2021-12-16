@@ -123,10 +123,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 manifests_files=manifest_filepath,
                 min_duration=data_layer_config.get("min_duration", None),
                 max_duration=data_layer_config.get("max_duration", None),
-                index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+                index_by_file_id=False,
             )
             labels.update(collection.uniq_labels)
-        labels = list(labels)
+        labels = list(sorted(labels))
         logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
         return labels
 
