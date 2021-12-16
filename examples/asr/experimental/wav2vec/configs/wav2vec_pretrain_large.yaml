@@ -2,10 +2,10 @@ name: &name "Wav2vec_Pretrain_Large"
 model:
   model_defaults:
     sample_rate: &sample_rate 16000
-    dropout_input: 0.1 # Dropout applied to input raw features
-    dropout_features: 0.1 # Dropout applied to the features generator by convolutions
+    dropout_features: 0.1 # Dropout applied to inputs to context encoder
+    dropout_features_q: 0.1 # Dropout applied to inputs to target quantizer
     embedding_dim: &emb_dim 1024 # Project size of embedidng dimension for transformer
-    final_dim: &final_dim 1024 # Project final representations and targets to this dimension
+    final_dim: &final_dim 768 # Project final representations and targets to this dimension (target embeddings)
 
   train_ds:
     manifest_filepath: ???
@@ -65,18 +65,20 @@ model:
 
   encoder:
     _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecTransformerEncoder
+    layer_drop: 0.2
     pos_embed: # Config for convolutional model that generates positional embeddings required for attention layer
       embedding_dim: *emb_dim
       conv_pos: 128 # Number of filters for convolutional positional embeddings
       conv_pos_groups: 16 # Number of groups for convolutional positional embeddings
-    transformer:
-      encoder_layers: 24 # Number of encoder layers in transformer model
-      encoder_layerdrop: 0.2 # Probability of dropping transformer layers
-      embedding_dim: *emb_dim # Encoder embedding dim
-      ffn_embedding_dim: 4096 # Encoder embedding dim for feed forward
+    transformer: # Config for nemo.collections.nlp.modules.common.transformer.TransformerEncoder
+      num_layers: 24 # Number of encoder layers in transformer model
+      hidden_size: *emb_dim # Encoder embedding dim
+      inner_size: 4096 # Encoder embedding dim for feed forward
       num_attention_heads: 16 # Number of encoder attention heads
-      dropout: 0.1 # Dropout probability for transformer encoder
-      activation_fn: gelu # Activation for transformer
+      attn_score_dropout: .1 #probability of dropout applied to attention scores
+      attn_layer_dropout: .1 #probability of dropout applied to the output of the attention layers, but before layer normalization
+      ffn_dropout: .1 # probability of dropout applied to FFN output
+      hidden_act: gelu # Activation for transformer
 
   decoder:
     _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecLinearReconstruction
@@ -86,44 +88,35 @@ model:
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *emb_dim
-    proj_dim: 384
+    proj_dim: *final_dim
     sample_from_non_masked: false
-    combine_time_steps: 1
-    codebook_size: 320
-    prob_ppl_weight: .1
-    logit_temp: .1
-    num_groups: 2
-    quantizer_temp_start: 2
-    quantizer_temp_min: .1
-    quantizer_temp_decay: 0.999995
 
   optim:
     name: adamw
-    lr: 0.0005
+    lr: 2
     eps: 1e-06
     # optimizer arguments
     betas: [ 0.9, 0.98 ]
-    weight_decay: 0.01
+    weight_decay: 0.0
 
     # scheduler setup
     sched:
-      name: PolynomialDecayAnnealing
+      name: NoamAnnealing
       min_lr: 0.001
+      d_model: ${model.encoder.transformer.hidden_size}
       # Scheduler params
-      warmup_steps: null
-      warmup_ratio: 0.1
+      warmup_steps: 15000
+      warmup_ratio: null
 
 trainer:
   gpus: -1 # number of gpus
   num_nodes: 1
-  max_epochs: 100
-  max_steps: null # computed at runtime if not set
-  val_check_interval: 0.5 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  max_steps: 250000 # computed at runtime if not set
   accelerator: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
-  log_every_n_steps: 10 # Interval of logging.
+  log_every_n_steps: 10- # Interval of logging.
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs

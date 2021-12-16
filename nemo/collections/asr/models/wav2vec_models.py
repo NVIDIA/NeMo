@@ -18,9 +18,13 @@
 
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
+import copy
+
 from typing import Optional
+from nemo.collections.asr.losses.pt_losses.contrastive import ContrastiveLoss
 
 import torch
+from omegaconf import OmegaConf
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch import nn
@@ -32,29 +36,22 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 
 class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
     """
-    Model class for Wav2Vec style model encoding as described in 
-    Baevski et al. See relevant paper: https://arxiv.org/pdf/2006.11477.pdf
+    Model class for Wav2Vec style model feature encoder as in 
+    Baevski et al. See: https://arxiv.org/pdf/2006.11477.pdf
     """
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self._pretraining = True # toggles between pretraining and outputing feature encodings
 
-        # Model Layers
-        self.enc_layers = cfg.preprocessor.conv_layers
-        self.embed = self.enc_layers[-1][0]  # Select last conv output layer dimension
+        if cfg.model_defaults.feature_penalty: # indicates we use L2 penalty with feature encoding
+            OmegaConf.set_struct(cfg, False)
+            cfg.loss.pop("_target_")
+            OmegaConf.set_struct(cfg, True)
 
-        encoder_embed_dim = cfg.model_defaults.embedding_dim
-        self.post_extract_proj = ( # To project feature encodings to transformer
-            nn.Linear(self.embed, encoder_embed_dim)
-            if self.embed != encoder_embed_dim
-            else None
-        )
+            self.loss = _L2PenaltyLoss(cfg.loss, cfg.model_defaults.feature_penalty)
 
         # Dropouts and norms
-        self.dropout_features = nn.Dropout(cfg.model_defaults.dropout_input)
-        self.dropout_features_q = nn.Dropout(cfg.model_defaults.dropout_features)
-
-        self.layer_norm = nn.LayerNorm(self.embed)
+        self.dropout_features = nn.Dropout(cfg.model_defaults.dropout_features)
+        self.dropout_features_q = nn.Dropout(cfg.model_defaults.dropout_features_q)
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -93,14 +90,14 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
 
         # B, C, T
         if not has_processed_signal:
-            features, feature_length = self.preprocessor(
+            features, feature_length = self.preprocessor( # Feature convolution is aliased as a NeMo preprocessor
                 input_signal=input_signal, length=input_signal_length,
             )
         else:
             features, feature_length = processed_signal, processed_signal_length # Changing variables for clarity
-        
-        if not self._pretraining: # Just gives features in current encoder config
-            return None, None, self.encoder(features, feature_length)
+
+        if isinstance(self.loss, _L2PenaltyLoss):
+            self.loss.update_penalty(features)
 
         # B, C, T
         unmasked_features = features.clone() # These will be used for the loss function
@@ -108,10 +105,11 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
         features = self.dropout_features(features)
         unmasked_features = self.dropout_features_q(unmasked_features)
 
-        # B, C, T
+        # SpeAug is alias for masking operation
+        # B, C, T 
         features = self.spec_augmentation(input_spec=features, length=feature_length)
 
-        # Locates masked locations
+        # Indexes locations of mask and padding
         feature_masks = torch.logical_and(features< 1e-5, features > -1e-5).float()
         for idx, proc_len in enumerate(feature_length):
             feature_masks[idx, :, proc_len:] = 0.0
@@ -123,6 +121,13 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
         logits = self.decoder_ssl(encoder_output=logits)
 
         return unmasked_features, feature_masks, logits
-
-    def remove_pretraining_modules(self):
-        self.pretraining = False
+    
+class _L2PenaltyLoss(ContrastiveLoss):
+    # Class wrapper for adding feature L2 penalty to loss
+    def __init__(self, cfg, penalty_scaling):
+        super().__init__(**cfg)
+        self.penalty_scaling = penalty_scaling
+    def forward(self, x, *args, **kwargs):
+        return ContrastiveLoss.forward(x, *args, **kwargs) + self.featPen
+    def update_penalty(self, x):
+        self.featPen = x.float().pow(2).mean() * self.penalty_scaling

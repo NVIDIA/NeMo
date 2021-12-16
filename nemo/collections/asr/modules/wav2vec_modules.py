@@ -35,10 +35,13 @@ from torch.nn import functional as F
 from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, SpectrogramType, LogprobsType
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
+from nemo.core.classes.common import typecheck
+
+from nemo.collections.common.parts import form_attention_mask, transformer_weights_init
+from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
 
 from omegaconf import DictConfig
 from collections import OrderedDict
-from nemo.core.classes.common import typecheck
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -107,7 +110,7 @@ class ConvFeatureEncoder(NeuralModule):
         conv_bias: bool = False,
         feature_grad_mult = 1.0,
         normalize_audio = True,
-        embedding_dim = 512
+        embedding_dim = 768
     ):
         super().__init__()
 
@@ -149,14 +152,14 @@ class ConvFeatureEncoder(NeuralModule):
                     k,
                     stride,
                     is_layer_norm=extractor_mode == "layer_norm",
-                    is_group_norm=extractor_mode == "group_norm" and i == 0, # Group norm is only for first layer
+                    is_group_norm=extractor_mode == "group_norm" and i == 0, # Paper applies norm to first layer only
                     conv_bias=conv_bias,
                 )
             )
             in_d = dim
     
         # Model Layers
-        final_conv_dim = conv_layers[-1][0]  # Select last conv output layer dimension
+        final_conv_dim = self.layer_cfg[-1][0]  # Select last conv output layer dimension
         self.post_extract_proj = ( # To project feature encodings to transformer
             nn.Linear(final_conv_dim, embedding_dim)
             if final_conv_dim != embedding_dim
@@ -170,16 +173,16 @@ class ConvFeatureEncoder(NeuralModule):
         return x
     
     def normalize(self, source, lengths):
-        for i in range(lengths.size(0)):
-            orig = source[i, :lengths[i]]
-            norm = F.layer_norm(orig, orig.shape) # From FAIR
-            source[i, :lengths[i]] = norm
+        with torch.no_grad(): # Normalizes audio source
+            for i in range(lengths.size(0)):
+                orig = source[i, :lengths[i]]
+                norm = F.layer_norm(orig, orig.shape) # From FAIR
+                source[i, :lengths[i]] = norm
         return source
 
     def forward(self, input_signal, length):
         if self.normalize_input:
-            with torch.no_grad(): # Normalizes audio source
-                source = self.normalize(input_signal, length)
+            source = self.normalize(input_signal, length)
 
         # BxT -> BxCxT
         processed_signal = source.unsqueeze(1)
@@ -190,14 +193,15 @@ class ConvFeatureEncoder(NeuralModule):
             if self.grad_mult != 1.0: 
                 processed_signal = GradMultiply.apply(processed_signal, self.grad_mult)
         else:
-            with torch.no_grad(): # We use 0 to deactivate training of convolutions
+            with torch.no_grad(): # 0 indicates frozen feature encoder
                 processed_signal = self.apply_layers(processed_signal)
 
         
         processed_signal = processed_signal.transpose(1, 2) # B,T,C
-        # Project to desired dim
+        # Project to embedding
         if self.post_extract_proj is not None:
             processed_signal = self.post_extract_proj(processed_signal)
+
         # Adding normalization for output
         processed_signal = self.layer_norm(processed_signal)
         processed_signal = processed_signal.transpose(1, 2) # B,C,T
@@ -209,32 +213,29 @@ class ConvFeatureEncoder(NeuralModule):
 
     def get_lengths(self, audio_lengths): # from hugging face
         # converts audio lengths to timestep lengths
-        with torch.no_grad():
-            for conv in self.layer_cfg:
-                kernel = conv[1]
-                stride = conv[2]
-                audio_lengths = torch.div(audio_lengths - kernel, stride, rounding_mode='floor') + 1 # from pytorch doc
+        for conv in self.layer_cfg:
+            kernel = conv[1]
+            stride = conv[2]
+            audio_lengths = torch.div(audio_lengths - kernel, stride, rounding_mode='floor') + 1 # from pytorch doc
         return audio_lengths
 
-
-
-class Wav2VecTransformerEncoder(NeuralModule):
-    def __init__(self, pos_embed: DictConfig, transformer: DictConfig):
-        super().__init__()
-
+class Wav2VecTransformerEncoder(TransformerEncoder):
+    def __init__(self, pos_embed: DictConfig, transformer: DictConfig, layer_drop: float = 0.0):
+        super().__init__(**transformer) # see nlp.collections
 
         # positional convolutional embeddings
+        emb_dim = pos_embed.embedding_dim
         self.pos_conv = nn.Conv1d(
-            pos_embed.embedding_dim,
-            pos_embed.embedding_dim,
+            emb_dim,
+            emb_dim,
             kernel_size=pos_embed.conv_pos,
-            padding=pos_embed.conv_pos // 2,
+            padding=pos_embed.conv_pos // 2, # Padding size preserves time step length
             groups=pos_embed.conv_pos_groups,
         )
 
-        self.layer_drop = transformer.encoder_layerdrop
+        self.layer_drop = layer_drop
 
-        self.dropout = transformer.dropout # For initializing BERT parameters
+        self.dropout = transformer.attn_layer_dropout # He initialization
         std = math.sqrt((4 * (1.0 - self.dropout)) / (pos_embed.conv_pos * pos_embed.embedding_dim))
         nn.init.normal_(self.pos_conv.weight, mean=0, std=std)
         nn.init.constant_(self.pos_conv.bias, 0)
@@ -242,20 +243,8 @@ class Wav2VecTransformerEncoder(NeuralModule):
         self.pos_conv = nn.utils.weight_norm(self.pos_conv, name="weight", dim=2)
         self.pos_conv = nn.Sequential(self.pos_conv, SamePad(pos_embed.conv_pos), nn.GELU())
 
-        self.transformer_encoder = nn.ModuleList(
-        [ 
-            nn.TransformerEncoderLayer(
-                d_model=transformer.embedding_dim,
-                nhead=transformer.num_attention_heads,
-                dim_feedforward=transformer.ffn_embedding_dim,
-                dropout=self.dropout,
-                activation=transformer.activation_fn,
-            )
-            for _ in range(transformer.encoder_layers)
-        ]
-        )
-        self.layer_norm = nn.LayerNorm(transformer.embedding_dim)
-        self.apply(init_bert_params)
+        self.layer_norm = nn.LayerNorm(emb_dim)
+        self.apply(lambda x: transformer_weights_init(x, xavier=False))
 
     @property
     def input_types(self):
@@ -291,48 +280,43 @@ class Wav2VecTransformerEncoder(NeuralModule):
 
 
     def forward(self, audio_signal, length):
-        signal = audio_signal.transpose(1,2) #B, C, T -> B, T, C
 
+        # Padding mask needed for transformer
         padding_mask = self.create_padding_mask(length)
-        if padding_mask is not None:
-            signal[padding_mask] = 0.0
 
-        signal = signal.transpose(1,2)
-        signal_conv = self.pos_conv(signal) # B, C, T
-        signal += signal_conv
+        # Applying padding before convolution
+        for idx, len in enumerate(length):
+            audio_signal[idx, :, len:] = 0.0
 
-        signal = signal.transpose(1, 2) # B, C, T -> B, T, C
-        signal = self.layer_norm(signal)
+        signal_conv = self.pos_conv(audio_signal) # B, C, T
+        audio_signal += signal_conv
 
-        signal = signal.transpose(0, 1) # B x T x C -> T x B x C
-        context_emb = self.apply_transformer(signal, padding_mask=padding_mask)
+        audio_signal = audio_signal.transpose(1,2) #B, C, T -> B, T, C
+        audio_signal = self.layer_norm(audio_signal)
 
-        # T x B x C -> B x T x C
-        context_emb = context_emb.transpose(0, 1)
+        context_emb = self.apply_transformer(audio_signal, padding_mask=padding_mask)
 
         return context_emb, length # Returning length for NeMo compatibility
     
     def apply_transformer(self, x, padding_mask=None):
-        # Applies transformer layers with layerdrop
-        if self.layer_drop:
-            for _, layer in enumerate(self.transformer_encoder):
-                p = random.random()
-                if p > self.layer_drop:
-                    x = layer(x, src_key_padding_mask=padding_mask)
+        encoder_attn_mask = form_attention_mask(padding_mask)
+        if self.layer_drop and self.training: # Stochastic layer drop as in: Huang et al. https://arxiv.org/pdf/1603.09382.pdf
+            for _, layer in enumerate(self.layers):
+                    p = random.random()
+                    if p > self.layer_drop:
+                        x = layer(x, encoder_attn_mask, x)
         else:
-            for _ , layer in enumerate(self.transformer_encoder):
-                x = layer(x, src_key_padding_mask=padding_mask)
-        
+            for _, layer in enumerate(self.layers):
+                x = layer(x, encoder_attn_mask, x)
         return x
 
-
-    def create_padding_mask(self, length):
+    def create_padding_mask(self, length): 
         # Broadcast to vectorize creating the padding mask
         max_len = max(length)
         padding_mask = torch.arange(max_len, device=DEVICE)
-        padding_mask = padding_mask.expand(len(length), max_len) < length.unsqueeze(1)
-        # Negate to false where no padding
-        padding_mask = ~padding_mask
+
+        # Switch to binary for transformer, 1 for valid tokens, 0 for padding
+        padding_mask = (padding_mask.expand(len(length), max_len) < length.unsqueeze(1)).type(torch.uint8)
 
         return padding_mask
 
@@ -346,32 +330,6 @@ class GradMultiply(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad):
         return grad * ctx.scale, None
-
-
-def init_bert_params(module):
-    """
-    Initialize the weights specific to the BERT Model.
-    This overrides the default initializations depending on the specified arguments.
-        1. If normal_init_linear_weights is set then weights of linear
-           layer will be initialized using the normal distribution and
-           bias will be set to the specified value.
-        2. If normal_init_embed_weights is set then weights of embedding
-           layer will be initialized using the normal distribution.
-        3. If normal_init_proj_weights is set then weights of
-           in_project_weight for MultiHeadAttention initialized using
-           the normal distribution (to be validated).
-    """
-
-    if isinstance(module, nn.Linear):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.bias is not None:
-            module.bias.data.zero_()
-    if isinstance(module, nn.Embedding):
-        module.weight.data.normal_(mean=0.0, std=0.02)
-        if module.padding_idx is not None:
-            module.weight.data[module.padding_idx].zero_()
-    if isinstance(module, nn.TransformerEncoderLayer):
-        module.self_attn.in_proj_weight.data.normal_(mean=0.0, std=0.02)
 
 class Wav2VecLinearDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for linear projection of Wav2Vec embeddings
