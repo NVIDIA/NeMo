@@ -174,24 +174,6 @@ class NormalizerWithAudio(Normalizer):
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
         normalized_texts = set(normalized_texts)
-
-        # filter out normalization options with remaining digits
-        normalized_texts = self._filter_texts(normalized_texts)
-        return normalized_texts
-
-    def _filter_texts(self, normalized_texts: List[str]):
-        """
-        Filter out options from normalized_texts that have remaining digits,
-        i.e. removes options like `1 seven` if "no digits" options are present
-
-        Returns:
-            filtered options
-        """
-        digits = set([str(i) for i in range(10)])
-        filtered = [t for t in normalized_texts if len(digits.intersection(set(t))) == 0]
-
-        if len(filtered) > 0:
-            normalized_texts = filtered
         return normalized_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):
