@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-This script is based on speech_to_text_infer.py and allows you to score the hypotheses
+This script is based on speech_to_text_eval.py and allows you to score the hypotheses
 with sclite. A local installation from https://github.com/usnistgov/SCTK is required.
 Hypotheses and references are first saved in trn format and are scored after applying a glm
 file (if provided).

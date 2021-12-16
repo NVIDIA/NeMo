@@ -68,7 +68,7 @@ from typing import Optional
 
 import pytorch_lightning as ptl
 import torch
-from omegaconf import OmegaConf
+from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
@@ -84,7 +84,8 @@ from nemo.utils.get_rank import is_global_rank_zero
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
     predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
-    output_path: Optional[str] = None
+    output_path: str = MISSING
+
     # when return_predictions is enabled, the prediction call would keep all the predictions in memory and return them when prediction is done
     return_predictions: bool = False
     use_cer: bool = False
