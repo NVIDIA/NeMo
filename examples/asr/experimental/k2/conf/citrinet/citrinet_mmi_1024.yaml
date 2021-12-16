@@ -1,21 +1,28 @@
 # This config contains the default values for training a Citrinet model with CTC loss and BPE-based vocabulary.
 # Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# If training for a short time, you can also reduce weight decay to 0.
 
-name: &name "CitriNet-256-8x-Stride"
+# Training Recipe
+# This model can be trained using the default settings in this config with FP32 precision.
+# When training under AMP, increase `warmup_steps` to 5000 for stable training.
+# In order to create Citrinet-C, change the model.model_defaults.filters parameter.
+# When reducing the receptive field of these models, it is advised to reduce the amount of augmentation
+# for larger models from 10x time masking to 5x or 2x time masking.
+# For further details regarding Citrinet, visit - https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#citrinet
 
-# kernel: \[([0-9]+)\]
-# filters: ([0-9]+)
+name: &name "Citrinet-1024-8x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
+  log_prediction: true # enables logging sample predictions in the output during training
 
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
     trim_silence: false
-    max_duration: 16.7
+    max_duration: 20.0
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
@@ -37,11 +44,12 @@ model:
 
   model_defaults:
     repeat: 5
-    dropout: 0.0
+    dropout: 0.1
     separable: true
     se: true
     se_context_size: -1
-    kernel_size_factor: 1.0
+    kernel_size_factor: 0.25
+    filters: 1024
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
@@ -64,7 +72,7 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 2
-    time_masks: 2
+    time_masks: 10
     freq_width: 27
     time_width: 0.05
 
@@ -75,7 +83,7 @@ model:
     conv_mask: true
 
     jasper:
-      - filters: 256
+      - filters: ${model.model_defaults.filters}
         repeat: 1
         kernel: [5]
         stride: [1]
@@ -86,7 +94,9 @@ model:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [11]
         stride: [2]
@@ -100,7 +110,9 @@ model:
         residual_mode: "stride_add"
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [1]
@@ -112,7 +124,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
@@ -124,7 +138,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
@@ -136,7 +152,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
@@ -148,7 +166,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [21]
         stride: [1]
@@ -160,7 +180,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [13]
         stride: [2]  # *stride
@@ -174,7 +196,9 @@ model:
         residual_mode: "stride_add"
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [15]
         stride: [1]
@@ -186,7 +210,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [17]
         stride: [1]
@@ -198,7 +224,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [19]
         stride: [1]
@@ -210,7 +238,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [21]
         stride: [1]
@@ -222,7 +252,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [23]
         stride: [1]
@@ -234,7 +266,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [25]
         stride: [1]
@@ -246,7 +280,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [25]
         stride: [2]  # stride
@@ -260,7 +296,8 @@ model:
         residual_mode: "stride_add"
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [27]
         stride: [1]
@@ -272,7 +309,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [29]
         stride: [1]
@@ -284,7 +323,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [31]
         stride: [1]
@@ -296,7 +337,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [33]
         stride: [1]
@@ -308,7 +351,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [35]
         stride: [1]
@@ -320,7 +365,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [37]
         stride: [1]
@@ -332,7 +379,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: 256
+
+
+      - filters: ${model.model_defaults.filters}
         repeat: ${model.model_defaults.repeat}
         kernel: [39]
         stride: [1]
@@ -344,7 +393,9 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: &enc_final 640
+
+
+      - filters: &enc_final 1024
         repeat: 1
         kernel: [41]
         stride: [1]
@@ -363,6 +414,7 @@ model:
     num_classes: -1  # filled with vocabulary size from tokenizer at runtime
     vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
+
   optim:
     name: novograd
     lr: 0.05
@@ -376,18 +428,29 @@ model:
       name: CosineAnnealing
 
       # scheduler config override
-      warmup_steps: 1000
+      warmup_steps: 5000
       warmup_ratio: null
       min_lr: 1e-5
       last_epoch: -1
+
+  loss:
+    backend: k2 # Only k2 is supported
+    criterion_type: map # Choices: mle for a CTC-like criterion, map for using a propri linluistic information
+    loss_type: mmi # Only mmi is supported for criterion_type=map
+    topo_type: default # Choices: default, compact, shared_blank, forced_blank, identity
+    topo_with_selfloops: true # Whether to add token-to-epsilon self-loops to a topology
+    boost_coeff: 0.0 # Boosting for boosted-mmi. Disabled if set to 0
+    intersect_pruned: false # Whether to use pruned intersection with denominator graph
+  transcribe_training: false # Whether to run token_lm decoding for training data
+  token_lm: ??? # Path to tokel-level LM. Usid for criterion_type=map
+  token_lm_overwrite: false # Whether to owerwrite existing token_lm with the new one
 
 trainer:
   gpus: 0 # number of gpus
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  accelerator: gpu
-  strategy: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
