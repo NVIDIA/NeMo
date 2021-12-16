@@ -14,6 +14,7 @@
 import dataclasses
 import datetime
 import logging
+import os
 import pathlib
 import re
 import shlex
@@ -50,7 +51,48 @@ def _format_container_mounts(mounts: typing.List[pathlib.Path]) -> str:
     mounts = sorted(set(mounts))
     for mount in mounts:
         mount.mkdir(parents=True, exist_ok=True)
+
     return ",".join([f"{mount}:{mount}" for mount in mounts])
+
+
+def _extend_by_symlink_targets(directories_to_mount: typing.List[pathlib.Path]) -> typing.List[pathlib.Path]:
+    directories_to_mount_with_resolved_symlinks = []
+    for directory_to_mount in directories_to_mount:
+        directories_to_mount_with_resolved_symlinks.append(directory_to_mount)
+        if directory_to_mount.is_symlink():
+            target = pathlib.Path(os.readlink(directory_to_mount))
+            if not target.is_dir():
+                target = target.parent
+            directories_to_mount_with_resolved_symlinks.extend(_extend_by_symlink_targets([target]))
+        else:
+            for filesystem_entry in directory_to_mount.rglob("*"):
+                if filesystem_entry.is_symlink():
+                    target = pathlib.Path(os.readlink(filesystem_entry))
+                    if not target.is_dir():
+                        target = target.parent
+                    directories_to_mount_with_resolved_symlinks.extend(_extend_by_symlink_targets([target]))
+    directories_to_mount_with_resolved_symlinks = sorted((set(directories_to_mount_with_resolved_symlinks)))
+    deduplicated = []
+
+    def _is_relative_to(a: typing.Union[str, pathlib.Path], *outer):
+        try:
+            a = pathlib.Path(a)
+            a.relative_to(*outer)
+            return True
+        except ValueError:
+            return False
+
+    for directory_to_mount in directories_to_mount_with_resolved_symlinks:
+        outer_dirs = [d for d in deduplicated if _is_relative_to(directory_to_mount, d)]
+        inner_dirs = [d for d in deduplicated if _is_relative_to(d, directory_to_mount)]
+
+        if not outer_dirs:
+            deduplicated.append(directory_to_mount)
+
+        deduplicated = [d for d in deduplicated if d not in inner_dirs]
+        deduplicated = sorted(set(deduplicated))
+
+    return deduplicated
 
 
 def _format_slurm_time(time_delta: datetime.timedelta):
@@ -231,6 +273,7 @@ class PyxisJobSpec:
         separate_commands = (job_definition.setup_commands or []) + [command] + (job_definition.clean_commands or [])
         commandline = "\n".join(separate_commands)
 
+        mounts = _extend_by_symlink_targets(job_definition.directories_to_mount)
         return cls(
             account=cluster_parameters.account,
             partition=cluster_parameters.partition,
@@ -239,7 +282,7 @@ class PyxisJobSpec:
             comment=shlex.quote(job_definition.description),
             container_image=_rewrite_docker_image(job_definition.container_image),
             container_workdir=_extract_path(job_definition.workdir_path),
-            container_mounts=_format_container_mounts(job_definition.directories_to_mount),
+            container_mounts=_format_container_mounts(mounts),
             output=executor.paths.get_log_path("%j"),
             commandline=commandline,
             time=_format_slurm_time(datetime.timedelta(seconds=job_definition.max_time_s)),
