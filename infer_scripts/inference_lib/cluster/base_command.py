@@ -133,6 +133,8 @@ class BaseCommandJobSpec:
 
 
 class BaseCommandJob(BaseJob):
+    _sync_logs_timeout_s = 60
+
     def __init__(self, job_id: str, executor):
         super().__init__(job_id, executor)
         self._ip_address = None
@@ -164,26 +166,36 @@ class BaseCommandJob(BaseJob):
 
     def sync_logs(self):
         LOGGER.info(f"[{self.job_id}] Waiting for logs and downloading them into {self.log_path}")
+        log_filename = "joblog.log"
+        command = f"ngc result download --file /{log_filename} {self._job_id}"
+        sync_logs_timeout_s = self._sync_logs_timeout_s
         with tempfile.TemporaryDirectory() as temp_dir:
             cwd = pathlib.Path.cwd()
             os.chdir(temp_dir)
             try:
-                while not self.log_path.exists():
-                    log_filename = "joblog.log"
-
-                    try:
-                        execute_command_and_get_result(
-                            f"ngc result download --file /{log_filename} {self._job_id}",
-                            timeout_s=self._executor._command_timeout_s,
-                        )
-                    except Exception:
-                        pass
-
+                while not self.log_path.exists() and sync_logs_timeout_s > 0:
                     tmp_log_path = pathlib.Path(temp_dir) / f"{self.job_id}/{log_filename}"
+                    start_time = time.time()
+                    try:
+                        execute_command_and_get_result(command, timeout_s=self._executor._command_timeout_s)
+                    except Exception as e:
+                        LOGGER.debug(f"[{self.job_id}]Could not obtain logs. e={e}")
+                        tmp_log_path.unlink(missing_ok=True)  # as there might be only partial download
+
                     if tmp_log_path.exists():
                         shutil.copy(tmp_log_path, self.log_path)
                     else:
-                        time.sleep(5)
+                        step_s = 5
+                        elapsed_time_s = time.time() - start_time
+                        sync_logs_timeout_s = max(0, sync_logs_timeout_s - elapsed_time_s)
+                        LOGGER.debug(f"Waiting {step_s}s before next result download: timeout={sync_logs_timeout_s}s")
+                        time.sleep(step_s)
+
+                if not self.log_path.exists():
+                    LOGGER.warning(
+                        f"[{self.job_id}] Could not obtain log file (timeout={self._sync_logs_timeout_s} s). "
+                        f"It can be downloaded later manually with '{command}' command."
+                    )
 
             except Exception as e:
                 LOGGER.warning(e)
