@@ -88,11 +88,9 @@ class LatticeLoss(Loss):
                 **loss_kwargs,
             )
         elif backend == "gtn":
-            from nemo.collections.asr.parts.gtn.ctc import CTCLoss as GTNCTCLoss
+            raise NotImplementedError(f"Backend {backend} is not supported.")
         else:
             raise ValueError(f"Invalid value of `backend`: {backend}.")
-
-            self._loss = GTNCTCLoss(blank_idx=self._blank, reduction=ctc_reduction)
 
         self.criterion_type = criterion_type
 
