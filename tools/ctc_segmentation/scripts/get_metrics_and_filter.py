@@ -26,7 +26,7 @@ from nemo.utils import logging
 
 parser = argparse.ArgumentParser("Calculate metrics and filters out samples based on thresholds")
 parser.add_argument(
-    "--manifest", required=True, help="Path .json manifest file with ASR predictions saved" "at `pred_text` field.",
+    "--manifest", required=True, help="Path .json manifest file with ASR predictions saved at `pred_text` field.",
 )
 parser.add_argument(
     "--edge_len", type=int, help="Number of characters to use for CER calculation at the edges", default=5
@@ -34,9 +34,17 @@ parser.add_argument(
 parser.add_argument("--audio_dir", type=str, help="Path to original .wav files", default=None)
 parser.add_argument("--max_cer", type=int, help="Threshold CER value, %", default=30)
 parser.add_argument("--max_wer", type=int, help="Threshold WER value, %", default=75)
-parser.add_argument("--max_len_diff", type=float, help="Threshold for len diff", default=0.3)
+parser.add_argument(
+    "--max_len_diff_ratio",
+    type=float,
+    help="Threshold for len diff ratio between reference text "
+    "length and predicted text length with respect to "
+    "the reference text length (length measured "
+    "in number of characters)",
+    default=0.3,
+)
 parser.add_argument("--max_edge_cer", type=int, help="Threshold edge CER value, %", default=60)
-parser.add_argument("--max_duration", type=int, help="Max duration of a segment, s", default=-1)
+parser.add_argument("--max_duration", type=int, help="Max duration of a segment, seconds", default=-1)
 parser.add_argument(
     "--num_jobs",
     default=-2,
@@ -50,7 +58,23 @@ parser.add_argument(
 )
 
 
-def _calculate(line, edge_len):
+def _calculate(line: dict, edge_len: int):
+    """
+    Calculates metrics for every entry on manifest.json.
+
+    Args:
+        line - line of manifest.json (dict)
+        edge_len - number of characters for edge Character Error Rate (CER) calculations
+
+    Returns:
+        line - line of manifest.json (dict) with the following metrics added:
+        WER - word error rate
+        CER - character error rate
+        start_CER - CER at the beginning of the audio sample considering first 'edge_len' characters
+        end_CER - CER at the end of the audio sample considering last 'edge_len' characters
+        len_diff_ratio - ratio between reference text length and predicted text length with respect to
+            the reference text length (length measured in number of characters)
+    """
     eps = 1e-9
 
     text = line["text"].split()
@@ -65,7 +89,7 @@ def _calculate(line, edge_len):
 
     line["start_CER"] = editdistance.eval(line["text"][:edge_len], line["pred_text"][:edge_len]) / edge_len * 100
     line["end_CER"] = editdistance.eval(line["text"][-edge_len:], line["pred_text"][-edge_len:]) / edge_len * 100
-    line["len_diff"] = 1.0 * abs(len(text) - len(pred_text)) / max(len(pred_text), eps)
+    line["len_diff_ratio"] = 1.0 * abs(len(text) - len(pred_text)) / max(len(text), eps)
     return line
 
 
@@ -83,9 +107,10 @@ def get_metrics(manifest, manifest_out):
     logging.info(f"Metrics save at {manifest_out}")
 
 
-def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_dur=-1, original_duration=0):
-    manifest_out = manifest.replace(".json", "_filtered.json")
-
+def _apply_filters(
+    manifest, manifest_out, max_cer, max_wer, max_edge_cer, max_len_diff_ratio, max_dur=-1, original_duration=0
+):
+    """ Filters out samples that do not satisfy specified threshold values and saves remaining samples to manifest_out"""
     remaining_duration = 0
     segmented_duration = 0
     with open(manifest, "r") as f, open(manifest_out, "w") as f_out:
@@ -93,13 +118,13 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
             item = json.loads(line)
             cer = item["CER"]
             wer = item["WER"]
-            len_diff = item["len_diff"]
+            len_diff_ratio = item["len_diff_ratio"]
             duration = item["duration"]
             segmented_duration += duration
             if (
                 cer <= max_cer
                 and wer <= max_wer
-                and len_diff <= max_len_diff
+                and len_diff_ratio <= max_len_diff_ratio
                 and item["end_CER"] <= max_edge_cer
                 and item["start_CER"] <= max_edge_cer
                 and (max_dur == -1 or (max_dur > -1 and duration < max_dur))
@@ -112,7 +137,7 @@ def _apply_filters(manifest, max_cer, max_wer, max_edge_cer, max_len_diff, max_d
     logging.info(f"max WER, %: {max_wer}")
     logging.info(f"max CER, %: {max_cer}")
     logging.info(f"max edge CER, %: {max_edge_cer}")
-    logging.info(f"max Word len diff: {max_len_diff}")
+    logging.info(f"max Word len diff: {max_len_diff_ratio}")
     logging.info(f"max Duration, s: {max_dur}")
     logging.info("-" * 50)
 
@@ -149,10 +174,11 @@ def filter(manifest):
 
     _apply_filters(
         manifest=manifest,
+        manifest_out=manifest.replace(".json", "_filtered.json"),
         max_cer=args.max_cer,
         max_wer=args.max_wer,
         max_edge_cer=args.max_edge_cer,
-        max_len_diff=args.max_len_diff,
+        max_len_diff_ratio=args.max_len_diff_ratio,
         max_dur=args.max_duration,
         original_duration=original_duration,
     )

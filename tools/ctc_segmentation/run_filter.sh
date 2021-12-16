@@ -11,7 +11,7 @@ NUM_JOBS=-2 # The maximum number of concurrently running jobs, `-2` - all CPUs b
 CER_THRESHOLD=30
 WER_THRESHOLD=75
 CER_EDGE_THRESHOLD=60
-LEN_DIFF_THRESHOLD=0.3
+LEN_DIFF_RATIO_THRESHOLD=0.3
 
 for ARG in "$@"
 do
@@ -52,12 +52,12 @@ echo "--- Calculating metrics and filtering out samples based on thresholds ---"
 echo "CER_THRESHOLD = ${CER_THRESHOLD}"
 echo "WER_THRESHOLD = ${WER_THRESHOLD}"
 echo "CER_EDGE_THRESHOLD = ${CER_EDGE_THRESHOLD}"
-echo "LEN_DIFF_THRESHOLD = ${LEN_DIFF_THRESHOLD}"
+echo "LEN_DIFF_RATIO_THRESHOLD = ${LEN_DIFF_RATIO_THRESHOLD}"
 
 python ${SCRIPTS_DIR}/get_metrics_and_filter.py \
 --manifest=${OUT_MANIFEST} \
 --audio_dir=${INPUT_AUDIO_DIR} \
 --max_cer=${CER_THRESHOLD} \
 --max_wer=${WER_THRESHOLD} \
---max_len_diff=${LEN_DIFF_THRESHOLD} \
+--max_len_diff_ratio=${LEN_DIFF_RATIO_THRESHOLD} \
 --max_edge_cer=${CER_EDGE_THRESHOLD}
