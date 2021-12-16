@@ -530,7 +530,6 @@ class ASRTarredDatasetBuilder:
             new_entry = {
                 'audio_filepath': to_write,
                 'duration': entry['duration'],
-                'text': entry['text'],
                 'shard_id': shard_id,  # Keep shard ID for recordkeeping
             }
 

@@ -971,8 +971,6 @@ class ModelPT(LightningModule, Model):
                 if exclude is not None:
                     logging.info(f'Excluded parameters containing `{exclude}`')
 
-                del restored_model
-
     def teardown(self, stage: str):
         """
         Called at the end of fit and test.
