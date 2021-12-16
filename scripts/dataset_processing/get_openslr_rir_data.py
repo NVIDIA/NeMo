@@ -26,6 +26,7 @@ import subprocess
 import urllib.request
 from shutil import copy, move
 from zipfile import ZipFile
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='OpenSLR RIR Data download and process')
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -35,6 +36,26 @@ URLS = {
     'SLR28': ("http://www.openslr.org/resources/28/rirs_noises.zip"),
 }
 
+def __retrieve_with_progress(source:str, filename: str):
+    """
+    Downloads source to destination
+    Displays progress bar
+    Args:
+        source: url of resource
+        destination: local filepath
+    Returns:
+    """
+    with open(filename, 'wb') as f:
+        response = urllib.request.urlopen(source)
+        total = response.length
+
+        if total is None:
+            f.write(response.content)
+        else:
+            with tqdm(total = total, unit = 'B', unit_scale = True, unit_divisor = 1024) as pbar:
+                for data in response:    
+                    f.write(data)
+                    pbar.update(len(data))
 
 def __maybe_download_file(destination: str, source: str):
     """
@@ -48,7 +69,7 @@ def __maybe_download_file(destination: str, source: str):
     source = URLS[source]
     if not os.path.exists(destination):
         logging.info("{0} does not exist. Downloading ...".format(destination))
-        urllib.request.urlretrieve(source, filename=destination + '.tmp')
+        __retrieve_with_progress(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
         logging.info("Downloaded {0}.".format(destination))
     else:
