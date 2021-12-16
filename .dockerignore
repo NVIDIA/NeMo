@@ -17,3 +17,6 @@ coverage.xml
 .git
 **/*.nemo
 **/*.ckpt
+**/*.bin
+**/*.idx
+**/*.jl
