@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,29 +19,32 @@
 
 import math
 import random
-from typing import List, Tuple
 from collections import OrderedDict
-
-from omegaconf import DictConfig
-from omegaconf.dictconfig import DictConfig
+from typing import List, Tuple
 
 import torch
+from omegaconf import DictConfig
+from omegaconf.dictconfig import DictConfig
 from torch import nn
 from torch.nn import functional as F
 
+from nemo.collections.asr.parts.submodules.jasper import init_weights, jasper_activations
+from nemo.collections.common.parts import form_attention_mask, transformer_weights_init
+from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, SpectrogramType, LogprobsType, AcousticEncodedRepresentation
-
-from nemo.collections.common.parts import form_attention_mask, transformer_weights_init
-from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
-from nemo.collections.asr.parts.submodules.jasper import (
-    init_weights, 
-    jasper_activations,
+from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
+    AudioSignal,
+    LengthsType,
+    LogprobsType,
+    NeuralType,
+    SpectrogramType,
 )
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class TransposeLast(torch.nn.Module):
     """
@@ -68,6 +71,7 @@ class ConvFeatureEncoder(NeuralModule):
         Converts input raw audio into features for downstream transformer model.
         Uses 1D convolutional blocks with GeLU activation.
     """
+
     @property
     def input_types(self):
         """Returns definitions of module input ports.
@@ -80,9 +84,7 @@ class ConvFeatureEncoder(NeuralModule):
         """
         return {
             "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
-            "length": NeuralType(
-                tuple('B'), LengthsType()
-            ),
+            "length": NeuralType(tuple('B'), LengthsType()),
         }
 
     @property
@@ -106,9 +108,9 @@ class ConvFeatureEncoder(NeuralModule):
         conv_layers: List[Tuple[int, int, int]],
         extractor_mode: str = "layer_norm",
         conv_bias: bool = False,
-        feature_grad_mult = 1.0,
-        normalize_audio = True,
-        embedding_dim = 768
+        feature_grad_mult=1.0,
+        normalize_audio=True,
+        embedding_dim=768,
     ):
         super().__init__()
 
@@ -151,32 +153,30 @@ class ConvFeatureEncoder(NeuralModule):
                     k,
                     stride,
                     is_layer_norm=self.mode == "layer_norm",
-                    is_group_norm=self.mode == "group_norm" and i == 0, # applied to first layer only
+                    is_group_norm=self.mode == "group_norm" and i == 0,  # applied to first layer only
                     conv_bias=conv_bias,
                 )
             )
             in_d = dim
-    
+
         # Model Layers
         final_conv_dim = self.layer_cfg[-1][0]  # Select last conv output layer dimension
-        self.post_extract_proj = ( # To project feature encodings to transformer
-            nn.Linear(final_conv_dim, embedding_dim)
-            if final_conv_dim != embedding_dim
-            else None
+        self.post_extract_proj = (  # To project feature encodings to transformer
+            nn.Linear(final_conv_dim, embedding_dim) if final_conv_dim != embedding_dim else None
         )
         self.layer_norm = nn.LayerNorm(embedding_dim)
-    
+
     def apply_layers(self, x):
         for conv in self.conv_layers:
             x = conv(x)
         return x
-    
+
     def normalize(self, source, lengths):
-        with torch.no_grad(): # Normalizes audio source
+        with torch.no_grad():  # Normalizes audio source
             for i in range(lengths.size(0)):
-                orig = source[i, :lengths[i]]
-                norm = F.layer_norm(orig, orig.shape) # From FAIR
-                source[i, :lengths[i]] = norm
+                orig = source[i, : lengths[i]]
+                norm = F.layer_norm(orig, orig.shape)
+                source[i, : lengths[i]] = norm
         return source
 
     def forward(self, input_signal, length):
@@ -189,14 +189,13 @@ class ConvFeatureEncoder(NeuralModule):
         # Applies grad mult scaling
         if self.grad_mult > 0:
             processed_signal = self.apply_layers(processed_signal)
-            if self.grad_mult != 1.0: 
+            if self.grad_mult != 1.0:
                 processed_signal = GradMultiply.apply(processed_signal, self.grad_mult)
         else:
-            with torch.no_grad(): # 0 indicates frozen feature encoder
+            with torch.no_grad():  # 0 indicates frozen feature encoder
                 processed_signal = self.apply_layers(processed_signal)
 
-        
-        processed_signal = processed_signal.transpose(1, 2) # B,T,C
+        processed_signal = processed_signal.transpose(1, 2)  # B,T,C
         # Project to embedding
         if self.post_extract_proj is not None:
             processed_signal = self.post_extract_proj(processed_signal)
@@ -205,24 +204,27 @@ class ConvFeatureEncoder(NeuralModule):
         if self.mode == "layer_norm":
             processed_signal = self.layer_norm(processed_signal)
 
-        processed_signal = processed_signal.transpose(1, 2) # B,C,T
+        processed_signal = processed_signal.transpose(1, 2)  # B,C,T
 
         # Feature lengths will have been changed through convolutions
         processed_signal_length = self.get_lengths(audio_lengths=length)
 
         return processed_signal, processed_signal_length
 
-    def get_lengths(self, audio_lengths): # from hugging face
+    def get_lengths(self, audio_lengths):
         # converts audio lengths to timestep lengths
         for conv in self.layer_cfg:
             kernel = conv[1]
             stride = conv[2]
-            audio_lengths = torch.div(audio_lengths - kernel, stride, rounding_mode='floor') + 1 # from pytorch doc
+            audio_lengths = (
+                torch.div(audio_lengths - kernel, stride, rounding_mode='floor') + 1
+            )  # from pytorch documentation
         return audio_lengths
+
 
 class Wav2VecTransformerEncoder(TransformerEncoder):
     def __init__(self, pos_embed: DictConfig, transformer: DictConfig, layer_drop: float = 0.0):
-        super().__init__(**transformer) # see nlp.collections
+        super().__init__(**transformer)  # see nlp.collections
 
         # positional convolutional embeddings
         emb_dim = pos_embed.embedding_dim
@@ -230,13 +232,13 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
             emb_dim,
             emb_dim,
             kernel_size=pos_embed.conv_pos,
-            padding=pos_embed.conv_pos // 2, # Padding size preserves time step length
+            padding=pos_embed.conv_pos // 2,  # Padding size preserves time step length
             groups=pos_embed.conv_pos_groups,
         )
 
         self.layer_drop = layer_drop
 
-        self.dropout = transformer.attn_layer_dropout # He initialization
+        self.dropout = transformer.attn_layer_dropout  # He initialization
         std = math.sqrt((4 * (1.0 - self.dropout)) / (pos_embed.conv_pos * pos_embed.embedding_dim))
         nn.init.normal_(self.pos_conv.weight, mean=0, std=std)
         nn.init.constant_(self.pos_conv.bias, 0)
@@ -279,7 +281,6 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
             "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
-
     def forward(self, audio_signal, length):
 
         # Padding mask needed for transformer
@@ -289,29 +290,31 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
         for idx, len in enumerate(length):
             audio_signal[idx, :, len:] = 0.0
 
-        signal_conv = self.pos_conv(audio_signal) # B, C, T
+        signal_conv = self.pos_conv(audio_signal)  # B, C, T
         audio_signal += signal_conv
 
-        audio_signal = audio_signal.transpose(1,2) #B, C, T -> B, T, C
+        audio_signal = audio_signal.transpose(1, 2)  # B, C, T -> B, T, C
         audio_signal = self.layer_norm(audio_signal)
 
         context_emb = self.apply_transformer(audio_signal, padding_mask=padding_mask)
 
-        return context_emb, length # Returning length for NeMo compatibility
-    
+        return context_emb, length  # Returning length for NeMo compatibility
+
     def apply_transformer(self, x, padding_mask=None):
         encoder_attn_mask = form_attention_mask(padding_mask)
-        if self.layer_drop and self.training: # Stochastic layer drop as in: Huang et al. https://arxiv.org/pdf/1603.09382.pdf
+        if (
+            self.layer_drop and self.training
+        ):  # Stochastic layer drop as in: Huang et al. https://arxiv.org/pdf/1603.09382.pdf
             for _, layer in enumerate(self.layers):
-                    p = random.random()
-                    if p > self.layer_drop:
-                        x = layer(x, encoder_attn_mask, x)
+                p = random.random()
+                if p > self.layer_drop:
+                    x = layer(x, encoder_attn_mask, x)
         else:
             for _, layer in enumerate(self.layers):
                 x = layer(x, encoder_attn_mask, x)
         return x
 
-    def create_padding_mask(self, length): 
+    def create_padding_mask(self, length):
         # Broadcast to vectorize creating the padding mask
         max_len = max(length)
         padding_mask = torch.arange(max_len, device=DEVICE)
@@ -320,6 +323,7 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
         padding_mask = (padding_mask.expand(len(length), max_len) < length.unsqueeze(1)).type(torch.uint8)
 
         return padding_mask
+
 
 class GradMultiply(torch.autograd.Function):
     @staticmethod
@@ -331,6 +335,7 @@ class GradMultiply(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad):
         return grad * ctx.scale, None
+
 
 class Wav2VecLinearDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for linear projection of Wav2Vec embeddings
@@ -383,9 +388,11 @@ class Wav2VecLinearDecoder(NeuralModule, Exportable):
     def num_classes_with_blank(self):
         return self._num_classes
 
+
 class Wav2VecLinearReconstruction(NeuralModule, Exportable):
     """ ASR Decoder for reconstructing masked regions of spectrogram
     """
+
     @property
     def input_types(self):
         return OrderedDict({"encoder_output": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
@@ -394,7 +401,6 @@ class Wav2VecLinearReconstruction(NeuralModule, Exportable):
     def output_types(self):
         return OrderedDict({"audio_recon": NeuralType(('B', 'T', 'D'), SpectrogramType())})
 
-    
     def __init__(self, feat_in, feat_out, init_mode="xavier_uniform", activation=None):
         super().__init__()
 
@@ -407,7 +413,7 @@ class Wav2VecLinearReconstruction(NeuralModule, Exportable):
             self.projection = nn.Sequential(self.projection, jasper_activations[activation]())
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
-    
+
     @typecheck()
     def forward(self, encoder_output):
         return self.projection(encoder_output)

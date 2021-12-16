@@ -1,3 +1,9 @@
+# This config file contains parameters for training a Wav2Vec semi-supervised encoder
+# These parameters are based off the FairSeq implementation.
+# See here: https://github.com/pytorch/fairseq/blob/main/examples/wav2vec/config/pretraining/wav2vec2_large_librivox.yaml
+
+# kernel: \[([0-9]+)\]
+# filters: ([0-9]+)
 name: &name "Wav2vec_Pretrain_Large"
 model:
   model_defaults:

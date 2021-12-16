@@ -7,7 +7,7 @@ name: &name Wav2Vec_CTC
 model:
   model_defaults: # Note: these are only read for config variables and have no direct influence on model
     sample_rate: &sample_rate 16000
-    embedding_dim: &emb_dim 768 # Project size of embedidng dimension for transformer
+    embedding_dim: &emb_dim 768 # Project size of embedding dimension for transformer
 
   train_ds:
     manifest_filepath: ???

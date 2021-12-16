@@ -135,18 +135,15 @@ class ContrastiveLoss(Loss):
         targets = targets.reshape(targets.shape[0], targets.shape[1] // self.combine_time_steps, -1)
         masks = masks.reshape(targets.shape)
 
-
         if self.quantized_targets:
             targets, prob_ppl_loss, cur_codebook_temp = self.quantizer(targets)
         else:
             targets = self.target_proj(targets)
-        
-
 
         masks = masks.mean(-1) > self.mask_threshold
         out_masked_only = decoder_outputs[masks]
         targets_masked_only = targets[masks]
-    
+
         # T'xC
         # number of masked time steps to predict (T')
 
@@ -201,7 +198,7 @@ class ContrastiveLoss(Loss):
 
         if not isinstance(loss, torch.Tensor):
             loss = torch.Tensor([0]).to(device=decoder_outputs.device)
-
+        print(loss)
         return loss
 
     def _calculate_similarity(self, logits, negatives, targets):

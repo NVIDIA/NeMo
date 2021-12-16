@@ -269,7 +269,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
         loss_value = self.loss(spectrograms=spectrograms, spec_masks=spec_masks, decoder_outputs=outputs)
 
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
-
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):

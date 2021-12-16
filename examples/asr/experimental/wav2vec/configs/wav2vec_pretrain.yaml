@@ -1,10 +1,10 @@
-name: &name "Wav2vec_Pretrain"
-# For more details on the model parameters, see nemo/collections/asr/models/wav2vec/wav2vec_config.py
+# This config file contains parameters for training a Wav2Vec semi-supervised encoder
 # These parameters are based off the FairSeq implementation.
 # See here: https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/config/pretraining/wav2vec2_base_librispeech.yaml
 
 # kernel: \[([0-9]+)\]
 # filters: ([0-9]+)
+name: &name "Wav2vec_Pretrain"
 
 model:
   model_defaults: # Note: these are only read for config variables and have no direct influence on model
