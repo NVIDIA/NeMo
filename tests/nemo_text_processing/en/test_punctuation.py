@@ -41,10 +41,10 @@ class TestPunctuation:
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
         pred = self.normalizer_en.normalize(test_input, verbose=True, punct_post_process=True)
-        assert pred == expected
+        assert pred == expected, f"input: {test_input}"
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, n_tagged=2000, punct_post_process=True, punct_pre_process=False
+                test_input, n_tagged=30, punct_post_process=True
             )
-            assert expected in pred_non_deterministic
+            assert expected in pred_non_deterministic, f"input: {test_input}"

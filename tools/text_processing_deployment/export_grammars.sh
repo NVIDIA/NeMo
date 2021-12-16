@@ -34,7 +34,6 @@ GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
 LANGUAGE="en" # language, 'en' supports both TN and ITN, {'de', 'ru', 'es', 'fr'} supports ITN only
 MODE="export"
-CACHE_DIR="None" # path to cache dir with .far files (to speed the export)
 OVERWRITE_CACHE="True" # Set to False to re-use .far files
 FORCE_REBUILD="False" # Set to True to re-build docker file
 
@@ -49,6 +48,8 @@ do
     fi
 done
 
+
+CACHE_DIR=${LANGUAGE}
 echo "GRAMMARS = $GRAMMARS"
 echo "MODE = $MODE"
 echo "LANGUAGE = $LANGUAGE"
@@ -57,8 +58,10 @@ echo "CACHE_DIR = $CACHE_DIR"
 echo "OVERWRITE_CACHE = $OVERWRITE_CACHE"
 echo "FORCE_REBUILD = $FORCE_REBUILD"
 
+
 if [[ ${OVERWRITE_CACHE,,} == "true" ]]; then
   OVERWRITE_CACHE="--overwrite_cache "
+  python3 pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE} --cache_dir=${CACHE_DIR} ${OVERWRITE_CACHE}|| exit 1
   else OVERWRITE_CACHE=""
 fi
 
@@ -67,7 +70,6 @@ if [[ ${FORCE_REBUILD,,} == "true" ]]; then
   else FORCE_REBUILD=""
 fi
 
-python3 pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE} --cache_dir=${CACHE_DIR} ${OVERWRITE_CACHE}|| exit 1
 find . -name "Makefile" -type f -delete
 bash docker/build.sh $FORCE_REBUILD
 
