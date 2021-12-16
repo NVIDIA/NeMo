@@ -517,10 +517,6 @@ class ASRTarredDatasetBuilder:
             squashed_filename = f'{base}{ext}'
             if squashed_filename not in count:
                 tar.add(audio_filepath, arcname=squashed_filename)
-
-            base, ext = os.path.splitext(squashed_filename)
-            # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
-            if squashed_filename not in count:
                 to_write = squashed_filename
                 count[squashed_filename] = 1
             else:
