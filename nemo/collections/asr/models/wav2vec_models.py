@@ -18,13 +18,9 @@
 
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
-import copy
-
 from typing import Optional
-from nemo.collections.asr.losses.pt_losses.contrastive import ContrastiveLoss
 
 import torch
-from omegaconf import OmegaConf
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch import nn
@@ -42,12 +38,12 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if cfg.model_defaults.feature_penalty: # indicates we use L2 penalty with feature encoding
-            OmegaConf.set_struct(cfg, False)
-            cfg.loss.pop("_target_")
-            OmegaConf.set_struct(cfg, True)
-
-            self.loss = _L2PenaltyLoss(cfg.loss, cfg.model_defaults.feature_penalty)
+        self.feat_penalty = cfg.model_defaults.feature_penalty # Check if we add L2 regularization of feature encodings
+        if self.feat_penalty: 
+            # Run time editing of forward function
+            self.loss.pen = 0.0
+            self.loss.contrastive_loss = self.loss.forward
+            self.loss.forward = lambda **kwargs: self.loss.contrastive_loss(**kwargs)  + self.loss.pen
 
         # Dropouts and norms
         self.dropout_features = nn.Dropout(cfg.model_defaults.dropout_features)
@@ -69,6 +65,9 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
                 `self.sample_rate` number of floating point values.
             input_signal_length: Vector of length B, that contains the individual lengths of the audio
                 sequences.
+            
+            # Following are dummy values. Included to keep forward consistent across models. 
+
             processed_signal: Tensor that represents a batch of processed audio signals,
                 of shape (B, D, T) that has undergone processing via some DALI preprocessor.
             processed_signal_length: Vector of length B, that contains the individual lengths of the
@@ -87,17 +86,19 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
                 f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
                 " with ``processed_signal`` and ``processed_signal_len`` arguments."
             )
+        
+        if has_processed_signal:
+            raise ValueError(
+                f"{self} does not allow DALI preprocessing. Please provide raw audio inputs."
+            )
 
         # B, C, T
-        if not has_processed_signal:
-            features, feature_length = self.preprocessor( # Feature convolution is aliased as a NeMo preprocessor
+        features, feature_length = self.preprocessor( # Feature convolution is aliased as a NeMo preprocessor
                 input_signal=input_signal, length=input_signal_length,
             )
-        else:
-            features, feature_length = processed_signal, processed_signal_length # Changing variables for clarity
 
-        if isinstance(self.loss, _L2PenaltyLoss):
-            self.loss.update_penalty(features)
+        if self.feat_penalty: # Apply L2 regularization to feature projections
+            self.loss.pen = features.float().pow(2).mean() * self.feat_penalty
 
         # B, C, T
         unmasked_features = features.clone() # These will be used for the loss function
@@ -121,13 +122,3 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
         logits = self.decoder_ssl(encoder_output=logits)
 
         return unmasked_features, feature_masks, logits
-    
-class _L2PenaltyLoss(ContrastiveLoss):
-    # Class wrapper for adding feature L2 penalty to loss
-    def __init__(self, cfg, penalty_scaling):
-        super().__init__(**cfg)
-        self.penalty_scaling = penalty_scaling
-    def forward(self, x, *args, **kwargs):
-        return ContrastiveLoss.forward(x, *args, **kwargs) + self.featPen
-    def update_penalty(self, x):
-        self.featPen = x.float().pow(2).mean() * self.penalty_scaling

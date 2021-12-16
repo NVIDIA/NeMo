@@ -2,6 +2,7 @@ name: &name "Wav2vec_Pretrain_Large"
 model:
   model_defaults:
     sample_rate: &sample_rate 16000
+    feature_penalty: 1.0
     dropout_features: 0.1 # Dropout applied to inputs to context encoder
     dropout_features_q: 0.1 # Dropout applied to inputs to target quantizer
     embedding_dim: &emb_dim 1024 # Project size of embedidng dimension for transformer

@@ -20,28 +20,26 @@
 import math
 import random
 from typing import List, Tuple
-from nemo.core.neural_types.elements import AcousticEncodedRepresentation
-from omegaconf.dictconfig import DictConfig
+from collections import OrderedDict
 
-from nemo.collections.asr.parts.submodules.jasper import (
-    init_weights, 
-    jasper_activations,
-)
+from omegaconf import DictConfig
+from omegaconf.dictconfig import DictConfig
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, SpectrogramType, LogprobsType
+from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.classes.common import typecheck
+from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType, SpectrogramType, LogprobsType, AcousticEncodedRepresentation
 
 from nemo.collections.common.parts import form_attention_mask, transformer_weights_init
 from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
-
-from omegaconf import DictConfig
-from collections import OrderedDict
+from nemo.collections.asr.parts.submodules.jasper import (
+    init_weights, 
+    jasper_activations,
+)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -141,6 +139,7 @@ class ConvFeatureEncoder(NeuralModule):
         in_d = 1
         self.layer_cfg = conv_layers
         self.conv_layers = nn.ModuleList()
+        self.mode = extractor_mode
         for i, cl in enumerate(conv_layers):
             assert len(cl) == 3, "invalid conv definition: " + str(cl)
             (dim, k, stride) = cl
@@ -151,8 +150,8 @@ class ConvFeatureEncoder(NeuralModule):
                     dim,
                     k,
                     stride,
-                    is_layer_norm=extractor_mode == "layer_norm",
-                    is_group_norm=extractor_mode == "group_norm" and i == 0, # Paper applies norm to first layer only
+                    is_layer_norm=self.mode == "layer_norm",
+                    is_group_norm=self.mode == "group_norm" and i == 0, # applied to first layer only
                     conv_bias=conv_bias,
                 )
             )
@@ -182,10 +181,10 @@ class ConvFeatureEncoder(NeuralModule):
 
     def forward(self, input_signal, length):
         if self.normalize_input:
-            source = self.normalize(input_signal, length)
+            input_signal = self.normalize(input_signal, length)
 
         # BxT -> BxCxT
-        processed_signal = source.unsqueeze(1)
+        processed_signal = input_signal.unsqueeze(1)
 
         # Applies grad mult scaling
         if self.grad_mult > 0:
@@ -203,7 +202,9 @@ class ConvFeatureEncoder(NeuralModule):
             processed_signal = self.post_extract_proj(processed_signal)
 
         # Adding normalization for output
-        processed_signal = self.layer_norm(processed_signal)
+        if self.mode == "layer_norm":
+            processed_signal = self.layer_norm(processed_signal)
+
         processed_signal = processed_signal.transpose(1, 2) # B,C,T
 
         # Feature lengths will have been changed through convolutions
@@ -335,13 +336,6 @@ class Wav2VecLinearDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for linear projection of Wav2Vec embeddings
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @property
     def input_types(self):
         return OrderedDict({"encoder_output": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
@@ -380,9 +374,6 @@ class Wav2VecLinearDecoder(NeuralModule, Exportable):
         seq = 64
         input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
         return tuple([input_example])
-
-    def _prepare_for_export(self, **kwargs):
-        pass
 
     @property
     def vocabulary(self):
