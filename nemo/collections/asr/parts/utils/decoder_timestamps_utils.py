@@ -407,9 +407,9 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_list (list):
-                A dictionary of the sequence of words from hypothesis.
+                Dictionary of the sequence of words from hypothesis.
             words_ts_list (list):
-                A dictionary of the time-stamps of words.
+                Dictionary of the time-stamps of words.
         """
         words_dict, word_ts_dict = {}, {}
 
@@ -462,15 +462,15 @@ class ASR_TIMESTAMPS:
 
         Args:
             trans (list):
-                A list of character output (str).
+                List of character output (str).
             char_ts (list):
-                A list of timestamps (int) for each character.
+                List of timestamps (int) for each character.
 
         Returns:
             trans (list):
-                A list of the cleaned character output.
+                List of the cleaned character output.
             char_ts (list):
-                A list of the cleaned timestamps for each character.
+                List of the cleaned timestamps for each character.
         """
         assert (len(trans) > 0) and (len(char_ts) > 0)
         assert len(trans) == len(char_ts)
@@ -491,15 +491,15 @@ class ASR_TIMESTAMPS:
 
         Args:
             trans (list):
-                A list of character output (str).
+                List of character output (str).
             timestamps (list):
-                A list of timestamps (int) for each character.
+                List of timestamps (int) for each character.
 
         Returns:
             spaces_in_sec (list):
-                A list of the ranges of spaces
+                List of the ranges of spaces
             word_list (list):
-                A list of the words from ASR inference.
+                List of the words from ASR inference.
         """
         assert (len(trans) > 0) and (len(char_ts) > 0), "Transcript and char_ts length should not be 0."
         assert len(trans) == len(char_ts), "Transcript and timestamp lengths do not match."
@@ -530,9 +530,9 @@ class ASR_TIMESTAMPS:
 
         Returns:
             words_list (list):
-                A dictionary of the sequence of words from hypothesis.
+                Dictionary of the sequence of words from hypothesis.
             words_ts_list (list):
-                A dictionary of the timestamps of hypothesis words.
+                Dictionary of the timestamps of hypothesis words.
         """
         words_dict, word_ts_dict = {}, {}
 
@@ -610,15 +610,15 @@ class ASR_TIMESTAMPS:
 
         Args:
             audio_file_list (list):
-                A list of audio file paths.
+                List of audio file paths.
             asr_model (class):
                 The loaded NeMo ASR model.
 
         Returns:
             words_list (list):
-                A dictionary of the sequence of words from hypothesis.
+                Dictionary of the sequence of words from hypothesis.
             words_ts_list (list):
-                A dictionary of the time-stamps of words.
+                Dictionary of the time-stamps of words.
         """
         torch.manual_seed(0)
         torch.set_grad_enabled(False)
@@ -687,15 +687,15 @@ class ASR_TIMESTAMPS:
 
         Args:
             char_ts (list):
-                A list containing the timestamp for each character.
+                List containing the timestamp for each character.
             spaces_in_sec (list):
-                A list containing the start and the end time of each space token.
+                List containing the start and the end time of each space token.
             end_stamp (float):
                 The end time of the session in sec.
 
         Return:
             word_timestamps (list):
-                A list of the timestamps for the resulting words.
+                List of the timestamps for the resulting words.
         """
         start_stamp_in_sec = round(char_ts[0] * self.model_stride_in_secs, 2)
         end_stamp_in_sec = round(end_stamp * self.model_stride_in_secs, 2)
@@ -720,9 +720,9 @@ class ASR_TIMESTAMPS:
 
         Return:
             hyp_words (list):
-                A list of words in the hypothesis.
+                List of words in the hypothesis.
             word_ts (list):
-                A list of word timestamps from the decoder.
+                List of word timestamps from the decoder.
         """
         beams = self.beam_search_decoder.decode_beams(logprob, beam_width=self.ctc_decoder_params['beam_width'])
         word_ts_beam, words_beam = [], []

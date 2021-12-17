@@ -80,16 +80,13 @@ def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
     orig_enc, pred_enc, enc = diff.diff_linesToChars(orig_words, pred_words)
     diffs = diff.diff_main(orig_enc, pred_enc, False)
     diff_wer = diff.diff_lineMode(orig_enc, pred_enc, False)
-    diff.diff_levenshtein(diff_wer)
-    import editdistance as ed
-    import ipdb; ipdb.set_trace()
     diff.diff_charsToLines(diffs, enc)
     return diffs
 
 
 def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval):
     """
-    Calculate insertion, deletion and substitution from the diff result and the reference ctm file.
+    Calculate the diarization confuse error using the reference CTM file.
     """
     correct_count, error_count, align_error = 0, 0, []
     _pred, _ref = 0, 0
@@ -98,22 +95,8 @@ def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pre
             stt, end = w_range_buffer[k]
             bool_list = [_bool for _bool in pred_rttm_eval[stt:end]]
             error_count = len(bool_list) - sum(bool_list)
-            _pred = len(_d[1].strip().split('\n'))
-        if _d[0] == -1:
-            _ref = len(_d[1].strip().split('\n'))
-    
-    _min = min(_pred, _ref)
-    if _pred == _ref:
-        _sub, _ins, _del = _min, 0, 0
-    elif _pred > _ref:
-        _sub, _ins, _del = _min, _pred - _min, 0
-    elif _pred < _ref:
-        _sub, _ins, _del = _min, 0, _ref - _min
-    
+
     ctm_error_dict['diar_confuse_count'] += error_count
-    ctm_error_dict['asr_ins_count'] += _ins
-    ctm_error_dict['asr_del_count'] += _del
-    ctm_error_dict['asr_sub_count'] += _sub
 
 
 def get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_list, mapping_dict):
@@ -139,7 +122,7 @@ class ASR_DIAR_OFFLINE(object):
     A Class designed for performing ASR and diarization together.
     """
 
-    def __init__(self, asr_ts_decoder, **cfg_diarizer):
+    def __init__(self, **cfg_diarizer):
         self.manifest_filepath = cfg_diarizer['manifest_filepath']
         self.params = cfg_diarizer['asr']['parameters']
         self.ctc_decoder_params = cfg_diarizer['asr']['ctc_decoder_parameters']
@@ -152,7 +135,7 @@ class ASR_DIAR_OFFLINE(object):
         self.vad_threshold_for_word_ts = 0.7
         self.max_word_ts_length_in_sec = 0.6
         self.cfg_diarizer = cfg_diarizer
-        self.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
+        self.word_ts_anchor_offset = 0.0
         self.run_ASR = None
         self.ctm_exists = {}
         self.frame_VAD = {}
@@ -197,9 +180,9 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             word_ts_dict (dict):
-                A list containing word timestamps.
+                List containing word timestamps.
             audio_file_list (list):
-                A list of audio file paths.
+                List of audio file paths.
         """
         self.VAD_RTTM_MAP = {}
         for idx, (uniq_id, word_timestamps) in enumerate(word_ts_dict.items()):
@@ -217,7 +200,7 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             input_word_ts (list):
-                A list containing word timestamps.
+                List containing word timestamps.
 
         Returns:
             word_ts (list):
@@ -246,7 +229,7 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             word_and_timestamps (list):
-                A list containing words and word timestamps
+                List containing words and word timestamps
 
         Returns:
             diar_hyp (dict):
@@ -283,7 +266,7 @@ class ASR_DIAR_OFFLINE(object):
             oracle_model (ClusteringDiarizer):
                 ClusteringDiarizer instance.
             audio_file_path (List):
-                A list containing file paths for audio files.
+                List containing file paths for audio files.
         """
         for uniq_id in self.AUDIO_RTTM_MAP:
             frame_vad = os.path.join(vad_processing_dir, uniq_id + '.median')
@@ -393,7 +376,7 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             audio_file_list (list):
-                A list containing audio file paths.
+                List containing audio file paths.
             word_ts_dict (dict):
                 Contains word_ts_stt_end lists.
                 word_ts_stt_end = [stt, end]
@@ -404,7 +387,7 @@ class ASR_DIAR_OFFLINE(object):
 
         Returns:
             enhanced_word_ts_dict (list):
-                A list of the enhanced word timestamp values.
+                List of the enhanced word timestamp values.
         """
         enhanced_word_ts_dict = {}
         for idx, (uniq_id, word_ts_seq_list) in enumerate(word_ts_dict.items()):
@@ -439,11 +422,11 @@ class ASR_DIAR_OFFLINE(object):
 
         Args:
             diar_labels (list):
-                A list of the Diarization output labels in str.
+                List of the Diarization output labels in str.
             word_list (list):
-                A list of words from ASR inference.
+                List of words from ASR inference.
             word_ts_list (list):
-                A list Containing word_ts_stt_end lists.
+                List Containing word_ts_stt_end lists.
                 word_ts_stt_end = [stt, end]
                     stt: Start of the word in sec.
                     end: End of the word in sec.
@@ -505,7 +488,7 @@ class ASR_DIAR_OFFLINE(object):
             diar_hyp (list):
                 The word sequence from ASR output.
             word_dict_seq_list (list):
-                A list containing words and corresponding word timestamps in dictionary format.
+                List containing words and corresponding word timestamps in dictionary format.
 
         Returns:
             total_riva_dict (dict):
@@ -649,9 +632,6 @@ class ASR_DIAR_OFFLINE(object):
             align_error : (reference word timestamp - hypothesis word timestamp)
 
         The error metrics in ctm_error_dict variable:
-            asr_ins_count: ASR insertion error count
-            asr_del_count: ASR deletion error count
-            asr_sub_count: ASR subsitution error count
             ref_word_count: The number of words in the reference transcript
             hyp_word_count: The number of words in the hypothesis
             diar_confuse_count: Number of incorrectly diarized words
@@ -679,9 +659,6 @@ class ASR_DIAR_OFFLINE(object):
 
         ref_word_count, hyp_word_count, all_correct_count, wder_count = 0, 0, 0, 0
         ctm_error_dict = {
-            'asr_ins_count': 0,
-            'asr_del_count': 0,
-            'asr_sub_count': 0,
             'ref_word_count': 0,
             'hyp_word_count': 0,
             'diar_confuse_count': 0,
@@ -720,8 +697,6 @@ class ASR_DIAR_OFFLINE(object):
         if error_buffer != []:
             get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval)
 
-        sum_wer = sum([ctm_error_dict[key] for key in ['asr_ins_count', 'asr_del_count', 'asr_sub_count']])
-        ctm_error_dict['wer_ctm'] = round(sum_wer / ctm_error_dict['ref_word_count'], 4)
         ctm_error_dict['hyp_based_wder'] = round(
             ctm_error_dict['diar_confuse_count'] / ctm_error_dict['hyp_word_count'], 4
         )
@@ -746,7 +721,7 @@ class ASR_DIAR_OFFLINE(object):
                 Dictionary that stores DER, FA, Miss, CER, mapping, the estimated
                 number of speakers and speaker counting accuracy.
             ref_labels_list (list):
-                A list containing the ground truth speaker labels for each segment.
+                List containing the ground truth speaker labels for each segment.
 
         Returns:
             wder_dict (dict):
@@ -938,9 +913,6 @@ class ASR_DIAR_OFFLINE(object):
             'MISS',
             'est_n_spk',
             'is_spk_count_correct',
-            'asr_ins_count',
-            'asr_del_count',
-            'asr_sub_count',
             'ref_word_count',
             'hyp_word_count',
             'diar_confuse_count',
@@ -949,7 +921,6 @@ class ASR_DIAR_OFFLINE(object):
             'hyp_based_wder',
             'ref_based_wder',
             'rttm_based_wder',
-            'wer_ctm',
             'mapping',
         ]
         dict_data = [x for k, x in WDER_dict['session_level'].items()]

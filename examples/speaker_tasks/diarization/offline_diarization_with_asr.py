@@ -33,11 +33,12 @@ python offline_diarization_with_asr.py \
 
 Check out whole parameters in ./conf/offline_diarization_with_asr.yaml and their meanings.
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
+Currently, the following NGC models are supported:
 
-Currently Supported ASR models:
+    QuartzNet15x5Base-En
+    stt_en_citrinet*
+    stt_en_conformer_ctc_*
 
-QuartzNet15x5Base-En
-stt_en_conformer_ctc_large
 """
 
 
@@ -46,11 +47,16 @@ def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
+    # ASR inference for words and word timestamps
     asr_ts_decoder = ASR_TIMESTAMPS(**cfg.diarizer)
     asr_model = asr_ts_decoder.set_asr_model(cfg.diarizer.asr.model_path)
     word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
 
-    asr_diar_offline = ASR_DIAR_OFFLINE(asr_ts_decoder, **cfg.diarizer)
+    # Instance for matching  ASR and diarization results
+    asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer)
+    asr_diar_offline.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
+
+    # Diarization inference for speaker labels
     diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)
     total_riva_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
 
@@ -60,6 +66,7 @@ def main(cfg):
         DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, total_riva_dict)
         WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict)
         asr_diar_offline.print_errors(DER_result_dict, WDER_dict)
+
 
 if __name__ == '__main__':
     main()
