@@ -18,13 +18,7 @@ from torch import nn
 
 from nemo.collections.asr.parts.k2.grad_utils import PartialGrad
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import (
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    LossType,
-    NeuralType,
-)
+from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.utils import logging
 
 
@@ -77,15 +71,10 @@ class LatticeLoss(Loss):
             elif criterion_type == "map":
                 from nemo.collections.asr.parts.k2.maploss import MAPLoss as K2Loss
             else:
-                raise ValueError(
-                    f"Invalid value of `criterion_type`: {criterion_type}."
-                )
+                raise ValueError(f"Invalid value of `criterion_type`: {criterion_type}.")
 
             self._loss = K2Loss(
-                num_classes=self._blank + 1,
-                blank=self._blank,
-                reduction=ctc_reduction,
-                **loss_kwargs,
+                num_classes=self._blank + 1, blank=self._blank, reduction=ctc_reduction, **loss_kwargs,
             )
         elif backend == "gtn":
             raise NotImplementedError(f"Backend {backend} is not supported.")
@@ -123,28 +112,15 @@ class LatticeLoss(Loss):
                 input_lengths_part = input_lengths[begin:end]
                 target_lengths_part = target_lengths[begin:end]
                 loss_part, _ = (
-                    self._partial_loss(
-                        log_probs_part,
-                        targets_part,
-                        input_lengths_part,
-                        target_lengths_part,
-                    )
+                    self._partial_loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part,)
                     if log_probs_part.requires_grad
-                    else self._loss(
-                        log_probs_part,
-                        targets_part,
-                        input_lengths_part,
-                        target_lengths_part,
-                    )
+                    else self._loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part,)
                 )
                 loss_list.append(loss_part)
             loss = torch.cat(loss_list, 0)
         else:
             loss, _ = self._loss(
-                log_probs=log_probs,
-                targets=targets,
-                input_lengths=input_lengths,
-                target_lengths=target_lengths,
+                log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths,
             )
         if self._apply_batch_mean:
             # torch.mean gives nan if loss is empty

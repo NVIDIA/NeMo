@@ -30,10 +30,7 @@ class GradExpNormalize(torch.autograd.Function):
 
     @staticmethod
     def forward(
-        ctx,
-        log_probs: torch.Tensor,
-        input_lengths: torch.Tensor,
-        reduction: str = "mean",
+        ctx, log_probs: torch.Tensor, input_lengths: torch.Tensor, reduction: str = "mean",
     ):
         mask = GradExpNormalize.make_non_pad_mask(input_lengths, log_probs.shape[1])
         max_log_prob, _ = log_probs.max(-1)
@@ -57,11 +54,7 @@ class GradInsert(torch.autograd.Function):
 
     @staticmethod
     def forward(
-        ctx,
-        input_tensor: torch.Tensor,
-        output_tensor: torch.Tensor,
-        grad: torch.Tensor,
-        mask: torch.Tensor,
+        ctx, input_tensor: torch.Tensor, output_tensor: torch.Tensor, grad: torch.Tensor, mask: torch.Tensor,
     ):
         assert input_tensor.requires_grad
         assert not output_tensor.requires_grad and not grad.requires_grad
@@ -73,9 +66,7 @@ class GradInsert(torch.autograd.Function):
     def backward(ctx, grad_output: torch.Tensor):
         saved_grad, mask = ctx.saved_tensors
         # TODO (alaptev): make it work for grad_output with arbitrary shape
-        padded_grad_output = torch.zeros(
-            saved_grad.shape[0], dtype=grad_output.dtype, device=grad_output.device
-        )
+        padded_grad_output = torch.zeros(saved_grad.shape[0], dtype=grad_output.dtype, device=grad_output.device)
         padded_grad_output[mask] = grad_output
         return (padded_grad_output * saved_grad.T).T, None, None, None
 

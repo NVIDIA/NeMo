@@ -74,22 +74,16 @@ def main(cfg):
     asr_model = EncDecK2SeqModelBPE(cfg=cfg.model, trainer=trainer)
 
     if restore_path is not None:
-        checkpoint = EncDecK2SeqModelBPE.restore_from(
-            restore_path, map_location=torch.device("cpu")
-        )
+        checkpoint = EncDecK2SeqModelBPE.restore_from(restore_path, map_location=torch.device("cpu"))
 
         try:
-            asr_model.encoder.load_state_dict(
-                checkpoint.encoder.state_dict(), strict=False
-            )
+            asr_model.encoder.load_state_dict(checkpoint.encoder.state_dict(), strict=False)
             logging.info("Loaded encoder checkpoint")
         except Exception:
             logging.info("Could not load encoder checkpoint")
 
         try:
-            asr_model.decoder.load_state_dict(
-                checkpoint.decoder.state_dict(), strict=False
-            )
+            asr_model.decoder.load_state_dict(checkpoint.decoder.state_dict(), strict=False)
             logging.info("Loaded decoder checkpoint")
         except Exception:
             logging.info("Could not load decoder checkpoint")
@@ -98,10 +92,7 @@ def main(cfg):
 
     trainer.fit(asr_model)
 
-    if (
-        hasattr(cfg.model, "test_ds")
-        and cfg.model.test_ds.manifest_filepath is not None
-    ):
+    if hasattr(cfg.model, "test_ds") and cfg.model.test_ds.manifest_filepath is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
         test_trainer = pl.Trainer(
             gpus=gpu,

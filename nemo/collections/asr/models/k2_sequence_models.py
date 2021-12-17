@@ -15,9 +15,8 @@
 from typing import List, Optional
 
 import editdistance
-import torch
-
 import k2
+import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
@@ -79,12 +78,9 @@ class EncDecK2SeqModel(EncDecCTCModel):
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
             **loss_kwargs,
         )
-        remove_consecutive = loss_kwargs.get(
-            "topo_with_selfloops", True
-        ) and loss_kwargs.get("topo_type", "default") not in [
-            "forced_blank",
-            "identity",
-        ]
+        remove_consecutive = loss_kwargs.get("topo_with_selfloops", True) and loss_kwargs.get(
+            "topo_type", "default"
+        ) not in ["forced_blank", "identity",]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
@@ -163,11 +159,7 @@ class EncDecK2SeqModel(EncDecCTCModel):
 
     @typecheck()
     def forward(
-        self,
-        input_signal=None,
-        input_signal_length=None,
-        processed_signal=None,
-        processed_signal_length=None,
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -192,15 +184,11 @@ class EncDecK2SeqModel(EncDecCTCModel):
         # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
         if self.use_graph_lm and self.token_lm is None:
             if self.token_lm_cache_dict is not None:
-                logging.info(
-                    f"""Loading token_lm from the dict cache at the first .forward() call."""
-                )
+                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
                 self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
                 self.token_lm_cache_dict = None
             elif self.token_lm_path is not None:
-                logging.warning(
-                    f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call."""
-                )
+                logging.warning(f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call.""")
                 self.token_lm = load_graph(self.token_lm_path)
                 if self.token_lm is None:
                     raise ValueError(f"""Failed to load token_lm""")
@@ -274,12 +262,9 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
             **loss_kwargs,
         )
-        remove_consecutive = loss_kwargs.get(
-            "topo_with_selfloops", True
-        ) and loss_kwargs.get("topo_type", "default") not in [
-            "forced_blank",
-            "identity",
-        ]
+        remove_consecutive = loss_kwargs.get("topo_with_selfloops", True) and loss_kwargs.get(
+            "topo_type", "default"
+        ) not in ["forced_blank", "identity",]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
@@ -358,11 +343,7 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
 
     @typecheck()
     def forward(
-        self,
-        input_signal=None,
-        input_signal_length=None,
-        processed_signal=None,
-        processed_signal_length=None,
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -387,15 +368,11 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
         if self.use_graph_lm and self.token_lm is None:
             if self.token_lm_cache_dict is not None:
-                logging.info(
-                    f"""Loading token_lm from the dict cache at the first .forward() call."""
-                )
+                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
                 self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
                 self.token_lm_cache_dict = None
             elif self.token_lm_path is not None:
-                logging.warning(
-                    f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call."""
-                )
+                logging.warning(f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call.""")
                 self.token_lm = load_graph(self.token_lm_path)
                 if self.token_lm is None:
                     raise ValueError(f"""Failed to load token_lm""")

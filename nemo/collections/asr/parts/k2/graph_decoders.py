@@ -14,17 +14,19 @@
 
 from typing import List, Optional, Tuple, Union
 
-import torch
 import k2
+import torch
 
 from nemo.collections.asr.parts.k2.topologies import build_topo
-from nemo.collections.asr.parts.k2.utils import create_supervision
-from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
-from nemo.collections.asr.parts.k2.utils import invert_permutation
-from nemo.collections.asr.parts.k2.utils import make_blank_first
-from nemo.collections.asr.parts.k2.utils import load_graph
-from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
-from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
+from nemo.collections.asr.parts.k2.utils import (
+    create_supervision,
+    intersect_with_self_loops,
+    invert_permutation,
+    load_graph,
+    make_blank_first,
+    prep_padded_densefsavec,
+    shift_labels_inpl,
+)
 from nemo.utils import logging
 
 
@@ -34,12 +36,7 @@ class DecoderConf:
     """
 
     def __init__(
-        self,
-        search_beam=20.0,
-        output_beam=10.0,
-        min_active_states=30,
-        max_active_states=10000,
-        **kwargs,
+        self, search_beam=20.0, output_beam=10.0, min_active_states=30, max_active_states=10000, **kwargs,
     ):
         self.search_beam = search_beam
         self.output_beam = output_beam
@@ -70,11 +67,7 @@ class _BaseDecoder(object):
         self.intersect_pruned = intersect_pruned
         self.device = device
         self.topo_type = topo_type
-        self.ctc_topo_inv = k2.arc_sort(
-            build_topo(
-                topo_type, list(range(num_classes)), topo_with_selfloops
-            ).invert_()
-        )
+        self.ctc_topo_inv = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops).invert_())
         self.decode_graph = None
         self.pad_fsavec = topo_type == "ctc_compact"
         self.conf = DecoderConf(**kwargs)
@@ -120,21 +113,14 @@ class _BaseDecoder(object):
                 max_active_states=self.conf.max_active_states,
             )
         else:
-            indices = torch.zeros(
-                dense_fsa_vec.dim0(), dtype=torch.int32, device=self.device
-            )
+            indices = torch.zeros(dense_fsa_vec.dim0(), dtype=torch.int32, device=self.device)
             dec_graphs = k2.index_fsa(self.decode_graph, indices)
             lats = k2.intersect_dense(dec_graphs, dense_fsa_vec, self.conf.output_beam)
         if self.pad_fsavec:
             shift_labels_inpl([lats], -1)
 
         if return_lattices:
-            lats = k2.index_fsa(
-                lats,
-                invert_permutation(order).to(
-                    dtype=torch.int32, device=input_lengths.device
-                ),
-            )
+            lats = k2.index_fsa(lats, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device),)
             if self.blank != 0:
                 # change only ilabels
                 # suppose self.blank == self.num_classes - 1
@@ -143,10 +129,7 @@ class _BaseDecoder(object):
         else:
             shortest_paths_fsa = k2.shortest_path(lats, True)
             shortest_paths_fsa = k2.index_fsa(
-                shortest_paths_fsa,
-                invert_permutation(order).to(
-                    dtype=torch.int32, device=input_lengths.device
-                ),
+                shortest_paths_fsa, invert_permutation(order).to(dtype=torch.int32, device=input_lengths.device),
             )
             scores = shortest_paths_fsa._get_tot_scores(True, False)
             if return_ilabels:
@@ -170,9 +153,7 @@ class _BaseDecoder(object):
                     aux_labels = aux_labels[aux_labels != 0][:-1]
                     if self.blank != 0:
                         aux_labels -= 1
-                    shortest_paths.append(
-                        aux_labels[::2] if self.pad_fsavec else aux_labels
-                    )
+                    shortest_paths.append(aux_labels[::2] if self.pad_fsavec else aux_labels)
             return shortest_paths, scores
 
 
@@ -192,18 +173,10 @@ class TokenLMDecoder(_BaseDecoder):
         **kwargs,
     ):
         super().__init__(
-            num_classes,
-            blank,
-            intersect_pruned,
-            topo_type,
-            topo_with_selfloops,
-            device,
-            **kwargs,
+            num_classes, blank, intersect_pruned, topo_type, topo_with_selfloops, device, **kwargs,
         )
         if token_lm is not None:
-            self.token_lm = (
-                load_graph(token_lm) if isinstance(token_lm, str) else token_lm
-            )
+            self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if self.token_lm is not None:
                 self.update_graph(self.token_lm)
             else:
@@ -218,9 +191,7 @@ class TokenLMDecoder(_BaseDecoder):
             )
             self.token_lm = None
         if self.token_lm is None:
-            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(
-                device
-            )
+            self.decode_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(device)
 
     def update_graph(self, graph: k2.Fsa):
         self.token_lm = graph
@@ -229,19 +200,11 @@ class TokenLMDecoder(_BaseDecoder):
             delattr(token_lm, "aux_labels")
         if self.pad_fsavec:
             shift_labels_inpl([token_lm], 1)
-        labels = (
-            token_lm.labels
-            if isinstance(token_lm.labels, torch.Tensor)
-            else token_lm.labels.values()
-        )
+        labels = token_lm.labels if isinstance(token_lm.labels, torch.Tensor) else token_lm.labels.values()
         if labels.max() != self.ctc_topo_inv.labels.max():
             raise ValueError(
                 f"token_lm is not compatible with the topo: {labels.unique()}, {self.ctc_topo_inv.labels.unique()}"
             )
         self.decode_graph = k2.create_fsa_vec(
-            [
-                k2.arc_sort(
-                    intersect_with_self_loops(self.ctc_topo_inv, token_lm).invert_()
-                )
-            ]
+            [k2.arc_sort(intersect_with_self_loops(self.ctc_topo_inv, token_lm).invert_())]
         ).to(self.device)

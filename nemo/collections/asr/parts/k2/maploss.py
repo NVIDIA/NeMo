@@ -28,17 +28,19 @@
 
 from typing import Optional, Union
 
-import torch
 import k2
+import torch
 
 from nemo.collections.asr.parts.k2.autograd import sparse_abs
-from nemo.collections.asr.parts.k2.utils import create_supervision
-from nemo.collections.asr.parts.k2.utils import create_sparse_wrapped
-from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_finite_mask
-from nemo.collections.asr.parts.k2.utils import make_blank_first
-from nemo.collections.asr.parts.k2.utils import load_graph
-from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
-from nemo.collections.asr.parts.k2.utils import shift_labels_inpl
+from nemo.collections.asr.parts.k2.utils import (
+    create_sparse_wrapped,
+    create_supervision,
+    get_tot_objf_and_finite_mask,
+    load_graph,
+    make_blank_first,
+    prep_padded_densefsavec,
+    shift_labels_inpl,
+)
 from nemo.utils import logging
 
 
@@ -69,9 +71,7 @@ class MAPLoss(torch.nn.Module):
         self.loss_type = loss_type
         self.boost_coeff = boost_coeff
         self.intersect_calc_scores = (
-            self._intersect_calc_scores_mmi_pruned
-            if intersect_pruned
-            else self._intersect_calc_scores_mmi_exact
+            self._intersect_calc_scores_mmi_pruned if intersect_pruned else self._intersect_calc_scores_mmi_exact
         )
         self.topo_type = topo_type
         self.topo_with_selfloops = topo_with_selfloops
@@ -84,9 +84,7 @@ class MAPLoss(torch.nn.Module):
                             Please call .update_graph(token_lm) before using."""
             )
         else:
-            self.lm_graph = (
-                load_graph(token_lm) if isinstance(token_lm, str) else token_lm
-            )
+            self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if self.lm_graph is None:
                 raise ValueError(f"""lm_graph is empty.""")
             else:
@@ -100,24 +98,13 @@ class MAPLoss(torch.nn.Module):
         if self.pad_fsavec:
             shift_labels_inpl([lm_graph], 1)
         if self.loss_type == "mmi":
-            from nemo.collections.asr.parts.k2.graph_compilers import (
-                MmiTrainingGraphCompiler as compiler,
-            )
+            from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
         else:
             raise ValueError(f"Invalid value of `loss_type`: {self.loss_type}.")
-        self.graph_compiler = compiler(
-            self.num_classes,
-            self.topo_type,
-            self.topo_with_selfloops,
-            aux_graph=lm_graph,
-        )
+        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_selfloops, aux_graph=lm_graph,)
 
     def _intersect_calc_scores_mmi_exact(
-        self,
-        dense_fsa_vec: k2.DenseFsaVec,
-        num_graphs: k2.Fsa,
-        den_graph: k2.Fsa,
-        return_lats: bool = True,
+        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = True,
     ):
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -140,12 +127,7 @@ class MAPLoss(torch.nn.Module):
         den_graph_indexes = torch.tensor([num_fsas] * num_fsas, dtype=torch.int32)
 
         # [0, num_fsas, 1, num_fsas, 2, num_fsas, ... ]
-        num_den_graphs_indexes = (
-            torch.stack([num_graphs_indexes, den_graph_indexes])
-            .t()
-            .reshape(-1)
-            .to(device)
-        )
+        num_den_graphs_indexes = torch.stack([num_graphs_indexes, den_graph_indexes]).t().reshape(-1).to(device)
 
         num_den_reordered_graphs = k2.index_fsa(num_den_graphs, num_den_graphs_indexes)
 
@@ -163,9 +145,7 @@ class MAPLoss(torch.nn.Module):
             seqframe_idx_name="seqframe_idx" if return_lats else None,
         )
 
-        num_den_tot_scores = num_den_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=True
-        )
+        num_den_tot_scores = num_den_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
         num_tot_scores = num_den_tot_scores[::2]
         den_tot_scores = num_den_tot_scores[1::2]
 
@@ -181,11 +161,7 @@ class MAPLoss(torch.nn.Module):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores_mmi_pruned(
-        self,
-        dense_fsa_vec: k2.DenseFsaVec,
-        num_graphs: k2.Fsa,
-        den_graph: k2.Fsa,
-        return_lats: bool = True,
+        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = True,
     ):
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -211,12 +187,8 @@ class MAPLoss(torch.nn.Module):
 
         # use_double_scores=True does matter
         # since otherwise it sometimes makes rounding errors
-        num_tot_scores = num_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=True
-        )
-        den_tot_scores = den_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=True
-        )
+        num_tot_scores = num_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
+        den_tot_scores = den_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
 
         if return_lats:
             return num_tot_scores, den_tot_scores, num_lats, den_lats
@@ -258,9 +230,7 @@ class MAPLoss(torch.nn.Module):
         )
 
         tot_scores = num_tot_scores - den_tot_scores
-        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_finite_mask(
-            tot_scores, self.reduction
-        )
+        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_finite_mask(tot_scores, self.reduction)
 
         if boosted:
             assert num_lats is not None and den_lats is not None
@@ -272,21 +242,13 @@ class MAPLoss(torch.nn.Module):
             )
             row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
             num_sparse = create_sparse_wrapped(
-                indices=[
-                    k2.index_select(row_ids, num_lats.seqframe_idx),
-                    num_lats.seqframe_idx,
-                    num_lats.phones,
-                ],
+                indices=[k2.index_select(row_ids, num_lats.seqframe_idx), num_lats.seqframe_idx, num_lats.phones,],
                 values=num_lats.get_arc_post(True, True).exp(),
                 size=size,
                 min_col_index=0,
             )
             den_sparse = create_sparse_wrapped(
-                indices=[
-                    k2.index_select(row_ids, den_lats.seqframe_idx),
-                    den_lats.seqframe_idx,
-                    den_lats.phones,
-                ],
+                indices=[k2.index_select(row_ids, den_lats.seqframe_idx), den_lats.seqframe_idx, den_lats.phones,],
                 values=den_lats.get_arc_post(True, True).exp(),
                 size=size,
                 min_col_index=0,
@@ -295,17 +257,10 @@ class MAPLoss(torch.nn.Module):
             # NOTE: Due to limited support of PyTorch's autograd for sparse tensors,
             # we cannot use (num_sparse - den_sparse) here
             # TODO (alaptev): propose sparse_abs to k2
-            acc_loss = torch.sparse.sum(
-                sparse_abs((num_sparse + (-den_sparse)).coalesce()), (1, 2)
-            ).to_dense()
-            acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(
-                acc_loss, self.reduction
-            )
+            acc_loss = torch.sparse.sum(sparse_abs((num_sparse + (-den_sparse)).coalesce()), (1, 2)).to_dense()
+            acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(acc_loss, self.reduction)
             valid_mask = mmi_valid_mask & acc_valid_mask
-            total_loss = (
-                self.boost_coeff * acc_tot_scores[valid_mask]
-                - mmi_tot_scores[valid_mask]
-            )
+            total_loss = self.boost_coeff * acc_tot_scores[valid_mask] - mmi_tot_scores[valid_mask]
         else:
             valid_mask = mmi_valid_mask
             total_loss = -mmi_tot_scores[mmi_valid_mask]

@@ -28,15 +28,17 @@
 
 from typing import Optional, Tuple, Union
 
-import torch
 import k2
+import torch
 
 from nemo.collections.asr.parts.k2.grad_utils import GradExpNormalize
-from nemo.collections.asr.parts.k2.utils import create_supervision
-from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_finite_mask
-from nemo.collections.asr.parts.k2.utils import load_graph
-from nemo.collections.asr.parts.k2.utils import prep_padded_densefsavec
-from nemo.collections.asr.parts.k2.utils import make_blank_first
+from nemo.collections.asr.parts.k2.utils import (
+    create_supervision,
+    get_tot_objf_and_finite_mask,
+    load_graph,
+    make_blank_first,
+    prep_padded_densefsavec,
+)
 
 
 class MLLoss(torch.nn.Module):
@@ -63,24 +65,16 @@ class MLLoss(torch.nn.Module):
         self.reduction = reduction
         self.pad_fsavec = topo_type == "compact"
         if graph_type == "topo":
-            from nemo.collections.asr.parts.k2.graph_compilers import (
-                CtcTrainingTopologyCompiler as compiler,
-            )
+            from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
 
-            self.graph_compiler = compiler(
-                self.num_classes, topo_type, topo_with_selfloops
-            )
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops)
         elif graph_type == "graph":
-            from nemo.collections.asr.parts.k2.graph_compilers import (
-                CtcTrainingNumGraphCompiler as compiler,
-            )
+            from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingNumGraphCompiler as compiler
 
             raise NotImplementedError("Not tested yet")
             if isinstance(aux_graph, str):
                 aux_graph = load_graph(aux_graph)
-            self.graph_compiler = compiler(
-                self.num_classes, topo_type, topo_with_selfloops, aux_graph=aux_graph
-            )
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=aux_graph)
         else:
             raise ValueError(f"Invalid value of `graph_type`: {graph_type}.")
 
@@ -100,15 +94,11 @@ class MLLoss(torch.nn.Module):
         target_lengths = target_lengths[order]
         # PyTorch is doing the log-softmax normalization as part of the CTC computation.
         # More: https://github.com/k2-fsa/k2/issues/575
-        log_probs = GradExpNormalize.apply(
-            log_probs, input_lengths, "mean" if self.reduction != "sum" else "none"
-        )
+        log_probs = GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction != "sum" else "none")
 
         if log_probs.device != self.graph_compiler.device:
             self.graph_compiler.to(log_probs.device)
-        num_graphs = self.graph_compiler.compile(
-            targets + 1 if self.pad_fsavec else targets, target_lengths
-        )
+        num_graphs = self.graph_compiler.compile(targets + 1 if self.pad_fsavec else targets, target_lengths)
 
         dense_fsa_vec = (
             prep_padded_densefsavec(log_probs, supervisions)
@@ -116,17 +106,11 @@ class MLLoss(torch.nn.Module):
             else k2.DenseFsaVec(log_probs, supervisions)
         )
 
-        num_lats = k2.intersect_dense(
-            num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max
-        )
+        num_lats = k2.intersect_dense(num_graphs, dense_fsa_vec, torch.finfo(torch.float32).max)
 
         # use_double_scores=True does matter
         # since otherwise it sometimes makes rounding errors
-        num_tot_scores = num_lats.get_tot_scores(
-            log_semiring=True, use_double_scores=True
-        )
+        num_tot_scores = num_lats.get_tot_scores(log_semiring=True, use_double_scores=True)
         tot_scores = num_tot_scores
-        tot_scores, valid_mask = get_tot_objf_and_finite_mask(
-            tot_scores, self.reduction
-        )
+        tot_scores, valid_mask = get_tot_objf_and_finite_mask(tot_scores, self.reduction)
         return -tot_scores[valid_mask], valid_mask

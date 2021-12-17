@@ -15,12 +15,7 @@
 import torch
 
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import (
-    LengthsType,
-    LogprobsType,
-    NeuralType,
-    PredictionsType,
-)
+from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
 
 
 class ViterbiDecoderWithGraph(NeuralModule):
@@ -58,28 +53,20 @@ class ViterbiDecoderWithGraph(NeuralModule):
         elif return_type == "lattice":
             self.return_lattices = True
         elif return_type == "nbest":
-            raise NotImplementedError(
-                f"return_type {return_type} is not supported at the moment"
-            )
+            raise NotImplementedError(f"return_type {return_type} is not supported at the moment")
         else:
             raise ValueError
 
         # we assume that self._blank + 1 == num_classes
         if backend == "k2":
             if dec_type == "tokenlm":
-                from nemo.collections.asr.parts.k2.graph_decoders import (
-                    TokenLMDecoder as Decoder,
-                )
+                from nemo.collections.asr.parts.k2.graph_decoders import TokenLMDecoder as Decoder
             elif dec_type == "tlg":
-                raise NotImplementedError(
-                    f"dec_type {dec_type} is not supported at the moment"
-                )
+                raise NotImplementedError(f"dec_type {dec_type} is not supported at the moment")
             else:
                 raise ValueError(f"Unsupported dec_type: {dec_type}")
 
-            self._decoder = Decoder(
-                num_classes=self._blank + 1, blank=self._blank, **decode_kwargs
-            )
+            self._decoder = Decoder(num_classes=self._blank + 1, blank=self._blank, **decode_kwargs)
         elif backend == "gtn":
             raise NotImplementedError("gtn-backed decoding is not implemented")
 
@@ -101,10 +88,7 @@ class ViterbiDecoderWithGraph(NeuralModule):
                 log_probs_part = log_probs[begin:end]
                 log_probs_length_part = log_probs_length[begin:end]
                 predictions_part, scores_part = self._decoder.decode(
-                    log_probs_part,
-                    log_probs_length_part,
-                    return_lattices=False,
-                    return_ilabels=True,
+                    log_probs_part, log_probs_length_part, return_lattices=False, return_ilabels=True,
                 )
                 predictions_list += predictions_part
                 scores_list.append(scores_part)
@@ -115,12 +99,10 @@ class ViterbiDecoderWithGraph(NeuralModule):
             predictions, scores = self._decoder.decode(
                 log_probs, log_probs_length, return_lattices=False, return_ilabels=True
             )
-        lengths = torch.tensor(
-            [len(pred) for pred in predictions], device=predictions[0].device
+        lengths = torch.tensor([len(pred) for pred in predictions], device=predictions[0].device)
+        predictions_tensor = torch.full((len(predictions), lengths.max()), self._blank).to(
+            device=predictions[0].device
         )
-        predictions_tensor = torch.full(
-            (len(predictions), lengths.max()), self._blank
-        ).to(device=predictions[0].device)
         for i, pred in enumerate(predictions):
             predictions_tensor[i, : lengths[i]] = pred
         return predictions_tensor, lengths, scores

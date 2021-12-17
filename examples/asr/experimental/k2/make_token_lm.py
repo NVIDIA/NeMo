@@ -15,9 +15,8 @@
 import argparse
 import json
 import os
-
 from pathlib import Path
-from subprocess import Popen, PIPE
+from subprocess import PIPE, Popen
 from threading import Thread
 
 from nemo.collections.common import tokenizers
@@ -30,10 +29,7 @@ def main():
         description="""Create token LM for input manifest and tokenizer.""",
     )
     parser.add_argument(
-        "--manifest",
-        required=True,
-        type=str,
-        help="Comma separated list of manifest files",
+        "--manifest", required=True, type=str, help="Comma separated list of manifest files",
     )
     parser.add_argument(
         "--tokenizer_dir",
@@ -54,28 +50,20 @@ def main():
         help="The path or name of an LM builder. Supported builders: chain-est-phone-lm and make_phone_lm.py",
     )
     parser.add_argument(
-        "--ngram_order",
-        type=int,
-        default=2,
-        choices=[2, 3, 4, 5],
-        help="Order of n-gram to use",
+        "--ngram_order", type=int, default=2, choices=[2, 3, 4, 5], help="Order of n-gram to use",
     )
     parser.add_argument(
         "--output_file", required=True, type=str, help="The path to store the token LM",
     )
     parser.add_argument(
-        "--do_lowercase",
-        action="store_true",
-        help="Whether to apply lower case conversion on the text",
+        "--do_lowercase", action="store_true", help="Whether to apply lower case conversion on the text",
     )
     args = parser.parse_args()
 
     is_chain_builder = Path(args.lm_builder).stem == "chain-est-phone-lm"
 
     """ TOKENIZER SETUP """
-    logging.info(
-        f"Loading {args.tokenizer_type} tokenizer from '{args.tokenizer_dir}' ..."
-    )
+    logging.info(f"Loading {args.tokenizer_type} tokenizer from '{args.tokenizer_dir}' ...")
     if args.tokenizer_type == "bpe":
         # This is a BPE Tokenizer
         model_path = os.path.join(args.tokenizer_dir, "tokenizer.model")
@@ -85,13 +73,9 @@ def main():
     else:
         # This is a WPE Tokenizer
         vocab_path = os.path.join(args.tokenizer_dir, "vocab.txt")
-        tokenizer = tokenizers.AutoTokenizer(
-            pretrained_model_name="bert-base-cased", vocab_file=vocab_path
-        )
+        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name="bert-base-cased", vocab_file=vocab_path)
 
-    logging.info(
-        f"Tokenizer {tokenizer.__class__.__name__} loaded with {tokenizer.vocab_size} tokens"
-    )
+    logging.info(f"Tokenizer {tokenizer.__class__.__name__} loaded with {tokenizer.vocab_size} tokens")
 
     """ DATA PROCESSING """
     if "," in args.manifest:
@@ -110,9 +94,7 @@ def main():
                 text = item["text"]
                 if args.do_lowercase:
                     text = text.lower()
-                tok_text = " ".join(
-                    [str(i + offset) for i in tokenizer.text_to_ids(text)]
-                )
+                tok_text = " ".join([str(i + offset) for i in tokenizer.text_to_ids(text)])
                 if is_chain_builder:
                     tok_text = f"line_{num_lines} " + tok_text
                 tok_text_list.append(tok_text)
@@ -120,9 +102,7 @@ def main():
 
     tok_texts = "\n".join(tok_text_list)
     del tok_text_list
-    logging.info(
-        "Finished processing all manifests ! Number of sentences : {}".format(num_lines)
-    )
+    logging.info("Finished processing all manifests ! Number of sentences : {}".format(num_lines))
 
     """ LM BUILDING """
     logging.info(f"Calling {args.lm_builder} ...")

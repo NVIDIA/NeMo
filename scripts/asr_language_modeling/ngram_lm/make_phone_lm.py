@@ -15,11 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-from __future__ import division
-import sys
+from __future__ import division, print_function
+
 import argparse
 import math
+import sys
 from collections import defaultdict
 
 # note, this was originally based
@@ -59,8 +59,7 @@ parser.add_argument(
     type=int,
     default=4,
     choices=[2, 3, 4, 5, 6, 7],
-    help="Order of n-gram to use (but see also --num-extra-states;"
-    "the effective order after pruning may be less.",
+    help="Order of n-gram to use (but see also --num-extra-states;" "the effective order after pruning may be less.",
 )
 parser.add_argument(
     "--num-extra-ngrams",
@@ -89,9 +88,7 @@ parser.add_argument(
     "as FST).  You must also set --no-backoff-ngram-order=1 or "
     "this is not allowed.",
 )
-parser.add_argument(
-    "--verbose", type=int, default=0, choices=[0, 1, 2, 3, 4, 5], help="Verbose level"
-)
+parser.add_argument("--verbose", type=int, default=0, choices=[0, 1, 2, 3, 4, 5], help="Verbose level")
 
 args = parser.parse_args()
 
@@ -117,12 +114,7 @@ class CountsForHistory(object):
         # e.g. returns ' total=12 3->4 4->6 -1->2'
         return " total={0} {1}".format(
             str(self.total_count),
-            " ".join(
-                [
-                    "{0} -> {1}".format(word, count)
-                    for word, count in self.word_to_count.items()
-                ]
-            ),
+            " ".join(["{0} -> {1}".format(word, count) for word, count in self.word_to_count.items()]),
         )
 
     ## Adds a certain count (expected to be integer, but might be negative).  If
@@ -139,11 +131,7 @@ class CountsForHistory(object):
         old_count = self.word_to_count[predicted_word]
         new_count = old_count + count
         if new_count < 0:
-            print(
-                "predicted-word={0}, old-count={1}, count={2}".format(
-                    predicted_word, old_count, count
-                )
-            )
+            print("predicted-word={0}, old-count={1}, count={2}".format(predicted_word, old_count, count))
         assert new_count >= 0
         if new_count == 0:
             del self.word_to_count[predicted_word]
@@ -190,14 +178,9 @@ class NgramCounts(object):
     # This function adds the un-smoothed counts from this line of text.
     def AddRawCountsFromLine(self, line):
         try:
-            words = (
-                [self.bos_symbol] + [int(x) for x in line.split()] + [self.eos_symbol]
-            )
+            words = [self.bos_symbol] + [int(x) for x in line.split()] + [self.eos_symbol]
         except:
-            sys.exit(
-                "make_phone_lm.py: bad input line {0} (expected a sequence "
-                "of integers)".format(line)
-            )
+            sys.exit("make_phone_lm.py: bad input line {0} (expected a sequence " "of integers)".format(line))
 
         for n in range(1, len(words)):
             predicted_word = words[n]
@@ -216,10 +199,7 @@ class NgramCounts(object):
             lines_processed += 1
         if lines_processed == 0 or args.verbose > 0:
             print(
-                "make_phone_lm.py: processed {0} lines of input".format(
-                    lines_processed
-                ),
-                file=sys.stderr,
+                "make_phone_lm.py: processed {0} lines of input".format(lines_processed), file=sys.stderr,
             )
 
     # This backs off the counts by subtracting 1 and assigning the subtracted
@@ -274,14 +254,9 @@ class NgramCounts(object):
                 total += counts_for_hist.total_count
                 total_excluding_backoff += counts_for_hist.total_count
                 if self.backoff_symbol in counts_for_hist.word_to_count:
-                    total_excluding_backoff -= counts_for_hist.word_to_count[
-                        self.backoff_symbol
-                    ]
+                    total_excluding_backoff -= counts_for_hist.word_to_count[self.backoff_symbol]
         print(
-            "total count = {0}, excluding backoff = {1}".format(
-                total, total_excluding_backoff
-            ),
-            file=sys.stderr,
+            "total count = {0}, excluding backoff = {1}".format(total, total_excluding_backoff), file=sys.stderr,
         )
 
     def GetHistToStateMap(self):
@@ -307,21 +282,13 @@ class NgramCounts(object):
         total_count = float(counts_for_hist.total_count)
         if not word in counts_for_hist.word_to_count:
             print(
-                "make_phone_lm.py: no prob for {0} -> {1} "
-                "[no such count]".format(hist, word),
-                file=sys.stderr,
+                "make_phone_lm.py: no prob for {0} -> {1} " "[no such count]".format(hist, word), file=sys.stderr,
             )
             return None
         prob = float(counts_for_hist.word_to_count[word]) / total_count
-        if (
-            len(hist) > 0
-            and word != self.backoff_symbol
-            and self.backoff_symbol in counts_for_hist.word_to_count
-        ):
+        if len(hist) > 0 and word != self.backoff_symbol and self.backoff_symbol in counts_for_hist.word_to_count:
             prob_in_backoff = self.GetProb(hist[1:], word)
-            backoff_prob = (
-                float(counts_for_hist.word_to_count[self.backoff_symbol]) / total_count
-            )
+            backoff_prob = float(counts_for_hist.word_to_count[self.backoff_symbol]) / total_count
             try:
                 prob += backoff_prob * prob_in_backoff
             except:
@@ -343,9 +310,7 @@ class NgramCounts(object):
             for hist, counts_for_hist in self.counts[n].items():
                 l = len(counts_for_hist.word_to_count)
                 assert l > 0 and self.backoff_symbol in counts_for_hist.word_to_count
-                if (
-                    l == 1 and not hist in protected_histories
-                ):  # only the backoff symbol has a count.
+                if l == 1 and not hist in protected_histories:  # only the backoff symbol has a count.
                     del self.counts[n][hist]
                     num_states_removed += 1
                 else:
@@ -413,9 +378,7 @@ class NgramCounts(object):
         for n in [1, 0] + list(range(2, args.ngram_order)):
             this_order_counts = self.counts[n]
             # For order 1, make sure the keys are sorted.
-            keys = (
-                this_order_counts.keys() if n != 1 else sorted(this_order_counts.keys())
-            )
+            keys = this_order_counts.keys() if n != 1 else sorted(this_order_counts.keys())
             for hist in keys:
                 word_to_count = this_order_counts[hist].word_to_count
                 this_fst_state = hist_to_state[hist]
@@ -437,11 +400,7 @@ class NgramCounts(object):
                         assert word == self.backoff_symbol
                         backoff_fst_state = hist_to_state[hist[1 : len(hist)]]
                         print(
-                            this_fst_state,
-                            backoff_fst_state,
-                            word_disambig_symbol,
-                            0,
-                            this_cost,
+                            this_fst_state, backoff_fst_state, word_disambig_symbol, 0, this_cost,
                         )
 
     # This function returns a set of n-grams that cannot currently be pruned
@@ -512,11 +471,7 @@ class NgramCounts(object):
         if count == 0:
             return 0.0
 
-        assert (
-            discount > 0
-            and backoff_total >= backoff_count
-            and backoff_total >= 0.99 * discount
-        )
+        assert discount > 0 and backoff_total >= backoff_count and backoff_total >= 0.99 * discount
 
         # augmented_count is like 'count', but with the extra count for symbol
         # 'a' due to backoff included.
@@ -594,9 +549,7 @@ class NgramCounts(object):
         #  b_count * logf((new_discount * b_count / new_backoff_total) /
         #                 (discount * b_count / backoff_total),
         # but we cancel b_count to give us the expression below.
-        b_change = b_count * math.log(
-            (new_discount / new_backoff_total) / (discount / backoff_total)
-        )
+        b_change = b_count * math.log((new_discount / new_backoff_total) / (discount / backoff_total))
 
         # c_change is the log-like change of phantom symbol 'c' coming from
         # all other states that back off to the backoff sate (and all prob. mass of
@@ -632,16 +585,11 @@ class NgramCounts(object):
             backoff_count = self.GetProb(hist[1:], word) * backoff_total
         except:
             print(
-                "problem getting backoff count: hist = {0}, word = {1}".format(
-                    hist, word
-                ),
-                file=sys.stderr,
+                "problem getting backoff count: hist = {0}, word = {1}".format(hist, word), file=sys.stderr,
             )
             sys.exit(1)
 
-        return self.PruningLogprobChange(
-            float(count), float(discount), backoff_count, float(backoff_total)
-        )
+        return self.PruningLogprobChange(float(count), float(discount), backoff_count, float(backoff_total))
 
     # note: returns loglike change per word.
     def PruneToIntermediateTarget(self, num_extra_ngrams):
@@ -668,9 +616,7 @@ class NgramCounts(object):
                     if word != self.backoff_symbol:
                         if not hist + (word,) in protected_ngrams:
                             like_change = self.GetLikeChangeFromPruningNgram(hist, word)
-                            like_change_and_ngrams.append(
-                                (like_change,) + hist + (word,)
-                            )
+                            like_change_and_ngrams.append((like_change,) + hist + (word,))
                             num_candidates_per_order[len(hist)] += 1
 
         like_change_and_ngrams.sort(reverse=True)
@@ -696,9 +642,7 @@ class NgramCounts(object):
 
         if args.verbose >= 1:
             effective_threshold = (
-                like_change_and_ngrams[num_ngrams_to_prune - 1][0]
-                if num_ngrams_to_prune >= 0
-                else 0.0
+                like_change_and_ngrams[num_ngrams_to_prune - 1][0] if num_ngrams_to_prune >= 0 else 0.0
             )
             print(
                 "Pruned from {0} ngrams to {1}, with threshold {2}.  Candidates per order were {3}, "
@@ -716,26 +660,18 @@ class NgramCounts(object):
         if args.verbose >= 3:
             print(
                 "Pruning: like_change_and_ngrams is:\n"
-                + "\n".join(
-                    [str(x) for x in like_change_and_ngrams[:num_ngrams_to_prune]]
-                )
+                + "\n".join([str(x) for x in like_change_and_ngrams[:num_ngrams_to_prune]])
                 + "\n-------- stop pruning here: ----------\n"
-                + "\n".join(
-                    [str(x) for x in like_change_and_ngrams[num_ngrams_to_prune:]]
-                ),
+                + "\n".join([str(x) for x in like_change_and_ngrams[num_ngrams_to_prune:]]),
                 file=sys.stderr,
             )
             self.Print(
-                "Counts after pruning to num-extra-ngrams={0}".format(
-                    initial_num_extra_ngrams - num_ngrams_to_prune
-                )
+                "Counts after pruning to num-extra-ngrams={0}".format(initial_num_extra_ngrams - num_ngrams_to_prune)
             )
 
         self.PruneEmptyStates()
         if args.verbose >= 3:
-            ngram_counts.Print(
-                "Counts after removing empty states [inside pruning algorithm]:"
-            )
+            ngram_counts.Print("Counts after removing empty states [inside pruning algorithm]:")
         return like_change_per_word
 
     def PruneToFinalTarget(self, num_extra_ngrams):
@@ -753,9 +689,7 @@ class NgramCounts(object):
         if num_extra_ngrams >= current_num_extra_ngrams:
             print(
                 "make_phone_lm.py: not pruning since target num-extra-ngrams={0} is >= "
-                "current num-extra-ngrams={1}".format(
-                    num_extra_ngrams, current_num_extra_ngrams
-                ),
+                "current num-extra-ngrams={1}".format(num_extra_ngrams, current_num_extra_ngrams),
                 file=sys.stderr,
             )
             return
@@ -765,10 +699,7 @@ class NgramCounts(object):
         # preceded by two iterations where the targets differ by factors of 1.2.
         for this_factor in [1.1, 1.2]:
             for n in range(0, 2):
-                if (
-                    int((target_sequence[-1] + 1) * this_factor)
-                    < current_num_extra_ngrams
-                ):
+                if int((target_sequence[-1] + 1) * this_factor) < current_num_extra_ngrams:
                     target_sequence.append(int((target_sequence[-1] + 1) * this_factor))
         # then change in factors of 1.3
         while True:
@@ -783,9 +714,7 @@ class NgramCounts(object):
 
         print(
             "make_phone_lm.py: current num-extra-ngrams={0}, pruning with "
-            "following sequence of targets: {1}".format(
-                current_num_extra_ngrams, target_sequence
-            ),
+            "following sequence of targets: {1}".format(current_num_extra_ngrams, target_sequence),
             file=sys.stderr,
         )
         total_like_change_per_word = 0.0
@@ -794,8 +723,7 @@ class NgramCounts(object):
 
         if args.verbose >= 1:
             print(
-                "make_phone_lm.py: K-L divergence from pruning (upper bound) is "
-                "%.4f" % total_like_change_per_word,
+                "make_phone_lm.py: K-L divergence from pruning (upper bound) is " "%.4f" % total_like_change_per_word,
                 file=sys.stderr,
             )
 
@@ -845,12 +773,7 @@ class NgramCounts(object):
             # print the number of n-grams.  Add 1 for the 1-gram
             # section because of <s>, we print -99 as the prob so we
             # have a place to put the backoff prob.
-            print(
-                "ngram {0}={1}".format(
-                    hist_len + 1,
-                    self.GetNumNgrams(hist_len) + (1 if hist_len == 0 else 0),
-                )
-            )
+            print("ngram {0}={1}".format(hist_len + 1, self.GetNumNgrams(hist_len) + (1 if hist_len == 0 else 0),))
 
         print("")
 
@@ -868,12 +791,9 @@ class NgramCounts(object):
                     if word != self.backoff_symbol:
                         prob = self.GetProb(hist, word)
                         assert prob != None and prob > 0
-                        backoff_prob = self.GetProb(
-                            (hist) + (word,), self.backoff_symbol
-                        )
+                        backoff_prob = self.GetProb((hist) + (word,), self.backoff_symbol)
                         line = "{0}\t{1}".format(
-                            "%.5f" % math.log10(prob),
-                            " ".join(self.IntToString(x) for x in hist + (word,)),
+                            "%.5f" % math.log10(prob), " ".join(self.IntToString(x) for x in hist + (word,)),
                         )
                         if backoff_prob != None:
                             line += "\t{0}".format("%.5f" % math.log10(backoff_prob))
@@ -907,10 +827,7 @@ if args.print_as_arpa == "true":
     ngram_counts.PrintAsArpa()
 else:
     if args.phone_disambig_symbol == None:
-        sys.exit(
-            "make_phone_lm.py: --phone-disambig-symbol must be provided (unless "
-            "you are writing as ARPA"
-        )
+        sys.exit("make_phone_lm.py: --phone-disambig-symbol must be provided (unless " "you are writing as ARPA")
     ngram_counts.PrintAsFst(args.phone_disambig_symbol)
 
 

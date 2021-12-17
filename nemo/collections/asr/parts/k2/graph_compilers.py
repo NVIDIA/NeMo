@@ -29,13 +29,11 @@
 from functools import lru_cache
 from typing import Iterable, Optional, Tuple
 
+import k2
 import torch
 
-import k2
-
 from nemo.collections.asr.parts.k2.topologies import build_topo
-from nemo.collections.asr.parts.k2.utils import compose_with_self_loops
-from nemo.collections.asr.parts.k2.utils import intersect_with_self_loops
+from nemo.collections.asr.parts.k2.utils import compose_with_self_loops, intersect_with_self_loops
 
 
 class CtcTrainingTopologyCompiler(object):
@@ -52,9 +50,9 @@ class CtcTrainingTopologyCompiler(object):
     ):
         self.topo_type = topo_type
         self.device = device
-        self.base_graph = k2.arc_sort(
-            build_topo(topo_type, list(range(num_classes)), topo_with_selfloops)
-        ).to(self.device)
+        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops)).to(
+            self.device
+        )
         self.ctc_topo_inv = k2.arc_sort(self.base_graph.invert())
 
     def to(self, device: torch.device):
@@ -91,29 +89,20 @@ class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device)
         if aux_graph is None:
-            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(
-                self.device
-            )
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
-            self.base_graph = intersect_with_self_loops(
-                self.ctc_topo_inv, aux_graph
-            ).invert_()
+            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert_()
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
 
     def compile(
-        self,
-        targets: torch.Tensor,
-        target_lengths: torch.Tensor,
-        aux_graph: Optional[k2.Fsa] = None,
+        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None,
     ) -> k2.Fsa:
         if aux_graph is None and self.base_graph is None:
             raise ValueError(
                 f"At least one of aux_graph and self.base_graph must be set: {aux_graph}, {self.base_graph}"
             )
         elif aux_graph is not None:
-            self.base_graph = intersect_with_self_loops(
-                self.ctc_topo_inv, aux_graph
-            ).invert()
+            self.base_graph = intersect_with_self_loops(self.ctc_topo_inv, aux_graph).invert()
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
         return super().compile(targets, target_lengths)
 
@@ -134,13 +123,9 @@ class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device, aux_graph)
         if aux_graph is None:
-            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(
-                self.device
-            )
+            self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
-            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(
-                self.device
-            )
+            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(self.device)
 
     def to(self, device: torch.device):
         if self.den_graph is not None:
@@ -148,10 +133,7 @@ class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
         super().to(device)
 
     def compile(
-        self,
-        targets: torch.Tensor,
-        target_lengths: torch.Tensor,
-        aux_graph: Optional[k2.Fsa] = None,
+        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None,
     ) -> Tuple[k2.Fsa, k2.Fsa]:
         num_graphs = super().compile(targets, target_lengths, aux_graph)
         if aux_graph is None and self.den_graph is None:
@@ -159,7 +141,5 @@ class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
                 f"At least one of aux_graph and self.den_graph must be set: {aux_graph}, {self.den_graph}"
             )
         elif aux_graph is not None:
-            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(
-                self.device
-            )
+            self.den_graph = k2.create_fsa_vec([self.base_graph.detach()]).to(self.device)
         return num_graphs, self.den_graph
