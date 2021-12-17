@@ -19,7 +19,6 @@
 
 import math
 import random
-from collections import OrderedDict
 from typing import List, Tuple
 
 import torch
@@ -28,20 +27,10 @@ from omegaconf.dictconfig import DictConfig
 from torch import nn
 from torch.nn import functional as F
 
-from nemo.collections.asr.parts.submodules.jasper import init_weights, jasper_activations
 from nemo.collections.common.parts import form_attention_mask, transformer_weights_init
 from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
-from nemo.core.classes.common import typecheck
-from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    LengthsType,
-    LogprobsType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -271,13 +260,13 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
         We're using SpectrogramType for now to keep things Nemo safe
         processed_signal:
             0: AxisType(BatchTag)
-            1: AxisType(ProcessedTimeTag)
-            2: AxisType(ChannelTag)
+            1: AxisType(ChannelTag)
+            2: AxisType(ProcessedTimeTag)
         processed_length:
             0: AxisType(BatchTag)
         """
         return {
-            "processed_signal": NeuralType(('B', 'T', 'C'), AcousticEncodedRepresentation()),
+            "processed_signal": NeuralType(('B', 'C', 'T'), AcousticEncodedRepresentation()),
             "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -297,6 +286,8 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
         audio_signal = self.layer_norm(audio_signal)
 
         context_emb = self.apply_transformer(audio_signal, padding_mask=padding_mask)
+
+        context_emb = context_emb.transpose(1, 2)  # B, T, C -> B, C, T
 
         return context_emb, length  # Returning length for NeMo compatibility
 
@@ -335,33 +326,3 @@ class GradMultiply(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad):
         return grad * ctx.scale, None
-
-
-class Wav2VecLinearReconstruction(NeuralModule, Exportable):
-    """ ASR Decoder for reconstructing masked regions of spectrogram
-    """
-
-    @property
-    def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
-
-    @property
-    def output_types(self):
-        return OrderedDict({"audio_recon": NeuralType(('B', 'T', 'D'), SpectrogramType())})
-
-    def __init__(self, feat_in, feat_out, init_mode="xavier_uniform", activation=None):
-        super().__init__()
-
-        self.feat_in = feat_in
-        self.feat_out = feat_out
-
-        self.projection = torch.nn.Linear(self.feat_in, self.feat_out, bias=False)
-
-        if activation:
-            self.projection = nn.Sequential(self.projection, jasper_activations[activation]())
-
-        self.apply(lambda x: init_weights(x, mode=init_mode))
-
-    @typecheck()
-    def forward(self, encoder_output):
-        return self.projection(encoder_output)

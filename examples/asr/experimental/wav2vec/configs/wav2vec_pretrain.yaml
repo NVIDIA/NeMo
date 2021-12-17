@@ -7,13 +7,12 @@
 name: &name "Wav2vec_Pretrain"
 
 model:
-  model_defaults: # Note: these are only read for config variables and have no direct influence on model
-    sample_rate: &sample_rate 16000
-    feature_penalty: 1.0
-    dropout_features: 0.1 # Dropout applied to inputs to context encoder
-    dropout_features_q: 0.1 # Dropout applied to inputs to target quantizer
-    embedding_dim: &emb_dim 768 # Project size of embedidng dimension for transformer
-    final_dim: &final_dim 256 # Project final representations and targets to this dimension (target embeddings).
+  sample_rate: &sample_rate 16000
+  feature_penalty: 0.0
+  dropout_features: 0.1 # Dropout applied to inputs to context encoder
+  dropout_features_q: 0.1 # Dropout applied to inputs to target quantizer
+  embedding_dim: &emb_dim 768 # Project size of embedidng dimension for transformer
+  final_dim: &final_dim 256 # Project final representations and targets to this dimension (target embeddings).
 
   train_ds:
     manifest_filepath: ???
@@ -89,15 +88,17 @@ model:
       hidden_act: gelu # Activation for transformer
 
   decoder:
-    _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecLinearReconstruction
+    _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
     feat_in: *emb_dim
+    feat_hidden: *emb_dim
     feat_out: *final_dim
+    stride_layers: 0
 
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *emb_dim
     proj_dim: *final_dim
-    sample_from_non_masked: false
+    sample_from_non_masked: true
 
   optim:
     name: adamw
