@@ -98,6 +98,7 @@ class TestEncDecRNNTBPEModel:
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor(self, asr_model):
         asr_model.train()
@@ -107,6 +108,7 @@ class TestEncDecRNNTBPEModel:
         instance2 = EncDecRNNTBPEModel.from_config_dict(confdict)
         assert isinstance(instance2, EncDecRNNTBPEModel)
 
+    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
@@ -141,6 +143,7 @@ class TestEncDecRNNTBPEModel:
         diff = torch.max(torch.abs(logits_instance - logprobs_batch))
         assert diff <= 1e-6
 
+    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
@@ -158,6 +161,7 @@ class TestEncDecRNNTBPEModel:
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
@@ -180,6 +184,7 @@ class TestEncDecRNNTBPEModel:
             assert new_model.vocab_path.endswith('_vocab.txt')
             assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
+    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
@@ -209,6 +214,7 @@ class TestEncDecRNNTBPEModel:
             joint_joint = 3 * (asr_model.joint.joint_hidden + 1)
             assert asr_model.num_weights == (nw1 + (pred_embedding + joint_joint))
 
+    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
