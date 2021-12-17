@@ -52,7 +52,7 @@ def main(cfg):
     asr_model = asr_ts_decoder.set_asr_model(cfg.diarizer.asr.model_path)
     word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
 
-    # Instance for matching  ASR and diarization results
+    # Create a class instance for matching ASR and diarization results
     asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer)
     asr_diar_offline.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
 
