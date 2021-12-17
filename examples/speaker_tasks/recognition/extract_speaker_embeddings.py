@@ -110,7 +110,7 @@ def main():
     parser.add_argument(
         "--model_path",
         type=str,
-        default='ecapa_tdnn',
+        default='titanet_large',
         required=False,
         help="path to .nemo speaker verification model file to extract embeddings, if not passed SpeakerNet-M model would be downloaded from NGC and used to extract embeddings",
     )
@@ -130,8 +130,8 @@ def main():
     elif args.model_path.endswith('.ckpt'):
         speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(checkpoint_path=args.model_path)
     else:
-        speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="ecapa_tdnn")
-        logging.info(f"using pretrained speaker verification model from NGC")
+        speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="titanet_large")
+        logging.info(f"using pretrained titanet_large speaker model from NGC")
 
     device = 'cuda'
     if not torch.cuda.is_available():

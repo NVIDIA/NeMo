@@ -34,9 +34,7 @@ class TestNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
-        pred = self.normalizer_de.normalize(
-            test_input, n_tagged=1000, punct_post_process=False, punct_pre_process=False
-        )
+        pred = self.normalizer_de.normalize(test_input, n_tagged=1000, punct_post_process=False)
         print(expected)
         print("pred")
         print(pred)

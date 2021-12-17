@@ -63,10 +63,7 @@ class WhiteListFst(GraphFst):
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
         if not deterministic:
-            graph |= (
-                _get_whitelist_graph("lower_cased", get_abs_path("data/whitelist.tsv"))
-                | _get_whitelist_non_deterministic_graph()
-            )
+            graph |= _get_whitelist_non_deterministic_graph()
 
         if input_file:
             whitelist_provided = _get_whitelist_graph(input_case, input_file)
