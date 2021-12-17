@@ -198,7 +198,6 @@ class ContrastiveLoss(Loss):
 
         if not isinstance(loss, torch.Tensor):
             loss = torch.Tensor([0]).to(device=decoder_outputs.device)
-        print(loss)
         return loss
 
     def _calculate_similarity(self, logits, negatives, targets):

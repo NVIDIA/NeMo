@@ -337,58 +337,6 @@ class GradMultiply(torch.autograd.Function):
         return grad * ctx.scale, None
 
 
-class Wav2VecLinearDecoder(NeuralModule, Exportable):
-    """Simple ASR Decoder for linear projection of Wav2Vec embeddings
-    """
-
-    @property
-    def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
-
-    @property
-    def output_types(self):
-        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
-
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
-        super().__init__()
-
-        if vocabulary is not None:
-            if num_classes != len(vocabulary):
-                raise ValueError(
-                    f"If vocabulary is specified, it's length should be equal to the num_classes. Instead got: num_classes={num_classes} and len(vocabulary)={len(vocabulary)}"
-                )
-            self.__vocabulary = vocabulary
-        self._feat_in = feat_in
-        # Add 1 for blank char
-        self._num_classes = num_classes + 1
-
-        self.projection = torch.nn.Linear(self._feat_in, self._num_classes, bias=False)
-        self.apply(lambda x: init_weights(x, mode=init_mode))
-
-    @typecheck()
-    def forward(self, encoder_output):
-        return torch.nn.functional.log_softmax(self.projection(encoder_output), dim=-1)
-
-    def input_example(self):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
-        return tuple([input_example])
-
-    @property
-    def vocabulary(self):
-        return self.__vocabulary
-
-    @property
-    def num_classes_with_blank(self):
-        return self._num_classes
-
-
 class Wav2VecLinearReconstruction(NeuralModule, Exportable):
     """ ASR Decoder for reconstructing masked regions of spectrogram
     """
