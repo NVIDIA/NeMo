@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import dataclasses
 import datetime
 import logging
@@ -56,21 +57,47 @@ def _format_container_mounts(mounts: typing.List[pathlib.Path]) -> str:
 
 
 def _extend_by_symlink_targets(directories_to_mount: typing.List[pathlib.Path]) -> typing.List[pathlib.Path]:
+    directories_to_check = copy.copy(directories_to_mount)
     directories_to_mount_with_resolved_symlinks = []
-    for directory_to_mount in directories_to_mount:
+
+    def _add_target_of_symlink(symlink):
+        target = os.readlink(symlink)
+        if not target.startswith("/"):
+            target = os.path.normpath(symlink.parent / target)
+
+        target = pathlib.Path(target)
+        if not target.exists():
+            raise RuntimeError(
+                f"The symlink {symlink} points to non-existent target {target}. "
+                f"It must be fixed manually before script continuation."
+            )
+
+        if not target.is_dir():
+            target = target.parent
+
+        if target not in directories_to_mount_with_resolved_symlinks and target not in directories_to_check:
+            LOGGER.debug(f"Found symlink {symlink} -> {os.readlink(symlink)}. Adding {target} to directories to check.")
+            directories_to_check.append(target)
+        else:
+            LOGGER.debug(
+                f"Found symlink {symlink} -> {os.readlink(symlink)}. "
+                f"Dropping {target} as it is already analyzed or on list to check."
+            )
+
+    while directories_to_check:
+        directory_to_mount = directories_to_check.pop()
+        if directory_to_mount in directories_to_mount_with_resolved_symlinks:
+            continue
+
+        LOGGER.debug(f"Adding {directory_to_mount} to list of directories to mount")
         directories_to_mount_with_resolved_symlinks.append(directory_to_mount)
         if directory_to_mount.is_symlink():
-            target = pathlib.Path(os.readlink(directory_to_mount))
-            if not target.is_dir():
-                target = target.parent
-            directories_to_mount_with_resolved_symlinks.extend(_extend_by_symlink_targets([target]))
+            _add_target_of_symlink(directory_to_mount)
         else:
             for filesystem_entry in directory_to_mount.rglob("*"):
                 if filesystem_entry.is_symlink():
-                    target = pathlib.Path(os.readlink(filesystem_entry))
-                    if not target.is_dir():
-                        target = target.parent
-                    directories_to_mount_with_resolved_symlinks.extend(_extend_by_symlink_targets([target]))
+                    _add_target_of_symlink(filesystem_entry)
+
     directories_to_mount_with_resolved_symlinks = sorted((set(directories_to_mount_with_resolved_symlinks)))
     deduplicated = []
 
