@@ -57,9 +57,7 @@ def __retrieve_with_progress(source: str, filename: str):
         if total is None:
             f.write(response.content)
         else:
-            with tqdm(
-                total=total, unit="B", unit_scale=True, unit_divisor=1024
-            ) as pbar:
+            with tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024) as pbar:
                 for data in response:
                     f.write(data)
                     pbar.update(len(data))
@@ -77,9 +75,7 @@ def __maybe_download_file(destination: str, source: str):
 
     """
     source = URL[source]
-    if not os.path.exists(destination) and not os.path.exists(
-        os.path.splitext(destination)[0]
-    ):
+    if not os.path.exists(destination) and not os.path.exists(os.path.splitext(destination)[0]):
         logging.info("{0} does not exist. Downloading ...".format(destination))
         __retrieve_with_progress(source, filename=destination + ".tmp")
         os.rename(destination + ".tmp", destination)

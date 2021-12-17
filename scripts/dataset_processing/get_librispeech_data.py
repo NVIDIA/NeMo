@@ -68,9 +68,7 @@ def __retrieve_with_progress(source: str, filename: str):
         if total is None:
             f.write(response.content)
         else:
-            with tqdm(
-                total=total, unit="B", unit_scale=True, unit_divisor=1024
-            ) as pbar:
+            with tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024) as pbar:
                 for data in response:
                     f.write(data)
                     pbar.update(len(data))
@@ -129,9 +127,7 @@ def __process_transcript(file_path: str, dst_folder: str):
             if not os.path.exists(wav_file):
                 Transformer().build(flac_file, wav_file)
             # check duration
-            duration = subprocess.check_output(
-                "soxi -D {0}".format(wav_file), shell=True
-            )
+            duration = subprocess.check_output("soxi -D {0}".format(wav_file), shell=True)
 
             entry = {}
             entry["audio_filepath"] = os.path.abspath(wav_file)
@@ -141,9 +137,7 @@ def __process_transcript(file_path: str, dst_folder: str):
     return entries
 
 
-def __process_data(
-    data_folder: str, dst_folder: str, manifest_file: str, num_workers: int
-):
+def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_workers: int):
     """
     Converts flac to wav and build manifests's json
     Args:
@@ -196,15 +190,8 @@ def main():
         __extract_file(filepath, data_root)
         logging.info("Processing {0}".format(data_set))
         __process_data(
-            os.path.join(
-                os.path.join(data_root, "LibriSpeech"),
-                data_set.replace("_", "-"),
-            ),
-            os.path.join(
-                os.path.join(data_root, "LibriSpeech"),
-                data_set.replace("_", "-"),
-            )
-            + "-processed",
+            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),),
+            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),) + "-processed",
             os.path.join(data_root, data_set + ".json"),
             num_workers=num_workers,
         )

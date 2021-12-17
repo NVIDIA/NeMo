@@ -26,6 +26,7 @@ import subprocess
 import urllib.request
 from shutil import copy, move
 from zipfile import ZipFile
+
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description="OpenSLR RIR Data download and process")
@@ -53,9 +54,7 @@ def __retrieve_with_progress(source: str, filename: str):
         if total is None:
             f.write(response.content)
         else:
-            with tqdm(
-                total=total, unit="B", unit_scale=True, unit_divisor=1024
-            ) as pbar:
+            with tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024) as pbar:
                 for data in response:
                     f.write(data)
                     pbar.update(len(data))
@@ -101,9 +100,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
     if not os.path.exists(dst_folder):
         os.makedirs(dst_folder)
 
-    real_rir_list = os.path.join(
-        data_folder, "RIRS_NOISES", "real_rirs_isotropic_noises", "rir_list"
-    )
+    real_rir_list = os.path.join(data_folder, "RIRS_NOISES", "real_rirs_isotropic_noises", "rir_list")
     rirfiles = []
     with open(real_rir_list, "r") as rir_f:
         for line in rir_f:
@@ -120,15 +117,9 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
         else:
             for chan in range(1, n_chans + 1):
                 chan_file_name = os.path.join(
-                    real_rir_folder,
-                    os.path.splitext(os.path.basename(rir_f))[0]
-                    + "-"
-                    + str(chan)
-                    + ".wav",
+                    real_rir_folder, os.path.splitext(os.path.basename(rir_f))[0] + "-" + str(chan) + ".wav",
                 )
-                _ = subprocess.check_output(
-                    f"sox {rir_f} {chan_file_name} remix {chan}", shell=True
-                )
+                _ = subprocess.check_output(f"sox {rir_f} {chan_file_name} remix {chan}", shell=True)
 
     # move simulated rirs to processed
     if not os.path.exists(os.path.join(dst_folder, "simulated_rirs")):
@@ -140,9 +131,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
         entry = {}
         for rir in all_rirs:
             rir_file = os.path.join(dst_folder, rir)
-            duration = subprocess.check_output(
-                "soxi -D {0}".format(rir_file), shell=True
-            )
+            duration = subprocess.check_output("soxi -D {0}".format(rir_file), shell=True)
             entry["audio_filepath"] = rir_file
             entry["duration"] = float(duration)
             entry["offset"] = 0
