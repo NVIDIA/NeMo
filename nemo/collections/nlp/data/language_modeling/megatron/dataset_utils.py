@@ -40,7 +40,6 @@ import numpy as np
 import torch
 from apex.transformer import parallel_state
 
-from nemo.collections.nlp.data.language_modeling.megatron import helpers
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.utils import logging
@@ -425,7 +424,6 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 def build_train_valid_test_datasets(
     cfg,
     trainer,
-    tokenizer,
     data_prefix,
     data_impl,
     splits_string,
@@ -438,6 +436,7 @@ def build_train_valid_test_datasets(
     binary_head=False,
     max_seq_length_dec=None,
     dataset_type='standard_bert',
+    tokenizer=None
 ):
 
     if len(data_prefix) == 1:
@@ -472,7 +471,6 @@ def build_train_valid_test_datasets(
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
             cfg,
             trainer,
-            tokenizer,
             prefixes[i],
             data_impl,
             splits_string,
@@ -511,7 +509,6 @@ def build_train_valid_test_datasets(
 def _build_train_valid_test_datasets(
     cfg,
     trainer,
-    tokenizer,
     data_prefix,
     data_impl,
     splits_string,
@@ -524,6 +521,7 @@ def _build_train_valid_test_datasets(
     binary_head,
     max_seq_length_dec,
     dataset_type='standard_bert',
+    tokenizer=None
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -563,7 +561,7 @@ def _build_train_valid_test_datasets(
 
     def build_dataset(index, name):
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
-        # from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
+        from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
         dataset = None
@@ -596,6 +594,7 @@ def _build_train_valid_test_datasets(
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_T5:
+                assert tokenizer is not None, "Tokenizer is required for T5 dataset"
                 dataset = T5Dataset(
                     cfg=cfg,
                     trainer=trainer,

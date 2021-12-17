@@ -46,3 +46,12 @@ class MegatronDataset(torch.utils.data.Dataset):
                 tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
                 seed=self.cfg.get('seed', 1234),
             )
+
+        try:
+            from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
+
+            compile_helper()
+            logging.info('Megatron dataset helper compiled successfully.')
+            from nemo.collections.nlp.data.language_modeling.megatron import helpers
+        except:
+            raise Exception(f'Could not compile helpers.')
