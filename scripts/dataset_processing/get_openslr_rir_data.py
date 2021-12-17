@@ -28,15 +28,16 @@ from shutil import copy, move
 from zipfile import ZipFile
 from tqdm import tqdm
 
-parser = argparse.ArgumentParser(description='OpenSLR RIR Data download and process')
+parser = argparse.ArgumentParser(description="OpenSLR RIR Data download and process")
 parser.add_argument("--data_root", required=True, default=None, type=str)
 args = parser.parse_args()
 
 URLS = {
-    'SLR28': ("http://www.openslr.org/resources/28/rirs_noises.zip"),
+    "SLR28": ("http://www.openslr.org/resources/28/rirs_noises.zip"),
 }
 
-def __retrieve_with_progress(source:str, filename: str):
+
+def __retrieve_with_progress(source: str, filename: str):
     """
     Downloads source to destination
     Displays progress bar
@@ -45,17 +46,20 @@ def __retrieve_with_progress(source:str, filename: str):
         destination: local filepath
     Returns:
     """
-    with open(filename, 'wb') as f:
+    with open(filename, "wb") as f:
         response = urllib.request.urlopen(source)
         total = response.length
 
         if total is None:
             f.write(response.content)
         else:
-            with tqdm(total = total, unit = 'B', unit_scale = True, unit_divisor = 1024) as pbar:
-                for data in response:    
+            with tqdm(
+                total=total, unit="B", unit_scale=True, unit_divisor=1024
+            ) as pbar:
+                for data in response:
                     f.write(data)
                     pbar.update(len(data))
+
 
 def __maybe_download_file(destination: str, source: str):
     """
@@ -69,8 +73,8 @@ def __maybe_download_file(destination: str, source: str):
     source = URLS[source]
     if not os.path.exists(destination):
         logging.info("{0} does not exist. Downloading ...".format(destination))
-        __retrieve_with_progress(source, filename=destination + '.tmp')
-        os.rename(destination + '.tmp', destination)
+        __retrieve_with_progress(source, filename=destination + ".tmp")
+        os.rename(destination + ".tmp", destination)
         logging.info("Downloaded {0}.".format(destination))
     else:
         logging.info("Destination {0} exists. Skipping.".format(destination))
@@ -79,10 +83,10 @@ def __maybe_download_file(destination: str, source: str):
 
 def __extract_file(filepath: str, data_dir: str):
     try:
-        with ZipFile(filepath, 'r') as zipObj:
+        with ZipFile(filepath, "r") as zipObj:
             zipObj.extractall(data_dir)
     except Exception:
-        logging.info('Not extracting. Maybe already there?')
+        logging.info("Not extracting. Maybe already there?")
 
 
 def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
@@ -97,7 +101,9 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
     if not os.path.exists(dst_folder):
         os.makedirs(dst_folder)
 
-    real_rir_list = os.path.join(data_folder, "RIRS_NOISES", "real_rirs_isotropic_noises", "rir_list")
+    real_rir_list = os.path.join(
+        data_folder, "RIRS_NOISES", "real_rirs_isotropic_noises", "rir_list"
+    )
     rirfiles = []
     with open(real_rir_list, "r") as rir_f:
         for line in rir_f:
@@ -114,9 +120,15 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
         else:
             for chan in range(1, n_chans + 1):
                 chan_file_name = os.path.join(
-                    real_rir_folder, os.path.splitext(os.path.basename(rir_f))[0] + "-" + str(chan) + ".wav"
+                    real_rir_folder,
+                    os.path.splitext(os.path.basename(rir_f))[0]
+                    + "-"
+                    + str(chan)
+                    + ".wav",
                 )
-                _ = subprocess.check_output(f"sox {rir_f} {chan_file_name} remix {chan}", shell=True)
+                _ = subprocess.check_output(
+                    f"sox {rir_f} {chan_file_name} remix {chan}", shell=True
+                )
 
     # move simulated rirs to processed
     if not os.path.exists(os.path.join(dst_folder, "simulated_rirs")):
@@ -124,18 +136,20 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
 
     os.chdir(dst_folder)
     all_rirs = glob.glob("**/*.wav", recursive=True)
-    with open(manifest_file, 'w') as man_f:
+    with open(manifest_file, "w") as man_f:
         entry = {}
         for rir in all_rirs:
             rir_file = os.path.join(dst_folder, rir)
-            duration = subprocess.check_output("soxi -D {0}".format(rir_file), shell=True)
-            entry['audio_filepath'] = rir_file
-            entry['duration'] = float(duration)
-            entry['offset'] = 0
-            entry['text'] = '_'
+            duration = subprocess.check_output(
+                "soxi -D {0}".format(rir_file), shell=True
+            )
+            entry["audio_filepath"] = rir_file
+            entry["duration"] = float(duration)
+            entry["offset"] = 0
+            entry["text"] = "_"
             man_f.write(json.dumps(entry) + "\n")
 
-    print('Done!')
+    print("Done!")
 
 
 def main():
@@ -154,7 +168,7 @@ def main():
         os.path.join(os.path.join(data_root, "processed")),
         os.path.join(os.path.join(data_root, "processed", "rir.json")),
     )
-    logging.info('Done!')
+    logging.info("Done!")
 
 
 if __name__ == "__main__":
