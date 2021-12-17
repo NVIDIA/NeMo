@@ -36,7 +36,7 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-
+        self.get_features = False  # Flag for outputing solely context encodings
         self.feat_penalty = (
             cfg.model_defaults.feature_penalty
         )  # Check if we add L2 regularization of feature encodings
@@ -115,12 +115,21 @@ class Wav2VecEncoderModel(SpeechEncDecSelfSupervisedModel):
         # B, C, T, For compatibility, encoder outputs length as second var.
         logits, _ = self.encoder(features, feature_length)
 
+        if self.feature_only:
+            return unmasked_features, feature_masks, logits
+
         # B, T, C
         logits = self.decoder_ssl(encoder_output=logits)
 
         return unmasked_features, feature_masks, logits
 
     def get_features(self, input_signal, input_signal_length):
-        """Returns only feature encodings"""
+        """
+            Returns forward outputs without projecting to quantizer dimension
+            For model analysis.
+        """
+        self.get_features = True
         with torch.no_grad():
-            return self.preprocessor(input_signal=input_signal, length=input_signal_length)
+            unmasked_features, feature_masks, logits = self(input_signal=input_signal, length=input_signal_length)
+        self.get_features = False
+        return unmasked_features, feature_masks, logits
