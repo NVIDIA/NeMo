@@ -50,6 +50,7 @@ def get_cfg():
 
 
 class TestEntityLinkingModel:
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_creation_saving_restoring(self):
         # Create a new temporary directory
