@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import string
+import sys
 from copy import deepcopy
-from typing import List
+from unicodedata import category
 
 import regex as re
 from tqdm import tqdm
@@ -212,7 +213,9 @@ def post_process_punct(input: str, normalized_text: str):
     """
     input = [x for x in input]
     normalized_text = [x for x in normalized_text]
-    punct_marks = string.punctuation
+    punct_default = [x for x in string.punctuation]
+    punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
+    punct_marks = punct_default + punct_unicode
     try:
         for punct in punct_marks:
             equal = True
