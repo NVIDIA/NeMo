@@ -459,7 +459,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def get_word_dict_seq_list(self, uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined):
         """
-        Save hypothesis words and speaker labels to a dictionary variable for future use.
+        Save the hypothesis words and speaker labels to a dictionary variable for future use.
         """
         words, labels = word_hyp[uniq_id], diar_hyp[uniq_id]
         start_point, end_point, speaker = labels[0].split()
@@ -581,7 +581,7 @@ class ASR_DIAR_OFFLINE(object):
     @experimental
     def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]):
         """
-        Realign the speaker labels to the words using a language model.
+        Realign the mapping between speaker labels and words using a language model.
         The realigning process calculates the probability of the around the words at the boundary between
         two hypothetical sentences spoken by different speakers.
 
@@ -625,7 +625,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def get_alignment_errors(self, ctm_content, hyp_w_dict_list, mapping_dict):
         """
-        Compute a slew of errors using the provided CTM file and RTTM file.
+        Compute various types of errors using the provided CTM file and RTTM file.
 
         The variables computed for CTM file based evaluation:
             error_count : Number of words that have wrong speaker labels
@@ -986,9 +986,9 @@ class ASR_DIAR_OFFLINE(object):
                 \nMISS               : {DER_result_dict['total']['MISS']:.4f} \
                 \nCER                : {DER_result_dict['total']['CER']:.4f} \
                 \nrttm WDER          : {WDER_dict['total_wder_rttm']:.4f} \
-                \nctm WDER Ref.      : {WDER_dict['total_wder_ctm_ref_trans']:.4f} \
-                \nctm WDER ASR Hyp.  : {WDER_dict['total_wder_ctm_pred_asr']:.4f} \
-                \nctm diar-trans Acc.: {WDER_dict['total_diar_trans_acc']:.4f} \
+                \nCTM WDER Ref.      : {WDER_dict['total_wder_ctm_ref_trans']:.4f} \
+                \nCTM WDER ASR Hyp.  : {WDER_dict['total_wder_ctm_pred_asr']:.4f} \
+                \nCTM diar-trans Acc.: {WDER_dict['total_diar_trans_acc']:.4f} \
                 \nmanifest text WER  : {WDER_dict['total_WER']:.4f} \
                 \nalignment Err.     : Mean: {WDER_dict['total_alignment_error_mean']:.4f} STD:{WDER_dict['total_alignment_error_std']:.4f} \
                 \nSpk. counting Acc. : {DER_result_dict['total']['spk_counting_acc']:.4f}"

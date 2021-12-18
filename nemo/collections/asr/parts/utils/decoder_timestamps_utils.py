@@ -158,7 +158,7 @@ class WER_TS(WER):
 
     def decode_tokens_to_str_with_ts(self, tokens: List[int], timestamps: List[int]) -> str:
         """
-        Accepts frame-level tokens and timestamp list and collects the timestamps for
+        Take frame-level tokens and timestamp list and collect the timestamps for
         start and end of each word.
         """
         token_list, timestamp_list = self.decode_ids_to_tokens_with_ts(tokens, timestamps)
@@ -205,7 +205,7 @@ class WER_TS(WER):
 
 def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs):
     """
-    Creates a preprocessor to convert audio samples into raw features,
+    Create a preprocessor to convert audio samples into raw features,
     Normalization will be done per buffer in frame_bufferer.
     """
     asr.reset()
@@ -216,7 +216,7 @@ def get_wer_feat_logit(audio_file_path, asr, frame_len, tokens_per_chunk, delay,
 
 def get_samples(audio_file, target_sr=16000):
     """
-    Reads the samples from the given audio_file path.
+    Read the samples from the given audio_file path.
     """
     with sf.SoundFile(audio_file, 'r') as f:
         dtype = 'int16'
@@ -314,7 +314,7 @@ class ASR_TIMESTAMPS:
 
     def set_asr_model(self, ASR_model_name: str):
         """
-        Initializes the parameters for the given ASR model
+        Initialize the parameters for the given ASR model
         Currently, the following NGC models are supported:
 
             QuartzNet15x5Base-En
@@ -377,7 +377,7 @@ class ASR_TIMESTAMPS:
 
     def load_LM_for_CTC_decoder(self, asr_model: Type[Union[EncDecCTCModel, EncDecCTCModelBPE]]):
         """
-        Loads a language model for CTC decoder (pyctcdecode).
+        Load a language model for CTC decoder (pyctcdecode).
         Note that only EncDecCTCModel and EncDecCTCModelBPE models can use pyctcdecode.
         """
         kenlm_model = self.ctc_decoder_params['pretrained_language_model']
@@ -399,7 +399,7 @@ class ASR_TIMESTAMPS:
 
     def run_ASR_QuartzNet_CTC(self, asr_model: Type[EncDecCTCModel]) -> Tuple[Dict, Dict]:
         """
-        Launches QuartzNet ASR model and collect logit, timestamps and text output
+        Launche QuartzNet ASR model and collect logit, timestamps and text output
 
         Args:
             asr_model (class):
@@ -457,7 +457,7 @@ class ASR_TIMESTAMPS:
     @staticmethod
     def clean_trans_and_TS(trans: str, char_ts: List[str]) -> Tuple[str, List[str]]:
         """
-        Removes the spaces in the beginning and the end.
+        Remove the spaces in the beginning and the end.
         The char_ts need to be changed and synced accordingly.
 
         Args:
@@ -487,7 +487,7 @@ class ASR_TIMESTAMPS:
 
     def _get_spaces(self, trans: str, char_ts: List[str], time_stride: float) -> Tuple[float, List[str]]:
         """
-        Collects the space symbols with a list of words.
+        Collect the space symbols with a list of words.
 
         Args:
             trans (list):
@@ -520,11 +520,11 @@ class ASR_TIMESTAMPS:
 
     def run_ASR_CitriNet_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
-        Launches CitriNet ASR model and collect logit, timestamps and text output
+        Launch CitriNet ASR model and collect logit, timestamps and text output
 
         Args:
             audio_file_list (list):
-                The dictionary of audio file paths.
+                Dictionary of audio file paths.
             asr_model (class):
                 The loaded NeMo ASR model.
 
@@ -573,7 +573,7 @@ class ASR_TIMESTAMPS:
 
     def set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[float, float, float]:
         """
-        Prepares the parameters for the buffered inference
+        Prepare the parameters for the buffered inference
         """
         cfg = copy.deepcopy(asr_model._cfg)
         OmegaConf.set_struct(cfg.preprocessor, False)
@@ -606,7 +606,7 @@ class ASR_TIMESTAMPS:
 
     def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
-        Launches CTC-BPE based ASR model and collect logit, timestamps and text output
+        Launch CTC-BPE based ASR model and collect logit, timestamps and text output
 
         Args:
             audio_file_list (list):
@@ -683,7 +683,7 @@ class ASR_TIMESTAMPS:
 
     def get_word_ts_from_spaces(self, char_ts: List[float], spaces_in_sec: List[float], end_stamp: float) -> List[str]:
         """
-        Takes word timestamps from the spaces from the decoded prediction.
+        Take word timestamps from the spaces from the decoded prediction.
 
         Args:
             char_ts (list):
@@ -713,7 +713,7 @@ class ASR_TIMESTAMPS:
         self, logprob: np.ndarray, onset_delay_in_sec: float = 0, beam_width: int = 32
     ) -> Tuple[List[str], List[str]]:
         """
-        Launches pyctcdecode with the loaded pretrained language model.
+        Launch pyctcdecode with the loaded pretrained language model.
 
         Args:
             logprob (np.ndarray): The log probability from the ASR model inference in numpy array format.
@@ -736,7 +736,7 @@ class ASR_TIMESTAMPS:
     @staticmethod
     def get_word_ts_from_wordframes(idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float):
         """
-        Extracts word timestamps from word frames generated from pyctcdecode
+        Extract word timestamps from word frames generated from pyctcdecode
         """
         offset = -1 * 2.25 * frame_duration - onset_delay
         frame_begin = word_frames[idx][1][0]
@@ -751,7 +751,7 @@ class ASR_TIMESTAMPS:
     @staticmethod
     def align_decoder_delay(word_ts, decoder_delay_in_sec: float):
         """
-        Subtracts decoder_delay_in_sec from the word timestamp output
+        Subtract decoder_delay_in_sec from the word timestamp output
         """
         for k in range(len(word_ts)):
             word_ts[k] = [
