@@ -55,10 +55,10 @@ class TestCardinal:
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
         pred = self.normalizer_en.normalize(test_input, verbose=False, punct_post_process=False)
-        assert pred == expected
+        assert pred == expected, f"input: {test_input}"
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, n_tagged=1000, punct_post_process=False, punct_pre_process=False
+                test_input, n_tagged=30, punct_post_process=False,
             )
-            assert expected in pred_non_deterministic
+            assert expected in pred_non_deterministic, f"input: {test_input}"

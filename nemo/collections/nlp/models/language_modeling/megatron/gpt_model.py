@@ -51,6 +51,7 @@ def post_language_model_processing(
             loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
+
         return loss
 
 
@@ -83,6 +84,9 @@ class GPTModel(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
+        use_soft_prompts=False,
+        num_prompt_tokens=10,
+        prompt_tags=None,
     ):
         super(GPTModel, self).__init__()
 
@@ -124,6 +128,9 @@ class GPTModel(MegatronModule):
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            use_soft_prompts=use_soft_prompts,
+            num_prompt_tokens=num_prompt_tokens,
+            prompt_tags=prompt_tags,
         )
 
         self.initialize_word_embeddings(
@@ -140,6 +147,7 @@ class GPTModel(MegatronModule):
         position_ids,
         attention_mask,
         labels=None,
+        prompt_tags=None,
         tokentype_ids=None,
         layer_past=None,
         get_key_value=False,
@@ -147,7 +155,12 @@ class GPTModel(MegatronModule):
     ):
 
         lm_output = self.language_model(
-            input_ids, position_ids, attention_mask, layer_past=layer_past, get_key_value=get_key_value
+            input_ids,
+            position_ids,
+            attention_mask,
+            prompt_tags=prompt_tags,
+            layer_past=layer_past,
+            get_key_value=get_key_value,
         )
 
         if self.post_process:
@@ -185,3 +198,9 @@ class GPTModel(MegatronModule):
         if self._language_model_key in state_dict:
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
+
+    def _init_prompt_from_random(self, prompt_tag):
+        self.language_model._init_prompt_from_random(prompt_tag)
+
+    def _init_prompt_from_text(self, prompt_tag, init_token_ids):
+        self.language_model._init_prompt_from_text(prompt_tag, init_token_ids)
