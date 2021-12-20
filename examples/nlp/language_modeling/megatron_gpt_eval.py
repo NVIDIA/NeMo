@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import json
 from argparse import ArgumentParser
 
 import torch
@@ -35,12 +35,32 @@ Usage:
             --path_to_file=PATH_TO_FILE \
             --tokens_to_generate=32 \
             --batch_size=16 \
-            --prompt .
 
     b. If you need to run model on a prompt from the CLI:
         python megatron_gpt_eval.py \
             --model_file=PATH_TO_MODEL \
             --tokens_to_generate=32 \
+            --prompt=YOUR_PROMPT
+
+    c. If you need to run a prompt-tuned model on a few prompts from a file:
+        python megatron_gpt_eval.py \
+            --use_soft_prompts \
+            --model_file=PATH_TO_MODEL \
+            --path_to_file=PATH_TO_FILE \
+            --tokens_to_generate=32 \
+            --batch_size=16 \
+
+        The path_to_file containing the model prompts should be a json with prompts in the format:
+            {'prompt_tag': tag1, 'text': prompt1}
+            {'prompt_tag': tag1, 'text': prompt2}
+            {'prompt_tag': tag3, 'text': prompt3}
+
+    d. If you need to run the model on a prompt from the CLI:
+        python megatron_gpt_eval.py \
+            --use_soft_prompts \
+            --model_file=PATH_TO_MODEL \
+            --tokens_to_generate=32 \
+            --prompt_tag=PROMPT_TAG_STRING \
             --prompt=YOUR_PROMPT
 """
 
@@ -49,12 +69,16 @@ assert torch.cuda.is_available()
 
 def main():
     parser = ArgumentParser()
+    parser.add_argument("--use_soft_prompts", action="store_true", help="Use model's existing soft prompts")
     parser.add_argument("--model_file", type=str, default="", required=True, help="Pass path to model's .nemo file")
     parser.add_argument(
         "--path_to_file", type=str, default="", required=False, help="Path to file with prompts (a text to complete)"
     )
     parser.add_argument(
-        "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
+        "--prompt", type=str, default="", required=False, help="Prompt for the model (a text to complete)"
+    )
+    parser.add_argument(
+        "--prompt_tag", type=str, default="", required=False, help="Prompt tag string for task specific soft prompt"
     )
     parser.add_argument(
         "--tokens_to_generate", type=int, default="1", required=False, help="How many tokens to add to prompt"
@@ -95,8 +119,17 @@ def main():
 
         tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=50256)
         data = []
-        for token, lenn in zip(tokens_pad.T, lens):
-            data.append((token, lenn, tokens_to_generate))
+
+        if 'prompt_tags' in batch[0]:
+            # Keep track of soft prompt tags
+            prompt_tags = batch[0]['prompt_tags']
+
+            for token, lenn, prompt_tag in zip(tokens_pad.T, lens, prompt_tags):
+                data.append((token, lenn, tokens_to_generate, prompt_tag))
+        else:
+            for token, lenn in zip(tokens_pad.T, lens):
+                data.append((token, lenn, tokens_to_generate))
+
         return data
 
     # defining type of request
@@ -105,16 +138,30 @@ def main():
         prompts = open(args.path_to_file, 'r')
 
         for prompt in prompts.readlines():
-            request.append(prompt.split('\n')[0])
+            prompt = prompt.split('\n')[0]
+
+            if args.use_soft_prompts and model.use_soft_prompts:
+                prompt = json.loads(prompt)
+
+            request.append(prompt)
 
         dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=int(args.batch_size))
-        response = trainer.predict(model, request_dl)
+
     else:
-        request = [args.prompt]
+        if args.use_soft_prompts and model.use_soft_prompts:
+            request = [{'prompt_tag': args.prompt_tag, 'text': args.prompt}]
+        else:
+            request = [args.prompt]
+
         dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
-        response = trainer.predict(model, request_dl)
+
+    # For GPT models that have had soft prompt tuning but you don't want to use any soft prompts
+    if not args.use_soft_prompts and model.use_soft_prompts:
+        model.use_soft_prompts = False
+
+    response = trainer.predict(model, request_dl)
 
     print("***************************")
     print(response)

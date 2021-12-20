@@ -57,6 +57,8 @@ class PerceiverEncoder(torch.nn.Module):
                 )
             )
 
+        diagonal = 0 if mask_future else None
+
         if self.hidden_init_method == "params":
             # learnable initial hidden values
             self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
@@ -72,6 +74,7 @@ class PerceiverEncoder(torch.nn.Module):
                 pre_ln=pre_ln,
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
             )
+            self.init_cross_att.diagonal = diagonal
         elif self.hidden_init_method == "bridge":
             # initialize latent with attention bridge
             self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
@@ -89,6 +92,7 @@ class PerceiverEncoder(torch.nn.Module):
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
+        layer.diagonal = diagonal
         self.cross_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
 
         # self-attention encoder
