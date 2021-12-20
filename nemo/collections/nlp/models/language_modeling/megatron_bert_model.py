@@ -241,7 +241,7 @@ class MegatronBertModel(NLPModel):
             data_prefix=self.cfg.data.data_prefix,
             data_impl=self.cfg.data.data_impl,
             splits_string=self.cfg.data.splits_string,
-            train_valud_test_num_samples=train_valid_test_num_samples,
+            train_valid_test_num_samples=train_valid_test_num_samples,
             max_seq_length=self.cfg.data.seq_length,
             masked_lm_prob=self.cfg.data.masked_lm_prob,
             short_seq_prob=self.cfg.data.short_seq_prob,
