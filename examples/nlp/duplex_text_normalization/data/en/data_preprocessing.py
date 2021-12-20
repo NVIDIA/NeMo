@@ -49,9 +49,9 @@ from argparse import ArgumentParser
 
 import inflect
 import regex as re
-import wordninja
 from tqdm import tqdm
 
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization.constants import EN_GREEK_TO_SPOKEN
 from nemo.collections.nlp.data.text_normalization.utils import (
     add_space_around_dash,
@@ -87,6 +87,7 @@ number_verbalizations = (
     + ["point"]
 )
 digit = "0123456789"
+processor = MosesProcessor(lang_id="en")
 
 
 def process_url(o):
@@ -128,7 +129,7 @@ def process_url(o):
             else:
                 o += o_token
         o = o.strip()
-        o_tokens = wordninja.split(o)
+        o_tokens = processor.tokenize(o).split()
         o = ' '.join(o_tokens)
 
     return o
