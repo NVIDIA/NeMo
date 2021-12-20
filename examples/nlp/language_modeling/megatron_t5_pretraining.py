@@ -14,7 +14,7 @@
 
 from pathlib import Path
 
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
@@ -66,12 +66,13 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
+    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
+
     model = MegatronT5Model(cfg.model, trainer)
 
     trainer.fit(model)
-
-    if cfg.model.get('nemo_file_path', None) is not None:
-        model.save_to(cfg.model.nemo_file_path)
 
 
 if __name__ == '__main__':

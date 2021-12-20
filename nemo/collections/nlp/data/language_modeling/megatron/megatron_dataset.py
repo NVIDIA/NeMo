@@ -53,5 +53,6 @@ class MegatronDataset(torch.utils.data.Dataset):
             compile_helper()
             logging.info('Megatron dataset helper compiled successfully.')
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
+        except ImportError:
+            logging.error('Could not compile megatron dataset C++ helper functions.')
+            raise ImportError(f'Could not compile megatron dataset C++ helper functions and so cannot import helpers.')
