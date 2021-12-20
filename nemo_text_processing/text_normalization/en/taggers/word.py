@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_NOT_SPACE, GraphFst
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 
 try:
@@ -40,4 +40,10 @@ class WordFst(GraphFst):
 
         punct = PunctuationFst().graph
         self.graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, punct.project("input")), 1)
+
+        if not deterministic:
+            self.graph = pynini.closure(
+                pynini.difference(self.graph, pynini.union("$", "€", "₩", "£", "¥") + pynini.closure(NEMO_DIGIT, 1)), 1
+            )
+
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
