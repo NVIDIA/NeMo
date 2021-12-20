@@ -16,6 +16,7 @@ import os
 import re
 from typing import Any, Dict, Optional
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from pytorch_lightning.utilities.distributed import rank_zero_only
 
 import torch
 import torch.nn.functional as F
@@ -166,6 +167,7 @@ class MegatronGPTModel(NLPModel):
             num_prompt_tokens=self.cfg.get('num_prompt_tokens', 10),
             prompt_tags=self.cfg.get('existing_prompt_tags', None),
         )
+
         return model
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
@@ -226,7 +228,6 @@ class MegatronGPTModel(NLPModel):
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
 
-        # Reduced loss for logging.
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
@@ -576,13 +577,8 @@ class MegatronGPTModel(NLPModel):
             self.setup_test_data(self.cfg.data)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
-        # if not using pipeline parallel, then this call will do nothing
-        self.model.initialize_word_embeddings(
-            init_method=init_method_normal(self.cfg.get('init_method_std', 0.02)),
-            vocab_size=self.padded_vocab_size,
-            hidden_size=self.cfg.hidden_size,
-            pipeline_model_parallel_size=parallel_state.get_pipeline_model_parallel_world_size(),
-        )
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            self.model.sync_initial_word_embeddings()
 
     def setup_training_data(self, cfg):
         if self.use_soft_prompts:
@@ -687,8 +683,10 @@ class MegatronGPTModel(NLPModel):
             # grep fp32 master parameters for gradient clipping
             parameters = self._optimizer.get_parameters()
         else:
-            parameters = self.model.parameters()
-        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+            parameters = self.get_parameters()
+
+        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, rank_zero_only=True)
+
         self.log('grad_norm', grad_norm)
 
     def prompt_tuning_freeze(self):

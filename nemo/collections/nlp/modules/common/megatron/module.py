@@ -63,14 +63,14 @@ class MegatronModule(torch.nn.Module):
             return self.word_embeddings.weight
         raise Exception('word_embeddings_weight() should be ' 'called for first and last stage only')
 
-    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size, pipeline_model_parallel_size=1):
+    def initialize_word_embeddings(self, init_method, vocab_size, hidden_size):
         if not self.share_word_embeddings:
             raise Exception('initialize_word_embeddings() was called but ' 'share_word_embeddings is false')
 
         # This function just initializes the word embeddings in the final stage
         # when we are using pipeline parallelism. If we aren't using pipeline
         # parallelism there is nothing to do.
-        if pipeline_model_parallel_size == 1:
+        if parallel_state.get_pipeline_model_parallel_world_size() == 1:
             return
 
         # Parameters are shared between the word embeddings layer, and the
@@ -96,8 +96,8 @@ class MegatronModule(torch.nn.Module):
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
 
-        # Ensure that first and last stages have the same initial parameter
-        # values.
+    def sync_initial_word_embeddings(self):
+
         if torch.distributed.is_initialized():
             if parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage():
                 torch.distributed.all_reduce(
@@ -106,7 +106,7 @@ class MegatronModule(torch.nn.Module):
         else:
             logging.warning(
                 "WARNING! Distributed processes aren't initialized, so "
-                "word embeddings in the last layer are not initialized. "
+                "word embeddings in the last layer are not synchronized. "
                 "If you are just manipulating a model this is fine, but "
                 "this needs to be handled manually. If you are training "
                 "something is definitely wrong."
