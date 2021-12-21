@@ -40,14 +40,14 @@ class ByteLevelTokenizer(TokenizerSpec):
         self.vocab_size = 259
         self.special_start = 256
         self.special_token_to_id = {
-                            self.pad_id: self.pad_id,
-                            self.bos_id: self.bos_id,
-                            self.eos_id: self.eos_id,
-                                   }
+            self.pad_id: self.pad_id,
+            self.bos_id: self.bos_id,
+            self.eos_id: self.eos_id,
+        }
         for tok in special_tokens:
             self.special_start -= 1
             self.special_token_to_id[tok] = self.special_start
-        
+
         self.id_to_special_token = {v: k for k, v in self.special_token_to_id.items()}
 
     # no distinction between tokens and ids.
@@ -86,7 +86,7 @@ class ByteLevelTokenizer(TokenizerSpec):
             return self.special_token_to_id[token]
         else:
             return token
-    
+
     def id_to_token(self, id):
         if id < self.special_start:
             return id
