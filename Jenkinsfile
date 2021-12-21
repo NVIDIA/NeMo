@@ -1989,7 +1989,7 @@ pipeline {
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
         sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
         trainer.gpus=2 \
         trainer.log_every_n_steps=1 \
@@ -2009,11 +2009,27 @@ pipeline {
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
         sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
       }
     }
-
+      stage('L2: Megatron T5 Eval') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh "python examples/nlp/language_modeling/megatron_t5_eval.py \
+            --model_file \
+            /home/TestData/nlp/megatron_t5/220m/megatron_t5_220m.nemo \
+            --prompt \
+            'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
+            --tensor_model_parallel_size 1"
+      }
+    }
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {

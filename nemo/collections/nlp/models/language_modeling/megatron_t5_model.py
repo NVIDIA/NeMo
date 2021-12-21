@@ -121,14 +121,14 @@ class MegatronT5Model(NLPModel):
         output_enc_hidden=False,
     ):
         result = self.model(
-            encoder_input_ids,
-            decoder_input_ids,
-            encoder_attn_mask,
-            decoder_attn_mask,
-            encoder_decoder_attn_mask,
-            tokentype_ids,
-            lm_labels,
-            enc_hidden_states,
+            encoder_input_ids=encoder_input_ids,
+            decoder_input_ids=decoder_input_ids,
+            encoder_attn_mask=encoder_attn_mask,
+            decoder_attn_mask=decoder_attn_mask,
+            encoder_decoder_attn_mask=encoder_decoder_attn_mask,
+            tokentype_ids=tokentype_ids,
+            lm_labels=lm_labels,
+            enc_hidden_states=enc_hidden_states,
             output_enc_hidden=output_enc_hidden,
         )
         if not output_enc_hidden:
