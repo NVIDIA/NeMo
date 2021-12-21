@@ -56,7 +56,7 @@ class GPTRequestDataset(Dataset):
         return 1
 
     def __getitem__(self, index):
-        return self.request
+        return self.data
 
 
 class T5RequestDataset(Dataset):
