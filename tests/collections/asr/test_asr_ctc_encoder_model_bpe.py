@@ -75,6 +75,7 @@ def asr_model(test_data_dir):
 
 
 class TestEncDecCTCModel:
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor(self, asr_model):
         asr_model.train()
@@ -84,6 +85,7 @@ class TestEncDecCTCModel:
         instance2 = EncDecCTCModelBPE.from_config_dict(confdict)
         assert isinstance(instance2, EncDecCTCModelBPE)
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_forward(self, asr_model):
         asr_model = asr_model.eval()
@@ -114,6 +116,7 @@ class TestEncDecCTCModel:
         diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -127,6 +130,7 @@ class TestEncDecCTCModel:
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -147,6 +151,7 @@ class TestEncDecCTCModel:
             assert new_model.tokenizer.tokenizer.vocab_size == 128
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
