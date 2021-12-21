@@ -13,15 +13,15 @@
 # limitations under the License.
 
 
+from argparse import ArgumentParser
+
 import torch
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPPlugin, NLPSaveRestoreConnector)
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
-from argparse import ArgumentParser
 
 
 def merge_parition(model, partitions, write_path=None):
@@ -34,24 +34,30 @@ def merge_parition(model, partitions, write_path=None):
         else:
             concated = torch.cat([partitions[i][idx].data for i in range(len(partitions))], dim=0)
         if concated.shape != param.shape:
-            logging.info(f"Warning: Shape mismatch for parameter {name} required shape: {param.shape}, merged shape: {concated.shape}. Narrowing to match required size.")
+            logging.info(
+                f"Warning: Shape mismatch for parameter {name} required shape: {param.shape}, merged shape: {concated.shape}. Narrowing to match required size."
+            )
             if concated.shape[1:] == param.shape[1:]:
                 concated = torch.narrow(concated, 0, 0, param.shape[0])
             elif concated.shape[:-1] == param.shape[:-1]:
                 concated = torch.narrow(concated, -1, 0, param.shape[-1])
             else:
-                raise RuntimeError(f"Can not handle parameter {name}, required shape: {param.shape}, merged shape: {concated.shape}.")
+                raise RuntimeError(
+                    f"Can not handle parameter {name}, required shape: {param.shape}, merged shape: {concated.shape}."
+                )
         param.data = concated
         idx += 1
-    
+
     if write_path is not None:
         model.save_to(write_path)
 
 
 def split_partition(model, partitions, tp_size, write_path=None):
     if len(partitions) != 1:
-        raise ValueError("Can only split partitions of model with TP=1. For partitions of models with TP>1, merge first.")
-    
+        raise ValueError(
+            "Can only split partitions of model with TP=1. For partitions of models with TP>1, merge first."
+        )
+
     if tp_size < 1:
         raise ValueError("TP size must to be >= 1.")
 
@@ -59,29 +65,31 @@ def split_partition(model, partitions, tp_size, write_path=None):
     app_state.data_parallel_rank = 0
     app_state.model_parallel_size = tp_size
     app_state.model_parallel_rank = tp_size - 1
-    
+
     idx = 0
     splits = []
     for _, param in model.named_parameters():
         if param.shape == partitions[0][idx].shape:
-            split = [partitions[0][idx].data]*tp_size
+            split = [partitions[0][idx].data] * tp_size
         elif param.shape[0] == partitions[0][idx].shape[0]:
             split = torch.split(partitions[0][idx].data, param.shape[-1], dim=-1)
         else:
             split = torch.split(partitions[0][idx].data, param.shape[0], dim=0)
         splits.append(split)
         idx += 1
-    
-    for i in range(tp_size-1, -1, -1):
+
+    for i in range(tp_size - 1, -1, -1):
         app_state.model_parallel_rank = i
-        
+
         idx = 0
         for name, param in model.named_parameters():
             split_val = splits[idx][i]
 
             if param.shape != split_val.shape:
-                logging.info (f"Warning: Shape mismatch for parameter {name} required shape: {param.shape}, split shape: {split_val.shape}. Padding to match required size.")
-            
+                logging.info(
+                    f"Warning: Shape mismatch for parameter {name} required shape: {param.shape}, split shape: {split_val.shape}. Padding to match required size."
+                )
+
                 if split_val.shape[1:] == param.shape[1:]:
                     pad = [0, 0] * len(split_val.shape)
                     pad[-1] = param.shape[0] - split_val.shape[0]
@@ -90,11 +98,13 @@ def split_partition(model, partitions, tp_size, write_path=None):
                     pad = [0, param.shape[-1] - split_val.shape[-1]]
                     split_val = torch.nn.functional.pad(split_val, pad, 'constant')
                 else:
-                    raise RuntimeError(f"Can not handle parameter {name}, required shape: {param.shape}, split shape: {split_val.shape}.")
-            
+                    raise RuntimeError(
+                        f"Can not handle parameter {name}, required shape: {param.shape}, split shape: {split_val.shape}."
+                    )
+
             param.data = split_val
             idx += 1
-        
+
         if write_path is not None:
             model.save_to(write_path)
 
@@ -103,12 +113,8 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--model_file", type=str, required=True, help="Path to source .nemo file")
     parser.add_argument("--target_file", type=str, required=True, help="Path to write target .nemo file")
-    parser.add_argument(
-        "--tensor_model_parallel_size", type=int, required=True, help="TP size of source model"
-    )
-    parser.add_argument(
-        "--target_tensor_model_parallel_size", type=int, required=True, help="TP size of target model"
-    )
+    parser.add_argument("--tensor_model_parallel_size", type=int, required=True, help="TP size of source model")
+    parser.add_argument("--target_tensor_model_parallel_size", type=int, required=True, help="TP size of target model")
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
 
     args = parser.parse_args()
@@ -131,7 +137,7 @@ def main():
             model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
             params = [p for _, p in model.named_parameters()]
             partitions.append(params)
-        
+
         model.cfg.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
         trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
