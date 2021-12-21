@@ -41,7 +41,7 @@ class PunctuationFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
 
-        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""
+        s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
 
         punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
         punct_unicode.remove('[')
