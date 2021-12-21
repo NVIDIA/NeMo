@@ -41,16 +41,33 @@ class GPTRequestDataset(Dataset):
         self.tokens_to_generate = tokens_to_generate
         self.compute_logprobs = compute_logprobs
         self.tokens = []
+        self.prompt_tags = []
 
         # tokenize prompt
         for request in self.requests:
-            self.tokens.append(torch.tensor(self.tokenizer.text_to_ids(request)))
+            if type(request) == dict:
+                prompt_tag = request['prompt_tag']
+                self.prompt_tags.append(prompt_tag)
+                text = request['text']
+            else:
+                text = request
 
-        self.data = {
-            'data': self.tokens,
-            'tokens_to_generate': self.tokens_to_generate,
-            'compute_logprobs': self.compute_logprobs,
-        }
+            self.tokens.append(torch.tensor(self.tokenizer.text_to_ids(text)))
+
+        if self.prompt_tags:
+            self.data = {
+                'prompt_tags': self.prompt_tags,
+                'data': self.tokens,
+                'tokens_to_generate': self.tokens_to_generate,
+                'compute_logprobs': self.compute_logprobs,
+            }
+
+        else:
+            self.data = {
+                'data': self.tokens,
+                'tokens_to_generate': self.tokens_to_generate,
+                'compute_logprobs': self.compute_logprobs,
+            }
 
     def __len__(self):
         return 1
