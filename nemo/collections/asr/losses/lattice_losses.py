@@ -14,12 +14,10 @@
 # limitations under the License.
 
 import torch
-from torch import nn
 
 from nemo.collections.asr.parts.k2.grad_utils import PartialGrad
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
-from nemo.utils import logging
 
 
 class LatticeLoss(Loss):

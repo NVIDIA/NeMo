@@ -15,8 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import division, print_function
-
 import argparse
 import math
 import sys
@@ -179,7 +177,7 @@ class NgramCounts(object):
     def AddRawCountsFromLine(self, line):
         try:
             words = [self.bos_symbol] + [int(x) for x in line.split()] + [self.eos_symbol]
-        except:
+        except Exception:
             sys.exit("make_phone_lm.py: bad input line {0} (expected a sequence " "of integers)".format(line))
 
         for n in range(1, len(words)):
@@ -291,7 +289,7 @@ class NgramCounts(object):
             backoff_prob = float(counts_for_hist.word_to_count[self.backoff_symbol]) / total_count
             try:
                 prob += backoff_prob * prob_in_backoff
-            except:
+            except Exception:
                 sys.exit("problem, hist is {0}, word is {1}".format(hist, word))
         return prob
 
@@ -417,7 +415,7 @@ class NgramCounts(object):
                 # add the backed-off n-grams (7, 8) -> 9 and (8) -> 9 to
                 # 'protected-ngrams'.
                 reduced_hist = hist
-                for m in reversed(list(range(args.no_backoff_ngram_order, n))):
+                for _ in reversed(list(range(args.no_backoff_ngram_order, n))):
                     reduced_hist = reduced_hist[1:]  # shift an element off
                     # the history.
 
@@ -428,7 +426,7 @@ class NgramCounts(object):
                 # history-state (6, 7, 8), then n-grams (6, 7, 8) and (6, 7) are
                 # protected.  This assures that the FST states are accessible.
                 reduced_hist = hist
-                for m in reversed(list(range(args.no_backoff_ngram_order, n))):
+                for _ in reversed(list(range(args.no_backoff_ngram_order, n))):
                     ans.add(reduced_hist)
                     reduced_hist = reduced_hist[:-1]  # pop an element off the
                     # history
@@ -583,7 +581,7 @@ class NgramCounts(object):
         # levels of backoff.
         try:
             backoff_count = self.GetProb(hist[1:], word) * backoff_total
-        except:
+        except Exception:
             print(
                 "problem getting backoff count: hist = {0}, word = {1}".format(hist, word), file=sys.stderr,
             )
@@ -738,7 +736,7 @@ class NgramCounts(object):
 
     def GetNumNgrams(self, hist_len=None):
         ans = 0
-        if hist_len == None:
+        if hist_len is None:
             for hist_len in range(args.ngram_order):
                 # note: hist_len + 1 is the actual order.
                 ans += self.GetNumNgrams(hist_len)
@@ -826,7 +824,7 @@ if args.verbose >= 3:
 if args.print_as_arpa == "true":
     ngram_counts.PrintAsArpa()
 else:
-    if args.phone_disambig_symbol == None:
+    if args.phone_disambig_symbol is None:
         sys.exit("make_phone_lm.py: --phone-disambig-symbol must be provided (unless " "you are writing as ARPA")
     ngram_counts.PrintAsFst(args.phone_disambig_symbol)
 

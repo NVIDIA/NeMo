@@ -12,15 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import Optional
 
-import editdistance
 import k2
-import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.lattice_losses import LatticeLoss
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -125,24 +122,23 @@ class EncDecK2SeqModel(EncDecCTCModel):
                 self.token_lm_cache_dict = state_dict.pop("wfst_graph.token_lm")
         super().load_state_dict(state_dict, strict=strict)
 
-    def change_vocabulary(self, new_tokenizer_dir: str, new_tokenizer_type: str):
+    def change_vocabulary(self, new_vocabulary: List[str]):
         """
-        Changes vocabulary of the tokenizer used during CTC decoding process.
-        Use this method when fine-tuning on from pre-trained model.
+        Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
         This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
         use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
         model to learn capitalization, punctuation and/or special characters.
 
+        If new_vocabulary == self.decoder.vocabulary then nothing will be changed.
+
         Args:
-            new_tokenizer_dir: Path to the new tokenizer directory.
-            new_tokenizer_type: Either `bpe` or `wpe`. `bpe` is used for SentencePiece tokenizers,
-                whereas `wpe` is used for `BertTokenizer`.
+            new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
+            this is target alphabet.
 
         Returns: None
 
         """
-        raise NotImplementedError
-        super().change_vocabulary(new_tokenizer_dir, new_tokenizer_type)
+        super().change_vocabulary(new_vocabulary)
 
         loss_kwargs = self._cfg.get("loss", {})
 
@@ -325,7 +321,6 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         Returns: None
 
         """
-        raise NotImplementedError
         super().change_vocabulary(new_tokenizer_dir, new_tokenizer_type)
 
         loss_kwargs = self._cfg.get("loss", {})

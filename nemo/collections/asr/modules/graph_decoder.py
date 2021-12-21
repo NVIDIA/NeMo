@@ -14,7 +14,7 @@
 
 import torch
 
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
 
 

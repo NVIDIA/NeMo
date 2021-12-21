@@ -20,7 +20,8 @@ class GradExpNormalize(torch.autograd.Function):
     Typical use case is normalization for mle loss.
     """
 
-    def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
+    @staticmethod
+    def make_non_pad_mask(ctx, input_lengths: torch.Tensor, seq_len: int):
         batch_size = input_lengths.shape[0]
         seq_range = torch.arange(0, seq_len, dtype=torch.int64)
         seq_range_expand = seq_range.unsqueeze(0).expand(batch_size, seq_len)

@@ -26,7 +26,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import k2
 import torch
@@ -71,10 +71,11 @@ class MLLoss(torch.nn.Module):
         elif graph_type == "graph":
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingNumGraphCompiler as compiler
 
-            raise NotImplementedError("Not tested yet")
             if isinstance(aux_graph, str):
                 aux_graph = load_graph(aux_graph)
             self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=aux_graph)
+
+            raise NotImplementedError("Not tested yet")
         else:
             raise ValueError(f"Invalid value of `graph_type`: {graph_type}.")
 

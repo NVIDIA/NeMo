@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple
+from typing import List
 
 import k2
-import torch
 
 
 def build_topo(name: str, tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
