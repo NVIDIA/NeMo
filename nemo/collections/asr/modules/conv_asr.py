@@ -491,6 +491,7 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         kernel_size=11,
         init_mode="xavier_uniform",
         activation="relu",
+        stride_transpose=True,
     ):
         super().__init__()
 
@@ -504,6 +505,35 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         self.feat_hidden = feat_hidden
 
         self.decoder_layers = [nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)]
+        for i in range(stride_layers):
+            self.decoder_layers.append(activation)
+            if stride_transpose:
+                self.decoder_layers.append(
+                    nn.ConvTranspose1d(
+                        self.feat_hidden,
+                        self.feat_hidden,
+                        kernel_size,
+                        stride=2,
+                        padding=(kernel_size - 3) // 2 + 1,
+                        output_padding=1,
+                        bias=True,
+                        groups=self.feat_hidden,
+                    )
+                )
+            else:
+                self.decoder_layers.append(
+                    nn.Conv1d(
+                        self.feat_hidden,
+                        self.feat_hidden,
+                        kernel_size,
+                        stride=2,
+                        padding=(kernel_size - 1) // 2,
+                        bias=True,
+                        groups=self.feat_hidden,
+                    )
+                )
+            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
+            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
         for i in range(non_stride_layers):
             self.decoder_layers.append(activation)
             self.decoder_layers.append(
@@ -514,22 +544,6 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
                     bias=True,
                     groups=self.feat_hidden,
                     padding=kernel_size // 2,
-                )
-            )
-            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
-            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
-        for i in range(stride_layers):
-            self.decoder_layers.append(activation)
-            self.decoder_layers.append(
-                nn.ConvTranspose1d(
-                    self.feat_hidden,
-                    self.feat_hidden,
-                    kernel_size,
-                    stride=2,
-                    padding=(kernel_size - 3) // 2 + 1,
-                    output_padding=1,
-                    bias=True,
-                    groups=self.feat_hidden,
                 )
             )
             self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
