@@ -788,7 +788,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return output
 
     def on_train_end(self, trainer, pl_module):
-        if trainer.fast_dev_run:
+        if trainer.fast_dev_run or trainer.callback_metrics["val_loss"].isnan() == True:
             return None
 
         # Call parent on_train_end() to save the -last checkpoint
