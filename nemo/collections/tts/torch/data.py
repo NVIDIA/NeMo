@@ -514,7 +514,9 @@ class TTSDataset(Dataset):
             if Durations in self.sup_data_types_set:
                 durations_list.append(general_padding(durations, len(durations), max_durations_len))
             if AlignPriorMatrix in self.sup_data_types_set:
-                align_prior_matrices[i, : align_prior_matrix.shape[0], : align_prior_matrix.shape[1]] = align_prior_matrix
+                align_prior_matrices[
+                    i, : align_prior_matrix.shape[0], : align_prior_matrix.shape[1]
+                ] = align_prior_matrix
             if Pitch in self.sup_data_types_set:
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
             if Energy in self.sup_data_types_set:

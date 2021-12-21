@@ -15,6 +15,7 @@
 
 class TTSDataType:
     """Represent TTSDataType."""
+
     name = None
 
 

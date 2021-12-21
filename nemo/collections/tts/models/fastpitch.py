@@ -41,7 +41,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
-
 # @dataclass
 # class FastPitchConfig:
 #     parser: Dict[Any, Any] = MISSING
