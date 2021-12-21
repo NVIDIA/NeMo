@@ -12,6 +12,7 @@ whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_sp
 
 model:
   learn_alignment: true
+  bin_loss_warmup_epochs: 100
   n_speakers: 1
   symbols_embedding_dim: 384
   max_token_duration: 75
@@ -26,6 +27,29 @@ model:
   pitch_fmax: 640
   pitch_avg: 211.27540199742586
   pitch_std: 52.1851002822779
+
+  text_normalizer:
+    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
+    lang: "en"
+    input_case: "cased"
+    whitelist: ${whitelist_path}
+
+  text_normalizer_call_args:
+    verbose: false
+    punct_pre_process: true
+    punct_post_process: true
+
+  text_tokenizer:
+    _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+    punct: true
+    stresses: true
+    chars: true
+    apostrophe: true
+    pad_with_space: true
+    g2p:
+      _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+      phoneme_dict: ${phoneme_dict_path}
+      heteronyms: ${heteronyms_path}
 
   train_ds:
     dataset:
@@ -44,45 +68,18 @@ model:
       max_duration: null
       min_duration: 0.1
       ignore_file: null
-      trim: False
+      trim: false
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
       pitch_avg: ${model.pitch_avg}
       pitch_std: ${model.pitch_std}
 
-      text_normalizer:
-        _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
-        lang: "en"
-        input_case: "cased"
-        whitelist: ${whitelist_path}
-
-      text_normalizer_call_args:
-        verbose: False
-        punct_pre_process: True
-        punct_post_process: True
-
-      text_tokenizer:
-        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
-        punct: True
-        stresses: True
-        chars: True
-        space: ' '
-        silence: null
-        apostrophe: True
-        sep: '|'
-        add_blank_at: null
-        pad_with_space: True
-        g2p:
-          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
-          phoneme_dict: ${phoneme_dict_path}
-          heteronyms: ${heteronyms_path}
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 32
       num_workers: 12
-
 
   validation_ds:
     dataset:
@@ -101,39 +98,12 @@ model:
       max_duration: null
       min_duration: null
       ignore_file: null
-      trim: False
+      trim: false
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
       pitch_avg: ${model.pitch_avg}
       pitch_std: ${model.pitch_std}
-
-      text_normalizer:
-        _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
-        lang: "en"
-        input_case: "cased"
-        whitelist: ${whitelist_path}
-
-      text_normalizer_call_args:
-        verbose: False
-        punct_pre_process: True
-        punct_post_process: True
-
-      text_tokenizer:
-        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
-        punct: True
-        stresses: True
-        chars: True
-        space: ' '
-        silence: null
-        apostrophe: True
-        sep: '|'
-        add_blank_at: null
-        pad_with_space: True
-        g2p:
-          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
-          phoneme_dict: ${phoneme_dict_path}
-          heteronyms: ${heteronyms_path}
 
     dataloader_params:
       drop_last: false
@@ -229,7 +199,7 @@ trainer:
   strategy: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
   gradient_clip_val: 1000.0
   flush_logs_every_n_steps: 1000
   log_every_n_steps: 100

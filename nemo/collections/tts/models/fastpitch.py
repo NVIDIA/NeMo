@@ -63,7 +63,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.normalizer = None
         self.text_normalizer_call = None
         self.text_normalizer_call_args = {}
-        self._setup_normalizer(cfg.train_ds.dataset)
+        self._setup_normalizer(cfg)
 
         self.learn_alignment = cfg.get("learn_alignment", False)
 
@@ -78,7 +78,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 input_fft_kwargs["n_embed"] = len(self.vocab.labels)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
             elif self.ds_class_name == "TTSDataset":
-                self._setup_tokenizer(cfg.train_ds.dataset)
+                self._setup_tokenizer(cfg)
                 assert self.vocab is not None
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
@@ -138,40 +138,38 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         self._input_types = self._output_types = None
 
-    def _setup_normalizer(self, train_ds_dataset_cfg):
-        if "text_normalizer" in train_ds_dataset_cfg:
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
             normalizer_kwargs = {}
-            if "whitelist" in train_ds_dataset_cfg.text_normalizer:
+
+            if "whitelist" in cfg.text_normalizer:
                 normalizer_kwargs["whitelist"] = self.register_artifact(
-                    'train_ds.dataset.text_normalizer.whitelist', train_ds_dataset_cfg.text_normalizer.whitelist
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
                 )
-            self.normalizer = instantiate(train_ds_dataset_cfg.text_normalizer, **normalizer_kwargs)
 
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_args" in cfg:
+                self.text_normalizer_call_args = cfg.text_normalizer_call_args
 
-            if "text_normalizer_call_args" in train_ds_dataset_cfg:
-                self.text_normalizer_call_args = train_ds_dataset_cfg.text_normalizer_call_args
-
-    def _setup_tokenizer(self, train_ds_dataset_cfg):
-        if "g2p" in train_ds_dataset_cfg.text_tokenizer:
+    def _setup_tokenizer(self, cfg):
+        text_tokenizer_kwargs = {}
+        if "g2p" in cfg.text_tokenizer:
             g2p_kwargs = {}
-            if "phoneme_dict" in train_ds_dataset_cfg.text_tokenizer.g2p:
+
+            if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'train_ds.dataset.text_tokenizer.g2p.phoneme_dict',
-                    train_ds_dataset_cfg.text_tokenizer.g2p.phoneme_dict,
-                )
-            if "heteronyms" in train_ds_dataset_cfg.text_tokenizer.g2p:
-                g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'train_ds.dataset.text_tokenizer.g2p.heteronyms',
-                    train_ds_dataset_cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
-            self.vocab = instantiate(
-                train_ds_dataset_cfg.text_tokenizer,
-                g2p=instantiate(train_ds_dataset_cfg.text_tokenizer.g2p, **g2p_kwargs),
-            )
-        else:
-            self.vocab = instantiate(train_ds_dataset_cfg.text_tokenizer)
+            if "heteronyms" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["heteronyms"] = self.register_artifact(
+                    'train_ds.dataset.text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                )
+
+            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+
+        self.vocab = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     @property
     def tb_logger(self):
@@ -439,16 +437,21 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
             logging.warning(
                 "FastPitchDataset will be deprecated in 1.8 version. "
-                "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
+                "Please change your model to use config with Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
             )
             dataset = instantiate(cfg.dataset, parser=self.parser)
         elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
-            dataset = instantiate(cfg.dataset, text_normalizer=self.normalizer, text_tokenizer=self.vocab,)
+            dataset = instantiate(
+                cfg.dataset,
+                text_normalizer=self.normalizer,
+                text_normalizer_call_args=self.text_normalizer_call_args,
+                text_tokenizer=self.vocab,
+            )
         else:
             if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithPriorAndPitchDataset":
                 logging.warning(
                     "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
-                    "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
+                    "Please change your model to use config with Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
                 )
             dataset = instantiate(cfg.dataset)
 
