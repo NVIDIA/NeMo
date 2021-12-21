@@ -18,14 +18,14 @@ from argparse import ArgumentParser
 import torch
 from pytorch_lightning import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 
+
 """
 Usage:
-python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+python megatron_change_num_partitions.py \
     --model_file=PATH_TO_SRC_FILE \
     --target_file=PATH_TO_TGT_FILE \
     --tensor_model_parallel_size=2 \
@@ -124,6 +124,12 @@ def main():
     parser.add_argument("--target_file", type=str, required=True, help="Path to write target .nemo file")
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, help="TP size of source model")
     parser.add_argument("--target_tensor_model_parallel_size", type=int, required=True, help="TP size of target model")
+    parser.add_argument(
+        "--model_class",
+        type=str,
+        default="nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel",
+        help="NeMo model class",
+    )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
 
     args = parser.parse_args()
@@ -133,6 +139,7 @@ def main():
         precision = int(float(args.precision))
     tp_size = args.tensor_model_parallel_size
     tgt_tp_size = args.target_tensor_model_parallel_size
+    cls = model_utils.import_class_by_path(args.model_class)
 
     trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
     app_state = AppState()
@@ -143,14 +150,14 @@ def main():
         partitions = []
         for i in range(tp_size):
             app_state.model_parallel_rank = i
-            model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
+            model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
             params = [p for _, p in model.named_parameters()]
             partitions.append(params)
 
         model.cfg.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
         trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
-        model = MegatronGPTModel(model.cfg, trainer)
+        model = cls(model.cfg, trainer)
         model._save_restore_connector = NLPSaveRestoreConnector()
 
         if tgt_tp_size > 1:
@@ -159,7 +166,7 @@ def main():
             merge_parition(model, partitions, args.target_file)
     else:
         app_state.model_parallel_size = 1
-        model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
+        model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
 
     if tgt_tp_size > 1:
         partitions = []
@@ -169,7 +176,7 @@ def main():
         model.cfg.tensor_model_parallel_size = tgt_tp_size
         app_state.model_parallel_size = tgt_tp_size
         trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
-        model = MegatronGPTModel(model.cfg, trainer)
+        model = cls(model.cfg, trainer)
         model._save_restore_connector = NLPSaveRestoreConnector()
 
         split_partition(model, partitions, tgt_tp_size, args.target_file)
