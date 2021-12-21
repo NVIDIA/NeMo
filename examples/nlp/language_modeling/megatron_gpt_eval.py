@@ -141,7 +141,7 @@ def main():
         else:
             for token, lenn in zip(tokens_pad.T, lens):
                 data.append((token, lenn, tokens_to_generate, compute_logprobs))
-                
+
         return data
 
     # defining type of request
@@ -166,7 +166,7 @@ def main():
         else:
             request = [args.prompt]
 
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
 
     # For GPT models that have had soft prompt tuning but you don't want to use any soft prompts

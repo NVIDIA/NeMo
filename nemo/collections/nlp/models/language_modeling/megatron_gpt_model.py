@@ -451,19 +451,21 @@ class MegatronGPTModel(NLPModel):
 
         # Flatten position list
         positions = [item for sublist in positions for item in sublist]
-        
+
         # Form request
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
         return request, positions, tokens_to_generate, compute_logprobs
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel.bucketize_gpt_inference(batch, self.use_soft_prompts)
+        request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
+            batch, self.use_soft_prompts
+        )
         if compute_logprobs:
             response = self.compute_logprobs(request, positions)
         else:
             response = self.complete(request, positions, tokens_to_generate)
-            
+
         return response
 
     def complete(self, request: Dict, positions: List, tokens_to_generate: int):
@@ -611,7 +613,6 @@ class MegatronGPTModel(NLPModel):
     def get_prompt_table(self):
         if hasattr(self, 'prompt_table'):
             return self.prompt_table
-
 
     def list_available_models(self):
         return None
