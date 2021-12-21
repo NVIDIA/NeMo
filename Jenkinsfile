@@ -1930,7 +1930,7 @@ pipeline {
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
       }
     }
-      stage('L2: Megatron GPT Eval') {
+    stage('L2: Megatron GPT Eval') {
       when {
         anyOf {
           branch 'main'
@@ -1952,6 +1952,28 @@ pipeline {
             False \
             --precision \
             16"
+      }
+    }
+
+    stage('L2: Megatron Change Partitions') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+            --model_file \
+            /home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
+            --target_file \
+            /home/TestData/nlp/megatron_gpt/125M/test-split.nemo \
+            --tensor_model_parallel_size \
+            1 \
+            --target_tensor_model_parallel_size \
+            2"
+          sh "rm /home/TestData/nlp/megatron_gpt/125M/test-split.nemo"
       }
     }
 
