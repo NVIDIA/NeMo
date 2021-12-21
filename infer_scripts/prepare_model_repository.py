@@ -58,7 +58,6 @@ def _prepare_args_parser():
     parser.add_argument(
         "--dataset-dir",
         help="Path to directory containing LAMBADA dataset and vocabulary files used for accuracy verification",
-        required=True,
     )
     parser.add_argument("--accuracy-tests", help="Run accuracy tests", action="store_true", default=False)
     parser.add_argument("--performance-tests", help="Run performance tests", action="store_true", default=False)
@@ -206,6 +205,9 @@ def main():
             if args.accuracy_tests:
                 protocol, host_and_port = server_url.split("://")
                 dataset_dir = pathlib.Path(args.dataset_dir).resolve().absolute()
+                if not dataset_dir.exists():
+                    raise ValueError(f"Could not find dataset-dir: {dataset_dir}")
+
                 batch_size = 128
                 commands.append(
                     "${BIGNLP_SCRIPTS_PATH}/infer_scripts/evaluate_lambada.py "
