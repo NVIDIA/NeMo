@@ -135,6 +135,7 @@ class TestASRDatasets:
 
         logging._logger.propagate = False
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_tarred_bpe_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
