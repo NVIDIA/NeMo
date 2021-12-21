@@ -4,7 +4,7 @@ sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "duration_prior", "pitch" ]
+sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # LJSpeech stats (per frame), train
 pitch_mean: 212.35873413085938

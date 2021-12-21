@@ -33,7 +33,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
     MAIN_DATA_TYPES,
     VALID_SUPPLEMENTARY_DATA_TYPES,
-    DurationPrior,
+    AlignPriorMatrix,
     Durations,
     Energy,
     LMTokens,
@@ -110,8 +110,8 @@ class TTSDataset(Dataset):
             highfreq (Optional[int]): The highfreq input to the mel filter calculation. Defaults to None.
         Keyword Args:
             durs_file (Optional[str]): String path to pickled durations location.
-            durs_type (Optional[str]): Type of durations. Currently supported only "aligned-based".
-            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator. Defaults to False.
+            durs_type (Optional[str]): Type of durations. Currently supported only "aligner-based".
+            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator for calculating alignment prior matrix. Defaults to False.
             pitch_fmin (Optional[float]): The fmin input to librosa.pyin. Defaults to librosa.note_to_hz('C2').
             pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
             pitch_avg (Optional[float]): The mean that we use to normalize the pitch.
@@ -288,10 +288,10 @@ class TTSDataset(Dataset):
                 self.durs.append(durs)
             else:
                 raise NotImplementedError(
-                    f"{durs_type} duration type is not supported. Only align-based is supported at this moment."
+                    f"{durs_type} duration type is not supported. Only aligner-based is supported at this moment."
                 )
 
-    def add_duration_prior(self, **kwargs):
+    def add_align_prior_matrix(self, **kwargs):
         self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
 
         if self.use_beta_binomial_interpolator:
@@ -357,21 +357,21 @@ class TTSDataset(Dataset):
         if Durations in self.sup_data_types_set:
             durations = self.durs[index]
 
-        duration_prior = None
-        if DurationPrior in self.sup_data_types_set:
+        align_prior_matrix = None
+        if AlignPriorMatrix in self.sup_data_types_set:
             if self.use_beta_binomial_interpolator:
                 mel_len = self.get_log_mel(audio).shape[2]
-                duration_prior = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
+                align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
                 prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
 
                 if prior_path.exists():
-                    duration_prior = torch.load(prior_path)
+                    align_prior_matrix = torch.load(prior_path)
                 else:
                     mel_len = self.get_log_mel(audio).shape[2]
-                    duration_prior = beta_binomial_prior_distribution(text_length, mel_len)
-                    duration_prior = torch.from_numpy(duration_prior)
-                    torch.save(duration_prior, prior_path)
+                    align_prior_matrix = beta_binomial_prior_distribution(text_length, mel_len)
+                    align_prior_matrix = torch.from_numpy(align_prior_matrix)
+                    torch.save(align_prior_matrix, prior_path)
 
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
@@ -427,7 +427,7 @@ class TTSDataset(Dataset):
             log_mel,
             log_mel_length,
             durations,
-            duration_prior,
+            align_prior_matrix,
             pitch,
             pitch_length,
             energy,
@@ -457,7 +457,7 @@ class TTSDataset(Dataset):
             _,
             log_mel_lengths,
             durations_list,
-            duration_priors_list,
+            align_prior_matrices_list,
             pitches,
             pitches_lengths,
             energies,
@@ -475,13 +475,13 @@ class TTSDataset(Dataset):
         if LogMel in self.sup_data_types_set:
             log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
 
-        duration_priors = (
+        align_prior_matrices = (
             torch.zeros(
-                len(duration_priors_list),
-                max([prior_i.shape[0] for prior_i in duration_priors_list]),
-                max([prior_i.shape[1] for prior_i in duration_priors_list]),
+                len(align_prior_matrices_list),
+                max([prior_i.shape[0] for prior_i in align_prior_matrices_list]),
+                max([prior_i.shape[1] for prior_i in align_prior_matrices_list]),
             )
-            if DurationPrior in self.sup_data_types_set
+            if AlignPriorMatrix in self.sup_data_types_set
             else []
         )
         audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids = [], [], [], [], [], [], []
@@ -495,7 +495,7 @@ class TTSDataset(Dataset):
                 log_mel,
                 log_mel_len,
                 durations,
-                duration_prior,
+                align_prior_matrix,
                 pitch,
                 pitch_length,
                 energy,
@@ -513,8 +513,8 @@ class TTSDataset(Dataset):
                 log_mels.append(general_padding(log_mel, log_mel_len, max_log_mel_len, pad_value=log_mel_pad))
             if Durations in self.sup_data_types_set:
                 durations_list.append(general_padding(durations, len(durations), max_durations_len))
-            if DurationPrior in self.sup_data_types_set:
-                duration_priors[i, : duration_prior.shape[0], : duration_prior.shape[1]] = duration_prior
+            if AlignPriorMatrix in self.sup_data_types_set:
+                align_prior_matrices[i, : align_prior_matrix.shape[0], : align_prior_matrix.shape[1]] = align_prior_matrix
             if Pitch in self.sup_data_types_set:
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
             if Energy in self.sup_data_types_set:
@@ -530,7 +530,7 @@ class TTSDataset(Dataset):
             "log_mel": torch.stack(log_mels) if LogMel in self.sup_data_types_set else None,
             "log_mel_lens": torch.stack(log_mel_lengths) if LogMel in self.sup_data_types_set else None,
             "durations": torch.stack(durations_list) if Durations in self.sup_data_types_set else None,
-            "duration_prior": duration_priors if DurationPrior in self.sup_data_types_set else None,
+            "align_prior_matrix": align_prior_matrices if AlignPriorMatrix in self.sup_data_types_set else None,
             "pitch": torch.stack(pitches) if Pitch in self.sup_data_types_set else None,
             "pitch_lens": torch.stack(pitches_lengths) if Pitch in self.sup_data_types_set else None,
             "energy": torch.stack(energies) if Energy in self.sup_data_types_set else None,
@@ -592,7 +592,7 @@ class MixerTTSDataset(TTSDataset):
             log_mel,
             log_mel_length,
             durations,
-            duration_prior,
+            align_prior_matrix,
             pitch,
             pitch_length,
             energy,
@@ -612,7 +612,7 @@ class MixerTTSDataset(TTSDataset):
             log_mel,
             log_mel_length,
             durations,
-            duration_prior,
+            align_prior_matrix,
             pitch,
             pitch_length,
             energy,

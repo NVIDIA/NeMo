@@ -4,7 +4,7 @@ sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "duration_prior", "pitch", "lm_tokens" ]
+sup_data_types: [ "align_prior_matrix", "pitch", "lm_tokens" ]
 
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 

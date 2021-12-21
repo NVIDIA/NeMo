@@ -4,7 +4,7 @@ sample_rate: 22050
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
-sup_data_types: [ "duration_prior", "pitch" ]
+sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"

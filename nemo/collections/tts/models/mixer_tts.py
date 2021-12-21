@@ -50,26 +50,33 @@ from nemo.core.neural_types.elements import (
     TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 class MixerTTSModel(SpectrogramGenerator, Exportable):
     """MixerTTS pipeline."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        super().__init__(cfg=cfg, trainer=trainer)
-        cfg = self._cfg
-        if "text_normalizer" in cfg.train_ds.dataset:
-            self.normalizer = instantiate(cfg.train_ds.dataset.text_normalizer)
-            self.text_normalizer_call = self.normalizer.normalize
-            self.text_normalizer_call_args = {}
-            if cfg.train_ds.dataset.get("text_normalizer_call_args", None) is not None:
-                self.text_normalizer_call_args = cfg.train_ds.dataset.text_normalizer_call_args
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
-        self.tokenizer = instantiate(cfg.train_ds.dataset.text_tokenizer)
+        # setup normalizer
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_args = {}
+        self._setup_normalizer(cfg.train_ds.dataset)
+
+        # setup tokenizer
+        self.tokenizer = None
+        self._setup_tokenizer(cfg.train_ds.dataset)
+        assert self.tokenizer is not None
+
         num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
+
+        super().__init__(cfg=cfg, trainer=trainer)
 
         self.pitch_loss_scale = cfg.pitch_loss_scale
         self.durs_loss_scale = cfg.durs_loss_scale
@@ -111,6 +118,41 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         self.decoder = instantiate(cfg.decoder)
         self.proj = nn.Linear(self.decoder.d_model, cfg.n_mel_channels)
+
+    def _setup_normalizer(self, train_ds_dataset_cfg):
+        if "text_normalizer" in train_ds_dataset_cfg:
+            normalizer_kwargs = {}
+            if "whitelist" in train_ds_dataset_cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'train_ds.dataset.text_normalizer.whitelist', train_ds_dataset_cfg.text_normalizer.whitelist
+                )
+            self.normalizer = instantiate(train_ds_dataset_cfg.text_normalizer, **normalizer_kwargs)
+
+            self.text_normalizer_call = self.normalizer.normalize
+
+            if "text_normalizer_call_args" in train_ds_dataset_cfg:
+                self.text_normalizer_call_args = train_ds_dataset_cfg.text_normalizer_call_args
+
+    def _setup_tokenizer(self, train_ds_dataset_cfg):
+        if "g2p" in train_ds_dataset_cfg.text_tokenizer:
+            g2p_kwargs = {}
+            if "phoneme_dict" in train_ds_dataset_cfg.text_tokenizer.g2p:
+                g2p_kwargs["phoneme_dict"] = self.register_artifact(
+                    'train_ds.dataset.text_tokenizer.g2p.phoneme_dict',
+                    train_ds_dataset_cfg.text_tokenizer.g2p.phoneme_dict,
+                )
+            if "heteronyms" in train_ds_dataset_cfg.text_tokenizer.g2p:
+                g2p_kwargs["heteronyms"] = self.register_artifact(
+                    'train_ds.dataset.text_tokenizer.g2p.heteronyms',
+                    train_ds_dataset_cfg.text_tokenizer.g2p.heteronyms,
+                )
+
+            self.tokenizer = instantiate(
+                train_ds_dataset_cfg.text_tokenizer,
+                g2p=instantiate(train_ds_dataset_cfg.text_tokenizer.g2p, **g2p_kwargs),
+            )
+        else:
+            self.tokenizer = instantiate(train_ds_dataset_cfg.text_tokenizer)
 
     def _get_lm_model_tokenizer(self, lm_model="albert"):
         if getattr(self, "_lm_model_tokenizer", None) is not None:
@@ -558,7 +600,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 tokens_len = (tokens != self.tokenizer.pad).sum(dim=-1)
         else:
             if raw_texts is None:
-                logging.error("raw_texts must be specified if tokens is None")
+                raise ValueError("raw_texts must be specified if tokens is None")
 
             t_seqs = [self.tokenizer(t) for t in raw_texts]
             tokens = torch.nn.utils.rnn.pad_sequence(
@@ -570,7 +612,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         if self.cond_on_lm_embeddings and lm_tokens is None:
             if raw_texts is None:
-                logging.error("raw_texts must be specified if lm_tokens is None")
+                raise ValueError("raw_texts must be specified if lm_tokens is None")
 
             lm_model_tokenizer = self._get_lm_model_tokenizer(lm_model)
             lm_padding_value = lm_model_tokenizer._convert_token_to_id('<pad>')
@@ -600,19 +642,18 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         return pred_spect
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
-        if normalize and getattr(self, "text_normalizer_call", None) is not None:
+        if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_args)
         return torch.tensor(self.tokenizer.encode(text)).long().unsqueeze(0).to(self.device)
 
-    @staticmethod
-    def _loader(cfg):
+    def _loader(self, cfg):
         try:
             _ = cfg.dataset.manifest_filepath
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
 
-        dataset = instantiate(cfg.dataset)
+        dataset = instantiate(cfg.dataset, text_normalizer=self.normalizer, text_tokenizer=self.tokenizer)
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
