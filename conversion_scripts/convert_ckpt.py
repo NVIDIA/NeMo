@@ -55,6 +55,7 @@ def main(cfg):
     if len(checkpoint_list) == 0:
         raise ValueError("No checkpoint found with the checkpoint name pattern in convert.yaml.")
     checkpoint_name = os.path.basename(checkpoint_list[0])
+    checkpoint = checkpoint_list[0]
 
     load = torch.load(checkpoint, map_location="cpu")
     ckpt_conf = load["hyper_parameters"]
