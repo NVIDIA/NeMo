@@ -59,7 +59,7 @@ class TestDate:
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, punct_post_process=False, punct_pre_process=False, n_tagged=100
+                test_input, punct_post_process=False, n_tagged=100
             )
             assert expected in pred_non_deterministic
 
@@ -82,6 +82,6 @@ class TestDate:
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, punct_post_process=False, punct_pre_process=False, n_tagged=100
+                test_input, punct_post_process=False, n_tagged=30
             )
             assert expected in pred_non_deterministic

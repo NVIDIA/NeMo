@@ -63,12 +63,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             List of available pre-trained models.
         """
         result = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="speakerrecognition_speakernet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerrecognition_speakernet/versions/1.0.0rc1/files/speakerrecognition_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn models",
-        )
-        result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="speakerverification_speakernet",
@@ -78,16 +72,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="speakerdiarization_speakernet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerdiarization_speakernet/versions/1.0.0rc1/files/speakerdiarization_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn model",
+            pretrained_model_name="ecapa_tdnn",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ecapa_tdnn/versions/v1/files/ecapa_tdnn.nemo",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn",
         )
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="ecapa_tdnn",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ecapa_tdnn/versions/v1/files/ecapa_tdnn.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn",
+            pretrained_model_name="titanet_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/titanet_large/versions/v0/files/titanet-l.nemo",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large",
         )
         result.append(model)
 
@@ -129,10 +123,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 manifests_files=manifest_filepath,
                 min_duration=data_layer_config.get("min_duration", None),
                 max_duration=data_layer_config.get("max_duration", None),
-                index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+                index_by_file_id=False,
             )
             labels.update(collection.uniq_labels)
-        labels = list(labels)
+        labels = list(sorted(labels))
         logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
         return labels
 
