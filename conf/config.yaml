@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - data_preparation: download_pile
-  - training: 126m_40gb  # Must match training_config below.
+  - training: 126m  # Must match training_config below.
   - conversion: convert
   - evaluation: evaluate_all
   - override hydra/job_logging: stdout
@@ -16,7 +16,7 @@ run_training: True
 run_conversion: False
 run_evaluation: False
 
-training_config: 126m_40gb  # Must match - training above.
+training_config: 126m  # Must match - training above.
 bignlp_path: /workspace-scripts/bignlp-scripts # Path should end with bignlp-scripts
 data_dir: /workspace-common/data/the_pile  # Location to store and read the data. Absolute or relative
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.

@@ -6,7 +6,7 @@ bcp:
   time_limit: "8D"
   instance: "dgxa100.80g.8.norm"
   workspace_common: "bignlp_ws_common"
-  workspace_scripts: "bignlp_ws_scripts_mk"
+  workspace_scripts: ???
 
 run:
   name: "5b-16f"

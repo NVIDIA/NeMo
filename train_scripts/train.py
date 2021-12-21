@@ -15,10 +15,12 @@ def create_bcp_submit_cmd(
     instance,
     num_nodes,
     ntasks_per_node=8,
-    array_type="PYTORCH",
-    total_runtime="10H"
+    array_type="pytorch",
+    total_runtime="10h"
 ):
-    base_cmd = f"cd {bignlp_path}; NGC_NTASKS_PER_NODE=8 {bcp_script}"
+    base_cmd = f"cd {bignlp_path}; NGC_NTASKS_PER_NODE={ntasks_per_node} {bcp_script}"
+    if (num_nodes == 1):
+                num_nodes = 2  # bcprun needs at least 2 nodes    
     submit_cmd = f"ngc batch run --name \"{job_name}\" --image \"{container}\" \
     --commandline \"{base_cmd}\" --workspace {workspace_common}:/workspace-common \
     --workspace {workspace_scripts}:/workspace-scripts --result /result \
@@ -30,13 +32,14 @@ def create_bcp_submit_cmd(
 def create_bcp_file(
     bignlp_path,
     train_cmd,
+    num_nodes,
     log_file,
     err_file,
     new_script_path
 ):
     with open(new_script_path, "w") as f:
-        # Replace {bignlp_path}/bcprun2 below by bcprun once new bcprun is deployed
-        f.writelines(f'{bignlp_path}/bcprun2 -c \"{train_cmd}\" >> {log_file} 2>>{err_file} \n')
+        # Replace bcprun by {bignlp_path}/bcprun2 if latest bcprun with local-rank fix is not deployed
+        f.writelines(f'bcprun -n {num_nodes} -c \"{train_cmd}\" >> {log_file} 2>>{err_file} \n')
         f.writelines("\n")
         f.writelines("set +x \n") 
     os.chmod(new_script_path, 0o755)
@@ -63,16 +66,17 @@ def run_training(cfg, hydra_args="", dependency=None):
     code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
     train_cmd = f"python3 -u {code_path} {hydra_args}"
 
+    bcp_cfg = train_cfg.get("bcp")
     create_bcp_file(
         bignlp_path=bignlp_path,
         new_script_path=new_script_path,
         train_cmd=train_cmd,
+        num_nodes=bcp_cfg.get("nodes"),
         log_file=f"{log_dir}/log.txt",
         err_file=f"{log_dir}/err.txt"
     )
     
     # BCP submit command
-    bcp_cfg = train_cfg.get("bcp")
     num_nodes = bcp_cfg.get("nodes")
     ntasks_per_node = bcp_cfg.get("ntasks_per_node")
     gpus_per_task = bcp_cfg.get("gpus_per_task")
