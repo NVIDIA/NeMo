@@ -23,6 +23,15 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestor
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 
+"""
+Usage:
+python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+    --model_file=PATH_TO_SRC_FILE \
+    --target_file=PATH_TO_TGT_FILE \
+    --tensor_model_parallel_size=2 \
+    --target_tensor_model_parallel_size=1
+"""
+
 
 def merge_parition(model, partitions, write_path=None):
     idx = 0
