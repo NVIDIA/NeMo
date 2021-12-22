@@ -64,7 +64,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         # setup normalizer
         self.normalizer = None
         self.text_normalizer_call = None
-        self.text_normalizer_call_args = {}
+        self.text_normalizer_call_kwargs = {}
         self._setup_normalizer(cfg)
 
         # setup tokenizer
@@ -130,8 +130,8 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
             self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             self.text_normalizer_call = self.normalizer.normalize
-            if "text_normalizer_call_args" in cfg:
-                self.text_normalizer_call_args = cfg.text_normalizer_call_args
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
@@ -145,7 +145,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'train_ds.dataset.text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
@@ -457,7 +457,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             'train_bin_loss': torch.tensor(1.0).to(durs_loss.device) if bin_loss is None else bin_loss,
         }
 
-        return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
+        return {'loss': loss, 'progress_bar': {k: v.detach() for k, v in train_log.items()}, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
         attn_prior, lm_tokens = None, None
@@ -590,6 +590,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         tokens_len: Optional[torch.Tensor] = None,
         lm_tokens: Optional[torch.Tensor] = None,
         raw_texts: Optional[List[str]] = None,
+        norm_text_for_lm_model: bool = True,
         lm_model: str = "albert",
     ):
         if tokens is not None:
@@ -620,6 +621,9 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 self.tokenizer, EnglishPhonemesTokenizer
             )
 
+            if norm_text_for_lm_model and self.text_normalizer_call is not None:
+                raw_texts = [self.text_normalizer_call(t, **self.text_normalizer_call_kwargs) for t in raw_texts]
+
             preprocess_texts_as_tts_input = [self.tokenizer.text_preprocessing_func(t) for t in raw_texts]
             lm_tokens_as_ids_list = [
                 lm_model_tokenizer.encode(t, add_special_tokens=False) for t in preprocess_texts_as_tts_input
@@ -641,7 +645,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
         if normalize and self.text_normalizer_call is not None:
-            text = self.text_normalizer_call(text, **self.text_normalizer_call_args)
+            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
         return torch.tensor(self.tokenizer.encode(text)).long().unsqueeze(0).to(self.device)
 
     def _loader(self, cfg):
@@ -654,7 +658,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         dataset = instantiate(
             cfg.dataset,
             text_normalizer=self.normalizer,
-            text_normalizer_call_args=self.text_normalizer_call_args,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
             text_tokenizer=self.tokenizer,
         )
         return torch.utils.data.DataLoader(  # noqa

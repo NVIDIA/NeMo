@@ -24,7 +24,7 @@ tts_dataset:
     input_case: "cased"
     whitelist: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
-  text_normalizer_call_args:
+  text_normalizer_call_kwargs:
     verbose: False
     punct_pre_process: True
     punct_post_process: True

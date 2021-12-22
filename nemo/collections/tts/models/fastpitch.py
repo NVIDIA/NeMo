@@ -62,7 +62,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         # setup normalizer
         self.normalizer = None
         self.text_normalizer_call = None
-        self.text_normalizer_call_args = {}
+        self.text_normalizer_call_kwargs = {}
         self._setup_normalizer(cfg)
 
         self.learn_alignment = cfg.get("learn_alignment", False)
@@ -149,8 +149,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
             self.text_normalizer_call = self.normalizer.normalize
-            if "text_normalizer_call_args" in cfg:
-                self.text_normalizer_call_args = cfg.text_normalizer_call_args
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
@@ -164,7 +164,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'train_ds.dataset.text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
@@ -215,7 +215,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             str_input = str_input + "."
 
         if normalize and self.text_normalizer_call is not None:
-            str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_args)
+            str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_kwargs)
 
         tokens = self.parser(str_input)
 
@@ -444,7 +444,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             dataset = instantiate(
                 cfg.dataset,
                 text_normalizer=self.normalizer,
-                text_normalizer_call_args=self.text_normalizer_call_args,
+                text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
                 text_tokenizer=self.vocab,
             )
         else:
