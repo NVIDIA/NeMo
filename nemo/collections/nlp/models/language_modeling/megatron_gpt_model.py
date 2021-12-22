@@ -455,12 +455,13 @@ class MegatronGPTModel(NLPModel):
         # Form request
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
-        return request, positions, tokens_to_generate, compute_logprobs
+        return request, positions, tokens_to_generate, compute_logprobs[0]
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
             batch, self.use_soft_prompts
         )
+
         if compute_logprobs:
             response = self.compute_logprobs(request, positions)
         else:
@@ -555,7 +556,10 @@ class MegatronGPTModel(NLPModel):
         """
             Only logprobs computation without generation tokens
         Args:
-            request: List of "buckets" with unpadded tokens of the same length
+            request: 
+                * tokens: List of "buckets" with unpadded tokens of the same length
+                * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
+                                    specifying the prompt tag to use (optional)
             positions: List with initial prompts positions
         Returns:
             response: A python list of tuples
@@ -568,22 +572,43 @@ class MegatronGPTModel(NLPModel):
         results = []
         request_tokens = request["tokens"]
         logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-        for tokens in request_tokens:
+        for idx, tokens in enumerate(request_tokens):
             tokens_cut = tokens[:, :-1]
+            # For prompt tuned GPT models
+            if self.use_soft_prompts:
+                prompt_tags = request["prompt_tags"][idx]
+            else:
+                prompt_tags = None
 
-            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=tokens_cut,
-                eod_token=self.tokenizer.eos_id,
-                reset_position_ids=self.cfg.get('reset_position_ids', False),
-                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
-                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
-            )
-            output_tensor = self(tokens_cut, position_ids, attention_mask, labels=None)
+            if self.use_soft_prompts:
+                batch_size = len(tokens_cut)
+                full_length = len(tokens_cut[0]) + self.num_prompt_tokens
+                # Get postion ids for text after soft prompt
+                position_ids = torch.arange(
+                    start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
+                )
+                position_ids = position_ids.unsqueeze(0).expand_as(tokens_cut).clone()
+                # Make attention mask starting with first token in soft prompt
+                attention_mask = torch.tril(
+                    torch.ones((batch_size, full_length, full_length), device=self.device)
+                ).view(batch_size, 1, full_length, full_length)
+                attention_mask = attention_mask < 0.5
+
+            else:
+                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                    data=tokens_cut,
+                    eod_token=self.tokenizer.eos_id,
+                    reset_position_ids=self.cfg.get('reset_position_ids', False),
+                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                )
+            output_tensor = self(tokens_cut, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
             log_probs = []
             for output in output_tensor:
                 probs = F.log_softmax(output, dim=1)
+                probs = probs[-len(tokens_cut[0]) :]
                 log_probs.append(probs.to(dtype=torch.float16))
 
             for token, prob in zip(tokens, log_probs):
