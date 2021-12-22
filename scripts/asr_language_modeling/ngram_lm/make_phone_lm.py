@@ -29,6 +29,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This script was copied from https://github.com/kaldi-asr/kaldi/blob/master/egs/wsj/s5/utils/lang/make_phone_lm.py
+# with minor python3 related changes.
+
 import argparse
 import math
 import sys

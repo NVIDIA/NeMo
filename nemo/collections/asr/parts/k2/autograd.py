@@ -27,6 +27,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This script was copied from https://github.com/k2-fsa/k2/blob/master/k2/python/k2/sparse/autograd.py
+# with minor changes fixing uncoalesced gradients.
+
 import torch
 
 
@@ -52,7 +55,11 @@ class _AbsFunction(torch.autograd.Function):
         values_abs = values.abs()
 
         ans = torch.sparse_coo_tensor(
-            indices=indices, values=values_abs, size=size, dtype=sparse_tensor.dtype, device=sparse_tensor.device,
+            indices=indices,
+            values=values_abs,
+            size=size,
+            dtype=sparse_tensor.dtype,
+            device=sparse_tensor.device,
         )
 
         ctx.save_for_backward(sparse_tensor)
