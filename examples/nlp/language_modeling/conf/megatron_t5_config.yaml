@@ -84,7 +84,7 @@ model:
 
   data:
     # Path to data must be specified by the user.
-    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
+    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-t5_00_text_document,.5,/raid/data/pile/my-t5_01_text_document]",
     # Or see example below: 
     # data_prefix: 
     #   - .5

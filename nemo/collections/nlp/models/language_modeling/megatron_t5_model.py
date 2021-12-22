@@ -118,7 +118,7 @@ class MegatronT5Model(NLPModel):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
-        output_enc_hidden=False,
+        output_enc_hidden_only=False,
     ):
         result = self.model(
             encoder_input_ids=encoder_input_ids,
@@ -129,9 +129,9 @@ class MegatronT5Model(NLPModel):
             tokentype_ids=tokentype_ids,
             lm_labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
-            output_enc_hidden=output_enc_hidden,
+            output_enc_hidden_only=output_enc_hidden_only,
         )
-        if not output_enc_hidden:
+        if not output_enc_hidden_only:
             return result[0], result[1]
         else:
             return result
