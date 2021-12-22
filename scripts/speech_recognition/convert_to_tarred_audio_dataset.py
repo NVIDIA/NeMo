@@ -72,6 +72,7 @@ import json
 import os
 import random
 import tarfile
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, List, Optional
@@ -130,6 +131,12 @@ parser.add_argument(
     "--shuffle",
     action='store_true',
     help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
+)
+
+parser.add_argument(
+    "--keep_files_together",
+    action='store_true',
+    help="Whether or not to keep entries from the same file (but different offsets) together when sorting before tarring/sharding.",
 )
 
 parser.add_argument(
@@ -241,10 +248,11 @@ class ASRTarredDatasetBuilder:
             os.makedirs(target_dir)
 
         # Read the existing manifest
-        entries, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
+        entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
 
         if len(filtered_entries) > 0:
             print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
+        print(f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio.")
 
         if len(entries) == 0:
             print("No tarred dataset was created as there were 0 valid samples after filtering!")
@@ -252,7 +260,18 @@ class ASRTarredDatasetBuilder:
         if config.shuffle:
             random.seed(config.shuffle_seed)
             print("Shuffling...")
-            random.shuffle(entries)
+            if config.keep_files_together:
+                filename_entries = defaultdict(list)
+                for ent in entries:
+                    filename_entries[ent["audio_filepath"]].append(ent)
+                filenames = list(filename_entries.keys())
+                random.shuffle(filenames)
+                shuffled_entries = []
+                for filename in filenames:
+                    shuffled_entries += filename_entries[filename]
+                entries = shuffled_entries
+            else:
+                random.shuffle(entries)
 
         # Create shards and updated manifest entries
         print(f"Number of samples added : {len(entries)}")
@@ -285,7 +304,7 @@ class ASRTarredDatasetBuilder:
         new_entries = [sample for manifest in new_entries_list for sample in manifest]
         del new_entries_list
 
-        print("Total number of files in manifest :", len(new_entries))
+        print("Total number of entries in manifest :", len(new_entries))
 
         # Write manifest
         new_manifest_path = os.path.join(target_dir, 'tarred_audio_manifest.json')
@@ -345,7 +364,7 @@ class ASRTarredDatasetBuilder:
         config = ASRTarredDatasetConfig(**(metadata.dataset_config))
 
         # Read the existing manifest (no filtering here)
-        base_entries, _, _ = self._read_manifest(base_manifest_path, config)
+        base_entries, _, _, _ = self._read_manifest(base_manifest_path, config)
         print(f"Read base manifest containing {len(base_entries)} samples.")
 
         # Precompute number of samples per shard
@@ -362,7 +381,7 @@ class ASRTarredDatasetBuilder:
 
         entries = []
         for new_manifest_idx in range(len(manifest_paths)):
-            new_entries, filtered_new_entries, filtered_duration = self._read_manifest(
+            new_entries, total_duration, filtered_new_entries, filtered_duration = self._read_manifest(
                 manifest_paths[new_manifest_idx], config
             )
 
@@ -371,6 +390,7 @@ class ASRTarredDatasetBuilder:
                     f"Filtered {len(filtered_new_entries)} files which amounts to {filtered_duration:0.2f}"
                     f" seconds of audio from manifest {manifest_paths[new_manifest_idx]}."
                 )
+            print(f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio.")
 
             entries.extend(new_entries)
 
@@ -476,6 +496,7 @@ class ASRTarredDatasetBuilder:
         """Read and filters data from the manifest"""
         # Read the existing manifest
         entries = []
+        total_duration = 0.0
         filtered_entries = []
         filtered_duration = 0.0
         with open(manifest_path, 'r') as m:
@@ -485,11 +506,12 @@ class ASRTarredDatasetBuilder:
                     config.min_duration is None or entry['duration'] >= config.min_duration
                 ):
                     entries.append(entry)
+                    total_duration += entry["duration"]
                 else:
                     filtered_entries.append(entry)
                     filtered_duration += entry['duration']
 
-        return entries, filtered_entries, filtered_duration
+        return entries, total_duration, filtered_entries, filtered_duration
 
     def _create_shard(self, entries, target_dir, shard_id, manifest_folder):
         """Creates a tarball containing the audio files from `entries`.
