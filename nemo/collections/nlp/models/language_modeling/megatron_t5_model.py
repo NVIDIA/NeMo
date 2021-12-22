@@ -369,7 +369,7 @@ class MegatronT5Model(NLPModel):
             tokentype_ids=None,
             lm_labels=None,
             enc_hidden_states=None,
-            output_enc_hidden=True,
+            output_enc_hidden_only=True,
         )
         predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
 
@@ -395,7 +395,7 @@ class MegatronT5Model(NLPModel):
                 tokentype_ids=None,
                 lm_labels=None,
                 enc_hidden_states=encoder_hidden_states,
-                output_enc_hidden=False,
+                output_enc_hidden_only=False,
             )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
