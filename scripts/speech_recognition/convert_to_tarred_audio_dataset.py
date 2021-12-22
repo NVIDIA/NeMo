@@ -171,6 +171,7 @@ class ASRTarredDatasetConfig:
     min_duration: Optional[float] = None
     shuffle_seed: Optional[int] = None
     sort_in_shards: bool = True
+    keep_files_together: bool = False
 
 
 @dataclass
@@ -608,6 +609,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
+            keep_files_together=args.keep_files_together,
         )
         metadata.dataset_config = dataset_cfg
 
@@ -627,6 +629,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
+            keep_files_together=args.keep_files_together,
         )
         builder.configure(config)
         builder.create_new_dataset(manifest_path=args.manifest_path, target_dir=target_dir, num_workers=args.workers)
