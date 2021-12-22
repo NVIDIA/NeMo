@@ -45,6 +45,8 @@ from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from pytorch_lightning.loops.fit_loop import FitLoop
+from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
+from pytorch_lightning.utilities.warnings import rank_zero_warn
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -553,10 +555,6 @@ class NLPFitLoop(FitLoop):
 
 
 # TODO: implement
-
-from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
-from pytorch_lightning.utilities.warnings import rank_zero_warn
-
 
 class NLPDataConnector(DataConnector):
     """ Override PTL DataConnector. Used to select custom data fetcher."""

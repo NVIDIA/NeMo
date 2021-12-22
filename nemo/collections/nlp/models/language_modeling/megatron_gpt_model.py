@@ -14,8 +14,9 @@
 
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.utilities.distributed import rank_zero_only
 
 import torch
@@ -186,7 +187,16 @@ class MegatronGPTModel(NLPModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        # we zero grads here because we also call backward here
+        if self.cfg.precision == 32:
+            dtype = None
+        elif self.cfg.precision == 16:
+            dtype = torch.half
+        elif self.cfg.precision == 'bf16':
+            dtype = torch.bfloat16
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
         # we prepare the micro batches for the apex fwd/bwd function
@@ -200,6 +210,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
+                dtype=dtype,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -219,6 +230,23 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
+        # we all-reduce gradients manually
+        self.allreduce_gradients()
+
+        # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
+        # All-reduce word_embeddings' grad across first and last stages to ensure
+        # that word_embeddings parameters stay in sync.
+        # This should only run for models that support pipelined model parallelism
+        # (BERT and GPT-2).
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
+        ):
+            if self.model.share_word_embeddings:
+                word_embeddings_weight = self.model.word_embeddings_weight()
+                grad = word_embeddings_weight.grad
+                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+
+        ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
@@ -281,15 +309,14 @@ class MegatronGPTModel(NLPModel):
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
-            When using pipeline parallel, we run backward in the fwd/bwd function.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
             No need to call it here.
         """
         return
 
     def optimizer_zero_grad(self, *args, **kwargs):
         """ LightningModule hook to zero grad.
-            We want this to do nothing when using pipeline parallel as we are
-            zeroing grads during the training_step.
+            We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
 
@@ -318,23 +345,6 @@ class MegatronGPTModel(NLPModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
-    def on_before_optimizer_step(self, optimizer: Optimizer, optimizer_idx: int) -> None:
-        # all-reduce gradients
-        self.allreduce_gradients()
-
-        # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-        # All-reduce word_embeddings' grad across first and last stages to ensure
-        # that word_embeddings parameters stay in sync.
-        # This should only run for models that support pipelined model parallelism
-        # (BERT and GPT-2).
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
-        ):
-            if self.model.share_word_embeddings:
-                word_embeddings_weight = self.model.word_embeddings_weight()
-                grad = word_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
-
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             tokens, labels, loss_mask, attention_mask, position_ids = batch
@@ -357,6 +367,15 @@ class MegatronGPTModel(NLPModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
+        if self.cfg.precision == 32:
+            dtype = None
+        elif self.cfg.precision == 16:
+            dtype = torch.half
+        elif self.cfg.precision == 'bf16':
+            dtype = torch.bfloat16
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
+
         batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -366,6 +385,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
+                dtype=dtype,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
