@@ -24,7 +24,7 @@ model:
     dither: 0.0
     frame_splicing: 1
     nfilt: 100
-    highfreq: 12000
+    highfreq: 11025
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
@@ -37,7 +37,7 @@ model:
     pad_to: 0
     pad_value: -11.52
     preemph: null
-    sample_rate: 24000
+    sample_rate: 22050
     window: hann
     use_grads: false
     exact_pad: true

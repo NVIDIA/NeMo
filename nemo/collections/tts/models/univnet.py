@@ -26,7 +26,6 @@ from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, Genera
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -41,7 +40,7 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 @experimental
-class UnivNetModel(Vocoder, Exportable):
+class UnivNetModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -60,7 +59,7 @@ class UnivNetModel(Vocoder, Exportable):
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
 
-        # reshape MRD resolutions hyperparam and apply them to MRSTFT loss
+        # reshape MRD resolutions hyperparameter and apply them to MRSTFT loss
         self.stft_resolutions = cfg.discriminator.mrd.resolutions
         self.fft_sizes = [res[0] for res in self.stft_resolutions]
         self.hop_sizes = [res[1] for res in self.stft_resolutions]
