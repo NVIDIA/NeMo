@@ -443,7 +443,6 @@ def build_train_valid_test_datasets(
         return _build_train_valid_test_datasets(
             cfg,
             trainer,
-            tokenizer,
             data_prefix[0],
             data_impl,
             splits_string,
@@ -714,15 +713,14 @@ def get_samples_mapping(
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
-        '''
         try:
             if is_global_rank_zero():
                 compile_helper()
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
-        '''
-        from nemo.collections.nlp.data.language_modeling.megatron import helpers
+        except ImportError:
+            raise ImportError(
+                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+            )
 
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,

@@ -45,7 +45,6 @@ class BlendableDataset(torch.utils.data.Dataset):
         assert num_datasets < 255
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
-        '''
         app_state = AppState()
         try:
             if app_state.local_rank == 0:
@@ -54,10 +53,10 @@ class BlendableDataset(torch.utils.data.Dataset):
                 compile_helper()
             torch.distributed.barrier()
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
-        '''
-        from nemo.collections.nlp.data.language_modeling.megatron import helpers
+        except ImportError:
+            raise ImportError(
+                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+            )
 
         helpers.build_blending_indices(
             self.dataset_index,
