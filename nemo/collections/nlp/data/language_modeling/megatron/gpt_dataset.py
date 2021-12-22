@@ -284,13 +284,16 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             # First compile and then import.
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
+            '''
             try:
                 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
 
                 compile_helper()
-                from nemo.collections.nlp.data.language_modeling.megatron import helpers
+                
             except:
                 raise Exception(f'Could not compile helpers.')
+            '''
+            from nemo.collections.nlp.data.language_modeling.megatron import helpers
 
             sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,

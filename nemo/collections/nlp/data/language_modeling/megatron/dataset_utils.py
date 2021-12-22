@@ -714,13 +714,16 @@ def get_samples_mapping(
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
-
+        '''
         try:
             if is_global_rank_zero():
                 compile_helper()
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
         except:
             raise Exception(f'Could not compile helpers.')
+        '''
+        from nemo.collections.nlp.data.language_modeling.megatron import helpers
+
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
