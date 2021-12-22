@@ -285,6 +285,10 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // config.num_shards) * i
             end_idx = start_idx + (len(entries) // config.num_shards)
             print(f"Shard {i} has entries {start_idx} ~ {end_idx}")
+            files = set()
+            for ent_id in range(start_idx, end_idx):
+                files.add(entries[ent_id]["audio_filepath"])
+            print(f"Shard {i} contains {len(files)} files")
             if i == config.num_shards - 1:
                 # We discard in order to have the same number of entries per shard.
                 print(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
@@ -454,7 +458,7 @@ class ASRTarredDatasetBuilder:
         else:
             new_version = metadata.version + 1
 
-        print("Total number of files in manifest :", len(base_entries) + len(new_entries))
+        print("Total number of entries in manifest :", len(base_entries) + len(new_entries))
 
         new_manifest_path = os.path.join(target_dir, f'tarred_audio_manifest_version_{new_version}.json')
         with open(new_manifest_path, 'w') as m2:
