@@ -1961,7 +1961,31 @@ pipeline {
             16"
       }
     }
-
+    stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python -m torch.distributed.launch --nproc_per_node=2 \
+        examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
+        --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
+        --checkpoint_name=model_optim_rng.pt \
+        --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
+        --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
+        --model_type=gpt \
+        --tensor_model_parallel_size=2"
+        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+        --model_file=examples/nlp/language_modeling/small_gpt.nemo \
+        --tokens_to_generate=32 \
+        --tensor_model_parallel_size=2 \
+        --prompt='This is a test.'"
+        sh "rm examples/nlp/language_modeling/small_gpt.nemo"
+      }
+    }
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
