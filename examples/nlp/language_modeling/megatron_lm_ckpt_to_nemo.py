@@ -25,20 +25,19 @@ Conversion script to convert Megatron_LM checkpoints into nemo checkpoint.
 
 import os
 from argparse import ArgumentParser
+from collections import OrderedDict
+from typing import Any, Optional
 
 import torch
+from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.utilities.cloud_io import load as pl_load
+from pytorch_lightning.utilities.migration import pl_legacy_patch
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
-from typing import Any, Optional
-from pytorch_lightning.utilities.migration import pl_legacy_patch
-from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
-from pytorch_lightning.utilities.cloud_io import load as pl_load
-from collections import OrderedDict
 
 
 def get_args():
