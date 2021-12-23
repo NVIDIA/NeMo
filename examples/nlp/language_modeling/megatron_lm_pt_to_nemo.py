@@ -13,7 +13,7 @@
 # limitations under the License.
 
 r"""
-Conversion script to convert PTL checkpoints into nemo checkpoint.
+Conversion script to convert Megatron_LM checkpoints into nemo checkpoint.
   Example to run this conversion script:
     python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> megatron_lm_pt_to_nemo.py.py \
      --checkpoint_folder <path_to_PTL_checkpoints_folder> \
@@ -107,7 +107,7 @@ def load_from_checkpoint(
         **kwargs,
     ):
         """
-        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        Loads Megatron_LM checkpoints, convert it, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
         """
         checkpoint = None
