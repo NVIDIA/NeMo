@@ -76,21 +76,17 @@ def get_args():
     args = parser.parse_args()
     return args
 
-## this dictionary is used to rename the model parameters
-name_translate = {}
-name_translate['transformer'] = 'encoder'
-name_translate['attention.'] = 'self_attention.'
 
-
-def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, converted: OrderedDict):
+def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, converted: OrderedDict, translator: dict):
     for key in weight_dict:
         new_key = key
+        name_translate = translator
 
         for replace_key in name_translate:
             if key.find(replace_key) >= 0:
                 new_key = key.replace(replace_key, name_translate[replace_key])
         if isinstance(weight_dict[key], OrderedDict) or isinstance(weight_dict[key], dict):
-            parse_weights(weight_dict[key], parent_key+'.'+new_key, total, converted)
+            parse_weights(weight_dict[key], parent_key+'.'+new_key, total, converted, translator)
         else:
             num_parameters = torch.prod(torch.tensor(weight_dict[key].cpu().size())).item()
             total[0] += num_parameters
@@ -124,8 +120,8 @@ def load_from_checkpoint(
             total_params = [0]
             checkpoint = OrderedDict()
             checkpoint['state_dict'] = OrderedDict()
-            parse_weights(old_checkpoint['model'], "", total_params, checkpoint['state_dict'])
-            print('converted %.2fM parameters'.format(total_params[0]))
+            parse_weights(old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator'])
+            print('converted {:.2f}M parameters'.format(total_params[0]/1e6))
 
 
             if hparams_file is not None:
@@ -180,9 +176,16 @@ def convert(rank, world_size, args):
         checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
 
     if args.model_type == 'gpt':
-        model = load_from_checkpoint(MegatronGPTModel, checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        ## this dictionary is used to rename the model parameters
+        name_translate = {}
+        name_translate['transformer'] = 'encoder'
+        model = load_from_checkpoint(MegatronGPTModel, checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, translator=name_translate)
     elif args.model_type == 'bert':
-         model = load_from_checkpoint(MegatronBertModel, checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        ## this dictionary is used to rename the model parameters
+        name_translate = {}
+        name_translate['transformer'] = 'encoder'
+        name_translate['attention.'] = 'self_attention.'
+        model = load_from_checkpoint(MegatronBertModel, checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, translator=name_translate)
     else:
         raise NotImplemented("{} is not supported".format(args.model_type))
 
