@@ -15,7 +15,7 @@
 r"""
 Conversion script to convert Megatron_LM checkpoints into nemo checkpoint.
   Example to run this conversion script:
-    python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> megatron_lm_pt_to_nemo.py.py \
+    python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> megatron_lm_ckpt_to_nemo.py \
      --checkpoint_folder <path_to_PTL_checkpoints_folder> \
      --checkpoint_name <checkpoint_name> \
      --nemo_file_path <path_to_output_nemo_file> \
@@ -48,7 +48,7 @@ def get_args():
         type=str,
         default=None,
         required=True,
-        help="Path to PTL checkpoints saved during training. Ex: /raid/Megatron_LM/checkpoints",
+        help="Path to Megatron-LM checkpoints saved during training. Ex: /raid/Megatron_LM/checkpoints",
     )
     parser.add_argument(
         "--checkpoint_name",
