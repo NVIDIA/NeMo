@@ -139,6 +139,16 @@ class MegatronGPTModel(NLPModel):
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=cfg.precision)
 
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if self.cfg.precision == 32:
+                self.dtype_for_pipeline_comm = None
+            elif self.cfg.precision == 16:
+                self.dtype_for_pipeline_comm = torch.half
+            elif self.cfg.precision == 'bf16':
+                self.dtype_for_pipeline_comm = torch.bfloat16
+            else:
+                raise ValueError('precision must be in [32, 16, "bf16"]')
+
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         model = GPTModel(
@@ -187,15 +197,6 @@ class MegatronGPTModel(NLPModel):
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
 
-        if self.cfg.precision == 32:
-            dtype = None
-        elif self.cfg.precision == 16:
-            dtype = torch.half
-        elif self.cfg.precision == 'bf16':
-            dtype = torch.bfloat16
-        else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
-
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
@@ -204,13 +205,14 @@ class MegatronGPTModel(NLPModel):
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
                 model=self.model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
-                dtype=dtype,
+                dtype=self.dtype_for_comm,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -367,14 +369,6 @@ class MegatronGPTModel(NLPModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        if self.cfg.precision == 32:
-            dtype = None
-        elif self.cfg.precision == 16:
-            dtype = torch.half
-        elif self.cfg.precision == 'bf16':
-            dtype = torch.bfloat16
-        else:
-            raise ValueError('precision must be in [32, 16, "bf16"]')
 
         batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -385,7 +379,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
-                dtype=dtype,
+                dtype=self.dtype_for_comm,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
