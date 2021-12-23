@@ -247,7 +247,6 @@ trainer:
   flush_logs_every_n_steps: 1000
   log_every_n_steps: 100
   check_val_every_n_epoch: 5
-  precision: 16
 
 exp_manager:
   exp_dir: null
