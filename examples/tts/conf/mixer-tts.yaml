@@ -25,7 +25,7 @@ n_window_stride: 256
 n_fft: 1024
 lowfreq: 0
 highfreq: 8000
-window: "hann"
+window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
@@ -57,9 +57,9 @@ model:
   window: ${window}
 
   text_normalizer:
-    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
-    lang: "en"
-    input_case: "cased"
+    _target_: nemo_text_processing.text_normalization.normalize.Normalizer
+    lang: en
+    input_case: cased
     whitelist: ${whitelist_path}
 
   text_normalizer_call_kwargs:
@@ -68,20 +68,20 @@ model:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
     punct: true
     stresses: true
     chars: true
     apostrophe: true
     pad_with_space: true
     g2p:
-      _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
+      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -109,7 +109,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
+      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -136,27 +136,27 @@ model:
       pin_memory: false
 
   preprocessor:
-    _target_: "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
-    dither: 0.0
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     features: ${model.n_mel_channels}
-    frame_splicing: 1
-    highfreq: ${model.highfreq}
-    log: true
-    log_zero_guard_type: clamp
-    log_zero_guard_value: 1e-05
     lowfreq: ${model.lowfreq}
-    mag_power: 1.0
+    highfreq: ${model.highfreq}
     n_fft: ${model.n_fft}
     n_window_size: ${model.n_window_size}
     window_size: false
     n_window_stride: ${model.n_window_stride}
     window_stride: false
-    normalize: null
     pad_to: 1
     pad_value: -11.52
-    preemph: null
     sample_rate: ${model.sample_rate}
     window: ${model.window}
+    normalize: null
+    preemph: null
+    dither: 0.0
+    frame_splicing: 1
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    mag_power: 1.0
 
   alignment_module:
     _target_: nemo.collections.tts.modules.aligner.AlignmentEncoder
@@ -237,8 +237,8 @@ exp_manager:
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
-    monitor: "val_mel_loss"
-    mode: "min"
+    monitor: val_mel_loss
+    mode: min
   create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
