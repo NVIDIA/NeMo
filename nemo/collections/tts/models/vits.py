@@ -195,7 +195,7 @@ class VitsModel(TextToWaveform):
         (y, y_lengths, x, x_lengths) = batch
 
         spec = self.get_spec(y)
-        spec_lengths = torch.ones(spec.shape[0]) * spec.shape[2]
+        spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
 
         with autocast(enabled=False):
             y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
