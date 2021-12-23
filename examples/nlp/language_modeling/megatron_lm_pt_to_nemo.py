@@ -86,79 +86,80 @@ def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, conver
             if key.find(replace_key) >= 0:
                 new_key = key.replace(replace_key, name_translate[replace_key])
         if isinstance(weight_dict[key], OrderedDict) or isinstance(weight_dict[key], dict):
-            parse_weights(weight_dict[key], parent_key+'.'+new_key, total, converted, translator)
+            parse_weights(weight_dict[key], parent_key + '.' + new_key, total, converted, translator)
         else:
             num_parameters = torch.prod(torch.tensor(weight_dict[key].cpu().size())).item()
             total[0] += num_parameters
-            final_key = 'model'+parent_key+'.'+new_key
+            final_key = 'model' + parent_key + '.' + new_key
             converted[final_key] = weight_dict[key]
 
 
 def load_from_checkpoint(
-        cls,
-        checkpoint_path: str,
-        map_location: Any = None,
-        hparams_file: Optional[str] = None,
-        strict: bool = True,
-        **kwargs,
-    ):
-        """
+    cls,
+    checkpoint_path: str,
+    map_location: Any = None,
+    hparams_file: Optional[str] = None,
+    strict: bool = True,
+    **kwargs,
+):
+    """
         Loads Megatron_LM checkpoints, convert it, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
         """
-        checkpoint = None
-        try:
-            cls._set_model_restore_state(is_being_restored=True)
-            # TODO: replace with proper PTL API
+    checkpoint = None
+    try:
+        cls._set_model_restore_state(is_being_restored=True)
+        # TODO: replace with proper PTL API
 
-            with pl_legacy_patch():
-                if map_location is not None:
-                    old_checkpoint = pl_load(checkpoint_path, map_location=map_location)
-                else:
-                    old_checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
-
-            total_params = [0]
-            checkpoint = OrderedDict()
-            checkpoint['state_dict'] = OrderedDict()
-            parse_weights(old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator'])
-            print('converted {:.2f}M parameters'.format(total_params[0]/1e6))
-
-
-            if hparams_file is not None:
-                extension = hparams_file.split(".")[-1]
-                if extension.lower() == "csv":
-                    hparams = load_hparams_from_tags_csv(hparams_file)
-                elif extension.lower() in ("yml", "yaml"):
-                    hparams = load_hparams_from_yaml(hparams_file)
-                else:
-                    raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
-
-                hparams["on_gpu"] = False
-
-                # overwrite hparams by the given file
-                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
-
-            # for past checkpoint need to add the new key
-            if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
-                checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
-            # override the hparams with values that were passed in
-            # TODO: can we do this without overriding?
-            config_kwargs = kwargs.copy()
-            if 'trainer' in config_kwargs:
-                config_kwargs.pop('trainer')
-            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
-
-            if 'cfg' in kwargs:
-                model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+        with pl_legacy_patch():
+            if map_location is not None:
+                old_checkpoint = pl_load(checkpoint_path, map_location=map_location)
             else:
-                model = cls._load_model_state(
-                   checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg, **kwargs
-                )
-            checkpoint = model
+                old_checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
 
-        finally:
-            cls._set_model_restore_state(is_being_restored=False)
-        return checkpoint
+        total_params = [0]
+        checkpoint = OrderedDict()
+        checkpoint['state_dict'] = OrderedDict()
+        parse_weights(
+            old_checkpoint['model'], "", total_params, checkpoint['state_dict'], translator=kwargs['translator']
+        )
+        print('converted {:.2f}M parameters'.format(total_params[0] / 1e6))
+
+        if hparams_file is not None:
+            extension = hparams_file.split(".")[-1]
+            if extension.lower() == "csv":
+                hparams = load_hparams_from_tags_csv(hparams_file)
+            elif extension.lower() in ("yml", "yaml"):
+                hparams = load_hparams_from_yaml(hparams_file)
+            else:
+                raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
+
+            hparams["on_gpu"] = False
+
+            # overwrite hparams by the given file
+            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
+
+        # for past checkpoint need to add the new key
+        if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
+            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
+        # override the hparams with values that were passed in
+        # TODO: can we do this without overriding?
+        config_kwargs = kwargs.copy()
+        if 'trainer' in config_kwargs:
+            config_kwargs.pop('trainer')
+        checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
+
+        if 'cfg' in kwargs:
+            model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+        else:
+            model = cls._load_model_state(
+                checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg, **kwargs
+            )
+        checkpoint = model
+
+    finally:
+        cls._set_model_restore_state(is_being_restored=False)
+    return checkpoint
 
 
 def convert(rank, world_size, args):
@@ -179,13 +180,25 @@ def convert(rank, world_size, args):
         ## this dictionary is used to rename the model parameters
         name_translate = {}
         name_translate['transformer'] = 'encoder'
-        model = load_from_checkpoint(MegatronGPTModel, checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, translator=name_translate)
+        model = load_from_checkpoint(
+            MegatronGPTModel,
+            checkpoint_path,
+            hparams_file=args.hparams_file,
+            trainer=trainer,
+            translator=name_translate,
+        )
     elif args.model_type == 'bert':
         ## this dictionary is used to rename the model parameters
         name_translate = {}
         name_translate['transformer'] = 'encoder'
         name_translate['attention.'] = 'self_attention.'
-        model = load_from_checkpoint(MegatronBertModel, checkpoint_path, hparams_file=args.hparams_file, trainer=trainer, translator=name_translate)
+        model = load_from_checkpoint(
+            MegatronBertModel,
+            checkpoint_path,
+            hparams_file=args.hparams_file,
+            trainer=trainer,
+            translator=name_translate,
+        )
     else:
         raise NotImplemented("{} is not supported".format(args.model_type))
 
