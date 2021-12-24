@@ -66,13 +66,13 @@ To run a tutorial:
      - `Online Offline Microphone VAD <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Offline_Microphone_VAD_Demo.ipynb>`_
    * - ASR
      - Speaker Recognition and Verification
-     - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/Speaker_Recognition_Verification.ipynb>`_
+     - `Speaker Recognition and Verification <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_tasks/Speaker_Identification_Verification.ipynb>`_
    * - ASR
      - Speaker Diarization Inference
-     - `Speaker Diarization Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/Speaker_Diarization_Inference.ipynb>`_
+     - `Speaker Diarization Inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb>`_
    * - ASR
      - ASR with Speaker Diarization
-     - `ASR with Speaker Diarization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_recognition/ASR_with_SpeakerDiarization.ipynb>`_
+     - `ASR with Speaker Diarization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/speaker_tasks/ASR_with_SpeakerDiarization.ipynb>`_
    * - ASR
      - Online Noise Augmentation
      - `Online Noise Augmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Online_Noise_Augmentation.ipynb>`_
@@ -141,4 +141,4 @@ To run a tutorial:
      - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_
    * - Text Processing
      - Constructing Normalization Grammars with WFSTs
-     - `WFST Tutorial <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`_
+     - `WFST Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/WFST_Tutorial.ipynb>`_

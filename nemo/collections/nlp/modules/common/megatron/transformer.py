@@ -22,6 +22,7 @@ from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from apex.transformer import parallel_state, tensor_parallel
 from apex.transformer.enums import AttnMaskType, AttnType, LayerType
 from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+from apex.transformer.utils import divide as safe_divide
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
@@ -154,9 +155,9 @@ class ParallelAttention(MegatronModule):
 
         # Per attention head and per partition values.
         world_size = parallel_state.get_tensor_model_parallel_world_size()
-        self.hidden_size_per_partition = tensor_parallel.divide(projection_size, world_size)
-        self.hidden_size_per_attention_head = tensor_parallel.divide(projection_size, num_attention_heads)
-        self.num_attention_heads_per_partition = tensor_parallel.divide(num_attention_heads, world_size)
+        self.hidden_size_per_partition = safe_divide(projection_size, world_size)
+        self.hidden_size_per_attention_head = safe_divide(projection_size, num_attention_heads)
+        self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:

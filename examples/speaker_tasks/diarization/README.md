@@ -11,18 +11,26 @@ Documentation section for speaker related tasks can be found at:
 - Estimates the number of speakers in the given session.
 - Provides example script for asr transcription with speaker labels. 
 
+## Supported Pretrained Speaker Embedding Extractor models
+- [titanet_large](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large)
+- [ecapa_tdnn](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)
+- [speakerverification_speakernet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/speakerverification_speakernet)
+
+## Supported Pretrained VAD models
+- [vad_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_marblenet)
+- [vad_telephony_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_telephony_marblenet)
 
 ## Performance
-Diarization Error Rate (DER) table of `ecapa_tdnn.nemo` model on well known evaluation datasets. 
+Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known evaluation datasets. 
 
 |         Evaluation<br>Condition     | NIST SRE 2000 | AMI<br>(Lapel) | AMI<br>(MixHeadset) | CH109 |
 |:-----------------------------------:|:-------------:|:--------------:|:-------------------:|:-----:|
-|  Oracle VAD <br>KNOWN # of Speakers  |      7.1     |      1.94      |         2.31        |  1.19 |
-| Oracle VAD<br> UNKNOWN # of Speakers |     6.78     |      2.58      |         2.13        |  1.73 |
+|  Oracle VAD <br>KNOWN # of Speakers  |      6.73     |      2.03      |         1.73        |  1.19 |
+| Oracle VAD<br> UNKNOWN # of Speakers |     5.38     |      2.03      |         1.89        |  1.63 |
 
 * All models were tested using embedding extractor with window size 1.5s and shift length 0.75s
 * The above result is based on the oracle Voice Activity Detection (VAD) result.
-* This result is based on [ecapa_tdnn.nemo](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn) model.
+* This result is based on [titanet_large.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large) model.
 
 <br/>
 
@@ -65,13 +73,13 @@ Some of important options in config file:
 
 - **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we have 'ecapa_tdnn' and 'speakerverification_speakernet'.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we support 'titanet_large', 'ecapa_tdnn' and 'speakerverification_speakernet'.
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='ecapa_tdnn'`
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='titanet_large'`
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
 
- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='path/to/ecapa_tdnn.nemo'` 
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `diarizer.speaker_embeddings.model_path='path/to/titanet_large.nemo'` 
  
 - **`diarizer.vad.model_path`: voice activity detection modle name or path to the model**
 
@@ -131,12 +139,13 @@ In `./demo_asr_output/`, you can check the results as below.
     └── my_audio1.json
     └── my_audio1.txt
     └── my_audio1.rttm
+    └── my_audio1_gecko.json
 │
 └── ...
 ```
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  `*.json` files contains word-by-word json output with speaker label and time stamps.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  `*.json` files contains word-by-word json output with speaker label and time stamps. We also provide json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with ASR output.
 
 Example: `./demo_asr_output/pred_rttms/my_audio1.json`
 ```bash

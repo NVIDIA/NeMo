@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -25,6 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -42,7 +44,7 @@ from nemo.utils import AppState, logging
 
 class MegatronGPTModel(NLPModel):
     """
-    Megatron GPT pretraining
+    Megatron GPT pretraining and prompt tuning
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -63,8 +65,7 @@ class MegatronGPTModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
         )
 
-        if self.cfg.get('precision') != 'bf16':
-            set_jit_fusion_options()
+        set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
@@ -105,15 +106,42 @@ class MegatronGPTModel(NLPModel):
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=cfg.get('onnx_safe', False),
+            use_soft_prompts=cfg.get('use_soft_prompts', False),
+            num_prompt_tokens=cfg.get('num_prompt_tokens', 10),
+            prompt_tags=cfg.get('existing_prompt_tags', None),
         )
 
-    def forward(self, tokens, position_ids, attention_mask, labels):
-        output_tensor = self.model(tokens, position_ids, attention_mask, labels=labels)
+        self.use_soft_prompts = False
+
+        if self.cfg.get('use_soft_prompts', False):
+            self.use_soft_prompts = True
+            self.prompts_to_tune = set([])
+            self.prompt_table = set([])
+            self.num_prompt_tokens = cfg.get('num_prompt_tokens', 10)
+
+            if self.cfg.get('existing_prompt_tags', None):
+                self.prompt_table = set(self.cfg.existing_prompt_tags)
+
+    def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
+        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
+
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-        output_tensor = self(tokens, position_ids, attention_mask, labels)
+        if self.use_soft_prompts:
+            tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids = batch
+
+            tokens = tokens.to(self.device)
+            labels = labels.to(self.device)
+            attention_mask = attention_mask.to(self.device)
+            loss_mask = loss_mask.to(self.device)
+            text_position_ids = text_position_ids.to(self.device)
+
+            output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags)
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+            output_tensor = self(tokens, position_ids, attention_mask, labels)
+
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
@@ -129,11 +157,24 @@ class MegatronGPTModel(NLPModel):
             self.log('global_step', self.trainer.global_step, prog_bar=True)
             self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
             self._reduced_loss_buffer = []
+
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-        output_tensor = self(tokens, position_ids, attention_mask, labels)
+        if self.use_soft_prompts:
+            tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids = batch
+
+            tokens = tokens.to(self.device)
+            labels = labels.to(self.device)
+            attention_mask = attention_mask.to(self.device)
+            loss_mask = loss_mask.to(self.device)
+            text_position_ids = text_position_ids.to(self.device)
+
+            output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags)
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
+            output_tensor = self(tokens, position_ids, attention_mask, labels)
+
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
 
@@ -184,6 +225,9 @@ class MegatronGPTModel(NLPModel):
         return tokens, labels, loss_mask, attention_mask, position_ids
 
     def build_train_valid_test_datasets(self):
+        if self.use_soft_prompts:
+            return
+
         logging.info('Building GPT datasets.')
         global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
@@ -214,6 +258,7 @@ class MegatronGPTModel(NLPModel):
         if self._test_ds is not None:
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building GPT datasets.')
+
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
@@ -250,19 +295,49 @@ class MegatronGPTModel(NLPModel):
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
 
+    def build_prompt_tuning_dataset(self, dataset_path):
+        dataset = GPTPromptTuningDataset(
+            dataset_path=dataset_path,
+            tokenizer=self.tokenizer,
+            num_prompt_tokens=self.cfg.num_prompt_tokens,
+            max_seq_length=self.cfg.data.get('max_seq_length', 512),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos_eos=self.cfg.data.get('add_bos_eos', True),
+        )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=self.cfg.data.batch_size,
+            collate_fn=dataset.collate_fn,
+            num_workers=self.cfg.data.num_workers,
+            pin_memory=True,
+        )
+
+        return dataset, dataloader
+
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        # TODO: consider adding a ModelPT guard to check if model is being restored.
-        # allowing restored models to optionally setup datasets
-        self.build_train_valid_test_datasets()
-        self.setup_training_data(self.cfg.data)
-        self.setup_validation_data(self.cfg.data)
-        self.setup_test_data(self.cfg.data)
+        else:
+            # TODO: consider adding a ModelPT guard to check if model is being restored.
+            # allowing restored models to optionally setup datasets
+            self.build_train_valid_test_datasets()
+            self.setup_training_data(self.cfg.data)
+            self.setup_validation_data(self.cfg.data)
+            self.setup_test_data(self.cfg.data)
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+        if self.use_soft_prompts:
+            if cfg.get('train_ds', None):
+                self._train_ds, self._train_dl = self.build_prompt_tuning_dataset(self.cfg.data.train_ds)
+            else:
+                raise AttributeError('No prompt tuning train dataset was specified in the cfg file')
+
+            # Freeze all weights except prompt embeddings
+            self.prompt_tuning_freeze()
+
+        elif hasattr(self, '_train_ds'):
+            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
             if resume_checkpoint_path:
                 consumed_samples = int(
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
@@ -275,7 +350,13 @@ class MegatronGPTModel(NLPModel):
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds'):
+        if self.use_soft_prompts:
+            if cfg.get('valid_ds', None):
+                self._validation_ds, self._validation_dl = self.build_prompt_tuning_dataset(self.cfg.data.valid_ds)
+            else:
+                raise AttributeError('No prompt tuning validation dataset was specified in the cfg file')
+
+        elif hasattr(self, '_validation_ds'):
             consumed_samples = 0
             logging.info(
                 f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
@@ -283,7 +364,13 @@ class MegatronGPTModel(NLPModel):
             self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds'):
+        if self.use_soft_prompts:
+            if cfg.get('test_ds', None):
+                self._test_ds, self._test_dl = self.build_prompt_tuning_dataset(self.cfg.data.test_ds)
+            else:
+                logging.info('No prompt tuning test dataset file provided in config, skipping')
+
+        elif hasattr(self, '_test_ds'):
             consumed_samples = 0
             logging.info(
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
@@ -312,85 +399,180 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        parameters = self.model.parameters()
+        parameters = [param for param in self.model.parameters() if param.requires_grad]
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request = batch
-        responses = []
-        for prompt in request:
-            response = self.complete(prompt)
-            responses.append(response)
-        return responses
+    def prompt_tuning_freeze(self):
+        """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
+        """
+        for param in self.model.parameters():
+            param.requires_grad = False
 
-    def complete(self, request: Dict):
+        # Only want new prompt tags to be tunable, leave existing prompt tags alone
+        for prompt_tag in self.model.language_model.prompt_table.prompt_table.keys():
+            if prompt_tag in self.prompts_to_tune:
+                for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
+                    param.requires_grad = True
+            else:
+                for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
+                    param.requires_grad = False
+
+    @classmethod
+    def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
+        batch_tokens, lens, tokens_to_generate = batch[:3]
+        batch_size = len(batch_tokens)
+        tokens_to_generate = tokens_to_generate[0]
+        batch_tokens = batch_tokens.tolist()
+
+        if use_soft_prompts:
+            prompt_tags = batch[3]
+
+        # unpad tokens
+        indxs = [index for index in range(batch_size)]
+        for lenn, index in zip(lens, indxs):
+            batch_tokens[index] = batch_tokens[index][:lenn]
+
+        # chunk tokens by same length
+        pre_buckets, lens = [], list(set(lens.tolist()))
+        for lenn in lens:
+            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
+
+        buckets, positions, bucket_prompt_tags = [], [], []
+
+        # get buckets and prompts initial positions
+        for bucket in pre_buckets:
+            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
+            positions.append([item[1] for item in bucket])
+
+            # bucket prompt tags identically to their corresponding examples
+            if use_soft_prompts:
+                bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
+
+        # Flatten position list
+        positions = [item for sublist in positions for item in sublist]
+
+        # Form request
+        request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
+
+        return request, positions, tokens_to_generate
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        request, positions, tokens_to_generate = MegatronGPTModel._bucketize_gpt_inference(
+            batch, self.use_soft_prompts
+        )
+        response = self.complete(request, positions, tokens_to_generate)
+
+        return response
+
+    def complete(self, request: List, positions: List, tokens_to_generate: int):
         """
             Autoregressively invokes language model in the inference mode
-        Args:	
-            request: Dictionary with the following fields
-                * prompt: a string which text the model should complete.
-                * tokens_to_generate: how many tokens to generate while doing prompt completion.
-                * stop_after_sentence: (default True) whether to stop generation once sentence end is reached.
+        Args:
+            request: 
+                * tokens: List of "buckets" with unpadded tokens of the same length
+                * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
+                               specifying the prompt tag to use (optional)
+            positions: List with initial prompts positions
+            tokens_to_generate: int value denoting amount of tokens model should generate
+
         Returns:	
-            response: A python dictionary with the following fields
-                * prompt: original text of the prompt
-                * tokenized_prompt: list of (str) tokens from prompt
-                * completion: a python dictionary with the following subfields:
-                    * tokens: a list of triples (token, token_id, log_prob) comprising completion
-                    * stop reason: either 'eos', 'sentence_end' or 'limit' indicating why generation stopped
-                    * text: completion text (as a single string)
+            response: A python list of tuples
+                (text, tokens, log_probs, offsets)
+                * text: string, inputted prompt + generated text by model
+                * tokens: list of tokens correspond to text
+                * log_probs: list of tokens log probabilities
+                * offsets: list of tokens start positions in text
                 
         """
-        response = {}
-        self.freeze()
-        is_completion_begin = True
-        offsets = [0]
-        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
-        response['tokenized_prompt'] = request['tokenized_prompt']
-        tokens = request['tokens']
-        # naive greedy slow loop
-        # TODO: add option for BeamSearchDecoder
-        response['prompt'] = request['prompt']
-        response['completion'] = {}
-        response['completion']['stop reason'] = 'limit'
-        for i in range(request.get("tokens_to_generate", 64)):
-            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                data=tokens,
-                eod_token=self.tokenizer.eos_id,
-                reset_position_ids=self.cfg.get('reset_position_ids', False),
-                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
-                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
-            )
-            # No labels during inference. Still need masks to not attend to the right
-            output_tensor = self(tokens, position_ids, attention_mask, labels=None)
-            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-            log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
-            reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-            tokens = torch.cat([torch.squeeze(tokens), token_ids[:, -1]])
-            # offsets calculation
-            if is_completion_begin:
-                for index, token in enumerate(self.tokenizer.ids_to_tokens(tokens), start=1):
-                    offsets.append(len(token) + offsets[-1])
-                is_completion_begin = False
+        results = []
+        request_tokens = request["tokens"]
+
+        for idx, tokens in enumerate(request_tokens):
+
+            # For prompt tuned GPT models
+            if self.use_soft_prompts:
+                prompt_tags = request["prompt_tags"][idx]
             else:
-                offsets.append(len(self.tokenizer.ids_to_tokens(tokens)[-1]) + offsets[-1])
-            response['completion']["tokens"] = list(
-                zip(self.tokenizer.ids_to_tokens(tokens), tokens.tolist(), log_probs.tolist()[0], offsets)
-            )
-            completion_text = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
-            if reached_eos:  # Will it actually ever reach that?
-                response['completion']['stop reason'] = 'eos'
-                break
-            elif request.get("stop_after_sentence", True) and completion_text.endswith(('.', '!', '?')):
-                response['completion']['stop reason'] = 'sentence_end'
-                break
-            tokens = torch.unsqueeze(tokens, 0)
-        response['completion']["text"] = self.tokenizer.ids_to_text(x[1] for x in response['completion']["tokens"])
-        self.unfreeze()
+                prompt_tags = None
+
+            logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+
+            for i in range(tokens_to_generate + 1):
+                if self.use_soft_prompts:
+                    batch_size = len(tokens)
+                    full_length = len(tokens[0]) + self.num_prompt_tokens
+
+                    # Get postion ids for text after soft prompt
+                    position_ids = torch.arange(
+                        start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
+                    )
+                    position_ids = position_ids.unsqueeze(0).expand_as(tokens).clone()
+
+                    # Make attention mask starting with first token in soft prompt
+                    attention_mask = torch.tril(
+                        torch.ones((batch_size, full_length, full_length), device=self.device)
+                    ).view(batch_size, 1, full_length, full_length)
+                    attention_mask = attention_mask < 0.5
+
+                else:
+                    attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                        data=tokens,
+                        eod_token=self.tokenizer.eos_id,
+                        reset_position_ids=self.cfg.get('reset_position_ids', False),
+                        reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                        eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                    )
+
+                # No labels during inference. Still need masks to not attend to the right
+                output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
+                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+                reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
+                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+
+            # add to results as (text, tokens, log_probs, offsets)
+            for token, prob in zip(tokens, log_probs.tolist()):
+                results.append(
+                    (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0])
+                )
+        # offsets calculation
+        for item in results:
+            for index, token in enumerate(item[1]):
+                if index != len(item[1]) - 1:
+                    item[3].append(len(token) + item[3][-1])
+        # returnprompts in order they were inputted
+        response = [0 for i in range(len(positions))]
+        for item, index in zip(results, positions):
+            response[index] = item
+
         return response
+
+    def init_prompt_from_random(self, prompt_tag):
+        self.model._init_prompt_from_random(prompt_tag)
+        self._add_prompt_tag(prompt_tag)
+
+    def init_prompt_from_text(self, prompt_tag, init_text):
+        init_token_ids = self.tokenizer.text_to_ids(init_text)
+        self.model._init_prompt_from_text(prompt_tag, init_token_ids)
+        self._add_prompt_tag(prompt_tag)
+
+    def get_prompt_table(self):
+        if hasattr(self, 'prompt_table'):
+            return self.prompt_table
 
     def list_available_models(self):
         return None
+
+    def _add_prompt_tag(self, prompt_tag):
+        if not hasattr(self, 'prompt_table'):
+            raise AttributeError('Please set "use_soft_prompts" in cfg to True')
+
+        self.prompt_table.add(prompt_tag)
+        self.prompts_to_tune.add(prompt_tag)
+
+        # Add new prompt tag to cfg for loading prompt table at inference
+        with open_dict(self.cfg):
+            self.cfg.existing_prompt_tags = list(self.prompt_table)
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
