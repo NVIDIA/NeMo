@@ -24,25 +24,10 @@ def is_global_rank_zero():
     if rank:
         return rank == 0
 
-    # If not set by pytorch, we need to determine node_rank
-    def get_node_rank():
-        # Use an equivalent of pytorch lightning's determine_ddp_node_rank()
-        node_rank = 0
-        # First check if running on a slurm cluster
-        # TODO: This check could probably be better
-        num_slurm_tasks = get_envint("SLURM_NTASKS", 0)
-        if num_slurm_tasks > 0:
-            node_rank = get_envint("SLURM_NODEID", 0)
-        else:
-            node_rank_env = get_envint("NODE_RANK", None)
-            group_rank = get_envint("GROUP_RANK", None)
-            if group_rank:
-                node_rank = group_rank
-            # Take from NODE_RANK whenever available
-            if node_rank_env:
-                node_rank = node_rank_env
-        return node_rank
-
-    node_rank = get_node_rank()
-    local_rank = get_envint("LOCAL_RANK", 0)
+    # on SLURM variables SLURM_NODEID and SLURM_PROCID will be defined
+    # SLURM_PROCID holds the global rank and computing the node_rank is
+    # not strictly necessary, but we first check LOCAL_RANK to retain 
+    # the behaviour before the change  
+    node_rank = get_envint("SLURM_NODEID", get_envint("NODE_RANK", get_envint("GROUP_RANK", 0)))
+    local_rank = get_envint("LOCAL_RANK", get_envint("SLURM_PROCID", 0))
     return node_rank == 0 and local_rank == 0
