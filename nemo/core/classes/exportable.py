@@ -136,10 +136,16 @@ class Exportable(ABC):
         check_tolerance=0.01,
     ):
         my_args = locals()
-        del my_args['self']
+        my_args.pop('self')
+
+        exportables = []
+        for m in self.modules():
+            if isinstance(m, Exportable):
+                exportables.append(m)
 
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
-        output_descr = qual_name + ' exported to ONNX'
+        format = self.get_format(output)
+        output_descr = f"{qual_name} exported to {format}"
 
         try:
             # Disable typechecks
@@ -151,22 +157,23 @@ class Exportable(ABC):
             # Set module to eval mode
             self._set_eval(set_eval)
 
-            format = self.get_format(output)
-
             if input_example is None:
                 input_example = self._get_input_example()
 
-            my_args['input_example'] = input_example
+            # Remove i/o examples from args we propagate to enclosed Exportables
+            my_args.pop('output')
+            my_args.pop('input_example')
+            my_args.pop('output_example')
 
-            # Run (posibly overridden) prepare method before calling forward()
-            self._prepare_for_export(**my_args)
+            # Run (posibly overridden) prepare methods before calling forward()
+            for ex in exportables:
+                ex._prepare_for_export(**my_args)
+            self._prepare_for_export(output=output, input_example=input_example, **my_args)
 
             input_list, input_dict = self._setup_input_example(input_example)
-
             input_names = self._process_input_names()
             output_names = self._process_output_names()
-
-            output_example = self.forward(*input_list, **input_dict)
+            output_example = tuple(self.forward(*input_list, **input_dict))
 
             with torch.jit.optimized_execution(True), torch.no_grad():
                 jitted_model = self._try_jit_compile_model(self, try_script)
@@ -195,7 +202,14 @@ class Exportable(ABC):
 
                     # Verify the model can be read, and is valid
                     self._verify_onnx_export(
-                        output, output_example, input_list, input_dict, input_names, check_tolerance, check_trace
+                        output,
+                        output_example,
+                        input_list,
+                        input_dict,
+                        input_names,
+                        output_names,
+                        check_tolerance,
+                        check_trace,
                     )
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
@@ -203,10 +217,11 @@ class Exportable(ABC):
             typecheck.set_typecheck_enabled(enabled=True)
             if forward_method:
                 type(self).forward = old_forward_method
+            self._export_teardown()
         return ([output], [output_descr])
 
     def _verify_onnx_export(
-        self, output, output_example, input_list, input_dict, input_names, check_tolerance, check_trace
+        self, output, output_example, input_list, input_dict, input_names, output_names, check_tolerance, check_trace
     ):
         onnx_model = onnx.load(output)
         onnx.checker.check_model(onnx_model, full_check=True)
@@ -218,11 +233,11 @@ class Exportable(ABC):
 
         if test_runtime:
             self._verify_runtime(
-                onnx_model, input_list, input_dict, input_names, output_example, output, check_tolerance
+                onnx_model, input_list, input_dict, input_names, output_names, output_example, output, check_tolerance
             )
 
     def _verify_runtime(
-        self, onnx_model, input_list, input_dict, input_names, output_example, output, check_tolerance
+        self, onnx_model, input_list, input_dict, input_names, output_names, output_example, output, check_tolerance
     ):
         try:
             import onnxruntime
@@ -231,14 +246,17 @@ class Exportable(ABC):
             return
 
         sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
-        ort_out = sess.run(None, to_onnxrt_input(input_names, input_list, input_dict))
+        ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_list, input_dict))
         all_good = True
 
-        for out_name, out in enumerate(ort_out):
-            expected = output_example[out_name].cpu()
-            if not torch.allclose(torch.from_numpy(out), expected, rtol=check_tolerance, atol=100 * check_tolerance):
-                all_good = False
-                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
+        for i, out in enumerate(ort_out[0]):
+            expected = output_example[i]
+            if torch.is_tensor(expected):
+                if not torch.allclose(
+                    torch.from_numpy(out), expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance
+                ):
+                    all_good = False
+                    logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
         status = "SUCCESS" if all_good else "FAIL"
         logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
 
@@ -296,7 +314,7 @@ class Exportable(ABC):
                 check_tolerance=check_tolerance,
             )
         if verbose:
-            print(jitted_model.code)
+            logging.info(f"JIT code:\n{jitted_model.code}")
         jitted_model.save(output)
         assert os.path.exists(output)
 
@@ -306,14 +324,12 @@ class Exportable(ABC):
             try:
                 jitted_model = torch.jit.script(module)
             except Exception as e:
-                print("jit.script() failed!", e)
+                logging.error(f"jit.script() failed!\{e}")
         return jitted_model
 
     def _set_eval(self, set_eval):
         if set_eval:
-            self.freeze()
-            self.input_module.freeze()
-            self.output_module.freeze()
+            self.eval()
 
     @property
     def disabled_deployment_input_names(self):
@@ -365,6 +381,12 @@ class Exportable(ABC):
         replace_1D_2D = kwargs.get('replace_1D_2D', False)
         replace_for_export(self, replace_1D_2D)
 
+    def _export_teardown(self):
+        """
+        Override this method for any teardown code after export.
+        """
+        pass
+
     def _wrap_forward_method(self):
         old_forward_method = None
 
@@ -404,3 +426,8 @@ class Exportable(ABC):
             if name in output_names:
                 output_names.remove(name)
         return output_names
+
+    def _augment_output_filename(self, output, prepend: str):
+        path, filename = os.path.split(output)
+        filename = f"{prepend}-{filename}"
+        return os.path.join(path, filename)

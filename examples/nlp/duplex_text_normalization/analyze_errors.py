@@ -99,11 +99,12 @@ class ErrorCase:
         mode: A string indicates the mode (i.e., constants.ITN_MODE or constants.TN_MODE)
     """
 
-    def __init__(self, _input: str, target: str, pred: str, mode: str):
+    def __init__(self, _input: str, target: str, pred: str, classes: str, mode: str):
         self._input = _input
         self.target = target
         self.pred = pred
         self.mode = mode
+        self.classes = classes
 
         # Tokens
         self.target_tokens = self.target.split(' ')
@@ -157,7 +158,9 @@ class ErrorCase:
                 pred = line[line.find(':') + 1 :].strip()
             elif line.startswith('Ground-Truth'):
                 target = line[line.find(':') + 1 :].strip()
-        return cls(_input, target, pred, mode)
+            elif line.startswith('Ground Classes'):
+                classes = line[line.find(':') + 1 :].strip()
+        return cls(_input, target, pred, classes, mode)
 
     def get_html(self):
         """
@@ -182,6 +185,11 @@ class ErrorCase:
         padding_spaces = ''.join(['&nbsp;'] * padding_multiplier)
         pred_str = f'<b>[Prediction]{padding_spaces}</b>: {pred_html}</br>\n'
         html_str += pred_str + ' '
+        # Classes
+        padding_multiplier = 15 if self.mode == constants.TN_MODE else 16
+        padding_spaces = ''.join(['&nbsp;'] * padding_multiplier)
+        class_str = f'<b>[Classes]{padding_spaces}</b>: {self.classes}</br>\n'
+        html_str += class_str + ' '
         # Space
         html_str += '</br>\n'
         return html_str
@@ -246,9 +254,9 @@ def analyze(errors_log_fp: str, visualization_fp: str):
 
     # Process lines
     tn_error_cases, itn_error_cases = [], []
-    for ix in range(0, len(lines), 7):
+    for ix in range(0, len(lines), 8):
         mode_line = lines[ix]
-        info_lines = lines[ix + 1 : ix + 6]
+        info_lines = lines[ix + 1 : ix + 7]
         # Append new error case
         if mode_line.startswith('Forward Problem'):
             mode = constants.TN_MODE

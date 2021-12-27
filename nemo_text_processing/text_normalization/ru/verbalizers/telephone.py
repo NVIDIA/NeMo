@@ -39,6 +39,6 @@ class TelephoneFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="telephone", kind="verbalize", deterministic=deterministic)
 
-        graph = pynutil.delete("number_part: ") + pynini.closure(RU_ALPHA | " ", 1) + pynutil.delete("\"")
+        graph = pynutil.delete("number_part: \"") + pynini.closure(RU_ALPHA | " ", 1) + pynutil.delete("\"")
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

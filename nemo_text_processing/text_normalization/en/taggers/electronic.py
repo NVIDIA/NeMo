@@ -38,18 +38,28 @@ class ElectronicFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="electronic", kind="classify", deterministic=deterministic)
 
-        accepted_symbols = []
-        with open(get_abs_path("data/electronic/symbols.tsv"), 'r') as f:
-            for line in f:
-                symbol, _ = line.split('\t')
-                accepted_symbols.append(pynini.accep(symbol))
+        def get_input_symbols(f):
+            accepted_symbols = []
+            with open(f, 'r') as f:
+                for line in f:
+                    symbol, _ = line.split('\t')
+                    accepted_symbols.append(pynini.accep(symbol))
+            return accepted_symbols
 
+        accepted_symbols = get_input_symbols(get_abs_path("data/electronic/symbols.tsv"))
+        accepted_common_domains = get_input_symbols(get_abs_path("data/electronic/domain.tsv"))
         accepted_symbols = NEMO_ALPHA + pynini.closure(NEMO_ALPHA | NEMO_DIGIT | pynini.union(*accepted_symbols))
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
 
         username = pynutil.insert("username: \"") + accepted_symbols + pynutil.insert("\"") + pynini.cross('@', ' ')
         domain_graph = accepted_symbols + pynini.accep('.') + accepted_symbols
         domain_graph = pynutil.insert("domain: \"") + domain_graph + pynutil.insert("\"")
+        domain_common_graph = (
+            pynutil.insert("domain: \"")
+            + accepted_symbols
+            + pynini.union(*accepted_common_domains)
+            + pynutil.insert("\"")
+        )
 
         protocol_start = pynini.accep("https://") | pynini.accep("http://")
         protocol_symbols = pynini.closure(
@@ -59,7 +69,8 @@ class ElectronicFst(GraphFst):
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
         protocol = pynini.compose(protocol, protocol_symbols)
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
-        graph = pynini.closure(username, 0, 1) + domain_graph
+        graph = username + domain_graph
+        graph |= domain_common_graph
         graph |= protocol + pynutil.insert(" ") + domain_graph
 
         final_graph = self.add_tokens(graph)

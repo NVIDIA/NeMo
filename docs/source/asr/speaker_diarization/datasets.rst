@@ -29,7 +29,7 @@ oracle_num_speakers:
 
 path2groundtruth_rttm_files [Optional]:
   - To evaluate the diarizer system with known rttm files, One needs to provide a txt file (path2groundtruth_rttm_files) for groundtruth label files.
-  use above mentioned ``find`` command to get all reference rttm files (use '*.rttm' as search pattern)
+  use above mentioned ``find`` command to get all reference rttm files (use '\*.rttm' as search pattern)
 
 Each groundtruth label file should be in NIST Rich Transcription Time Marked (RTTM) format. Take one line from a RTTM file for example:
 
@@ -52,20 +52,20 @@ Here ``paths2audio_files`` and ``path2groundtruth_rttm_files`` are files contain
 AMI Meeting Corpus
 ------------------
 
-The following are the suggested parameters for getting Speaker Error Rate (SER) of 4.1% on AMI Lapel test set corpus:
-  - diarizer.oracle_num_speakers = 4 (since there are exactly 4 speakers per each Lapel test set session)
-  - diarizer.speaker_embeddings.model_path = ``speakerverification_speakernet`` (This model is trained on voxceleb dataset. ``Use this model for simialr non-telephonic speech datasets``)
-  - diarizer.speaker_embeddings.window_length_in_sec = 3 
-  - diarizer.speaker_embeddings.shift_length_in_sec = 1.5 
+The following are the suggested parameters for getting Speaker Error Rate (SER) of 2.13% on AMI Lapel test set corpus:
+  - diarizer.oracle_num_speakers = null (performing unknown speaker case)
+  - diarizer.speaker_embeddings.model_path = ``ecapa_tdnn`` (This model is trained on voxceleb dataset. ``Use this model for simialr non-telephonic speech datasets``)
+  - diarizer.speaker_embeddings.window_length_in_sec = 1.5
+  - diarizer.speaker_embeddings.shift_length_in_sec = 0.75 
 
 Input paths2audio_files, paths2rttm_files and oracle_vad_manifest by following steps as shown above
 
 CallHome LDC97S42 (CH109)
 -------------------------
 
-The following are the suggested parameters for getting Speaker Error Rate (SER) of 5.4% on CH109 set:
+The following are the suggested parameters for getting Speaker Error Rate (SER) of 1.19% on CH109 set:
   - diarizer.oracle_num_speakers = 2 (since there are exactly 2 speakers per each ch109 session)
-  - diarizer.speaker_embeddings.model_path = ``speakerdiarization_speakernet`` (This model is trained on voxceleb and telephonic speech Fisher and SWBD. ``Use this model for similar telephonic speech datasets``)
+  - diarizer.speaker_embeddings.model_path = ``ecapa_tdnn`` (This model is trained on voxceleb and telephonic speech Fisher and SWBD. ``Use this model for similar telephonic speech datasets``)
   - diarizer.speaker_embeddings.window_length_in_sec = 1.5
   - diarizer.speaker_embeddings.shift_length_in_sec = 0.75
 

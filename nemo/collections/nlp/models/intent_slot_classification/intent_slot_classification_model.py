@@ -69,9 +69,6 @@ class IntentSlotClassificationModel(NLPModel):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Enable setup methods.
-        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
-
         # Initialize Bert model
         self.bert_model = get_lm_model(
             pretrained_model_name=self.cfg.language_model.pretrained_model_name,
@@ -82,6 +79,9 @@ class IntentSlotClassificationModel(NLPModel):
             checkpoint_file=self.cfg.language_model.lm_checkpoint,
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
         )
+
+        # Enable setup methods.
+        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
 
         # Initialize Classifier.
         self._reconfigure_classifier()

@@ -112,9 +112,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
-    def _prepare_for_export(self, **kwargs):
-        self.freeze()
-
     def input_example(self):
         """
         Generates input examples for tracing etc.
@@ -129,15 +126,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set([])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set([])
+    def _prepare_for_export(self, **kwargs):
+        self._rnnt_export = True
+        super()._prepare_for_export(**kwargs)
 
     def __init__(
         self,
@@ -174,8 +165,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
         )
-
-        # Flag needed for RNNT export support
         self._rnnt_export = False
 
     @typecheck()
@@ -475,6 +464,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 tokens, state=dec_states, add_sos=False, batch_size=batch
             )  # [B, 1, H], List([L, 1, H])
 
+            dec_states = tuple(state.to(dtype=dtype) for state in dec_states)
+
         # Update done states and cache shared by entire batch.
         j = 0
         for i in range(final_batch):
@@ -518,11 +509,17 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                ([L x (B, H)], [L x (B, H)])
        """
         # LSTM has 2 states
+        new_states = [[] for _ in range(len(decoder_states[0]))]
         for layer in range(self.pred_rnn_layers):
-            for state_id in range(len(batch_states)):
-                batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
+            for state_id in range(len(decoder_states[0])):
+                # batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
+                new_state_for_layer = torch.stack([s[state_id][layer] for s in decoder_states])
+                new_states[state_id].append(new_state_for_layer)
 
-        return batch_states
+        for state_id in range(len(decoder_states[0])):
+            new_states[state_id] = torch.stack([state for state in new_states[state_id]])
+
+        return new_states
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
@@ -537,12 +534,74 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
         """
+        if batch_states is not None:
+            state_list = []
+            for state_id in range(len(batch_states)):
+                states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
+                state_list.append(states)
+
+            return state_list
+        else:
+            return None
+
+    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+        """Concatenate a batch of decoder state to a packed state.
+
+        Args:
+            batch_states (list): batch of decoder states
+                B x ([L x (H)], [L x (H)])
+
+        Returns:
+            (tuple): decoder states
+                (L x B x H, L x B x H)
+        """
         state_list = []
-        for state_id in range(len(batch_states)):
-            states = [batch_states[state_id][layer][idx] for layer in range(self.pred_rnn_layers)]
-            state_list.append(states)
+
+        for state_id in range(len(batch_states[0])):
+            batch_list = []
+            for sample_id in range(len(batch_states)):
+                tensor = torch.stack(batch_states[sample_id][state_id])  # [L, H]
+                tensor = tensor.unsqueeze(0)  # [1, L, H]
+                batch_list.append(tensor)
+
+            state_tensor = torch.cat(batch_list, 0)  # [B, L, H]
+            state_tensor = state_tensor.transpose(1, 0)  # [L, B, H]
+            state_list.append(state_tensor)
 
         return state_list
+
+    def batch_copy_states(
+        self,
+        old_states: List[torch.Tensor],
+        new_states: List[torch.Tensor],
+        ids: List[int],
+        value: Optional[float] = None,
+    ) -> List[torch.Tensor]:
+        """Copy states from new state to old state at certain indices.
+
+        Args:
+            old_states(list): packed decoder states
+                (L x B x H, L x B x H)
+
+            new_states: packed decoder states
+                (L x B x H, L x B x H)
+
+            ids (list): List of indices to copy states at.
+
+            value (optional float): If a value should be copied instead of a state slice, a float should be provided
+
+        Returns:
+            batch of decoder states with partial copy at ids (or a specific value).
+                (L x B x H, L x B x H)
+        """
+        for state_id in range(len(old_states)):
+            if value is None:
+                old_states[state_id][:, ids, :] = new_states[state_id][:, ids, :]
+            else:
+                old_states[state_id][:, ids, :] *= 0.0
+                old_states[state_id][:, ids, :] += value
+
+        return old_states
 
 
 class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
@@ -575,9 +634,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             Warning: This will make the forward-backward pass much slower than normal.
             It also might not fix the OOM if the GPU simply does not have enough memory to compute the joint.
 
-        experimental_fuse_loss_wer: Optional bool, set to False by default.
-            NOTE: This is an experimental feature that attempts to trade of compute time for memory preservation.
-            There may be undetermined effects to convergence behaviour.
+        fuse_loss_wer: Optional bool, set to False by default.
 
             Fuses the joint forward, loss forward and
             wer forward steps. In doing so, it trades of speed for memory conservation by creating sub-batches
@@ -638,9 +695,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             }
 
     def _prepare_for_export(self, **kwargs):
-        self.freeze()
         self._fuse_loss_wer = False
         self.log_softmax = False
+        super()._prepare_for_export(**kwargs)
 
     def input_example(self):
         """
@@ -658,11 +715,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         """Implement this method to return a set of input names disabled for export"""
         return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
 
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set()
-
     def __init__(
         self,
         jointnet: Dict[str, Any],
@@ -670,8 +722,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         vocabulary: Optional[List] = None,
         log_softmax: Optional[bool] = None,
         preserve_memory: bool = False,
-        experimental_fuse_loss_wer: bool = False,
+        fuse_loss_wer: bool = False,
         fused_batch_size: Optional[int] = None,
+        experimental_fuse_loss_wer: Any = None,
     ):
         super().__init__()
 
@@ -680,17 +733,19 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self._vocab_size = num_classes
         self._num_classes = num_classes + 1  # add 1 for blank symbol
 
-        self._fuse_loss_wer = experimental_fuse_loss_wer
+        if experimental_fuse_loss_wer is not None:
+            # TODO: Deprecate in 1.6
+            logging.warning(
+                "`experimental_fuse_loss_wer` will be deprecated in NeMo 1.6. Please use `fuse_loss_wer` instead."
+            )
+            # Override fuse_loss_wer from deprecated argument
+            fuse_loss_wer = experimental_fuse_loss_wer
+
+        self._fuse_loss_wer = fuse_loss_wer
         self._fused_batch_size = fused_batch_size
 
-        if experimental_fuse_loss_wer and (fused_batch_size is None):
+        if fuse_loss_wer and (fused_batch_size is None):
             raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
-
-        if experimental_fuse_loss_wer:
-            logging.warning(
-                "\nFused joint step is an experimental technique. Please be aware that it "
-                "may have unintended side effects!\n"
-            )
 
         self._loss = None
         self._wer = None
@@ -761,13 +816,12 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
 
             # If fused joint step is required, fused batch size is required as well
             if self._fused_batch_size is None:
-                raise ValueError("If `experimental_fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+                raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
 
             # When using fused joint step, both encoder and transcript lengths must be provided
             if (encoder_lengths is None) or (transcript_lengths is None):
                 raise ValueError(
-                    "`experimental_fuse_loss_wer` is set, therefore encoder and target lengths "
-                    "must be provided as well!"
+                    "`fuse_loss_wer` is set, therefore encoder and target lengths " "must be provided as well!"
                 )
 
             losses = []
@@ -1022,3 +1076,49 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
 
     def set_fused_batch_size(self, fused_batch_size):
         self._fused_batch_size = fused_batch_size
+
+
+class RNNTDecoderJoint(torch.nn.Module, Exportable):
+    """
+    Utility class to export Decoder+Joint as a single module
+    """
+
+    def __init__(self, decoder, joint):
+        super().__init__()
+        self.decoder = decoder
+        self.joint = joint
+
+    @property
+    def input_types(self):
+        state_type = NeuralType(('D', 'B', 'D'), ElementType())
+        mytypes = {
+            'encoder_outputs': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "targets": NeuralType(('B', 'T'), LabelsType()),
+            "target_length": NeuralType(tuple('B'), LengthsType()),
+            'input-states-1': state_type,
+            'input-states-2': state_type,
+        }
+
+        return mytypes
+
+    def input_example(self):
+        decoder_example = self.decoder.input_example()
+        state1, state2 = decoder_example[-1]
+        return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
+
+    @property
+    def output_types(self):
+        return {
+            "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
+            "output-states-1": NeuralType((('D', 'B', 'D')), ElementType()),
+            "output-states-2": NeuralType((('D', 'B', 'D')), ElementType()),
+        }
+
+    def forward(self, encoder_outputs, decoder_inputs, decoder_lengths, state_h, state_c):
+        decoder_outputs = self.decoder(decoder_inputs, decoder_lengths, (state_h, state_c))
+        decoder_output = decoder_outputs[0]
+        decoder_length = decoder_outputs[1]
+        state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
+        joint_output = self.joint(encoder_outputs, decoder_output)
+        return (joint_output, decoder_length, state_h, state_c)

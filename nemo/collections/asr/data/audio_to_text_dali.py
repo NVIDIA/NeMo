@@ -41,7 +41,7 @@ __all__ = [
 ]
 
 """
-Below minimum version is required to access the "read_idxs" argument in 
+Below minimum version is required to access the "read_idxs" argument in
 dali.fn.readers.nemo_asr
 """
 __DALI_MINIMUM_VERSION__ = "1.4"
@@ -110,7 +110,6 @@ class DALIOutputs(object):
         return len(self._outs)
 
 
-@experimental
 class _AudioTextDALIDataset(Iterator):
     """
     NVIDIA DALI pipeline that loads tensors via one or more manifest files where each line containing a sample descriptor in JSON,
@@ -141,6 +140,7 @@ class _AudioTextDALIDataset(Iterator):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -163,8 +163,15 @@ class _AudioTextDALIDataset(Iterator):
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
+        return_sample_id: bool = False,
     ):
         self.drop_last = drop_last  # used by lr_scheduler
+        if return_sample_id:
+            raise ValueError(
+                "Currently DALI data layers don't support returning the sample_id and return_sample_id can not be enabled."
+            )
+        self.return_sample_id = return_sample_id
+
         if not HAVE_DALI:
             raise ModuleNotFoundError(
                 f"{self} requires NVIDIA DALI to be installed. "
@@ -175,6 +182,8 @@ class _AudioTextDALIDataset(Iterator):
             raise ValueError(
                 f"{self} received an unexpected device argument {device}. Supported values are: 'cpu', 'gpu'"
             )
+
+        device_id = device_id if device == 'gpu' else None
 
         self.batch_size = batch_size  # Used by NeMo
 
@@ -220,7 +229,7 @@ class _AudioTextDALIDataset(Iterator):
             self.window_stride_sec = params['window_stride'] if 'window_stride' in params else 0.01
             self.sample_rate = params['sample_rate'] if 'sample_rate' in params else sample_rate
             self.window_size = int(self.window_size_sec * self.sample_rate)
-            self.window_stride = int(self.window_size_sec * self.sample_rate)
+            self.window_stride = int(self.window_stride_sec * self.sample_rate)
 
             normalize = params['normalize'] if 'normalize' in params else 'per_feature'
             if normalize == 'per_feature':  # Each freq channel independently
@@ -234,28 +243,30 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
             self.window = None
-            window_name = params['window'] if 'window' in params else None
+            window_name = params['window'] if 'window' in params else 'hann'
             torch_windows = {
+                'hann': torch.hann_window,
                 'hamming': torch.hamming_window,
                 'blackman': torch.blackman_window,
                 'bartlett': torch.bartlett_window,
+                'none': None,
             }
-            if window_name is None or window_name == 'hann':
-                self.window = None  # Hann is DALI's default
-            elif window_name == 'ones':
-                self.window = torch.ones(self.window_size)
+
+            if window_name == 'ones':
+                window_tensor = torch.ones(self.window_size)
             else:
                 try:
                     window_fn = torch_windows.get(window_name, None)
-                    self.window = window_fn(self.window_size, periodic=False)
                 except:
                     raise ValueError(
-                        f"{self} received {window_name} for the window parameter."
+                        f"{self} received '{window_name}' for the window parameter."
                         f" It must be one of: ('hann', 'ones', 'hamming', 'blackman', 'bartlett', None)."
                         f" None is equivalent to 'hann'."
                     )
+                window_tensor = window_fn(self.window_size, periodic=False) if window_fn else None
+            self.window = window_tensor.numpy().tolist() if window_tensor is not None else None
 
-            self.n_fft = params['n_fft'] if 'n_fft' in params else None  # None means default
+            self.n_fft = params['n_fft'] if 'n_fft' in params else 2 ** math.ceil(math.log2(self.window_size))
             self.n_mels = params['n_mels'] if 'n_mels' in params else 64
             self.n_mfcc = params['n_mfcc'] if 'n_mfcc' in params else 64
 
@@ -285,7 +296,9 @@ class _AudioTextDALIDataset(Iterator):
                     f"'clamp'."
                 )
 
-            self.log_zero_guard_value = params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 1e-05
+            self.log_zero_guard_value = (
+                params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2 ** -24
+            )
             if isinstance(self.log_zero_guard_value, str):
                 if self.log_zero_guard_value == "tiny":
                     self.log_zero_guard_value = torch.finfo(torch.float32).tiny
@@ -303,7 +316,7 @@ class _AudioTextDALIDataset(Iterator):
                     f"{self} received {self.mag_power} for the mag_power parameter." f" It must be either 1.0 or 2.0."
                 )
 
-            self.pad_to = params['pad_to'] if 'pad_to' in params else 16
+            self.pad_to = max(params['pad_to'], 1) if 'pad_to' in params else 16
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
         with self.pipe:
@@ -343,16 +356,20 @@ class _AudioTextDALIDataset(Iterator):
             else:
                 # Additive gaussian noise (dither)
                 if self.dither > 0.0:
-                    gaussian_noise = dali.fn.normal_distribution(device=self.device)
+                    gaussian_noise = dali.fn.normal_distribution(audio)
                     audio = audio + self.dither * gaussian_noise
 
                 # Preemphasis filter
                 if self.preemph > 0.0:
-                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph)
+                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph, border='zero')
 
                 # Power spectrogram
                 spec = dali.fn.spectrogram(
-                    audio, nfft=self.n_fft, window_length=self.window_size, window_step=self.window_stride
+                    audio,
+                    nfft=self.n_fft,
+                    window_length=self.window_size,
+                    window_step=self.window_stride,
+                    window_fn=self.window,
                 )
 
                 if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
@@ -378,7 +395,7 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
                 # Normalization
-                spec = dali.fn.normalize(spec, axes=self.normalization_axes)
+                spec = dali.fn.normalize(spec, axes=self.normalization_axes, epsilon=1e-5 ** 2, ddof=1)
 
                 # Extracting the length of the spectrogram
                 spec_len = dali.fn.slice(dali.fn.shapes(spec), 1, 1, axes=(0,))
@@ -510,6 +527,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -536,6 +554,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
+        return_sample_id: bool = False,
     ):
         self.labels = labels
 
@@ -562,6 +581,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
+            return_sample_id=return_sample_id,
         )
 
 
@@ -598,6 +618,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
         use_start_end_token (bool): Boolean which dictates whether to add [BOS] and [EOS] tokens to beginning and
             ending of speech respectively.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -618,7 +639,9 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
         use_start_end_token: bool = True,
+        return_sample_id: bool = False,
     ):
+
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
         else:
@@ -661,4 +684,5 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
+            return_sample_id=return_sample_id,
         )

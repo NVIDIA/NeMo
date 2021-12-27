@@ -51,7 +51,7 @@ Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root
 
 .. code-block:: bash 
 
-  python examples/speaker_recognition/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
+  python examples/asr/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
 
 Have a look at scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for posterior processing, postprocessing and threshold tuning.
 

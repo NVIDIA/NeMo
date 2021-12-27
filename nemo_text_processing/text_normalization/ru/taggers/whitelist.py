@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, convert_space
-from nemo_text_processing.text_normalization.ru.alphabet import TO_LATIN
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, convert_space
+from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_CYRILLIC
 from nemo_text_processing.text_normalization.ru.utils import get_abs_path, load_labels
 
 try:
@@ -40,13 +40,14 @@ class WhiteListFst(GraphFst):
         input_case: accepting either "lower_cased" or "cased" input.
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
+        input_file: path to a file with whitelist replacements
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True):
+    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
-        def _get_whitelist_graph(input_case, file="data/whitelist.tsv"):
-            whitelist = load_labels(get_abs_path(file))
+        def _get_whitelist_graph(input_case, file):
+            whitelist = load_labels(file)
             if input_case == "lower_cased":
                 whitelist = [[x[0].lower()] + x[1:] for x in whitelist]
             else:
@@ -54,13 +55,16 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
-        graph = _get_whitelist_graph(input_case)
+        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
 
-        units_graph = _get_whitelist_graph(input_case, file="data/measurements.tsv")
-        # do not replace single letter units, like `м` or `°`
-        units_graph = pynini.compose(pynini.difference(pynini.project(units_graph, "input"), NEMO_ALPHA), units_graph)
+        if input_file:
+            graph = _get_whitelist_graph(input_case, input_file)
+
+        units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measurements.tsv"))
+        # do not replace single letter units, like `м`, `°` and `%` will be replaced
+        units_graph = pynini.compose((NEMO_CHAR ** (2, ...) | pynini.difference(NEMO_CHAR, RU_ALPHA)), units_graph)
         graph |= units_graph.optimize()
-        graph |= TO_LATIN + pynini.closure(pynutil.insert(" ") + TO_LATIN)
+        graph |= TO_CYRILLIC + pynini.closure(pynutil.insert(" ") + TO_CYRILLIC)
 
         self.final_graph = convert_space(graph)
         self.fst = (pynutil.insert("name: \"") + self.final_graph + pynutil.insert("\"")).optimize()

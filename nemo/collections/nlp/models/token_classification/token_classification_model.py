@@ -15,7 +15,6 @@
 import os
 from typing import Dict, List, Optional, Union
 
-import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer

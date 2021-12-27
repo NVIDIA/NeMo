@@ -49,9 +49,11 @@ class DecimalFst(GraphFst):
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional_part + pynutil.insert("\"")
         graph_integer = pynutil.insert("integer_part: \"") + graph_integer_part + pynutil.insert("\"")
         optional_graph_quantity = pynutil.insert("quantity: \"") + optional_graph_quantity + pynutil.insert("\"")
-        optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + optional_graph_quantity, 0, 1)
+        optional_graph_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + optional_graph_quantity, 0, 1)
 
-        self.final_graph_wo_sign = graph_integer + pynini.accep(NEMO_SPACE) + graph_fractional + optional_quantity
+        self.final_graph_wo_sign = (
+            graph_integer + pynini.accep(NEMO_SPACE) + graph_fractional + optional_graph_quantity
+        )
         final_graph = optional_graph_negative + self.final_graph_wo_sign
 
         final_graph = self.add_tokens(final_graph)

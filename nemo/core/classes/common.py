@@ -15,6 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 import hashlib
+import inspect
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -28,7 +29,7 @@ import wrapt
 
 import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
@@ -268,6 +269,7 @@ class Typing(ABC):
             # Precompute metadata
             metadata = TypecheckMetadata(original_types=output_types, ignore_collections=ignore_collections)
             out_types_list = list(metadata.base_types.items())
+            mandatory_out_types_list = list(metadata.mandatory_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
             if type(out_objects) in (list, tuple):
@@ -286,15 +288,15 @@ class Typing(ABC):
                 pass
 
             # In all other cases, python will wrap multiple outputs into an outer tuple.
-            # As such, now the number of elements in this outer tuple should exactly match
-            # the number of output types defined.
-            elif len(out_types_list) != len(out_container):
+            # Allow number of output arguments to be <= total output neural types and >= mandatory outputs.
+
+            elif len(out_container) > len(out_types_list) or len(out_container) < len(mandatory_out_types_list):
                 raise TypeError(
-                    "Number of output arguments provided ({}) is not as expected ({}).\n"
-                    "This can be either because insufficient number of output NeuralTypes were provided,"
+                    "Number of output arguments provided ({}) is not as expected. It should be larger than {} and less than {}.\n"
+                    "This can be either because insufficient/extra number of output NeuralTypes were provided,"
                     "or the provided NeuralTypes {} should enable container support "
                     "(add '[]' to the NeuralType definition)".format(
-                        len(out_container), len(output_types), output_types
+                        len(out_container), len(out_types_list), len(mandatory_out_types_list), output_types
                     )
                 )
 
@@ -429,7 +431,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig'):
+    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
@@ -451,6 +453,7 @@ class Serialization(ABC):
         else:
             instance = None
             imported_cls_tb = None
+            instance_init_error = None
             # Attempt class path resolution from config `target` class (if it exists)
             if 'target' in config:
                 target_cls = config["target"]  # No guarantee that this is a omegaconf class
@@ -469,20 +472,38 @@ class Serialization(ABC):
                         imported_cls = cls
 
                     try:
-                        instance = imported_cls(cfg=config)
-                    except Exception:
+                        accepts_trainer = Serialization._inspect_signature_for_trainer(imported_cls)
+                        if accepts_trainer:
+                            instance = imported_cls(cfg=config, trainer=trainer)
+                        else:
+                            instance = imported_cls(cfg=config)
+
+                    except Exception as e:
                         imported_cls_tb = traceback.format_exc()
+                        instance_init_error = str(e)
                         instance = None
 
             # target class resolution was unsuccessful, fall back to current `cls`
             if instance is None:
                 if imported_cls_tb is not None:
-                    logging.debug(
+                    logging.info(
                         f"Model instantiation from target class {target_cls} failed with following error.\n"
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
                     )
-                instance = cls(cfg=config)
+                instance = cls(cfg=config, trainer=trainer)
+                try:
+                    accepts_trainer = Serialization._inspect_signature_for_trainer(cls)
+                    if accepts_trainer:
+                        instance = cls(cfg=config, trainer=trainer)
+                    else:
+                        instance = cls(cfg=config)
+
+                except Exception as e:
+                    if imported_cls_tb is not None:
+                        logging.error(f"Instance failed restore_from due to: {instance_init_error}")
+                        logging.error(f"{imported_cls_tb}")
+                    raise e
 
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
@@ -507,6 +528,17 @@ class Serialization(ABC):
                 'to_config_dict() can currently only return object._cfg but current object does not have it.'
             )
 
+    @classmethod
+    def _inspect_signature_for_trainer(cls, check_cls):
+        if hasattr(check_cls, '__init__'):
+            signature = inspect.signature(check_cls.__init__)
+            if 'trainer' in signature.parameters:
+                return True
+            else:
+                return False
+        else:
+            return False
+
 
 class FileIO(ABC):
     def save_to(self, save_path: str):
@@ -521,6 +553,8 @@ class FileIO(ABC):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
+        save_restore_connector: SaveRestoreConnector = None,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -636,6 +670,7 @@ class Model(Typing, Serialization, FileIO):
         map_location: Optional['torch.device'] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -684,7 +719,7 @@ class Model(Typing, Serialization, FileIO):
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
-        cache_dir = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}/{filename[:-5]}')
+        cache_dir = Path.joinpath(model_utils.resolve_cache_dir(), f'{filename[:-5]}')
         # If either description and location in the cloud changes, this will force re-download
         cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
@@ -700,6 +735,7 @@ class Model(Typing, Serialization, FileIO):
             map_location=map_location,
             strict=strict,
             return_config=return_config,
+            trainer=trainer,
             save_restore_connector=save_restore_connector,
         )
         return instance

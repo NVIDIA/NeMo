@@ -34,17 +34,22 @@ def prepare_labels_for_insertion(file_path: str):
     Read the file and creates a union insertion graph
 
     Args:
-        file_path: path to a file (single column)
+        file_path: path to a file (3 columns: a label type e.g.
+        "@@decimal_delimiter@@", a label e.g. "целого", and a weight e.g. "0.1").
 
-    Returns fst that inserts labels from the file
+    Returns dictionary mapping from label type to an fst that inserts the labels with the specified weights.
+
     """
     labels = load_labels(file_path)
     mapping = defaultdict(list)
-    for k, v in labels:
-        mapping[k].append(v)
+    for k, v, w in labels:
+        mapping[k].append((v, w))
 
     for k in mapping:
-        mapping[k] = insert_space + pynini.union(*[pynutil.insert(end) for end in mapping[k]])
+        mapping[k] = (
+            insert_space
+            + pynini.union(*[pynutil.add_weight(pynutil.insert(end), weight) for end, weight in mapping[k]])
+        ).optimize()
     return mapping
 
 
@@ -62,7 +67,7 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool = False):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        integer_part = cardinal.cardinal_numbers
+        integer_part = cardinal.cardinal_numbers_default
         cardinal_numbers_with_leading_zeros = cardinal.cardinal_numbers_with_leading_zeros
 
         delimiter_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_delimiter.tsv"))
@@ -86,17 +91,18 @@ class DecimalFst(GraphFst):
             NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT
         ) @ cardinal_numbers_with_leading_zeros + decimal_endings_map['10000']
 
-        quantity = pynini.union("1000", "1000000", "1000000000")
-        self.optional_quantity = (
-            (pynini.string_file(get_abs_path("data/numbers/cardinals.tsv")).invert() @ quantity)
-            .project("input")
-            .optimize()
-        )
-        optional_quantity = pynutil.insert("quantity: \"") + self.optional_quantity + pynutil.insert("\"")
-        optional_quantity = pynini.closure(pynini.accep(NEMO_SPACE) + optional_quantity, 0, 1)
+        self.optional_quantity = pynini.string_file(get_abs_path("data/numbers/quantity.tsv")).optimize()
 
         self.graph_fractional = graph_fractional
         graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
+        optional_quantity = pynini.closure(
+            (pynutil.add_weight(pynini.accep(NEMO_SPACE), -0.1) | insert_space)
+            + pynutil.insert("quantity: \"")
+            + self.optional_quantity
+            + pynutil.insert("\""),
+            0,
+            1,
+        )
         self.final_graph = (
             cardinal.optional_graph_negative + graph_integer + insert_space + graph_fractional + optional_quantity
         )

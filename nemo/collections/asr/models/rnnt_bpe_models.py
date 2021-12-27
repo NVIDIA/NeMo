@@ -14,11 +14,12 @@
 
 import copy
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
@@ -34,15 +35,100 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
     """Base class for encoder decoder RNNT-based models with subword tokenization."""
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
         Returns:
             List of available pre-trained models.
         """
-        result = []
-        return result
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_512",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_512/versions/1.0.0/files/stt_en_contextnet_512.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_1024/versions/1.0.0/files/stt_en_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_small/versions/1.4.0/files/stt_en_conformer_transducer_small.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_256_mls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_256_mls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_256_mls/versions/1.0.0/files/stt_en_contextnet_256_mls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_512_mls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512_mls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_512_mls/versions/1.0.0/files/stt_en_contextnet_512_mls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_1024_mls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024_mls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_1024_mls/versions/1.0.0/files/stt_en_contextnet_1024_mls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_small/versions/1.4.0/files/stt_en_conformer_transducer_small.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_medium",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_medium/versions/1.4.0/files/stt_en_conformer_transducer_medium.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large/versions/1.4.0/files/stt_en_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_contextnet_1024/versions/1.4.0/files/stt_de_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_fr_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_fr_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_fr_contextnet_1024/versions/1.5/files/stt_fr_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_conformer_transducer_large/versions/1.5.0/files/stt_de_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -235,7 +321,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
                 shuffle_n=shuffle_n,
@@ -253,10 +339,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
+        if type(dataset) is ChainDataset:
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
@@ -279,11 +370,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         dl_config = {
             'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'shuffle': False,
+            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'pin_memory': True,
+            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

@@ -57,7 +57,11 @@ class Perplexity(Metric):
             probs: A ``torch.Tensor`` which innermost dimension is valid probability distribution.
             logits: A ``torch.Tensor`` without NaNs.
         """
-        d = Categorical(probs, logits, validate_args=self.validate_args)
+        d = Categorical(
+            None if probs is None else probs.detach(),
+            None if logits is None else logits.detach(),
+            validate_args=self.validate_args,
+        )
         ppl = d.perplexity()
         self.num_distributions += ppl.numel()
         self.perplexities_sum += ppl.sum()

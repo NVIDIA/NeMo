@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -59,6 +59,11 @@ def get_features(
 
         for j, word in enumerate(words):
             word_tokens = tokenizer.text_to_tokens(word)
+
+            # to handle emojis that could be neglected during tokenization
+            if len(word.strip()) > 0 and len(word_tokens) == 0:
+                word_tokens = [tokenizer.ids_to_tokens(tokenizer.unk_id)]
+
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)

@@ -1,7 +1,7 @@
 numpy>=1.18.2
 onnx>=1.7.0
 python-dateutil
-torch>1.7
+torch
 wrapt
 ruamel.yaml
 scikit-learn
