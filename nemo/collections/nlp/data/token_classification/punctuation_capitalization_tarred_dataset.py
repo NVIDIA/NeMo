@@ -50,6 +50,8 @@ TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{fragment_idx}.num_batches{num_batches}.{
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
+NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"[^a-zA-Z0-9_.-]")
+REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"-*[^a-zA-Z0-9_.-]+-*")
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
@@ -630,6 +632,17 @@ def create_metadata_file(
         json.dump(metadata, f, indent=2)
 
 
+def check_tar_file_prefix(tar_file_prefix: str) -> None:
+    not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(tar_file_prefix)
+    if not_allowed_characters_in_prefix:
+        not_allowed_characters_in_prefix = set(not_allowed_characters_in_prefix)
+        raise ValueError(
+            f"Found {len(not_allowed_characters_in_prefix)} not allowed characters in `tar_file_prefix`. Only 'A-Z', "
+            f"'a-z', '0-9', '_', '-', '.' characters are allowed. Examples of not allowed characters: "
+            f"{list(not_allowed_characters_in_prefix)[:10]}."
+        )
+
+
 def create_tarred_dataset(
     text_file: Union[os.PathLike, str],
     labels_file: Union[os.PathLike, str],
@@ -730,10 +743,11 @@ def create_tarred_dataset(
         capit_label_vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): same as ``punct_label_vocab_file`` for
             capitalization labels.
         tar_file_prefix (:obj:`str`, `optional`, defaults :obj:`'punctuation_capitalization'`): a string from which tar
-            file names start.
+            file names start. The string can contain only characters ``A-Z``, ``a-z``, ``0-9``, ``_``, ``-``, ``.``.
         n_jobs (:obj:`int`, `optional`): a number of workers for creating tarred dataset. If ``None``, then ``n_jobs``
             is equal to number of CPUs.
     """
+    check_tar_file_prefix(tar_file_prefix)
     if n_jobs is None:
         n_jobs = mp.cpu_count()
     text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
@@ -742,7 +756,7 @@ def create_tarred_dataset(
         prefix=tar_file_prefix,
         tokens_in_batch=tokens_in_batch,
         max_seq_length=max_seq_length,
-        tokenizer=tokenizer_name.replace('/', '-'),
+        tokenizer=REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.sub('-', tokenizer_name),
     )
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
