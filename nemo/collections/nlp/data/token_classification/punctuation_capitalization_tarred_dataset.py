@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import json
 import multiprocessing as mp
 import os
@@ -382,7 +383,7 @@ def check_label_ids(pad_label: str, punct_label_ids: Dict[str, int], capit_label
 
 
 def process_error(msg: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]]) -> None:
-    if issubclass(error_class_or_function, Exception):
+    if inspect.isclass(error_class_or_function) and issubclass(error_class_or_function, Exception):
         raise error_class_or_function(msg)
     if callable(error_class_or_function):
         error_class_or_function(msg)
