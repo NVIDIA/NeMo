@@ -742,7 +742,7 @@ def create_tarred_dataset(
         prefix=tar_file_prefix,
         tokens_in_batch=tokens_in_batch,
         max_seq_length=max_seq_length,
-        tokenizer=tokenizer_name,
+        tokenizer=tokenizer_name.replace('/', '-'),
     )
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
