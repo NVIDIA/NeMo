@@ -642,7 +642,7 @@ def check_tar_file_prefix(
         msg = (
             f"Found {len(not_allowed_characters_in_prefix)} not allowed characters in `{var_name}`. Only 'A-Z', "
             f"'a-z', '0-9', '_', '-', '.' characters are allowed. Examples of not allowed characters: "
-            f"{list(not_allowed_characters_in_prefix)[:10]}. tar_file_prefix={repr(tar_file_prefix)}."
+            f"{list(not_allowed_characters_in_prefix)[:10]}. `{tar_file_prefix}`[:30]={repr(tar_file_prefix)[:30]}."
         )
         process_error(msg, error_class_or_function)
 
