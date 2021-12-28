@@ -23,8 +23,8 @@ model:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     frame_splicing: 1
-    nfilt: 100
-    highfreq: 11025
+    nfilt: 80
+    highfreq: 8000
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
