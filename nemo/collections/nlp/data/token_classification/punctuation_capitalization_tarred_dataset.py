@@ -632,16 +632,18 @@ def create_metadata_file(
         json.dump(metadata, f, indent=2)
 
 
-def check_tar_file_prefix(tar_file_prefix: str) -> None:
+def check_tar_file_prefix(
+    tar_file_prefix: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]], var_name: str
+) -> None:
     not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(tar_file_prefix)
     if not_allowed_characters_in_prefix:
         not_allowed_characters_in_prefix = set(not_allowed_characters_in_prefix)
-        raise ValueError(
-            f"Found {len(not_allowed_characters_in_prefix)} not allowed characters in `tar_file_prefix`. Only 'A-Z', "
+        msg = (
+            f"Found {len(not_allowed_characters_in_prefix)} not allowed characters in `{var_name}`. Only 'A-Z', "
             f"'a-z', '0-9', '_', '-', '.' characters are allowed. Examples of not allowed characters: "
             f"{list(not_allowed_characters_in_prefix)[:10]}."
         )
-
+        process_error(msg, error_class_or_function)
 
 def create_tarred_dataset(
     text_file: Union[os.PathLike, str],
@@ -747,7 +749,7 @@ def create_tarred_dataset(
         n_jobs (:obj:`int`, `optional`): a number of workers for creating tarred dataset. If ``None``, then ``n_jobs``
             is equal to number of CPUs.
     """
-    check_tar_file_prefix(tar_file_prefix)
+    check_tar_file_prefix(tar_file_prefix, ValueError, 'tar_file_prefix')
     if n_jobs is None:
         n_jobs = mp.cpu_count()
     text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()

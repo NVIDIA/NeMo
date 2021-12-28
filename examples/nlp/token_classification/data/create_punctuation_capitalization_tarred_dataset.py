@@ -285,7 +285,7 @@ def get_args() -> argparse.Namespace:
         check_labels_for_being_unique_before_building_label_ids(
             args.pad_label, args.capit_labels, '--pad_label', '--capit_labels', parser.error
         )
-    check_tar_file_prefix(args.tar_file_prefix)
+    check_tar_file_prefix(args.tar_file_prefix, parser.error, '--tar_file_prefix')
     return args
 
 
