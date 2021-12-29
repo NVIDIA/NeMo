@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
@@ -12,8 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-#!/bin/bash
 
 # This script compiles and exports WFST-grammars from nemo_text_processing, builds C++ production backend Sparrowhawk (https://github.com/google/sparrowhawk) in docker, 
 # plugs grammars into Sparrowhawk and returns prompt inside docker.
