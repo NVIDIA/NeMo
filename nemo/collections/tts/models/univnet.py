@@ -29,7 +29,7 @@ from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminato
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import CosineAnnealing, compute_max_steps
+from nemo.core.optim.lr_scheduler import compute_max_steps
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -88,53 +88,13 @@ class UnivNetModel(Vocoder):
             drop_last=self._train_dl.drop_last,
         )
 
-    def _get_warmup_steps(self, max_steps):
-        warmup_steps = self._cfg.sched.get("warmup_steps", None)
-        warmup_ratio = self._cfg.sched.get("warmup_ratio", None)
-
-        if warmup_steps is not None and warmup_ratio is not None:
-            raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
-
-        if warmup_steps is not None:
-            return warmup_steps
-
-        if warmup_ratio is not None:
-            return warmup_ratio * max_steps
-
-        raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
-
     def configure_optimizers(self):
         self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
         self.optim_d = instantiate(
             self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),
         )
 
-        if hasattr(self._cfg, 'sched'):
-            max_steps = self._cfg.get("max_steps", None)
-            if max_steps is None or max_steps < 0:
-                max_steps = self._get_max_steps()
-
-            warmup_steps = self._get_warmup_steps(max_steps)
-
-            self.scheduler_g = CosineAnnealing(
-                optimizer=self.optim_g, max_steps=max_steps, min_lr=self._cfg.sched.min_lr, warmup_steps=warmup_steps,
-            )  # Use warmup to delay start
-            sch1_dict = {
-                'scheduler': self.scheduler_g,
-                'interval': 'step',
-            }
-
-            self.scheduler_d = CosineAnnealing(
-                optimizer=self.optim_d, max_steps=max_steps, min_lr=self._cfg.sched.min_lr,
-            )
-            sch2_dict = {
-                'scheduler': self.scheduler_d,
-                'interval': 'step',
-            }
-
-            return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
-        else:
-            return [self.optim_g, self.optim_d]
+        return [self.optim_g, self.optim_d]
 
     @property
     def input_types(self):
@@ -206,13 +166,6 @@ class UnivNetModel(Vocoder):
         loss_g = loss_gen_mrd + loss_gen_mpd + loss_mrstft
         self.manual_backward(loss_g)
         self.optim_g.step()
-
-        # run schedulers
-        schedulers = self.lr_schedulers()
-        if schedulers is not None:
-            sch1, sch2 = schedulers
-            sch1.step()
-            sch2.step()
 
         metrics = {
             "g_loss_sc": loss_sc,
