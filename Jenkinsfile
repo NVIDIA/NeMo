@@ -1973,14 +1973,14 @@ pipeline {
       steps{
         sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
             --model_file \
-            /home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo \
+            /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
             --target_file \
-            /home/TestData/nlp/megatron_gpt/125M/test-split.nemo \
+            /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo \
             --tensor_model_parallel_size \
-            1 \
+            2 \
             --target_tensor_model_parallel_size \
-            2"
-          sh "rm /home/TestData/nlp/megatron_gpt/125M/test-split.nemo"
+            1"
+          sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo"
       }
     }
 

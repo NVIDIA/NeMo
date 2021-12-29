@@ -33,7 +33,7 @@ python megatron_change_num_partitions.py \
 """
 
 
-def merge_parition(model, partitions, write_path=None):
+def merge_partition(model, partitions, write_path=None):
     idx = 0
     for name, param in model.named_parameters():
         if param.shape == partitions[0][idx].shape:
@@ -128,7 +128,7 @@ def main():
         "--model_class",
         type=str,
         default="nemo.collections.nlp.models.language_modeling.megatron_gpt_model.MegatronGPTModel",
-        help="NeMo model class",
+        help="NeMo model class. This script should support all NeMo megatron models that use Tensor Parallel",
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
 
@@ -161,9 +161,9 @@ def main():
         model._save_restore_connector = NLPSaveRestoreConnector()
 
         if tgt_tp_size > 1:
-            merge_parition(model, partitions)
+            merge_partition(model, partitions)
         else:
-            merge_parition(model, partitions, args.target_file)
+            merge_partition(model, partitions, args.target_file)
     else:
         app_state.model_parallel_size = 1
         model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
