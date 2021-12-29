@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.data.datalayers import MelAudioDataset
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, GeneratorLoss
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
@@ -29,7 +29,7 @@ from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminato
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import CosineAnnealing
+from nemo.core.optim.lr_scheduler import CosineAnnealing, compute_max_steps
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -77,6 +77,32 @@ class UnivNetModel(Vocoder):
 
         self.automatic_optimization = False
 
+    def _get_max_steps(self):
+        return compute_max_steps(
+            max_epochs=self._cfg.max_epochs,
+            accumulate_grad_batches=self.trainer.accumulate_grad_batches,
+            limit_train_batches=self.trainer.limit_train_batches,
+            num_workers=get_num_workers(self.trainer),
+            num_samples=len(self._train_dl.dataset),
+            batch_size=get_batch_size(self._train_dl),
+            drop_last=self._train_dl.drop_last,
+        )
+
+    def _get_warmup_steps(self, max_steps):
+        warmup_steps = self._cfg.sched.get("warmup_steps", None)
+        warmup_ratio = self._cfg.sched.get("warmup_ratio", None)
+
+        if warmup_steps is not None and warmup_ratio is not None:
+            raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
+
+        if warmup_steps is not None:
+            return warmup_steps
+
+        if warmup_ratio is not None:
+            return warmup_ratio * max_steps
+
+        raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
+
     def configure_optimizers(self):
         self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
         self.optim_d = instantiate(
@@ -84,11 +110,14 @@ class UnivNetModel(Vocoder):
         )
 
         if hasattr(self._cfg, 'sched'):
+            max_steps = self._cfg.get("max_steps", None)
+            if max_steps is None or max_steps < 0:
+                max_steps = self._get_max_steps()
+
+            warmup_steps = self._get_warmup_steps(max_steps)
+
             self.scheduler_g = CosineAnnealing(
-                optimizer=self.optim_g,
-                max_steps=self._cfg.max_steps,
-                min_lr=self._cfg.sched.min_lr,
-                warmup_steps=self._cfg.sched.warmup_ratio * self._cfg.max_steps,
+                optimizer=self.optim_g, max_steps=max_steps, min_lr=self._cfg.sched.min_lr, warmup_steps=warmup_steps,
             )  # Use warmup to delay start
             sch1_dict = {
                 'scheduler': self.scheduler_g,
@@ -96,7 +125,7 @@ class UnivNetModel(Vocoder):
             }
 
             self.scheduler_d = CosineAnnealing(
-                optimizer=self.optim_d, max_steps=self._cfg.max_steps, min_lr=self._cfg.sched.min_lr,
+                optimizer=self.optim_d, max_steps=max_steps, min_lr=self._cfg.sched.min_lr,
             )
             sch2_dict = {
                 'scheduler': self.scheduler_d,
@@ -165,7 +194,8 @@ class UnivNetModel(Vocoder):
 
         # train generator
         self.optim_g.zero_grad()
-        loss_sc, loss_mag = self.mrstft_loss(x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len)
+        loss_sc, loss_mag = self.mrstft_loss(
+            x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len)
         loss_sc = torch.stack(loss_sc).mean()
         loss_mag = torch.stack(loss_mag).mean()
         loss_mrstft = (loss_sc + loss_mag) * self.stft_lamb
