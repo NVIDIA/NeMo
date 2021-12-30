@@ -20,11 +20,26 @@ from torch.utils.data.dataset import Dataset
 
 
 class GPTRequestDataset(Dataset):
-    def __init__(self, requests: List, tokenizer, tokens_to_generate: int) -> None:
+    """
+    Args:
+        requests: List of prompts
+        tokenizer: model tokenizer
+        tokens_to_generate: int value denoting amount of tokens model should generate
+        compute_logprobs: bool value denoting if model should generate tokens or compute logprobs
+    Returns:
+        data: class object
+            {'data': tokens, 'tokens_to_generate': tokens_to_generate, 'compute_logprobs': compute_logprobs}
+            * data: List of token's ids in respect to prompts
+            * tokens_to_generate: int value denoting amount of tokens model should generate
+            * compute_logprobs: bool value denoting if model should generate tokens or compute logprobs
+    """
+
+    def __init__(self, requests: List, tokenizer, tokens_to_generate: int, compute_logprobs: bool) -> None:
         super().__init__()
         self.requests = requests
         self.tokenizer = tokenizer
         self.tokens_to_generate = tokens_to_generate
+        self.compute_logprobs = compute_logprobs
         self.tokens = []
         self.prompt_tags = []
 
@@ -44,12 +59,14 @@ class GPTRequestDataset(Dataset):
                 'prompt_tags': self.prompt_tags,
                 'data': self.tokens,
                 'tokens_to_generate': self.tokens_to_generate,
+                'compute_logprobs': self.compute_logprobs,
             }
 
         else:
             self.data = {
                 'data': self.tokens,
                 'tokens_to_generate': self.tokens_to_generate,
+                'compute_logprobs': self.compute_logprobs,
             }
 
     def __len__(self):
