@@ -791,9 +791,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
-        if "val_loss" in trainer.callback_metrics and trainer.callback_metrics["val_loss"].isnan():
-            return None
-
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
