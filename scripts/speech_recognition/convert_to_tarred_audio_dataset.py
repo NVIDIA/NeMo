@@ -253,7 +253,9 @@ class ASRTarredDatasetBuilder:
 
         if len(filtered_entries) > 0:
             print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
-        print(f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio.")
+        print(
+            f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
+        )
 
         if len(entries) == 0:
             print("No tarred dataset was created as there were 0 valid samples after filtering!")
@@ -395,7 +397,9 @@ class ASRTarredDatasetBuilder:
                     f"Filtered {len(filtered_new_entries)} files which amounts to {filtered_duration:0.2f}"
                     f" seconds of audio from manifest {manifest_paths[new_manifest_idx]}."
                 )
-            print(f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio.")
+            print(
+                f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
+            )
 
             entries.extend(new_entries)
 
