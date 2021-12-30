@@ -106,12 +106,25 @@ class MoneyFst(GraphFst):
 
         delete_et = delete_extra_space + pynutil.delete("et")
 
+        graph_money_major_fraction = graph_decimal_component_major.ques + delete_minor_currency.ques
+
+        # Managing "cent/cents"
+        no_one = cardinal.filter_out_one
+        graph_money_major_fraction |= pynini.cross(" un cent", " fractional_part: \"01\"")
+        graph_money_major_fraction |= (
+            delete_space
+            + pynutil.insert(" fractional_part: \"")
+            + (cardinal_graph @ no_one @ add_leading_zero_to_double_digit)
+            + pynutil.insert("\"")
+            + delete_extra_space
+            + pynutil.delete("cents")
+        )
+
         graph_money_major = (
             graph_integer_component_major
             + graph_currency_component_major
             + delete_et.ques
-            + graph_decimal_component_major.ques
-            + delete_minor_currency.ques
+            + graph_money_major_fraction
         )
 
         # For cases when only small denominations are used.
@@ -128,9 +141,18 @@ class MoneyFst(GraphFst):
             pynutil.insert(" currency: \"") + convert_currency_minor + pynutil.insert("\"")
         )
 
-        graph_money_minor = (
-            graph_integer_component_minor + graph_decimal_component_minor + graph_currency_component_minor
+        graph_money_minor_fraction = graph_decimal_component_minor + graph_currency_component_minor
+
+        # For "cents/cent"
+        graph_money_minor_fraction |= pynini.cross("un cent", " fractional_part: \"01\" currency: \"$\"")
+        graph_money_minor_fraction |= (
+            pynutil.insert(" fractional_part: \"")
+            + (cardinal_graph @ no_one @ add_leading_zero_to_double_digit)
+            + pynutil.insert("\"")
+            + pynini.cross(" cents", " currency: \"$\"")
         )
+
+        graph_money_minor = graph_integer_component_minor + graph_money_minor_fraction
 
         graph_money_standard_amounts = graph_money_major | graph_money_minor
 

@@ -20,6 +20,8 @@ cent-deux~102
 cent vingt~120
 cent-vingt~120
 deux-cents~200
+deux cent~deux 100
+une mille~une 1000
 deux cent neuf~209
 deux-cent-neuf~209
 cent onze~111
