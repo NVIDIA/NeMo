@@ -225,6 +225,7 @@ def get_tarred_dataset(
                 f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
             )
         else:
+            bucketing_batch_sizes = [config['batch_size']] * len(datasets)
             logging.info(
                 f"Batch bucketing is enabled for {len(datasets)} buckets with fixed batch size of {config['batch_size']}!"
             )
