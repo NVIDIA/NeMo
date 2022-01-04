@@ -95,7 +95,6 @@ class MTBottleneckModel(MTEncDecModel):
         # project bridge dimension back to decoder hidden dimensions
         self.latent2hidden = build_linear_or_identity(self.latent_size, self.decoder.hidden_size)
 
-
         if self.model_type == "nll":
             # project dimension of encoder hidden to latent dimension
             self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
