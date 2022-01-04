@@ -72,9 +72,9 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
     model = MegatronT5GLUEModel(cfg.model, trainer)
-
+    #model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.823-step=1953.ckpt', trainer=trainer, cfg=cfg.model)
     trainer.fit(model)
-
+    trainer.test(model)
 
 if __name__ == '__main__':
     main()

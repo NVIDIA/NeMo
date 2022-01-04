@@ -111,7 +111,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
 
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def inference_step(self, batch, batch_idx):
         loss = self.model.validation_step(batch, batch_idx)
 
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
@@ -122,7 +122,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
 
         return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
 
-    def validation_epoch_end(self, outputs):
+    def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
         averaged_loss = average_losses_across_data_parallel_group(losses)
         all_preds = []
@@ -144,8 +144,27 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             if pred == label:
                 correct += 1
         acc = correct / len(all_preds)
-        self.log('val_loss', averaged_loss[0], prog_bar=True)
-        self.log('val_acc', acc, prog_bar=True)
+        return averaged_loss[0], acc
+
+    def validation_step(self, batch, batch_idx):
+        return self.inference_step(batch, batch_idx)
+
+    def validation_epoch_end(self, outputs):
+        val_loss, val_acc = self.inference_epoch_end(outputs)
+        self.log('val_loss', val_loss, prog_bar=True)
+        self.log('val_acc', val_acc, prog_bar=True)
+        logging.info(f'Validation loss: {val_loss}')
+        logging.info(f'Validation accuracy: {val_acc}')
+
+    def test_step(self, batch, batch_idx):
+        return self.inference_step(batch, batch_idx)
+
+    def test_epoch_end(self, outputs):
+        test_loss, test_acc = self.inference_epoch_end(outputs)
+        self.log('test_loss',test_loss, prog_bar=True)
+        self.log('test_acc', test_acc, prog_bar=True)
+        logging.info(f'Test loss: {test_loss}')
+        logging.info(f'Test accuracy: {test_acc}')
 
     def build_train_valid_test_datasets(self):
         logging.info('Building GLUE datasets.')
