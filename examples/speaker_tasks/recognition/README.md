@@ -9,7 +9,7 @@ Documentation section for speaker related tasks can be found at:
 |:------------------------------:|:---------------------:|:--------------------------------------:|
 | [speakerverification_speakernet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet) |        xvector        |                  1.96                  |
 |           [ecapa_tdnn](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.92                  |
-|           [titanet_large](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.69                  |
+|           [titanet_large](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.66                  |
 
 ## Training
 Speaker Recognition models can be trained in a similar way as other models in NeMo using train and dev manifest files. Steps on how to create manifest files for voxceleb are provided below.
