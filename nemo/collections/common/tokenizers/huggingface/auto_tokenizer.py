@@ -175,6 +175,7 @@ class AutoTokenizer(TokenizerSpec):
 
     @property
     def additional_special_tokens_ids(self):
+        """Returns a list of the additional special tokens (excluding bos, eos, pad, unk). Used to return sentinel tokens for e.g. T5."""
         return [self.token_to_id(token) for token in self.additional_special_tokens]
 
     def text_to_tokens(self, text):
