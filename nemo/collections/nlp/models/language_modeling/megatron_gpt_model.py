@@ -13,17 +13,17 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, Optional, List
-from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
 from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.pipeline_parallel.schedules.common import build_model, _get_params_for_weight_decay_optimization
+from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization, build_model
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
     forward_backward_pipelining_without_interleaving,
 )
-from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
