@@ -23,6 +23,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
     METADATA_PUNCT_LABEL_VOCAB_KEY,
     build_label_ids_from_list_of_labels,
     check_labels_for_being_unique_before_building_label_ids,
+    check_tar_file_prefix,
     create_tarred_dataset,
 )
 
@@ -230,7 +231,8 @@ def get_args() -> argparse.Namespace:
         "--tar_file_prefix",
         "-x",
         default="punctuation_capitalization",
-        help="A string from which tar file names start.",
+        help="A string from which tar file names start. It can contain only characters 'A-Z', 'a-z', '0-9', '_', '-', "
+        "'.'.",
     )
     parser.add_argument(
         "--n_jobs",
@@ -283,6 +285,7 @@ def get_args() -> argparse.Namespace:
         check_labels_for_being_unique_before_building_label_ids(
             args.pad_label, args.capit_labels, '--pad_label', '--capit_labels', parser.error
         )
+    check_tar_file_prefix(args.tar_file_prefix, parser.error, '--tar_file_prefix')
     return args
 
 
