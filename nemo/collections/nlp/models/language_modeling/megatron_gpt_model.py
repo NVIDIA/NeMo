@@ -14,10 +14,8 @@
 
 import os
 import re
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Dict, Optional, List
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-from pytorch_lightning.core.optimizer import LightningOptimizer
-from pytorch_lightning.utilities.distributed import rank_zero_only
 
 import torch
 import torch.nn.functional as F
@@ -25,7 +23,6 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
-from torch.optim.optimizer import Optimizer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -41,7 +38,6 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
-    init_method_normal,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
