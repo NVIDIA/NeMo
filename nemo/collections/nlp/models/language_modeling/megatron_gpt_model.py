@@ -14,8 +14,7 @@
 
 import os
 import re
-from typing import Any, Dict, Optional, List
-from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -56,6 +55,7 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

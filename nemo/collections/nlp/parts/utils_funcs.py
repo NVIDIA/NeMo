@@ -19,10 +19,10 @@ import time
 from typing import Dict, List, Union
 
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
-import torch
 
 from nemo.utils import logging
 

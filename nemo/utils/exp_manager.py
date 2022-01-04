@@ -35,7 +35,9 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.states import RunningStage
 from pytorch_lightning.utilities.distributed import rank_zero_info
+from pytorch_lightning.utilities.types import _METRIC
 
+from nemo.collections.nlp.parts.utils_funcs import uninject_model_parallel_rank
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -754,13 +756,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.kth_best_model_path = best_k_models[-1]
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
-
-    @staticmethod
-    def _uninject_mp_rank(filepath):
-        dirname = os.path.dirname(os.path.dirname(filepath))
-        basename = os.path.basename(filepath)
-        filepath = os.path.join(dirname, basename)
-        return filepath
 
     # TODO remove _save_last_checkpoint after fix for issue #https://github.com/PyTorchLightning/pytorch-lightning/issues/11451
     def _save_last_checkpoint(self, trainer, monitor_candidates) -> None:

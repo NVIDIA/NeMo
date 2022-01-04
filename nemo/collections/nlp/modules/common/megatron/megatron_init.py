@@ -18,7 +18,6 @@ from apex.transformer.utils import ensure_divisibility
 import numpy as np
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_tensor_model_parallel_rank
 from nemo.utils import AppState, logging
 
 try:
@@ -31,6 +30,8 @@ try:
         set_tensor_model_parallel_world_size,
     )
     from apex.transformer.log_util import set_logging_level
+    from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
+    from apex.transformer.utils import ensure_divisibility
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

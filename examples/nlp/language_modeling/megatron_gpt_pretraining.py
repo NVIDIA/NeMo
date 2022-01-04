@@ -31,6 +31,10 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     NLPDDPPlugin,
     NLPDataConnector,
 )
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDataConnector, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager

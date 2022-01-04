@@ -19,12 +19,19 @@ from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
 from typing import Any, Dict, List, Optional, Union
+
+import torch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from deprecate.utils import void
 from pytorch_lightning.loops.epoch.evaluation_epoch_loop import EvaluationEpochLoop
 from pytorch_lightning.loops.epoch.training_epoch_loop import TrainingEpochLoop
+from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.loops.utilities import _update_dataloader_iter
+from pytorch_lightning.overrides import LightningDistributedModule
+from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
+from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.connectors.data_connector import DataConnector
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import (
@@ -46,10 +53,13 @@ from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
+from pytorch_lightning.utilities.types import _PATH
 from pytorch_lightning.utilities.warnings import rank_zero_warn
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.parts.utils_funcs import inject_model_parallel_rank
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
@@ -555,6 +565,7 @@ class NLPFitLoop(FitLoop):
 
 
 # TODO: implement
+
 
 class NLPDataConnector(DataConnector):
     """ Override PTL DataConnector. Used to select custom data fetcher."""
