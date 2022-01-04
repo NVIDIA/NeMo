@@ -280,6 +280,7 @@ class MegatronT5Model(NLPModel):
         )
 
     def setup(self, stage=None):
+        """A PTL method to setup the training, validation and test datasets."""
         if stage == 'predict':
             return
         if self._train_dl is not None and self._validation_dl is not None:

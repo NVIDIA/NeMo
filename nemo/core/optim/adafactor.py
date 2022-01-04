@@ -18,7 +18,7 @@
 # LICENSE file in the root directory of this source tree.
 
 # Most of the code here has been copied from:
-# fairseq/optim/adafactor.py
+# https://github.com/pytorch/fairseq/blob/main/fairseq/optim/adafactor.py
 
 import math
 
