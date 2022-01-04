@@ -31,7 +31,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_cardinal(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
+        preds = self.normalizer.normalize(test_input, n_tagged=50)
         assert expected in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_ordinal.txt'))
