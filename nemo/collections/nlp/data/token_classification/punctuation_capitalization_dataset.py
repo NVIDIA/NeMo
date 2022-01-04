@@ -63,9 +63,9 @@ class PunctuationCapitalizationDataConfigBase:
     """A base class for punctuation and capitalization data configs. This class does not define ``ds_item``
     attribute which works differently for train and evaluation data."""
 
-    #################################################
-    # COMMON DATASET PARAMETERS
-    #################################################
+    ###################################################
+    # PARAMETERS COMMON FOR REGULAR AND TARRED DATASETS
+    ###################################################
     use_tarred_dataset: bool = MISSING
     """Whether to use tarred dataset. If True, then you should provide ``tar_metadata_file``. Otherwise, you should
     provide ``text_file``, ``labels_file``, ``tokens_in_batch``."""
@@ -439,7 +439,7 @@ class TokenizeCreateMasksClipWorker:
         punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         split_i: int,
-    ) -> Tuple[np.ndarray, List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
         """
         Tokenize, clip, encode labels, and create masks of first tokens in words.
 
