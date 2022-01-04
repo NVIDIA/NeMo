@@ -19,15 +19,12 @@ import collections
 import numpy as np
 import torch
 
-from nemo.collections.common.tokenizers import AutoTokenizer, SentencePieceTokenizer, YouTokenToMeTokenizer
+from nemo.collections.common.tokenizers import SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
-
-# from megatron import get_tokenizer
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
 
 class T5Dataset(MegatronDataset):
@@ -58,14 +55,6 @@ class T5Dataset(MegatronDataset):
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
-
-        try:
-            from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
-
-            compile_helper()
-            from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
 
         # Build the samples mapping.
         self.samples_mapping = get_samples_mapping(

@@ -111,17 +111,17 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py "1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en "twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15'
           }
         }
         stage('German ITN and non-deterministic TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-9'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/de -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-14'
           }
         }
         stage('Spanish ITN') {
@@ -131,8 +131,8 @@ pipeline {
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15'
           }
         }
         stage('Run Ru ITN and non-deterministic TN & Run all Ru ITN tests') {
@@ -156,7 +156,7 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py_12-10.txt || exit 1'
@@ -166,7 +166,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python run_predict.py --input=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -175,7 +175,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15 --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_raw.txt 2>&1 && \
             cmp --silent /tmp/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -183,7 +183,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_file.txt 2>&1 && \
             cmp --silent /tmp/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -191,7 +191,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-12'
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/12-15'
           }
         }
       }
@@ -1937,7 +1937,7 @@ pipeline {
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
       }
     }
-      stage('L2: Megatron GPT Eval') {
+    stage('L2: Megatron GPT Eval') {
       when {
         anyOf {
           branch 'main'
@@ -1961,7 +1961,52 @@ pipeline {
             16"
       }
     }
-
+    stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python -m torch.distributed.launch --nproc_per_node=2 \
+        examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
+        --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
+        --checkpoint_name=model_optim_rng.pt \
+        --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
+        --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
+        --model_type=gpt \
+        --tensor_model_parallel_size=2"
+        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+        --model_file=examples/nlp/language_modeling/small_gpt.nemo \
+        --tokens_to_generate=32 \
+        --tensor_model_parallel_size=2 \
+        --prompt='This is a test.'"
+        sh "rm examples/nlp/language_modeling/small_gpt.nemo"
+      }
+    }
+    stage('L2: Megatron Change Partitions') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+            --model_file \
+            /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+            --target_file \
+            /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo \
+            --tensor_model_parallel_size \
+            2 \
+            --target_tensor_model_parallel_size \
+            1"
+          sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo"
+      }
+    }
     stage('L2: Megatron T5 Pretraining and Resume Training') {
       when {
         anyOf {
@@ -1982,7 +2027,6 @@ pipeline {
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         model.tensor_model_parallel_size=2 \
-        model.optim.sched.warmup_steps=2 \
         model.optim.sched.constant_steps=2 \
         model.seq_length=128 \
         model.num_layers=4 \
@@ -1990,7 +2034,7 @@ pipeline {
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
         sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
         trainer.gpus=2 \
         trainer.log_every_n_steps=1 \
@@ -2003,7 +2047,6 @@ pipeline {
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         exp_manager.resume_if_exists=True \
         model.tensor_model_parallel_size=2 \
-        model.optim.sched.warmup_steps=2 \
         model.optim.sched.constant_steps=2 \
         model.seq_length=128 \
         model.num_layers=4 \
@@ -2011,11 +2054,27 @@ pipeline {
         model.num_attention_heads=8 \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
-        sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
       }
     }
-
+      stage('L2: Megatron T5 Eval') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh "python examples/nlp/language_modeling/megatron_t5_eval.py \
+            --model_file \
+            /home/TestData/nlp/megatron_t5/220m/megatron_t5_220m.nemo \
+            --prompt \
+            'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
+            --tensor_model_parallel_size 1"
+      }
+    }
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
@@ -2108,7 +2167,12 @@ pipeline {
       }
       failFast true
       steps {
-        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_infer.py --asr_model QuartzNet15x5Base-En --dataset /home/TestData/librispeech/librivox-dev-other.json --wer_tolerance 0.1012 --batch_size 64'
+        sh 'CUDA_VISIBLE_DEVICES=0 python examples/asr/speech_to_text_eval.py \
+            pretrained_name=QuartzNet15x5Base-En  \
+            dataset_manifest=/home/TestData/librispeech/librivox-dev-other.json \
+            batch_size=64 \
+            tolerance=0.1012'
+        sh 'rm -f examples/asr/evaluation_transcripts.json'
       }
     }
   }

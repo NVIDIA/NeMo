@@ -73,6 +73,7 @@ def convert(rank, world_size, args):
     app_state = AppState()
     app_state.data_parallel_rank = 0
     trainer = Trainer(gpus=args.tensor_model_parallel_size)
+    # TODO: reach out to PTL For an API-safe local rank override
     trainer.accelerator.training_type_plugin._local_rank = rank
 
     if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:

@@ -633,6 +633,7 @@ class ParallelTransformer(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.input_tensor = None
+        self.self_attn_mask_type = self_attn_mask_type
 
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method

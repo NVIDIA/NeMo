@@ -118,20 +118,20 @@ class MegatronT5Model(NLPModel):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
-        output_enc_hidden=False,
+        output_enc_hidden_only=False,
     ):
         result = self.model(
-            encoder_input_ids,
-            decoder_input_ids,
-            encoder_attn_mask,
-            decoder_attn_mask,
-            encoder_decoder_attn_mask,
-            tokentype_ids,
-            lm_labels,
-            enc_hidden_states,
-            output_enc_hidden=output_enc_hidden,
+            encoder_input_ids=encoder_input_ids,
+            decoder_input_ids=decoder_input_ids,
+            encoder_attn_mask=encoder_attn_mask,
+            decoder_attn_mask=decoder_attn_mask,
+            encoder_decoder_attn_mask=encoder_decoder_attn_mask,
+            tokentype_ids=tokentype_ids,
+            lm_labels=lm_labels,
+            enc_hidden_states=enc_hidden_states,
+            output_enc_hidden_only=output_enc_hidden_only,
         )
-        if not output_enc_hidden:
+        if not output_enc_hidden_only:
             return result[0], result[1]
         else:
             return result
@@ -280,6 +280,7 @@ class MegatronT5Model(NLPModel):
         )
 
     def setup(self, stage=None):
+        """A PTL method to setup the training, validation and test datasets."""
         if stage == 'predict':
             return
         if self._train_dl is not None and self._validation_dl is not None:
@@ -369,7 +370,7 @@ class MegatronT5Model(NLPModel):
             tokentype_ids=None,
             lm_labels=None,
             enc_hidden_states=None,
-            output_enc_hidden=True,
+            output_enc_hidden_only=True,
         )
         predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
 
@@ -395,7 +396,7 @@ class MegatronT5Model(NLPModel):
                 tokentype_ids=None,
                 lm_labels=None,
                 enc_hidden_states=encoder_hidden_states,
-                output_enc_hidden=False,
+                output_enc_hidden_only=False,
             )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)

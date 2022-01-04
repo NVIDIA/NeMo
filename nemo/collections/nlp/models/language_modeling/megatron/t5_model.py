@@ -167,7 +167,7 @@ class T5Model(MegatronModule):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
-        output_enc_hidden=False,
+        output_enc_hidden_only=False,
     ):
 
         # Converting the attention masks to proper parameter settings
@@ -181,19 +181,19 @@ class T5Model(MegatronModule):
         decoder_position_ids = t5_position_ids(decoder_input_ids) if decoder_input_ids is not None else None
 
         lm_output = self.language_model(
-            encoder_input_ids,
-            encoder_position_ids,
-            encoder_attn_mask,
-            decoder_input_ids,
-            decoder_position_ids,
-            decoder_attn_mask,
-            encoder_decoder_attn_mask,
+            enc_input_ids=encoder_input_ids,
+            enc_position_ids=encoder_position_ids,
+            enc_attn_mask=encoder_attn_mask,
+            dec_input_ids=decoder_input_ids,
+            dec_position_ids=decoder_position_ids,
+            dec_attn_mask=decoder_attn_mask,
+            enc_dec_attn_mask=encoder_decoder_attn_mask,
             tokentype_ids=tokentype_ids,
             enc_hidden_states=enc_hidden_states,
-            output_enc_hidden=output_enc_hidden,
+            output_enc_hidden_only=output_enc_hidden_only,
         )
 
-        if output_enc_hidden:
+        if output_enc_hidden_only:
             return lm_output
 
         decoder_output, encoder_output = lm_output

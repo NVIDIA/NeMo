@@ -156,7 +156,7 @@ class TimingCallback(Callback):
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         self._on_batch_end("test_step_timing", pl_module)
-    
+
     def on_before_backward(self, trainer, pl_module, loss):
         self._on_batch_start("train_backward_timing")
 

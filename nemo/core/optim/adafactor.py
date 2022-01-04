@@ -18,7 +18,7 @@
 # LICENSE file in the root directory of this source tree.
 
 # Most of the code here has been copied from:
-# fairseq/optim/adafactor.py
+# https://github.com/pytorch/fairseq/blob/main/fairseq/optim/adafactor.py
 
 import math
 
@@ -71,11 +71,13 @@ class Adafactor(Optimizer):
         scale_parameter=True,
         relative_step=True,
         warmup_init=False,
+        min_step=1e-2,
     ):
         if lr is not None and relative_step:
             raise ValueError("Cannot combine manual lr and relative_step options")
         if warmup_init and not relative_step:
             raise ValueError("warmup_init requires relative_step=True")
+        self.min_step = min_step
 
         defaults = dict(
             lr=lr,
@@ -87,6 +89,7 @@ class Adafactor(Optimizer):
             scale_parameter=scale_parameter,
             relative_step=relative_step,
             warmup_init=warmup_init,
+            min_step=min_step,
         )
         super(Adafactor, self).__init__(params, defaults)
 
@@ -101,7 +104,7 @@ class Adafactor(Optimizer):
     def _get_lr(self, param_group, param_state):
         rel_step_sz = param_group["lr"]
         if param_group["relative_step"]:
-            min_step = 1e-6 * param_state["step"] if param_group["warmup_init"] else 1e-2
+            min_step = 1e-6 * param_state["step"] if param_group["warmup_init"] else self.min_step
             rel_step_sz = min(min_step, 1.0 / math.sqrt(param_state["step"]))
         param_scale = 1.0
         if param_group["scale_parameter"]:

@@ -49,11 +49,12 @@ def main():
     trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=16)
 
     app_state = AppState()
-    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
+    if args.tensor_model_parallel_size > 1:
         app_state.model_parallel_size = args.tensor_model_parallel_size
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     model = MegatronT5Model.restore_from(restore_path=args.model_file, trainer=trainer)
+    model.freeze()
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,

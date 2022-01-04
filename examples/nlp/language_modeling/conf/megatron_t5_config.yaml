@@ -12,7 +12,7 @@ trainer:
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 20
+  val_check_interval: 100
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1
@@ -83,9 +83,14 @@ model:
   activations_checkpoint_num_layers: 1 
 
   data:
-    # data_prefix
-      # weight 
-      # path
+    # Path to data must be specified by the user.
+    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-t5_00_text_document,.5,/raid/data/pile/my-t5_01_text_document]",
+    # Or see example below: 
+    # data_prefix: 
+    #   - .5
+    #   - /raid/data/pile/my-t5_00_text_document
+    #   - .5
+    #   - /raid/data/pile/my-t5_01_text_document
     data_prefix: ???
     data_impl: mmap
     splits_string: 949,45,5
