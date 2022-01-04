@@ -219,9 +219,50 @@ def get_tarred_dataset(
         datasets.append(dataset)
 
     if len(datasets) > 1:
+        if config.get('bucketing_batch_size', None) is not None:
+            bucketing_batch_sizes = calc_bucketing_batch_sizes(config, len(datasets))
+            logging.info(
+                f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
+            )
+        else:
+            bucketing_batch_sizes = [config['batch_size']] * len(datasets)
+            logging.info(
+                f"Batch bucketing is enabled for {len(datasets)} buckets with fixed batch size of {config['batch_size']}!"
+            )
+
+        for idx, dataset in enumerate(datasets):
+            datasets[idx] = audio_to_text.BucketingDataset(
+                dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx]
+            )
+
+    if len(datasets) > 1:
         return ChainDataset(datasets)
     else:
         return datasets[0]
+
+
+def calc_bucketing_batch_sizes(cfg, datasets_len):
+    if cfg['batch_size'] != 1:
+        raise ValueError(
+            f"batch_size should be set to one when bucketing_batch_size is set and adaptive bucketing is enabled (batch_size={cfg['batch_size']}!"
+        )
+    if type(cfg['bucketing_batch_size']) == int:
+        bucketing_batch_sizes = []
+        for idx in range(datasets_len):
+            scale_factor = datasets_len - idx
+            bucketing_batch_sizes.append(scale_factor * cfg['bucketing_batch_size'])
+    elif isinstance(cfg['bucketing_batch_size'], ListConfig) or isinstance(cfg['bucketing_batch_size'], list):
+        bucketing_batch_sizes = cfg['bucketing_batch_size']
+    else:
+        raise ValueError(
+            f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={cfg['bucketing_batch_size']})!"
+        )
+
+    if len(bucketing_batch_sizes) != datasets_len:
+        raise ValueError(
+            f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={datasets_len}) "
+        )
+    return bucketing_batch_sizes
 
 
 def get_dali_char_dataset(

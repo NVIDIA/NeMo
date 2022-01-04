@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-#!/bin/bash
-
-docker build . --rm -t sparrowhawk
+FORCE_REBUILD=${1:-""}
+docker build . --rm -t sparrowhawk $FORCE_REBUILD

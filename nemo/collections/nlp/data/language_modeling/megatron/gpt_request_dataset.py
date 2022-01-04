@@ -13,25 +13,64 @@
 # limitations under the License.
 
 
-from typing import Dict
+from typing import List
 
 import torch
 from torch.utils.data.dataset import Dataset
 
 
 class GPTRequestDataset(Dataset):
-    def __init__(self, request: Dict, tokenizer) -> None:
+    """
+    Args:
+        requests: List of prompts
+        tokenizer: model tokenizer
+        tokens_to_generate: int value denoting amount of tokens model should generate
+        compute_logprobs: bool value denoting if model should generate tokens or compute logprobs
+    Returns:
+        data: class object
+            {'data': tokens, 'tokens_to_generate': tokens_to_generate, 'compute_logprobs': compute_logprobs}
+            * data: List of token's ids in respect to prompts
+            * tokens_to_generate: int value denoting amount of tokens model should generate
+            * compute_logprobs: bool value denoting if model should generate tokens or compute logprobs
+    """
+
+    def __init__(self, requests: List, tokenizer, tokens_to_generate: int, compute_logprobs: bool) -> None:
         super().__init__()
-        self.request = request
+        self.requests = requests
         self.tokenizer = tokenizer
+        self.tokens_to_generate = tokens_to_generate
+        self.compute_logprobs = compute_logprobs
+        self.tokens = []
+        self.prompt_tags = []
 
         # tokenize prompt
-        self.request['tokenized_prompt'] = self.tokenizer.text_to_tokens(request['prompt'])
-        tokens = self.tokenizer.text_to_ids(request['prompt'])
-        self.request['tokens'] = torch.tensor(tokens)
+        for request in self.requests:
+            if type(request) == dict:
+                prompt_tag = request['prompt_tag']
+                self.prompt_tags.append(prompt_tag)
+                text = request['text']
+            else:
+                text = request
+
+            self.tokens.append(torch.tensor(self.tokenizer.text_to_ids(text)))
+
+        if self.prompt_tags:
+            self.data = {
+                'prompt_tags': self.prompt_tags,
+                'data': self.tokens,
+                'tokens_to_generate': self.tokens_to_generate,
+                'compute_logprobs': self.compute_logprobs,
+            }
+
+        else:
+            self.data = {
+                'data': self.tokens,
+                'tokens_to_generate': self.tokens_to_generate,
+                'compute_logprobs': self.compute_logprobs,
+            }
 
     def __len__(self):
         return 1
 
     def __getitem__(self, index):
-        return self.request
+        return self.data

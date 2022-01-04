@@ -28,6 +28,7 @@ from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.losses.fastpitchloss import DurationLoss, MelLoss, PitchLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
+from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -38,6 +39,7 @@ from nemo.core.neural_types.elements import (
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
+    TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
@@ -63,6 +65,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.learn_alignment = False
         if "learn_alignment" in cfg:
             self.learn_alignment = cfg.learn_alignment
+
+        self._normalizer = None
         self._parser = None
         self._tb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
@@ -77,9 +81,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         OmegaConf.merge(cfg, schema)
 
         self.bin_loss_warmup_epochs = 100
-        self.aligner = None
         self.log_train_images = False
-        self.mel_loss = MelLoss()
+
         loss_scale = 0.1 if self.learn_alignment else 1.0
         dur_loss_scale = loss_scale
         pitch_loss_scale = loss_scale
@@ -87,16 +90,34 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             dur_loss_scale = cfg.dur_loss_scale
         if "pitch_loss_scale" in cfg:
             pitch_loss_scale = cfg.pitch_loss_scale
+
+        self.mel_loss = MelLoss()
         self.pitch_loss = PitchLoss(loss_scale=pitch_loss_scale)
         self.duration_loss = DurationLoss(loss_scale=dur_loss_scale)
+
         input_fft_kwargs = {}
+        self.aligner = None
         if self.learn_alignment:
             self.aligner = instantiate(self._cfg.alignment_module)
             self.forward_sum_loss = ForwardSumLoss()
             self.bin_loss = BinLoss()
-            self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
-            input_fft_kwargs["n_embed"] = len(self.vocab.labels)
-            input_fft_kwargs["padding_idx"] = self.vocab.pad
+
+            self.ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
+
+            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                logging.warning(
+                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
+                    "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
+                )
+                self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+                input_fft_kwargs["n_embed"] = len(self.vocab.labels)
+                input_fft_kwargs["padding_idx"] = self.vocab.pad
+            elif self.ds_class_name == "TTSDataset":
+                self.vocab = instantiate(self._cfg.train_ds.dataset.text_tokenizer)
+                input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
+                input_fft_kwargs["padding_idx"] = self.vocab.pad
+            else:
+                raise ValueError(f"Unknown dataset class: {self.ds_class_name}")
 
         self.preprocessor = instantiate(self._cfg.preprocessor)
 
@@ -116,6 +137,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
+        self._input_types = self._output_types = None
 
     @property
     def tb_logger(self):
@@ -132,14 +154,60 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return self._tb_logger
 
     @property
+    def normalizer(self):
+        if self._normalizer is not None:
+            return self._normalizer
+
+        if self.learn_alignment:
+            ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
+
+            if ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                logging.warning(
+                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
+                    "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
+                )
+                self._normalizer = lambda x: x
+            elif ds_class_name == "TTSDataset":
+                if "text_normalizer" not in self._cfg.train_ds.dataset:
+                    self._normalizer = lambda x: x
+                else:
+                    normalizer = instantiate(self._cfg.train_ds.dataset.text_normalizer)
+                    text_normalizer_call = normalizer.normalize
+                    text_normalizer_call_args = {}
+                    if "text_normalizer_call_args" in self._cfg.train_ds.dataset:
+                        text_normalizer_call_args = self._cfg.train_ds.dataset.text_normalizer_call_args
+                    self._normalizer = lambda text: text_normalizer_call(text, **text_normalizer_call_args)
+            else:
+                raise ValueError(f"Unknown dataset class: {ds_class_name}")
+        else:
+            # cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset"
+            self._normalizer = lambda x: x
+
+        return self._normalizer
+
+    @property
     def parser(self):
         if self._parser is not None:
             return self._parser
 
         if self.learn_alignment:
-            vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
-            self._parser = vocab.encode
+            ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
+
+            if ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                logging.warning(
+                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
+                    "Please change your model to use Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
+                )
+                if self.vocab is None:
+                    self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**self._cfg.train_ds.dataset.vocab)
+                self._parser = self.vocab.encode
+            elif ds_class_name == "TTSDataset":
+                tokenizer = instantiate(self._cfg.train_ds.dataset.text_tokenizer)
+                self._parser = tokenizer.encode
+            else:
+                raise ValueError(f"Unknown dataset class: {ds_class_name}")
         else:
+            # cfg.train_ds.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset"
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
                 name='en',
@@ -151,9 +219,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             )
         return self._parser
 
-    def parse(self, str_input: str) -> torch.tensor:
+    def parse(self, str_input: str, normalize=True) -> torch.tensor:
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
+
+        if normalize:
+            str_input = self.normalizer(str_input)
 
         tokens = self.parser(str_input)
 
@@ -162,13 +233,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T'), TokenIndex()),
-            "durs": NeuralType(('B', 'T'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T'), RegressionValuesType()),
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
+            "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index()),
             "pace": NeuralType(optional=True),
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T', 'T'), ProbsType(), optional=True),
+            "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
+            "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
             "input_lens": NeuralType(('B'), LengthsType(), optional=True),
         }
@@ -198,7 +269,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             input_lens=input_lens,
         )
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'C', 'T'), MelSpectrogramType())})
+    @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
         # FIXME: return masks as well?
         self.eval()
@@ -206,18 +277,27 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return spect
 
     def training_step(self, batch, batch_idx):
-        attn_prior, durs = None, None
+        attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
+            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
+            elif self.ds_class_name == "TTSDataset":
+                if SpeakerID in self._train_dl.dataset.sup_data_types_set:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
+                else:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _ = batch
+            else:
+                raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
-            audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+            audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
+
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
 
         mels_pred, _, _, log_durs_pred, pitch_pred, attn_soft, attn_logprob, attn_hard, attn_hard_dur, pitch = self(
             text=text,
             durs=durs,
             pitch=pitch,
-            speaker=speakers,
+            speaker=speaker,
             pace=1.0,
             spec=mels if self.learn_alignment else None,
             attn_prior=attn_prior,
@@ -248,7 +328,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.log("t_bin_loss", bin_loss)
 
         # Log images to tensorboard
-        if self.log_train_images:
+        if self.log_train_images and isinstance(self.logger, TensorBoardLogger):
             self.log_train_images = False
 
             self.tb_logger.add_image(
@@ -274,11 +354,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        attn_prior, durs, speakers = None, None, None
+        attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
-            audio, audio_lens, text, text_lens, attn_prior, pitch, speakers = batch
+            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
+            elif self.ds_class_name == "TTSDataset":
+                if SpeakerID in self._train_dl.dataset.sup_data_types_set:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
+                else:
+                    audio, audio_lens, text, text_lens, attn_prior, pitch, _ = batch
+            else:
+                raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
-            audio, audio_lens, text, text_lens, durs, pitch, speakers = batch
+            audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
+
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
 
         # Calculate val loss on ground truth durations to better align L2 loss in time
@@ -286,7 +375,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             text=text,
             durs=durs,
             pitch=pitch,
-            speaker=speakers,
+            speaker=speaker,
             pace=1.0,
             spec=mels if self.learn_alignment else None,
             attn_prior=attn_prior,
@@ -322,17 +411,19 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self.log("v_pitch_loss", pitch_loss)
 
         _, _, _, _, spec_target, spec_predict = outputs[0].values()
-        self.tb_logger.add_image(
-            "val_mel_target",
-            plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
-            self.global_step,
-            dataformats="HWC",
-        )
-        spec_predict = spec_predict[0].data.cpu().numpy()
-        self.tb_logger.add_image(
-            "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
-        )
-        self.log_train_images = True
+
+        if isinstance(self.logger, TensorBoardLogger):
+            self.tb_logger.add_image(
+                "val_mel_target",
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            spec_predict = spec_predict[0].data.cpu().numpy()
+            self.tb_logger.add_image(
+                "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
+            )
+            self.log_train_images = True
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -386,35 +477,65 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         return list_of_models
 
-    @property
-    def input_module(self):
-        return self.fastpitch
+    ### Export code
+    def input_example(self):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.fastpitch.parameters())
+        inp = torch.randint(
+            0, self.fastpitch.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64
+        )
+        pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
+
+        inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+
+        if self.fastpitch.speaker_emb is not None:
+            inputs['speaker'] = torch.randint(
+                0, self.fastpitch.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
+            )
+
+        return (inputs,)
+
+    def forward_for_export(self, text, pitch, pace, speaker=None):
+        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
 
     @property
-    def output_module(self):
-        return self.fastpitch
+    def input_types(self):
+        return self._input_types
 
-    def forward_for_export(self, text):
-        (
-            spect,
-            num_frames,
-            durs_predicted,
-            log_durs_predicted,
-            pitch_predicted,
-            attn_soft,
-            attn_logprob,
-            attn_hard,
-            attn_hard_dur,
-            pitch,
-        ) = self.fastpitch(text=text)
-        return spect.to(torch.float), num_frames, durs_predicted, log_durs_predicted, pitch_predicted
+    @property
+    def output_types(self):
+        return self._output_types
+
+    def _prepare_for_export(self, **kwargs):
+        super()._prepare_for_export(**kwargs)
+
+        # Define input_types and output_types as required by export()
+        self._input_types = {
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
+            "pitch": NeuralType(('B', 'T_text'), RegressionValuesType()),
+            "pace": NeuralType(('B', 'T_text'), optional=True),
+            "speaker": NeuralType(('B'), Index()),
+        }
+        self._output_types = {
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "num_frames": NeuralType(('B'), TokenDurationType()),
+            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
+        }
+
+    def _export_teardown(self):
+        self._input_types = self._output_types = None
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["durs", "pitch", "speaker", "pace", "spec", "attn_prior", "mel_lens", "input_lens"])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set(["attn_soft", "pitch", "attn_logprob", "attn_hard", "attn_hard_dur",])
+        disabled_inputs = set()
+        if self.fastpitch.speaker_emb is None:
+            disabled_inputs.add("speaker")
+        return disabled_inputs

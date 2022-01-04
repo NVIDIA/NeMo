@@ -18,7 +18,6 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
-from nemo_text_processing.text_normalization.data_loader_utils import post_process_punctuation, pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -26,11 +25,14 @@ try:
     import pynini
 
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 try:
     from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 
     NLP_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -72,7 +74,11 @@ class Normalizer:
             # use normalize_with_audio.py
             from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
-
+        elif lang == 'de':
+            # Ru TN only support non-deterministic cases and produces multiple normalization options
+            # use normalize_with_audio.py
+            from nemo_text_processing.text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.de.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
@@ -125,6 +131,7 @@ class Normalizer:
 
         Returns: spoken form
         """
+        original_text = text
         if punct_pre_process:
             text = pre_process(text)
         text = text.strip()
@@ -148,10 +155,12 @@ class Normalizer:
                 continue
             output = self.select_verbalizer(verbalizer_lattice)
             if punct_post_process:
-                output = post_process_punctuation(output)
                 # do post-processing based on Moses detokenizer
                 if self.processor:
-                    output = self.processor.detokenize([output])
+                    output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
+                    output = post_process_punct(input=original_text, normalized_text=output)
+                else:
+                    print("NEMO_NLP collection is not available: skipping punctuation post_processing")
             return output
         raise ValueError()
 
@@ -267,7 +276,7 @@ class Normalizer:
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "de"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
@@ -293,7 +302,11 @@ if __name__ == "__main__":
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
     normalizer = Normalizer(
-        input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache, whitelist=whitelist
+        input_case=args.input_case,
+        cache_dir=args.cache_dir,
+        overwrite_cache=args.overwrite_cache,
+        whitelist=whitelist,
+        lang=args.language,
     )
     print(
         normalizer.normalize(
