@@ -42,7 +42,15 @@ Usage:
             --tokens_to_generate=32 \
             --prompt=YOUR_PROMPT
 
-    c. If you need to run a prompt-tuned model on a few prompts from a file:
+    c. If you don't need to generate tokens and need model to compute logprobs:
+         python megatron_gpt_eval.py \
+            --model_file=PATH_TO_MODEL \
+            --path_to_file=PATH_TO_FILE \
+            --batch_size=16 \
+            --compute_logprobs=True \
+            --prompt .
+
+    d. If you need to run a prompt-tuned model on a few prompts from a file:
         python megatron_gpt_eval.py \
             --use_soft_prompts \
             --model_file=PATH_TO_MODEL \
@@ -55,7 +63,7 @@ Usage:
             {'prompt_tag': tag1, 'text': prompt2}
             {'prompt_tag': tag3, 'text': prompt3}
 
-    d. If you need to run the model on a prompt from the CLI:
+    e. If you need to run a prompt-tuned model on a prompt from the CLI:
         python megatron_gpt_eval.py \
             --use_soft_prompts \
             --model_file=PATH_TO_MODEL \
@@ -95,6 +103,9 @@ def main():
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
     parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
+    parser.add_argument(
+        "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
+    )
 
     args = parser.parse_args()
 
@@ -115,6 +126,7 @@ def main():
 
     def pad_collate(batch):
         tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
+        compute_logprobs = batch[0]['compute_logprobs']
         lens = [len(token) for token in tokens]
 
         tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=50256)
@@ -125,10 +137,10 @@ def main():
             prompt_tags = batch[0]['prompt_tags']
 
             for token, lenn, prompt_tag in zip(tokens_pad.T, lens, prompt_tags):
-                data.append((token, lenn, tokens_to_generate, prompt_tag))
+                data.append((token, lenn, tokens_to_generate, compute_logprobs, prompt_tag))
         else:
             for token, lenn in zip(tokens_pad.T, lens):
-                data.append((token, lenn, tokens_to_generate))
+                data.append((token, lenn, tokens_to_generate, compute_logprobs))
 
         return data
 
@@ -145,7 +157,7 @@ def main():
 
             request.append(prompt)
 
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=int(args.batch_size))
 
     else:
@@ -154,7 +166,7 @@ def main():
         else:
             request = [args.prompt]
 
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate)
+        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
 
     # For GPT models that have had soft prompt tuning but you don't want to use any soft prompts
