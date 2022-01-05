@@ -179,11 +179,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
             'batch_size': self._cfg.get('batch_size'),
-            'time_length': self._speaker_params.window_length_in_sec,
-            'shift_length': self._speaker_params.shift_length_in_sec,
             'trim_silence': False,
             'labels': None,
-            'task': "diarization",
             'num_workers': self._cfg.num_workers,
         }
         self._speaker_model.setup_test_data(spk_dl_config)
@@ -271,9 +268,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
 
-        self._speaker_params.window_length_in_sec = window
-        self._speaker_params.shift_length_in_sec = shift
-
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
         logging.info(
             f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
@@ -281,8 +275,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             subsegments_manifest_file=self.subsegments_manifest_path,
-            window=self._speaker_params.window_length_in_sec,
-            shift=self._speaker_params.shift_length_in_sec,
+            window=window,
+            shift=shift,
         )
         return None
 
@@ -412,10 +406,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._perform_speech_activity_detection()
 
         # Segmentation
-        for scale_idx, (time_length, shift_length) in self.multiscale_args_dict['scale_dict'].items():
+        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
 
             # Segmentation for the current scale (scale_idx)
-            self._run_segmentation(time_length, shift_length, scale_tag=f'_scale{scale_idx}')
+            self._run_segmentation(window, shift, scale_tag=f'_scale{scale_idx}')
 
             # Embedding Extraction for the current scale (scale_idx)
             self._extract_embeddings(self.subsegments_manifest_path)
