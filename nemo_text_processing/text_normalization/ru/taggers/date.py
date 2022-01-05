@@ -15,6 +15,7 @@
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
     NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -60,7 +61,12 @@ class DateFst(GraphFst):
         zero_digit = zero + pynini.compose(NEMO_DIGIT, numbers)
         digit_day = (pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT
         digit_day = pynini.compose(digit_day, numbers)
-        day = (pynutil.insert("day: \"") + (zero_digit | digit_day) + pynutil.insert("\"")).optimize()
+
+        day = zero_digit | digit_day
+        day = pynini.compose(
+            day, pynini.difference(NEMO_SIGMA, NEMO_SIGMA + pynini.union("ой", "ая", "ых", "ые", "ыми"))
+        )
+        day = (pynutil.insert("day: \"") + day + pynutil.insert("\"")).optimize()
 
         digit_month = zero_digit | pynini.compose(pynini.accep("1") + NEMO_DIGIT, numbers)
         month_number_to_abbr = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
@@ -74,9 +80,23 @@ class DateFst(GraphFst):
         month_name = (
             (month_number_to_abbr @ month_abbr_to_names) | pynutil.add_weight(month_abbr_to_names, 0.1)
         ).optimize()
-        month = (pynutil.insert("month: \"") + (month_name | digit_month) + pynutil.insert("\"")).optimize()
+        month = (
+            pynutil.insert("month: \"") + (month_name | pynutil.add_weight(digit_month, 0.1)) + pynutil.insert("\"")
+        ).optimize()
         year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
         year |= zero_digit
+
+        # reduce year options
+        year_wrong_endings = ["ую", "ая"]
+        year_wrong_beginning = ["две тысяча", "два тысяч", "два тысячи", "две тысяч "]
+        year = pynini.compose(
+            year, pynini.difference(NEMO_SIGMA, NEMO_SIGMA + pynini.union("ой", "ого"))
+        ) | pynutil.add_weight(pynini.compose(year, NEMO_SIGMA + pynini.union("ой", "ого")), -0.1)
+
+        year_restrict1 = pynini.difference(NEMO_SIGMA, pynini.union(*year_wrong_beginning) + NEMO_SIGMA)
+        year_restrict2 = pynini.difference(NEMO_SIGMA, NEMO_SIGMA + pynini.union(*year_wrong_endings))
+        year = pynini.compose(pynini.compose(year, year_restrict1), year_restrict2)
+
         year_word_singular = ["год", "года", "году", "годом", "годе"]
         year_word_plural = ["годы", "годов", "годам", "годами", "годам", "годах"]
 
