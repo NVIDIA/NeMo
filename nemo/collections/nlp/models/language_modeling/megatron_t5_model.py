@@ -145,7 +145,7 @@ class MegatronT5Model(NLPModel):
 
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
-        # Reduced loss for logging.
+        # Reduced loss for logging. This averages the loss across all workers unlike "loss" above which is specific to a DDP rank.
         reduced_loss = average_losses_across_data_parallel_group([loss])
         # cache reduced loss while accumulating gradients
         self._reduced_loss_buffer.append(reduced_loss[0])
