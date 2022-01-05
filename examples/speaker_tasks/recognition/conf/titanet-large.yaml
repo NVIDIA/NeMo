@@ -8,7 +8,6 @@ model:
     labels: null
     batch_size: 64
     shuffle: True
-    time_length: 8
     is_tarred: False
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
@@ -40,7 +39,6 @@ model:
     labels: null
     batch_size: 128
     shuffle: False
-    time_length: 8
 
   model_defaults:
     filters: 1024
