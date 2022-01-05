@@ -14,9 +14,6 @@
 
 import copy
 import itertools
-import json
-import os
-import pickle as pkl
 from typing import Dict, List, Optional, Union
 
 import librosa
@@ -33,7 +30,6 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
@@ -42,7 +38,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
-__all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
+__all__ = ['EncDecSpeakerLabelModel']
 
 
 class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
@@ -98,12 +94,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
         if 'angular' in cfg.decoder and cfg.decoder['angular']:
-            logging.info("Training with Angular Softmax Loss")
+            logging.info("loss is Angular Softmax")
             scale = cfg.loss.scale
             margin = cfg.loss.margin
             self.loss = AngularSoftmaxLoss(scale=scale, margin=margin)
         else:
-            logging.info("Training with Softmax-CrossEntropy loss")
+            logging.info("loss is Softmax-CrossEntropy")
             self.loss = CELoss()
         self.task = None
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
@@ -171,8 +167,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 max_duration=config.get('max_duration', None),
                 min_duration=config.get('min_duration', None),
                 trim=config.get('trim_silence', False),
-                time_length=config.get('time_length', 8),
-                shift_length=config.get('shift_length', 0.75),
                 normalize_audio=config.get('normalize_audio', False),
             )
 
@@ -182,14 +176,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             collate_ds = dataset
 
         # self.labels = collate_ds.labels
-
-        if self.task == 'diarization':
-            logging.info("Setting up diarization parameters")
-            collate_fn = collate_ds.sliced_seq_collate_fn
-            shuffle = False
-        else:
-            logging.info("Setting up identification parameters")
-            collate_fn = collate_ds.fixed_seq_collate_fn
+        collate_fn = collate_ds.fixed_seq_collate_fn
 
         batch_size = config['batch_size']
         return torch.utils.data.DataLoader(
@@ -207,24 +194,15 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         train_data_layer_config['labels'] = self.labels
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
-        self.task = 'identification'
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
         val_data_layer_config['labels'] = self.labels
-        self.task = 'identification'
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if hasattr(self, 'dataset'):
             test_data_layer_params['labels'] = self.labels
-
-        if 'task' in test_data_layer_params and test_data_layer_params['task']:
-            self.task = test_data_layer_params['task'].lower()
-            self.time_length = test_data_layer_params.get('time_length', 1.5)
-            self.shift_length = test_data_layer_params.get('shift_length', 0.75)
-        else:
-            self.task = 'identification'
 
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
@@ -422,51 +400,3 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             self.unfreeze()
         del audio_signal, audio_signal_len
         return embs
-
-
-class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
-    """
-    This Model class facilitates extraction of speaker embeddings from a pretrained model.
-    Respective embedding file is saved in self.embedding dir passed through cfg
-    """
-
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer)
-
-    def test_step(self, batch, batch_ix):
-        audio_signal, audio_signal_len, labels, slices = batch
-        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        return {'embs': embs, 'labels': labels, 'slices': slices}
-
-    def test_epoch_end(self, outputs):
-        embs = torch.cat([x['embs'] for x in outputs])
-        slices = torch.cat([x['slices'] for x in outputs])
-        emb_shape = embs.shape[-1]
-        embs = embs.view(-1, emb_shape).cpu().numpy()
-        embs = embedding_normalize(embs)
-        out_embeddings = {}
-        start_idx = 0
-        with open(self.test_manifest, 'r') as manifest:
-            for idx, line in enumerate(manifest.readlines()):
-                line = line.strip()
-                dic = json.loads(line)
-                structure = dic['audio_filepath'].split('/')[-3:]
-                uniq_name = '@'.join(structure)
-                if uniq_name in out_embeddings:
-                    raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
-                num_slices = slices[idx]
-                end_idx = start_idx + num_slices
-                out_embeddings[uniq_name] = embs[start_idx:end_idx].mean(axis=0)
-                start_idx = end_idx
-
-        embedding_dir = os.path.join(self.embedding_dir, 'embeddings')
-        if not os.path.exists(embedding_dir):
-            os.mkdir(embedding_dir)
-
-        prefix = self.test_manifest.split('/')[-1].split('.')[-2]
-
-        name = os.path.join(embedding_dir, prefix)
-        pkl.dump(out_embeddings, open(name + '_embeddings.pkl', 'wb'))
-        logging.info("Saved embedding files to {}".format(embedding_dir))
-
-        return {}
