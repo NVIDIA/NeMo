@@ -22,7 +22,7 @@ from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 class TestRuNormalizeWithAudio:
 
     normalizer = NormalizerWithAudio(input_case='cased', lang='ru', cache_dir=CACHE_DIR) if PYNINI_AVAILABLE else None
-    N_TAGGED = 3000
+    N_TAGGED = 100
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_cardinal.txt'))
     @pytest.mark.skipif(
@@ -31,7 +31,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_cardinal(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
+        preds = self.normalizer.normalize(test_input, n_tagged=50)
         assert expected in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_ordinal.txt'))
@@ -51,7 +51,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_decimal(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=5000)
+        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
         assert expected in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_measure.txt'))
@@ -71,7 +71,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_date(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
         assert expected in preds, expected not in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_telephone.txt'))
@@ -81,7 +81,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_telephone(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
         assert expected in preds, expected not in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_money.txt'))
@@ -91,7 +91,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_money(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
         assert expected in preds, expected not in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_time.txt'))
@@ -101,7 +101,7 @@ class TestRuNormalizeWithAudio:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_time(self, expected, test_input):
-        preds = self.normalizer.normalize(test_input, n_tagged=-1)
+        preds = self.normalizer.normalize(test_input, n_tagged=self.N_TAGGED)
         assert expected in preds, expected not in preds
 
     @parameterized.expand(parse_test_case_file('ru/data_text_normalization/test_cases_electronic.txt'))
