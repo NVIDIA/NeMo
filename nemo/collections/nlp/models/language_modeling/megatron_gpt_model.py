@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -40,6 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
 
@@ -160,6 +162,44 @@ class MegatronGPTModel(NLPModel):
             self._reduced_loss_buffer = []
 
         return loss
+
+    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, batch, batch_idx)
+
+        # TODO: Replace with newer override for scheduler.step() instead of
+        # search for plugins for fp16 GradScalar
+        if self.trainer.precision_plugin is not None and isinstance(
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+        ):
+            precision_plugin = self.trainer.precision_plugin
+
+            if (
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
+            ):
+                grad_scaler = precision_plugin.scaler
+
+                # If the grad scaler skipped its optimizer step due to infs/nans,
+                # decrement the step of all schedulers.
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
+                    schedulers = self.trainer.lr_schedulers
+
+                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
+                        return
+
+                    for scheduler in schedulers:
+                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                        # as well as update the optimizer lr in all param groups
+                        scheduler['scheduler'].last_epoch -= 2
+                        scheduler['scheduler'].step()
+
+                    # Increase the max step count by 1
+                    self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
         if self.use_soft_prompts:
@@ -473,14 +513,14 @@ class MegatronGPTModel(NLPModel):
         """
             Autoregressively invokes language model in the inference mode
         Args:
-            request: 
+            request:
                 * tokens: List of "buckets" with unpadded tokens of the same length
                 * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
                                specifying the prompt tag to use (optional)
             positions: List with initial prompts positions
             tokens_to_generate: int value denoting amount of tokens model should generate
 
-        Returns:	
+        Returns:
             response: A python list of tuples
                 (text, tokens, log_probs, offsets)
                 * text: string, inputted prompt + generated text by model
@@ -556,7 +596,7 @@ class MegatronGPTModel(NLPModel):
         """
             Only logprobs computation without generation tokens
         Args:
-            request: 
+            request:
                 * tokens: List of "buckets" with unpadded tokens of the same length
                 * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
                                     specifying the prompt tag to use (optional)
