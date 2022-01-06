@@ -49,7 +49,7 @@ def main(cfg):
 
     # ASR inference for words and word timestamps
     asr_ts_decoder = ASR_TIMESTAMPS(**cfg.diarizer)
-    asr_model = asr_ts_decoder.set_asr_model(cfg.diarizer.asr.model_path)
+    asr_model = asr_ts_decoder.set_asr_model()
     word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
 
     # Create a class instance for matching ASR and diarization results

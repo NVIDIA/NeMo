@@ -147,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument("--paths2rttm_files", help="path to text file containing list of rttm files", type=str)
     parser.add_argument("--paths2uem_files", help="path to uem files", type=str)
     parser.add_argument("--paths2ctm_files", help="path to ctm files", type=str)
-    parser.add_argument("--manifest_filepath", help="output manifest file name", type=str, required=True)
+    parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
 
     args = parser.parse_args()
 

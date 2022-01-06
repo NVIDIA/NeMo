@@ -14,8 +14,6 @@
 
 import copy
 import math
-import sys
-from datetime import datetime
 from typing import Dict, List, Tuple, Type, Union
 
 import librosa
@@ -37,8 +35,9 @@ __all__ = ['ASR_TIMESTAMPS']
 
 try:
     from pyctcdecode import build_ctcdecoder
+    PYCTCDECODE = True
 except ImportError:
-    logging.info("pyctcdecode is not installed. You must install kenlm and pyctcdecode to use language models")
+    PYCTCDECODE = False
 
 
 def if_none_get_default(param, default_value):
@@ -70,7 +69,7 @@ class WERBPE_TS(WERBPE):
         self, time_stride, predictions: torch.Tensor, predictions_len: torch.Tensor = None
     ) -> List[str]:
         hypotheses, timestamps, word_timestamps = [], [], []
-        # '⁇' string should removed since it causes error on string split.
+        # '⁇' string should be removed since it causes error during string split.
         unk = '⁇'
         prediction_cpu_tensor = predictions.long().cpu()
         # iterate over batch
@@ -312,7 +311,7 @@ class ASR_TIMESTAMPS:
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
         self.audio_file_list = [value['audio_filepath'] for _, value in self.AUDIO_RTTM_MAP.items()]
 
-    def set_asr_model(self, ASR_model_name: str):
+    def set_asr_model(self):
         """
         Initialize the parameters for the given ASR model
         Currently, the following NGC models are supported:
@@ -331,7 +330,7 @@ class ASR_TIMESTAMPS:
         To obtain an optimized diarization result with ASR, decoder_delay_in_sec and word_ts_anchor_offset
         need to be searched on a development set.
         """
-        if 'quartznet' in ASR_model_name.lower():
+        if 'quartznet' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_QuartzNet_CTC
             self.encdec_class = EncDecCTCModel
             self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.04)
@@ -339,7 +338,7 @@ class ASR_TIMESTAMPS:
             self.asr_batch_size = if_none_get_default(self.params['asr_batch_size'], 4)
             self.model_stride_in_secs = 0.02
 
-        elif 'conformer' in ASR_model_name.lower():
+        elif 'conformer' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_BPE_CTC
             self.encdec_class = EncDecCTCModelBPE
             self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.08)
@@ -351,7 +350,7 @@ class ASR_TIMESTAMPS:
             self.chunk_len_in_sec = 5
             self.total_buffer_in_secs = 25
 
-        elif 'citrinet' in ASR_model_name.lower():
+        elif 'citrinet' in self.ASR_model_name.lower():
             self.run_ASR = self.run_ASR_CitriNet_CTC
             self.encdec_class = EncDecCTCModelBPE
             self.decoder_delay_in_sec = if_none_get_default(self.params['decoder_delay_in_sec'], 0.16)
@@ -360,14 +359,16 @@ class ASR_TIMESTAMPS:
             self.model_stride_in_secs = 0.08
 
         else:
-            raise ValueError(f"Cannot find the ASR model class for: {self.params['ASR_model_name']}")
+            raise ValueError(f"Cannot find the ASR model class for: {self.params['self.ASR_model_name']}")
 
-        if ASR_model_name.endswith('.nemo'):
-            asr_model = self.encdec_class.restore_from(restore_path=ASR_model_name)
+        if self.ASR_model_name.endswith('.nemo'):
+            asr_model = self.encdec_class.restore_from(restore_path=self.ASR_model_name)
         else:
-            asr_model = self.encdec_class.from_pretrained(model_name=ASR_model_name, strict=False)
+            asr_model = self.encdec_class.from_pretrained(model_name=self.ASR_model_name, strict=False)
 
-        if self.ctc_decoder_params['pretrained_language_model'] and 'pyctcdecode' in sys.modules:
+        if self.ctc_decoder_params['pretrained_language_model']:
+            if not PYCTCDECODE:
+                raise ImportError('LM for beam search decoding is provided but pyctcdecode is not installed. Install pyctcdecode using PyPI: pip install pyctcdecode')
             self.beam_search_decoder = self.load_LM_for_CTC_decoder(asr_model)
         else:
             self.beam_search_decoder = None
@@ -390,7 +391,7 @@ class ASR_TIMESTAMPS:
             labels = list(vocab.keys())
             labels[0] = "<unk>"
         else:
-            raise ValueError(f"Cannot find a vocabulary or tokenizer for: {self.params['ASR_model_name']}")
+            raise ValueError(f"Cannot find a vocabulary or tokenizer for: {self.params['self.ASR_model_name']}")
 
         decoder = build_ctcdecoder(
             labels, kenlm_model, alpha=self.ctc_decoder_params['alpha'], beta=self.ctc_decoder_params['beta']
@@ -430,7 +431,7 @@ class ASR_TIMESTAMPS:
                 uniq_id = get_uniqname_from_filepath(self.audio_file_list[idx])
                 if self.beam_search_decoder:
                     logging.info(
-                        f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}"
+                        f"Running beam-search decoder on {uniq_id} with LM {self.ctc_decoder_params['pretrained_language_model']}"
                     )
                     hyp_words, word_ts = self.run_pyctcdecode(logit_np)
                 else:
@@ -582,6 +583,7 @@ class ASR_TIMESTAMPS:
         cfg.preprocessor.dither = 0.0
         cfg.preprocessor.pad_to = 0
         cfg.preprocessor.normalize = "None"
+
         preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
         preprocessor.to(asr_model.device)
 

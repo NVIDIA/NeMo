@@ -38,15 +38,15 @@ from nemo.utils.decorators.experimental import experimental
 
 try:
     import arpa
+    ARPA = True
 except ImportError:
-    logging.info("arpa is not installed. You must install arpa to refine diarization result with LM.")
+    ARPA = False
 
 try:
     import diff_match_patch
+    DIFF_MATCH_PATCH = True
 except ImportError:
-    logging.info(
-        "diff_match_patch is not installed. You must install diff_match_patch to use CTM file based evaluation."
-    )
+    DIFF_MATCH_PATCH = False
 
 __all__ = ['ASR_DIAR_OFFLINE']
 
@@ -130,22 +130,18 @@ class ASR_DIAR_OFFLINE(object):
         self.nonspeech_threshold = self.params['asr_based_vad_threshold']
         self.fix_word_ts_with_VAD = self.params['fix_word_ts_with_VAD']
         self.root_path = cfg_diarizer['out_dir']
-        shutil.rmtree(self.root_path, ignore_errors=True)
 
         self.vad_threshold_for_word_ts = 0.7
         self.max_word_ts_length_in_sec = 0.6
         self.cfg_diarizer = cfg_diarizer
         self.word_ts_anchor_offset = 0.0
         self.run_ASR = None
+        self.realigning_lm = None
         self.ctm_exists = {}
         self.frame_VAD = {}
         self.align_error_list = []
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
         self.audio_file_list = [value['audio_filepath'] for _, value in self.AUDIO_RTTM_MAP.items()]
-        if self.realigning_lm_params['arpa_language_model']:
-            self.realigning_lm = self.load_realigning_LM()
-        else:
-            self.realigning_lm = None
 
         self.color_palette = {
             'speaker_0': '\033[1;32m',
@@ -167,11 +163,7 @@ class ASR_DIAR_OFFLINE(object):
             self.realigning_lm_params['max_number_of_words'],
         )
         self.stt_end_tokens = ['</s>', '<s>']
-        if 'arpa' in sys.modules:
-            return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
-        else:
-            logging.info("You must install arpa to refine diarization result with LM. Skipping realigning.")
-            return None
+        return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
 
     def save_VAD_labels_list(self, word_ts_dict):
         """
@@ -246,10 +238,10 @@ class ASR_DIAR_OFFLINE(object):
             diar_model_config.diarizer.vad.model_path = None
             diar_model_config.diarizer.vad.external_vad_manifest = oracle_manifest
 
-        oracle_model = ClusteringDiarizer(cfg=diar_model_config)
-        score = oracle_model.diarize()
+        diar_model = ClusteringDiarizer(cfg=diar_model_config)
+        score = diar_model.diarize()
         if diar_model_config.diarizer.vad.model_path is not None and not diar_model_config.diarizer.oracle_vad:
-            self.get_frame_level_VAD(vad_processing_dir=oracle_model.vad_pred_dir)
+            self.get_frame_level_VAD(vad_processing_dir=diar_model.vad_pred_dir)
 
         diar_hyp = {}
         for k, audio_file_path in enumerate(self.audio_file_list):
@@ -445,16 +437,20 @@ class ASR_DIAR_OFFLINE(object):
             word_ts_refined = self.compensate_word_ts_list(self.audio_file_list, word_ts_hyp, self.params)
         else:
             word_ts_refined = word_ts_hyp
+        
+        if self.realigning_lm_params['arpa_language_model']:
+            if not ARPA:
+                raise ImportError('LM for realigning is provided but arpa is not installed. Install arpa using PyPI: pip install arpa')
+            else:
+                self.realigning_lm = self.load_realigning_LM()
 
         for k, audio_file_path in enumerate(self.audio_file_list):
             uniq_id = get_uniqname_from_filepath(audio_file_path)
             word_dict_seq_list = self.get_word_dict_seq_list(uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined)
             if self.realigning_lm:
-                logging.info(
-                    f"Realigning diarization results of {uniq_id} with the provided language model {self.realigning_lm_params['arpa_language_model']}"
-                )
                 word_dict_seq_list = self.realign_words_with_lm(word_dict_seq_list)
             self.make_json_output(uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict)
+        logging.info(f"Diarization with ASR output files are saved in: {self.root_path}/pred_rttms")
         return total_riva_dict
 
     def get_word_dict_seq_list(self, uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined):
@@ -737,6 +733,11 @@ class ASR_DIAR_OFFLINE(object):
             count_dict['grand_total_pred_word_count'],
             count_dict['grand_total_correct_word_count'],
         ) = (0, 0, 0)
+
+        if any([ self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath'] != None for uniq_id in self.AUDIO_RTTM_MAP.keys() ]):
+            if not DIFF_MATCH_PATCH:
+                raise ImportError('CTM file is provided but diff_match_patch is not installed. Install diff_match_patch using PyPI: pip install diff_match_patch')
+
         for k, audio_file_path in enumerate(self.audio_file_list):
 
             uniq_id = get_uniqname_from_filepath(audio_file_path)
@@ -752,7 +753,7 @@ class ASR_DIAR_OFFLINE(object):
             error_dict.update(DER_result_dict[uniq_id])
 
             # If CTM files are provided, evaluate word-level diarization and wer with the CTM files.
-            if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath'] and 'diff_match_patch' in sys.modules:
+            if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']:
                 self.ctm_exists[uniq_id] = True
                 ctm_content = open(self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']).readlines()
                 self.get_ctm_based_eval(ctm_content, error_dict, count_dict, hyp_w_dict_list, mapping_dict)
@@ -959,19 +960,9 @@ class ASR_DIAR_OFFLINE(object):
         Write output files and displays logging messages.
         """
         ROOT = self.root_path
-
-        logging.info(f"Writing files for id:{uniq_id} at {ROOT}/pred_rttms/")
-
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.json")
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}.json', riva_dict)
-
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}_gecko.json")
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
-
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.txt")
         write_txt(f'{ROOT}/pred_rttms/{uniq_id}.txt', string_out.strip())
-
-        logging.info(f"Writing {ROOT}/pred_rttms/{uniq_id}.w.label")
         write_txt(f'{ROOT}/pred_rttms/{uniq_id}.w.label', '\n'.join(audacity_label_words))
 
     def print_errors(self, DER_result_dict, WDER_dict):
