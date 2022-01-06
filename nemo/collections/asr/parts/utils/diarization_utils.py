@@ -16,8 +16,6 @@ import copy
 import csv
 import json
 import os
-import shutil
-import sys
 from collections import OrderedDict as od
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -81,7 +79,6 @@ def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
     diff.Diff_Timeout = 0
     orig_enc, pred_enc, enc = diff.diff_linesToChars(orig_words, pred_words)
     diffs = diff.diff_main(orig_enc, pred_enc, False)
-    diff_wer = diff.diff_lineMode(orig_enc, pred_enc, False)
     diff.diff_charsToLines(diffs, enc)
     return diffs
 
@@ -91,7 +88,6 @@ def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pre
     Calculate the diarization confuse error using the reference CTM file.
     """
     correct_count, error_count, align_error = 0, 0, []
-    _pred, _ref = 0, 0
     for k, _d in enumerate(error_buffer):
         if _d[0] == 1:
             stt, end = w_range_buffer[k]
