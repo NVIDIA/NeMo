@@ -35,6 +35,7 @@ __all__ = ['ASR_TIMESTAMPS']
 
 try:
     from pyctcdecode import build_ctcdecoder
+
     PYCTCDECODE = True
 except ImportError:
     PYCTCDECODE = False
@@ -316,9 +317,9 @@ class ASR_TIMESTAMPS:
         Initialize the parameters for the given ASR model
         Currently, the following NGC models are supported:
 
-            QuartzNet15x5Base-En
+            stt_en_quartznet15x5
             stt_en_citrinet*
-            stt_en_conformer_ctc_*
+            stt_en_conformer_ctc*
 
         To assign a proper decoding function for generating timestamp output,
         the name of .nemo file should include the architecture name such as:
@@ -368,7 +369,9 @@ class ASR_TIMESTAMPS:
 
         if self.ctc_decoder_params['pretrained_language_model']:
             if not PYCTCDECODE:
-                raise ImportError('LM for beam search decoding is provided but pyctcdecode is not installed. Install pyctcdecode using PyPI: pip install pyctcdecode')
+                raise ImportError(
+                    'LM for beam search decoding is provided but pyctcdecode is not installed. Install pyctcdecode using PyPI: pip install pyctcdecode'
+                )
             self.beam_search_decoder = self.load_LM_for_CTC_decoder(asr_model)
         else:
             self.beam_search_decoder = None

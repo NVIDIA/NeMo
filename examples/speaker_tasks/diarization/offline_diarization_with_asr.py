@@ -35,9 +35,9 @@ Check out whole parameters in ./conf/offline_diarization_with_asr.yaml and their
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
 Currently, the following NGC models are supported:
 
-    QuartzNet15x5Base-En
+    stt_en_quartznet15x5
     stt_en_citrinet*
-    stt_en_conformer_ctc_*
+    stt_en_conformer_ctc*
 
 """
 

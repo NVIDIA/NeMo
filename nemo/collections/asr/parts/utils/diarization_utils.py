@@ -38,12 +38,14 @@ from nemo.utils.decorators.experimental import experimental
 
 try:
     import arpa
+
     ARPA = True
 except ImportError:
     ARPA = False
 
 try:
     import diff_match_patch
+
     DIFF_MATCH_PATCH = True
 except ImportError:
     DIFF_MATCH_PATCH = False
@@ -437,10 +439,12 @@ class ASR_DIAR_OFFLINE(object):
             word_ts_refined = self.compensate_word_ts_list(self.audio_file_list, word_ts_hyp, self.params)
         else:
             word_ts_refined = word_ts_hyp
-        
+
         if self.realigning_lm_params['arpa_language_model']:
             if not ARPA:
-                raise ImportError('LM for realigning is provided but arpa is not installed. Install arpa using PyPI: pip install arpa')
+                raise ImportError(
+                    'LM for realigning is provided but arpa is not installed. Install arpa using PyPI: pip install arpa'
+                )
             else:
                 self.realigning_lm = self.load_realigning_LM()
 
@@ -734,9 +738,11 @@ class ASR_DIAR_OFFLINE(object):
             count_dict['grand_total_correct_word_count'],
         ) = (0, 0, 0)
 
-        if any([ self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath'] != None for uniq_id in self.AUDIO_RTTM_MAP.keys() ]):
+        if any([self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath'] != None for uniq_id in self.AUDIO_RTTM_MAP.keys()]):
             if not DIFF_MATCH_PATCH:
-                raise ImportError('CTM file is provided but diff_match_patch is not installed. Install diff_match_patch using PyPI: pip install diff_match_patch')
+                raise ImportError(
+                    'CTM file is provided but diff_match_patch is not installed. Install diff_match_patch using PyPI: pip install diff_match_patch'
+                )
 
         for k, audio_file_path in enumerate(self.audio_file_list):
 
