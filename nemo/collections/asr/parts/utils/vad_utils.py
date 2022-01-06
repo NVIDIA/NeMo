@@ -51,7 +51,7 @@ def prepare_manifest(config):
     Perform VAD on long audio snippet might cause CUDA out of memory issue. 
     Automatically split manifest entry by split_duration to avoid the potential memory issue.
     """
-    if config['prepared_manfiest_vad_input']:
+    if 'prepared_manfiest_vad_input' in config and config['prepared_manfiest_vad_input']:
         manifest_vad_input = config['prepared_manfiest_vad_input']
     else:
         manifest_vad_input = "manifest_vad_input.json"
