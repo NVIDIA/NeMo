@@ -245,7 +245,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 frame_pred_dir=self._vad_dir,
                 smoothing_method=self._vad_params.smoothing,
                 overlap=self._vad_params.overlap,
-                seg_len=self._vad_window_length_in_sec,
+                time_len=self._vad_window_length_in_sec,
                 shift_len=self._vad_shift_length_in_sec,
                 num_workers=self._cfg.num_workers,
             )
@@ -294,7 +294,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 logging.info("Split long audio file to avoid CUDA memory issue")
                 logging.debug("Try smaller split_duration if you still have CUDA memory issue")
                 config = {
-                    'manifest_filepath': manifest_vad_input,
+                    'input': manifest_vad_input,
                     'time_length': self._vad_window_length_in_sec,
                     'split_duration': self._split_duration,
                     'num_workers': self._cfg.num_workers,
