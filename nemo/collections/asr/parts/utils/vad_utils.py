@@ -23,11 +23,22 @@ import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import torch
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 from sklearn.model_selection import ParameterGrid
 
+from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.utils import logging
+
+try:
+    from torch.cuda.amp import autocast
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def autocast(enabled=None):
+        yield
 
 
 """
@@ -173,7 +184,7 @@ def get_vad_stream_status(data):
     return status
 
 
-def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers):
+def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers, out_dir=None):
     """
     Gnerate predictions with overlapping input windows/segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple windows. 
     Two common smoothing filters are supported: majority vote (median) and average (mean).
@@ -288,7 +299,9 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
         raise (e)
 
 
-def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, num_workers, threshold=None):
+def generate_vad_segment_table(
+    vad_pred_dir, postprocessing_params, shift_len, num_workers, out_dir=None, threshold=None
+):
     """
     Convert frame level prediction to speech segment in start and end times format.
     And save to csv file  in rttm-like format
@@ -759,6 +772,9 @@ def plot(
 
 
 def gen_pred_from_speech_segments(speech_segments, prob, shift_len=0.01):
+    """
+    Generate prediction arrays like 000111000... from speech segments {[0,1][2,4]} 
+    """
     pred = np.zeros(prob.shape)
     speech_segments = [list(i) for i in speech_segments]
     speech_segments.sort(key=lambda x: x[0])
@@ -787,3 +803,63 @@ def extract_labels(path2ground_truth_label, time):
         else:
             labels.append(0)
     return labels
+
+
+def generate_vad_frame_pred(vad_model, time_length, shift_length, manifest_vad_input, out_dir):
+    """
+    Generate VAD frame level prediction and write to out_dir
+    """
+    time_unit = int(time_length / shift_length)
+    trunc = int(time_unit / 2)
+    trunc_l = time_unit - trunc
+    all_len = 0
+
+    data = []
+    for line in open(manifest_vad_input, 'r'):
+        file = json.loads(line)['audio_filepath'].split("/")[-1]
+        data.append(file.split(".wav")[0])
+    logging.info(f"Inference on {len(data)} audio files/json lines!")
+
+    status = get_vad_stream_status(data)
+    for i, test_batch in enumerate(vad_model.test_dataloader()):
+        test_batch = [x.to(vad_model.device) for x in test_batch]
+        with autocast():
+            log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+            probs = torch.softmax(log_probs, dim=-1)
+            pred = probs[:, 1]
+
+            if status[i] == 'start':
+                to_save = pred[:-trunc]
+            elif status[i] == 'next':
+                to_save = pred[trunc:-trunc_l]
+            elif status[i] == 'end':
+                to_save = pred[trunc_l:]
+            else:
+                to_save = pred
+
+            all_len += len(to_save)
+            outpath = os.path.join(out_dir, data[i] + ".frame")
+            with open(outpath, "a") as fout:
+                for f in range(len(to_save)):
+                    fout.write('{0:0.4f}\n'.format(to_save[f]))
+
+        del test_batch
+        if status[i] == 'end' or status[i] == 'single':
+            logging.debug(f"Overall length of prediction of {data[i]} is {all_len}!")
+            all_len = 0
+    return out_dir
+
+
+def init_vad_model(model_path):
+    """
+    Initiate VAD model with model path
+    """
+    if model_path.endswith('.nemo'):
+        logging.info(f"Using local VAD model from {model_path}")
+        vad_model = EncDecClassificationModel.restore_from(restore_path=model_path)
+    elif model_path.endswith('.ckpt'):
+        vad_model = EncDecClassificationModel.load_from_checkpoint(checkpoint_path=model_path)
+    else:
+        logging.info(f"Using NGC cloud VAD model {model_path}")
+        vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
+    return vad_model
