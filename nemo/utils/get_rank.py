@@ -24,10 +24,15 @@ def is_global_rank_zero():
     if rank:
         return rank == 0
 
-    # on SLURM variables SLURM_NODEID and SLURM_PROCID will be defined
-    # SLURM_PROCID holds the global rank and computing the node_rank is
-    # not strictly necessary, but we first check LOCAL_RANK to retain 
-    # the behaviour before the change  
-    node_rank = get_envint("SLURM_NODEID", get_envint("NODE_RANK", get_envint("GROUP_RANK", 0)))
-    local_rank = get_envint("LOCAL_RANK", get_envint("SLURM_PROCID", 0))
+    # Try to get the SLURM global rank env var
+    # SLURM_PROCID is set by SLURM
+    slurm_rank = get_envint("SLURM_PROCID", None)
+    if slurm_rank:
+        return slurm_rank == 0
+
+    # if neither pytorch and SLURM env vars are set
+    # check NODE_RANK/GROUP_RANK and LOCAL_RANK env vars
+    # asume global_rank is zero if undefined
+    node_rank = get_envint("NODE_RANK", get_envint("GROUP_RANK", 0))
+    local_rank = get_envint("LOCAL_RANK",0)
     return node_rank == 0 and local_rank == 0
