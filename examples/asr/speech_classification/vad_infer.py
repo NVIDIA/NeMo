@@ -73,10 +73,11 @@ def main(cfg):
         logging.info("Split long audio file to avoid CUDA memory issue")
         logging.debug("Try smaller split_duration if you still have CUDA memory issue")
         config = {
-            'manifest_filepath': manifest_vad_input,
+            'input': manifest_vad_input,
             'time_length': cfg.vad.parameters.window_length_in_sec,
             'split_duration': cfg.prepare_manifest.split_duration,
             'num_workers': cfg.num_workers,
+            'prepared_manfiest_vad_input': cfg.prepared_manfiest_vad_input,
         }
         manifest_vad_input = prepare_manifest(config)
     else:

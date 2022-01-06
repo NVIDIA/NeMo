@@ -51,11 +51,23 @@ def prepare_manifest(config):
     Perform VAD on long audio snippet might cause CUDA out of memory issue. 
     Automatically split manifest entry by split_duration to avoid the potential memory issue.
     """
-    manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
-    input_audios = []
-    with open(config['manifest_filepath'], 'r') as manifest:
-        for line in manifest.readlines():
-            input_audios.append(json.loads(line.strip()))
+    if config['prepared_manfiest_vad_input']:
+        manifest_vad_input = config['prepared_manfiest_vad_input']
+    else:
+        manifest_vad_input = "manifest_vad_input.json"
+
+    # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
+    if type(config['input']) == str:
+        input_list = []
+        with open(config['input'], 'r') as manifest:
+            for line in manifest.readlines():
+                input_list.append(json.loads(line.strip()))
+    elif type(config['input']) == list:
+        input_list = config['input']
+    else:
+        raise ValueError(
+            "The input for manifest preparation would either be a string of the filepath to manifest or a list of {'audio_filepath': i, 'offset': 0, 'duration': null} "
+        )
 
     p = Pool(processes=config['num_workers'])
     args_func = {
@@ -63,7 +75,8 @@ def prepare_manifest(config):
         'split_duration': config['split_duration'],
         'time_length': config['time_length'],
     }
-    results = p.starmap(write_vad_infer_manifest, zip(input_audios, repeat(args_func)))
+
+    results = p.starmap(write_vad_infer_manifest, zip(input_list, repeat(args_func)))
     p.close()
 
     if os.path.exists(manifest_vad_input):
@@ -76,7 +89,6 @@ def prepare_manifest(config):
                 json.dump(r, fout)
                 fout.write('\n')
                 fout.flush()
-
     return manifest_vad_input
 
 
@@ -96,7 +108,6 @@ def write_vad_infer_manifest(file, args_func):
     label = args_func['label']
     split_duration = args_func['split_duration']
     time_length = args_func['time_length']
-
     filepath = file['audio_filepath']
     in_duration = file['duration']
     in_offset = file['offset']
