@@ -20,6 +20,13 @@ Documentation section for speaker related tasks can be found at:
 - [vad_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_marblenet)
 - [vad_telephony_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_telephony_marblenet)
 
+## Supported ASR models
+QuartzNet, CitriNet and Conformer-CTC models are supported. 
+Recommended models on NGC:
+- [stt_en_quartznet15x5](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_quartznet15x5)
+- [stt_en_conformer_ctc_large](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_conformer_ctc_large)
+- [stt_en_citrinet_1024](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_citrinet_1024)
+
 ## Performance
 Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known evaluation datasets. 
 
@@ -213,11 +220,12 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
  
 #### Beam Search Decoder
 
-Beam-search decoder can be applied to CTC based ASR models. To use this feature, [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) should be installed. [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) supports word timestamp generation and can be applied to speaker diarization.
+Beam-search decoder can be applied to CTC based ASR models. To use this feature, [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) should be installed. [pyctcdecode](https://github.com/kensho-technologies/pyctcdecode) supports word timestamp generation and can be applied to speaker diarization. pyctcdecode also requires [KenLM](https://github.com/kpu/kenlm) and KenLM is recommended to be installed using PyPI. Install pyctcdecode in your environment with the following commands: 
 ```
 pip install pyctcdecode
+pip install https://github.com/kpu/kenlm/archive/master.zip
 ```
-You should provide a trained [KenLM](https://github.com/kpu/kenlm) language model to use pyctcdecode. Binary or `.arpa` format can be provided to hydra configuration as below.
+You should provide a trained KenLM language model to use pyctcdecode. Binary or `.arpa` format can be provided to hydra configuration as below.
 
 ```bash
   python offline_diarization_with_asr.py \
