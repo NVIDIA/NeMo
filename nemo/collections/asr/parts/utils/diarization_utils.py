@@ -161,6 +161,7 @@ class ASR_DIAR_OFFLINE(object):
             self.realigning_lm_params['max_number_of_words'],
         )
         self.stt_end_tokens = ['</s>', '<s>']
+        logging.info(f"Loading LM for realigning: {self.realigning_lm_params['arpa_language_model']}")
         return arpa.loadf(self.realigning_lm_params['arpa_language_model'])[0]
 
     def save_VAD_labels_list(self, word_ts_dict):
