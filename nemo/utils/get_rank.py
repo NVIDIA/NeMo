@@ -34,5 +34,5 @@ def is_global_rank_zero():
     # check NODE_RANK/GROUP_RANK and LOCAL_RANK env vars
     # asume global_rank is zero if undefined
     node_rank = get_envint("NODE_RANK", get_envint("GROUP_RANK", 0))
-    local_rank = get_envint("LOCAL_RANK",0)
+    local_rank = get_envint("LOCAL_RANK", 0)
     return node_rank == 0 and local_rank == 0
