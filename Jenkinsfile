@@ -280,7 +280,7 @@ pipeline {
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
             sh 'python examples/asr/ASR_CTC/speech_to_text_bpe.py \
-            --config-path="conf/citrinet/" --config-name="config_bpe" \
+            --config-path="../conf/citrinet/" --config-name="config_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
@@ -295,7 +295,7 @@ pipeline {
         stage('L2: Speech Pre-training - CitriNet') {
           steps {
             sh 'python examples/asr/Speech_Pretraining/speech_pre_training.py \
-            --config-path="conf/citrinet_ssl/" --config-name="citrinet_ssl_ci" \
+            --config-path="../conf/citrinet_ssl/" --config-name="citrinet_ssl_ci" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus=[1] \
@@ -308,7 +308,7 @@ pipeline {
         stage('L2: Speech to Text WPE - Conformer') {
           steps {
             sh 'python examples/asr/ASR_CTC/speech_to_text_bpe.py \
-            --config-path="conf/conformer" --config-name="conformer_ctc_bpe" \
+            --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
@@ -427,7 +427,7 @@ pipeline {
     //    stage('Speech to Text BPE - DALI AudioToMelSpectrogramPreprocessor') {
     //       steps {
     //         sh 'python examples/asr/ASR_CTC/speech_to_text_bpe.py \
-    //         --config-path="conf/citrinet/" --config-name="config_bpe" \
+    //         --config-path="../conf/citrinet/" --config-name="config_bpe" \
     //         model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
     //         model.tokenizer.type="wpe" \
     //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -479,7 +479,7 @@ pipeline {
     //     stage('Speech to Text - RNNT') {
     //       steps {
     //         sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/ASR_Transducer/speech_to_text_rnnt.py \
-    //         --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
+    //         --config-path="../conf/contextnet_rnnt/" --config-name="config_rnnt.yaml" \
     //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
     //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
     //         model.train_ds.batch_size=2 \
@@ -493,7 +493,7 @@ pipeline {
     //     stage('L2: Speech to Text RNNT WPE') {
     //       steps {
     //         sh 'STRICT_NUMBA_COMPAT_CHECK=false python examples/asr/ASR_Transducer/speech_to_text_rnnt_bpe.py \
-    //         --config-path="conf/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
+    //         --config-path="../conf/contextnet_rnnt/" --config-name="config_rnnt_bpe.yaml" \
     //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
     //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
     //         model.train_ds.batch_size=2 \
