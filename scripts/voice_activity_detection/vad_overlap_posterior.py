@@ -19,8 +19,12 @@ from nemo.collections.asr.parts.utils.vad_utils import generate_overlap_vad_seq,
 from nemo.utils import logging
 
 """
+Note you can use NeMo/examples/asr/vad_infer.py which includes the functionalities appeared in this function directly. 
+
+You are encouraged to use this script if you want to try overlapped mean/median smoothing filter and postprocessing technique without perform costly NN inference several times.
+You can also use this script to write RTTM-like files if you have frame level prediction already.
+
 This script serves two purposes:
- 
     1) gen_overlap_seq: 
         Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/speech_classification/vad_infer.py. 
         Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
