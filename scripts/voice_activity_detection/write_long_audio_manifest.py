@@ -11,17 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-import logging
-import multiprocessing
 import os
 from argparse import ArgumentParser
-from itertools import repeat
-
-import librosa
-import numpy as np
 
 from nemo.collections.asr.parts.utils.vad_utils import prepare_manifest
+from nemo.utils import logging
 
 
 """

@@ -31,12 +31,9 @@ python vad_infer.py --config-path="conf" --config-name="vad_inference_postproces
 
 """
 import json
-import logging
 import os
-from argparse import ArgumentParser
 
 import torch
-from unsupervised_vad import *
 
 from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
@@ -135,7 +132,7 @@ def main(cfg):
             frame_pred_dir=pred_dir,
             smoothing_method=cfg.vad.parameters.smoothing,
             overlap=cfg.vad.parameters.overlap,
-            seg_len=cfg.vad.parameters.window_length_in_sec,
+            time_len=cfg.vad.parameters.window_length_in_sec,
             shift_len=cfg.vad.parameters.shift_length_in_sec,
             num_workers=cfg.num_workers,
             out_dir=cfg.smoothing_out_dir,
@@ -156,7 +153,7 @@ def main(cfg):
             out_dir=cfg.table_out_dir,
         )
         logging.info(
-            f"Finish generating speech semgents table postprocessing_params: {cfg.vad.parameters.postprocessing}"
+            f"Finish generating speech semgents table with postprocessing_params: {cfg.vad.parameters.postprocessing}"
         )
 
     if cfg.write_to_manifest:

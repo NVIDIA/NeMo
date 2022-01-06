@@ -195,7 +195,9 @@ def get_vad_stream_status(data):
     return status
 
 
-def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers, out_dir=None):
+def generate_overlap_vad_seq(
+    frame_pred_dir, smoothing_method, overlap, time_len, shift_len, num_workers, out_dir=None
+):
     """
     Gnerate predictions with overlapping input windows/segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple windows. 
     Two common smoothing filters are supported: majority vote (median) and average (mean).
@@ -203,7 +205,7 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
         frame_pred_dir (str): Directory of frame prediction file to be processed.
         smoothing_method (str): median or mean smoothing filter.
         overlap (float): amounts of overlap of adjacent windows.
-        seg_len (float): length of window for generating the frame.
+        time_len (float): length of window for generating the frame.
         shift_len (float): amount of shift of window for generating the frame.
         out_dir (str): directory of generated predictions.
         num_workers(float): number of process for multiprocessing
@@ -213,8 +215,10 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
 
     p = Pool(processes=num_workers)
     frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
-
-    overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
+    if out_dir:
+        overlap_out_dir = out_dir
+    else:
+        overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
 
     if not os.path.exists(overlap_out_dir):
         os.mkdir(overlap_out_dir)
@@ -223,7 +227,7 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
         "out_dir": overlap_out_dir,
         "smoothing_method": smoothing_method,
         "overlap": overlap,
-        "seg_len": seg_len,
+        "time_len": time_len,
         "shift_len": shift_len,
     }
     p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
@@ -241,7 +245,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     try:
         smoothing_method = per_args['smoothing_method']
         overlap = per_args['overlap']
-        seg_len = per_args['seg_len']
+        time_len = per_args['time_len']
         shift_len = per_args['shift_len']
         out_dir = per_args['out_dir']
 
@@ -250,7 +254,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
         overlap_filepath = os.path.join(out_dir, name)
 
         shift = int(shift_len / 0.01)  # number of units of shift
-        seg = int((seg_len / 0.01 + 1))  # number of units of each window/segment
+        seg = int((time_len / 0.01 + 1))  # number of units of each window/segment
 
         jump_on_target = int(seg * (1 - overlap))  # jump on target generated sequence
         jump_on_frame = int(jump_on_target / shift)  # jump on input frame sequence
@@ -259,7 +263,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
             raise ValueError(
                 f"Note we jump over frame sequence to generate overlapping input segments. \n \
             Your input makes jump_on_fram={jump_on_frame} < 1 which is invalid because it cannot jump and will stuck.\n \
-            Please try different seg_len, shift_len and overlap choices. \n \
+            Please try different time_len, shift_len and overlap choices. \n \
             jump_on_target = int(seg * (1 - overlap)) \n \
             jump_on_frame  = int(jump_on_frame/shift) "
             )
@@ -332,11 +336,14 @@ def generate_vad_segment_table(
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
-    table_out_dir_name = "table_output_tmp_"
-    for key in postprocessing_params:
-        table_out_dir_name = table_out_dir_name + str(key) + str(postprocessing_params[key]) + "_"
+    if out_dir:
+        table_out_dir = out_dir
+    else:
+        table_out_dir_name = "table_output_tmp_"
+        for key in postprocessing_params:
+            table_out_dir_name = table_out_dir_name + str(key) + str(postprocessing_params[key]) + "_"
 
-    table_out_dir = os.path.join(vad_pred_dir, table_out_dir_name)
+        table_out_dir = os.path.join(vad_pred_dir, table_out_dir_name)
 
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
