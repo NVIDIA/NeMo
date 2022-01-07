@@ -597,41 +597,34 @@ pipeline {
         stage('Parallel ctc_segmentation test') {
           failFast true
           parallel {
-            stage('L2: Eng QN with .wav') {
+            stage('L2: Eng CitriNet with .wav') {
               steps {
                 sh 'cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
-            /bin/bash run_sample.sh \
-            --MODEL_NAME_OR_PATH=QuartzNet15x5Base-En \
+            /bin/bash run_segmentation.sh \
+            --MODEL_NAME_OR_PATH="stt_en_citrinet_512_gamma_0_25" \
             --DATA_DIR=/home/TestData/ctc_segmentation/eng \
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/eng/output${TIME} \
-            --LANGUAGE=eng \
-            --OFFSET=0 \
-            --CUT_PREFIX=0 \
-            --MIN_SEGMENT_LEN=0 \
-            --AUDIO_FORMAT=.wav && \
+            --LANGUAGE=en \
+            --USE_NEMO_NORMALIZATION="TRUE" && \
             python /home/TestData/ctc_segmentation/verify_alignment.py \
-            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments.txt \
+            -r /home/TestData/ctc_segmentation/eng/eng_valid_segments_1.7.txt \
             -g /home/TestData/ctc_segmentation/eng/output${TIME}/verified_segments/nv_test_segments.txt && \
             rm -rf /home/TestData/ctc_segmentation/eng/output${TIME}'
               }
             }
-            stage('L2: Ru QN with .mp3') {
+            stage('L2: Ru QN with mp3') {
               steps {
                 sh 'cd tools/ctc_segmentation && \
             TIME=`date +"%Y-%m-%d-%T"` && \
-            /bin/bash run_sample.sh \
+            /bin/bash run_segmentation.sh \
             --MODEL_NAME_OR_PATH=/home/TestData/ctc_segmentation/QuartzNet15x5-Ru-e512-wer14.45.nemo \
             --DATA_DIR=/home/TestData/ctc_segmentation/ru \
             --OUTPUT_DIR=/home/TestData/ctc_segmentation/ru/output${TIME} \
             --LANGUAGE=ru \
-            --OFFSET=0 \
-            --CUT_PREFIX=0 \
-            --MIN_SEGMENT_LEN=0 \
-            --AUDIO_FORMAT=.mp3 \
             --ADDITIONAL_SPLIT_SYMBOLS=";" && \
             python /home/TestData/ctc_segmentation/verify_alignment.py \
-            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments.txt \
+            -r /home/TestData/ctc_segmentation/ru/valid_ru_segments_1.7.txt \
             -g /home/TestData/ctc_segmentation/ru/output${TIME}/verified_segments/ru_segments.txt && \
             rm -rf /home/TestData/ctc_segmentation/ru/output${TIME}'
               }
