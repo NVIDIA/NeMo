@@ -169,7 +169,7 @@ class ClassifyFst(GraphFst):
                 abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
-            punct_only = pynutil.add_weight(punct_graph, weight=2.1)
+            punct_only = pynutil.add_weight(punct_graph, weight=20.1)
             punct = pynini.closure(
                 pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
                 | (pynutil.insert(" ") + punct_only),
@@ -207,6 +207,9 @@ class ClassifyFst(GraphFst):
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(graph, no_digits).optimize()
 
+            # from pynini.lib.rewrite import top_rewrites
+            # import pdb; pdb.set_trace()
+            # print()
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
                 logging.info(f'ClassifyFst grammars are saved to {far_file}.')
