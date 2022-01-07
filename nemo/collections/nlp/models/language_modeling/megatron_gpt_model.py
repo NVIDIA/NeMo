@@ -16,9 +16,11 @@ import re
 from typing import Any, Dict, List, Optional
 
 import torch
+import torch.nn.functional as F
 from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -39,6 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
 
@@ -159,6 +162,44 @@ class MegatronGPTModel(NLPModel):
             self._reduced_loss_buffer = []
 
         return loss
+
+    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
+        super().on_train_batch_end(outputs, batch, batch_idx)
+
+        # TODO: Replace with newer override for scheduler.step() instead of
+        # search for plugins for fp16 GradScalar
+        if self.trainer.precision_plugin is not None and isinstance(
+            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
+        ):
+            precision_plugin = self.trainer.precision_plugin
+
+            if (
+                hasattr(precision_plugin, 'scaler')
+                and precision_plugin.scaler is not None
+                and isinstance(precision_plugin.scaler, GradScaler)
+            ):
+                grad_scaler = precision_plugin.scaler
+
+                # If the grad scaler skipped its optimizer step due to infs/nans,
+                # decrement the step of all schedulers.
+                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
+                    schedulers = self.trainer.lr_schedulers
+
+                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
+                        return
+
+                    for scheduler in schedulers:
+                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                        # as well as update the optimizer lr in all param groups
+                        scheduler['scheduler'].last_epoch -= 2
+                        scheduler['scheduler'].step()
+
+                    # Increase the max step count by 1
+                    self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
+
+                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
+                    # accumulated gradient updates.
+                    grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
         if self.use_soft_prompts:
@@ -419,13 +460,13 @@ class MegatronGPTModel(NLPModel):
 
     @classmethod
     def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
-        batch_tokens, lens, tokens_to_generate = batch[:3]
+        batch_tokens, lens, tokens_to_generate, compute_logprobs = batch[:4]
         batch_size = len(batch_tokens)
         tokens_to_generate = tokens_to_generate[0]
         batch_tokens = batch_tokens.tolist()
 
         if use_soft_prompts:
-            prompt_tags = batch[3]
+            prompt_tags = batch[4]
 
         # unpad tokens
         indxs = [index for index in range(batch_size)]
@@ -454,28 +495,32 @@ class MegatronGPTModel(NLPModel):
         # Form request
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
-        return request, positions, tokens_to_generate
+        return request, positions, tokens_to_generate, compute_logprobs[0]
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request, positions, tokens_to_generate = MegatronGPTModel._bucketize_gpt_inference(
+        request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
             batch, self.use_soft_prompts
         )
-        response = self.complete(request, positions, tokens_to_generate)
+
+        if compute_logprobs:
+            response = self.compute_logprobs(request, positions)
+        else:
+            response = self.complete(request, positions, tokens_to_generate)
 
         return response
 
-    def complete(self, request: List, positions: List, tokens_to_generate: int):
+    def complete(self, request: Dict, positions: List, tokens_to_generate: int):
         """
             Autoregressively invokes language model in the inference mode
         Args:
-            request: 
+            request:
                 * tokens: List of "buckets" with unpadded tokens of the same length
                 * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
                                specifying the prompt tag to use (optional)
             positions: List with initial prompts positions
             tokens_to_generate: int value denoting amount of tokens model should generate
 
-        Returns:	
+        Returns:
             response: A python list of tuples
                 (text, tokens, log_probs, offsets)
                 * text: string, inputted prompt + generated text by model
@@ -541,6 +586,80 @@ class MegatronGPTModel(NLPModel):
                 if index != len(item[1]) - 1:
                     item[3].append(len(token) + item[3][-1])
         # returnprompts in order they were inputted
+        response = [0 for i in range(len(positions))]
+        for item, index in zip(results, positions):
+            response[index] = item
+
+        return response
+
+    def compute_logprobs(self, request: Dict, positions: List):
+        """
+            Only logprobs computation without generation tokens
+        Args:
+            request:
+                * tokens: List of "buckets" with unpadded tokens of the same length
+                * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
+                                    specifying the prompt tag to use (optional)
+            positions: List with initial prompts positions
+        Returns:
+            response: A python list of tuples
+            (text, tokens, log_probs, offsets)
+            * text: string, inputted prompt + generated text by model
+            * tokens: list of tokens correspond to text
+            * log_probs: list of log_softmax's from output_tensor in respect to text tokens
+            * offsets: list of tokens start positions in text
+        """
+        results = []
+        request_tokens = request["tokens"]
+        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+        for idx, tokens in enumerate(request_tokens):
+            tokens_cut = tokens[:, :-1]
+            # For prompt tuned GPT models
+            if self.use_soft_prompts:
+                prompt_tags = request["prompt_tags"][idx]
+            else:
+                prompt_tags = None
+
+            if self.use_soft_prompts:
+                batch_size = len(tokens_cut)
+                full_length = len(tokens_cut[0]) + self.num_prompt_tokens
+                # Get postion ids for text after soft prompt
+                position_ids = torch.arange(
+                    start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
+                )
+                position_ids = position_ids.unsqueeze(0).expand_as(tokens_cut).clone()
+                # Make attention mask starting with first token in soft prompt
+                attention_mask = torch.tril(
+                    torch.ones((batch_size, full_length, full_length), device=self.device)
+                ).view(batch_size, 1, full_length, full_length)
+                attention_mask = attention_mask < 0.5
+
+            else:
+                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                    data=tokens_cut,
+                    eod_token=self.tokenizer.eos_id,
+                    reset_position_ids=self.cfg.get('reset_position_ids', False),
+                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                )
+            output_tensor = self(tokens_cut, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
+            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+
+            log_probs = []
+            for output in output_tensor:
+                probs = F.log_softmax(output, dim=1)
+                probs = probs[-len(tokens_cut[0]) :]
+                log_probs.append(probs.to(dtype=torch.float16))
+
+            for token, prob in zip(tokens, log_probs):
+                results.append((self.tokenizer.ids_to_text(token), self.tokenizer.ids_to_tokens(token), prob, [0]))
+        # offsets calculation
+        for item in results:
+            for index, token in enumerate(item[1]):
+                if index != len(item[1]) - 1:
+                    item[3].append(len(token) + item[3][-1])
+
+        # return prompts in order they were inputted
         response = [0 for i in range(len(positions))]
         for item, index in zip(results, positions):
             response[index] = item

@@ -68,14 +68,17 @@ class WarmupPolicy(_LRScheduler):
 
         step = self.last_epoch
 
-        if step <= self.warmup_steps:
-            lr_val = (step + 1) / (self.warmup_steps + 1)
-            return [initial_lr * lr_val for initial_lr in self.base_lrs]
+        if step <= self.warmup_steps and self.warmup_steps > 0:
+            return self._get_warmup_lr(step)
 
         if step > self.max_steps:
             return [self.min_lr for _ in self.base_lrs]
 
         return self._get_lr(step)
+
+    def _get_warmup_lr(self, step):
+        lr_val = (step + 1) / (self.warmup_steps + 1)
+        return [initial_lr * lr_val for initial_lr in self.base_lrs]
 
     def _get_lr(self, step):
         """Simple const lr policy"""
@@ -146,9 +149,8 @@ class WarmupHoldPolicy(WarmupPolicy):
         step = self.last_epoch
 
         # Warmup phase
-        if step <= self.warmup_steps:
-            lr_val = (step + 1) / (self.warmup_steps + 1)
-            return [initial_lr * lr_val for initial_lr in self.base_lrs]
+        if step <= self.warmup_steps and self.warmup_steps > 0:
+            return self._get_warmup_lr(step)
 
         # Hold phase
         if (step >= self.warmup_steps) and (step < self.hold_steps):
@@ -206,15 +208,12 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
 
         if constant_steps is not None:
             self.constant_steps = constant_steps
-            self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
-            assert self.decay_steps > 0
         elif constant_ratio is not None:
             self.constant_steps = int(constant_ratio * max_steps)
-            self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
-            assert self.decay_steps > 0
         else:
             self.constant_steps = 0
-            self.decay_steps = max_steps - self.warmup_steps
+
+        self.decay_steps = max_steps - (self.constant_steps + self.warmup_steps)
 
         self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)
@@ -227,14 +226,26 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
 
         step = self.last_epoch
 
-        if step <= self.warmup_steps:
-            lr_val = (step + 1) / (self.warmup_steps + 1)
-            return [initial_lr * lr_val for initial_lr in self.base_lrs]
+        # Warmup steps
+        if self.warmup_steps > 0 and step <= self.warmup_steps:
+            return self._get_warmup_lr(step)
 
+        # Constant steps after warmup and decay
+        if self.constant_steps > 0 and (self.warmup_steps + self.decay_steps) < step <= self.max_steps:
+            return self._get_constant_lr(step)
+
+        # Min lr after max steps of updates
         if step > self.max_steps:
             return [self.min_lr for _ in self.base_lrs]
 
         return self._get_lr(step)
+
+    def _get_warmup_lr(self, step):
+        lr_val = (step + 1) / (self.warmup_steps + 1)
+        return [initial_lr * lr_val for initial_lr in self.base_lrs]
+
+    def _get_constant_lr(self, step):
+        return [self.min_lr for _ in self.base_lrs]
 
     def _get_lr(self, step):
         """Simple const lr policy"""
@@ -337,7 +348,7 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
                     f"{self} received an initial learning rate that was lower than the minimum learning rate."
                 )
 
-        if self.constant_steps is None:
+        if self.constant_steps is None or self.constant_steps == 0:
             new_lrs = [
                 _cosine_annealing(
                     initial_lr=initial_lr,
@@ -348,16 +359,32 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
                 for initial_lr in self.base_lrs
             ]
         else:
-            new_lrs = [
-                _linear_warmup_with_cosine_annealing(
-                    max_lr=self.base_lrs[0],
-                    warmup_steps=self.warmup_steps,
-                    step=step,
-                    decay_steps=self.decay_steps,
-                    min_lr=self.min_lr,
-                )
-                for _ in self.base_lrs
-            ]
+            new_lrs = self._get_linear_warmup_with_cosine_annealing_lr(step)
+        return new_lrs
+
+    def _get_warmup_lr(self, step):
+        if self.constant_steps is None or self.constant_steps == 0:
+            return super()._get_warmup_lr(step)
+        else:
+            # Use linear warmup for the initial part.
+            return self._get_linear_warmup_with_cosine_annealing_lr(step)
+
+    def _get_constant_lr(self, step):
+        # Only called when `constant_steps` > 0.
+        return self._get_linear_warmup_with_cosine_annealing_lr(step)
+
+    def _get_linear_warmup_with_cosine_annealing_lr(self, step):
+        # Cosine Schedule for Megatron LM, slightly different warmup schedule + constant LR at the end.
+        new_lrs = [
+            _linear_warmup_with_cosine_annealing(
+                max_lr=self.base_lrs[0],
+                warmup_steps=self.warmup_steps,
+                step=step,
+                decay_steps=self.decay_steps,
+                min_lr=self.min_lr,
+            )
+            for _ in self.base_lrs
+        ]
         return new_lrs
 
 
