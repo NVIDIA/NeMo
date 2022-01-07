@@ -26,7 +26,7 @@ at runtime.
 Any initialization parameters that are accepted for the Dataset class used in your experiment
 can be set in the config file.
 
-An example SpeakerNet train and validation configuration could look like:
+An example TitaNet train and validation configuration could look like (``{NEMO_ROOT}examples/speaker_tasks/recognition/conf/titanet-large.yaml``):
 
 .. code-block:: yaml
 
@@ -37,7 +37,6 @@ An example SpeakerNet train and validation configuration could look like:
       labels: None   # finds labels based on manifest file
       batch_size: 32
       trim_silence: False
-      time_length: 8
       shuffle: True
 
     validation_ds:
@@ -60,7 +59,7 @@ For details on how to write this section, refer to `Preprocessor Configuration <
 Augmentation Configurations
 ---------------------------
 
-For SpeakerNet training we use on-the fly augmentations with MUSAN and RIR impulses using ``noise`` augmentor section
+For TitaNet training we use on-the fly augmentations with MUSAN and RIR impulses using ``noise`` augmentor section
 
 The following example sets up musan augmentation with audio files taken from manifest path and 
 minimum and maximum SNR specified with min_snr and max_snr respectively. This section can be added to 
@@ -92,12 +91,12 @@ specifying the module to use for each.
 
 The following sections go into more detail about the specific configurations of each model architecture.
 
-For more information about the SpeakerNet Encoder models, see the :doc:`Models <./models>` page and at `Jasper and QuartzNet <../configs.html#jasper-and-quartznet>`__
+For more information about the TitaNet Encoder models, see the :doc:`Models <./models>` page.
 
 Decoder Configurations
 ------------------------
 
-After features have been computed from speakernet encoder, we pass these features to the decoder to compute embeddings and then to compute log probabilities
+After features have been computed from titanet encoder, we pass these features to the decoder to compute embeddings and then to compute log probabilities
 for training models.
 
 .. code-block:: yaml
@@ -106,10 +105,10 @@ for training models.
     ...
     decoder:
       _target_: nemo.collections.asr.modules.SpeakerDecoder
-      feat_in: *enc_final
-      num_classes: 7205  # Total number of classes in training manifest file
-      pool_mode: xvector # xvector for variance and mean bases statistics pooling 
-      emb_sizes: 256 # number of inermediate emb layers. can be comma separated for additional layers like 512,512
+      feat_in: *enc_feat_out
+      num_classes: 7205  # Total number of classes in voxceleb1,2 training manifest file 
+      pool_mode: attention # xvector, attention
+      emb_sizes: 192 # number of inermediate emb layers. can be comma separated for additional layers like 512,512
       angular: true # if true then loss will be changed to angular softmax loss and consider scale and margin from loss section else train with cross-entrophy loss
     
     loss:
