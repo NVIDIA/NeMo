@@ -103,12 +103,15 @@ model:
     short_seq_prob: 0.1
 
   optim:
-    name: adafactor
+    name: fused_adam
+    lr: 0.0001
+    betas:
+      - 0.9
+      - 0.999
+    eps: 1e-8
     weight_decay: 0.01
-    relative_step: True
-    beta1: 0.0
     sched:
-      name: T5InverseSquareRootAnnealing
-      min_lr: 0.0
+      name: WarmupAnnealing
+      min_lr: 0.00001
       last_epoch: -1
-      constant_steps: 10000
+      warmup_ratio: 0.01

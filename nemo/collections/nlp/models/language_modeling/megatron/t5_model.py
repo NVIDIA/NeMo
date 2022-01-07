@@ -95,8 +95,6 @@ class T5Model(MegatronModule):
         fp16_lm_cross_entropy=False,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
-        fused_fp16=False,
-        fused_bf16=False,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -111,8 +109,6 @@ class T5Model(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
-
-        assert not (fused_fp16 and fused_bf16), "both fused_fp16 and fused_bf16 flags cannot be True at the same time."
 
         if kv_channels is None:
             assert (

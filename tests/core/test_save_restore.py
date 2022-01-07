@@ -496,3 +496,21 @@ class TestSaveRestore:
             )
             assert type(restored_model) == MockModelV2
             assert type(restored_model._save_restore_connector) == MySaveRestoreConnector
+
+    @pytest.mark.unit
+    def test_mock_model_model_collision(self):
+        # The usual pipeline is working just fine.
+        cfg = _mock_model_config()
+        model = MockModel(cfg=cfg.model, trainer=None)  # type: MockModel
+        model = model.to('cpu')
+
+        # Let's create a custom config with a 'model.model' node.
+        cfg = _mock_model_config()
+        OmegaConf.set_struct(cfg, False)
+        cfg.model.model = 'aaa'
+        OmegaConf.set_struct(cfg, True)
+
+        # Failing due to collision.
+        with pytest.raises(ValueError, match="Creating model config node is forbidden"):
+            model = MockModel(cfg=cfg.model, trainer=None)  # type: MockModel
+            model = model.to('cpu')

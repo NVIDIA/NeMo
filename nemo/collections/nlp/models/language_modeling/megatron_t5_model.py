@@ -98,8 +98,6 @@ class MegatronT5Model(NLPModel):
             fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
-            fused_fp16=cfg.get('fused_fp16', False),
-            fused_bf16=cfg.get('fused_bf16', False),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
@@ -145,7 +143,7 @@ class MegatronT5Model(NLPModel):
 
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
-        # Reduced loss for logging.
+        # Reduced loss for logging. This averages the loss across all workers unlike "loss" above which is specific to a DDP rank.
         reduced_loss = average_losses_across_data_parallel_group([loss])
         # cache reduced loss while accumulating gradients
         self._reduced_loss_buffer.append(reduced_loss[0])
