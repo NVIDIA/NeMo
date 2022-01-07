@@ -137,6 +137,7 @@ class TestASRDatasets:
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_tarred_bpe_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
 
@@ -251,6 +252,7 @@ class TestASRDatasets:
 
     @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_dali_bpe_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
 

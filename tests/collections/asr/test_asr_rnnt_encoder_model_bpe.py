@@ -100,6 +100,7 @@ class TestEncDecRNNTBPEModel:
     )
     @pytest.mark.with_downloads()
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_constructor(self, asr_model):
         asr_model.train()
         # TODO: make proper config and assert correct number of weights
@@ -113,6 +114,7 @@ class TestEncDecRNNTBPEModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_forward(self, asr_model):
         asr_model = asr_model.eval()
 
@@ -148,6 +150,7 @@ class TestEncDecRNNTBPEModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_save_restore_artifact(self, asr_model):
         asr_model.train()
 
@@ -189,6 +192,7 @@ class TestEncDecRNNTBPEModel:
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_vocab_change(self, test_data_dir, asr_model):
         with tempfile.TemporaryDirectory() as tmpdir:
             old_tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
