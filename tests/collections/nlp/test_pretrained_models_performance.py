@@ -82,6 +82,7 @@ class TestPretrainedModelPerformance:
     @pytest.mark.skipif(
         not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
     )
+    @pytest.mark.pleasefixme
     def test_punct_capit_with_bert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_bert")
@@ -114,6 +115,7 @@ class TestPretrainedModelPerformance:
     @pytest.mark.skipif(
         not data_exists('/home/TestData/nlp/token_classification_punctuation/fisher'), reason='Not a Jenkins machine'
     )
+    @pytest.mark.pleasefixme
     def test_punct_capit_with_distilbert(self):
         data_dir = '/home/TestData/nlp/token_classification_punctuation/fisher'
         model = models.PunctuationCapitalizationModel.from_pretrained("punctuation_en_distilbert")

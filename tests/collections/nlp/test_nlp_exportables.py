@@ -147,6 +147,7 @@ class TestExportableClassifiers:
     @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_PunctuationCapitalizationModel_export_to_onnx(self):
         model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(model_name="punctuation_en_distilbert")
         with tempfile.TemporaryDirectory() as tmpdir:

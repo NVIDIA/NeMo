@@ -149,6 +149,7 @@ class TestSaveRestore:
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_PunctuationCapitalization(self):
         # TODO: Switch to using named configs because here we don't really care about weights
         pn = PunctuationCapitalizationModel.from_pretrained(model_name='punctuation_en_distilbert')
