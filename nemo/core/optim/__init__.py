@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.core.optim.adafactor import Adafactor
 from nemo.core.optim.lr_scheduler import (
     CosineAnnealing,
     InverseSquareRootAnnealing,
@@ -20,6 +21,7 @@ from nemo.core.optim.lr_scheduler import (
     PolynomialHoldDecayAnnealing,
     SquareAnnealing,
     SquareRootAnnealing,
+    T5InverseSquareRootAnnealing,
     WarmupAnnealing,
     WarmupHoldPolicy,
     WarmupPolicy,
