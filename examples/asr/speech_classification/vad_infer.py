@@ -14,7 +14,7 @@
 
 """
 During inference, we perform frame-level prediction by two approaches: 
-    1) shift the window of length time_length (e.g. 0.63s) by shift_length (e.g. 10ms) to generate the frame and use the prediction of the window to represent the label for the frame;
+    1) shift the window of length window_length_in_sec (e.g. 0.63s) by shift_length_in_sec (e.g. 10ms) to generate the frame and use the prediction of the window to represent the label for the frame;
        [this script demonstrate how to do this approach]
     2) generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
        [get frame level prediction by this script and use vad_overlap_posterior.py in NeMo/scripts/voice_activity_detection
@@ -66,12 +66,12 @@ def main(cfg):
 
     # Prepare manifest for streaming VAD
     manifest_vad_input = cfg.dataset
-    if not cfg.prepare_manifest.dont_auto_split:
+    if cfg.prepare_manifest.auto_split:
         logging.info("Split long audio file to avoid CUDA memory issue")
         logging.debug("Try smaller split_duration if you still have CUDA memory issue")
         config = {
             'input': manifest_vad_input,
-            'time_length': cfg.vad.parameters.window_length_in_sec,
+            'window_length_in_sec': cfg.vad.parameters.window_length_in_sec,
             'split_duration': cfg.prepare_manifest.split_duration,
             'num_workers': cfg.num_workers,
             'prepared_manfiest_vad_input': cfg.prepared_manfiest_vad_input,
@@ -94,8 +94,8 @@ def main(cfg):
             'labels': ['infer',],
             'num_workers': cfg.num_workers,
             'shuffle': False,
-            'time_length': cfg.vad.parameters.window_length_in_sec,
-            'shift_length': cfg.vad.parameters.shift_length_in_sec,
+            'window_length_in_sec': cfg.vad.parameters.window_length_in_sec,
+            'shift_length_in_sec': cfg.vad.parameters.shift_length_in_sec,
             'trim_silence': False,
             'normalize_audio': cfg.vad.parameters.normalize_audio,
         }
@@ -114,8 +114,8 @@ def main(cfg):
     logging.info("Generating frame level prediction ")
     pred_dir = generate_vad_frame_pred(
         vad_model=vad_model,
-        time_length=cfg.vad.parameters.window_length_in_sec,
-        shift_length=cfg.vad.parameters.shift_length_in_sec,
+        window_length_in_sec=cfg.vad.parameters.window_length_in_sec,
+        shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
         manifest_vad_input=manifest_vad_input,
         out_dir=cfg.frame_out_dir,
     )
@@ -132,8 +132,8 @@ def main(cfg):
             frame_pred_dir=pred_dir,
             smoothing_method=cfg.vad.parameters.smoothing,
             overlap=cfg.vad.parameters.overlap,
-            time_len=cfg.vad.parameters.window_length_in_sec,
-            shift_len=cfg.vad.parameters.shift_length_in_sec,
+            window_length_in_sec=cfg.vad.parameters.window_length_in_sec,
+            shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
             num_workers=cfg.num_workers,
             out_dir=cfg.smoothing_out_dir,
         )
@@ -148,7 +148,7 @@ def main(cfg):
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=pred_dir,
             postprocessing_params=cfg.vad.parameters.postprocessing,
-            shift_len=cfg.vad.parameters.shift_length_in_sec,
+            shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
             num_workers=cfg.num_workers,
             out_dir=cfg.table_out_dir,
         )

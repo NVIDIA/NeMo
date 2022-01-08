@@ -68,8 +68,8 @@ if __name__ == '__main__':
             frame_pred_dir=args.frame_folder,
             smoothing_method=args.method,
             overlap=args.overlap,
-            time_len=args.window_length_in_sec,
-            shift_len=args.shift_length_in_sec,
+            window_length_in_sec=args.window_length_in_sec,
+            shift_length_in_sec=args.shift_length_in_sec,
             num_workers=args.num_workers,
             out_dir=args.overlap_out_dir,
         )
@@ -86,16 +86,16 @@ if __name__ == '__main__':
         if args.gen_overlap_seq:
             logging.info("Use overlap prediction. Change if you want to use basic frame level prediction")
             vad_pred_dir = overlap_out_dir
-            shift_len = 0.01
+            shift_length_in_sec = 0.01
         else:
             logging.info("Use basic frame level prediction")
             vad_pred_dir = args.frame_folder
-            shift_len = args.shift_length_in_sec
+            shift_length_in_sec = args.shift_length_in_sec
 
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=vad_pred_dir,
             postprocessing_params=postprocessing_params,
-            shift_len=args.shift_length_in_sec,
+            shift_length_in_sec=args.shift_length_in_sec,
             num_workers=args.num_workers,
             out_dir=args.table_out_dir,
         )

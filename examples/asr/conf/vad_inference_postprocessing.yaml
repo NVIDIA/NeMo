@@ -10,7 +10,7 @@ gen_seg_table: True # whether to converting frame level prediction to speech/no-
 write_to_manifest: True # whether to writing above segments to a single manfiest json file.
 
 prepare_manifest:
-    dont_auto_split: False # whether to automatically split manifest entry by split_duration to avoid potential CUDA out of memory issue.
+    auto_split: True # whether to automatically split manifest entry by split_duration to avoid potential CUDA out of memory issue.
     split_duration: 400 # try smaller number if you still have CUDA memory issue
     
     
@@ -36,3 +36,6 @@ frame_out_dir: "vad_frame"
 smoothing_out_dir: null # if not specify, it will automatcially generated be frame_out_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
 table_out_dir: null # if not specify, it will automatically be frame_out_dir + "/table_output_tmp_" + key and value in postprocessing params
 out_manifest_filepath: null # if not specifym it will autautomatically be "vad_out.json"
+
+# json manifest line example
+# {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath": "/path/to/uem/filepath"}

@@ -30,7 +30,7 @@ This script serves three goals:
     (3) Take care of joint of seperate json line for an audio file
 
 Usage:
-python write_long_audio_manifest.py  --inp_dir=<FULL PATH OF FOLDER OF AUDIO FILES>  --split_duration=300 --time_length=0.63 --num_worker=10
+python write_long_audio_manifest.py  --inp_dir=<FULL PATH OF FOLDER OF AUDIO FILES>  --split_duration=300 --window_length_in_sec=0.63 --num_worker=10
 
 """
 
@@ -44,8 +44,14 @@ def main():
     parser.add_argument("--out_dir", type=str, default=".", help="(full path) location to store generated json file")
     parser.add_argument("--manifest_name", type=str, default="generated_manifest", help="name of generated json file")
     parser.add_argument("--split_duration", type=int, required=True, help="max duration of each audio clip/line")
-    parser.add_argument("--time_length", type=float, default=0.63, help="time length of segment, default is 0.63s")
+    parser.add_argument(
+        "--window_length_in_sec",
+        type=float,
+        default=0.63,
+        help="window length in sec for VAD context input , default is 0.63s",
+    )
     parser.add_argument("--num_workers", type=int, default=4, help="number of workers for multiprocessing")
+
     args = parser.parse_args()
 
     if not args.inp_list:
@@ -71,7 +77,7 @@ def main():
 
     config = {
         'input': input_list,
-        'time_length': args.time_length,
+        'window_length_in_sec': args.window_length_in_sec,
         'split_duration': args.split_duration,
         'num_workers': args.num_workers,
         'prepared_manfiest_vad_input': output_path,
