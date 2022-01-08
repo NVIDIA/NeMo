@@ -153,6 +153,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         hidden_hidden_bias_scale = prednet.get('hidden_hidden_bias_scale', 0.0)
         dropout = prednet.get('dropout', 0.0)
         self.random_state_sampling = random_state_sampling
+        proj_size = prednet.get("proj_size", 0)
 
         self.prediction = self._predict_modules(
             vocab_size=vocab_size,  # add 1 for blank symbol
@@ -164,6 +165,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
+            proj_size=proj_size
         )
         self._rnnt_export = False
 
@@ -290,6 +292,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         weights_init_scale,
         hidden_hidden_bias_scale,
         dropout,
+        proj_size,
     ):
         """
         Prepare the trainable parameters of the Prediction Network.
@@ -325,6 +328,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                     dropout=dropout,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
+                    proj_size=proj_size
                 ),
             }
         )
@@ -765,6 +769,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self.encoder_hidden = jointnet['encoder_hidden']
         self.pred_hidden = jointnet['pred_hidden']
         self.joint_hidden = jointnet['joint_hidden']
+        self.activation = jointnet['activation']
         self.activation = jointnet['activation']
 
         # Optional arguments

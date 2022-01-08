@@ -114,6 +114,7 @@ model:
       pred_rnn_layers: 1
       t_max: null
       dropout: 0.1
+      proj_size: 640
 
   joint:
     _target_: nemo.collections.asr.modules.RNNTJoint
