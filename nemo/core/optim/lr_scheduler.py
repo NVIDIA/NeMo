@@ -444,12 +444,9 @@ class WarmupAnnealing(WarmupPolicy):
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
-        progress = float(step / self.max_steps)
-        warmup_ratio = float(self.warmup_steps / self.max_steps)
-
-        mult = max((progress - 1.0) / (warmup_ratio - 1.0), 0.0)
-        out_lr = [initial_lr * mult for initial_lr in self.base_lrs]
-
+        delta_lr = self.base_lrs[0] - self.min_lr
+        mult = (step - self.warmup_steps) / (self.max_steps - self.warmup_steps)
+        out_lr = [self.min_lr + (1 - mult) * delta_lr for _ in self.base_lrs]
         return out_lr
 
 
