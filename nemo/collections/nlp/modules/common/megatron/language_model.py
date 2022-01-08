@@ -673,7 +673,7 @@ class TransformerLanguageModel(MegatronModule):
         get_key_value=False,
         pooling_sequence_index=0,
         enc_hidden_states=None,
-        output_enc_hidden=False,
+        output_enc_hidden_only=False,
     ):
         # Embeddings.
         if self.pre_process:
@@ -703,10 +703,10 @@ class TransformerLanguageModel(MegatronModule):
             if self.add_pooler:
                 pooled_output = self.pooler(encoder_output, pooling_sequence_index)
 
-        # output_enc_hidden refers to when we just need the encoder's
+        # output_enc_hidden_only refers to when we just need the encoder's
         # output. For example, it is helpful to compute
         # similarity between two sequences by average pooling
-        if not self.add_decoder or output_enc_hidden:
+        if not self.add_decoder or output_enc_hidden_only:
             if self.add_pooler and self.post_process:
                 return encoder_output, pooled_output
             else:
