@@ -2020,7 +2020,6 @@ pipeline {
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         model.tensor_model_parallel_size=2 \
-        model.optim.sched.constant_steps=2 \
         model.seq_length=128 \
         model.num_layers=4 \
         model.hidden_size=64 \
@@ -2040,7 +2039,6 @@ pipeline {
         exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
         exp_manager.resume_if_exists=True \
         model.tensor_model_parallel_size=2 \
-        model.optim.sched.constant_steps=2 \
         model.seq_length=128 \
         model.num_layers=4 \
         model.hidden_size=64 \
