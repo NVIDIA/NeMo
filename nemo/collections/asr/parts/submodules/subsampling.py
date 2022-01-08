@@ -18,6 +18,23 @@ import torch
 import torch.nn as nn
 
 
+class StackingSubsampling(torch.nn.Module):
+    def __init__(self, subsampling_factor, feat_in, feat_out):
+        super(StackingSubsampling, self).__init__()
+        self.subsampling_factor = subsampling_factor
+        self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
+
+    def forward(self, x, lengths):
+        b, t, h = x.size()
+        pad_size = self.subsampling_factor - (t % self.subsampling_factor)
+        x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
+        _, t, _ = x.size()
+        x = torch.reshape(x, (b, t//self.subsampling_factor, h*self.subsampling_factor))
+        x = self.proj_out(x)
+        lengths = (lengths + pad_size) // self.subsampling_factor
+        return x, lengths
+
+
 class ConvSubsampling(torch.nn.Module):
     """Convolutional subsampling which supports VGGNet and striding approach introduced in:
     VGGNet Subsampling: https://arxiv.org/pdf/1910.12977.pdf
