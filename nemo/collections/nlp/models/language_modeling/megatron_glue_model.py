@@ -166,8 +166,16 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         logging.info(f'Test loss: {test_loss}')
         logging.info(f'Test accuracy: {test_acc}')
 
-    def build_train_valid_test_datasets(self):
+    def build_train_valid_test_datasets(self, test_only=False):
         logging.info('Building GLUE datasets.')
+        self._test_ds = TextToTextGLUEDataset(
+            self.cfg.data.test_ds.file_path,
+            task_name=self.cfg.data.test_ds.task_name,
+            tokenizer=self.model.tokenizer,
+            max_seq_length=self.cfg.data.test_ds.max_seq_length,
+        )
+        if test_only:
+            return None, None, self._test_ds
         self._train_ds = TextToTextGLUEDataset(
             self.cfg.data.train_ds.file_path,
             task_name=self.cfg.data.train_ds.task_name,
@@ -179,12 +187,6 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             task_name=self.cfg.data.validation_ds.task_name,
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.validation_ds.max_seq_length,
-        )
-        self._test_ds = TextToTextGLUEDataset(
-            self.cfg.data.test_ds.file_path,
-            task_name=self.cfg.data.test_ds.task_name,
-            tokenizer=self.model.tokenizer,
-            max_seq_length=self.cfg.data.test_ds.max_seq_length,
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
@@ -212,12 +214,12 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        if self._train_dl is not None and self._validation_dl is not None:
+        self.build_train_valid_test_datasets(test_only=stage=='test')
+        self.setup_test_data()
+        if stage == 'test':
             return
-        self.build_train_valid_test_datasets()
         self.setup_training_data()
         self.setup_validation_data()
-        self.setup_test_data()
 
     def setup_training_data(self):
         self._train_dl = self.build_pretraining_data_loader(

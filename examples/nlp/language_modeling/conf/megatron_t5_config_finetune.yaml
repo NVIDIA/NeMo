@@ -70,9 +70,6 @@ model:
       max_seq_length: 512
 
   optim:
-    name: adam
+    name: fused_adam
     lr: 1e-5
     weight_decay: 0.0
-    betas:
-    - 0.9
-    - 0.98
