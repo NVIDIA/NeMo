@@ -31,7 +31,7 @@ class StackingSubsampling(torch.nn.Module):
         _, t, _ = x.size()
         x = torch.reshape(x, (b, t//self.subsampling_factor, h*self.subsampling_factor))
         x = self.proj_out(x)
-        lengths = (lengths + pad_size) // self.subsampling_factor
+        torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
         return x, lengths
 
 
