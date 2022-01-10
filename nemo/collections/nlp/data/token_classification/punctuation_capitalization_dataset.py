@@ -963,11 +963,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 progress_queue=tokenization_progress_queue,
                 n_jobs=n_jobs,
             )
-            if use_cache:
-                features_pkl.parent.mkdir(parents=True, exist_ok=True)
-                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
-                if self.verbose:
-                    logging.info(f'Features saved to {features_pkl}')
+            features_pkl.parent.mkdir(parents=True, exist_ok=True)
+            pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
+            if self.verbose:
+                logging.info(f'Features saved to {features_pkl}')
 
         # wait until the master process writes to the processed data files
         if torch.distributed.is_initialized():
@@ -985,6 +984,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
             if self.verbose:
                 logging.info(f'Features restored from {features_pkl}')
             features = features[:-2]
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        if master_device and not use_cache:
+            features_pkl.unlink()
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
