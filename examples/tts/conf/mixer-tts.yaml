@@ -221,7 +221,7 @@ trainer:
   devices: 1
   accelerator: gpu
   strategy: ddp
-  precision: 32
+  precision: 16
   max_epochs: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1000.0
