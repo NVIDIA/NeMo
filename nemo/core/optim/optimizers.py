@@ -24,6 +24,7 @@ from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
+from nemo.core.optim.adafactor import Adafactor
 from nemo.core.optim.novograd import Novograd
 from nemo.utils import logging
 from nemo.utils.model_utils import maybe_update_config_version
@@ -38,6 +39,7 @@ AVAILABLE_OPTIMIZERS = {
     'rmsprop': rmsprop.RMSprop,
     'rprop': rprop.Rprop,
     'novograd': Novograd,
+    'adafactor': Adafactor,
 }
 
 try:
