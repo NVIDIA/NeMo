@@ -59,7 +59,7 @@ For details on how to write this section, refer to `Preprocessor Configuration <
 Augmentation Configurations
 ---------------------------
 
-For TitaNet training we use on-the fly augmentations with MUSAN and RIR impulses using ``noise`` augmentor section
+For TitaNet training we use on-the-fly augmentations with MUSAN and RIR impulses using ``noise`` augmentor section
 
 The following example sets up musan augmentation with audio files taken from manifest path and 
 minimum and maximum SNR specified with min_snr and max_snr respectively. This section can be added to 
@@ -96,7 +96,7 @@ For more information about the TitaNet Encoder models, see the :doc:`Models <./m
 Decoder Configurations
 ------------------------
 
-After features have been computed from titanet encoder, we pass these features to the decoder to compute embeddings and then to compute log probabilities
+After features have been computed from TitaNet encoder, we pass these features to the decoder to compute embeddings and then to compute log probabilities
 for training models.
 
 .. code-block:: yaml
