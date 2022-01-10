@@ -46,3 +46,14 @@ class MegatronDataset(torch.utils.data.Dataset):
                 tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
                 seed=self.cfg.get('seed', 1234),
             )
+
+        try:
+            from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
+
+            compile_helper()
+            logging.info('Megatron dataset helper compiled successfully.')
+            from nemo.collections.nlp.data.language_modeling.megatron import helpers
+        except ImportError:
+            raise ImportError(
+                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+            )
