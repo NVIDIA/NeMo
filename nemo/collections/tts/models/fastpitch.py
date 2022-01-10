@@ -43,7 +43,7 @@ from nemo.utils import logging, model_utils
 
 
 class FastPitchModel(SpectrogramGenerator, Exportable):
-    """FastPitch Model that is used to generate mel spectrogram from text"""
+    """FastPitch Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
