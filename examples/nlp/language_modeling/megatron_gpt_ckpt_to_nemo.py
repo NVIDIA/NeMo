@@ -29,6 +29,7 @@ import torch
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 
@@ -48,6 +49,14 @@ def get_args():
         default=None,
         required=True,
         help="Name of checkpoint to be used. Ex: megatron_gpt--val_loss=6.34-step=649-last.ckpt",
+    )
+
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default='gpt',
+        required=True,
+        help="Megatron Model type",
     )
 
     parser.add_argument(
@@ -81,7 +90,10 @@ def convert(rank, world_size, args):
     else:
         checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
 
-    model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    if args.model_type == 'gpt':
+        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    elif args.model_type == 'bert':
+        model = MegatronBertModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
 
     model._save_restore_connector = NLPSaveRestoreConnector()
 
