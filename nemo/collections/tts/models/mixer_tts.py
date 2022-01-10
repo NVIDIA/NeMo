@@ -38,7 +38,7 @@ from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
 from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core import Exportable
-from nemo.core.classes.common import typecheck, PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     LengthsType,
     LogprobsType,
@@ -700,7 +700,6 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         list_of_models.append(model)
 
         return list_of_models
-
 
     @property
     def input_types(self):
