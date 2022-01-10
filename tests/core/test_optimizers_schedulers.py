@@ -143,7 +143,11 @@ class TestOptimizersSchedulers:
                 if not torch.cuda.is_available():
                     continue
             opt_cls = optim.get_optimizer(opt_name)
-            opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+            if opt_name == 'adafactor':
+                # Adafactor's default mode uses relative_step without any lr.
+                opt = opt_cls(model.parameters())
+            else:
+                opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
 
             assert isinstance(opt, AVAILABLE_OPTIMIZERS[opt_name])
 
