@@ -32,7 +32,7 @@ Speaker Label Inference
 
 Speaker label Inference, is to infer speaker labels from a pretrained speaker model with known speaker labels. We provide `speaker_reco_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
 
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz mono channel wav files.
 
 Write audio files to a ``manifest.json`` file with lines as in format:
 
@@ -49,7 +49,7 @@ This python call will use the pretrain model and infer labels on provided test s
     
 Speaker Embedding Extraction
 -----------------------------
-Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unkown speakers). We provide two ways to do this:
+Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unknown speakers). We provide two ways to do this:
 
 * single python liner for extracting embeddings from a single file 
 * python script for extracting embeddings from a bunch of files provided through manifest file
@@ -63,7 +63,7 @@ For extracting embeddings from a single file:
 
 For extracting embeddings from a bunch of files:
 
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz mono channel wav files.
 
 Write audio files to a ``manifest.json`` file with lines as in format:
 

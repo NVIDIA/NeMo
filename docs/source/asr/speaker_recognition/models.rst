@@ -1,7 +1,7 @@
 Models
 ======
 
-Examples of config files for all the below models can be found in the ``<NeMo_git_root>/examples/speaker_recogniton/conf`` directory.
+Examples of config files for all the below models can be found in the ``<NeMo_git_root>/examples/speaker_recognition/conf`` directory.
 
 For more information about the config files and how they should be structured, see the :doc:`./configs` page.
 
@@ -14,7 +14,7 @@ TitaNet
 -----------
 
 TitaNet model :cite:`sr-models-koluguri2021titanet` is based on the ContextNet architecture :cite:`sr-models-han2020contextnet`  for extracting speaker representations.
-We employ 1D depth-wise separable convolutions with Squeezeand-Excitation (SE) layers with global context followed by channel attention based statistics pooling layer to map
+We employ 1D depth-wise separable convolutions with Squeeze-and-Excitation (SE) layers with global context followed by channel attention based statistics pooling layer to map
 variable-length utterances to a fixed-length embedding (tvector). TitaNet is a scalable architecture and achieves state-of-the-art performance on speaker verification and diarization tasks.
 
     .. image:: images/titanet_network.png
@@ -58,7 +58,7 @@ SpeakerNet models can be instantiated using the :class:`~nemo.collections.asr.mo
 ECAPA_TDNN
 ----------
 
-The model is based on the paper "ECAPA_TDNN Embeddings for Speaker Diarization" :cite:`sr-models-Dawalatabad_2021` comprising an encoder of time dilation layers which are based on Emphasized Channel Attention, Propagation, and Aggregation. The ECAPA-TDNN model employs a channel- and contextdependent attention mechanism, Multilayer Feature Aggregation (MFA), as well as Squeeze-Excitation (SE) and residual blocks, due to faster training and inference we replacing residual blocks with group convolution blocks of single dilation. These models has shown good performance over various speaker tasks. 
+The model is based on the paper "ECAPA_TDNN Embeddings for Speaker Diarization" :cite:`sr-models-Dawalatabad_2021` comprising an encoder of time dilation layers which are based on Emphasized Channel Attention, Propagation, and Aggregation. The ECAPA-TDNN model employs a channel and context dependent attention mechanism, Multi layer Feature Aggregation (MFA), as well as Squeeze-Excitation (SE) and residual blocks, due to faster training and inference we replacing residual blocks with group convolution blocks of single dilation. These models has shown good performance over various speaker tasks. 
 
 ecapa_tdnn models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
 

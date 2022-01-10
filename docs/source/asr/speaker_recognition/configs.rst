@@ -21,7 +21,7 @@ Training, validation, and test parameters are specified using the ``train_ds``, 
 ``test_ds`` sections of your configuration file, respectively.
 Depending on the task, you may have arguments specifying the sample rate of your audio files, max time length to consider for each audio file , whether or not to shuffle the dataset, and so on.
 You may also decide to leave fields such as the ``manifest_filepath`` blank, to be specified via the command line
-at runtime.
+at run time.
 
 Any initialization parameters that are accepted for the Dataset class used in your experiment
 can be set in the config file.
@@ -108,8 +108,8 @@ for training models.
       feat_in: *enc_feat_out
       num_classes: 7205  # Total number of classes in voxceleb1,2 training manifest file 
       pool_mode: attention # xvector, attention
-      emb_sizes: 192 # number of inermediate emb layers. can be comma separated for additional layers like 512,512
-      angular: true # if true then loss will be changed to angular softmax loss and consider scale and margin from loss section else train with cross-entrophy loss
+      emb_sizes: 192 # number of intermediate emb layers. can be comma separated for additional layers like 512,512
+      angular: true # if true then loss will be changed to angular softmax loss and consider scale and margin from loss section else train with cross-entropy loss
     
     loss:
       scale: 30

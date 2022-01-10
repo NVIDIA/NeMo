@@ -34,7 +34,7 @@ First we prepare scp file(s) containing absolute paths to all the wav files requ
     !head -n 3 data/train_all.scp
 
 
-Based on the created scp file, we use `scp_to_manifest.py` script to convert it to a manifest file. This scipt takes three optional arguments:
+Based on the created scp file, we use `scp_to_manifest.py` script to convert it to a manifest file. This script takes three optional arguments:
 
 * id: This value is used to assign speaker label to each audio file. This is the field number separated by `/` from the audio file path. For example if all audio file paths follow the convention of path/to/speaker_folder/unique_speaker_label/file_name.wav, by picking `id=3 or id=-2` script picks unique_speaker_label as label for that utterance.
 * split: Optional argument to split the manifest in to train and dev json files
