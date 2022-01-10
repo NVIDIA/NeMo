@@ -75,6 +75,7 @@ def main(cfg) -> None:
     # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.823-step=1953.ckpt', trainer=trainer, cfg=cfg.model)
     # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments_mnli/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.863-step=21407.ckpt', trainer=trainer, cfg=cfg.model)
     # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.863-step=24407.ckpt', trainer=trainer, cfg=cfg.model)
+    # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.893-step=18046.ckpt', trainer=trainer, cfg=cfg.model)
     trainer.fit(model)
     trainer.test(model)
 

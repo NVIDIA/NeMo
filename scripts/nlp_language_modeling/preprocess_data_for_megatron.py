@@ -132,6 +132,7 @@ def get_args():
     group = parser.add_argument_group(title='runtime')
     group.add_argument('--workers', type=int, default=1, help='Number of worker processes to launch')
     group.add_argument('--log-interval', type=int, default=100, help='Interval between progress updates')
+    group.add_argument('--process-entire-dir', action='store_true', help='If true, will process all .json or .json.gz files in the provided dir via the --input arg')
     args = parser.parse_args()
     args.keep_empty = False
 
