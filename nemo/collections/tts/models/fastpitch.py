@@ -41,15 +41,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
-# @dataclass
-# class FastPitchConfig:
-#     parser: Dict[Any, Any] = MISSING
-#     preprocessor: Dict[Any, Any] = MISSING
-#     input_fft: Dict[Any, Any] = MISSING
-#     output_fft: Dict[Any, Any] = MISSING
-#     duration_predictor: Dict[Any, Any] = MISSING
-#     pitch_predictor: Dict[Any, Any] = MISSING
-
 
 class FastPitchModel(SpectrogramGenerator, Exportable):
     """FastPitch Model that is used to generate mel spectrogram from text"""
@@ -88,15 +79,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self._parser = None
         self._tb_logger = None
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # schema = OmegaConf.structured(FastPitchConfig)
-        # # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
-        # if isinstance(cfg, dict):
-        #     cfg = OmegaConf.create(cfg)
-        # elif not isinstance(cfg, DictConfig):
-        #     raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
-        # # Ensure passed cfg is compliant with schema
-        # OmegaConf.merge(cfg, schema)
 
         self.bin_loss_warmup_epochs = cfg.get("bin_loss_warmup_epochs", 100)
         self.log_train_images = False
