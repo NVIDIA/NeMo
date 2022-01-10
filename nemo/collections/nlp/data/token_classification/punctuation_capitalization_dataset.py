@@ -49,6 +49,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_st
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
 TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
@@ -929,7 +930,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
         self.batch_building_progress_queue = batch_building_progress_queue
 
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        master_device = is_global_rank_zero()
         features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
         features = None
         if master_device and not (features_pkl.is_file() and use_cache):
