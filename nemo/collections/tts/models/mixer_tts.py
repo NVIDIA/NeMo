@@ -38,7 +38,7 @@ from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
 from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core import Exportable
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import typecheck, PretrainedModelInfo
 from nemo.core.neural_types.elements import (
     LengthsType,
     LogprobsType,
@@ -676,9 +676,31 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         pass
 
     @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_mixertts",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_mixertts/versions/1.6.0/files/tts_en_lj_mixertts.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,  # noqa
+        )
+        list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_mixerttsx",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_mixerttsx/versions/1.6.0/files/tts_en_lj_mixerttsx.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,  # noqa
+        )
+        list_of_models.append(model)
+
+        return list_of_models
+
 
     @property
     def input_types(self):
