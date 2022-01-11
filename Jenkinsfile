@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       image 'nvcr.io/nvidia/pytorch:21.11-py3'
-      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
   options {
@@ -2000,6 +2000,72 @@ pipeline {
           sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo"
       }
     }
+    stage('L2: Megatron T5 Pretraining and Resume Training') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.gpus=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=2 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.num_layers=4 \
+        model.hidden_size=64 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        trainer.gpus=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=10 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=2 \
+        trainer.max_steps=10 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.tensor_model_parallel_size=2 \
+        model.seq_length=128 \
+        model.num_layers=4 \
+        model.hidden_size=64 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
+        sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
+      }
+    }
+      stage('L2: Megatron T5 Eval') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps{
+        sh "python examples/nlp/language_modeling/megatron_t5_eval.py \
+            --model_file \
+            /home/TestData/nlp/megatron_t5/220m/megatron_t5_220m.nemo \
+            --prompt \
+            'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
+            --tensor_model_parallel_size 1"
+      }
+    }
     stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf {
@@ -2060,6 +2126,22 @@ pipeline {
             model.input_fft.n_layer=2 \
             model.output_fft.d_inner=384 \
             model.output_fft.n_layer=2 \
+            ~trainer.check_val_every_n_epoch'
+          }
+        }
+        stage('Mixer-TTS') {
+          steps {
+            sh 'python examples/tts/mixer_tts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            sup_data_path=/home/TestData/an4_dataset/sup_data \
+            trainer.devices="[0]" \
+            +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
+            trainer.strategy=null \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.train_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.num_workers=1 \
             ~trainer.check_val_every_n_epoch'
           }
         }

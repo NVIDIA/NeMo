@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import IndexedDataset, MMapIndexedDataset
-
-# TODO: refactor these datasets to work without megatron-lm dependency
-# from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
