@@ -67,7 +67,7 @@ model:
       batch_size: 64
       num_workers: 1
 
-  model:
+  encoder:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
     feat_in: ${model.d_char}
     activation: relu
