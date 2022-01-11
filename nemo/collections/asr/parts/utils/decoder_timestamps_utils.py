@@ -527,8 +527,6 @@ class ASR_TIMESTAMPS:
         Launch CitriNet ASR model and collect logit, timestamps and text output.
 
         Args:
-            audio_file_list (list):
-                Dictionary of audio file paths.
             asr_model (class):
                 The loaded NeMo ASR model.
 
@@ -614,8 +612,6 @@ class ASR_TIMESTAMPS:
         Launch CTC-BPE based ASR model and collect logit, timestamps and text output.
 
         Args:
-            audio_file_list (list):
-                List of audio file paths.
             asr_model (class):
                 The loaded NeMo ASR model.
 

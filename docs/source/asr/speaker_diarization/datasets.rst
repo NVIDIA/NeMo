@@ -8,7 +8,7 @@ for preparing datasets for training and validating VAD and speaker embedding mod
 Preparation of input data
 -------------------------
 
-diarization inference is based Hydra configurations which is fullfilled by .yaml files. See `NeMo Speaker Diarization Configuration Files <../configs>`_ for setting up the input configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
+Diarization inference is based on Hydra configurations which are fulfilled by .yaml files. See `NeMo Speaker Diarization Configuration Files <../configs>`_ for setting up the input configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
 	
 .. code-block:: bash
 
@@ -20,39 +20,41 @@ We refer to this file as manifest file and the path of the manifest file should 
    
 	diarizer.manifest_filepath="path/to/manifest/input_manifest.json"
 
-In the input manifest file, audio_filepath item is required argument.
+In the input manifest file, audio_filepath item is required.
 
 
 .. note::
 	We expect all the provided files (e.g. audio, rttm, text) to have the same base name and the name should be unique (uniq-id).
 
 ``audio_filepath`` (Required):
-  - a file containing absolute paths to audio files or list of paths to audio files. 
+  
+  a file containing absolute paths to audio files or list of paths to audio files. 
 
 ``num_speakers`` (Optional):
-  - If number of speakers is known, provide the integer number or assign null if not known. 
+    If the number of speakers is known, provide the integer number or assign null if not known. 
 	
 ``rttm_filepath`` (Optional):
-  - To evaluate a diarization system with known rttm files, One needs to provide Rich Transcription Time Marked (RTTM) files as groundtruth label files. If RTTM files are provided, the diarization evaluation will be initiated.
-	Take one line from a RTTM file for example:
+  
+    To evaluate a diarization system with known rttm files, one needs to provide Rich Transcription Time Marked (RTTM) files as ground truth label files. If RTTM files are provided, the diarization evaluation will be initiated.
+	Here is one line from a RTTM file as an example:
 
 .. code-block:: bash
 
   SPEAKER TS3012d.Mix-Headset 1 331.573 0.671 <NA> <NA> MTD046ID <NA> <NA>
 
 ``text`` (Optional):
-  - Ground truth transcription for diarization with ASR inference. Provide the ground truth transcription of the given audio file in string format
+    Ground truth transcription for diarization with ASR inference. Provide the ground truth transcription of the given audio file in string format
 
 .. code-block:: bash
 
   {"text": "this is an example transcript"}
 
 ``uem_filepath`` (Optional):
-  - UEM file is used for specifying the scoring regions to be evaluated in the given audio file.
+    UEM file is used for specifying the scoring regions to be evaluated in the given audio file.
 	UEMfile follows the following convention: ``<uniq-id> <channel ID> <start time> <end time>``
 	<channel ID> is set to 1.
 
-  - Example line of UEM file:
+    Example line of UEM file:
 
 .. code-block:: bash
   
@@ -60,11 +62,12 @@ In the input manifest file, audio_filepath item is required argument.
     TS3012d.Mix-Headset 1 214.00 857.09
 
 ``ctm_filepath`` (Optional):
-  - CTM file is used for the evaluation of word-level diarization result and word-timestamp alignment.
+    
+    CTM file is used for the evaluation of word-level diarization result and word-timestamp alignment.
 	CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>``
-	Since confidence is not required for evaluating diarization result, it can have any value. Note that the ``<speaker_id>`` should be exactly match with speaker IDs in RTTM. 
+	Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM. 
 
-  - Example lines of CTM file:
+    Example lines of CTM file:
 
 .. code-block:: bash
   
@@ -75,12 +78,12 @@ In the input manifest file, audio_filepath item is required argument.
 Evaluation on benchmark dataset
 -------------------------------
 
-The following instructions can help you to reproduce the expected diarization performance on two English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, speaker error rate (SER) is equal to confusion error since oracle VAD has no miss detection or false alarm.
+The following instructions can help you reproduce the expected diarization performance on two English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, speaker error rate (SER) is equal to confusion error since oracle VAD has no miss detection or false alarm.
 
 AMi Meeting Corpus
 ~~~~~~~~~~~~~~~~~~
 
-The followings are the suggested parameters for reproducing the diarization performance for AMI test set.
+The following are the suggested parameters for reproducing the diarization performance for AMI test set.
 
 .. code-block:: bash
 
@@ -94,9 +97,9 @@ The followings are the suggested parameters for reproducing the diarization perf
   diarizer.speaker_embeddings.shift_length_in_sec=[1.5,0.75,0.5,0.25] # Multiscale setting 
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.4,0.3,0.2,0.1] # More weights on the longer scales
 
-This setup is expected to reproduce speaker error rate  of 1.19% on AMI test set:
+This setup is expected to reproduce speaker error rate  of 1.19% on AMI test set.
 
-To evaluate the performance on AMI Meeting Corpus, the following instructions can help:
+To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_.
   - Get the test set (whitelist) from `Pyannotate AMI testset whitelist <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.lst>`_.
   - The merged RTTM file for AMI testset can be downloaded from `Pyannotate AMI testset RTTM file <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.rttm>`_. Note that this file should be split into individual rttm files. Download split rttm files for AMI testset from `AMI testset split RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/AMI_corpus/test/split_rttms.tar.gz>`_.
@@ -106,8 +109,8 @@ To evaluate the performance on AMI Meeting Corpus, the following instructions ca
 CallHome American English Speech (CHAES), LDC97S42: 2-speaker subset (CH109)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CH109 is a subset of CHAES dataset which has only two speakers in one session. 
-The followings are the suggested parameters for reproducing the diarization performance for CH109 set.
+CH109 is a subset of the CHAES dataset which has only two speakers in one session. 
+The following are the suggested parameters for reproducing the diarization performance for the CH109 set.
 
 .. code-block:: bash
 
@@ -121,9 +124,9 @@ The followings are the suggested parameters for reproducing the diarization perf
   diarizer.speaker_embeddings.shift_length_in_sec=[0.75,0.5,0.25] # Multiscale setting
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.33,0.33,0.33] # Equal weights
 
-This setup is expected to reproduce confusion error of 0.82% on CH109 set:
+This setup is expected to reproduce confusion error of 0.82% on CH109 set.
 
-To evaluate the performance on AMI Meeting Corpus, the following instructions can help:
+To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available).
   - Get the CH109 filelist (whitelist) from `CH109 whitelist <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/ch109_whitelist.txt>`_.
   - Download RTTM files for CH109 set from `CH109 RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/split_rttms.tar.gz>`_.

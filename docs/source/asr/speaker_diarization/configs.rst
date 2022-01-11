@@ -77,8 +77,8 @@ Parameters for clustering algorithm is provided in the following Hydra config ex
   
   clustering:
     parameters:
-      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: 20 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
+      oracle_num_speakers: False # If True, use num of speakers value provided in the manifest file.
+      max_num_speakers: 20 # Max number of speakers for each recording. If oracle_num_speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
@@ -91,18 +91,18 @@ The following configuration needs to be appended under ``diarizer`` to run ASR w
 .. code-block:: yaml
 
   asr:
-    model_path: ??? # Provie NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purpose.
+    model_path: ??? # Provie NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purposes.
     parameters:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
       asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
       asr_batch_size: null # Batch size can be dependent on each ASR model. Default batch sizes are applied if set to null.
-      lenient_overlap_WDER: True # If true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
-      decoder_delay_in_sec: null # Native deocder delay. null is recommended to use the default values for each ASR model.
+      lenient_overlap_WDER: True # If true, when a word falls into speaker-overlapped regions, consider the word as a correctly diarized word.
+      decoder_delay_in_sec: null # Native decoder delay. null is recommended to use the default values for each ASR model.
       word_ts_anchor_offset: null # Offset to set a reference point from the start of the word. Recommended range of values is [-0.05  0.2]. 
       word_ts_anchor_pos: "start" # Select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
-      fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide VAD model to use this feature.
-      colored_text: False # If True, use colored text to distiguish speakers in the output transcript.
-      print_time: True # If True, the start of end time of each speaker turn is printed in the output transcript.
+      fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide a VAD model to use this feature.
+      colored_text: False # If True, use colored text to distinguish speakers in the output transcript.
+      print_time: True # If True, the start of the end time of each speaker turn is printed in the output transcript.
       break_lines: False # If True, the output transcript breaks the line to fix the line width (default is 90 chars)
     
     ctc_decoder_parameters: # Optional beam search decoder (pyctcdecode)

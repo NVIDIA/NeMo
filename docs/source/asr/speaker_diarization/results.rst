@@ -21,7 +21,7 @@ Load Speaker Embedding model
 
 .. code-block:: bash
 
-  pretrained_speaker_model='/path/to/titanet-l.nemo' # local .nemo or pretrained speaker embeddingmodel name
+  pretrained_speaker_model='/path/to/titanet-l.nemo' # local .nemo or pretrained speaker embedding model name
   ...
   # pass with hydra config
   config.diarizer.speaker_embeddings.model_path=pretrained_speaker_model
