@@ -32,7 +32,7 @@ Speaker Label Inference
 
 Speaker label Inference, is to infer speaker labels from a pretrained speaker model with known speaker labels. We provide `speaker_reco_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
 
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz mono channel wav files.
 
 Write audio files to a ``manifest.json`` file with lines as in format:
 
@@ -49,7 +49,7 @@ This python call will use the pretrain model and infer labels on provided test s
     
 Speaker Embedding Extraction
 -----------------------------
-Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unkown speakers). We provide two ways to do this:
+Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unknown speakers). We provide two ways to do this:
 
 * single python liner for extracting embeddings from a single file 
 * python script for extracting embeddings from a bunch of files provided through manifest file
@@ -63,7 +63,7 @@ For extracting embeddings from a single file:
 
 For extracting embeddings from a bunch of files:
 
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz mono channel wav files.
 
 Write audio files to a ``manifest.json`` file with lines as in format:
 
@@ -82,12 +82,10 @@ NGC Pretrained Checkpoints
 --------------------------
 
 The SpeakerNet-ASR collection has checkpoints of several models trained on various datasets for a variety of tasks.
-`ECAPA_TDNN <https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn>`_ and `Speaker_Verification <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet>`_ model cards on NGC contain more information about each of the checkpoints available.
+`TitaNet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large>`_ , `ECAPA_TDNN <https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn>`_ and `Speaker_Verification <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet>`_ model cards on NGC contain more information about each of the checkpoints available.
 
-The tables below list the SpeakerNet models available from NGC, and the models can be accessed via the
+The tables below list the speaker embedding extractor models available from NGC, and the models can be accessed via the
 :code:`from_pretrained()` method inside the EncDecSpeakerLabelModel Model class.
-
-.. note:: While loading, remember to use EncDecSpeakerLabelModel for recognition tasks and ExtractSpeakerEmbeddingsModel while extracting embeddings.
 
 In general, you can load any of these models with code in the following format.
 
