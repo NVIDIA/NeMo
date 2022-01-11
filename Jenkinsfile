@@ -279,7 +279,7 @@ pipeline {
 
         stage('L2: Speech to Text WPE - CitriNet') {
           steps {
-            sh 'python examples/asr/ASR_CTC/speech_to_text_bpe.py \
+            sh 'python examples/asr/ASR_CTC/speech_to_text_ctc_bpe.py \
             --config-path="../conf/citrinet/" --config-name="config_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
@@ -307,7 +307,7 @@ pipeline {
 
         stage('L2: Speech to Text WPE - Conformer') {
           steps {
-            sh 'python examples/asr/ASR_CTC/speech_to_text_bpe.py \
+            sh 'python examples/asr/ASR_CTC/speech_to_text_ctc_bpe.py \
             --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
