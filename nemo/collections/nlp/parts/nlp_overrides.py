@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 import os
 import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
-from typing import Any, Dict, List, Optional, Union
 
 import torch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
@@ -301,6 +301,26 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         else:
             return super().save_to(model, save_path)
+
+
+class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
+    """ Overrides PTL autocasting to not wrap training/val/test_step.
+        We do this because we have the Apex fwd/bwd functions in training_step.
+        This means .backward is being called in training_step so we do not want the whole
+        step wrapped in autocast.
+
+        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+    """
+
+    def __init__(
+        self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+    ) -> None:
+        super().__init__(precision, device, scaler=scaler)
+
+    @contextmanager
+    def forward_context(self) -> Generator[None, None, None]:
+        """Have the PTL context manager do nothing."""
+        yield
 
 
 class GradScaler(torch.cuda.amp.GradScaler):
