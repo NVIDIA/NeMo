@@ -21,13 +21,13 @@ def is_global_rank_zero():
     # Try to get the pytorch RANK env var
     # RANK is set by torch.distributed.launch
     rank = get_envint("RANK", None)
-    if rank:
+    if rank is not None:
         return rank == 0
 
     # Try to get the SLURM global rank env var
     # SLURM_PROCID is set by SLURM
     slurm_rank = get_envint("SLURM_PROCID", None)
-    if slurm_rank:
+    if slurm_rank is not None:
         return slurm_rank == 0
 
     # if neither pytorch and SLURM env vars are set
