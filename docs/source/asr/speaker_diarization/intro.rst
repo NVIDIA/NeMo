@@ -9,7 +9,7 @@ Speaker Diarization (SD) is the task of segmenting audio recordings by speaker l
         :scale: 50%
 
 
-A diarization system consists of a **Voice Activity Detection (VAD)** model to get the time stamps of audio where speech is being spoken while ignoring the background noise and 
+A speaker diarization system consists of a **Voice Activity Detection (VAD)** model to get the time stamps of audio where speech is being spoken while ignoring the background noise and 
 a **Speaker Embeddings** model to get speaker embeddings on speech segments obtained from VAD time stamps. 
 These speaker embeddings would then be clustered into clusters based on number of speakers present in the audio recording.
 
