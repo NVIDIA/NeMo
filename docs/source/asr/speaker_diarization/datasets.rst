@@ -8,7 +8,7 @@ for preparing datasets for training and validating VAD and speaker embedding mod
 Preparation of input data
 -------------------------
 
-diarization inference is based Hydra configurations which is fullfilled by .yaml files. See `NeMo Speaker Diarization Configuration Files<../configs>` for setting up the input configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
+diarization inference is based Hydra configurations which is fullfilled by .yaml files. See `NeMo Speaker Diarization Configuration Files <../configs>`_ for setting up the input configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
 	
 .. code-block:: bash
 
@@ -97,8 +97,8 @@ The followings are the suggested parameters for reproducing the diarization perf
 This setup is expected to reproduce speaker error rate  of 1.19% on AMI test set:
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help:
-  - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_
-  - Get the test set (whitelist) from `Pyannotate AMI testset whitelist <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.lst>`_
+  - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_.
+  - Get the test set (whitelist) from `Pyannotate AMI testset whitelist <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.lst>`_.
   - The merged RTTM file for AMI testset can be downloaded from `Pyannotate AMI testset RTTM file <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.rttm>`_. Note that this file should be split into individual rttm files. Download split rttm files for AMI testset from `AMI testset split RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/AMI_corpus/test/split_rttms.tar.gz>`_.
   - Generate an input manifest file using ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``
 
@@ -124,8 +124,8 @@ The followings are the suggested parameters for reproducing the diarization perf
 This setup is expected to reproduce confusion error of 0.82% on CH109 set:
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help:
-  - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available)
-  - Get the CH109 filelist (whitelist) from `CH109 whitelist <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/ch109_whitelist.txt>`_
-  - Download RTTM files for CH109 set from `CH109 RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/split_rttms.tar.gz>`_
+  - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available).
+  - Get the CH109 filelist (whitelist) from `CH109 whitelist <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/ch109_whitelist.txt>`_.
+  - Download RTTM files for CH109 set from `CH109 RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/split_rttms.tar.gz>`_.
   - Generate an input manifest file using ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``
 

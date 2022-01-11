@@ -20,11 +20,12 @@ Miscellaneous Classes
 Diarization with ASR
 ~~~~~~~~~~~~~~~~~~~~
 
+.. autoclass:: nemo.collections.asr.parts.utils.decoder_timestamps_utils.ASR_TIMESTAMPS
+    :show-inheritance:
+    :members:
+
 .. autoclass:: nemo.collections.asr.parts.utils.diarization_utils.ASR_DIAR_OFFLINE
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.parts.utils.decoder_ts_utils.ASR_TIMESTAMPS
-    :show-inheritance:
-    :members:
 
