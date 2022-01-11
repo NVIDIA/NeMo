@@ -267,7 +267,7 @@ pipeline {
       parallel {
         stage('Speech to Text') {
           steps {
-            sh 'python examples/asr/ASR_CTC/speech_to_text.py \
+            sh 'python examples/asr/ASR_CTC/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus=[0] \
@@ -413,7 +413,7 @@ pipeline {
     //   parallel {
     //     stage('Speech to Text - DALI AudioToMelSpectrogramPreprocessor') {
     //       steps {
-    //         sh 'python examples/asr/ASR_CTC/speech_to_text.py \
+    //         sh 'python examples/asr/ASR_CTC/speech_to_text_ctc.py \
     //         model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
     //         +model.train_ds.use_dali=True \
     //         model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
@@ -444,7 +444,7 @@ pipeline {
     //     //       To be enabled once torchaudio is available in the container used for CI
     //     // stage('Speech to Text - DALI AudioToMFCCPreprocessor') {
     //     //   steps {
-    //     //     sh 'python examples/asr/ASR_CTC/speech_to_text.py \
+    //     //     sh 'python examples/asr/ASR_CTC/speech_to_text_ctc.py \
     //     //     model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
     //     //     +model.train_ds.use_dali=True \
     //     //     model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
@@ -520,7 +520,7 @@ pipeline {
       parallel {
         stage('Speech to Text multi-dataloader') {
           steps {
-            sh 'python examples/asr/ASR_CTC/speech_to_text.py \
+            sh 'python examples/asr/ASR_CTC/speech_to_text_ctc.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
             trainer.gpus=[0] \
