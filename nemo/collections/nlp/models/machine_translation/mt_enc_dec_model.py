@@ -196,6 +196,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         # tie embedding weights
         if self.shared_embeddings:
+            if not cfg.get("shared_tokenizer", True):
+                raise ValueError("shared_tokenizer cannot be False when shared_embeddings is True")
+
             # validate vocabulary size and embedding dimension
             if (
                 self.encoder.embedding.token_embedding.weight.shape
