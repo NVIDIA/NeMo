@@ -21,7 +21,7 @@ def is_global_rank_zero():
     # Try to get the pytorch RANK env var
     # RANK is set by torch.distributed.launch
     rank = get_envint("RANK", None)
-    if rank:
+    if rank is not None:
         return rank == 0
 
     # If not set by pytorch, we need to determine node_rank
