@@ -745,10 +745,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.source_processor = ChineseProcessor()
         elif source_lang == 'hi':
             self.source_processor = IndicProcessor(source_lang)
-        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
-            self.source_processor = MosesProcessor(source_lang)
         elif source_lang == 'ignore':
             self.source_processor = None
+        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
+            self.source_processor = MosesProcessor(source_lang)
 
         if self.decoder_tokenizer_library == 'byte-level':
             self.target_processor = ByteLevelProcessor()
@@ -758,10 +758,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.target_processor = ChineseProcessor()
         elif target_lang == 'hi':
             self.target_processor = IndicProcessor(target_lang)
+        elif target_lang == 'ignore':
+            self.target_processor = None
         elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
-        elif target_lang == 'ignore':
-            self.target_processor == None
 
         return self.source_processor, self.target_processor
 
