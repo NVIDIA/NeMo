@@ -759,7 +759,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         elif target_lang == 'hi':
             self.target_processor = IndicProcessor(target_lang)
         elif target_lang == 'ignore':
-            self.target_processor == None
+            self.target_processor = None
         elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
 
