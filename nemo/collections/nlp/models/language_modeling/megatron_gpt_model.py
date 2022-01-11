@@ -135,15 +135,14 @@ class MegatronGPTModel(NLPModel):
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=cfg.precision)
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if self.cfg.precision == 32:
-                self.dtype_for_pipeline_comm = None
-            elif self.cfg.precision == 16:
-                self.dtype_for_pipeline_comm = torch.half
-            elif self.cfg.precision == 'bf16':
-                self.dtype_for_pipeline_comm = torch.bfloat16
-            else:
-                raise ValueError('precision must be in [32, 16, "bf16"]')
+        if self.cfg.precision == 32:
+            self.autocast_dtype = torch.float
+        elif self.cfg.precision == 16:
+            self.autocast_dtype = torch.half
+        elif self.cfg.precision == 'bf16':
+            self.autocast_dtype = torch.bfloat16
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
