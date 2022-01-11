@@ -1,5 +1,5 @@
 tts_dataset:
-  _target_: "nemo.collections.tts.torch.data.TTSDataset"
+  _target_: nemo.collections.tts.torch.data.TTSDataset
   manifest_filepath: "manifest.json"
   sample_rate: 22050
   sup_data_path: "test_sup_data"
@@ -19,18 +19,18 @@ tts_dataset:
   pitch_fmax: 2093.004522404789
 
   text_normalizer:
-    _target_: "nemo_text_processing.text_normalization.normalize.Normalizer"
-    lang: "en"
-    input_case: "cased"
+    _target_: nemo_text_processing.text_normalization.normalize.Normalizer
+    lang: en
+    input_case: cased
     whitelist: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
-  text_normalizer_call_args:
+  text_normalizer_call_kwargs:
     verbose: False
     punct_pre_process: True
     punct_post_process: True
 
   text_tokenizer:
-    _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
     punct: True
     stresses: True
     chars: True
@@ -41,5 +41,6 @@ tts_dataset:
     add_blank_at: null
     pad_with_space: True
     g2p:
-      _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      phoneme_dict: "scripts/tts_dataset_files/cmudict-0.7b"
       heteronyms: "scripts/tts_dataset_files/heteronyms-030921"
