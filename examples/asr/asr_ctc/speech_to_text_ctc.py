@@ -16,7 +16,7 @@
 # Training the model
 
 Basic run (on CPU for 50 epochs):
-    python examples/asr/ASR_CTC/speech_to_text_ctc.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
