@@ -20,7 +20,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
+from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import GPTRequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
@@ -117,7 +117,7 @@ def main():
     trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
 
     app_state = AppState()
-    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
+    if args.tensor_model_parallel_size > 1:
         app_state.model_parallel_size = args.tensor_model_parallel_size
         app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 

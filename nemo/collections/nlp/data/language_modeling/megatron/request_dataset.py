@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import List
+from typing import Dict, List
 
 import torch
 from torch.utils.data.dataset import Dataset
@@ -74,3 +74,36 @@ class GPTRequestDataset(Dataset):
 
     def __getitem__(self, index):
         return self.data
+
+
+class T5RequestDataset(Dataset):
+    def __init__(self, request: Dict, tokenizer) -> None:
+        super().__init__()
+        self.request = request
+        self.tokenizer = tokenizer
+
+        # tokenize prompt
+        self.request['tokenized_prompt'] = ' '.join(self.tokenizer.text_to_tokens(request['prompt']))
+        tokens = self.tokenizer.text_to_ids(request['prompt'])
+        self.request['tokens'] = torch.tensor(tokens)
+        self.mask_prompt(self.request['prompt'])
+
+    def mask_prompt(self, sample):
+        if '<mask>' not in sample:
+            raise ValueError(f"Did not find any <mask> tokens in prompt {sample}.")
+
+        sample = sample.split()
+        sentinel_idx = 0
+        for i, word in enumerate(sample):
+            if word == '<mask>':
+                sample[i] = f'<extra_id_{sentinel_idx}>'
+                sentinel_idx += 1
+        sample = ' '.join(sample)
+        sample = torch.LongTensor(self.tokenizer.text_to_ids(sample))
+        self.request['masked_sample'] = sample
+
+    def __len__(self):
+        return 1
+
+    def __getitem__(self, index):
+        return self.request
