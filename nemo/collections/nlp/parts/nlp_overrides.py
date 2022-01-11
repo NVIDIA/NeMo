@@ -18,15 +18,10 @@ import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
-from typing import Any, Dict, List, Optional, Union
 
 import torch
-from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 from deprecate.utils import void
-from pytorch_lightning.loops.epoch.evaluation_epoch_loop import EvaluationEpochLoop
-from pytorch_lightning.loops.epoch.training_epoch_loop import TrainingEpochLoop
 from pytorch_lightning.loops.fit_loop import FitLoop
-from pytorch_lightning.loops.utilities import _update_dataloader_iter
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -49,8 +44,6 @@ from pytorch_lightning.plugins.environments.cluster_environment import ClusterEn
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.utilities.types import _PATH
-from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
 from pytorch_lightning.utilities.types import _PATH
@@ -66,6 +59,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 
@@ -310,6 +304,26 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         else:
             return super().save_to(model, save_path)
+
+
+class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
+    """ Overrides PTL autocasting to not wrap training/val/test_step.
+        We do this because we have the Apex fwd/bwd functions in training_step.
+        This means .backward is being called in training_step so we do not want the whole
+        step wrapped in autocast.
+
+        We instead wrap the fwd_output_and_loss_func that is passed to the Apex fwd/bwd functions.
+    """
+
+    def __init__(
+        self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
+    ) -> None:
+        super().__init__(precision, device, scaler=scaler)
+
+    @contextmanager
+    def forward_context(self) -> Generator[None, None, None]:
+        """Have the PTL context manager do nothing."""
+        yield
 
 
 class GradScaler(torch.cuda.amp.GradScaler):

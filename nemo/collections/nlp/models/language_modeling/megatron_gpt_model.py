@@ -208,7 +208,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
-                dtype=self.dtype_for_pipeline_comm,
+                dtype=self.autocast_dtype,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -344,6 +344,7 @@ class MegatronGPTModel(NLPModel):
                 buf.copy_(synced)
 
     def get_forward_output_and_loss_func(self):
+        @torch.autocast('cuda', dtype=self.autocast_dtype)
         def fwd_output_and_loss_func(batch, model):
             tokens, labels, loss_mask, attention_mask, position_ids = batch
             attention_mask = attention_mask[0:1]
@@ -375,7 +376,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
-                dtype=self.dtype_for_pipeline_comm,
+                dtype=self.autocast_dtype,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
