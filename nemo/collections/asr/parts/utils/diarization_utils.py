@@ -117,7 +117,7 @@ def get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_li
 
 class ASR_DIAR_OFFLINE(object):
     """
-    A Class designed for performing ASR and diarization together.
+    A class designed for performing ASR and diarization together.
     """
 
     def __init__(self, **cfg_diarizer):
@@ -271,7 +271,7 @@ class ASR_DIAR_OFFLINE(object):
         """
         Gather diarization evaluation results from pyannote DiarizationErrorRate metric object.
 
-        Inputs:
+        Args:
             metric (DiarizationErrorRate metric): DiarizationErrorRate metric pyannote object
             mapping_dict (dict): A dictionary containing speaker mapping labels for each audio file with key as unique name
 
@@ -579,8 +579,8 @@ class ASR_DIAR_OFFLINE(object):
     def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]):
         """
         Realign the mapping between speaker labels and words using a language model.
-        The realigning process calculates the probability of the around the words at the boundary between
-        two hypothetical sentences spoken by different speakers.
+        The realigning process calculates the probability of the certain range around the words,
+        especially at the boundary between two hypothetical sentences spoken by different speakers.
 
         <Example> k-th word: "but"
             hyp_former:
@@ -632,7 +632,7 @@ class ASR_DIAR_OFFLINE(object):
             ref_word_count: The number of words in the reference transcript
             hyp_word_count: The number of words in the hypothesis
             diar_confuse_count: Number of incorrectly diarized words
-            all_correct_count: Counts the word if both hypothesis word and speaker label are correct.
+            all_correct_count: Count the word if both hypothesis word and speaker label are correct.
             hyp_based_wder: The number of incorrectly diarized words divided by the number of words in the hypothesis
             ref_based_wder: The number of incorrectly diarized words divided by the number of words in the reference transcript
         """
@@ -708,7 +708,7 @@ class ASR_DIAR_OFFLINE(object):
     def get_WDER(self, total_riva_dict, DER_result_dict):
         """
         Calculate word-level diarization error rate (WDER). WDER is calculated by
-        counting the the wrongly diarized words and divided by the total number of words
+        counting the wrongly diarized words and divided by the total number of words
         recognized by the ASR model.
 
         Args:
@@ -960,7 +960,7 @@ class ASR_DIAR_OFFLINE(object):
 
     def write_and_log(self, uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict):
         """
-        Write output files and displays logging messages.
+        Write output files and display logging messages.
         """
         ROOT = self.root_path
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}.json', riva_dict)
