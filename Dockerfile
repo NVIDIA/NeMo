@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.11-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.12-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -102,4 +102,3 @@ COPY tutorials /workspace/nemo/tutorials
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
-
