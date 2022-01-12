@@ -18,11 +18,11 @@ import argparse
 import gzip
 import json
 import multiprocessing
+import os
 import sys
 import time
-import os
-import ftfy
 
+import ftfy
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
@@ -136,7 +136,11 @@ def get_args():
     group = parser.add_argument_group(title='runtime')
     group.add_argument('--workers', type=int, default=1, help='Number of worker processes to launch')
     group.add_argument('--log-interval', type=int, default=100, help='Interval between progress updates')
-    group.add_argument('--preproc-folder', action='store_true', help='If set, will preprocess all .json or .json.gz files into a single .bin and .idx file. Folder path provided via the --input arg')
+    group.add_argument(
+        '--preproc-folder',
+        action='store_true',
+        help='If set, will preprocess all .json or .json.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
+    )
     group.add_argument('--apply-ftfy', action='store_true', help='If set, will apply ftfy to the input text')
     args = parser.parse_args()
     args.keep_empty = False
@@ -162,7 +166,9 @@ def main():
         print('Searching folder for .json or .json.gz files...')
         assert os.path.exists(args.input), 'Folder does not exist'
         files_in_folder = os.listdir(args.input)
-        json_files = [os.path.join(args.input, f) for f in files_in_folder if f.endswith('.json') or f.endswith('.json.gz')]
+        json_files = [
+            os.path.join(args.input, f) for f in files_in_folder if f.endswith('.json') or f.endswith('.json.gz')
+        ]
         if len(json_files) == 0:
             raise FileNotFoundError('No .json or .json.gz files found in folder.')
         else:
