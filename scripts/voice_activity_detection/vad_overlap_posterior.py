@@ -26,7 +26,7 @@ import pandas as pd
 This script serves two purposes:
  
     1) gen_overlap_seq: 
-        Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/vad_infer.py. 
+        Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/speech_classification/vad_infer.py. 
         Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
        
     2）gen_seg_table: 
