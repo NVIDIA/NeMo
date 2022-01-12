@@ -1,7 +1,7 @@
 Datasets
 ========
 
-This page is about preparing input dataset for diarization inference. To train or fine-tune speaker diarization system, the speaker embedding extractor should be trained or fine-tuned separately. Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recogniton Datasets <../speaker_recognition/datasets>` 
+This page is about preparing input dataset for diarization inference. To train or fine-tune speaker diarization system, the speaker embedding extractor should be trained or fine-tuned separately. Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` 
 for preparing datasets for training and validating VAD and speaker embedding models respectively. 
 
 
@@ -14,7 +14,7 @@ Diarization inference is based on Hydra configurations which are fulfilled by ``
 
   {"audio_filepath": "/path/to/abcd.wav", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/abcd.rttm", "uem_filepath": "/path/to/uem/abcd.uem"}
 
-In each line in input manifest file, audio_filepath item is mandatory while rest of the items are optional and can be passed for desired diarization setting. We refer to this file as manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``. The following example shows how to run `pathsfiles_to_manifest.py` by providing path list files.
+In each line of the input manifest file, ``audio_filepath`` item is mandatory while rest of the items are optional and can be passed for desired diarization setting. We refer to this file as manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``. The following example shows how to run `pathsfiles_to_manifest.py` by providing path list files.
 
 .. code-block:: bash
    
@@ -25,7 +25,7 @@ In each line in input manifest file, audio_filepath item is mandatory while rest
                               --paths2ctm_files /path/to/ctm_file_list.txt \
                               --manifest_filepath /path/to/manifest_output/input_manifest.json 
 
-The ``--paths2audio_files`` and ``--manifest_filepath`` arguments are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM, UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configration as shown below:
+The ``--paths2audio_files`` and ``--manifest_filepath`` arguments are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configration as shown below:
 
 .. code-block:: bash
    

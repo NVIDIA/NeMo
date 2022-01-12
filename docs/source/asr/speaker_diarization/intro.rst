@@ -1,7 +1,7 @@
 Speaker Diarization
 ==================================
 
-Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, that is Who Speaks When?
+Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, which is figuring out "Who spoke when?".
 
 .. image:: images/sd_pipeline.png
         :align: center
