@@ -13,7 +13,7 @@ jul 25 2012~july twenty fifth twenty twelve
 january 1~january first
 june 30~june thirtieth
 2012~twenty twelve
-july 1506~july fifteen o six
+july 1506~july fifteen oh six
 july 1876~july eighteen seventy six
 1994~nineteen ninety four
 1976~nineteen seventy six
@@ -43,3 +43,5 @@ SEPTEMBER 15 twenty twenty~september fifteenth twenty twenty
 11/17/05~november seventeenth zero five
 01/07/98~january seventh ninety eight
 16 July, 1943~the sixteenth of july , nineteen forty three
+One should go to the store on the 26th May in the evening~One should go to the store on the twenty sixth of may in the evening
+April 29th’s meeting~april twenty ninth ’ s meeting

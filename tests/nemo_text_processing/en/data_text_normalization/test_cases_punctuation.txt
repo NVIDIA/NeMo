@@ -9,6 +9,9 @@ abbreviation USA.~abbreviation u s a.
 abbreviation U.S.A.~abbreviation u s a
 abbreviation. U.S.A..~abbreviation. u s a.
 1-4=5~one minus four equals five
-&gt;&gt;~&gt;&gt;
+&hi;&hi;~&hi;&hi;
 abbreviation USA,~abbreviation u s a,
 23rd july, 1998~the twenty third of july, nineteen ninety eight
+April 29th’s meeting~april twenty ninth’s meeting
+?,~?,
+?,no~?,no

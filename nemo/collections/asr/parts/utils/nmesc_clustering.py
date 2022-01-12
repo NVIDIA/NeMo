@@ -39,6 +39,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 
 from nemo.utils import logging
+from nemo.utils.decorators.experimental import experimental
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -84,7 +85,7 @@ def getTheLargestComponent(affinity_mat, seg_index):
 
 def getKneighborsConnections(affinity_mat, p_value):
     """
-    Binarizes top-p values for each row from the given affinity matrix.
+    Binarize top-p values for each row from the given affinity matrix.
     """
     binarized_affinity_mat = np.zeros_like(affinity_mat)
     for i, line in enumerate(affinity_mat):
@@ -97,7 +98,7 @@ def getKneighborsConnections(affinity_mat, p_value):
 
 def getAffinityGraphMat(affinity_mat_raw, p_value):
     """
-    Calculates a binarized graph matrix and
+    Calculate a binarized graph matrix and
     symmetrize the binarized graph matrix.
     """
     X = getKneighborsConnections(affinity_mat_raw, p_value)
@@ -107,10 +108,10 @@ def getAffinityGraphMat(affinity_mat_raw, p_value):
 
 def getMinimumConnection(mat, max_N, n_list):
     """
-    Generates connections until fully connect all the nodes in the graph.
+    Generate connections until fully connect all the nodes in the graph.
     If graph is not fully connected, it might generate an inaccurate results.
     """
-    p_value, index = 1, 0
+    p_value = 1
     affinity_mat = getAffinityGraphMat(mat, p_value)
     for i, p_value in enumerate(n_list):
         fully_connected = isGraphFullyConnected(affinity_mat)
@@ -121,12 +122,99 @@ def getMinimumConnection(mat, max_N, n_list):
     return affinity_mat, p_value
 
 
+def getRepeatedList(mapping_argmat, score_mat_size):
+    """
+    Count the numbers in the mapping dictionary and create lists that contain
+    repeated indices to be used for creating the repeated affinity matrix for
+    fusing the affinity values.
+    """
+    count_dict = dict(Counter(mapping_argmat))
+    repeat_list = []
+    for k in range(score_mat_size):
+        if k in count_dict:
+            repeat_list.append(count_dict[k])
+        else:
+            repeat_list.append(0)
+    return repeat_list
+
+
+@experimental
+def get_argmin_mat(uniq_scale_dict):
+    """
+    Calculate the mapping between the base scale and other scales. A segment from a longer scale is
+    repeatedly mapped to a segment from a shorter scale or the base scale.
+
+    Args:
+        uniq_scale_dict (dict) :
+            Dictionary of embeddings and timestamps for each scale.
+
+    Returns:
+        session_scale_mapping_dict (dict) :
+            Dictionary containing argmin arrays indexed by scale index.
+    """
+    scale_list = sorted(list(uniq_scale_dict.keys()))
+    segment_anchor_dict = {}
+    for scale_idx in scale_list:
+        time_stamp_list = uniq_scale_dict[scale_idx]['time_stamps']
+        time_stamps_float = np.array([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
+        segment_anchor_dict[scale_idx] = np.mean(time_stamps_float, axis=1)
+
+    base_scale_idx = max(scale_list)
+    base_scale_anchor = segment_anchor_dict[base_scale_idx]
+    session_scale_mapping_dict = {}
+    for scale_idx in scale_list:
+        curr_scale_anchor = segment_anchor_dict[scale_idx]
+        curr_mat = np.tile(curr_scale_anchor, (base_scale_anchor.shape[0], 1))
+        base_mat = np.tile(base_scale_anchor, (curr_scale_anchor.shape[0], 1)).T
+        argmin_mat = np.argmin(np.abs(curr_mat - base_mat), axis=1)
+        session_scale_mapping_dict[scale_idx] = argmin_mat
+    return session_scale_mapping_dict
+
+
+@experimental
+def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
+    """
+    Calculate cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Args:
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization 
+            is performed.
+
+    Returns:
+        fused_sim_d (np.array):
+            This function generates an ffinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+        base_scale_emb (np.array):
+            The base scale embedding (the embeddings from the finest scale)
+    """
+    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+    base_scale_idx = max(uniq_scale_dict.keys())
+    base_scale_emb = np.array(uniq_scale_dict[base_scale_idx]['embeddings'])
+    multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
+    score_mat_list, repeated_mat_list = [], []
+
+    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
+    for scale_idx in sorted(uniq_scale_dict.keys()):
+        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        score_mat = getCosAffinityMatrix(uniq_scale_dict[scale_idx]['embeddings'])
+        score_mat_list.append(score_mat)
+        repeat_list = getRepeatedList(mapping_argmat, score_mat.shape[0])
+        repeated_mat = np.repeat(np.repeat(score_mat, repeat_list, axis=0), repeat_list, axis=1)
+        repeated_mat_list.append(repeated_mat)
+
+    fused_sim_d = np.average(np.array(repeated_mat_list), weights=multiscale_weights, axis=0)
+    return fused_sim_d, base_scale_emb
+
+
 def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     """
     Add randomly generated synthetic embeddings to make eigen analysis more stable.
     We refer to these embeddings as anchor embeddings.
 
-    emb (float):
+    emb (np.array):
         The input embedding from the emebedding extractor.
 
     anchor_sample_n (int):
@@ -145,7 +233,7 @@ def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
 
     """
     emb_dim = emb.shape[1]
-    mean, std_org = np.mean(emb, axis=0), np.std(emb, axis=0)
+    std_org = np.std(emb, axis=0)
     new_emb_list = []
     for _ in range(anchor_spk_n):
         emb_m = np.tile(np.random.randn(1, emb_dim), (anchor_sample_n, 1))
@@ -156,17 +244,17 @@ def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
 
     new_emb_list.append(emb)
     new_emb_np = np.vstack(new_emb_list)
-    return new_emb_np, anchor_sample_n * anchor_spk_n
+    return new_emb_np
 
 
-def getEnhancedSpeakerCount(key, emb, cuda, random_test_count=5, anchor_spk_n=3, anchor_sample_n=10, sigma=50):
+def getEnhancedSpeakerCount(emb, cuda, random_test_count=5, anchor_spk_n=3, anchor_sample_n=10, sigma=50):
     """
-    Calculates the number of speakers using NME analysis with anchor embeddings.
+    Calculate the number of speakers using NME analysis with anchor embeddings.
     """
     est_num_of_spk_list = []
     for seed in range(random_test_count):
         np.random.seed(seed)
-        emb_aug, anchor_length = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
+        emb_aug = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
         mat = getCosAffinityMatrix(emb_aug)
         nmesc = NMESC(
             mat,
@@ -178,7 +266,7 @@ def getEnhancedSpeakerCount(key, emb, cuda, random_test_count=5, anchor_spk_n=3,
             NME_mat_size=300,
             cuda=cuda,
         )
-        est_num_of_spk, _, _ = nmesc.NMEanalysis()
+        est_num_of_spk, _ = nmesc.NMEanalysis()
         est_num_of_spk_list.append(est_num_of_spk)
 
     ctt = Counter(est_num_of_spk_list)
@@ -188,7 +276,7 @@ def getEnhancedSpeakerCount(key, emb, cuda, random_test_count=5, anchor_spk_n=3,
 
 def getCosAffinityMatrix(emb):
     """
-    Calculates cosine similarity values among speaker embeddings.
+    Calculate cosine similarity values among speaker embeddings.
     """
     sim_d = cosine_similarity(emb)
     scaler.fit(sim_d)
@@ -198,7 +286,7 @@ def getCosAffinityMatrix(emb):
 
 def getLaplacian(X):
     """
-    Calculates a laplacian matrix from an affinity matrix X.
+    Calculate a laplacian matrix from an affinity matrix X.
     """
     X[np.diag_indices(X.shape[0])] = 0
     A = X
@@ -232,7 +320,7 @@ def getLamdaGaplist(lambdas):
 
 def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
     """
-    Estimates the number of speakers using eigen decompose on laplacian Matrix.
+    Estimate the number of speakers using eigen decompose on laplacian Matrix.
     affinity_mat: (array)
         NxN affitnity matrix
     max_num_speaker: (int)
@@ -271,13 +359,11 @@ class _SpectralClustering:
         return labels
 
     def getSpectralEmbeddings(self, affinity_mat, n_spks=8, drop_first=True, cuda=False):
-        n_nodes = affinity_mat.shape[0]
         if not isGraphFullyConnected(affinity_mat):
             logging.warning("Graph is not fully connected and the clustering result might not be accurate.")
 
         laplacian = getLaplacian(affinity_mat)
         lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda)
-        lambdas = lambdas_[:n_spks]
         diffusion_map = diffusion_map_[:, :n_spks]
         embedding = diffusion_map.T[n_spks::-1]
         return embedding[:n_spks].T
@@ -390,7 +476,7 @@ class NMESC:
 
     def NMEanalysis(self):
         """
-        Subsamples the input matrix to reduce the computational load.
+        Subsample the input matrix to reduce the computational load.
         """
         if self.use_subsampling_for_NME:
             subsample_ratio = self.subsampleAffinityMat(self.NME_mat_size)
@@ -415,11 +501,11 @@ class NMESC:
 
         p_hat_value = int(subsample_ratio * rp_p_value)
         est_num_of_spk = est_spk_n_dict[rp_p_value]
-        return est_num_of_spk, p_hat_value, eig_ratio_list[index_nn]
+        return est_num_of_spk, p_hat_value
 
     def subsampleAffinityMat(self, NME_mat_size):
         """
-        Performs Subsampling of affinity matrix.
+        Perform Subsampling of affinity matrix.
         This subsampling is for calculational complexity, not for performance.
         The smaller NME_mat_size is,
             - the bigger the chance of missing a speaker.
@@ -489,10 +575,11 @@ class NMESC:
 
         return p_value_list
 
+    # emb,
+
 
 def COSclustering(
-    key,
-    emb,
+    uniq_embs_and_timestamps=None,
     oracle_num_speakers=None,
     max_num_speaker=8,
     min_samples_for_NMESC=6,
@@ -506,11 +593,10 @@ def COSclustering(
     Clustering method for speaker diarization based on cosine similarity.
 
     Parameters:
-        key: (str)
-            A unique ID for each speaker
-
-        emb: (numpy array)
-            Speaker embedding extracted from an embedding extractor
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization 
+            is performed.
 
         oracle_num_speaker: (int or None)
             Oracle number of speakers if known else None
@@ -529,32 +615,42 @@ def COSclustering(
             Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
             to mitigate the effect of cluster sparsity.
             enhanced_count_thres = 80 is recommended.
-        
+
         max_rp_threshold: (float)
-                Limits the range of parameter search.
-                Clustering performance can vary depending on this range.
-                Default is 0.25.
-        
+            Limits the range of parameter search.
+            Clustering performance can vary depending on this range.
+            Default is 0.25.
+
         sparse_search_volume: (int)
-                The number of p_values we search during NME analysis.
-                Default is 30. The lower the value, the faster NME-analysis becomes.
-                Lower than 20 might cause a poor parameter estimation.
+            The number of p_values we search during NME analysis.
+            Default is 30. The lower the value, the faster NME-analysis becomes.
+            Lower than 20 might cause a poor parameter estimation.
+
+        fixed_thres: (float)
+            If fixed_thres value is provided, NME-analysis process will be skipped.
+            This value should be optimized on a development set to obtain a quality result.
+            Default is None and performs NME-analysis to estimate the threshold.
 
     Returns:
         Y: (List[int])
             Speaker label for each segment.
     """
+    # Get base-scale embedding from uniq_embs_and_timestamps.
+    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+    emb = np.array(uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings'])
+
     if emb.shape[0] == 1:
         return np.array([0])
     elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
-        est_num_of_spk_enhanced = getEnhancedSpeakerCount(key, emb, cuda)
+        est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb, cuda)
     else:
         est_num_of_spk_enhanced = None
 
     if oracle_num_speakers:
         max_num_speaker = oracle_num_speakers
 
-    mat = getCosAffinityMatrix(emb)
+    mat, emb = getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps)
+
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,
@@ -567,7 +663,7 @@ def COSclustering(
     )
 
     if emb.shape[0] > min_samples_for_NMESC:
-        est_num_of_spk, p_hat_value, best_g_p_value = nmesc.NMEanalysis()
+        est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
         affinity_mat = mat

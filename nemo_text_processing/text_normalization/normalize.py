@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import itertools
-import os
 from argparse import ArgumentParser
 from collections import OrderedDict
 from typing import List
 
+from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -32,7 +32,6 @@ except (ModuleNotFoundError, ImportError):
 try:
     from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
     from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
-    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 
     NLP_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -96,7 +95,7 @@ class Normalizer:
             self.processor = None
             print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
 
-    def normalize_list(self, texts: List[str], verbose=False) -> List[str]:
+    def normalize_list(self, texts: List[str], verbose=False, punct_post_process: bool = False) -> List[str]:
         """
         NeMo text normalizer 
 
@@ -109,7 +108,7 @@ class Normalizer:
         res = []
         for input in tqdm(texts):
             try:
-                text = self.normalize(input, verbose=verbose)
+                text = self.normalize(input, verbose=verbose, punct_post_process=punct_post_process)
             except:
                 print(input)
                 raise Exception
@@ -276,7 +275,7 @@ class Normalizer:
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=["en"], default="en", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "de"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
@@ -302,7 +301,11 @@ if __name__ == "__main__":
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
     normalizer = Normalizer(
-        input_case=args.input_case, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache, whitelist=whitelist
+        input_case=args.input_case,
+        cache_dir=args.cache_dir,
+        overwrite_cache=args.overwrite_cache,
+        whitelist=whitelist,
+        lang=args.language,
     )
     print(
         normalizer.normalize(

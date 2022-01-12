@@ -32,7 +32,9 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
+    get_embs_and_timestamps,
     get_uniqname_from_filepath,
+    parse_scale_configs,
     perform_clustering,
     score_labels,
     segments_manifest_to_subsegments_manifest,
@@ -95,6 +97,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 self._init_vad_model()
 
         # init speaker model
+        self.multiscale_embeddings_and_timestamps = {}
         self._init_speaker_model()
         self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
         self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
@@ -112,7 +115,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     def _init_vad_model(self):
         """
-        Initialize vad model with model name or path passed through config
+        Initialize VAD model with model name or path passed through config
         """
         model_path = self._cfg.diarizer.vad.model_path
         if model_path.endswith('.nemo'):
@@ -151,6 +154,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
 
+        self.multiscale_args_dict = parse_scale_configs(
+            self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
+            self._diarizer_params.speaker_embeddings.parameters.multiscale_weights,
+        )
+
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
             'manifest_filepath': manifest_vad_input,
@@ -170,11 +179,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
             'batch_size': self._cfg.get('batch_size'),
-            'time_length': self._speaker_params.window_length_in_sec,
-            'shift_length': self._speaker_params.shift_length_in_sec,
             'trim_silence': False,
             'labels': None,
-            'task': "diarization",
             'num_workers': self._cfg.num_workers,
         }
         self._speaker_model.setup_test_data(spk_dl_config)
@@ -260,16 +266,18 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
-    def _run_segmentation(self):
+    def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
 
-        self.subsegments_manifest_path = os.path.join(self._speaker_dir, 'subsegments.json')
+        self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
+        logging.info(
+            f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
+        )
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             subsegments_manifest_file=self.subsegments_manifest_path,
-            window=self._speaker_params.window_length_in_sec,
-            shift=self._speaker_params.shift_length_in_sec,
+            window=window,
+            shift=shift,
         )
-
         return None
 
     def _perform_speech_activity_detection(self):
@@ -310,7 +318,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
             )
 
-    def _extract_embeddings(self, manifest_file):
+    def _extract_embeddings(self, manifest_file: str):
         """
         This method extracts speaker embeddings from segments passed through manifest_file
         Optionally you may save the intermediate speaker embeddings for debugging or any use. 
@@ -352,9 +360,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 os.makedirs(embedding_dir, exist_ok=True)
 
             prefix = get_uniqname_from_filepath(manifest_file)
-
             name = os.path.join(embedding_dir, prefix)
-            self._embeddings_file = name + '_embeddings.pkl'
+            self._embeddings_file = name + f'_embeddings.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
 
@@ -392,22 +399,30 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         self.AUDIO_RTTM_MAP = audio_rttm_map(self._diarizer_params.manifest_filepath)
 
+        out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
+        os.makedirs(out_rttm_dir, exist_ok=True)
+
         # Speech Activity Detection
         self._perform_speech_activity_detection()
 
         # Segmentation
-        self._run_segmentation()
+        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
 
-        # Embedding Extraction
-        self._extract_embeddings(self.subsegments_manifest_path)
+            # Segmentation for the current scale (scale_idx)
+            self._run_segmentation(window, shift, scale_tag=f'_scale{scale_idx}')
 
-        out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
-        os.makedirs(out_rttm_dir, exist_ok=True)
+            # Embedding Extraction for the current scale (scale_idx)
+            self._extract_embeddings(self.subsegments_manifest_path)
+
+            self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+
+        embs_and_timestamps = get_embs_and_timestamps(
+            self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
+        )
 
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
-            embeddings=self.embeddings,
-            time_stamps=self.time_stamps,
+            embs_and_timestamps=embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,

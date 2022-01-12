@@ -298,14 +298,14 @@ With NeMo and Hydra, every aspect of model training can be modified from the com
 of experiments on compute clusters or for quickly testing parameters while developing.
 
 All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ come with instructions on how to
-run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`_
+run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/asr_ctc/speech_to_text_ctc.py#L24>`_
 for an example).
 
 With Hydra, arguments are set using the ``=`` operator:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         trainer.gpus=2 \
@@ -315,7 +315,7 @@ We can use the ``+`` operator to add arguments from the CLI:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         trainer.gpus=2 \
@@ -326,7 +326,7 @@ We can use the ``~`` operator to remove configurations:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
@@ -338,7 +338,7 @@ We can specify configuration files using the ``--config-path`` and ``--config-na
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
@@ -410,7 +410,7 @@ Optimizers can be configured from the CLI as well:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         ...

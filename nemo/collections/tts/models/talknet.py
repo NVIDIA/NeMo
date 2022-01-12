@@ -29,6 +29,7 @@ from nemo.collections.tts.modules.talknet import GaussianEmbedding, MaskedInstan
 from nemo.core import Exportable
 from nemo.core.classes import ModelPT, PretrainedModelInfo, typecheck
 from nemo.core.neural_types import MelSpectrogramType, NeuralType
+from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, RegressionValuesType, TokenIndex
 
 
 class TalkNetDursModel(ModelPT):
@@ -36,18 +37,20 @@ class TalkNetDursModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
         self.embed = nn.Embedding(len(self.vocab.labels), cfg.d_char)
-        self.model = instantiate(cfg.model)
-        d_out = cfg.model.jasper[-1].filters
+        self.encoder = instantiate(cfg.encoder)
+        d_out = cfg.encoder.jasper[-1].filters
         self.proj = nn.Conv1d(d_out, 1, kernel_size=1)
 
+    @typecheck(
+        input_types={"text": NeuralType(('B', 'T'), TokenIndex()), "text_len": NeuralType(('B'), LengthsType()),}
+    )
     def forward(self, text, text_len):
         x, x_len = self.embed(text).transpose(1, 2), text_len
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(audio_signal=x, length=x_len)
         durs = self.proj(y).squeeze(1)
         return durs
 
@@ -134,20 +137,26 @@ class TalkNetPitchModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
         self.embed = GaussianEmbedding(self.vocab, cfg.d_char)
-        self.model = instantiate(cfg.model)
-        d_out = cfg.model.jasper[-1].filters
+        self.encoder = instantiate(cfg.encoder)
+        d_out = cfg.encoder.jasper[-1].filters
         self.sil_proj = nn.Conv1d(d_out, 1, kernel_size=1)
         self.body_proj = nn.Conv1d(d_out, 1, kernel_size=1)
         self.f0_mean, self.f0_std = cfg.f0_mean, cfg.f0_std
 
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_len": NeuralType(('B'), LengthsType()),
+            "durs": NeuralType(('B', 'T'), LengthsType()),
+        }
+    )
     def forward(self, text, text_len, durs):
         x, x_len = self.embed(text, durs).transpose(1, 2), durs.sum(-1)
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(audio_signal=x, length=x_len)
         f0_sil = self.sil_proj(y).squeeze(1)
         f0_body = self.body_proj(y).squeeze(1)
         return f0_sil, f0_body
@@ -244,7 +253,6 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
 
         cfg = self._cfg
         self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
@@ -253,17 +261,25 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         self.embed = GaussianEmbedding(self.vocab, cfg.d_char)
         self.norm_f0 = MaskedInstanceNorm1d(1)
         self.res_f0 = StyleResidual(cfg.d_char, 1, kernel_size=3)
-        self.model = instantiate(cfg.model)
-        d_out = cfg.model.jasper[-1].filters
+        self.encoder = instantiate(cfg.encoder)
+        d_out = cfg.encoder.jasper[-1].filters
         self.proj = nn.Conv1d(d_out, cfg.n_mels, kernel_size=1)
 
+    @typecheck(
+        input_types={
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_len": NeuralType(('B'), LengthsType()),
+            "durs": NeuralType(('B', 'T'), LengthsType()),
+            "f0": NeuralType(('B', 'T'), RegressionValuesType()),
+        }
+    )
     def forward(self, text, text_len, durs, f0):
         x, x_len = self.embed(text, durs).transpose(1, 2), durs.sum(-1)
         f0, f0_mask = f0.clone(), f0 > 0.0
         f0 = self.norm_f0(f0.unsqueeze(1), f0_mask)
         f0[~f0_mask.unsqueeze(1)] = 0.0
         x = self.res_f0(x, f0)
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(audio_signal=x, length=x_len)
         mel = self.proj(y)
         return mel
 
@@ -324,30 +340,30 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
             tokens = AudioToCharWithDursF0Dataset.merge(tokens, value=self.vocab.pad, dtype=torch.long)
 
         text_len = torch.tensor(tokens.shape[-1], dtype=torch.long).unsqueeze(0)
-        durs = self._durs_model(tokens, text_len)
+        durs = self._durs_model(text=tokens, text_len=text_len)
         durs = durs.exp() - 1
         durs[durs < 0.0] = 0.0
         durs = durs.round().long()
 
         # Pitch
-        f0_sil, f0_body = self._pitch_model(tokens, text_len, durs)
+        f0_sil, f0_body = self._pitch_model(text=tokens, text_len=text_len, durs=durs)
         sil_mask = f0_sil.sigmoid() > 0.5
         f0 = f0_body * self._pitch_model.f0_std + self._pitch_model.f0_mean
         f0 = (~sil_mask * f0).float()
 
         # Spect
-        mel = self(tokens, text_len, durs, f0)
+        mel = self(text=tokens, text_len=text_len, durs=durs, f0=f0)
 
         return mel
 
     def forward_for_export(self, tokens: torch.Tensor, text_len: torch.Tensor):
-        durs = self._durs_model(tokens, text_len)
+        durs = self._durs_model(text=tokens, text_len=text_len)
         durs = durs.exp() - 1
         durs[durs < 0.0] = 0.0
         durs = durs.round().long()
 
         # Pitch
-        f0_sil, f0_body = self._pitch_model(tokens, text_len, durs)
+        f0_sil, f0_body = self._pitch_model(text=tokens, text_len=text_len, durs=durs)
         sil_mask = f0_sil.sigmoid() > 0.5
         f0 = f0_body * self._pitch_model.f0_std + self._pitch_model.f0_mean
         f0 = (~sil_mask * f0).float()
@@ -358,7 +374,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         f0 = self.norm_f0(f0.unsqueeze(1), f0_mask)
         f0[~f0_mask.unsqueeze(1)] = 0.0
         x = self.res_f0(x, f0)
-        y, _ = self.model(x, x_len)
+        y, _ = self.encoder(audio_signal=x, length=x_len)
         mel = self.proj(y)
 
         return mel
@@ -370,23 +386,27 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         Returns:
             List of available pre-trained models.
         """
-        # list_of_models = []
-        # model = PretrainedModelInfo(
-        #     pretrained_model_name="tts_en_talknet",
-        #     location=(
-        #         "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
-        #         "/talknet_spect.nemo"
-        #     ),
-        #     description=(
-        #         "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
-        #         "English voices with an American accent."
-        #     ),
-        #     class_=cls,  # noqa
-        #     aliases=["TalkNet-22050Hz"],
-        # )
-        # list_of_models.append(model)
-        # return list_of_models
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_talknet",
+            location=(
+                "https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_talknet/versions/1.0.0rc1/files"
+                "/talknet_spect.nemo"
+            ),
+            description=(
+                "This model is trained on LJSpeech sampled at 22050Hz, and can be used to generate female "
+                "English voices with an American accent."
+            ),
+            class_=cls,  # noqa
+            aliases=["TalkNet-22050Hz"],
+        )
+        list_of_models.append(model)
+        return list_of_models
 
-        # NOTE: TalkNet loading is currently broken in main and newer. Please revert to r1.2.0 if interested in
-        # TalkNet.
-        pass
+    @classmethod
+    def from_pretrained(cls, model_name: str, *args, **kwargs):
+        """Custom TalkNet's three-part load logic."""
+        model = super().from_pretrained(model_name, *args, **kwargs)
+        model.add_module('_pitch_model', TalkNetPitchModel.from_pretrained(model_name, *args, **kwargs))
+        model.add_module('_durs_model', TalkNetDursModel.from_pretrained(model_name, *args, **kwargs))
+        return model

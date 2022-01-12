@@ -224,14 +224,13 @@ def get_tarred_dataset(
             logging.info(
                 f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
             )
+            for idx, dataset in enumerate(datasets):
+                datasets[idx] = audio_to_text.BucketingDataset(
+                    dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx]
+                )
         else:
             logging.info(
                 f"Batch bucketing is enabled for {len(datasets)} buckets with fixed batch size of {config['batch_size']}!"
-            )
-
-        for idx, dataset in enumerate(datasets):
-            datasets[idx] = audio_to_text.BucketingDataset(
-                dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx]
             )
 
     if len(datasets) > 1:
@@ -250,7 +249,7 @@ def calc_bucketing_batch_sizes(cfg, datasets_len):
         for idx in range(datasets_len):
             scale_factor = datasets_len - idx
             bucketing_batch_sizes.append(scale_factor * cfg['bucketing_batch_size'])
-    elif type(cfg['bucketing_batch_size']) == list:
+    elif isinstance(cfg['bucketing_batch_size'], ListConfig) or isinstance(cfg['bucketing_batch_size'], list):
         bucketing_batch_sizes = cfg['bucketing_batch_size']
     else:
         raise ValueError(
