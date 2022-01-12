@@ -3,8 +3,8 @@ dataset:
   _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
   manifest_filepath: ${validation_datasets}
   max_duration: null
-  min_duration: null
-  n_segments: -1
+  min_duration: 3
+  n_segments: 66048
   trim: false
 dataloader_params:
   drop_last: false
