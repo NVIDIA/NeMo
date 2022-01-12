@@ -694,7 +694,7 @@ class ASR_TIMESTAMPS:
             end_stamp (float):
                 The end time of the session in sec.
 
-        Return:
+        Returns:
             word_timestamps (list):
                 List of the timestamps for the resulting words.
         """
@@ -719,7 +719,7 @@ class ASR_TIMESTAMPS:
         Args:
             logprob (np.ndarray): The log probability from the ASR model inference in numpy array format.
 
-        Return:
+        Returns:
             hyp_words (list):
                 List of words in the hypothesis.
             word_ts (list):

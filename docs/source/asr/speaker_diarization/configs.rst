@@ -1,15 +1,15 @@
 NeMo Speaker Diarization Configuration Files
 ============================================
 
-Since speaker diarization model here is not a fully-trainble End-to-End model but an inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
+Since speaker diarization model here is not a fully-trainable End-to-End model but an inference pipeline, we use **diarizer** instead of **model** which is used in other tasks.
 
-The diarizer section will generally require information about the dataset(s) being used, models used in this pipline, as well as inference related parameters such as postprocessing of each models.
+The diarizer section will generally require information about the dataset(s) being used, models used in this pipeline, as well as inference related parameters such as post processing of each models.
 The sections on this page cover each of these in more detail.
 
-Example configuration files for speaker diarization can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/offline_diarization.yaml>``
+Example configuration files for speaker diarization can be found in ``<NeMo_git_root>/examples/speaker_tasks/diarization/conf/offline_diarization.yaml``
 
 .. note::
-  For model details and deep understanding about configs, finetuning, tuning threshold, and evaluation, 
+  For model details and deep understanding about configs, fine-tuning, tuning threshold, and evaluation, 
   please refer to ``<NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb``;
   for other applications such as possible integration with ASR, have a look at ``<NeMo_git_root>/tutorials/speaker_tasks/ASR_with_SpeakerDiarization.ipynb``.
 
@@ -25,12 +25,11 @@ An example Speaker Diarization dataset Hydra configuration could look like:
 .. code-block:: yaml
 
   diarizer:
-    oracle_num_speakers: ??? # if number of speakers is known input it or pass null if not known. Accepts int or path to file containing uniq-id and num of speakers of that session
-    max_num_speakers: 8 # max number of speakers for each recording. If oracle num speakers is passed this value is ignored
-    out_dir: ??? 
-    paths2audio_files: ??? # file containing paths to audio files for diarzation
-    path2groundtruth_rttm_files: null # (Optional) file containing paths to rttm files (this can be passed if we need to calculate DER rate based on ground truth rttm files).
-    ...
+    manifest_filepath: ???
+    out_dir: ???
+    oracle_vad: False # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
+    collar: 0.25 # Collar value for scoring
+    ignore_overlap: True # Consider or ignore overlap segments while scoring
     
 .. note::
   We expect audio and the corresponding RTTM to have the same base name and the name should be unique.
@@ -91,7 +90,7 @@ The following configuration needs to be appended under ``diarizer`` to run ASR w
 .. code-block:: yaml
 
   asr:
-    model_path: ??? # Provie NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purposes.
+    model_path: ??? # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purposes.
     parameters:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
       asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.

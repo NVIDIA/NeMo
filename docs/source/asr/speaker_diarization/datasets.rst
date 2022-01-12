@@ -12,23 +12,33 @@ Diarization inference is based on Hydra configurations which are fulfilled by ``
 	
 .. code-block:: bash
 
-  {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, label: "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath": "/path/to/uem/file"}
+  {"audio_filepath": "/path/to/abcd.wav", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/abcd.rttm", "uem_filepath": "/path/to/uem/abcd.uem"}
 
-We refer to this file as manifest file and the path of the manifest file should be provided in Hydra configuration as follows:
+In each line in input manifest file, audio_filepath item is mandatory while rest of the items are optional and can be passed for desired diarization setting. We refer to this file as manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``. The following example shows how to run `pathsfiles_to_manifest.py` by providing path list files.
+
+.. code-block:: bash
+   
+    pathsfiles_to_manifest.py --paths2audio_files /path/to/audio_file_list.txt \
+                              --paths2txt_files /path/to/transcript_file_list.txt \
+                              --paths2rttm_files /path/to/rttm_file_list.txt \
+                              --paths2uem_files /path/to/uem_file_list.txt \
+                              --paths2ctm_files /path/to/ctm_file_list.txt \
+                              --manifest_filepath /path/to/manifest_output/input_manifest.json 
+
+The ``--paths2audio_files`` and ``--manifest_filepath`` arguments are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM, UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configration as shown below:
 
 .. code-block:: bash
    
 	diarizer.manifest_filepath="path/to/manifest/input_manifest.json"
 
-In the input manifest file, audio_filepath item is required.
-
+The following are descriptions about each field in an input manifest JSON file.
 
 .. note::
 	We expect all the provided files (e.g. audio, rttm, text) to have the same base name and the name should be unique (uniq-id).
 
 ``audio_filepath`` (Required):
   
-  a file containing absolute paths to audio files or list of paths to audio files. 
+  a string containing absolute paths to audio file.
 
 ``num_speakers`` (Optional):
   
@@ -77,9 +87,9 @@ In the input manifest file, audio_filepath item is required.
 Evaluation on benchmark datasets
 --------------------------------
 
-The following instructions can help you reproduce the expected diarization performance on two English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, speaker error rate (SER) is equal to confusion error since oracle VAD has no miss detection or false alarm.
+The following instructions can help one to reproduce the expected diarization performance on two benchmark English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, speaker error rate (SER) is equal to confusion error since oracle VAD has no miss detection or false alarm.
 
-AMi Meeting Corpus
+AMI Meeting Corpus
 ~~~~~~~~~~~~~~~~~~
 
 The following are the suggested parameters for reproducing the diarization performance for AMI test set.
@@ -87,11 +97,11 @@ The following are the suggested parameters for reproducing the diarization perfo
 .. code-block:: bash
 
   diarizer.manifest_filepath="/path/to/AMItest_input_manifest.json"
-  diarizer.oracle_num_speakers=null # Performing unknown speaker case
+  diarizer.oracle_num_speakers=null # Performing unknown number of speaker case 
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
   diarizer.ignore_overlap=True 
-  diarizer.speaker_embeddings.model_path = ``titanet_large`` 
+  diarizer.speaker_embeddings.model_path ="titanet_large"
   diarizer.speaker_embeddings.window_length_in_sec=[3,1.5,1.0,0.5] # Multiscale setting
   diarizer.speaker_embeddings.shift_length_in_sec=[1.5,0.75,0.5,0.25] # Multiscale setting 
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.4,0.3,0.2,0.1] # More weights on the longer scales
@@ -105,20 +115,20 @@ To evaluate the performance on AMI Meeting Corpus, the following instructions ca
   - Generate an input manifest file using ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``
 
 
-CallHome American English Speech (CHAES), LDC97S42: 2-speaker subset (CH109)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CallHome American English Speech (CHAES), LDC97S42
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CH109 is a subset of the CHAES dataset which has only two speakers in one session. 
+We use CH109 set which is a subset of the CHAES dataset which has only two speakers in one session. 
 The following are the suggested parameters for reproducing the diarization performance for the CH109 set.
 
 .. code-block:: bash
 
   diarizer.manifest_filepath="/path/to/ch109_input_manifest.json"
-  diarizer.oracle_num_speakers=2 (Since there are exactly 2 speakers per each CH109 session)
+  diarizer.oracle_num_speakers=2 # Since there are exactly 2 speakers per each CH109 session
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
   diarizer.ignore_overlap=True 
-  diarizer.speaker_embeddings.model_path = ``titanet_large`` 
+  diarizer.speaker_embeddings.model_path ="titanet_large"
   diarizer.speaker_embeddings.window_length_in_sec=[1.5,1.0,0.5] # Multiscale setting
   diarizer.speaker_embeddings.shift_length_in_sec=[0.75,0.5,0.25] # Multiscale setting
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.33,0.33,0.33] # Equal weights
