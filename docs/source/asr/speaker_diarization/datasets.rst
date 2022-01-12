@@ -25,7 +25,7 @@ In each line of the input manifest file, ``audio_filepath`` item is mandatory wh
                               --paths2ctm_files /path/to/ctm_file_path_list.txt \
                               --manifest_filepath /path/to/manifest_output/input_manifest.json 
 
-The ``--paths2audio_files`` and ``--manifest_filepath`` arguments are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. 
+The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. 
 
 - Example audio file path list ``audio_file_path_list.txt``
 .. code-block:: bash
