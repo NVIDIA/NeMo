@@ -212,7 +212,7 @@ def main():
 
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
 
-    for i, json_file in enumerate(json_files):
+    for json_file in json_files:
         print(f'Processing file {json_file} {i + 1}/{len(json_files)}')
         if json_file.endswith('.gz'):
             fin = gzip.open(json_file, 'r')
