@@ -681,6 +681,13 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.always_save_nemo = always_save_nemo
         self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
+        if self.save_best_model and not self.save_nemo_on_train_end:
+            logging.warning(
+                (
+                    "Found save_best_model is True and save_nemo_on_train_end is False. "
+                    "Set save_nemo_on_train_end to True to automatically save the best model."
+                )
+            )
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
