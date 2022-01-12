@@ -104,7 +104,7 @@ class Encoder(object):
 def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
-    group.add_argument('--input', type=str, required=True, help='Path to input JSON')
+    group.add_argument('--input', type=str, required=True, help='Path to the input json or json.gz file. If preprocessing an entire folder, set the --preproc-folder flag and provide the path to the folder in this arg.')
     group.add_argument(
         '--json-keys', nargs='+', default=['text'], help='space separate listed of keys to extract from json'
     )
@@ -164,7 +164,7 @@ def main():
     startup_start = time.time()
     if args.preproc_folder:
         print('Searching folder for .json or .json.gz files...')
-        assert os.path.exists(args.input), 'Folder does not exist'
+        assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
         files_in_folder = os.listdir(args.input)
         json_files = [
             os.path.join(args.input, f) for f in files_in_folder if f.endswith('.json') or f.endswith('.json.gz')
@@ -174,6 +174,7 @@ def main():
         else:
             print(f'Found {len(json_files)} .json or .json.gz files.')
     else:
+        assert os.path.exists(args.input), f'File does not exist: {args.input}'
         json_files = [args.input]
 
     if nltk_available and args.split_sentences:
