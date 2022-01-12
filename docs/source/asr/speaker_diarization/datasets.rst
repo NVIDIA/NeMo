@@ -80,7 +80,7 @@ The following are descriptions about each field in an input manifest JSON file.
   The UEM file is used for specifying the scoring regions to be evaluated in the given audio file.
   UEMfile follows the following convention: ``<uniq-id> <channel ID> <start time> <end time>``. ``<channel ID>`` is set to 1.
 
-  Example line of UEM file:
+  Example lines of UEM file:
 
 .. code-block:: bash
   
@@ -124,7 +124,7 @@ The following are the suggested parameters for reproducing the diarization perfo
 This setup is expected to reproduce a confusion error rate  of 1.17% on AMI test set.
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
-  - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_.
+  - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_. Choose ``Headset mix`` which has a mono wav file for each session.
   - Download the test set (whitelist) from `Pyannotate AMI test set whitelist <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.lst>`_.
   - The merged RTTM file for AMI test set can be downloaded from `Pyannotate AMI test set RTTM file <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.rttm>`_. Note that this file should be split into individual rttm files. Download split rttm files for AMI test set from `AMI test set split RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/AMI_corpus/test/split_rttms.tar.gz>`_.
   - Generate an input manifest file using ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``
