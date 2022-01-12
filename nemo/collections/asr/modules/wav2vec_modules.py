@@ -151,7 +151,7 @@ class ConvFeatureEncoder(NeuralModule):
             in_d = dim
 
         # Model Layers
-        final_conv_dim = self.layer_cfg[-1][0]  # Select last conv output layer dimension
+        final_conv_dim = self.layer_cfg[-1]["emb_dim"]  # Select last conv output layer dimension
         self.post_extract_proj = (  # To project feature encodings to transformer
             nn.Linear(final_conv_dim, embedding_dim) if final_conv_dim != embedding_dim else None
         )
