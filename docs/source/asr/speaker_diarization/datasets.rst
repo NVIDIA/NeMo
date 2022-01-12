@@ -53,7 +53,7 @@ The following are descriptions about each field in an input manifest JSON file.
 
 ``audio_filepath`` (Required):
   
-  a string containing absolute paths to the audio file.
+  a string containing absolute path to the audio file.
 
 ``num_speakers`` (Optional):
   
