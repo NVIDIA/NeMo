@@ -74,13 +74,13 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         input_example_length = torch.randint(0, 256, (16,)).to(next(self.parameters()).device)
         return tuple([input_example, input_example_length])
 
