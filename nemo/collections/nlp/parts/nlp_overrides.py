@@ -19,6 +19,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -232,6 +233,7 @@ class GradScaler(torch.cuda.amp.GradScaler):
             growth_interval=growth_interval,
             enabled=enabled,
         )
+        self.optimizer_update_skipped: Optional[bool] = None
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
         retval = None
@@ -244,6 +246,9 @@ class GradScaler(torch.cuda.amp.GradScaler):
 
         if found_inf.item() == 0:
             retval = optimizer.step(*args, **kwargs)
+            self.optimizer_update_skipped = False
+        else:
+            self.optimizer_update_skipped = True
         return retval
 
     def update(self, new_scale=None):

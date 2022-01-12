@@ -422,6 +422,8 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
 
 def build_train_valid_test_datasets(
+    cfg,
+    trainer,
     data_prefix,
     data_impl,
     splits_string,
@@ -439,6 +441,8 @@ def build_train_valid_test_datasets(
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
+            cfg,
+            trainer,
             data_prefix[0],
             data_impl,
             splits_string,
@@ -464,6 +468,8 @@ def build_train_valid_test_datasets(
     test_datasets = []
     for i in range(len(prefixes)):
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
             prefixes[i],
             data_impl,
             splits_string,
@@ -500,6 +506,8 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
+    cfg,
+    trainer,
     data_prefix,
     data_impl,
     splits_string,
@@ -522,7 +530,6 @@ def _build_train_valid_test_datasets(
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
 
     if dataset_type == DSET_TYPE_ICT:
-        args = get_args()
         title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
@@ -552,6 +559,7 @@ def _build_train_valid_test_datasets(
     print_split_stats('test', 2)
 
     def build_dataset(index, name):
+        # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
@@ -575,8 +583,21 @@ def _build_train_valid_test_datasets(
                 seed=seed,
             )
 
-            if dataset_type == DSET_TYPE_T5:
+            if dataset_type == DSET_TYPE_ICT:
+                dataset = ICTDataset(
+                    block_dataset=indexed_dataset,
+                    title_dataset=title_dataset,
+                    query_in_block_prob=args.query_in_block_prob,
+                    use_one_sent_docs=args.use_one_sent_docs,
+                    binary_head=binary_head,
+                    **kwargs,
+                )
+            elif dataset_type == DSET_TYPE_T5:
+                assert tokenizer is not None, "Tokenizer is required for T5 dataset"
                 dataset = T5Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,
@@ -692,13 +713,15 @@ def get_samples_mapping(
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
-
         try:
             if is_global_rank_zero():
                 compile_helper()
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
+        except ImportError:
+            raise ImportError(
+                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+            )
+
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
@@ -717,10 +740,8 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
+
     torch.distributed.barrier()
-    # This should be a barrier but nccl barrier assumes
-    # device_index=rank which is not the case for model
-    # parallel case
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())

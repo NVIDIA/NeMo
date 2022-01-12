@@ -350,6 +350,23 @@ class HifiGanModel(Vocoder, Exportable):
             class_=cls,
         )
         list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_hifigan_ft_mixertts",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixertts.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_hifigan_ft_mixerttsx",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixerttsx.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
         return list_of_models
 
     def load_state_dict(self, state_dict, strict=True):

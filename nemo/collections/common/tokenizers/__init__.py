@@ -21,10 +21,12 @@ from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 try:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+    from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
 except ModuleNotFoundError:
     from nemo.utils.exceptions import CheckInstall
 
     # fmt: off
     class AutoTokenizer(CheckInstall): pass
     class SentencePieceTokenizer(CheckInstall): pass
+    class YouTokenToMeTokenizer(CheckInstall): pass
     # fmt: on

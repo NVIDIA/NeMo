@@ -10,7 +10,6 @@ model:
     labels: null
     batch_size: 64
     shuffle: True
-    time_length: 3
     augmentor:
       noise:
         manifest_path: null
@@ -31,7 +30,6 @@ model:
     labels: null
     batch_size: 128
     shuffle: False
-    time_length: 3
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
