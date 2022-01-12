@@ -16,7 +16,7 @@
 # Training the model
 
 Basic run (on CPU for 50 epochs):
-    python examples/asr/speech_to_text_rnnt.py \
+    python examples/asr/asr_transducer/speech_to_text_rnnt.py \
         # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
