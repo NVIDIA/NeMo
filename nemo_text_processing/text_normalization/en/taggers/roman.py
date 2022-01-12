@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, insert_space
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
@@ -37,18 +37,20 @@ class RomanFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="roman", kind="classify", deterministic=deterministic)
 
-        def _load_roman(file: str):
+        def _load_roman(file: str, lm: bool = False):
             roman = load_labels(get_abs_path(file))
-            roman_numerals = [(x, y) for x, y in roman] + [(x.upper(), y) for x, y in roman]
+            roman_numerals = [(x.upper(), y) for x, y in roman]
+            if not lm:
+                roman_numerals += [(x, y) for x, y in roman]
             return pynini.string_map(roman_numerals)
 
         cardinal_graph = CardinalFst(deterministic=True).graph
-        digit_teen = _load_roman("data/roman/digit_teen.tsv") @ cardinal_graph
-        ties = _load_roman("data/roman/ties.tsv") @ cardinal_graph
-        hundreds = _load_roman("data/roman/hundreds.tsv") @ cardinal_graph
+        digit_teen = _load_roman("data/roman/digit_teen.tsv", lm) @ cardinal_graph
+        ties = _load_roman("data/roman/ties.tsv", lm) @ cardinal_graph
+        hundreds = _load_roman("data/roman/hundreds.tsv", lm) @ cardinal_graph
 
         graph = (
             (ties | digit_teen | hundreds)
@@ -57,6 +59,12 @@ class RomanFst(GraphFst):
         ).optimize()
 
         graph = graph + pynini.closure(pynutil.delete("."), 0, 1)
+
+        # A single letter roman numbers are often confused with "I" or initials, add a little weight to make sure
+        # the original token is among non-deterministic options
+        graph = pynutil.add_weight(pynini.compose(NEMO_ALPHA, graph), 1) | (
+            pynini.compose(pynini.closure(NEMO_ALPHA, 2), graph)
+        )
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

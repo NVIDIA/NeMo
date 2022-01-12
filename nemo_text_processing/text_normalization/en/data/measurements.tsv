@@ -1,9 +1,11 @@
-f	fahrenheit
-°f	fahrenheit
-℉	fahrenheit
-c	celsius
-°c	celsius
-℃	celsius
+f	degree Fahrenheit
+°f	degree Fahrenheit
+℉	degree Fahrenheit
+°F	degree Fahrenheit
+c	degree Celsius
+°c	degree Celsius
+°C	degree Celsius
+℃	degree Celsius
 km	kilometer
 m	meter
 cm	centimeter

@@ -59,6 +59,7 @@ class Normalizer:
         cache_dir: str = None,
         overwrite_cache: bool = False,
         whitelist: str = None,
+        lm: bool = False,
     ):
         assert input_case in ["lower_cased", "cased"]
 
@@ -66,7 +67,12 @@ class Normalizer:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'en' and not deterministic:
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
+            if lm:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_lm import ClassifyFst
+            else:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import (
+                    ClassifyFst,
+                )
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'ru':
             # Ru TN only support non-deterministic cases and produces multiple normalization options

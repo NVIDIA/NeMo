@@ -44,9 +44,9 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
-        # TODO repalce to have "oh" as a default for "0"
+        # TODO replace to have "oh" as a default for "0"
         graph = pynini.Far(get_abs_path("data/numbers/cardinal_number_name.far")).get_fst()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
@@ -85,12 +85,8 @@ class CardinalFst(GraphFst):
                 1,
             )
 
-            self.range_graph = pynutil.insert("from ") + self.graph + pynini.cross("-", " to ") + self.graph
-            self.range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
-            self.range_graph |= (
-                pynutil.insert("from ") + get_hundreds_graph() + pynini.cross("-", " to ") + get_hundreds_graph()
-            )
-            self.range_graph = self.range_graph.optimize()
+        if not deterministic or lm:
+            self.range_graph = self.get_range_graph()
 
         serial_graph = self.get_serial_graph()
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
@@ -123,6 +119,20 @@ class CardinalFst(GraphFst):
         final_graph = self.add_tokens(final_graph)
 
         self.fst = final_graph.optimize()
+
+    def get_range_graph(self):
+        range_graph = (
+            pynini.closure(pynutil.insert("from "), 0, 1) + self.graph + pynini.cross("-", " to ") + self.graph
+        )
+        range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
+        range_graph |= (
+            pynini.closure(pynutil.insert("from "), 0, 1)
+            + get_hundreds_graph()
+            + pynini.cross("-", " to ")
+            + get_hundreds_graph()
+        )
+
+        return range_graph.optimize()
 
     def get_serial_graph(self):
         """

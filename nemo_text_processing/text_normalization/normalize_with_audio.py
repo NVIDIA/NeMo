@@ -99,6 +99,7 @@ class NormalizerWithAudio(Normalizer):
         cache_dir: str = None,
         overwrite_cache: bool = False,
         whitelist: str = None,
+        lm: bool = False,
     ):
 
         super().__init__(
@@ -108,6 +109,7 @@ class NormalizerWithAudio(Normalizer):
             cache_dir=cache_dir,
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
+            lm=lm,
         )
 
     def normalize(self, text: str, n_tagged: int, punct_post_process: bool = True, verbose: bool = False,) -> str:
@@ -378,6 +380,7 @@ if __name__ == "__main__":
             cache_dir=args.cache_dir,
             overwrite_cache=args.overwrite_cache,
             whitelist=args.whitelist,
+            lm=True,
         )
 
         if os.path.exists(args.text):

@@ -104,47 +104,48 @@ class ClassifyFst(GraphFst):
         else:
             logging.info(f'Creating ClassifyFst grammars. This might take some time...')
             # TAGGERS
-            cardinal = CardinalFst(deterministic=deterministic)
+            cardinal = CardinalFst(deterministic=True, lm=True)
             cardinal_graph = cardinal.fst
 
-            ordinal = OrdinalFst(cardinal=cardinal, deterministic=deterministic)
+            ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
             ordinal_graph = ordinal.fst
 
-            decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
+            decimal = DecimalFst(cardinal=cardinal, deterministic=True)
             decimal_graph = decimal.fst
-            fraction = FractionFst(deterministic=deterministic, cardinal=cardinal)
+            fraction = FractionFst(deterministic=True, cardinal=cardinal)
             fraction_graph = fraction.fst
 
-            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
+            # use False deterministic for measure to add range graph to cardinal options
+            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
             measure_graph = measure.fst
-            date_graph = DateFst(cardinal=cardinal, deterministic=deterministic).fst
+            date_graph = DateFst(cardinal=cardinal, deterministic=False).fst
             word_graph = WordFst(deterministic=deterministic).graph
-            time_graph = TimeFst(cardinal=cardinal, deterministic=deterministic).fst
-            telephone_graph = TelephoneFst(deterministic=deterministic).fst
-            electronic_graph = ElectronicFst(deterministic=deterministic).fst
-            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=deterministic).fst
+            time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
+            telephone_graph = TelephoneFst(deterministic=True).fst
+            electronic_graph = ElectronicFst(deterministic=True).fst
+            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
             whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
             whitelist_graph = whitelist.graph
-            punct_graph = PunctuationFst(deterministic=deterministic).graph
+            punct_graph = PunctuationFst(deterministic=True).graph
 
             # VERBALIZERS
-            cardinal = vCardinal(deterministic=deterministic)
+            cardinal = vCardinal(deterministic=True)
             v_cardinal_graph = cardinal.fst
-            decimal = vDecimal(cardinal=cardinal, deterministic=deterministic)
+            decimal = vDecimal(cardinal=cardinal, deterministic=True)
             v_decimal_graph = decimal.fst
-            ordinal = vOrdinal(deterministic=deterministic)
+            ordinal = vOrdinal(deterministic=True)
             v_ordinal_graph = ordinal.fst
-            fraction = vFraction(deterministic=deterministic)
+            fraction = vFraction(deterministic=True, lm=True)
             v_fraction_graph = fraction.fst
-            v_telephone_graph = vTelephone(deterministic=deterministic).fst
-            v_electronic_graph = vElectronic(deterministic=deterministic).fst
-            measure = vMeasure(decimal=decimal, cardinal=cardinal, fraction=fraction, deterministic=deterministic)
+            v_telephone_graph = vTelephone(deterministic=True).fst
+            v_electronic_graph = vElectronic(deterministic=True).fst
+            measure = vMeasure(decimal=decimal, cardinal=cardinal, fraction=fraction, deterministic=False)
             v_measure_graph = measure.fst
-            v_time_graph = vTime(deterministic=deterministic).fst
-            v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic).fst
+            v_time_graph = vTime(deterministic=True).fst
+            v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic, lm=True).fst
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
-            v_roman_graph = vRoman(deterministic=deterministic).fst
-            v_abbreviation = vAbbreviation(deterministic=deterministic).fst
+            # v_roman_graph = vRoman(deterministic=deterministic).fst
+            # v_abbreviation = vAbbreviation(deterministic=deterministic).fst
 
             classify_and_verbalize = (
                 pynutil.add_weight(whitelist_graph, 1.01)
@@ -161,13 +162,13 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
             ).optimize()
 
-            if not deterministic:
-                roman_graph = RomanFst(deterministic=deterministic).fst
-                # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-                classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 100)
+            # if not deterministic:
+            #     roman_graph = RomanFst(deterministic=deterministic, lm=True).fst
+            #     # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+            #     classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 100)
 
-                abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
-                classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
+            # abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
+            # classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
             punct_only = pynutil.add_weight(punct_graph, weight=20.1)
             punct = pynini.closure(

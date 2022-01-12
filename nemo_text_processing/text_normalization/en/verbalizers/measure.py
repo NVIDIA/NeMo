@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -44,7 +44,7 @@ class MeasureFst(GraphFst):
         optional_sign = cardinal.optional_sign
         unit = (
             pynutil.delete("units: \"")
-            + pynini.difference(pynini.closure(NEMO_CHAR - " ", 1), pynini.union("address", "math"))
+            + pynini.difference(pynini.closure(NEMO_NOT_QUOTE, 1), pynini.union("address", "math"))
             + pynutil.delete("\"")
             + delete_space
         )

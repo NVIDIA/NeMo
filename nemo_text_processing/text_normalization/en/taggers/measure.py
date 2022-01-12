@@ -61,10 +61,24 @@ class MeasureFst(GraphFst):
             cardinal_graph |= cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit)
+        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit).optimize()
 
-        graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
+        graph_unit_no_degrees = pynini.compose(
+            graph_unit, pynini.difference(NEMO_SIGMA, pynini.union("degree Celsius", "degree Fahrenheit"))
+        ).optimize()
+
+        graph_unit_plural = convert_space(graph_unit_no_degrees @ SINGULAR_TO_PLURAL)
+        graph_unit_plural |= pynini.compose(
+            pynini.compose(graph_unit, pynini.accep("degree Celsius")),
+            pynini.cross("degree Celsius", "degrees Celsius"),
+        ).optimize()
+        graph_unit_plural |= pynini.compose(
+            pynini.compose(graph_unit, pynini.accep("degree Fahrenheit")),
+            pynini.cross("degree Fahrenheit", "degrees Fahrenheit"),
+        ).optimize()
+        graph_unit_plural = graph_unit_plural.optimize()
         graph_unit = convert_space(graph_unit)
+
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         graph_unit2 = pynini.cross("/", "per") + delete_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit
@@ -202,6 +216,7 @@ class MeasureFst(GraphFst):
             | address
             | math
         )
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 

@@ -36,7 +36,7 @@ class FractionFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="fraction", kind="verbalize", deterministic=deterministic)
         suffix = OrdinalFst().suffix
 
@@ -48,7 +48,7 @@ class FractionFst(GraphFst):
         )
 
         conjunction = pynutil.insert("and ")
-        if not deterministic:
+        if not deterministic and not lm:
             conjunction = pynini.closure(conjunction, 0, 1)
 
         integer = pynini.closure(integer + insert_space + conjunction, 0, 1)
