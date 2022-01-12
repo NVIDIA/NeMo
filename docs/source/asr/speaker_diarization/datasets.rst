@@ -42,7 +42,7 @@ The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. 
 
 The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configuration as shown below:
 
-.. code-block:: bash
+.. code-block:: yaml
    
 	diarizer.manifest_filepath="path/to/manifest/input_manifest.json"
 
