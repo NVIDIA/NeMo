@@ -5,7 +5,7 @@ This page is about preparing input dataset for diarization inference. To train o
 for preparing datasets for training and validating VAD and speaker embedding models respectively. 
 
 
-Preparation of input data
+Preparation of Input Data
 -------------------------
 
 Diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See `NeMo Speaker Diarization Configuration Files <../configs>`_ for setting up the input Hydra configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
@@ -99,7 +99,7 @@ The following are descriptions about each field in an input manifest JSON file.
    TS3012d.Mix-Headset MTD046ID 13.203 0.24 yeah 0
 
 
-Evaluation on benchmark datasets
+Evaluation on Benchmark Datasets
 --------------------------------
 
 The following instructions can help one to reproduce the expected diarization performance on two benchmark English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, speaker error rate (SER) is equal to confusion error since oracle VAD has no miss detection or false alarm.
