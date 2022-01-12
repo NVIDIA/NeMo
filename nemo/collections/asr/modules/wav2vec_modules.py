@@ -19,7 +19,7 @@
 
 import math
 import random
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import torch
 from omegaconf import DictConfig
@@ -96,7 +96,7 @@ class ConvFeatureEncoder(NeuralModule):
 
     def __init__(
         self,
-        conv_layers: List[Tuple[int, int, int]],
+        conv_layers: List[Dict[str, int]],
         extractor_mode: str = "layer_norm",
         conv_bias: bool = False,
         feature_grad_mult=1.0,
@@ -205,8 +205,8 @@ class ConvFeatureEncoder(NeuralModule):
     def get_lengths(self, audio_lengths):
         # converts audio lengths to timestep lengths
         for conv in self.layer_cfg:
-            kernel = conv[1]
-            stride = conv[2]
+            kernel = conv["kernel_size"]
+            stride = conv["stride"]
             audio_lengths = (
                 torch.div(audio_lengths - kernel, stride, rounding_mode='floor') + 1
             )  # from pytorch documentation
