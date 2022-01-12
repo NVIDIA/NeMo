@@ -66,10 +66,12 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
 
         self.spec_augmentation = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.spec_augment)
 
-        # Dropouts and norms
+        # dropout for features/spectrograms (applied before masking)
         self.dropout_features = (
             torch.nn.Dropout(self._cfg.dropout_features) if "dropout_features" in self._cfg else None
         )
+
+        # dropout for targets (applied before quantization)
         self.dropout_features_q = (
             torch.nn.Dropout(self._cfg.dropout_features_q) if "dropout_features_q" in self._cfg else None
         )

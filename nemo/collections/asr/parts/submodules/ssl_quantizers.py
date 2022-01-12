@@ -21,6 +21,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from nemo.collections.asr.parts.submodules.jasper import jasper_activations
 from nemo.core import NeuralModule
 from nemo.core.neural_types import EncodedRepresentation, LossType, NeuralType
 
@@ -35,7 +36,7 @@ class GumbelVectorQuantizer(NeuralModule):
         combine_groups,
         vq_dim,
         time_first,
-        activation=nn.GELU(),
+        activation="gelu",
         weight_proj_depth=1,
         weight_proj_factor=1,
     ):
@@ -71,6 +72,7 @@ class GumbelVectorQuantizer(NeuralModule):
         nn.init.uniform_(self.vars)
 
         if weight_proj_depth > 1:
+            activation = jasper_activations["gelu"]
 
             def block(input_dim, output_dim):
                 return nn.Sequential(nn.Linear(input_dim, output_dim), activation)

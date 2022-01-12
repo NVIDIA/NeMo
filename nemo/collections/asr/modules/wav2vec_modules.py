@@ -57,8 +57,10 @@ class SamePad(torch.nn.Module):
 
 class ConvFeatureEncoder(NeuralModule):
     """
-        Converts input raw audio into features for downstream transformer model.
-        Uses 1D convolutional blocks with GeLU activation.
+		Encoder used to isolate features in raw audio for Wav2Vec style training.
+		Treated as preprocessor module in NeMo ASR training. Defaults values are
+		for base model found in Baeski et al (https://arxiv.org/abs/2006.11477),
+		save for use of layer normalization as default schema. (Chosen for stability.) 
     """
 
     @property
@@ -133,7 +135,7 @@ class ConvFeatureEncoder(NeuralModule):
         self.mode = extractor_mode
         for i, cl in enumerate(conv_layers):
             assert len(cl) == 3, "invalid conv definition: " + str(cl)
-            (dim, k, stride) = cl
+            dim, k, stride = cl["emb_dim"], cl["kernel_size"], cl["stride"]
 
             self.conv_layers.append(
                 block(
@@ -212,6 +214,37 @@ class ConvFeatureEncoder(NeuralModule):
 
 
 class Wav2VecTransformerEncoder(TransformerEncoder):
+    """
+		Encoder module following Transformer encoder paradigm 
+		as described in Vaswani et al. (https://arxiv.org/abs/1706.03762). Used for Wav2Vec
+		style encoding of context vectors as described by in Baeski et al (https://arxiv.org/abs/2006.11477).
+		Takes convolutional encodings of all time steps and adds to features before applying series
+		of self-attention layers. 
+		
+		Example configs may be found at: https://github.com/NVIDIA/NeMo/tree/main/examples/asr/conf/wav2vec
+
+		Args:
+			layer_drop: Floating point value specifying proportion of module for layer dropout (See Fan et al. https://arxiv.org/pdf/1909.11556.pdf).
+				If non-zero, each layer will draw from uniform probability to determine if applied in current forward call.
+				Occurs only during training step
+			pos_embed: Config specifying parameters for contextual embedding convolutions. Module configures convolutional padding
+				to maintain number of time steps
+				Must contain following:
+					embedding_dim: Depth/number of channels of each time step from feature encoding 
+					conv_pos: Kernel size for convolution
+					conv_pos_groups: Number of groups for convolution
+			transformer: Config for transformer encoder. Uses self-attention layers found in: nemo.collections.nlp.modules.common.transformer
+				Must contain followign:
+					num_layers: Number of attention layers 
+					hidden_size: Expected input depth (embedding size between model layers)
+					inner_size: Depth of embeddings within feed-forward sections of encoder layers
+					num_attention_heads: Number of attention heads
+					attn_score_dropout: Probability of dropout applied to attention scores
+					attn_layer_dropout: Probability of dropout applied to the output of the attention layers (prior to normalization)
+					ffn_dropout: Probability of dropout applied to feed-forward modules
+					hidden_act: Activation function for hidden layers
+    """
+
     def __init__(self, pos_embed: DictConfig, transformer: DictConfig, layer_drop: float = 0.0):
         super().__init__(**transformer)  # see nlp.collections
 
