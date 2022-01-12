@@ -104,7 +104,12 @@ class Encoder(object):
 def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
-    group.add_argument('--input', type=str, required=True, help='Path to the input json or json.gz file. If preprocessing an entire folder, set the --preproc-folder flag and provide the path to the folder in this arg.')
+    group.add_argument(
+        '--input',
+        type=str,
+        required=True,
+        help='Path to the input json or json.gz file. If preprocessing an entire folder, set the --preproc-folder flag and provide the path to the folder in this arg.',
+    )
     group.add_argument(
         '--json-keys', nargs='+', default=['text'], help='space separate listed of keys to extract from json'
     )
