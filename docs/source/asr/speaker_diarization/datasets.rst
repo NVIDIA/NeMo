@@ -1,7 +1,7 @@
 Datasets
 ========
 
-This page is about preparing input dataset for diarization inference. To train or fine-tune speaker diarization system, the speaker embedding extractor should be trained or fine-tuned separately. Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` 
+This page is about preparing input dataset for diarization inference. To train or fine-tune the speaker diarization system, the speaker embedding extractor should be trained or fine-tuned separately. Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` 
 for preparing datasets for training and validating VAD and speaker embedding models respectively. 
 
 
@@ -14,18 +14,33 @@ Diarization inference is based on Hydra configurations which are fulfilled by ``
 
   {"audio_filepath": "/path/to/abcd.wav", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/abcd.rttm", "uem_filepath": "/path/to/uem/abcd.uem"}
 
-In each line of the input manifest file, ``audio_filepath`` item is mandatory while rest of the items are optional and can be passed for desired diarization setting. We refer to this file as manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``. The following example shows how to run `pathsfiles_to_manifest.py` by providing path list files.
+In each line of the input manifest file, ``audio_filepath`` item is mandatory while the rest of the items are optional and can be passed for desired diarization setting. We refer to this file as a manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``. The following example shows how to run ``pathsfiles_to_manifest.py`` by providing path list files.
 
 .. code-block:: bash
    
-    pathsfiles_to_manifest.py --paths2audio_files /path/to/audio_file_list.txt \
-                              --paths2txt_files /path/to/transcript_file_list.txt \
-                              --paths2rttm_files /path/to/rttm_file_list.txt \
-                              --paths2uem_files /path/to/uem_file_list.txt \
-                              --paths2ctm_files /path/to/ctm_file_list.txt \
+    pathsfiles_to_manifest.py --paths2audio_files /path/to/audio_file_path_list.txt \
+                              --paths2txt_files /path/to/transcript_file_path_list.txt \
+                              --paths2rttm_files /path/to/rttm_file_path_list.txt \
+                              --paths2uem_files /path/to/uem_file_path_list.txt \
+                              --paths2ctm_files /path/to/ctm_file_path_list.txt \
                               --manifest_filepath /path/to/manifest_output/input_manifest.json 
 
-The ``--paths2audio_files`` and ``--manifest_filepath`` arguments are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configration as shown below:
+The ``--paths2audio_files`` and ``--manifest_filepath`` arguments are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. 
+
+- Example audio file path list ``audio_file_path_list.txt``
+.. code-block:: bash
+
+  /path/to/abcd01.wav
+  /path/to/abcd02.wav
+
+- Example RTTM file path list ``rttm_file_path_list.txt``
+.. code-block:: bash
+  
+  /path/to/abcd01.rttm
+  /path/to/abcd02.rttm
+   
+
+The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configuration as shown below:
 
 .. code-block:: bash
    
@@ -38,7 +53,7 @@ The following are descriptions about each field in an input manifest JSON file.
 
 ``audio_filepath`` (Required):
   
-  a string containing absolute paths to audio file.
+  a string containing absolute paths to the audio file.
 
 ``num_speakers`` (Optional):
   
@@ -62,7 +77,7 @@ The following are descriptions about each field in an input manifest JSON file.
 
 ``uem_filepath`` (Optional):
 
-  UEM file is used for specifying the scoring regions to be evaluated in the given audio file.
+  The UEM file is used for specifying the scoring regions to be evaluated in the given audio file.
   UEMfile follows the following convention: ``<uniq-id> <channel ID> <start time> <end time>``. ``<channel ID>`` is set to 1.
 
   Example line of UEM file:
@@ -74,7 +89,7 @@ The following are descriptions about each field in an input manifest JSON file.
 
 ``ctm_filepath`` (Optional):
     
-  CTM file is used for the evaluation of word-level diarization result and word-timestamp alignment. CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>`` Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM. 
+  CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>`` Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM. 
 
   Example lines of CTM file:
 
@@ -106,7 +121,7 @@ The following are the suggested parameters for reproducing the diarization perfo
   diarizer.speaker_embeddings.shift_length_in_sec=[1.5,0.75,0.5,0.25] # Multiscale setting 
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.4,0.3,0.2,0.1] # More weights on the longer scales
 
-This setup is expected to reproduce speaker error rate  of 1.17% on AMI test set.
+This setup is expected to reproduce a confusion error rate  of 1.17% on AMI test set.
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_.
@@ -118,7 +133,7 @@ To evaluate the performance on AMI Meeting Corpus, the following instructions ca
 CallHome American English Speech (CHAES), LDC97S42
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We use CH109 set which is a subset of the CHAES dataset which has only two speakers in one session. 
+We use the CH109 set which is a subset of the CHAES dataset which has only two speakers in one session. 
 The following are the suggested parameters for reproducing the diarization performance for the CH109 set.
 
 .. code-block:: bash
@@ -133,7 +148,7 @@ The following are the suggested parameters for reproducing the diarization perfo
   diarizer.speaker_embeddings.shift_length_in_sec=[0.75,0.5,0.25] # Multiscale setting
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.33,0.33,0.33] # Equal weights
 
-This setup is expected to reproduce confusion error of 0.94% on CH109 set.
+This setup is expected to reproduce a confusion error of 0.94% on CH109 set.
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available).

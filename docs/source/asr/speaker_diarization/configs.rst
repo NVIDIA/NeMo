@@ -18,7 +18,7 @@ Dataset Configuration
 ---------------------
 
 In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline.
-Datasets here denotes the data you would like to perform speaker diarization on. 
+Datasets here denote the data you would like to perform speaker diarization on. 
 
 An example Speaker Diarization dataset Hydra configuration could look like:
 
@@ -46,7 +46,7 @@ Parameters for VAD model and speaker embedding model are provided in the followi
     model_path: null # .nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
 
-    parameters: # Tuned parameter for CH109 (using the 11 multi-speaker sessions as dev set) 
+    parameters: # Tuned parameters for CH109 (using the 11 multi-speaker sessions as dev set) 
       window_length_in_sec: 0.15  # Window length in sec for VAD context input 
       shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
       smoothing: "median" # False or type of smoothing method (eg: median)
@@ -70,7 +70,7 @@ Parameters for VAD model and speaker embedding model are provided in the followi
 Configuration for Clustering in Diarization
 -------------------------------------------
 
-Parameters for clustering algorithm is provided in the following Hydra config example.
+Parameters for clustering algorithm are provided in the following Hydra config example.
 
 .. code-block:: yaml
   
