@@ -746,7 +746,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         """
         self.source_processor, self.target_processor = None, None
 
-        if self.encoder_tokenizer_library == 'byte-level2':
+        if self.encoder_tokenizer_library == 'byte-level':
             self.source_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.source_processor = EnJaProcessor(source_lang)
@@ -759,7 +759,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         elif source_lang == 'ignore':
             self.source_processor = None
 
-        if self.decoder_tokenizer_library == 'byte-level2':
+        if self.decoder_tokenizer_library == 'byte-level':
             self.target_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.target_processor = EnJaProcessor(target_lang)
