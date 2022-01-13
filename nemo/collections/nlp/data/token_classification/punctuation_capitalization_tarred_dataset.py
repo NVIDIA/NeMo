@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import json
 import multiprocessing as mp
 import os
@@ -22,10 +23,10 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
 
+import numpy as np
 import torch
 import webdataset as wds
 from joblib import Parallel, delayed
-from numpy.typing import ArrayLike
 from omegaconf import DictConfig
 from torch.utils.data import IterableDataset
 
@@ -50,6 +51,8 @@ TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{fragment_idx}.num_batches{num_batches}.{
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
+NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"[^a-zA-Z0-9_.-]")
+REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"-*[^a-zA-Z0-9_.-]+-*")
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
@@ -380,7 +383,7 @@ def check_label_ids(pad_label: str, punct_label_ids: Dict[str, int], capit_label
 
 
 def process_error(msg: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]]) -> None:
-    if issubclass(error_class_or_function, Exception):
+    if inspect.isclass(error_class_or_function) and issubclass(error_class_or_function, Exception):
         raise error_class_or_function(msg)
     if callable(error_class_or_function):
         error_class_or_function(msg)
@@ -630,6 +633,20 @@ def create_metadata_file(
         json.dump(metadata, f, indent=2)
 
 
+def check_tar_file_prefix(
+    tar_file_prefix: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]], var_name: str
+) -> None:
+    not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(tar_file_prefix)
+    if not_allowed_characters_in_prefix:
+        not_allowed_characters_in_prefix = set(not_allowed_characters_in_prefix)
+        msg = (
+            f"Found {len(not_allowed_characters_in_prefix)} not allowed characters in `{var_name}`. Only 'A-Z', "
+            f"'a-z', '0-9', '_', '-', '.' characters are allowed. Examples of not allowed characters: "
+            f"{list(not_allowed_characters_in_prefix)[:10]}. `{var_name}`[:30]={repr(tar_file_prefix)[:30]}."
+        )
+        process_error(msg, error_class_or_function)
+
+
 def create_tarred_dataset(
     text_file: Union[os.PathLike, str],
     labels_file: Union[os.PathLike, str],
@@ -730,10 +747,11 @@ def create_tarred_dataset(
         capit_label_vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): same as ``punct_label_vocab_file`` for
             capitalization labels.
         tar_file_prefix (:obj:`str`, `optional`, defaults :obj:`'punctuation_capitalization'`): a string from which tar
-            file names start.
+            file names start. The string can contain only characters ``A-Z``, ``a-z``, ``0-9``, ``_``, ``-``, ``.``.
         n_jobs (:obj:`int`, `optional`): a number of workers for creating tarred dataset. If ``None``, then ``n_jobs``
             is equal to number of CPUs.
     """
+    check_tar_file_prefix(tar_file_prefix, ValueError, 'tar_file_prefix')
     if n_jobs is None:
         n_jobs = mp.cpu_count()
     text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
@@ -742,7 +760,7 @@ def create_tarred_dataset(
         prefix=tar_file_prefix,
         tokens_in_batch=tokens_in_batch,
         max_seq_length=max_seq_length,
-        tokenizer=tokenizer_name,
+        tokenizer=REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.sub('-', tokenizer_name),
     )
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
@@ -1045,7 +1063,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
         return punct_label_ids_file, capit_label_ids_file
 
-    def _build_sample(self, batch: Tuple[str, Dict[str, ArrayLike]]) -> Dict[str, ArrayLike]:
+    def _build_sample(self, batch: Tuple[str, Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
         """
         Takes batch loaded from tarred dataset and transforms it for passing to the model. Adds ``'segment_ids'``,
         ``'input_mask'``, ``'loss_mask'`` items to the batch.
@@ -1080,13 +1098,13 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         batch['loss_mask'] = batch_loss_mask
         return batch
 
-    def __iter__(self) -> Iterator[Dict[str, ArrayLike]]:
+    def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
         """
         Constructs an iterator of batches. The values of one batch dictionary are numpy arrays of identical shapes
         ``[Batch, Time]``.
 
         Returns:
-            :obj:`Iterator[Dict[str, ArrayLike]]`: an iterator of batches with items:
+            :obj:`Iterator[Dict[str, np.ndarray]]`: an iterator of batches with items:
 
               - ``'input_ids'``: ``np.int32`` array containing encoded tokens,
               - ``'subtokens_mask'``: ``bool`` array which elements are ``True`` if they correspond to first token in
@@ -1105,7 +1123,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         return self.length
 
     @staticmethod
-    def collate_fn(batches: List[Dict[str, ArrayLike]]) -> Dict[str, torch.Tensor]:
+    def collate_fn(batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Return zeroth batch of ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
@@ -1116,7 +1134,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             ``batch size`` parameter of a PyTorch data loader and sampler has to be ``1``.
 
         Args:
-            batches (:obj:`List[Dict[str, ArrayLike]]`): a list of batches passed for collating
+            batches (:obj:`List[Dict[str, np.ndarray]]`): a list of batches passed for collating
 
         Returns:
             :obj:`Dict[str, torch.Tensor]`: a batch dictionary with following items (for detailed description of batch

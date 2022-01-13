@@ -473,12 +473,11 @@ class ASR_DIAR_OFFLINE(object):
             word_dict_seq_list.append(
                 {'word': words[j], 'start_time': stt_sec, 'end_time': end_sec, 'speaker_label': speaker}
             )
-            gecko_dict = od({'schemaVersion': 2.0, 'monologues': []})
+        return word_dict_seq_list
 
-            start_point, end_point, speaker = labels[0].split()
-            words = word_list[k]
-            prev_speaker = ''
-            terms_list = []
+    def make_json_output(self, uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict):
+        """
+        Generate json output files and transcripts from the ASR and diarization results.
 
         Args:
             uniq_id (str):
@@ -488,30 +487,37 @@ class ASR_DIAR_OFFLINE(object):
             word_dict_seq_list (list):
                 List containing words and corresponding word timestamps in dictionary format.
 
-                word_pos = (word_ts_stt_end[0] + word_ts_stt_end[1]) / 2
-                if word_pos < float(end_point):
-                    string_out = self.print_word(string_out, words[j], self.params)
-                else:
-                    idx += 1
-                    idx = min(idx, len(labels) - 1)
-                    start_point, end_point, speaker = labels[idx].split()
-                    string_out = self.print_time(string_out, speaker, start_point, end_point, self.params)
-                    string_out = self.print_word(string_out, words[j], self.params)
+        Returns:
+            total_riva_dict (dict):
+                A dictionary containing overall results of diarization and ASR inference.
+        """
+        word_seq_list, audacity_label_words = [], []
+        labels = diar_hyp[uniq_id]
+        n_spk = self.get_num_of_spk_from_labels(labels)
+        riva_dict = od(
+            {'status': 'Success', 'session_id': uniq_id, 'transcription': '', 'speaker_count': n_spk, 'words': [],}
+        )
+        gecko_dict = od({'schemaVersion': 2.0, 'monologues': []})
+        start_point, end_point, speaker = labels[0].split()
+        string_out = self.print_time(speaker, start_point, end_point, self.params, previous_string='')
+        prev_speaker = speaker
+        terms_list = []
 
-                stt_sec, end_sec = round(word_ts_stt_end[0], 2), round(word_ts_stt_end[1], 2)
-                riva_dict = self.add_json_to_dict(riva_dict, words[j], stt_sec, end_sec, speaker)
-
-                if speaker != prev_speaker:
-                    if len(terms_list) != 0:
-                        gecko_dict['monologues'].append(
-                            {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
-                        )
+        logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
+        for k, line_dict in enumerate(word_dict_seq_list):
+            word, speaker = line_dict['word'], line_dict['speaker_label']
+            word_seq_list.append(word)
+            start_point, end_point = line_dict['start_time'], line_dict['end_time']
+            if speaker != prev_speaker:
+                if len(terms_list) != 0:
+                    gecko_dict['monologues'].append(
+                        {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
+                    )
                     terms_list = []
-                    prev_speaker = speaker
-                terms_list.append({'start': stt_sec, 'end': end_sec, 'text': words[j], 'type': 'WORD'})
-
-                audacity_label_words = self.get_audacity_label(
-                    words[j], stt_sec, end_sec, speaker, audacity_label_words
+                string_out = self.print_time(speaker, start_point, end_point, self.params, previous_string=string_out)
+            else:
+                string_out = self.print_time(
+                    speaker, start_point, end_point, self.params, previous_string=string_out, replace_time=True
                 )
             stt_sec, end_sec = round(start_point, 2), round(end_point, 2)
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
@@ -528,9 +534,20 @@ class ASR_DIAR_OFFLINE(object):
         self.write_and_log(uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict)
         return total_riva_dict
 
-            total_riva_dict[uniq_id] = riva_dict
-            gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
-            self.write_and_log(uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict)
+    def get_realignment_ranges(self, k, word_seq_len):
+        """
+        Calculate word ranges for realignment operation.
+        N1, N2 are calculated to not exceed the start and end of the input word sequence.
+        """
+        if k < self.N_range[1]:
+            N1 = max(k, self.N_range[0])
+            N2 = min(word_seq_len - k, self.N_range[1])
+        elif k > (word_seq_len - self.N_range[1]):
+            N1 = min(k, self.N_range[1])
+            N2 = max(word_seq_len - k, self.N_range[0])
+        else:
+            N1, N2 = self.N_range[1], self.N_range[1]
+        return N1, N2
 
     def get_word_timestamp_anchor(self, word_ts_stt_end: List[float]) -> float:
         """
@@ -942,10 +959,10 @@ class ASR_DIAR_OFFLINE(object):
         return '\n'.join(return_string_out)
 
     def write_and_log(self, uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict):
-        """Writes output files and display logging messages.
+        """
+        Write output files and displays logging messages.
         """
         ROOT = self.root_path
-        logging.info(f"Writing files for id:{uniq_id} at {ROOT}/pred_rttms/")
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}.json', riva_dict)
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
         write_txt(f'{ROOT}/pred_rttms/{uniq_id}.txt', string_out.strip())

@@ -161,8 +161,9 @@ class DateFst(GraphFst):
 
         day_graph = (
             pynutil.insert("day: \"")
+            + pynini.closure(pynutil.delete("the "), 0, 1)
             + (
-                ((pynini.union("1", "2", "3") + NEMO_DIGIT) | NEMO_DIGIT)
+                ((pynini.union("1", "2") + NEMO_DIGIT) | NEMO_DIGIT | (pynini.accep("3") + pynini.union("0", "1")))
                 + pynini.closure(pynutil.delete(endings), 0, 1)
             )
             @ cardinal_graph
