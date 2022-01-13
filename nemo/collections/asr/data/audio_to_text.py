@@ -126,6 +126,7 @@ class ASRManifestProcessor:
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
+        index_by_file_id: bool = False,
     ):
         self.parser = parser
 
@@ -135,15 +136,23 @@ class ASRManifestProcessor:
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
+            index_by_file_id=index_by_file_id,
         )
 
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.pad_id = pad_id
 
-    def process_text(self, index) -> (List[int], int):
+    def process_text_by_id(self, index: int) -> (List[int], int):
         sample = self.collection[index]
+        return self.process_text_by_sample(sample)
 
+    def process_text_by_file_id(self, file_id: str) -> (List[int], int):
+        manifest_idx = self.collection.mapping[file_id]
+        sample = self.collection[manifest_idx]
+        return self.process_text_by_sample(sample)
+
+    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> (List[int], int):
         t, tl = sample.text_tokens, len(sample.text_tokens)
 
         if self.bos_id is not None:
@@ -241,7 +250,7 @@ class _AudioTextDataset(Dataset):
         )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
-        t, tl = self.manifest_processor.process_text(index)
+        t, tl = self.manifest_processor.process_text_by_sample(sample=sample)
 
         if self.return_sample_id:
             output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
@@ -1015,12 +1024,15 @@ class _TarredAudioToTextDataset(IterableDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
-        self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath,
+        self.manifest_processor = ASRManifestProcessor(
+            manifest_filepath=manifest_filepath,
             parser=parser,
-            min_duration=min_duration,
             max_duration=max_duration,
-            max_number=max_utts,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
 
@@ -1113,7 +1125,7 @@ class _TarredAudioToTextDataset(IterableDataset):
                     if file_id in self.collection.mapping:
                         return audio_bytes, audio_filename
 
-        return TarredAudioFilter(self.collection)
+        return TarredAudioFilter(self.manifest_processor.collection)
 
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, self.pad_id)
@@ -1123,10 +1135,10 @@ class _TarredAudioToTextDataset(IterableDataset):
         """
         audio_bytes, audio_filename = tup
 
-        # Grab manifest entry from self.collection
+        # Grab manifest entry from self.manifest_preprocessor.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
-        manifest_idx = self.collection.mapping[file_id]
-        manifest_entry = self.collection[manifest_idx]
+        manifest_idx = self.manifest_processor.collection.mapping[file_id]
+        manifest_entry = self.manifest_processor.collection[manifest_idx]
 
         offset = manifest_entry.offset
         if offset is None:
@@ -1148,6 +1160,9 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         # Text features
         t, tl = manifest_entry.text_tokens, len(manifest_entry.text_tokens)
+
+        self.manifest_processor.process_text_by_sample(sample=manifest_entry)
+
         if self.bos_id is not None:
             t = [self.bos_id] + t
             tl += 1
@@ -1161,13 +1176,13 @@ class _TarredAudioToTextDataset(IterableDataset):
             return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
     def get_manifest_sample(self, sample_id):
-        return self.collection[sample_id]
+        return self.manifest_processor.collection[sample_id]
 
     def __iter__(self):
         return self._dataset.__iter__()
 
     def __len__(self):
-        return len(self.collection)
+        return len(self.manifest_processor.collection)
 
 
 class TarredAudioToCharDataset(_TarredAudioToTextDataset):

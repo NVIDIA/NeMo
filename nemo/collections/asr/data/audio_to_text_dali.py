@@ -17,6 +17,7 @@ import operator
 from collections.abc import Iterator
 from typing import Callable, List, Optional, Union
 
+import numpy as np
 import torch
 from omegaconf import DictConfig
 
@@ -27,6 +28,7 @@ from nemo.utils.decorators import experimental
 
 try:
     import nvidia.dali as dali
+    from nvidia.dali.fn import decoders
     from nvidia.dali.pipeline import Pipeline
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
     from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
@@ -150,6 +152,7 @@ class _AudioTextDALIDataset(Iterator):
         batch_size: int,
         parser: Union[str, Callable],
         audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
+        audio_tar_index_filepaths: Optional[Union[str, List[str]]] = None,
         sample_rate: int = 16000,
         num_threads: int = 4,
         max_duration: float = 0.0,
@@ -321,22 +324,53 @@ class _AudioTextDALIDataset(Iterator):
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
         with self.pipe:
-            audio, indices = dali.fn.readers.nemo_asr(
-                name="Reader",
-                manifest_filepaths=manifest_filepath.split(','),
-                dtype=dali.types.FLOAT,
-                downmix=True,
-                sample_rate=float(self.sample_rate),
-                min_duration=min_duration,
-                max_duration=max_duration,
-                read_sample_rate=False,
-                read_text=False,
-                read_idxs=True,
-                random_shuffle=shuffle,
-                shard_id=self.shard_id,
-                num_shards=self.num_shards,
-                pad_last_batch=True,
-            )
+            if audio_tar_filepaths is None and audio_tar_index_filepaths is None:
+                audio, indices = dali.fn.readers.nemo_asr(
+                    name="Reader",
+                    manifest_filepaths=manifest_filepath.split(','),
+                    dtype=dali.types.FLOAT,
+                    downmix=True,
+                    sample_rate=float(self.sample_rate),
+                    min_duration=min_duration,
+                    max_duration=max_duration,
+                    read_sample_rate=False,
+                    read_text=False,
+                    read_idxs=True,
+                    random_shuffle=shuffle,
+                    shard_id=self.shard_id,
+                    num_shards=self.num_shards,
+                    pad_last_batch=True,
+                )
+
+                self.is_tarred_dataset = False
+
+            elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
+                tar_file = dali.fn.readers.webdataset(
+                    paths=audio_tar_filepaths,
+                    index_paths=audio_tar_index_filepaths,
+                    name="Reader",
+                    ext=["wav"],
+                    missing_component_behavior="error",
+                    random_shuffle=shuffle,
+                    shard_id=self.shard_id,
+                    num_shards=self.num_shards,
+                    pad_last_batch=True,
+                    seed=-1,
+                )
+                audio = decoders.audio(
+                    tar_file, dtype=dali.types.FLOAT, downmix=True, sample_rate=float(self.sample_rate),
+                )[0]
+                indices = dali.fn.get_property(tar_file, key="source_info")
+                indices = dali.fn.pad(indices)
+
+                self.is_tarred_dataset = True
+
+            else:
+                raise RuntimeError(
+                    "When using DALI datasets, either `audio_tar_filepaths` "
+                    "and `audio_tar_index_filepaths` should either both be None (sequential dataset)"
+                    "or provided (tarred dataset)."
+                )
 
             # Extract nonsilent region, if necessary
             if trim:
@@ -441,6 +475,7 @@ class _AudioTextDALIDataset(Iterator):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            index_by_file_id=self.is_tarred_dataset,
         )
 
     def reset(self):
@@ -476,8 +511,17 @@ class _AudioTextDALIDataset(Iterator):
         max_len = 0
         batch_size = manifest_indices.shape[0]
         for i, manifest_index in enumerate(manifest_indices):
-            manifest_index = manifest_index[0]
-            text, text_length = self.manifest_processor.process_text(manifest_index)
+
+            if not self.is_tarred_dataset:
+                # Loose-file dataset. Index is integer based.
+                manifest_index = manifest_index[0]
+                text, text_length = self.manifest_processor.process_text_by_id(manifest_index)
+            else:
+                # Tarred-file dataset. Index is filename based.
+                resolved_manifest_indices = str(manifest_index, encoding='UTF-8').split(":")
+                print("resolved manifest indices", resolved_manifest_indices)
+                resolved_manifest_index = resolved_manifest_indices[2]  # we require just the filename
+                text, text_length = self.manifest_processor.process_text_by_file_id(resolved_manifest_index)
 
             text_tokens_len.append(text_length)
             text_tokens.append(text)
@@ -538,6 +582,8 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         batch_size: int,
         labels: Union[str, List[str]],
         sample_rate: int = 16000,
+        audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
+        audio_tar_index_filepaths: Optional[Union[str, List[str]]] = None,
         num_threads: int = 4,
         max_duration: float = 0.0,
         min_duration: float = 0.0,
@@ -567,6 +613,8 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             manifest_filepath=manifest_filepath,
             device=device,
             batch_size=batch_size,
+            audio_tar_filepaths=audio_tar_filepaths,
+            audio_tar_index_filepaths=audio_tar_index_filepaths,
             sample_rate=sample_rate,
             num_threads=num_threads,
             max_duration=max_duration,
