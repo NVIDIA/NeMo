@@ -1968,7 +1968,7 @@ pipeline {
 	   --config-name=megatron_gpt_config \
 	   trainer.gpus=1 \
 	   trainer.max_steps=20 \
-	   trained.val_check_interval=10 \
+	   trainer.val_check_interval=10 \
 	   exp_manager.name='megatron_gpt125M_prompt_tuning' \
 	   exp_manager.checkpoint_callback_params.save_top_k=2 \
 	   restore_from_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
