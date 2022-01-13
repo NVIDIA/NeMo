@@ -185,6 +185,7 @@ def convert(rank, world_size, args):
             hparams_file=args.hparams_file,
             trainer=trainer,
             translator=name_translate,
+            strict=False
         )
     elif args.model_type == 'bert':
         ## this dictionary is used to rename the model parameters
@@ -197,6 +198,7 @@ def convert(rank, world_size, args):
             hparams_file=args.hparams_file,
             trainer=trainer,
             translator=name_translate,
+            strict=False
         )
     else:
         raise NotImplemented("{} is not supported".format(args.model_type))
