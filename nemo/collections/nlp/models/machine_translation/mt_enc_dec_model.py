@@ -93,6 +93,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 raise ValueError(
                     "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
                 )
+        self.shared_embeddings = cfg.get("shared_embeddings", False)
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
@@ -200,6 +201,24 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             len_pen=cfg.len_pen,
             max_delta_length=cfg.max_generation_delta,
         )
+
+        # tie embedding weights
+        if self.shared_embeddings:
+            if not cfg.get("shared_tokenizer", True):
+                raise ValueError("shared_tokenizer cannot be False when shared_embeddings is True")
+
+            # validate vocabulary size and embedding dimension
+            if (
+                self.encoder.embedding.token_embedding.weight.shape
+                != self.decoder.embedding.token_embedding.weight.shape
+            ):
+                raise ValueError(
+                    f"Cannot tie encoder and decoder embeddings due to mismatch in embedding sizes "
+                    f"(num_embeddings, embedding_dim): {self.encoder.embedding.token_embedding.weight.shape} (encoder) "
+                    f"{self.decoder.embedding.token_embedding.weight.shape} (decoder)"
+                )
+
+            self.encoder.embedding.token_embedding.weight = self.decoder.embedding.token_embedding.weight
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
