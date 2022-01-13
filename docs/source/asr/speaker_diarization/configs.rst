@@ -17,8 +17,7 @@ Example configuration files for speaker diarization can be found in ``<NeMo_git_
 Dataset Configuration
 ---------------------
 
-In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline.
-Datasets here denote the data you would like to perform speaker diarization on. 
+In contrast to other ASR related tasks or models in NeMo, speaker diarization supported in NeMo is a modular inference pipeline and training is only required for speaker embedding extractor model. Therefore, the datasets provided in manifest format denote the data that you would like to perform speaker diarization on. 
 
 An example Speaker Diarization dataset Hydra configuration could look like:
 

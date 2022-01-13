@@ -18,12 +18,12 @@ In each line of the input manifest file, ``audio_filepath`` item is mandatory wh
 
 .. code-block:: bash
    
-    pathsfiles_to_manifest.py --paths2audio_files /path/to/audio_file_path_list.txt \
-                              --paths2txt_files /path/to/transcript_file_path_list.txt \
-                              --paths2rttm_files /path/to/rttm_file_path_list.txt \
-                              --paths2uem_files /path/to/uem_file_path_list.txt \
-                              --paths2ctm_files /path/to/ctm_file_path_list.txt \
-                              --manifest_filepath /path/to/manifest_output/input_manifest.json 
+    python pathsfiles_to_manifest.py --paths2audio_files /path/to/audio_file_path_list.txt \
+                                     --paths2txt_files /path/to/transcript_file_path_list.txt \
+                                     --paths2rttm_files /path/to/rttm_file_path_list.txt \
+                                     --paths2uem_files /path/to/uem_file_path_list.txt \
+                                     --paths2ctm_files /path/to/ctm_file_path_list.txt \
+                                     --manifest_filepath /path/to/manifest_output/input_manifest.json 
 
 The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. 
 
@@ -102,7 +102,7 @@ The following are descriptions about each field in an input manifest JSON file.
 Evaluation on Benchmark Datasets
 --------------------------------
 
-The following instructions can help one to reproduce the expected diarization performance on two benchmark English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, speaker error rate (SER) is equal to confusion error since oracle VAD has no miss detection or false alarm.
+The following instructions can help one to reproduce the expected diarization performance on two benchmark English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, diarization error rate (DER) is equal to confusion error rate since oracle VAD has no miss detection or false alarm.
 
 AMI Meeting Corpus
 ~~~~~~~~~~~~~~~~~~
@@ -116,12 +116,12 @@ The following are the suggested parameters for reproducing the diarization perfo
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
   diarizer.ignore_overlap=True 
-  diarizer.speaker_embeddings.model_path ="titanet_large"
+  diarizer.speaker_embeddings.model_path="titanet_large"
   diarizer.speaker_embeddings.window_length_in_sec=[3,1.5,1.0,0.5] # Multiscale setting
   diarizer.speaker_embeddings.shift_length_in_sec=[1.5,0.75,0.5,0.25] # Multiscale setting 
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.4,0.3,0.2,0.1] # More weights on the longer scales
 
-This setup is expected to reproduce a confusion error rate  of 1.17% on AMI test set.
+This setup is expected to reproduce a confusion error rate of 1.17% on AMI test set.
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_. Choose ``Headset mix`` which has a mono wav file for each session.
@@ -143,12 +143,12 @@ The following are the suggested parameters for reproducing the diarization perfo
   diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
   diarizer.collar=0.25
   diarizer.ignore_overlap=True 
-  diarizer.speaker_embeddings.model_path ="titanet_large"
+  diarizer.speaker_embeddings.model_path="titanet_large"
   diarizer.speaker_embeddings.window_length_in_sec=[1.5,1.0,0.5] # Multiscale setting
   diarizer.speaker_embeddings.shift_length_in_sec=[0.75,0.5,0.25] # Multiscale setting
   diarizer.speaker_embeddings.parameters.multiscale_weights=[0.33,0.33,0.33] # Equal weights
 
-This setup is expected to reproduce a confusion error of 0.94% on CH109 set.
+This setup is expected to reproduce a confusion error rate of 0.94% on CH109 set.
 
 To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
   - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available).
