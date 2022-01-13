@@ -73,9 +73,8 @@ class TokenClassificationModel(NLPModel):
             checkpoint_file=cfg.language_model.lm_checkpoint,
             nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file),
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-            trainer=trainer
+            trainer=trainer,
         )
-
 
         if self._cfg.language_model.nemo_file is not None:
             hidden_size = self.bert_model.cfg.hidden_size

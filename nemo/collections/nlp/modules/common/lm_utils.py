@@ -17,6 +17,7 @@ import os
 from typing import List, Optional, Union
 
 from attr import asdict
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -31,7 +32,6 @@ from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_nemo_transformer,
 )
 from nemo.utils import AppState, logging
-from pytorch_lightning import Trainer
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
 
