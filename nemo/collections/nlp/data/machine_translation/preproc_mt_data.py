@@ -74,7 +74,7 @@ class MTDataPreproc:
             ):
                 raise NotImplementedError(f"Currently we only support {supported_tokenizers}.")
 
-            if (
+            if cfg.get('multilingual') and (
                 cfg.encoder_tokenizer.get('library') not in supported_multilingual_tokenizers
                 or cfg.decoder_tokenizer.get('library') not in supported_multilingual_tokenizers
             ):
