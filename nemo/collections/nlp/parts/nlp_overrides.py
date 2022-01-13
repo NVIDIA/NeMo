@@ -19,7 +19,6 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
