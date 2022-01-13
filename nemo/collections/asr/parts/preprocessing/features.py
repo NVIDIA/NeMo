@@ -443,7 +443,7 @@ class FilterbankFeatures(nn.Module):
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
-        mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
+        mask = mask.repeat(x.size(0), 1) >= seq_len.unsqueeze(1)
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
         pad_to = self.pad_to
