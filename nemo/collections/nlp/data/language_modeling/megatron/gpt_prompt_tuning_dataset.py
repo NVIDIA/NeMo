@@ -40,9 +40,11 @@ class GPTPromptTuningDataset(Dataset):
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos_eos: bool = True,
+        calc_loss_on_answer_only=True,
     ):
         self.tokenizer = tokenizer
         self.add_bos_eos = add_bos_eos
+        self.calc_loss_on_answer_only = calc_loss_on_answer_only
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
         self.num_prompt_tokens = num_prompt_tokens
@@ -64,14 +66,15 @@ class GPTPromptTuningDataset(Dataset):
             prompt_tag = doc["prompt_tag"]
             question = doc["text"]
             answer = doc["answer"]
-            answer_len = len(answer)
             sent = question + answer
 
             sent_ids = tokenizer.text_to_ids(sent)
+            answer_ids = tokenizer.text_to_ids(answer)
+            answer_len = len(answer_ids)
 
             if self.add_bos_eos:
                 sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
-                answer_len += 1 # To account for EOS token
+                answer_len += 1  # To account for EOS token
 
             # Need to leave space for prompt tokens in sequence
             if self.min_seq_length <= len(sent_ids) <= self.max_sent_length:
@@ -106,11 +109,19 @@ class GPTPromptTuningDataset(Dataset):
             text_length = len(ids)
             answer_length = answer_lens[idx]
 
-            # Loss mask should mask everything except the answer
             prompt_loss_mask = [0.0] * self.num_prompt_tokens
-            question_loss_mask = [0.0] * (text_length - answer_length)
-            answer_loss_mask = [1.0] * answer_length
-            text_loss_mask = prompt_loss_mask + question_loss_mask + answer_loss_mask
+
+            # Loss mask everything except the answer
+            if self.calc_loss_on_answer_only:
+                question_loss_mask = [0.0] * (text_length - answer_length)
+                answer_loss_mask = [1.0] * answer_length
+                text_loss_mask = prompt_loss_mask + question_loss_mask + answer_loss_mask
+
+            # Loss mask soft prompt and padding only, calc loss on all text after soft prompt
+            else:
+                text_loss_mask = [1.0] * text_length
+                text_loss_mask = prompt_loss_mask + text_loss_mask
+
             padding_length = batch_max - text_length
 
             # Pad loss mask and text tokens

@@ -122,6 +122,7 @@ python megatron_gpt_prompt_tuning.py \
         +model.new_prompt_tags=['BoolQ'] \
         +model.new_prompt_init_text=['true false question answer reading comprehension'] \
         +model.new_prompt_init_methods=['text'] \
+        +model.calc_loss_on_answer_only=False \
         model.data.data_prefix=None \
         +model.data.train_ds='boolq_prompt_tuning_train.jsonl' \
         +model.data.valid_ds='boolq_prompt_tuning_val.jsonl' \
