@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import Dict, List, Optional, Union
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -36,7 +36,7 @@ class ByteLevelProcessor:
 
 
 class ByteLevelTokenizer(TokenizerSpec):
-    def __init__(self, special_tokens):
+    def __init__(self, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None):
         self.vocab_size = 259
         self.special_start = 256
         self.special_token_to_id = {
@@ -44,6 +44,7 @@ class ByteLevelTokenizer(TokenizerSpec):
             self.bos_id: self.bos_id,
             self.eos_id: self.eos_id,
         }
+        special_tokens = {} if special_tokens is None else special_tokens
         for tok in special_tokens:
             self.special_start -= 1
             self.special_token_to_id[tok] = self.special_start
