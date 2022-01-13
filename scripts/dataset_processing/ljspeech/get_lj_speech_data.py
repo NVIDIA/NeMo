@@ -14,20 +14,18 @@
 #
 # USAGE: python get_lj_speech_data.py --data_root=<where to put data>
 import argparse
-import json
 import logging
 import os
-import subprocess
+import tarfile
 import urllib.request
 
-from scripts.dataset_processing.get_librispeech_data import __extract_file
-from tqdm import tqdm
-
-parser = argparse.ArgumentParser(description='LJSpeech Data download')
-parser.add_argument("--data_root", required=True, type=str)
-args = parser.parse_args()
-
 URL = "https://data.keithito.com/data/speech/LJSpeech-1.1.tar.bz2"
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description='LJSpeech Data download')
+    parser.add_argument("--data_root", required=True, type=str)
+    return parser.parse_args()
 
 
 def __maybe_download_file(destination: str):
@@ -49,8 +47,16 @@ def __maybe_download_file(destination: str):
     return destination
 
 
-def main():
-    data_root = args.data_root
+def __extract_file(filepath: str, data_dir: str):
+    try:
+        tar = tarfile.open(filepath)
+        tar.extractall(data_dir)
+        tar.close()
+    except Exception:
+        logging.info("Not extracting. Maybe already there?")
+
+
+def main(data_root):
     logging.info("\n\nWorking on LJSpeech")
     filepath = os.path.join(data_root, "LJSpeech-1.1.tar.bz2")
     logging.info("Getting LJSpeech")
@@ -61,4 +67,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = get_args()
+    main(args.data_root)
