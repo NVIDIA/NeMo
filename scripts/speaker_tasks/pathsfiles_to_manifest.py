@@ -18,6 +18,7 @@ import logging
 import os
 import random
 from collections import Counter
+from collections import OrderedDict as od
 
 from nemo.collections.asr.parts.utils.speaker_utils import rttm_to_labels
 
@@ -40,43 +41,66 @@ def write_file(name, lines, idx):
     logging.info("wrote", name)
 
 
-def read_file(scp):
-    scp = open(scp, 'r').readlines()
-    return sorted(scp)
+def read_file(pathlist):
+    pathlist = open(pathlist, 'r').readlines()
+    return sorted(pathlist)
 
 
-def main(wav_scp, text_scp=None, rttm_scp=None, uem_scp=None, ctm_scp=None, manifest_filepath=None):
+def get_dict_from_wavlist(pathlist):
+    path_dict = od()
+    pathlist = sorted(pathlist)
+    for line_path in pathlist:
+        uniq_id = os.path.basename(line_path).split('.')[0]
+        path_dict[uniq_id] = line_path
+    return path_dict
+
+
+def get_dict_from_list(data_pathlist, uniqids):
+    path_dict = {}
+    for line_path in data_pathlist:
+        uniq_id = os.path.basename(line_path).split('.')[0]
+        if uniq_id in uniqids:
+            path_dict[uniq_id] = line_path
+        else:
+            raise ValueError(f'uniq id {uniq_id} is not in wav filelist')
+    return path_dict
+
+
+def get_path_dict(data_path, uniqids, len_wavs=None):
+    if data_path is not None:
+        data_pathlist = read_file(data_path)
+        if len_wavs is not None:
+            assert len(data_pathlist) == len_wavs
+            data_pathdict = get_dict_from_list(data_pathlist, uniqids)
+    elif len_wavs is not None:
+        data_pathdict = {uniq_id: None for uniq_id in uniqids}
+    return data_pathdict
+
+
+def main(wav_path, text_path=None, rttm_path=None, uem_path=None, ctm_path=None, manifest_filepath=None):
     if os.path.exists(manifest_filepath):
         os.remove(manifest_filepath)
 
-    wav_scp = read_file(wav_scp)
-    len_wavs = len(wav_scp)
+    wav_pathlist = read_file(wav_path)
+    wav_pathdict = get_dict_from_wavlist(wav_pathlist)
+    len_wavs = len(wav_pathlist)
+    uniqids = sorted(wav_pathdict.keys())
 
-    if text_scp is not None:
-        text_scp = read_file(text_scp)
-        assert len(text_scp) == len_wavs
-    else:
-        text_scp = len(wav_scp) * [None]
-
-    if rttm_scp is not None:
-        rttm_scp = read_file(rttm_scp)
-        assert len(rttm_scp) == len_wavs
-    else:
-        rttm_scp = len(wav_scp) * [None]
-
-    if uem_scp is not None:
-        uem_scp = read_file(uem_scp)
-        assert len(uem_scp) == len_wavs
-    else:
-        uem_scp = len(wav_scp) * [None]
-
-    if ctm_scp is not None:
-        ctm_scp = read_file(ctm_scp)
-    else:
-        ctm_scp = len(wav_scp) * [None]
+    text_pathdict = get_path_dict(text_path, uniqids, len_wavs)
+    rttm_pathdict = get_path_dict(rttm_path, uniqids, len_wavs)
+    uem_pathdict = get_path_dict(uem_path, uniqids, len_wavs)
+    ctm_pathdict = get_path_dict(ctm_path, uniqids, len_wavs)
 
     lines = []
-    for wav, text, rttm, uem, ctm in zip(wav_scp, text_scp, rttm_scp, uem_scp, ctm_scp):
+    for uid in uniqids:
+        wav, text, rttm, uem, ctm = (
+            wav_pathdict[uid],
+            text_pathdict[uid],
+            rttm_pathdict[uid],
+            uem_pathdict[uid],
+            ctm_pathdict[uid],
+        )
+
         audio_line = wav.strip()
         if rttm is not None:
             rttm = rttm.strip()
@@ -123,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument("--paths2rttm_files", help="path to text file containing list of rttm files", type=str)
     parser.add_argument("--paths2uem_files", help="path to uem files", type=str)
     parser.add_argument("--paths2ctm_files", help="path to ctm files", type=str)
-    parser.add_argument("--manifest_filepath", help="scp file name", type=str, required=True)
+    parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
 
     args = parser.parse_args()
 
