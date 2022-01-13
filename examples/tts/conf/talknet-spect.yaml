@@ -88,7 +88,7 @@ model:
     stft_conv: false
     window: hann
 
-  model:
+  encoder:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
     feat_in: ${model.d_char}
     activation: relu
