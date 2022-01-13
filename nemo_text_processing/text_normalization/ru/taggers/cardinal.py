@@ -70,7 +70,8 @@ class CardinalFst(GraphFst):
         self.cardinal_numbers_with_leading_zeros = (leading_zeros + self.cardinal_numbers_default).optimize()
 
         # "123" -> "один два три"
-        single_digits_graph = pynini.compose(NEMO_DIGIT, self.cardinal_numbers_nominative)
+        single_digits_graph = pynini.string_file(get_abs_path("data/numbers/cardinals_nominative_case.tsv")).optimize()
+        single_digits_graph = pynini.compose(NEMO_DIGIT, single_digits_graph)
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
 
         optional_quantity = pynini.string_file(get_abs_path("data/numbers/quantity.tsv")).optimize()
@@ -90,11 +91,7 @@ class CardinalFst(GraphFst):
         ).optimize()
 
         final_graph = pynutil.add_weight(final_graph, -0.1)
-        final_graph |= (
-            pynutil.insert("integer: \"")
-            + pynutil.add_weight(self.single_digits_graph | serial_graph, 10)
-            + pynutil.insert("\"")
-        )
+        final_graph |= pynutil.insert("integer: \"") + pynutil.add_weight(serial_graph, 10) + pynutil.insert("\"")
         self.final_graph = final_graph
 
         # to cover cases "2-х" -> "двух" (this is not covered by ordinal endings)
@@ -132,8 +129,7 @@ class CardinalFst(GraphFst):
             The serial is a combination of digits, letters and dashes, e.g.:
             c325-b -> tokens { cardinal { integer: "си три два пять би" } }
         """
-        num_graph = self.cardinal_numbers_nominative
-        num_graph |= self.single_digits_graph
+        num_graph = self.single_digits_graph
 
         alpha = TO_CYRILLIC | RU_ALPHA
 
@@ -144,4 +140,13 @@ class CardinalFst(GraphFst):
         next_alpha_or_num = pynini.closure(delimiter + (alpha | num_graph))
         serial_graph = (letter_num | num_letter | num_delimiter_num) + next_alpha_or_num
 
+        # at least 1 alpha and 1 digit is present
+        at_least_one_alpha_num = (
+            NEMO_SIGMA + (RU_ALPHA | pynini.project(TO_CYRILLIC, "input")) + NEMO_SIGMA + NEMO_DIGIT + NEMO_SIGMA
+        ) | (NEMO_SIGMA + NEMO_DIGIT + NEMO_SIGMA + (RU_ALPHA | pynini.project(TO_CYRILLIC, "input")) + NEMO_SIGMA)
+        serial_graph = pynini.compose(at_least_one_alpha_num, serial_graph.optimize()).optimize()
+        # numbers only with 2+ delimiters
+        serial_graph |= (
+            num_graph + delimiter + num_graph + delimiter + num_graph + pynini.closure(delimiter + num_graph)
+        ).optimize()
         return serial_graph.optimize()

@@ -21,7 +21,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     generator_main,
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.ru.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.ru.taggers.date import DateFst
 from nemo_text_processing.text_normalization.ru.taggers.decimals import DecimalFst
@@ -33,6 +32,7 @@ from nemo_text_processing.text_normalization.ru.taggers.ordinal import OrdinalFs
 from nemo_text_processing.text_normalization.ru.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.ru.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.ru.taggers.whitelist import WhiteListFst
+from nemo_text_processing.text_normalization.ru.taggers.word import WordFst
 
 from nemo.utils import logging
 
@@ -48,7 +48,7 @@ except (ModuleNotFoundError, ImportError):
 class ClassifyFst(GraphFst):
     """
     Final class that composes all other classification grammars. This class can process an entire sentence, that is lower cased.
-    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    For deployment, this grammar will be compiled and exported to OpenFst Finite State Archive (FAR) File.
     More details to deployment at NeMo/tools/text_processing_deployment.
 
     Args:

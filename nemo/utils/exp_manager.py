@@ -754,10 +754,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return filepath
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # output = None
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-
         else:
             # Load the best model and then re-save it
             app_state = AppState()
