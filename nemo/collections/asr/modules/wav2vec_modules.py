@@ -19,7 +19,7 @@
 
 import math
 import random
-from typing import List, Tuple, Dict
+from typing import Dict, List, Tuple
 
 import torch
 from omegaconf import DictConfig
