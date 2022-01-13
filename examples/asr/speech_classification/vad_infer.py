@@ -14,7 +14,7 @@
 
 """
 During inference, we perform frame-level prediction by two approaches: 
-    1) shift the window of length time_length (e.g. 0.63s) by shift_length (e.g. 10ms) to generate the frame and use the prediction of the window to represent the label for the frame;
+    1) shift the window of length window_length_in_sec (e.g. 0.63s) by shift_length_in_sec (e.g. 10ms) to generate the frame and use the prediction of the window to represent the label for the frame;
        [this script demonstrate how to do this approach]
     2) generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
        [get frame level prediction by this script and use vad_overlap_posterior.py in NeMo/scripts/voice_activity_detection
@@ -23,91 +23,67 @@ During inference, we perform frame-level prediction by two approaches:
        
        Image https://raw.githubusercontent.com/NVIDIA/NeMo/main/tutorials/asr/images/vad_post_overlap_diagram.png 
        will help you understand this method.
-   
+
+This script will also help you perform postprocessing and generate speech segments if needed
+
 Usage:
-python vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
+python vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
 
 """
-
-
 import json
-import logging
 import os
-from argparse import ArgumentParser
 
 import torch
 
-from nemo.collections.asr.models import EncDecClassificationModel
-from nemo.collections.asr.parts.utils.vad_utils import get_vad_stream_status, prepare_manifest
+from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
+from nemo.collections.asr.parts.utils.vad_utils import (
+    generate_overlap_vad_seq,
+    generate_vad_frame_pred,
+    generate_vad_segment_table,
+    init_vad_model,
+    prepare_manifest,
+)
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--vad_model", type=str, default="MatchboxNet-VAD-3x2", required=False, help="Pass: 'MatchboxNet-VAD-3x2'"
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        required=True,
-        help="Path of json file of evaluation data. Audio files should have unique names.",
-    )
-    parser.add_argument("--out_dir", type=str, default="vad_frame", help="Dir of your vad outputs")
-    parser.add_argument("--time_length", type=float, default=0.63)
-    parser.add_argument("--shift_length", type=float, default=0.01)
-    parser.add_argument("--normalize_audio", type=bool, default=False)
-    parser.add_argument("--num_workers", type=int, default=20)
-    parser.add_argument("--split_duration", type=float, default=400)
-    parser.add_argument(
-        "--dont_auto_split",
-        default=False,
-        action='store_true',
-        help="Whether to automatically split manifest entry by split_duration to avoid potential CUDA out of memory issue.",
-    )
+@hydra_runner(config_path="../conf/VAD", config_name="vad_inference_postprocessing.yaml")
+def main(cfg):
+    if not cfg.dataset:
+        raise ValueError("You must input the path of json file of evaluation data")
 
-    args = parser.parse_args()
-
-    torch.set_grad_enabled(False)
-
-    if args.vad_model.endswith('.nemo'):
-        logging.info(f"Using local VAD model from {args.vad_model}")
-        vad_model = EncDecClassificationModel.restore_from(restore_path=args.vad_model)
-    else:
-        logging.info(f"Using NGC cloud VAD model {args.vad_model}")
-        vad_model = EncDecClassificationModel.from_pretrained(model_name=args.vad_model)
-
-    if not os.path.exists(args.out_dir):
-        os.mkdir(args.out_dir)
+    # each line of dataset should be have different audio_filepath and unique name to simplfiy edge cases or conditions
+    key_meta_map = {}
+    with open(cfg.dataset, 'r') as manifest:
+        for line in manifest.readlines():
+            audio_filepath = json.loads(line.strip())['audio_filepath']
+            uniq_audio_name = audio_filepath.split('/')[-1].rsplit('.', 1)[0]
+            if uniq_audio_name in key_meta_map:
+                raise ValueError("Please make sure each line is with different audio_filepath! ")
+            key_meta_map[uniq_audio_name] = {'audio_filepath': audio_filepath}
 
     # Prepare manifest for streaming VAD
-    manifest_vad_input = args.dataset
-    if not args.dont_auto_split:
+    manifest_vad_input = cfg.dataset
+    if cfg.prepare_manifest.auto_split:
         logging.info("Split long audio file to avoid CUDA memory issue")
         logging.debug("Try smaller split_duration if you still have CUDA memory issue")
         config = {
-            'manifest_filepath': manifest_vad_input,
-            'time_length': args.time_length,
-            'split_duration': args.split_duration,
-            'num_workers': args.num_workers,
+            'input': manifest_vad_input,
+            'window_length_in_sec': cfg.vad.parameters.window_length_in_sec,
+            'split_duration': cfg.prepare_manifest.split_duration,
+            'num_workers': cfg.num_workers,
+            'prepared_manfiest_vad_input': cfg.prepared_manfiest_vad_input,
         }
         manifest_vad_input = prepare_manifest(config)
     else:
         logging.warning(
             "If you encounter CUDA memory issue, try splitting manifest entry by split_duration to avoid it."
         )
+
+    torch.set_grad_enabled(False)
+    vad_model = init_vad_model(cfg.vad.model_path)
 
     # setup_test_data
     vad_model.setup_test_data(
@@ -116,55 +92,80 @@ def main():
             'sample_rate': 16000,
             'manifest_filepath': manifest_vad_input,
             'labels': ['infer',],
-            'num_workers': args.num_workers,
+            'num_workers': cfg.num_workers,
             'shuffle': False,
-            'time_length': args.time_length,
-            'shift_length': args.shift_length,
+            'window_length_in_sec': cfg.vad.parameters.window_length_in_sec,
+            'shift_length_in_sec': cfg.vad.parameters.shift_length_in_sec,
             'trim_silence': False,
-            'normalize_audio': args.normalize_audio,
+            'normalize_audio': cfg.vad.parameters.normalize_audio,
         }
     )
 
     vad_model = vad_model.to(device)
     vad_model.eval()
 
-    time_unit = int(args.time_length / args.shift_length)
-    trunc = int(time_unit / 2)
-    trunc_l = time_unit - trunc
-    all_len = 0
+    if not os.path.exists(cfg.frame_out_dir):
+        os.mkdir(cfg.frame_out_dir)
+    else:
+        logging.warning(
+            "Note frame_out_dir exists. If new file has same name as file inside existing folder, it will append result to existing file and might cause mistakes for next steps."
+        )
 
-    data = []
-    for line in open(manifest_vad_input, 'r'):
-        file = json.loads(line)['audio_filepath'].split("/")[-1]
-        data.append(file.split(".wav")[0])
-    logging.info(f"Inference on {len(data)} audio files/json lines!")
+    logging.info("Generating frame level prediction ")
+    pred_dir = generate_vad_frame_pred(
+        vad_model=vad_model,
+        window_length_in_sec=cfg.vad.parameters.window_length_in_sec,
+        shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
+        manifest_vad_input=manifest_vad_input,
+        out_dir=cfg.frame_out_dir,
+    )
+    logging.info(
+        f"Finish generating VAD frame level prediction with window_length_in_sec={cfg.vad.parameters.window_length_in_sec} and shift_length_in_sec={cfg.vad.parameters.shift_length_in_sec}"
+    )
 
-    status = get_vad_stream_status(data)
-    for i, test_batch in enumerate(vad_model.test_dataloader()):
-        test_batch = [x.to(device) for x in test_batch]
-        with autocast():
-            log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
-            probs = torch.softmax(log_probs, dim=-1)
-            pred = probs[:, 1]
+    # overlap smoothing filter
+    if cfg.gen_overlap_seq:
+        # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
+        # smoothing_method would be either in majority vote (median) or average (mean)
+        logging.info("Generating predictions with overlapping input segments")
+        smoothing_pred_dir = generate_overlap_vad_seq(
+            frame_pred_dir=pred_dir,
+            smoothing_method=cfg.vad.parameters.smoothing,
+            overlap=cfg.vad.parameters.overlap,
+            window_length_in_sec=cfg.vad.parameters.window_length_in_sec,
+            shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
+            num_workers=cfg.num_workers,
+            out_dir=cfg.smoothing_out_dir,
+        )
+        logging.info(
+            f"Finish generating predictions with overlapping input segments with smoothing_method={cfg.vad.parameters.smoothing} and overlap={cfg.vad.parameters.overlap}"
+        )
+        pred_dir = smoothing_pred_dir
 
-            if status[i] == 'start':
-                to_save = pred[:-trunc]
-            elif status[i] == 'next':
-                to_save = pred[trunc:-trunc_l]
-            elif status[i] == 'end':
-                to_save = pred[trunc_l:]
-            else:
-                to_save = pred
+    # postprocessing and generate speech segments
+    if cfg.gen_seg_table:
+        logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+        table_out_dir = generate_vad_segment_table(
+            vad_pred_dir=pred_dir,
+            postprocessing_params=cfg.vad.parameters.postprocessing,
+            shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
+            num_workers=cfg.num_workers,
+            out_dir=cfg.table_out_dir,
+        )
+        logging.info(
+            f"Finish generating speech semgents table with postprocessing_params: {cfg.vad.parameters.postprocessing}"
+        )
 
-            all_len += len(to_save)
-            outpath = os.path.join(args.out_dir, data[i] + ".frame")
-            with open(outpath, "a") as fout:
-                for f in range(len(to_save)):
-                    fout.write('{0:0.4f}\n'.format(to_save[f]))
-        del test_batch
-        if status[i] == 'end' or status[i] == 'single':
-            logging.debug(f"Overall length of prediction of {data[i]} is {all_len}!")
-            all_len = 0
+    if cfg.write_to_manifest:
+        for i in key_meta_map:
+            key_meta_map[i]['rttm_filepath'] = os.path.join(table_out_dir, i + ".txt")
+
+        if not cfg.out_manifest_filepath:
+            out_manifest_filepath = "vad_out.json"
+        else:
+            out_manifest_filepath = cfg.out_manifest_filepath
+        out_manifest_filepath = write_rttm2manifest(key_meta_map, out_manifest_filepath)
+        logging.info(f"Writing VAD output to manifest: {out_manifest_filepath}")
 
 
 if __name__ == '__main__':
