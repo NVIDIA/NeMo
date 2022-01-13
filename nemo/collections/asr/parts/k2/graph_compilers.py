@@ -38,6 +38,8 @@ from nemo.collections.asr.parts.k2.utils import compose_with_self_loops, interse
 class CtcTrainingTopologyCompiler(object):
     """Default training graph compiler.
     It applies its topology to the input token sequence to compile the numerator graph.
+    
+    Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/training/ctc_graph.py
     """
 
     def __init__(

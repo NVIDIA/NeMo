@@ -49,6 +49,8 @@ class MAPLoss(torch.nn.Module):
     Maximum a Posteriori Probability criterion.
     It is implemented as Lattice-Free Maximum Mutual Information (LF-MMI) 
     and LF-boosted-MMI (LF-bMMI) losses.
+    
+    Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
     """
 
     def __init__(
