@@ -111,14 +111,16 @@ def test_data_dir():
     return test_data_dir_
 
 
-def extract_data_from_tar(test_dir, test_data_archive, url=None):
+def extract_data_from_tar(test_dir, test_data_archive, url=None, local_data=False):
     # Remove .data folder.
-    if exists(test_dir):
+    print("Local data", local_data)
+    if exists(test_dir) and not local_data:
         rmtree(test_dir)
     # Create one .data folder.
-    mkdir(test_dir)
+    if not exists(test_dir):
+        mkdir(test_dir)
     # Download (if required)
-    if url is not None:
+    if url is not None and not local_data:
         urllib.request.urlretrieve(url, test_data_archive)
 
     # Extract tar
@@ -160,6 +162,7 @@ def pytest_configure(config):
             )
 
     # Get size of remote test_data archive.
+    url = None
     if not config.option.use_local_test_data:
         try:
             url = __TEST_DATA_URL + __TEST_DATA_FILENAME
@@ -188,7 +191,7 @@ def pytest_configure(config):
                 )
             )
 
-            extract_data_from_tar(test_dir, test_data_archive, url=url)
+            extract_data_from_tar(test_dir, test_data_archive, url=url, local_data=config.option.use_local_test_data)
 
         else:
             print(
@@ -199,7 +202,7 @@ def pytest_configure(config):
 
     else:
         # untar local test data
-        extract_data_from_tar(test_dir, test_data_archive)
+        extract_data_from_tar(test_dir, test_data_archive, local_data=config.option.use_local_test_data)
 
     if config.option.relax_numba_compat is not None:
         from nemo.core.utils import numba_utils

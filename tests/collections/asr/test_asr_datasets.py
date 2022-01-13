@@ -406,3 +406,100 @@ class TestASRDatasets:
                 err = np.abs(a - b)
                 assert np.mean(err) < 0.0001
                 assert np.max(err) < 0.01
+
+    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.unit
+    def test_tarred_dali_char_dataset(self, test_data_dir):
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
+        audio_tar_filepaths = [
+            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{idx}.tar')) for idx in range(2)
+        ]
+        audio_tar_index_filepaths = [
+            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/dali_index/audio_{idx}.index'))
+            for idx in range(2)
+        ]
+
+        batch_size = 1
+        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        texts = []
+
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
+            # with open(manifest_path, 'r') as m:
+            #     for ix, line in enumerate(m):
+            #
+            #         line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
+            #         f.write(f"{line}\n")
+            #
+            #         data = json.loads(line)
+            #         texts.append(data['text'])
+            #
+            # f.seek(0)
+            num_samples = 0
+            with open(manifest_path, 'r') as m:
+                for line in m:
+                    num_samples += 1
+
+            dataset = AudioToCharDALIDataset(
+                manifest_filepath=manifest_path,  # f.name,
+                audio_tar_filepaths=audio_tar_filepaths,
+                audio_tar_index_filepaths=audio_tar_index_filepaths,
+                device=device,
+                batch_size=batch_size,
+                labels=self.labels,
+                max_duration=16.0,
+                parser='en',
+                shuffle=False,
+            )
+
+            assert len(dataset) == (num_samples // batch_size)  # num batches
+            count = 0
+            original_transcripts = []
+            for batch in dataset:
+                transcripts = batch[2]  # transcript index in DALIOutputs
+                transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
+                transcripts = [
+                    decode_chars(transcript, transcripts_length, mapping=self.labels)
+                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                ]
+                original_transcripts.extend(transcripts)
+                count += len(transcripts)
+            assert count == num_samples
+
+            # Assert transcripts are correct
+            for text, og_transcript in zip(texts, original_transcripts):
+                assert text == og_transcript
+
+            # Repeat, now with shuffle enabled
+            # f.seek(0)
+
+            dataset = AudioToCharDALIDataset(
+                manifest_filepath=manifest_path,  # f.name,
+                audio_tar_filepaths=audio_tar_filepaths,
+                audio_tar_index_filepaths=audio_tar_index_filepaths,
+                device=device,
+                batch_size=batch_size,
+                labels=self.labels,
+                max_duration=16.0,
+                parser='en',
+                shuffle=True,
+            )
+
+            assert len(dataset) == (num_samples // batch_size)  # num batches
+            count = 0
+            shuffled_transcripts = []
+            for batch in dataset:
+                transcripts = batch[2]  # transcript index in DALIOutputs
+                transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
+                transcripts = [
+                    decode_chars(transcript, transcripts_length, mapping=self.labels)
+                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                ]
+                shuffled_transcripts.extend(transcripts)
+                count += len(transcripts)
+            assert count == num_samples
+
+            samples_changed = 0
+            for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
+                if orig != shuffled:
+                    samples_changed += 1
+            assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
