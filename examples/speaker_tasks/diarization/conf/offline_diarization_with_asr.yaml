@@ -15,7 +15,7 @@ diarizer:
     model_path: null # .nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
 
-    parameters: # Tuned parameter for CH109 (using the 11 multi-speaker sessions as dev set) 
+    parameters: # Tuned parameters for CH109 (using the 11 multi-speaker sessions as dev set) 
       window_length_in_sec: 0.15  # Window length in sec for VAD context input 
       shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
       smoothing: "median" # False or type of smoothing method (eg: median)
@@ -45,7 +45,7 @@ diarizer:
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
   
   asr:
-    model_path: ??? # Provie NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purpose.
+    model_path: ??? # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purpose.
     parameters:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
       asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
