@@ -1995,6 +1995,7 @@ pipeline {
 	    --prompt='option1: wood option2: bag sentence: The _ is soft. answer: '"
 	sh "rm -rf examples/nlp/language_modeling/nemo_experiments/megatron_gpt125M_prompt_tuning"
       }
+    }
 
            
     stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
