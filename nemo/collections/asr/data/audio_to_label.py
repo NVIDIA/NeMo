@@ -160,10 +160,10 @@ def _vad_frame_seq_collate_fn(self, batch):
             assumes the signals are 1d torch tensors (i.e. mono audio).
             batch size equals to 1.
     """
-    slice_length = int(self.featurizer.sample_rate * self.time_length)
+    slice_length = int(self.featurizer.sample_rate * self.window_length_in_sec)
     _, audio_lengths, _, tokens_lengths = zip(*batch)
     slice_length = min(slice_length, max(audio_lengths))
-    shift = int(self.featurizer.sample_rate * self.shift_length)
+    shift = int(self.featurizer.sample_rate * self.shift_length_in_sec)
     has_audio = audio_lengths[0] is not None
 
     audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
@@ -373,9 +373,9 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        time_length (float): time length of slice (in seconds)
+        window_length_in_sec (float): length of window/slice (in seconds)
             Use this for speaker recognition and VAD tasks.
-        shift_length (float): amount of shift of window for generating the frame for VAD task in a batch
+        shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task in a batch
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal.
             Defaults to False.
@@ -391,17 +391,17 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
-        time_length: Optional[float] = 8,
-        shift_length: Optional[float] = 1,
+        window_length_in_sec: Optional[float] = 8,
+        shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         is_regression_task: bool = False,
     ):
-        self.time_length = time_length
-        self.shift_length = shift_length
+        self.window_length_in_sec = window_length_in_sec
+        self.shift_length_in_sec = shift_length_in_sec
         self.normalize_audio = normalize_audio
 
-        logging.debug("Time length considered for collate func is {}".format(self.time_length))
-        logging.debug("Shift length considered for collate func is {}".format(self.shift_length))
+        logging.debug("Window/slice length considered for collate func is {}".format(self.window_length_in_sec))
+        logging.debug("Shift length considered for collate func is {}".format(self.shift_length_in_sec))
 
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -473,8 +473,8 @@ class _TarredAudioLabelDataset(IterableDataset):
         trim(bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task
-        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        window_length_in_sec (float): length of slice/window (in seconds) # Pass this only for speaker recognition and VAD task
+        shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
@@ -798,8 +798,8 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         trim(bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task
-        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        window_length_in_sec (float): time length of window/slice (in seconds) # Pass this only for speaker recognition and VAD task
+        shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
@@ -828,17 +828,17 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
-        time_length: Optional[float] = 8,
-        shift_length: Optional[float] = 1,
+        window_length_in_sec: Optional[float] = 8,
+        shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
     ):
-        logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(shift_length))
-        self.time_length = time_length
-        self.shift_length = shift_length
+        logging.info("Window/slice length considered for collate func is {}".format(window_length_in_sec))
+        logging.info("Shift length considered for collate func is {}".format(shift_length_in_sec))
+        self.window_length_in_sec = window_length_in_sec
+        self.shift_length_in_sec = shift_length_in_sec
         self.normalize_audio = normalize_audio
 
         super().__init__(
