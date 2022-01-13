@@ -80,7 +80,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
-    def input_example(self, max_batch=1, max_dim=256):
+    def input_example(self, max_batch=1, max_dim=8192):
         """
         Generates input examples for tracing etc.
         Returns:
