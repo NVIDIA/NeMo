@@ -167,8 +167,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'batch_size': self._cfg.get('batch_size'),
             'vad_stream': True,
             'labels': ['infer',],
-            'time_length': self._vad_window_length_in_sec,
-            'shift_length': self._vad_shift_length_in_sec,
+            'window_length_in_sec': self._vad_window_length_in_sec,
+            'shift_length_in_sec': self._vad_shift_length_in_sec,
             'trim_silence': False,
             'num_workers': self._cfg.num_workers,
         }
@@ -245,8 +245,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 frame_pred_dir=self._vad_dir,
                 smoothing_method=self._vad_params.smoothing,
                 overlap=self._vad_params.overlap,
-                seg_len=self._vad_window_length_in_sec,
-                shift_len=self._vad_shift_length_in_sec,
+                window_length_in_sec=self._vad_window_length_in_sec,
+                shift_length_in_sec=self._vad_shift_length_in_sec,
                 num_workers=self._cfg.num_workers,
             )
             self.vad_pred_dir = smoothing_pred_dir
@@ -256,7 +256,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
             postprocessing_params=self._vad_params,
-            shift_len=self._vad_shift_length_in_sec,
+            shift_length_in_sec=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
         AUDIO_VAD_RTTM_MAP = deepcopy(self.AUDIO_RTTM_MAP.copy())
@@ -286,16 +286,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         external vad manifest and oracle VAD (generates speech activity labels from provided RTTM files)
         """
         if self.has_vad_model:
-            self._dont_auto_split = False
+            self._auto_split = True
             self._split_duration = 50
             manifest_vad_input = self._diarizer_params.manifest_filepath
 
-            if not self._dont_auto_split:
+            if self._auto_split:
                 logging.info("Split long audio file to avoid CUDA memory issue")
                 logging.debug("Try smaller split_duration if you still have CUDA memory issue")
                 config = {
-                    'manifest_filepath': manifest_vad_input,
-                    'time_length': self._vad_window_length_in_sec,
+                    'input': manifest_vad_input,
+                    'window_length_in_sec': self._vad_window_length_in_sec,
                     'split_duration': self._split_duration,
                     'num_workers': self._cfg.num_workers,
                 }

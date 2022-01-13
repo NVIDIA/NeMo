@@ -23,11 +23,22 @@ import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import torch
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 from sklearn.model_selection import ParameterGrid
 
+from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.utils import logging
+
+try:
+    from torch.cuda.amp import autocast
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def autocast(enabled=None):
+        yield
 
 
 """
@@ -40,19 +51,32 @@ def prepare_manifest(config):
     Perform VAD on long audio snippet might cause CUDA out of memory issue. 
     Automatically split manifest entry by split_duration to avoid the potential memory issue.
     """
-    manifest_vad_input = config.get('manifest_vad_input', "manifest_vad_input.json")
-    input_audios = []
-    with open(config['manifest_filepath'], 'r') as manifest:
-        for line in manifest.readlines():
-            input_audios.append(json.loads(line.strip()))
+    if 'prepared_manfiest_vad_input' in config and config['prepared_manfiest_vad_input']:
+        manifest_vad_input = config['prepared_manfiest_vad_input']
+    else:
+        manifest_vad_input = "manifest_vad_input.json"
+
+    # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
+    if type(config['input']) == str:
+        input_list = []
+        with open(config['input'], 'r') as manifest:
+            for line in manifest.readlines():
+                input_list.append(json.loads(line.strip()))
+    elif type(config['input']) == list:
+        input_list = config['input']
+    else:
+        raise ValueError(
+            "The input for manifest preparation would either be a string of the filepath to manifest or a list of {'audio_filepath': i, 'offset': 0, 'duration': null} "
+        )
 
     p = Pool(processes=config['num_workers'])
     args_func = {
         'label': 'infer',
         'split_duration': config['split_duration'],
-        'time_length': config['time_length'],
+        'window_length_in_sec': config['window_length_in_sec'],
     }
-    results = p.starmap(write_vad_infer_manifest, zip(input_audios, repeat(args_func)))
+
+    results = p.starmap(write_vad_infer_manifest, zip(input_list, repeat(args_func)))
     p.close()
 
     if os.path.exists(manifest_vad_input):
@@ -65,7 +89,6 @@ def prepare_manifest(config):
                 json.dump(r, fout)
                 fout.write('\n')
                 fout.flush()
-
     return manifest_vad_input
 
 
@@ -77,15 +100,14 @@ def write_vad_infer_manifest(file, args_func):
         files (json) : file to be processed
         label (str): label for audio snippet.
         split_duration (float): max duration of each audio clip (each line in json)
-        time_length (float) : length of window for generating the frame. Used for taking care of joint. 
+        window_length_in_sec (float) : length of window for generating the frame. Used for taking care of joint. 
     Returns:
         res (list) : list of generated metadata line of json for file
     """
     res = []
     label = args_func['label']
     split_duration = args_func['split_duration']
-    time_length = args_func['time_length']
-
+    window_length_in_sec = args_func['window_length_in_sec']
     filepath = file['audio_filepath']
     in_duration = file['duration']
     in_offset = file['offset']
@@ -105,8 +127,8 @@ def write_vad_infer_manifest(file, args_func):
                     current_offset = 0
                 else:
                     status = 'end'
-                    write_duration = left + time_length
-                    current_offset -= time_length
+                    write_duration = left + window_length_in_sec
+                    current_offset -= window_length_in_sec
                 offset_inc = left
                 left = 0
             else:
@@ -119,9 +141,9 @@ def write_vad_infer_manifest(file, args_func):
                     write_duration = split_duration
                     offset_inc = split_duration
                 else:
-                    write_duration = split_duration + time_length
-                    current_offset -= time_length
-                    offset_inc = split_duration + time_length
+                    write_duration = split_duration + window_length_in_sec
+                    current_offset -= window_length_in_sec
+                    offset_inc = split_duration + window_length_in_sec
 
                 left -= split_duration
 
@@ -173,7 +195,9 @@ def get_vad_stream_status(data):
     return status
 
 
-def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len, shift_len, num_workers):
+def generate_overlap_vad_seq(
+    frame_pred_dir, smoothing_method, overlap, window_length_in_sec, shift_length_in_sec, num_workers, out_dir=None
+):
     """
     Gnerate predictions with overlapping input windows/segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple windows. 
     Two common smoothing filters are supported: majority vote (median) and average (mean).
@@ -181,8 +205,8 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
         frame_pred_dir (str): Directory of frame prediction file to be processed.
         smoothing_method (str): median or mean smoothing filter.
         overlap (float): amounts of overlap of adjacent windows.
-        seg_len (float): length of window for generating the frame.
-        shift_len (float): amount of shift of window for generating the frame.
+        window_length_in_sec (float): length of window for generating the frame.
+        shift_length_in_sec (float): amount of shift of window for generating the frame.
         out_dir (str): directory of generated predictions.
         num_workers(float): number of process for multiprocessing
     Returns:
@@ -191,8 +215,10 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
 
     p = Pool(processes=num_workers)
     frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
-
-    overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
+    if out_dir:
+        overlap_out_dir = out_dir
+    else:
+        overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
 
     if not os.path.exists(overlap_out_dir):
         os.mkdir(overlap_out_dir)
@@ -201,8 +227,8 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
         "out_dir": overlap_out_dir,
         "smoothing_method": smoothing_method,
         "overlap": overlap,
-        "seg_len": seg_len,
-        "shift_len": shift_len,
+        "window_length_in_sec": window_length_in_sec,
+        "shift_length_in_sec": shift_length_in_sec,
     }
     p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
     p.close()
@@ -213,22 +239,22 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
 
 def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     """
-    Use generated frame prediction (generated by shifting window of shift_len (10ms)) to generate prediction with overlapping input window/segments
+    Use generated frame prediction (generated by shifting window of shift_length_in_sec (10ms)) to generate prediction with overlapping input window/segments
     See discription in generate_overlap_vad_seq.
     """
     try:
         smoothing_method = per_args['smoothing_method']
         overlap = per_args['overlap']
-        seg_len = per_args['seg_len']
-        shift_len = per_args['shift_len']
+        window_length_in_sec = per_args['window_length_in_sec']
+        shift_length_in_sec = per_args['shift_length_in_sec']
         out_dir = per_args['out_dir']
 
         frame = np.loadtxt(frame_filepath)
         name = os.path.basename(frame_filepath).split(".frame")[0] + "." + smoothing_method
         overlap_filepath = os.path.join(out_dir, name)
 
-        shift = int(shift_len / 0.01)  # number of units of shift
-        seg = int((seg_len / 0.01 + 1))  # number of units of each window/segment
+        shift = int(shift_length_in_sec / 0.01)  # number of units of shift
+        seg = int((window_length_in_sec / 0.01 + 1))  # number of units of each window/segment
 
         jump_on_target = int(seg * (1 - overlap))  # jump on target generated sequence
         jump_on_frame = int(jump_on_target / shift)  # jump on input frame sequence
@@ -237,7 +263,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
             raise ValueError(
                 f"Note we jump over frame sequence to generate overlapping input segments. \n \
             Your input makes jump_on_fram={jump_on_frame} < 1 which is invalid because it cannot jump and will stuck.\n \
-            Please try different seg_len, shift_len and overlap choices. \n \
+            Please try different window_length_in_sec, shift_length_in_sec and overlap choices. \n \
             jump_on_target = int(seg * (1 - overlap)) \n \
             jump_on_frame  = int(jump_on_frame/shift) "
             )
@@ -288,7 +314,9 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
         raise (e)
 
 
-def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, num_workers, threshold=None):
+def generate_vad_segment_table(
+    vad_pred_dir, postprocessing_params, shift_length_in_sec, num_workers, out_dir=None, threshold=None
+):
     """
     Convert frame level prediction to speech segment in start and end times format.
     And save to csv file  in rttm-like format
@@ -297,7 +325,7 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     Args:
         vad_pred_dir (str): directory of prediction files to be processed.
         postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering.
-        shift_len (float): amount of shift of window for generating the frame.
+        shift_length_in_sec (float): amount of shift of window for generating the frame.
         out_dir (str): output dir of generated table/csv file.
         num_workers(float): number of process for multiprocessing
     Returns:
@@ -308,16 +336,19 @@ def generate_vad_segment_table(vad_pred_dir, postprocessing_params, shift_len, n
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
-    table_out_dir_name = "table_output_tmp_"
-    for key in postprocessing_params:
-        table_out_dir_name = table_out_dir_name + str(key) + str(postprocessing_params[key]) + "_"
+    if out_dir:
+        table_out_dir = out_dir
+    else:
+        table_out_dir_name = "table_output_tmp_"
+        for key in postprocessing_params:
+            table_out_dir_name = table_out_dir_name + str(key) + str(postprocessing_params[key]) + "_"
 
-    table_out_dir = os.path.join(vad_pred_dir, table_out_dir_name)
+        table_out_dir = os.path.join(vad_pred_dir, table_out_dir_name)
 
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
 
-    per_args = {"shift_len": shift_len, "out_dir": table_out_dir}
+    per_args = {"shift_length_in_sec": shift_length_in_sec, "out_dir": table_out_dir}
 
     per_args = {**per_args, **postprocessing_params}
 
@@ -332,7 +363,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
     See discription in generate_overlap_vad_seq.
     """
-    shift_len = per_args['shift_len']
+    shift_length_in_sec = per_args['shift_length_in_sec']
     out_dir = per_args['out_dir']
 
     name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
@@ -343,7 +374,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
     seg_speech_table = pd.DataFrame(speech_segments, columns=['start', 'end'])
     seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
-    seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_len
+    seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_length_in_sec
     seg_speech_table['vad'] = 'speech'
 
     save_name = name + ".txt"
@@ -367,12 +398,12 @@ def binarization(sequence, per_args):
             offset (float): offset threshold for detecting the end of a speech. 
             pad_onset (float): adding durations before each speech segment
             pad_offset (float): adding durations after each speech segment;
-            shift_len (float): amount of shift of window for generating the frame.
+            shift_length_in_sec (float): amount of shift of window for generating the frame.
     
     Returns:
         speech_segments(set): Set of speech segment in (start, end) format. 
     """
-    shift_len = per_args.get('shift_len', 0.01)
+    shift_length_in_sec = per_args.get('shift_length_in_sec', 0.01)
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
@@ -388,21 +419,21 @@ def binarization(sequence, per_args):
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
-                if i * shift_len + pad_offset > max(0, start - pad_onset):
-                    speech_segments.add((max(0, start - pad_onset), i * shift_len + pad_offset))
-                start = i * shift_len
+                if i * shift_length_in_sec + pad_offset > max(0, start - pad_onset):
+                    speech_segments.add((max(0, start - pad_onset), i * shift_length_in_sec + pad_offset))
+                start = i * shift_length_in_sec
                 speech = False
 
         # Current frame is non-speech
         else:
             # Switch from non-speech to speech
             if sequence[i] > onset:
-                start = i * shift_len
+                start = i * shift_length_in_sec
                 speech = True
 
     # if it's speech at the end, add final segment
     if speech:
-        speech_segments.add((max(0, start - pad_onset), i * shift_len + pad_offset))
+        speech_segments.add((max(0, start - pad_onset), i * shift_length_in_sec + pad_offset))
 
     # Merge the overlapped speech segments due to padding
     speech_segments = merge_overlap_segment(speech_segments)  # not sorted
@@ -595,7 +626,7 @@ def vad_tune_threshold_on_dev(
 
     for param in params_grid:
         # perform binarization, filtering accoring to param and write to rttm-like table
-        vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_len=0.01, num_workers=20)
+        vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
 
         # add reference and hypothesis to metrics
         for filename in paired_filenames:
@@ -758,14 +789,17 @@ def plot(
     return ipd.Audio(audio, rate=16000)
 
 
-def gen_pred_from_speech_segments(speech_segments, prob, shift_len=0.01):
+def gen_pred_from_speech_segments(speech_segments, prob, shift_length_in_sec=0.01):
+    """
+    Generate prediction arrays like 000111000... from speech segments {[0,1][2,4]} 
+    """
     pred = np.zeros(prob.shape)
     speech_segments = [list(i) for i in speech_segments]
     speech_segments.sort(key=lambda x: x[0])
 
     for seg in speech_segments:
-        start = int(seg[0] / shift_len)
-        end = int(seg[1] / shift_len)
+        start = int(seg[0] / shift_length_in_sec)
+        end = int(seg[1] / shift_length_in_sec)
         pred[start:end] = 1
     return pred
 
@@ -787,3 +821,63 @@ def extract_labels(path2ground_truth_label, time):
         else:
             labels.append(0)
     return labels
+
+
+def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec, manifest_vad_input, out_dir):
+    """
+    Generate VAD frame level prediction and write to out_dir
+    """
+    time_unit = int(window_length_in_sec / shift_length_in_sec)
+    trunc = int(time_unit / 2)
+    trunc_l = time_unit - trunc
+    all_len = 0
+
+    data = []
+    for line in open(manifest_vad_input, 'r'):
+        file = json.loads(line)['audio_filepath'].split("/")[-1]
+        data.append(file.split(".wav")[0])
+    logging.info(f"Inference on {len(data)} audio files/json lines!")
+
+    status = get_vad_stream_status(data)
+    for i, test_batch in enumerate(vad_model.test_dataloader()):
+        test_batch = [x.to(vad_model.device) for x in test_batch]
+        with autocast():
+            log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+            probs = torch.softmax(log_probs, dim=-1)
+            pred = probs[:, 1]
+
+            if status[i] == 'start':
+                to_save = pred[:-trunc]
+            elif status[i] == 'next':
+                to_save = pred[trunc:-trunc_l]
+            elif status[i] == 'end':
+                to_save = pred[trunc_l:]
+            else:
+                to_save = pred
+
+            all_len += len(to_save)
+            outpath = os.path.join(out_dir, data[i] + ".frame")
+            with open(outpath, "a") as fout:
+                for f in range(len(to_save)):
+                    fout.write('{0:0.4f}\n'.format(to_save[f]))
+
+        del test_batch
+        if status[i] == 'end' or status[i] == 'single':
+            logging.debug(f"Overall length of prediction of {data[i]} is {all_len}!")
+            all_len = 0
+    return out_dir
+
+
+def init_vad_model(model_path):
+    """
+    Initiate VAD model with model path
+    """
+    if model_path.endswith('.nemo'):
+        logging.info(f"Using local VAD model from {model_path}")
+        vad_model = EncDecClassificationModel.restore_from(restore_path=model_path)
+    elif model_path.endswith('.ckpt'):
+        vad_model = EncDecClassificationModel.load_from_checkpoint(checkpoint_path=model_path)
+    else:
+        logging.info(f"Using NGC cloud VAD model {model_path}")
+        vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
+    return vad_model
