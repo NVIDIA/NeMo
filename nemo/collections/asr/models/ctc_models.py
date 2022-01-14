@@ -21,7 +21,6 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset

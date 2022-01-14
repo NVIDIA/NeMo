@@ -21,7 +21,6 @@ import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
 from nemo.collections.asr.data.audio_to_label_dataset import get_tarred_speech_label_dataset
@@ -170,10 +169,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 normalize_audio=config.get('normalize_audio', False),
             )
 
-        if isinstance(dataset, ChainDataset):
-            collate_ds = dataset.datasets[0]
-        else:
+        if hasattr(dataset, 'fixed_seq_collate_fn'):
             collate_ds = dataset
+        else:
+            collate_ds = dataset.datasets[0]
 
         # self.labels = collate_ds.labels
         collate_fn = collate_ds.fixed_seq_collate_fn

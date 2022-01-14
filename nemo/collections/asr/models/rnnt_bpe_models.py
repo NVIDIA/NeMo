@@ -19,7 +19,6 @@ from typing import Dict, List, Optional
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss

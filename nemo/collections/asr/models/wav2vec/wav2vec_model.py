@@ -26,7 +26,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch import nn
-from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.wav2vecloss import Wav2VecLoss

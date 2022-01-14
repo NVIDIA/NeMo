@@ -18,7 +18,6 @@ from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
-from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.ctc import CTCLoss
