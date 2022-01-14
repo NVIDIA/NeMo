@@ -112,7 +112,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
-    def input_example(self, max_batch=1, max_dim=8192):
+    def input_example(self, max_batch=1, max_dim=1):
         """
         Generates input examples for tracing etc.
         Returns:
@@ -1103,7 +1103,7 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
 
         return mytypes
 
-    def input_example(self, max_batch=1, max_dim=8192):
+    def input_example(self, max_batch=1, max_dim=1):
         decoder_example = self.decoder.input_example(max_batch=max_batch, max_dim=max_dim)
         state1, state2 = decoder_example[-1]
         return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
