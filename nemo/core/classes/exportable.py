@@ -209,19 +209,19 @@ class Exportable(ABC):
                         dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
                         dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
 
-                        torch.onnx.export(
-                            jitted_model,
-                            input_example,
-                            output,
-                            input_names=input_names,
-                            output_names=output_names,
-                            verbose=verbose,
-                            export_params=export_params,
-                            do_constant_folding=do_constant_folding,
-                            keep_initializers_as_inputs=keep_initializers_as_inputs,
-                            dynamic_axes=dynamic_axes,
-                            opset_version=onnx_opset_version,
-                        )
+                    torch.onnx.export(
+                        jitted_model,
+                        input_example,
+                        output,
+                        input_names=input_names,
+                        output_names=output_names,
+                        verbose=verbose,
+                        export_params=export_params,
+                        do_constant_folding=do_constant_folding,
+                        keep_initializers_as_inputs=keep_initializers_as_inputs,
+                        dynamic_axes=dynamic_axes,
+                        opset_version=onnx_opset_version,
+                    )
 
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
