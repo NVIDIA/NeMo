@@ -11,170 +11,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import glob
-import os
+
 import time
 from argparse import ArgumentParser
-from itertools import repeat
-from multiprocessing import Pool
 
-import numpy as np
-import pandas as pd
-
+from nemo.collections.asr.parts.utils.vad_utils import generate_overlap_vad_seq, generate_vad_segment_table
+from nemo.utils import logging
 
 """
+Note you can use NeMo/examples/asr/speech_classification/vad_infer.py which includes the functionalities appeared in this function directly. 
+
+You are encouraged to use this script if you want to try overlapped mean/median smoothing filter and postprocessing technique without perform costly NN inference several times.
+You can also use this script to write RTTM-like files if you have frame level prediction already.
+
 This script serves two purposes:
- 
     1) gen_overlap_seq: 
-        Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/vad_infer.py. 
+        Generate predictions with overlapping input segments by using the frame level prediction from NeMo/examples/asr/speech_classification/vad_infer.py. 
         Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
        
     2）gen_seg_table: 
-        Converting frame level prediction to speech/no-speech segment in start and end times format.
+        Converting frame level prediction to speech/no-speech segment in start and end times format with postprocessing technique.
    
 Usage:
 
-python vad_overlap_posterior.py --gen_overlap_seq --gen_seg_table --frame_folder=<FULL PATH OF YOU STORED FRAME LEVEL PREDICTION> --method='median' --overlap=0.875 --num_workers=20 --threshold=0.8 
+python vad_overlap_posterior.py --gen_overlap_seq --gen_seg_table --frame_folder=<FULL PATH OF YOU STORED FRAME LEVEL PREDICTION> --method='median' --overlap=0.875 --num_workers=20
  
+You can play with different postprocesing parameters. Here we just show the simpliest condition onset=offset=threshold=0.5
+See more details about postprocesing in function binarization and filtering in NeMo/nemo/collections/asr/parts/utils/vad_utils
+
 """
-
-
-def gen_overlap_seq(frame_filepath, per_args):
-    """
-    Given a frame level prediction, generate predictions with overlapping input segments by using it
-    Args:
-        frame_filepath : frame prediction file to be processed.
-        per_args:
-            method : Median or mean smoothing filter.
-            overlap : Amounts of overlap.
-            seg_len : Length of window for generating the frame.
-            shift_len : Amount of shift of window for generating the frame.
-            out_dir : Output dir of generated prediction.
-    """
-
-    try:
-        method = per_args['method']
-        overlap = per_args['overlap']
-        seg_len = per_args['seg_len']
-        shift_len = per_args['shift_len']
-        out_dir = per_args['out_dir']
-
-        frame = np.loadtxt(frame_filepath)
-        name = os.path.basename(frame_filepath).split(".frame")[0] + "." + method
-        overlap_filepath = os.path.join(out_dir, name)
-
-        shift = int(shift_len / 0.01)  # number of units of shift
-        seg = int((seg_len / 0.01 + 1))  # number of units of each window/segment
-
-        jump_on_target = int(seg * (1 - overlap))  # jump on target generated sequence
-        jump_on_frame = int(jump_on_target / shift)  # jump on input frame sequence
-
-        if jump_on_frame < 1:
-            raise ValueError(
-                f"Note we jump over frame sequence to generate overlapping input segments. \n \
-            Your input makes jump_on_fram={jump_on_frame} < 1 which is invalid because it cannot jump and will stuck.\n \
-            Please try different seg_len, shift_len and overlap choices. \n \
-            jump_on_target = int(seg * (1 - overlap)) \n \
-            jump_on_frame  = int(jump_on_frame/shift) "
-            )
-
-        target_len = int(len(frame) * shift)
-
-        if method == 'mean':
-            preds = np.zeros(target_len)
-            pred_count = np.zeros(target_len)
-
-            for i, og_pred in enumerate(frame):
-                if i % jump_on_frame != 0:
-                    continue
-                start = i * shift
-                end = start + seg
-                preds[start:end] = preds[start:end] + og_pred
-                pred_count[start:end] = pred_count[start:end] + 1
-
-            preds = preds / pred_count
-            last_non_zero_pred = preds[pred_count != 0][-1]
-            preds[pred_count == 0] = last_non_zero_pred
-
-        elif method == 'median':
-            preds = [[] for _ in range(target_len)]
-            for i, og_pred in enumerate(frame):
-                if i % jump_on_frame != 0:
-                    continue
-
-                start = i * shift
-                end = start + seg
-                for j in range(start, end):
-                    if j <= target_len - 1:
-                        preds[j].append(og_pred)
-
-            preds = np.array([np.median(l) for l in preds])
-            nan_idx = np.isnan(preds)
-            last_non_nan_pred = preds[~nan_idx][-1]
-            preds[nan_idx] = last_non_nan_pred
-
-        else:
-            raise ValueError("method should be either mean or median")
-
-        round_final = np.round(preds, 4)
-        np.savetxt(overlap_filepath, round_final, delimiter='\n')
-        print(f"Finished! {overlap_filepath}!")
-
-    except Exception as e:
-        raise (e)
-
-
-def gen_seg_table(frame_filepath, per_args):
-
-    """
-    Convert frame level prediction to speech/no-speech segment in start and end times format.
-    And save to csv file  in rttm-like format
-            0, 10, speech
-            10,12, no-speech
-    Args:
-        frame_filepath : frame prediction file to be processed.
-        per_args : 
-            threshold : threshold for prediction score (from 0 to 1).
-            shift_len : Amount of shift of window for generating the frame. 
-            out_dir : Output dir of generated table/csv file.                   
-    """
-    threshold = per_args['threshold']
-    shift_len = per_args['shift_len']
-    out_dir = per_args['out_dir']
-
-    print(f"process {frame_filepath}")
-    name = frame_filepath.split("/")[-1].rsplit(".", 1)[0]
-
-    sequence = np.loadtxt(frame_filepath)
-    start = 0
-    end = 0
-    start_list = [0]
-    end_list = []
-    state_list = []
-
-    for i in range(len(sequence) - 1):
-        current_sate = "non-speech" if sequence[i] <= threshold else "speech"
-        next_state = "non-speech" if sequence[i + 1] <= threshold else "speech"
-        if next_state != current_sate:
-            end = i * shift_len + shift_len  # shift_len for handling joint
-            state_list.append(current_sate)
-            end_list.append(end)
-
-            start = (i + 1) * shift_len
-            start_list.append(start)
-
-    end_list.append((i + 1) * shift_len + shift_len)
-    state_list.append(current_sate)
-
-    seg_table = pd.DataFrame({'start': start_list, 'end': end_list, 'vad': state_list})
-
-    save_name = name + ".txt"
-    save_path = os.path.join(out_dir, save_name)
-    seg_table.to_csv(save_path, sep='\t', index=False, header=False)
-
+postprocessing_params = {"onset": 0.5, "offset": 0.5}
 
 if __name__ == '__main__':
-    start = time.time()
     parser = ArgumentParser()
     parser.add_argument("--gen_overlap_seq", default=False, action='store_true')
     parser.add_argument("--gen_seg_table", default=False, action='store_true')
@@ -188,72 +56,51 @@ if __name__ == '__main__':
     parser.add_argument("--overlap_out_dir", type=str)
     parser.add_argument("--table_out_dir", type=str)
     parser.add_argument("--overlap", type=float, default=0.875, help="Overlap percentatge. Default is 0.875")
-    parser.add_argument("--seg_len", type=float, default=0.63)
-    parser.add_argument("--shift_len", type=float, default=0.01)
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--window_length_in_sec", type=float, default=0.63)
+    parser.add_argument("--shift_length_in_sec", type=float, default=0.01)
     parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
 
     if args.gen_overlap_seq:
-        p = Pool(processes=args.num_workers)
-        print("Generating predictions with overlapping input segments")
-        frame_filepathlist = glob.glob(args.frame_folder + "/*.frame")
-
-        if not args.overlap_out_dir:
-            overlap_out_dir = "./overlap_smoothing_output" + "_" + args.method + "_" + str(args.overlap)
-        else:
-            overlap_out_dir = args.overlap_out_dir
-        if not os.path.exists(overlap_out_dir):
-            print(f"Creating output dir {overlap_out_dir}")
-            os.mkdir(overlap_out_dir)
-
-        per_args = {
-            "method": args.method,
-            "overlap": args.overlap,
-            "seg_len": args.seg_len,
-            "shift_len": args.shift_len,
-            "out_dir": overlap_out_dir,
-        }
-
-        p.starmap(gen_overlap_seq, zip(frame_filepathlist, repeat(per_args)))
-        p.close()
-        p.join()
-
+        start = time.time()
+        logging.info("Generating predictions with overlapping input segments")
+        overlap_out_dir = generate_overlap_vad_seq(
+            frame_pred_dir=args.frame_folder,
+            smoothing_method=args.method,
+            overlap=args.overlap,
+            window_length_in_sec=args.window_length_in_sec,
+            shift_length_in_sec=args.shift_length_in_sec,
+            num_workers=args.num_workers,
+            out_dir=args.overlap_out_dir,
+        )
+        logging.info(
+            f"Finish generating predictions with overlapping input segments with smoothing_method={args.method} and overlap={args.overlap}"
+        )
         end = time.time()
-        print(f"Generate overlapped prediction takes {end-start} seconds!\n Save to {overlap_out_dir}")
+        logging.info(f"Generate overlapped prediction takes {end-start:.2f} seconds!\n Save to {overlap_out_dir}")
 
     if args.gen_seg_table:
-        p = Pool(processes=args.num_workers)
-        print("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+        start = time.time()
+        logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
 
         if args.gen_overlap_seq:
-            print("Use overlap prediction. Change if you want to use basic frame level prediction")
-            frame_filepath = overlap_out_dir
-            shift_len = 0.01
+            logging.info("Use overlap prediction. Change if you want to use basic frame level prediction")
+            vad_pred_dir = overlap_out_dir
+            shift_length_in_sec = 0.01
         else:
-            print("Use basic frame level prediction")
-            frame_filepath = args.frame_folder
-            shift_len = args.shift_len
+            logging.info("Use basic frame level prediction")
+            vad_pred_dir = args.frame_folder
+            shift_length_in_sec = args.shift_length_in_sec
 
-        frame_filepathlist = glob.glob(frame_filepath + "/*." + args.method)
-
-        if not args.table_out_dir:
-            table_out_dir = "table_output_" + str(args.threshold)
-        else:
-            table_out_dir = args.table_out_dir
-        if not os.path.exists(table_out_dir):
-            print(f"Creating rttm-like table output dir {table_out_dir}")
-            os.mkdir(table_out_dir)
-
-        per_args = {
-            "threshold": args.threshold,
-            "shift_len": shift_len,
-            "out_dir": table_out_dir,
-        }
-
-        p.starmap(gen_seg_table, zip(frame_filepathlist, repeat(per_args)))
-        p.close()
-        p.join()
-
+        table_out_dir = generate_vad_segment_table(
+            vad_pred_dir=vad_pred_dir,
+            postprocessing_params=postprocessing_params,
+            shift_length_in_sec=args.shift_length_in_sec,
+            num_workers=args.num_workers,
+            out_dir=args.table_out_dir,
+        )
+        logging.info(f"Finish generating speech semgents table with postprocessing_params: {postprocessing_params}")
         end = time.time()
-        print(f"Generate rttm-like table for {frame_filepath} takes {end-start} seconds!\n Save to {table_out_dir}")
+        logging.info(
+            f"Generating rttm-like tables for {vad_pred_dir} takes {end-start:.2f} seconds!\n Save to {table_out_dir}"
+        )
