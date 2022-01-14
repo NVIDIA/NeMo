@@ -109,7 +109,7 @@ def conversion_helper(val, conversion):
     return rtn
 
 
-def fp32_to_float16(val, float16_convertor):
+def fp32_to_float16(val, float16_converter):
     """Convert fp32 `val` to fp16/bf16"""
 
     def half_conversion(val):
@@ -117,7 +117,7 @@ def fp32_to_float16(val, float16_convertor):
         if isinstance(val_typecheck, (Parameter, Variable)):
             val_typecheck = val.data
         if isinstance(val_typecheck, _FLOAT_TYPES):
-            val = float16_convertor(val)
+            val = float16_converter(val)
         return val
 
     return conversion_helper(val, half_conversion)
@@ -145,33 +145,33 @@ class Float16Module(MegatronModule):
             # We do this to keep checkpoints consistent across precisions
             self.add_module('module', module)
 
-            def float16_convertor(val):
+            def float16_converter(val):
                 # no conversion in this case
                 return val
 
         elif precision == 16:
             self.add_module('module', module.half())
 
-            def float16_convertor(val):
+            def float16_converter(val):
                 return val.half()
 
         elif precision == 'bf16':
             self.add_module('module', module.bfloat16())
 
-            def float16_convertor(val):
+            def float16_converter(val):
                 return val.bfloat16()
 
         else:
             raise Exception(f'{precision} is not supported. Float16Module supports ' 'only fp16 and bf16.')
 
-        self.float16_convertor = float16_convertor
+        self.float16_converter = float16_converter
 
     def set_input_tensor(self, input_tensor):
         return self.module.set_input_tensor(input_tensor)
 
     def forward(self, *inputs, **kwargs):
         if parallel_state.is_pipeline_first_stage():
-            inputs = fp32_to_float16(inputs, self.float16_convertor)
+            inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
         if parallel_state.is_pipeline_last_stage():
             outputs = float16_to_fp32(outputs)
