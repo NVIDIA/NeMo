@@ -130,14 +130,15 @@ class MegatronGPTModel(NLPModel):
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
-        # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-        self.model.cuda(torch.cuda.current_device())
+        if self.megatron_amp_o2:
 
-        # Model wrapper to convert both model and inputs to half precision
-        # In case of FP32 or native amp, this module will do nothing, but it is still used to keep checkpoints consistent
-        self.model = Float16Module(
-            module=self.model, precision=cfg.precision, use_megatron_amp_o2=self.megatron_amp_o2
-        )
+            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+            self.model.cuda(torch.cuda.current_device())
+
+            # Model wrapper to convert both model and inputs to half precision
+            self.model = Float16Module(
+                module=self.model, precision=cfg.precision, use_megatron_amp_o2=self.megatron_amp_o2
+            )
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
@@ -750,3 +751,4 @@ class MegatronGPTModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
+

@@ -138,20 +138,11 @@ def float16_to_fp32(val):
 
 
 class Float16Module(MegatronModule):
-    def __init__(self, module, precision, use_megatron_amp_o2):
+    def __init__(self, module, precision):
         super().__init__()
         self.precision = precision
-        self.use_megatron_amp_o2 = use_megatron_amp_o2
 
-        if precision == 32 or use_megatron_amp_o2 == False:
-            # We do this to keep checkpoints consistent across precisions
-            self.add_module('module', module)
-
-            def float16_converter(val):
-                # no conversion in this case
-                return val
-
-        elif precision == 16:
+        if precision == 16:
             self.add_module('module', module.half())
 
             def float16_converter(val):
@@ -172,12 +163,16 @@ class Float16Module(MegatronModule):
         return self.module.set_input_tensor(input_tensor)
 
     def forward(self, *inputs, **kwargs):
-        if self.precision == 32 or self.use_megatron_amp_o2:
-            outputs = self.module(*inputs, **kwargs)
-        else:
-            if parallel_state.is_pipeline_first_stage():
-                inputs = fp32_to_float16(inputs, self.float16_converter)
-            outputs = self.module(*inputs, **kwargs)
-            if parallel_state.is_pipeline_last_stage():
-                outputs = float16_to_fp32(outputs)
+        if parallel_state.is_pipeline_first_stage():
+            inputs = fp32_to_float16(inputs, self.float16_converter)
+        outputs = self.module(*inputs, **kwargs)
+        if parallel_state.is_pipeline_last_stage():
+            outputs = float16_to_fp32(outputs)
         return outputs
+
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        return self.module.state_dict(destination, prefix, keep_vars)
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+

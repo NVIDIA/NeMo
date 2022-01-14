@@ -29,6 +29,7 @@ from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
@@ -144,6 +145,13 @@ class NLPDDPPlugin(DDPPlugin):
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
+        if isinstance(self.lightning_module.model, Float16Module):
+            new_state_dict = {}
+            for key in checkpoint['state_dict'].keys():
+                new_key = key.replace('model.', 'model.module.', 1)
+                new_state_dict[new_key] = checkpoint['state_dict'][key]
+            checkpoint['state_dict'] = new_state_dict
+
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
     def remove_checkpoint(self, filepath: _PATH) -> None:
