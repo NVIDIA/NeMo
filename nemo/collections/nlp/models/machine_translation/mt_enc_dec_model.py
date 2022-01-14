@@ -934,18 +934,14 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return return_val
 
-    def export(self, output: str, input_example=None, output_example=None, **kwargs):
+    def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
-            self._augment_output_filename(output, 'Encoder'),
-            input_example=input_example,
-            output_example=None,
-            **kwargs,
+            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
         )
         decoder_exp, decoder_descr = self.decoder.export(
             self._augment_output_filename(output, 'Decoder'),
             # TODO: propagate from export()
             input_example=None,
-            output_example=None,
             **kwargs,
         )
         return encoder_exp + decoder_exp, encoder_descr + decoder_descr

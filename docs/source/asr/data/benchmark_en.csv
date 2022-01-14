@@ -10,6 +10,7 @@ stt_en_citrinet_1024_gamma_0_25,EncDecCTCBPEModel,"https://ngc.nvidia.com/catalo
 stt_en_contextnet_256_mls,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_256_mls"
 stt_en_contextnet_512_mls,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512_mls"
 stt_en_contextnet_1024_mls,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024_mls"
+stt_en_contextnet_256,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_256"
 stt_en_contextnet_512,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512"
 stt_en_contextnet_1024,EncDecRNNTBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024"
 stt_en_conformer_ctc_small,EncDecCTCBPEModel,"https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_small"
