@@ -65,7 +65,7 @@ class GPTPromptTuningDataset(Dataset):
             doc = json.loads(json_line)
             prompt_tag = doc["prompt_tag"]
             question = str(doc["text"])
-            answer = str(doc["answer"]) # Incase 'True' or 'False' gets read as bool
+            answer = str(doc["answer"])  # Incase 'True' or 'False' gets read as bool
             sent = question + answer
 
             sent_ids = tokenizer.text_to_ids(sent)
