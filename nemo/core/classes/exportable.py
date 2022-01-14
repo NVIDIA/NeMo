@@ -134,7 +134,7 @@ class Exportable(ABC):
         dynamic_axes=None,
         check_tolerance=0.01,
     ):
-        my_args = locals()
+        my_args = locals().copy()
         my_args.pop('self')
 
         exportables = []
