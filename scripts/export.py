@@ -60,7 +60,6 @@ def get_args(argv):
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
     parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
-    parser.add_argument("--external-data", action="store_true", help="Use external data ONNX format")
     args = parser.parse_args(argv)
     return args
 
@@ -130,7 +129,6 @@ def nemo_export(argv):
                     check_trace=args.runtime_check,
                     input_example=input_example,
                     onnx_opset_version=args.onnx_opset,
-                    use_external_data_format=args.external_data,
                     verbose=args.verbose,
                 )
     except Exception as e:

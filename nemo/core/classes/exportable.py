@@ -133,7 +133,6 @@ class Exportable(ABC):
         use_dynamic_axes: bool = True,
         dynamic_axes=None,
         check_tolerance=0.01,
-        use_external_data_format: bool = False,
     ):
         my_args = locals()
         my_args.pop('self')
@@ -222,7 +221,6 @@ class Exportable(ABC):
                             keep_initializers_as_inputs=keep_initializers_as_inputs,
                             dynamic_axes=dynamic_axes,
                             opset_version=onnx_opset_version,
-                            use_external_data_format=use_external_data_format,
                         )
 
                     # Verify the model can be read, and is valid
