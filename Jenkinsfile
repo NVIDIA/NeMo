@@ -1967,14 +1967,14 @@ pipeline {
 	sh "python examples/nlp/language_modeling/megatron_gpt_prompt_tuning.py \
 	   --config-name=megatron_gpt_config \
 	   trainer.gpus=1 \
-	   trainer.max_steps=20 \
-	   trainer.val_check_interval=10 \
+	   trainer.max_steps=10 \
+	   trainer.val_check_interval=1 \
 	   exp_manager.name='megatron_gpt125M_prompt_tuning' \
 	   exp_manager.checkpoint_callback_params.save_top_k=2 \
 	   restore_from_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
 	   +model.use_soft_prompts=True \
 	   +model.num_prompt_tokens=10 \
-           +model.new_prompt_tags=['Winogrande, BoolQA'] \
+           +model.new_prompt_tags=['Winogrande, BoolQ'] \
 	   +model.new_prompt_init_text=['logic choose person name, None'] \
 	   +model.new_prompt_init_methods=['text, random'] \
            model.data.data_prefix=None \
@@ -1989,11 +1989,11 @@ pipeline {
 	   model.encoder_seq_length=2048"
 	sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
 	    --use_soft_prompts \
-	    --model_file=examples/nlp/language_modeling/nemo_experiments/megatron_gpt125M_prompt_tuning/checkpoints/megatron_gpt125M_prompt_tuning.nemo \
+	    --model_file=nemo_experiments/megatron_gpt125M_prompt_tuning/checkpoints/megatron_gpt125M_prompt_tuning.nemo \
 	    --tokens_to_generate=3 \
 	    --prompt_tag='Winogrande' \
-	    --prompt='option1: wood option2: bag sentence: The _ is soft. answer: '"
-	sh "rm -rf examples/nlp/language_modeling/nemo_experiments/megatron_gpt125M_prompt_tuning"
+	    --prompt='option1: wood option2: bag sentence: The _ is soft. answer:'"
+	sh "rm -rf nemo_experiments"
       }
     }
 
