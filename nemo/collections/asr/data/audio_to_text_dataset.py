@@ -384,12 +384,12 @@ def get_chain_dataset(datasets, ds_config):
     if len(datasets) == 1:
         return datasets[0]
     bucketing_strategy = ds_config.get('bucketing_strategy', 'synced_randomized')
-    if bucketing_strategy == 'syned_randomized':
-        return RandomizedChainDataset(datasets=datasets, rnd_seed=0)
-    if bucketing_strategy == 'fully_randomized':
-        return RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
-    elif bucketing_strategy == 'fixed_order':
+    if bucketing_strategy == 'fixed_order':
         return ChainDataset(datasets)
+    elif bucketing_strategy == 'syned_randomized':
+        return RandomizedChainDataset(datasets=datasets, rnd_seed=0)
+    elif bucketing_strategy == 'fully_randomized':
+        return RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
     else:
         raise ValueError(
             f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are randomzied and fixed_order.'
