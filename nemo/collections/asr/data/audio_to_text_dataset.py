@@ -19,7 +19,7 @@ import torch
 from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.callbacks import BasePredictionWriter
-from torch.utils.data import ChainDataset
+from nemo.collections.asr.data.audio_to_text import RandomizedChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.utils import logging
@@ -234,7 +234,7 @@ def get_tarred_dataset(
             )
 
     if len(datasets) > 1:
-        return ChainDataset(datasets)
+        return RandomizedChainDataset(datasets)
     else:
         return datasets[0]
 
