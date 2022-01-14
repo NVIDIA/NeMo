@@ -57,8 +57,8 @@ def get_speech_label_dataset(featurizer, config: dict) -> audio_to_label.AudioTo
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
-        time_length=config.get('time_length', 0.31),
-        shift_length=config.get('shift_length', 0.01),
+        window_length_in_sec=config.get('window_length_in_sec', 0.31),
+        shift_length_in_sec=config.get('shift_length_in_sec', 0.01),
         normalize_audio=config.get('normalize_audio', False),
     )
     return dataset
@@ -138,8 +138,8 @@ def get_tarred_speech_label_dataset(
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
             trim=config.get('trim_silence', False),
-            time_length=config.get('time_length', 8),
-            shift_length=config.get('shift_length', 0.075),
+            window_length_in_sec=config.get('window_length_in_sec', 8),
+            shift_length_in_sec=config.get('shift_length_in_sec', 0.075),
             normalize_audio=config.get('normalize_audio', False),
             shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
             global_rank=global_rank,

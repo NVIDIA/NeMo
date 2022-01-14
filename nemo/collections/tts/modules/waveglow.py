@@ -156,16 +156,18 @@ class WaveGlowModule(NeuralModule, Exportable):
                 "audio": NeuralType(('B', 'T'), AudioSignal()),
             }
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.n_mel_channels, 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.n_mel_channels, max_dim), device=par.device, dtype=par.dtype)
         z = torch.randn(
-            (1, self.n_mel_channels, 96 * self.upsample.stride[0] // self.n_group), device=par.device, dtype=par.dtype
+            (max_batch, self.n_mel_channels, max_dim * self.upsample.stride[0] // self.n_group),
+            device=par.device,
+            dtype=par.dtype,
         )
         return {"spec": mel, "z": z}
 
