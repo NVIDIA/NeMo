@@ -273,7 +273,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             dataset = audio_to_text_dataset.get_bpe_dataset(
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
-        if type(dataset) is ChainDataset:
+        if isinstance(dataset, ChainDataset):
             collate_fn = dataset.datasets[0].collate_fn
         else:
             collate_fn = dataset.collate_fn

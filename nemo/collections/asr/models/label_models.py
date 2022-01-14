@@ -170,7 +170,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 normalize_audio=config.get('normalize_audio', False),
             )
 
-        if type(dataset) is ChainDataset:
+        if isinstance(dataset, ChainDataset):
             collate_ds = dataset.datasets[0]
         else:
             collate_ds = dataset

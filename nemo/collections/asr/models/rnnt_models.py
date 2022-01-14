@@ -472,7 +472,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
             dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
-        if type(dataset) is ChainDataset:
+        if isinstance(dataset, ChainDataset):
             collate_fn = dataset.datasets[0].collate_fn
         else:
             collate_fn = dataset.collate_fn
