@@ -80,15 +80,15 @@ class ConvASREncoder(NeuralModule, Exportable):
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=8192):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         device = next(self.parameters()).device
-        input_example = torch.randn(1, self._feat_in, 8192, device=device)
-        lens = torch.full(size=(input_example.shape[0],), fill_value=8192, device=device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim, device=device)
+        lens = torch.full(size=(input_example.shape[0],), fill_value=max_dim, device=device)
         return tuple([input_example, lens])
 
     @property
@@ -247,13 +247,13 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 
         logging.warning(f"Turned off {m_count} masked convolutions")
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
@@ -439,15 +439,13 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     def _prepare_for_export(self, **kwargs):
@@ -532,15 +530,13 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return self.decoder_layers(encoder_output).transpose(-2, -1)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     def _prepare_for_export(self, **kwargs):
@@ -561,13 +557,13 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         https://arxiv.org/pdf/2005.04290.pdf
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 128).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
@@ -719,13 +715,13 @@ class SpeakerDecoder(NeuralModule, Exportable):
             Defaults to "xavier_uniform".
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self.input_feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self.input_feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
