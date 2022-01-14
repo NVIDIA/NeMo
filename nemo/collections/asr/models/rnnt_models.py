@@ -213,7 +213,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
-        num_workers: int = None,
+        num_workers: int = 0,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
