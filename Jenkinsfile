@@ -1971,6 +1971,7 @@ pipeline {
 	   trainer.val_check_interval=1 \
 	   exp_manager.name='megatron_gpt125M_prompt_tuning' \
 	   exp_manager.checkpoint_callback_params.save_top_k=2 \
+	   exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
 	   restore_from_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
 	   +model.use_soft_prompts=True \
 	   +model.num_prompt_tokens=10 \
