@@ -383,13 +383,11 @@ def get_chain_dataset(datasets, ds_config):
 
     if len(datasets) == 1:
         return datasets[0]
-    bucketing_strategy = ds_config.get('bucketing_strategy', 'fully_randomized')
+    bucketing_strategy = ds_config.get('bucketing_strategy', 'synced_randomized')
     if bucketing_strategy == 'syned_randomized':
         return RandomizedChainDataset(datasets=datasets, rnd_seed=0)
     if bucketing_strategy == 'fully_randomized':
-        r=random.randint(0, 20000)
-        print(r)
-        return RandomizedChainDataset(datasets=datasets, rnd_seed=r)
+        return RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
     elif bucketing_strategy == 'fixed_order':
         return ChainDataset(datasets)
     else:
