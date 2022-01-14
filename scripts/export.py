@@ -57,6 +57,9 @@ def get_args(argv):
     parser.add_argument("--autocast", action="store_true", help="Use autocast when exporting")
     parser.add_argument("--runtime-check", action="store_true", help="Runtime check of exported net result")
     parser.add_argument("--verbose", default=None, help="Verbose level for logging, numeric")
+    parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
+    parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
+    parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
     args = parser.parse_args(argv)
     return args
 
@@ -108,12 +111,26 @@ def nemo_export(argv):
             model = model.cuda()
             if args.autocast:
                 autocast = torch.cuda.amp.autocast
-            with autocast():
+            with autocast(), torch.no_grad():
                 logging.info(f"Exporting model with autocast={args.autocast}")
                 #
                 #  Add custom export parameters here
                 #
-                _, descriptions = model.export(out, check_trace=args.runtime_check, verbose=args.verbose)
+                in_args = {}
+                if args.max_batch is not None:
+                    in_args["max_batch"] = args.max_batch
+                if args.max_dim is not None:
+                    in_args["max_dim"] = args.max_dim
+
+                input_example = model._get_input_example(**in_args)
+
+                _, descriptions = model.export(
+                    out,
+                    check_trace=args.runtime_check,
+                    input_example=input_example,
+                    onnx_opset_version=args.onnx_opset,
+                    verbose=args.verbose,
+                )
     except Exception as e:
         logging.error(
             "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
