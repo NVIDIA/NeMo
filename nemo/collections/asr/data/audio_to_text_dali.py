@@ -14,6 +14,7 @@
 
 import math
 import operator
+import os.path
 from collections.abc import Iterator
 from typing import Callable, List, Optional, Union
 
@@ -345,9 +346,13 @@ class _AudioTextDALIDataset(Iterator):
                 self.is_tarred_dataset = False
 
             elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
+                if len(audio_tar_filepaths) != len(audio_tar_index_filepaths):
+                    raise ValueError("Number of filepaths provided for `audio_tar_filepaths` must match "
+                                     "`audio_tar_index_filepaths`")
+
                 tar_file = dali.fn.readers.webdataset(
                     paths=audio_tar_filepaths,
-                    index_paths=audio_tar_index_filepaths,
+                    # index_paths=audio_tar_index_filepaths,
                     name="Reader",
                     ext=["wav"],
                     missing_component_behavior="error",
@@ -355,7 +360,6 @@ class _AudioTextDALIDataset(Iterator):
                     shard_id=self.shard_id,
                     num_shards=self.num_shards,
                     pad_last_batch=True,
-                    seed=-1,
                 )
                 audio = decoders.audio(
                     tar_file, dtype=dali.types.FLOAT, downmix=True, sample_rate=float(self.sample_rate),
@@ -518,9 +522,9 @@ class _AudioTextDALIDataset(Iterator):
                 text, text_length = self.manifest_processor.process_text_by_id(manifest_index)
             else:
                 # Tarred-file dataset. Index is filename based.
-                resolved_manifest_indices = str(manifest_index, encoding='UTF-8').split(":")
-                print("resolved manifest indices", resolved_manifest_indices)
-                resolved_manifest_index = resolved_manifest_indices[2]  # we require just the filename
+                resolved_manifest_indices = manifest_index.tobytes().decode().split(":")
+                resolved_manifest_index = resolved_manifest_indices[2]  # we require just the filename segment
+                resolved_manifest_index = os.path.splitext(resolved_manifest_index)[0]  # we dont need file extension
                 text, text_length = self.manifest_processor.process_text_by_file_id(resolved_manifest_index)
 
             text_tokens_len.append(text_length)
@@ -677,6 +681,8 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         device: str,
         batch_size: int,
         sample_rate: int = 16000,
+        audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
+        audio_tar_index_filepaths: Optional[Union[str, List[str]]] = None,
         num_threads: int = 4,
         max_duration: float = 0.0,
         min_duration: float = 0.0,
@@ -719,6 +725,8 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             device=device,
             batch_size=batch_size,
             sample_rate=sample_rate,
+            audio_tar_filepaths=audio_tar_filepaths,
+            audio_tar_index_filepaths=audio_tar_index_filepaths,
             num_threads=num_threads,
             max_duration=max_duration,
             min_duration=min_duration,
