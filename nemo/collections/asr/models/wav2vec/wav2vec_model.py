@@ -494,10 +494,10 @@ class Wav2VecEncoderModel(ModelPT):
 
             dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
-        if isinstance(dataset, ChainDataset):
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
+        if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
