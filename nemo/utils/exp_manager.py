@@ -90,7 +90,7 @@ class StepTimingParams:
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
-    buffer_size: Optional[int] = -1
+    buffer_size: Optional[int] = 1
 
 
 @dataclass
