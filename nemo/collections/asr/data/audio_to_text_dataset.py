@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import json
-from typing import Any, List, Optional, Union
 import random
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, open_dict
@@ -391,7 +391,9 @@ def get_chain_dataset(datasets, ds_config):
     elif bucketing_strategy == 'fixed_order':
         return ChainDataset(datasets)
     else:
-        raise ValueError(f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are randomzied and fixed_order.')
+        raise ValueError(
+            f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are randomzied and fixed_order.'
+        )
 
 
 def calc_bucketing_batch_sizes(ds_config, datasets_len):
