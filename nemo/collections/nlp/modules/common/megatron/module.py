@@ -141,7 +141,15 @@ class Float16Module(MegatronModule):
     def __init__(self, module, precision):
         super().__init__()
 
-        if precision == 16:
+        if precision == 32:
+            # We do this to keep checkpoints consistent across precisions
+            self.add_module('module', module)
+
+            def float16_convertor(val):
+                # no conversion in this case
+                return val
+
+        elif precision == 16:
             self.add_module('module', module.half())
 
             def float16_convertor(val):

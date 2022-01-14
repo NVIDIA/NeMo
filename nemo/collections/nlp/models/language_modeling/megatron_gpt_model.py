@@ -129,11 +129,13 @@ class MegatronGPTModel(NLPModel):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
-        if self.megatron_amp_o2:
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.model.cuda(torch.cuda.current_device())
-            # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(self.model, cfg.precision)
+        # if self.megatron_amp_o2:
+
+        # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+        self.model.cuda(torch.cuda.current_device())
+        # Model wrapper to convert both model and inputs to half precision
+        # In case of FP32, this module will do nothing, but is still used to keep checkpoints consistent
+        self.model = Float16Module(self.model, cfg.precision)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
