@@ -419,21 +419,11 @@ class TestASRDatasets:
             for idx in range(2)
         ]
 
-        batch_size = 1
+        batch_size = 8
         device = 'gpu' if torch.cuda.is_available() else 'cpu'
         texts = []
 
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            # with open(manifest_path, 'r') as m:
-            #     for ix, line in enumerate(m):
-            #
-            #         line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
-            #         f.write(f"{line}\n")
-            #
-            #         data = json.loads(line)
-            #         texts.append(data['text'])
-            #
-            # f.seek(0)
             num_samples = 0
             with open(manifest_path, 'r') as m:
                 for line in m:
@@ -469,9 +459,6 @@ class TestASRDatasets:
             for text, og_transcript in zip(texts, original_transcripts):
                 assert text == og_transcript
 
-            # Repeat, now with shuffle enabled
-            # f.seek(0)
-
             dataset = AudioToCharDALIDataset(
                 manifest_filepath=manifest_path,  # f.name,
                 audio_tar_filepaths=audio_tar_filepaths,
@@ -503,3 +490,85 @@ class TestASRDatasets:
                 if orig != shuffled:
                     samples_changed += 1
             assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
+
+    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.unit
+    def test_dali_tarred_char_vs_ref_dataset(self, test_data_dir):
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
+        audio_tar_filepaths = [
+            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{idx}.tar')) for idx in range(2)
+        ]
+        audio_tar_index_filepaths = [
+            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/dali_index/audio_{idx}.index'))
+            for idx in range(2)
+        ]
+
+        batch_size = 8
+        texts = []
+
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
+            num_samples = 0
+            with open(manifest_path, 'r') as m:
+                for ix, line in enumerate(m):
+                    # line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
+                    # f.write(f"{line}\n")
+
+                    data = json.loads(line)
+                    texts.append(data['text'])
+                    num_samples += 1
+
+            # f.seek(0)
+
+            preprocessor = {
+                '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
+                'dither': 0.0,
+            }
+            preprocessor_cfg = DictConfig(preprocessor)
+
+            dataset_cfg = {
+                'manifest_filepath': f.name,
+                'audio_tar_filepaths': audio_tar_filepaths,
+                'audio_tar_index_filepaths': audio_tar_index_filepaths,
+                'tarred_audio_filepaths': audio_tar_filepaths,
+                'sample_rate': 16000,
+                'labels': self.labels,
+                'batch_size': batch_size,
+                'trim_silence': False,
+                'max_duration': 16.7,
+                'shuffle': False,
+                'is_tarred': False,
+            }
+            dali_dataset = audio_to_text_dataset.get_dali_char_dataset(
+                config=dataset_cfg,
+                shuffle=False,
+                device_id=0,
+                global_rank=0,
+                world_size=1,
+                preprocessor_cfg=preprocessor_cfg,
+            )
+            ref_dataset = audio_to_text_dataset.get_tarred_dataset(
+                config=dataset_cfg, shuffle_n=0, global_rank=0, world_size=1
+            )
+            ref_dataloader = DataLoader(
+                dataset=ref_dataset,
+                batch_size=batch_size,
+                collate_fn=ref_dataset.collate_fn,
+                drop_last=False,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=False,
+            )
+            ref_preprocessor = EncDecCTCModel.from_config_dict(preprocessor_cfg)
+
+            for ref_data, dali_data in zip(ref_dataloader, dali_dataset):
+                ref_audio, ref_audio_len, _, _ = ref_data
+                ref_features, ref_features_len = ref_preprocessor(input_signal=ref_audio, length=ref_audio_len)
+
+                dali_features, dali_features_len, _, _ = dali_data
+
+                a = ref_features.cpu().numpy()[:, :, :ref_features_len]
+                b = dali_features.cpu().numpy()[:, :, :dali_features_len]
+
+                err = np.abs(a - b)
+                assert np.mean(err) < 0.0001
+                assert np.max(err) < 0.01

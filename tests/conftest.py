@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
+import shutil
 import tarfile
+import tempfile
 import urllib.request
 from os import mkdir
 from os.path import dirname, exists, getsize, join
@@ -113,12 +115,23 @@ def test_data_dir():
 
 def extract_data_from_tar(test_dir, test_data_archive, url=None, local_data=False):
     # Remove .data folder.
-    print("Local data", local_data)
-    if exists(test_dir) and not local_data:
-        rmtree(test_dir)
+    if exists(test_dir):
+        if not local_data:
+            rmtree(test_dir)
+        else:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                print("Copying local tarfile to temporary storage..")
+                shutil.copy2(test_data_archive, temp_dir)
+                print("Deleting test dir to cleanup old data")
+                rmtree(test_dir)
+                mkdir(test_dir)
+                print("Restoring local tarfile to test dir")
+                shutil.copy2(os.path.join(temp_dir, os.path.basename(test_data_archive)), test_data_archive)
+
     # Create one .data folder.
     if not exists(test_dir):
         mkdir(test_dir)
+
     # Download (if required)
     if url is not None and not local_data:
         urllib.request.urlretrieve(url, test_data_archive)
