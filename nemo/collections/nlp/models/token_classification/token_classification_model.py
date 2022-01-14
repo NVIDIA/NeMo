@@ -76,7 +76,7 @@ class TokenClassificationModel(NLPModel):
             trainer=trainer,
         )
 
-        if self._cfg.language_model.nemo_file is not None:
+        if cfg.language_model.get('nemo_file', None) is not None:
             hidden_size = self.bert_model.cfg.hidden_size
         else:
             hidden_size = self.bert_model.config.hidden_size
@@ -129,7 +129,7 @@ class TokenClassificationModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        if self._cfg.language_model.nemo_file is not None:
+        if self._cfg.language_model.get('nemo_file', None) is not None:
             hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
         else:
             hidden_states = self.bert_model(
