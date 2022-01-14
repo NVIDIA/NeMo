@@ -1,4 +1,4 @@
-numpy==1.18.5
+numpy>=1.21
 tqdm==4.55.0
 editdistance==0.5.3
 plotly==4.12.0
