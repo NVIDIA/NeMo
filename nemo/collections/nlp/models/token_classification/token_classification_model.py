@@ -71,7 +71,7 @@ class TokenClassificationModel(NLPModel):
             config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
-            nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file),
+            nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
             trainer=trainer,
         )
