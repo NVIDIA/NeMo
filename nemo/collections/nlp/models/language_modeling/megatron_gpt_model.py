@@ -136,9 +136,7 @@ class MegatronGPTModel(NLPModel):
             self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(
-                module=self.model, precision=cfg.precision, use_megatron_amp_o2=self.megatron_amp_o2
-            )
+            self.model = Float16Module(module=self.model, precision=cfg.precision)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
