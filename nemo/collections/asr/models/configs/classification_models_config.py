@@ -48,8 +48,8 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
 
     # VAD Optional
     vad_stream: Optional[bool] = None
-    time_length: float = 0.31
-    shift_length: float = 0.01
+    window_length_in_sec: float = 0.31
+    shift_length_in_sec: float = 0.01
     normalize_audio: bool = False
     is_regression_task: bool = False
 

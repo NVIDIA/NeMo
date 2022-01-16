@@ -468,24 +468,25 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return list_of_models
 
     ### Export code
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.fastpitch.parameters())
+        sz = (max_batch, max_dim)
         inp = torch.randint(
-            0, self.fastpitch.encoder.word_emb.num_embeddings, (1, 44), device=par.device, dtype=torch.int64
+            0, self.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
         )
-        pitch = torch.randn((1, 44), device=par.device, dtype=torch.float32) * 0.5
-        pace = torch.clamp((torch.randn((1, 44), device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
+        pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp((torch.randn(sz, device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
 
         inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
 
         if self.fastpitch.speaker_emb is not None:
             inputs['speaker'] = torch.randint(
-                0, self.fastpitch.speaker_emb.num_embeddings, (1,), device=par.device, dtype=torch.int64
+                0, self.fastpitch.speaker_emb.num_embeddings, (maz_batch,), device=par.device, dtype=torch.int64
             )
 
         return (inputs,)
