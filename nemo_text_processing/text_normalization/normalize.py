@@ -171,7 +171,7 @@ class Normalizer:
         for i, token_group in enumerate(tokens):
             n = self._estimate_number_of_permutations_in_nested_dict(token_group)
             if n * current_number_of_permutations > max_number_of_permutations_per_split:
-                splits.append(tokens[prev_end_of_split : i])
+                splits.append(tokens[prev_end_of_split:i])
                 prev_end_of_split = i
                 current_number_of_permutations = 1
             if n > max_number_of_permutations_per_split:
@@ -184,7 +184,7 @@ class Normalizer:
                     f"`max_number_of_permutations_per_split` parameter."
                 )
             current_number_of_permutations *= n
-        splits.append(tokens[prev_end_of_split :])
+        splits.append(tokens[prev_end_of_split:])
         assert sum([len(s) for s in splits]) == len(tokens)
         return splits
 
