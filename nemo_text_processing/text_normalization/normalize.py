@@ -145,7 +145,7 @@ class Normalizer:
                 {"tokens": {"date": {"year": "twenty eighteen", "month": "december", "day": "thirty one"}}},
                 {"tokens": {"date": {"year": "twenty eighteen", "month": "january", "day": "eight"}}},
             ]
-            split = normalizer.split_tokens_to_reduce_number_of_permutations(
+            split = normalizer._split_tokens_to_reduce_number_of_permutations(
                 tokens, max_number_of_permutations_per_split=6
             )
             assert split == [
@@ -159,7 +159,7 @@ class Normalizer:
 
         Args:
             tokens (:obj:`List[dict]`): a list of dictionaries, possibly nested.
-            max_number_of_permutations_per_split (:obj:`int`, `optional`, defaults to :obj:`81`): a maximum number
+            max_number_of_permutations_per_split (:obj:`int`, `optional`, defaults to :obj:`243`): a maximum number
                 of permutations which can be generated from input sequence of tokens.
 
         Returns:
