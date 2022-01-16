@@ -232,7 +232,7 @@ class Normalizer:
             if verbalizer_lattice is None:
                 raise ValueError(f"No permutations were generated from tokens {s}")
             output += ' ' + self.select_verbalizer(verbalizer_lattice)
-            output = SPACE_DUP.sub(' ', output)
+        output = SPACE_DUP.sub(' ', output[1:])
         if punct_post_process:
             # do post-processing based on Moses detokenizer
             if self.processor:
