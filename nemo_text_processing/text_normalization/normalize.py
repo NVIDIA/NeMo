@@ -132,7 +132,7 @@ class Normalizer:
         return num_perms
 
     def _split_tokens_to_reduce_number_of_permutations(
-        self, tokens: List[dict], max_number_of_permutations_per_split: int = 243
+        self, tokens: List[dict], max_number_of_permutations_per_split: int = 729
     ) -> List[List[dict]]:
         """
         Splits a sequence of tokens in a smaller sequences of tokens in a way that maximum number of composite
