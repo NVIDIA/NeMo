@@ -201,7 +201,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
-        num_workers: int = None,
+        num_workers: int = 0,
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.

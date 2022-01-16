@@ -308,6 +308,7 @@ class MegatronGPTModel(NLPModel):
         if dataset is None:
             return None
 
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
         if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
             if self.cfg.data.dataloader_type == 'single':
@@ -344,6 +345,7 @@ class MegatronGPTModel(NLPModel):
             max_seq_length=self.cfg.data.get('max_seq_length', 512),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos_eos=self.cfg.data.get('add_bos_eos', True),
+            calc_loss_on_answer_only=self.cfg.get('calc_loss_on_answer_only', True),
         )
 
         dataloader = torch.utils.data.DataLoader(
