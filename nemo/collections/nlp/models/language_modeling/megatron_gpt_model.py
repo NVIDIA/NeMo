@@ -172,6 +172,10 @@ class MegatronGPTModel(NLPModel):
             self.log('global_step', self.trainer.global_step, prog_bar=True)
             self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
             self._reduced_loss_buffer = []
+            if self.cfg.precision == 16:
+                loss_scale = self.trainer.precision_plugin.scaler._scale
+                if loss_scale is not None:
+                    self.log('loss_scale', loss_scale)
 
         return loss
 
@@ -486,7 +490,8 @@ class MegatronGPTModel(NLPModel):
             parameters = self._optimizer.get_parameters()
         else:
             parameters = self.model.parameters()
-        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        self.log('grad_norm', grad_norm)
 
     def prompt_tuning_freeze(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
