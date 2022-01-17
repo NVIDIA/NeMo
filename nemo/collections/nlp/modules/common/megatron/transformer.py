@@ -29,7 +29,8 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     bias_dropout_add_fused_train,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import FusedLayerNorm as LayerNorm
+
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
@@ -420,7 +421,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        self.input_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -442,7 +443,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = LayerNorm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
@@ -461,7 +462,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_dropout=attention_dropout,
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
         # MLP
         self.mlp = ParallelMLP(
@@ -699,7 +700,7 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
