@@ -17,17 +17,23 @@
 import torch
 from apex.transformer import tensor_parallel
 from apex.transformer.enums import AttnMaskType
-from megatron import get_args
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import LayerNorm
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
+
+
+def t5_attention_mask_func(attention_scores, attention_mask):
+    attention_scores.masked_fill_(attention_mask, -10000)
+    return attention_scores
 
 
 def t5_extended_attention_mask(attention_mask_list):
     def attn_mask_postprocess(attn_mask):
         # [b, 1, s, s]
+        # Attn_masks for enc-dec attn and dec attn is None when trying to get just the encoder hidden states.
+        if attn_mask is None:
+            return None
         extended_attention_mask = attn_mask.unsqueeze(1)
         return extended_attention_mask
 
@@ -57,8 +63,6 @@ class T5LMHead(MegatronModule):
     def __init__(self, mpu_vocab_size, parallel_output):
         super(T5LMHead, self).__init__()
 
-        args = get_args()
-
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
         self.bias.model_parallel = True
         self.bias.partition_dim = 0
@@ -73,22 +77,73 @@ class T5LMHead(MegatronModule):
 class T5Model(MegatronModule):
     """T5 Language model."""
 
-    def __init__(self, num_tokentypes=0, parallel_output=True):
+    def __init__(
+        self,
+        vocab_size,
+        hidden_size,
+        max_position_embeddings,
+        num_layers,
+        num_attention_heads,
+        ffn_hidden_size,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        num_tokentypes=0,
+        parallel_output=True,
+        pre_process=True,
+        post_process=True,
+        init_method_std=0.02,
+        fp16_lm_cross_entropy=False,
+        use_cpu_initialization=False,
+        hidden_dropout=0.1,
+        fp32_residual_connection=False,
+        activations_checkpoint_method=None,
+        activations_checkpoint_num_layers=1,
+        layernorm_epsilon=1e-5,
+        bias_gelu_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
+    ):
         super(T5Model, self).__init__()
-        args = get_args()
 
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.parallel_output = parallel_output
-        init_method = init_method_normal(args.init_method_std)
-        scaled_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
+        self.pre_process = pre_process
+        self.post_process = post_process
+        self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
+
+        if kv_channels is None:
+            assert (
+                hidden_size % num_attention_heads == 0
+            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            kv_channels = hidden_size // num_attention_heads
 
         self.language_model, self._language_model_key = get_language_model(
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
+            hidden_dropout=hidden_dropout,
             num_tokentypes=num_tokentypes,
+            max_position_embeddings=max_position_embeddings,
+            num_layers=num_layers,
+            num_attention_heads=num_attention_heads,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            ffn_hidden_size=ffn_hidden_size,
             add_pooler=False,
             add_decoder=True,
             encoder_attn_mask_type=AttnMaskType.padding,
-            init_method=init_method,
-            scaled_init_method=scaled_init_method,
+            decoder_attn_mask_type=AttnMaskType.causal,
+            init_method=init_method_normal(init_method_std),
+            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+            pre_process=self.pre_process,
+            post_process=self.post_process,
+            init_method_std=init_method_std,
+            use_cpu_initialization=use_cpu_initialization,
+            fp32_residual_connection=fp32_residual_connection,
+            activations_checkpoint_method=activations_checkpoint_method,
+            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            layernorm_epsilon=layernorm_epsilon,
+            bias_gelu_fusion=bias_gelu_fusion,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
         )
 
         self.lm_head = T5LMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
@@ -108,6 +163,7 @@ class T5Model(MegatronModule):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
+        output_enc_hidden_only=False,
     ):
 
         # Converting the attention masks to proper parameter settings
@@ -116,19 +172,25 @@ class T5Model(MegatronModule):
         )
 
         encoder_position_ids = t5_position_ids(encoder_input_ids)
-        decoder_position_ids = t5_position_ids(decoder_input_ids)
+
+        # Handle case when decoder_input_ids is None to get just the encoder hidden states.
+        decoder_position_ids = t5_position_ids(decoder_input_ids) if decoder_input_ids is not None else None
 
         lm_output = self.language_model(
-            encoder_input_ids,
-            encoder_position_ids,
-            encoder_attn_mask,
-            decoder_input_ids,
-            decoder_position_ids,
-            decoder_attn_mask,
-            encoder_decoder_attn_mask,
+            enc_input_ids=encoder_input_ids,
+            enc_position_ids=encoder_position_ids,
+            enc_attn_mask=encoder_attn_mask,
+            dec_input_ids=decoder_input_ids,
+            dec_position_ids=decoder_position_ids,
+            dec_attn_mask=decoder_attn_mask,
+            enc_dec_attn_mask=encoder_decoder_attn_mask,
             tokentype_ids=tokentype_ids,
             enc_hidden_states=enc_hidden_states,
+            output_enc_hidden_only=output_enc_hidden_only,
         )
+
+        if output_enc_hidden_only:
+            return lm_output
 
         decoder_output, encoder_output = lm_output
 

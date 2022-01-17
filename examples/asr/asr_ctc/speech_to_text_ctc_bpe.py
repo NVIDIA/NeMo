@@ -32,7 +32,7 @@ python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
 
 # Training the model
 ```sh
-python speech_to_text_bpe.py \
+python speech_to_text_ctc_bpe.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
@@ -72,7 +72,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf/citrinet/", config_name="config_bpe")
+@hydra_runner(config_path="../conf/citrinet/", config_name="config_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 

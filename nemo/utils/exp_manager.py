@@ -35,7 +35,6 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.states import RunningStage
 from pytorch_lightning.utilities.distributed import rank_zero_info
-from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
@@ -81,6 +80,7 @@ class CallbackParams:
     postfix: str = ".nemo"
     save_best_model: bool = False
     always_save_nemo: bool = False
+    save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
     model_parallel_size: Optional[int] = None
 
 
@@ -90,7 +90,7 @@ class StepTimingParams:
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
-    buffer_size: Optional[int] = -1
+    buffer_size: Optional[int] = 1
 
 
 @dataclass
@@ -670,6 +670,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def __init__(
         self,
         always_save_nemo=False,
+        save_nemo_on_train_end=True,
         save_best_model=False,
         postfix=".nemo",
         n_resume=False,
@@ -678,7 +679,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
+        self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
+        if self.save_best_model and not self.save_nemo_on_train_end:
+            logging.warning(
+                (
+                    "Found save_best_model is True and save_nemo_on_train_end is False. "
+                    "Set save_nemo_on_train_end to True to automatically save the best model."
+                )
+            )
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
@@ -754,10 +763,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         return filepath
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # output = None
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-
         else:
             # Load the best model and then re-save it
             app_state = AppState()
@@ -804,7 +813,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             else:
                 trainer.checkpoint_connector.restore(self.best_model_path)
 
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        if self.save_nemo_on_train_end:
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()

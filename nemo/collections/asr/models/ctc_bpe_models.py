@@ -300,6 +300,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
                 Bigger will result in better throughput performance but would use more memory.
             temp_dir: (str) A temporary directory where the audio manifest is temporarily
                 stored.
+            num_workers: (int) number of workers. Depends of the batch_size and machine. \
+                0 - only the main process will load batches, 1 - one worker (not main process)
 
         Returns:
             A pytorch DataLoader for the given audio file(s).
@@ -310,7 +312,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': batch_size,
             'shuffle': False,
-            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }

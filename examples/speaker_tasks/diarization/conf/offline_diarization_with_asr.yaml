@@ -15,7 +15,7 @@ diarizer:
     model_path: null # .nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
 
-    parameters: # Tuned parameter for CH109 (using the 11 multi-speaker sessions as dev set) 
+    parameters: # Tuned parameters for CH109 (using the 11 multi-speaker sessions as dev set) 
       window_length_in_sec: 0.15  # Window length in sec for VAD context input 
       shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
       smoothing: "median" # False or type of smoothing method (eg: median)
@@ -45,15 +45,31 @@ diarizer:
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
   
   asr:
-    model_path: ??? # Provie NGC cloud ASR model name
+    model_path: ??? # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purpose.
     parameters:
-      asr_based_vad: False # If true, speech segmentation for diarization is based on word-timestamps from ASR inference.
-      asr_based_vad_threshold: 50 # Threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
-      print_transcript: False # If true, the output transcript is displayed after the transcript is generated.
+      asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
+      asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
+      asr_batch_size: null # Batch size can be dependent on each ASR model. Default batch sizes are applied if set to null.
       lenient_overlap_WDER: True # If true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
-      vad_threshold_for_word_ts: 0.7 # Threshold for getting VAD stamps that compensate the word timestamps generated from ASR decoder.
-      max_word_ts_length_in_sec: 0.6 # Maximum length of each word timestamps 
-      word_gap_in_sec: 0.01 # The gap between the end of a word and the start of the following word.
+      decoder_delay_in_sec: null # Native deocder delay. null is recommended to use the default values for each ASR model.
+      word_ts_anchor_offset: null # Offset to set a reference point from the start of the word. Recommended range of values is [-0.05  0.2]. 
+      word_ts_anchor_pos: "start" # Select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
+      fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide VAD model to use this feature.
+      colored_text: False # If True, use colored text to distiguish speakers in the output transcript.
+      print_time: True # If True, the start of end time of each speaker turn is printed in the output transcript.
+      break_lines: False # If True, the output transcript breaks the line to fix the line width (default is 90 chars)
+    
+    ctc_decoder_parameters: # Optional beam search decoder (pyctcdecode)
+      pretrained_language_model: null # KenLM model file: .arpa model file or .bin binary file.
+      beam_width: 32
+      alpha: 0.5
+      beta: 2.5
+
+    realigning_lm_parameters: # Experimental feature
+      arpa_language_model: null # Provide a KenLM language model in .arpa format.
+      min_number_of_words: 3 # Min number of words for the left context.
+      max_number_of_words: 10 # Max number of words for the right context.
+      logprob_diff_threshold: 1.2  # The threshold for the difference between two log probability values from two hypotheses.
 
 # json manifest line example 
-# {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, label: "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath": "/path/to/uem/file"}
+# {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath": "/path/to/uem/file"}

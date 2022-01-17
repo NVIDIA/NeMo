@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import math
 from collections import OrderedDict
 
@@ -74,14 +73,15 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        input_example_length = torch.randint(0, 256, (16,)).to(next(self.parameters()).device)
+        dev = next(self.parameters()).device
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
+        input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
         return tuple([input_example, input_example_length])
 
     @property
@@ -232,6 +232,9 @@ class ConformerEncoder(NeuralModule, Exportable):
     def forward_for_export(self, audio_signal, length=None):
         max_audio_length: int = audio_signal.size(-1)
 
+        if max_audio_length > self.max_audio_length:
+            self.set_max_audio_length(max_audio_length)
+
         if length is None:
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
@@ -277,20 +280,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             seq_length = global_max_len.int().item()
 
         if seq_length > self.max_audio_length:
-            self.set_max_audio_length(seq_length * 2)
+            self.set_max_audio_length(seq_length)
 
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
-        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        mask = self.seq_range[:max_audio_length].repeat(seq_lens.size(0), 1) < seq_lens.unsqueeze(-1)
         return mask
-
-    def _prepare_for_export(self, **kwargs):
-        # extend masks to configured maximum
-        max_len = self.pos_emb_max_len
-        if 'input_example' in kwargs:
-            m_len = kwargs['input_example'][0].size(-1)
-            if m_len > max_len:
-                max_len = m_len
-        logging.info(f"Extending input audio length to {max_len}")
-        self.set_max_audio_length(max_len)
-        Exportable._prepare_for_export(self, **kwargs)
