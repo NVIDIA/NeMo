@@ -64,7 +64,8 @@ class MTDataPreproc:
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         if hasattr(cfg, 'train_ds'):
-            supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron']
+            supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
+            supported_multilingual_tokenizers = ['sentencepiece', 'byte-level']
             supported_train_tokenizers = ['yttm', 'sentencepiece']
 
             if (
@@ -72,6 +73,14 @@ class MTDataPreproc:
                 or cfg.decoder_tokenizer.get('library') not in supported_tokenizers
             ):
                 raise NotImplementedError(f"Currently we only support {supported_tokenizers}.")
+
+            if cfg.get('multilingual') and (
+                cfg.encoder_tokenizer.get('library') not in supported_multilingual_tokenizers
+                or cfg.decoder_tokenizer.get('library') not in supported_multilingual_tokenizers
+            ):
+                raise NotImplementedError(
+                    f"Currently we only support {supported_multilingual_tokenizers} for multilingual models."
+                )
 
             if cfg.get('shared_tokenizer') and cfg.encoder_tokenizer.get('library') != cfg.decoder_tokenizer.get(
                 'library'
@@ -148,7 +157,6 @@ class MTDataPreproc:
                         if cfg.decoder_tokenizer.special_tokens
                         else None,
                         spt_symbols=spt_symbols,
-                        multilingual=cfg.get('multilingual', False),
                     )
                     # update config
                     self._cfg.encoder_tokenizer.tokenizer_model = self.encoder_tokenizer_model
@@ -217,12 +225,12 @@ class MTDataPreproc:
                             out_dir=outdir_list[idx],
                             encoder_tokenizer_name=cfg.encoder_tokenizer.get('library'),
                             encoder_model_name=cfg.encoder.get('model_name'),
-                            encoder_tokenizer_model=self.encoder_tokenizer_model,
+                            encoder_tokenizer_model=getattr(self, "encoder_tokenizer_model", None),
                             encoder_bpe_dropout=cfg.encoder_tokenizer.get('bpe_dropout', 0.0),
                             encoder_tokenizer_r2l=cfg.encoder_tokenizer.get('r2l', False),
                             decoder_tokenizer_name=cfg.decoder_tokenizer.get('library'),
                             decoder_model_name=cfg.decoder.get('model_name'),
-                            decoder_tokenizer_model=self.decoder_tokenizer_model,
+                            decoder_tokenizer_model=getattr(self, "decoder_tokenizer_model", None),
                             decoder_bpe_dropout=cfg.decoder_tokenizer.get('bpe_dropout', 0.0),
                             decoder_tokenizer_r2l=cfg.decoder_tokenizer.get('r2l', False),
                             max_seq_length=cfg.train_ds.get('max_seq_length', 512),
@@ -739,8 +747,9 @@ class MTDataPreproc:
         encoder_special_tokens=None,
         decoder_special_tokens=None,
         spt_symbols=None,
-        multilingual=False,
     ):
+        """Trains a tokenizer with requested parameters, returns None if the tokenizer is not trainable"""
+
         encoder_tokenizer_model = None
         decoder_tokenizer_model = None
         os.makedirs(out_dir, exist_ok=True)
@@ -756,63 +765,51 @@ class MTDataPreproc:
             if isinstance(decoder_special_tokens, dict):
                 decoder_special_tokens = list(decoder_special_tokens.values())
 
-        if multilingual and encoder_tokenizer_name != 'sentencepiece':
-            raise NotImplementedError(
-                f"Currently we only support training setencepiece tokenizer for multilingual model."
-            )
-
         if shared_tokenizer:
-            if (
-                encoder_tokenizer_name not in supported_train_tokenizers
-                or decoder_tokenizer_name not in supported_train_tokenizers
-            ):
-                raise NotImplementedError(
-                    f"Currently we only support tokenizers in {supported_train_tokenizers} for shared tokenizer."
+            if encoder_tokenizer_name in supported_train_tokenizers:
+                encoder_tokenizer_model = os.path.join(
+                    out_dir, 'shared_tokenizer.%d.BPE.model' % (encoder_tokenizer_vocab_size)
                 )
-
-            encoder_tokenizer_model = os.path.join(
-                out_dir, 'shared_tokenizer.%d.BPE.model' % (encoder_tokenizer_vocab_size)
-            )
-            decoder_tokenizer_model = encoder_tokenizer_model
-            if global_rank == 0:
-                if os.path.isfile(encoder_tokenizer_model):
-                    logging.info(
-                        f'Shared tokenizer model {encoder_tokenizer_model} already exists. Remove file if training a new tokenizer model.'
-                    )
-                else:
-                    logging.info(
-                        f'Shared tokenizer model {encoder_tokenizer_model} not found. Training tokenizer model.'
-                    )
-                    with tempfile.TemporaryDirectory() as tmp:
-                        concat_data_path = os.path.join(tmp, 'concat_dataset.txt')
-                        os.system('cat %s %s > %s' % (src_fname, tgt_fname, concat_data_path))
-                        if encoder_tokenizer_name == "yttm":
-                            yttm.BPE.train(
-                                data=concat_data_path,
-                                vocab_size=encoder_tokenizer_vocab_size,
-                                model=os.path.join(out_dir, encoder_tokenizer_model),
-                                coverage=encoder_tokenizer_coverage,
-                                n_threads=-1,
-                            )
-                        else:
-                            create_spt_model(
-                                data_file=concat_data_path,
-                                vocab_size=encoder_tokenizer_vocab_size,
-                                sample_size=encoder_training_sample_size,
-                                do_lower_case=False,
-                                tokenizer_type='bpe',
-                                character_coverage=encoder_tokenizer_coverage,
-                                output_dir=out_dir,
-                                bos=True,
-                                eos=True,
-                                pad=True,
-                                control_symbols=spt_symbols,
-                                user_defined_symbols=encoder_special_tokens,
-                            )
-                            os.rename(
-                                os.path.join(out_dir, 'tokenizer.model'),
-                                os.path.join(out_dir, encoder_tokenizer_model),
-                            )
+                decoder_tokenizer_model = encoder_tokenizer_model
+                if global_rank == 0:
+                    if os.path.isfile(encoder_tokenizer_model):
+                        logging.info(
+                            f'Shared tokenizer model {encoder_tokenizer_model} already exists. Remove file if training a new tokenizer model.'
+                        )
+                    else:
+                        logging.info(
+                            f'Shared tokenizer model {encoder_tokenizer_model} not found. Training tokenizer model.'
+                        )
+                        with tempfile.TemporaryDirectory() as tmp:
+                            concat_data_path = os.path.join(tmp, 'concat_dataset.txt')
+                            os.system('cat %s %s > %s' % (src_fname, tgt_fname, concat_data_path))
+                            if encoder_tokenizer_name == "yttm":
+                                yttm.BPE.train(
+                                    data=concat_data_path,
+                                    vocab_size=encoder_tokenizer_vocab_size,
+                                    model=os.path.join(out_dir, encoder_tokenizer_model),
+                                    coverage=encoder_tokenizer_coverage,
+                                    n_threads=-1,
+                                )
+                            else:
+                                create_spt_model(
+                                    data_file=concat_data_path,
+                                    vocab_size=encoder_tokenizer_vocab_size,
+                                    sample_size=encoder_training_sample_size,
+                                    do_lower_case=False,
+                                    tokenizer_type='bpe',
+                                    character_coverage=encoder_tokenizer_coverage,
+                                    output_dir=out_dir,
+                                    bos=True,
+                                    eos=True,
+                                    pad=True,
+                                    control_symbols=spt_symbols,
+                                    user_defined_symbols=encoder_special_tokens,
+                                )
+                                os.rename(
+                                    os.path.join(out_dir, 'tokenizer.model'),
+                                    os.path.join(out_dir, encoder_tokenizer_model),
+                                )
         else:
             if encoder_tokenizer_name in supported_train_tokenizers:
                 encoder_tokenizer_model = os.path.join(

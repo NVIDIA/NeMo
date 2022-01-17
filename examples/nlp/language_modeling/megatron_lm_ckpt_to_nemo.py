@@ -138,6 +138,49 @@ def load_from_checkpoint(
             # overwrite hparams by the given file
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
 
+        check_point_version = old_checkpoint.get('checkpoint_version', 0)
+        if check_point_version < 3:
+            # need to do the transpose of query_key_value variables
+            if hparams_file is not None:
+                np = hparams['cfg']['num_attention_heads']
+            elif 'config' in old_checkpoint and 'num-attention-heads' in old_checkpoint['config']:
+                np = old_checkpoint['config']['num-attention-heads']
+
+            else:
+                logging.warning("cannot determine the number attention heads")
+                raise ValueError('need to know number of attention heads')
+
+            if check_point_version == 0:
+                # 3, np, hn -> np, 3, hn
+                for key in checkpoint['state_dict']:
+                    if key.find('query_key_value') >= 0:
+                        weight = checkpoint['state_dict'][key]
+                        if len(weight.size()) == 2:
+                            # weight
+                            weight = weight.view(3, np, -1, weight.size()[-1])
+                            weight = weight.transpose(0, 1).contiguous()
+                            checkpoint['state_dict'][key] = weight.view(-1, weight.size()[-1])
+                        else:
+                            # biase
+                            weight = weight.view(3, np, -1)
+                            weight = weight.transpose(0, 1).contiguous()
+                            checkpoint['state_dict'][key] = weight.view(-1)
+            elif check_point_version == 1:
+                # np, hn, 3 -> np, 3, hn
+                for key in checkpoint['state_dict']:
+                    if key.find('query_key_value') >= 0:
+                        weight = checkpoint['state_dict'][key]
+                        if len(weight.size()) == 2:
+                            # weight
+                            weight = weight.view(np, -1, 3, weight.size()[-1])
+                            weight = weight.transpose(1, 2).contiguous()
+                            checkpoint['state_dict'][key] = weight
+                        else:
+                            # biase
+                            weight = weight.view(np, -1, 3)
+                            weight = weight.transpose(1, 2).contiguous()
+                            checkpoint['state_dict'][key] = weight
+
         # for past checkpoint need to add the new key
         if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
@@ -154,6 +197,14 @@ def load_from_checkpoint(
             model = cls._load_model_state(
                 checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg, **kwargs
             )
+            # register the artifacts
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+            if cfg.tokenizer.model is not None:
+                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
+            if cfg.tokenizer.vocab_file is not None:
+                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
+            if cfg.tokenizer.merge_file is not None:
+                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
         checkpoint = model
 
     finally:
@@ -185,6 +236,7 @@ def convert(rank, world_size, args):
             hparams_file=args.hparams_file,
             trainer=trainer,
             translator=name_translate,
+            strict=False,
         )
     elif args.model_type == 'bert':
         ## this dictionary is used to rename the model parameters
@@ -197,6 +249,7 @@ def convert(rank, world_size, args):
             hparams_file=args.hparams_file,
             trainer=trainer,
             translator=name_translate,
+            strict=False,
         )
     else:
         raise NotImplemented("{} is not supported".format(args.model_type))

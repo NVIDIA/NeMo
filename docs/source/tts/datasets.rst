@@ -123,7 +123,7 @@ To run the scripts, follow the steps below.
 
     .. code-block:: bash
 
-      python create_manifests_and_textfiles.py --ljspeech_base=<ljspeech_base>
+      python create_manifests_and_textfiles.py --ljspeech_base=<ljspeech_base> --normalizer_class=ENCharParser --save_transcripts_in_txt --manifest_text_var_is_normalized
 
 #. Extract pitches and energies from the audio files:
 
