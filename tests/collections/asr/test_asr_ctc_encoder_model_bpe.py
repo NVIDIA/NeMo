@@ -262,7 +262,7 @@ class TestEncDecCTCModel:
             'eos_id',
             'blank_index',
             'bucketing_batch_size',
-            'bucketing_strategy'
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
