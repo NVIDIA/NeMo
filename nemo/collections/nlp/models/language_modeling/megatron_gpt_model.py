@@ -36,12 +36,14 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.core.optim import MasterOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 
@@ -108,6 +110,7 @@ class MegatronGPTModel(NLPModel):
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
+            persist_layer_norm=cfg.get('persist_layer_norm', False),
             onnx_safe=cfg.get('onnx_safe', False),
             use_soft_prompts=cfg.get('use_soft_prompts', False),
             num_prompt_tokens=cfg.get('num_prompt_tokens', 10),
@@ -125,9 +128,18 @@ class MegatronGPTModel(NLPModel):
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+
+        if self.megatron_amp_o2:
+
+            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+            self.model.cuda(torch.cuda.current_device())
+
+            # Model wrapper to convert both model and inputs to half precision
+            self.model = Float16Module(module=self.model, precision=cfg.precision)
+
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
-
         return output_tensor
 
     def training_step(self, batch, batch_idx):
@@ -160,6 +172,10 @@ class MegatronGPTModel(NLPModel):
             self.log('global_step', self.trainer.global_step, prog_bar=True)
             self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
             self._reduced_loss_buffer = []
+            if self.cfg.precision == 16:
+                loss_scale = self.trainer.precision_plugin.scaler._scale
+                if loss_scale is not None:
+                    self.log('loss_scale', loss_scale)
 
         return loss
 
@@ -420,6 +436,33 @@ class MegatronGPTModel(NLPModel):
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
+    def configure_optimizers(self):
+        self.setup_optimization()
+
+        # Wrap the baseline optimizer with the optimizer class with master parameters
+        if self.megatron_amp_o2 and self._optimizer is not None:
+            fp32_grad_accum = self.cfg.get('fp32_grad_accum', False)
+            contiguous_grad_bucket = self.cfg.get('contiguous_grad_bucket', False)
+            async_grad_allreduce = self.cfg.get('async_grad_allreduce', False)
+
+            self._optimizer = MasterOptimizerWrapper(
+                self._optimizer,
+                fp32_grad_accum=fp32_grad_accum,
+                contiguous_grad_bucket=contiguous_grad_bucket,
+                async_grad_allreduce=async_grad_allreduce,
+            )
+            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
+            sched_config = self._cfg.optim.sched
+            sched_config['max_steps'] = self._trainer.max_steps
+            self._scheduler = prepare_lr_scheduler(
+                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
+
     def compute_consumed_samples(self, global_step):
         app_state = AppState()
         consumed_samples = (
@@ -442,8 +485,13 @@ class MegatronGPTModel(NLPModel):
         if clip_val <= 0:
             return
 
-        parameters = [param for param in self.model.parameters() if param.requires_grad]
-        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        if self.megatron_amp_o2:
+            # grep fp32 master parameters for gradient clipping
+            parameters = self._optimizer.get_parameters()
+        else:
+            parameters = self.model.parameters()
+        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+        self.log('grad_norm', grad_norm)
 
     def prompt_tuning_freeze(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
