@@ -213,7 +213,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
-        num_workers: int = None,
+        num_workers: int = 0,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -895,19 +895,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
-    def export(self, output: str, input_example=None, output_example=None, **kwargs):
+    def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
-            self._augment_output_filename(output, 'Encoder'),
-            input_example=input_example,
-            output_example=None,
-            **kwargs,
+            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
         )
         decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
         decoder_exp, decoder_descr = decoder_joint.export(
             self._augment_output_filename(output, 'Decoder-Joint'),
             # TODO: propagate from export()
             input_example=None,
-            output_example=None,
             **kwargs,
         )
         return encoder_exp + decoder_exp, encoder_descr + decoder_descr

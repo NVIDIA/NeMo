@@ -28,6 +28,7 @@ from argparse import ArgumentParser
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
@@ -60,7 +61,7 @@ def get_args():
     )
     parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5"])
+    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
 
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
 
@@ -84,6 +85,10 @@ def convert(rank, world_size, args):
 
     if args.model_type == 'gpt':
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+    elif args.model_type == 'bert':
+        model = MegatronBertModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     elif args.model_type == 't5':
         model = MegatronT5Model.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
 
