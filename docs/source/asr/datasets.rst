@@ -267,8 +267,9 @@ filenames are unique in the tarred dataset and the filepaths do not contain "-su
 simply converted to underscores. For example, a manifest entry for ``/data/directory1/file.wav`` would be ``_data_directory1_file.wav`` 
 in the tarred dataset manifest, and ``/data/directory2/file.wav`` would be converted to ``_data_directory2_file.wav``.
 
-Bucketed Datasets
------------------
+Bucketing Datasets
+------------------
+
 For training ASR models, audios with different lengths may be grouped into a batch. It would make it necessary to use paddings to make all the same length.
 These extra paddings is a significant source of computation waste. Splitting the training samples into buckets with different lengths and sampling from the same bucket for each batch would increase the computation efficicncy.
 It may result into training speeedup of more than 2X. To enable and use the bucketing feature, you need to create the bucketing version of the dataset by using `conversion script here <https://github.com/NVIDIA/NeMo/blob/v1.0.2/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
