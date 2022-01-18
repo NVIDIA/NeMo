@@ -295,6 +295,8 @@ class TestEncDecCTCModel:
             'blank_index',
             'global_rank',
             'world_size',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {
