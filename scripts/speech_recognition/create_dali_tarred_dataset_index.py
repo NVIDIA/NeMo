@@ -12,43 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-import copy
-import json
-import os
 import glob
-import shutil
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, List, Optional
+import os
+import shutil
 import subprocess
+from dataclasses import dataclass
 
-import joblib
+import hydra
+from hydra.core.config_store import ConfigStore
 from joblib import Parallel, delayed
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import MISSING
+
+try:
+    from wds2idx import IndexCreator
+
+    INDEX_CREATOR_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    INDEX_CREATOR_AVAILABLE = False
 
 """
 python create_dali_tarred_dataset_index.py \
-    --tar_dir=<path to the directory which contains tarred dataset> \
-    --workers=-1
+    tar_dir=<path to the directory which contains tarred dataset> \
+    workers=-1
 
 """
 
 logging.basicConfig(level=logging.INFO)
 
-parser = argparse.ArgumentParser(
-    description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
-)
-parser.add_argument(
-    "--tar_dir", default=None, type=str, required=True, help="Path to the existing dataset's manifest."
-)
 
-parser.add_argument('--workers', type=int, default=-1, help='Number of worker processes')
-args = parser.parse_args()
+@dataclass
+class DALITarredIndexConfig:
+    tar_dir: str = MISSING  # Path to the existing dataset's manifest
+    workers: int = -1  # number of worker processes
 
 
 def process_index_path(tar_paths, index_dir):
+    """
+    Appends the folder `{index_dir}` to the filepath of all tarfiles.
+    Example:
+         /X/Y/Z/audio_0.tar -> /X/Y/Z/{index_dir}/audio_0.index
+    """
     index_paths = []
     for path in tar_paths:
         path = path.replace('.tar', '.index')
@@ -60,31 +64,32 @@ def process_index_path(tar_paths, index_dir):
 
 
 def build_index(tarpath, indexfile):
-    cmd = ['wds2idx', tarpath, indexfile]
-    subprocess.run(cmd, capture_output=True)
+    with IndexCreator(tarpath, indexfile, verbose=False) as index:
+        index.create_index()
 
 
-def main(args):
-    wds2idx_path = shutil.which('wds2idx')
-
-    if wds2idx_path is None:
-        logging.error("`wds2idx` is not installed. Please install NVIDIA DALI >= 1.7")
+@hydra.main(config_path=None, config_name='index_config')
+def main(cfg: DALITarredIndexConfig):
+    if not INDEX_CREATOR_AVAILABLE:
+        logging.error("`wds2idx` is not installed. Please install NVIDIA DALI >= 1.11")
         exit(1)
 
-    tar_files = list(glob.glob(os.path.join(args.tar_dir, "*.tar")))
+    tar_files = list(glob.glob(os.path.join(cfg.tar_dir, "*.tar")))
 
-    index_dir = os.path.join(args.tar_dir, "dali_index")
+    index_dir = os.path.join(cfg.tar_dir, "dali_index")
     if not os.path.exists(index_dir):
         os.makedirs(index_dir, exist_ok=True)
 
     index_paths = process_index_path(tar_files, index_dir)
 
-    with joblib.Parallel(n_jobs=args.workers, verbose=len(tar_files)) as parallel:
+    with Parallel(n_jobs=cfg.workers, verbose=len(tar_files)) as parallel:
         _ = parallel(delayed(build_index)(tarpath, indexfile) for tarpath, indexfile in zip(tar_files, index_paths))
 
     logging.info("Finished constructing index files !")
 
 
+ConfigStore.instance().store(name='index_config', node=DALITarredIndexConfig)
+
+
 if __name__ == '__main__':
-    args = parser.parse_args()
-    main(args)
+    main()

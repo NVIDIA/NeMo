@@ -27,6 +27,10 @@
 # Recommend to use --sort_in_shards to speedup the training by reducing the paddings in the batches
 # More info on how to use bucketing feature: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/datasets.html
 
+# If valid NVIDIA DALI version is installed, will also generate the corresponding DALI index files that need to be
+# supplied to the config in order to utilize webdataset for efficient large dataset handling.
+# NOTE: DALI + Webdataset is NOT compatible with Bucketing support !
+
 # Usage:
 1) Creating a new tarfile dataset
 
@@ -80,6 +84,13 @@ from typing import Any, List, Optional
 
 from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
+
+try:
+    import create_dali_tarred_dataset_index as dali_index
+
+    DALI_INDEX_SCRIPT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError, FileNotFoundError):
+    DALI_INDEX_SCRIPT_AVAILABLE = False
 
 parser = argparse.ArgumentParser(
     description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
@@ -676,6 +687,11 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             target_dir=target_dir,
             num_workers=args.workers,
         )
+
+    if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
+        print("Constructing DALI Tarfile Index - ", target_dir)
+        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=args.workers)
+        dali_index.main(index_config)
 
 
 if __name__ == "__main__":
