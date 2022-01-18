@@ -345,7 +345,7 @@ class Generator(NeuralModule):
     @typecheck()
     def forward(self, x):
         # UnivNet starts with Gaussian noise
-        z = torch.randn(x.size(0), self.noise_dim, x.size(2)).to(x.device)
+        z = torch.randn(x.size(0), self.noise_dim, x.size(2), dtype=x.dtype, device=x.device)
         z = self.conv_pre(z)  # (B, c_g, L)
 
         for res_block in self.res_stack:
