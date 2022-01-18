@@ -70,6 +70,7 @@ class MegatronT5Model(NLPModel):
             tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
             vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
             merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+            legacy=self.cfg.tokenizer.library == "sentencepiece",
         )
         self.num_sentinel_tokens = self.cfg.tokenizer.num_sentinel_tokens
         self._add_special_tokens_to_tokenizer()
