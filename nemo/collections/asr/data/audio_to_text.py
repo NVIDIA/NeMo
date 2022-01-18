@@ -1506,17 +1506,3 @@ class RandomizedChainDataset(ChainDataset):
             assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
             for x in d:
                 yield x
-
-
-class RandomizedChainDataset(ChainDataset):
-    def __init__(self, datasets: Iterable[Dataset], rnd_seed=0) -> None:
-        super(RandomizedChainDataset, self).__init__(list(datasets))
-        self.rnd_gen = np.random.RandomState(rnd_seed)
-
-    def __iter__(self):
-        shuffled_order = self.rnd_gen.permutation(len(self.datasets))
-        for dataset_idx in shuffled_order:
-            d = self.datasets[dataset_idx]
-            assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
-            for x in d:
-                yield x

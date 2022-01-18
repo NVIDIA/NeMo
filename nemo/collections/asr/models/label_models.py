@@ -170,12 +170,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             )
 
         if hasattr(dataset, 'fixed_seq_collate_fn'):
-            collate_ds = dataset
+            collate_fn = dataset.fixed_seq_collate_fn
         else:
-            collate_ds = dataset.datasets[0]
-
-        # self.labels = collate_ds.labels
-        collate_fn = collate_ds.fixed_seq_collate_fn
+            collate_fn = dataset.datasets[0].fixed_seq_collate_fn
 
         batch_size = config['batch_size']
         return torch.utils.data.DataLoader(

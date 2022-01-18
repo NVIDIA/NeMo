@@ -23,7 +23,6 @@ from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
-from nemo.collections.asr.data.audio_to_text import RandomizedChainDataset
 from nemo.utils import logging
 
 
@@ -387,9 +386,9 @@ def get_chain_dataset(datasets, ds_config):
     if bucketing_strategy == 'fixed_order':
         return ChainDataset(datasets)
     elif bucketing_strategy == 'syned_randomized':
-        return RandomizedChainDataset(datasets=datasets, rnd_seed=0)
+        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=0)
     elif bucketing_strategy == 'fully_randomized':
-        return RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
+        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
     else:
         raise ValueError(
             f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are randomzied and fixed_order.'
