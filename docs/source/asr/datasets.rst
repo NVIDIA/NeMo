@@ -308,9 +308,14 @@ bucketing_batch_size can be set as an integer or a list of integers to explicitl
 if bucketing_batch_size is set to be an integer, then linear scaling is being used to scale-up the batch sizes for batches with shorted audio size. For example, setting train_ds.bucketing_batch_size=8 for 4 buckets would use these sizes [32,24,16,8] for different buckets.
 When bucketing_batch_size is set, traind_ds.batch_size need to be set to 1.
 
-There are three types of bucketing strategies:
-*  Fixed-size bucketing
-*  Adaptive-size bucketing
+Training an ASR model on audios sorted based on length may affect the accuracy of the model. We introduced some strategies to mitigate it.
+We support three types of bucketing strategies:
 
+*   fixed_order: the same order of buckets are used for all epochs
+*   syned_randomized (default): each epoch would have a different order of buckets. Order of the buckets is shuffled every epoch.
+*   fully_randomized: similar to syned_randomized but each GPU has its own random order. So GPUs would not be synced.
+
+Tha parameter train_ds.bucketing_strategy can be set to specify one of these strategies. The recommended strategy is syned_randomized which gives the highest training speedup.
+The fully_randomized strategy would have lower speedup than syned_randomized but may give better accuracy.
 
 Bucketing may improve the training speed more than 2x but may affect the final accuracy of the model slightly. Training for more epochs and using 'synced_randomized' strategy help to fill this gap.
