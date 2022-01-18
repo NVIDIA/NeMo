@@ -347,12 +347,14 @@ class _AudioTextDALIDataset(Iterator):
 
             elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
                 if len(audio_tar_filepaths) != len(audio_tar_index_filepaths):
-                    raise ValueError("Number of filepaths provided for `audio_tar_filepaths` must match "
-                                     "`audio_tar_index_filepaths`")
+                    raise ValueError(
+                        "Number of filepaths provided for `audio_tar_filepaths` must match "
+                        "`audio_tar_index_filepaths`"
+                    )
 
                 tar_file = dali.fn.readers.webdataset(
                     paths=audio_tar_filepaths,
-                    # index_paths=audio_tar_index_filepaths,
+                    index_paths=audio_tar_index_filepaths,
                     name="Reader",
                     ext=["wav"],
                     missing_component_behavior="error",
