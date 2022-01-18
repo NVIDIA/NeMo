@@ -385,13 +385,13 @@ def get_chain_dataset(datasets, ds_config):
     bucketing_strategy = ds_config.get('bucketing_strategy', 'synced_randomized')
     if bucketing_strategy == 'fixed_order':
         return ChainDataset(datasets)
-    elif bucketing_strategy == 'syned_randomized':
+    elif bucketing_strategy == 'synced_randomized':
         return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=0)
     elif bucketing_strategy == 'fully_randomized':
         return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
     else:
         raise ValueError(
-            f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are randomzied and fixed_order.'
+            f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are [fixed_order, fully_randomized, synced_randomized].'
         )
 
 
