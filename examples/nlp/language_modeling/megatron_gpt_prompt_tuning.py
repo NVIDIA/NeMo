@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -147,7 +147,13 @@ def main(cfg) -> None:
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
+
     exp_manager(trainer, cfg.exp_manager)
+
+    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
+
     model = MegatronGPTModel.restore_from(cfg.restore_from_path, cfg.model, trainer=trainer)
 
     # Init all new prompts
