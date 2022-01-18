@@ -34,12 +34,14 @@ Usage:
             --model_file=PATH_TO_MODEL \
             --path_to_file=PATH_TO_FILE \
             --tokens_to_generate=32 \
-            --batch_size=16 \
+            --stop_after_sentence=True \
+            --batch_size=16
 
     b. If you need to run model on a prompt from the CLI:
         python megatron_gpt_eval.py \
             --model_file=PATH_TO_MODEL \
             --tokens_to_generate=32 \
+            --stop_after_sentence=True \
             --prompt=YOUR_PROMPT
 
     c. If you don't need to generate tokens and need model to compute logprobs:
@@ -94,7 +96,7 @@ def main():
     parser.add_argument(
         "--stop_after_sentence",
         type=bool,
-        default="True",
+        default=False,
         required=False,
         help="True/False: whether to stop after full sentence has been generated.",
     )
@@ -127,6 +129,7 @@ def main():
     def pad_collate(batch):
         tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
         compute_logprobs = batch[0]['compute_logprobs']
+        stop_after_sentence = batch[0]['stop_after_sentence']
         lens = [len(token) for token in tokens]
 
         tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=50256)
@@ -137,10 +140,10 @@ def main():
             prompt_tags = batch[0]['prompt_tags']
 
             for token, lenn, prompt_tag in zip(tokens_pad.T, lens, prompt_tags):
-                data.append((token, lenn, tokens_to_generate, compute_logprobs, prompt_tag))
+                data.append((token, lenn, tokens_to_generate, compute_logprobs, stop_after_sentence, prompt_tag))
         else:
             for token, lenn in zip(tokens_pad.T, lens):
-                data.append((token, lenn, tokens_to_generate, compute_logprobs))
+                data.append((token, lenn, tokens_to_generate, compute_logprobs, stop_after_sentence))
 
         return data
 
@@ -157,7 +160,9 @@ def main():
 
             request.append(prompt)
 
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
+        dataset = GPTRequestDataset(
+            request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs, args.stop_after_sentence
+        )
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=int(args.batch_size))
 
     else:
@@ -166,7 +171,9 @@ def main():
         else:
             request = [args.prompt]
 
-        dataset = GPTRequestDataset(request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs)
+        dataset = GPTRequestDataset(
+            request, model.tokenizer, args.tokens_to_generate, args.compute_logprobs, args.stop_after_sentence
+        )
         request_dl = DataLoader(dataset=pad_collate(dataset), batch_size=1)
 
     # For GPT models that have had soft prompt tuning but you don't want to use any soft prompts

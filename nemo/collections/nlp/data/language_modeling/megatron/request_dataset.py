@@ -34,12 +34,15 @@ class GPTRequestDataset(Dataset):
             * compute_logprobs: bool value denoting if model should generate tokens or compute logprobs
     """
 
-    def __init__(self, requests: List, tokenizer, tokens_to_generate: int, compute_logprobs: bool) -> None:
+    def __init__(
+        self, requests: List, tokenizer, tokens_to_generate: int, compute_logprobs: bool, stop_after_sentence: bool
+    ) -> None:
         super().__init__()
         self.requests = requests
         self.tokenizer = tokenizer
         self.tokens_to_generate = tokens_to_generate
         self.compute_logprobs = compute_logprobs
+        self.stop_after_sentence = stop_after_sentence
         self.tokens = []
         self.prompt_tags = []
 
@@ -60,6 +63,7 @@ class GPTRequestDataset(Dataset):
                 'data': self.tokens,
                 'tokens_to_generate': self.tokens_to_generate,
                 'compute_logprobs': self.compute_logprobs,
+                'stop_after_sentence': self.stop_after_sentence,
             }
 
         else:
@@ -67,6 +71,7 @@ class GPTRequestDataset(Dataset):
                 'data': self.tokens,
                 'tokens_to_generate': self.tokens_to_generate,
                 'compute_logprobs': self.compute_logprobs,
+                'stop_after_sentence': self.stop_after_sentence,
             }
 
     def __len__(self):

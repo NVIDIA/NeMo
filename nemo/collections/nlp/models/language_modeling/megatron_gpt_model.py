@@ -462,13 +462,14 @@ class MegatronGPTModel(NLPModel):
 
     @classmethod
     def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
-        batch_tokens, lens, tokens_to_generate, compute_logprobs = batch[:4]
+        batch_tokens, lens, tokens_to_generate, compute_logprobs, stop_after_sentence = batch[:5]
         batch_size = len(batch_tokens)
-        tokens_to_generate = tokens_to_generate[0]
+        tokens_to_generate, compute_logprobs = tokens_to_generate[0], compute_logprobs[0]
+        stop_after_sentence = stop_after_sentence[0]
         batch_tokens = batch_tokens.tolist()
 
         if use_soft_prompts:
-            prompt_tags = batch[4]
+            prompt_tags = batch[5]
 
         # unpad tokens
         indxs = [index for index in range(batch_size)]
@@ -497,21 +498,25 @@ class MegatronGPTModel(NLPModel):
         # Form request
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
-        return request, positions, tokens_to_generate, compute_logprobs[0]
+        return request, positions, tokens_to_generate, compute_logprobs, stop_after_sentence
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
-            batch, self.use_soft_prompts
-        )
+        (
+            request,
+            positions,
+            tokens_to_generate,
+            compute_logprobs,
+            stop_after_sentence,
+        ) = MegatronGPTModel._bucketize_gpt_inference(batch, self.use_soft_prompts)
 
         if compute_logprobs:
             response = self.compute_logprobs(request, positions)
         else:
-            response = self.complete(request, positions, tokens_to_generate)
+            response = self.complete(request, positions, tokens_to_generate, stop_after_sentence)
 
         return response
 
-    def complete(self, request: Dict, positions: List, tokens_to_generate: int):
+    def complete(self, request: Dict, positions: List, tokens_to_generate: int, stop_after_sentence: bool):
         """
             Autoregressively invokes language model in the inference mode
         Args:
@@ -533,6 +538,10 @@ class MegatronGPTModel(NLPModel):
         """
         results = []
         request_tokens = request["tokens"]
+        stop_after_sentence = stop_after_sentence
+
+        bucket_size = len(request_tokens)
+        stop_data = {"status": [0 for i in range(bucket_size)], "position": [0 for i in range(bucket_size)]}
 
         for idx, tokens in enumerate(request_tokens):
 
@@ -544,7 +553,8 @@ class MegatronGPTModel(NLPModel):
 
             logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
 
-            for i in range(tokens_to_generate + 1):
+            tokens_generated = 0
+            while sum(stop_data["status"]) < bucket_size and tokens_generated < tokens_to_generate:
                 if self.use_soft_prompts:
                     batch_size = len(tokens)
                     full_length = len(tokens[0]) + self.num_prompt_tokens
@@ -575,12 +585,26 @@ class MegatronGPTModel(NLPModel):
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
                 reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+
+                if self.tokenizer.ids_to_text(tokens[0]).endswith(('!', '.', '?')) and stop_after_sentence:
+                    if stop_data["status"][idx] == 0:
+                        stop_data["status"][idx] = 1
+                        stop_data["position"][idx] = len(tokens[0])
+                else:
+                    tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+                    stop_data["position"][idx] = len(tokens[0])
+
+                tokens_generated += 1
 
             # add to results as (text, tokens, log_probs, offsets)
-            for token, prob in zip(tokens, log_probs.tolist()):
+            for token, prob, position in zip(tokens, log_probs.tolist(), stop_data["position"]):
                 results.append(
-                    (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0])
+                    (
+                        self.tokenizer.ids_to_text(token[:position]),
+                        self.tokenizer.ids_to_tokens(token[:position]),
+                        prob[:position],
+                        [0],
+                    )
                 )
         # offsets calculation
         for item in results:
