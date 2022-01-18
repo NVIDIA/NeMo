@@ -173,8 +173,8 @@ Megatron GPT training requires NVIDIA Apex to be installed.
 
     git clone https://github.com/NVIDIA/apex
     cd apex
-    git checkout 05f2d96baf9387c271134e292c811c3d94ed5fd2
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+    git checkout b88c507edb0d067d5570f7a8efe03a90664a3d16
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
