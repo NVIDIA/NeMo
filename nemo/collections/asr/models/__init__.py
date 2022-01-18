@@ -20,6 +20,7 @@ try:
     from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
     from nemo.collections.asr.models.ctc_models import EncDecCTCModel
     from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel, ExtractSpeakerEmbeddingsModel
+    from nemo.collections.asr.models.tsvad_models import EncDecDiarLabelModel
     from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
     from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 except ModuleNotFoundError:
@@ -33,6 +34,7 @@ except ModuleNotFoundError:
     class EncDecCTCModel(CheckInstall): pass
     class EncDecSpeakerLabelModel(CheckInstall): pass
     class ExtractSpeakerEmbeddingsModel(CheckInstall): pass
+    class EncDecDiarLabelModel(CheckInstall): pass
     class EncDecRNNTBPEModel(CheckInstall): pass
     class EncDecRNNTModel(CheckInstall): pass
     # fmt: on

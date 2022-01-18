@@ -291,11 +291,21 @@ def rttm_to_labels(rttm_filename):
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
 
+def write_cluster_labels(lines, cluster_labels, uniq_id, out_dir):
+    """
+    write cluster labels with segment ranges
+    """
+    out_label_name = os.path.join(out_dir, 'speaker_outputs', 'subsegments_cluster.label')
+    with open(out_label_name, 'a') as f:
+        for (seg_line, clus_label) in zip(lines, cluster_labels.tolist()):
+            seg_line = seg_line.strip()
+            label_line = f'{uniq_id} {seg_line}\n'
+            f.write(label_line)
 
 # embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
 
 
-def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
+def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_dir, clustering_params):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
 
@@ -350,8 +360,10 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
 
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
-        if out_rttm_dir:
+        if out_dir:
+            out_rttm_dir = os.path.join(out_dir, 'pred_rttms')
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+            write_cluster_labels(lines, cluster_labels, uniq_id, out_dir)
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 

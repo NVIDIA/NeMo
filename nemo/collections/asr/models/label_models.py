@@ -257,7 +257,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
-
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs

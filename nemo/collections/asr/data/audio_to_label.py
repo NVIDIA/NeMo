@@ -13,7 +13,9 @@
 # limitations under the License.
 import io
 import os
-from typing import Dict, List, Optional, Union
+import json
+
+from typing import Any, Dict, List, Optional, Union
 
 import braceexpand
 import torch
@@ -21,8 +23,11 @@ import webdataset as wd
 
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
+from nemo.collections.common.parts.preprocessing.collections import SpeechLabel, TSVADSpeechLabel
+from nemo.collections.common.parts.preprocessing import manifest, parsers
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import EncodedRepresentation
 from nemo.utils import logging
 
 # List of valid file formats (prioritized by order of importance)
@@ -908,3 +913,168 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
 
     def vad_frame_seq_collate_fn(self, batch):
         return _vad_frame_seq_collate_fn(self, batch)
+
+
+class _AudioTSVADDataset(Dataset):
+    """
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+        """
+
+        output_types = {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+        output_types.update(
+            {
+                'targets': NeuralType(tuple('B', 'T', 'C'), LabelsType()),
+                'ivectors': NeuralType(tuple('B', 'D', 'D'), AcousticEncodedRepresentation()),
+            }
+        )
+        return output_types
+
+    def __init__(
+        self,
+        *,
+        manifest_filepath: str,
+        emb_dict: Dict,
+        featurizer,
+    ):
+        super().__init__()
+        self.collection = TSVADSpeechLabel(
+            manifests_files=manifest_filepath.split(','),
+            emb_dict=emb_dict,
+            is_regression_task=False,
+        )
+        self.featurizer = featurizer
+        self.emb_dict = emb_dict
+        self.ROUND = 2
+        self.decim = 10 ** self.ROUND
+
+
+    def __len__(self):
+        return len(self.collection)
+   
+    def s2n(self, x):
+        return round(float(x), self.ROUND)
+
+    def parse_rttm(self, rttm_path):
+        max_spks = 5
+        rttm_lines = self.read_rttm_file(rttm_path)
+        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
+        uniq_id = self.get_uniq_id(rttm_path)
+        stt_list, end_list, speaker_list = [], [], []
+        for line in rttm_lines:
+            rttm = line.strip().split()
+            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+            end_list.append(end)
+            stt_list.append(start)
+            speaker_list.append(speaker)
+
+        max_len = max(end_list)
+        total_fr_len = int(max_len*self.decim)
+        spk_num = len(set(speaker_list))
+        assert spk_num <= max_spks
+        target = torch.zeros(total_fr_len, max_spks)
+        for stt, end, spk in zip(stt_list, end_list, speaker_list):
+            spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
+            stt, end, spk = round(int(stt), 2), round(int(end), 2), int(spk)
+            target[stt:end, spk] = 1
+        return target, self.s2n(max_len)
+
+    def read_rttm_file(self, rttm_path):
+        return open(rttm_path).readlines()
+
+    def get_uniq_id(self, rttm_path):
+        return rttm_path.split('/')[-1].split('.rttm')[0]
+    
+    def item_sim(self, index):
+        sample = self.collection[index]
+
+        offset = sample.offset
+
+        if offset is None:
+            offset = 0
+        
+        targets, sample_duration = self.parse_rttm(sample.rttm_file)
+        uniq_id = self.get_uniq_id(sample.rttm_file)
+        ivectors = self.emb_dict[uniq_id]['avg_embs']
+        features = self.featurizer.process(sample.audio_file, offset=offset, duration=sample_duration)
+        feats, feats_len = features, torch.tensor(features.shape[0]).long()
+        return feats, feats_len, targets, ivectors
+
+    def __getitem__(self, index):
+        sample = self.collection[index]
+
+        offset = sample.offset
+
+        if offset is None:
+            offset = 0
+        
+        targets, sample_duration = self.parse_rttm(sample.rttm_file)
+        uniq_id = self.get_uniq_id(sample.rttm_file)
+        ivectors = self.emb_dict[uniq_id]['avg_embs']
+        features = self.featurizer.process(sample.audio_file, offset=offset, duration=sample_duration)
+        feats, feats_len = features, torch.tensor(features.shape[0]).long()
+        return feats, feats_len, targets, ivectors
+
+def _tsvad_collate_fn(self, batch):
+    # feats, feats_len, targets, ivectors = batch
+    packed_batch = list(zip(*batch))
+    # packed_batch = batch
+    feats, feats_len, targets, ivectors = packed_batch
+    feats_list, flen_list, targets_list, ivectors_list = [], [], [], []
+    max_audio_len = max(feats_len).item()
+    max_target_len = max([x.shape[0] for x in targets])
+    # max_audio_len = int(max_target_len * self.featurizer.sample_rate)
+
+    for feature, feat_len, target, ivector in batch:
+        flen_list.append(feat_len)
+        ivectors_list.append(ivector)
+        feat_len = feat_len.item()
+        if feat_len < max_audio_len:
+            pad_a = (0, max_audio_len - feat_len)
+            pad_t = (0, max_target_len - target.shape[0])
+            padded_feature = torch.nn.functional.pad(feature, pad_a)
+            padded_target = torch.nn.functional.pad(target.t(), pad_t)
+            feats_list.append(padded_feature)
+            targets_list.append(padded_target.t())
+        else:
+            targets_list.append(target.clone().detach())
+            feats_list.append(feature.clone().detach())
+    
+    feats = torch.stack(feats_list)
+    feats_len = torch.stack(flen_list)
+    targets = torch.stack(targets_list)
+    ivectors = torch.stack(ivectors_list)
+    return feats, feats_len, targets, ivectors
+    
+class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
+    """
+    """
+
+    def __init__(
+        self,
+        *,
+        manifest_filepath: str,
+        emb_dict: Dict,
+        featurizer,
+    ):
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            emb_dict=emb_dict,
+            featurizer=featurizer,
+        )
+
+    def tsvad_collate_fn(self, batch):
+        return _tsvad_collate_fn(self, batch)
+
