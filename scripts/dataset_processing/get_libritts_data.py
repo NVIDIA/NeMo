@@ -80,7 +80,7 @@ def __extract_file(filepath: str, data_dir: str):
 
 def __process_transcript(file_path: str):
     """
-    Converts flac files to wav from a given transcript, capturing the metadata.
+    Loads wav from a given transcript, capturing the metadata.
     Args:
         file_path: path to a source transcript ending with .normalized.txt
     Returns:
@@ -107,7 +107,7 @@ def __process_transcript(file_path: str):
 
 def __process_data(data_folder: str, manifest_file: str, num_workers: int):
     """
-    Converts flac to wav and build manifests's json
+    Loads wav and build manifests's json
     Args:
         data_folder: source with wav files
         manifest_file: where to store manifest
