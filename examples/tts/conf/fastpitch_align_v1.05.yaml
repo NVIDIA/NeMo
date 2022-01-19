@@ -10,21 +10,21 @@ sup_data_path: ???
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
-pitch_fmin: 65.40639132514966
-pitch_fmax: 2093.004522404789
+pitch_fmin: 90
+pitch_fmax: 800
 
 # LJSpeech stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
-pitch_mean: 212.35873413085938
-pitch_std: 68.52806091308594
+pitch_mean: 202.6578730232835
+pitch_std: 53.33124161823325
 
 # Default values for dataset with sample_rate=22050
-sample_rate: 22050
+sample_rate: 44100
 n_mel_channels: 80
-n_window_size: 1024
-n_window_stride: 256
-n_fft: 1024
+n_window_size: 2048
+n_window_stride: 512
+n_fft: 2048
 lowfreq: 0
-highfreq: 8000
+highfreq: null
 window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b"
