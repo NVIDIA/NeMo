@@ -70,7 +70,7 @@ def write_txt(w_path, val):
 
 def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
     """
-    Take the alignment between two lists and get the difference
+    Take the alignment between two lists and get the difference.
     """
     orig_words = '\n'.join(text1.split()) + '\n'
     pred_words = '\n'.join(text2.split()) + '\n'
@@ -85,7 +85,7 @@ def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
 
 def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval):
     """
-    Calculate the diarization confuse error using the reference CTM file.
+    Calculate the diarization confusion error using the reference CTM file.
     """
     correct_count, error_count, align_error = 0, 0, []
     for k, _d in enumerate(error_buffer):
@@ -477,7 +477,7 @@ class ASR_DIAR_OFFLINE(object):
             word_dict_seq_list (list):
                 List containing words and corresponding word timestamps in dictionary format.
             total_riva_dict (dict):
-                Dictionary containing the final transcription, alignment and spekaer labels.
+                Dictionary containing the final transcription, alignment and speaker labels.
 
         Returns:
             total_riva_dict (dict):
@@ -745,7 +745,7 @@ class ASR_DIAR_OFFLINE(object):
             error_dict['rttm_based_wder'] = rttm_wder
             error_dict.update(DER_result_dict[uniq_id])
 
-            # If CTM files are provided, evaluate word-level diarization and wer with the CTM files.
+            # If CTM files are provided, evaluate word-level diarization and WER with the CTM files.
             if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']:
                 self.ctm_exists[uniq_id] = True
                 ctm_content = open(self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']).readlines()
