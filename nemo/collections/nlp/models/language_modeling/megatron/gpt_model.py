@@ -154,6 +154,7 @@ class GPTModel(MegatronModule):
         layer_past=None,
         get_key_value=False,
         forward_method_parallel_output=None,
+        encoder_input=None,
     ):
 
         lm_output = self.language_model(
@@ -163,6 +164,7 @@ class GPTModel(MegatronModule):
             prompt_tags=prompt_tags,
             layer_past=layer_past,
             get_key_value=get_key_value,
+            encoder_input=encoder_input
         )
 
         if self.post_process:
