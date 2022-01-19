@@ -253,10 +253,10 @@ class NLPModel(ModelPT, Exportable):
             if 'cfg' in kwargs:
                 model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
             else:
-                cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
-                model = cls._load_model_state(
-                    checkpoint, strict=strict, cfg=cfg, **kwargs
+                cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get(
+                    'cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
                 )
+                model = cls._load_model_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
             checkpoint = model
 
         finally:
