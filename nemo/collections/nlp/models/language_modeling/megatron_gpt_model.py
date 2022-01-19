@@ -695,9 +695,9 @@ class MegatronGPTModel(NLPModel):
         else:
             parameters = self.get_parameters()
 
-        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val, rank_zero_only=True)
+        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
-        self.log('grad_norm', grad_norm)
+        self.log('grad_norm', grad_norm, rank_zero_only=True)
 
     def prompt_tuning_freeze(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
