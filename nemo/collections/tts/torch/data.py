@@ -132,9 +132,11 @@ class TTSDataset(Dataset):
 
         self.text_tokenizer = text_tokenizer
 
+        self.phoneme_probability = None
         if isinstance(self.text_tokenizer, BaseTokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
             self.tokens = text_tokenizer.tokens
+            self.phoneme_probability = self.text_tokenizer.phoneme_probability
         else:
             if text_tokenizer_pad_id is None:
                 raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
@@ -144,6 +146,7 @@ class TTSDataset(Dataset):
 
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
             self.tokens = tokens
+        self.cache_text = True if self.phoneme_probability is None else False
 
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
@@ -176,16 +179,15 @@ class TTSDataset(Dataset):
                     }
 
                     if "normalized_text" not in item:
-                        text = item["text"]
-
                         if self.text_normalizer is not None:
-                            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-
+                            text = self.text_normalizer_call(item["text"], **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
-                        file_info["text_tokens"] = self.text_tokenizer(text)
                     else:
                         file_info["normalized_text"] = item["normalized_text"]
-                        file_info["text_tokens"] = self.text_tokenizer(item["normalized_text"])
+                        file_info["raw_text"] = item["text"]
+
+                    if self.cache_text:
+                        file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
 
                     audio_files.append(file_info)
 
@@ -278,6 +280,8 @@ class TTSDataset(Dataset):
 
             getattr(self, f"add_{data_type.name}")(**kwargs)
 
+        self.use_beta_binomial_interpolator = False
+
     def add_log_mel(self, **kwargs):
         pass
 
@@ -299,6 +303,8 @@ class TTSDataset(Dataset):
 
     def add_align_prior_matrix(self, **kwargs):
         self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
+        if not self.cache_text:
+            self.use_beta_binomial_interpolator = True
 
         if self.use_beta_binomial_interpolator:
             self.beta_binomial_interpolator = BetaBinomialInterpolator()
@@ -338,8 +344,13 @@ class TTSDataset(Dataset):
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-        text = torch.tensor(sample["text_tokens"]).long()
-        text_length = torch.tensor(len(sample["text_tokens"])).long()
+        if sample["text_tokens"] is not None:
+            text = torch.tensor(sample["text_tokens"]).long()
+            text_length = torch.tensor(len(sample["text_tokens"])).long()
+        else:
+            tokenized = self.text_tokenizer(sample["raw_text"])
+            text = torch.tensor(tokenized).long()
+            text_length = torch.tensor(len(tokenized)).long()
 
         log_mel, log_mel_length = None, None
         if LogMel in self.sup_data_types_set:

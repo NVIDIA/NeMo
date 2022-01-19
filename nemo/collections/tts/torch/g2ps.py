@@ -14,6 +14,7 @@
 
 import abc
 import pathlib
+import random
 import re
 import time
 
@@ -53,6 +54,7 @@ class EnglishG2p(BaseG2p):
         ignore_ambiguous_words=True,
         heteronyms=None,
         encoding='latin-1',
+        phoneme_probability=None,
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
@@ -67,6 +69,7 @@ class EnglishG2p(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
+            phoneme_probability != 1.0: TODO
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
@@ -91,6 +94,8 @@ class EnglishG2p(BaseG2p):
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )
+        self.phoneme_probability = phoneme_probability
+        self._rng = random.Random()
 
     @staticmethod
     def _parse_as_cmu_dict(phoneme_dict_path=None, encoding='latin-1'):
@@ -161,6 +166,9 @@ class EnglishG2p(BaseG2p):
         Returns parsed `word` and `status` as bool.
         `status` will be `False` if word wasn't handled, `True` otherwise.
         """
+
+        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+            return word, False
 
         # punctuation
         if re.search("[a-zA-Z]", word) is None:
