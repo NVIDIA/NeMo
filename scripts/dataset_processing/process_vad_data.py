@@ -341,7 +341,7 @@ def main():
     parser.add_argument("--background_data_root", required=True, default=None, type=str)
     parser.add_argument('--test_size', required=False, default=0.1, type=float)
     parser.add_argument('--val_size', required=False, default=0.1, type=float)
-    parser.add_argument('--seg_len', required=False, default=0.63, type=float)
+    parser.add_argument('--window_length_in_sec', required=False, default=0.63, type=float)
     parser.add_argument('--log', required=False, action='store_true')
     parser.add_argument('--rebalance_method', required=False, default=None, type=str)
     parser.add_argument('--demo', required=False, action='store_true')
@@ -387,13 +387,27 @@ def main():
     # Process Speech manifest
     logging.info(f"=== Write speech data to manifest!")
     skip_num_val, speech_seg_num_val, speech_val = load_list_write_manifest(
-        speech_data_folder, out_dir, 'validation_list.txt', 'speech', 0.2, 0.8, args.seg_len, args.seg_len
+        speech_data_folder,
+        out_dir,
+        'validation_list.txt',
+        'speech',
+        0.2,
+        0.8,
+        args.window_length_in_sec,
+        args.window_length_in_sec,
     )
     skip_num_test, speech_seg_num_test, speech_test = load_list_write_manifest(
-        speech_data_folder, out_dir, 'testing_list.txt', 'speech', 0.2, 0.8, 0.01, args.seg_len
+        speech_data_folder, out_dir, 'testing_list.txt', 'speech', 0.2, 0.8, 0.01, args.window_length_in_sec
     )
     skip_num_train, speech_seg_num_train, speech_train = load_list_write_manifest(
-        speech_data_folder, out_dir, 'training_list.txt', 'speech', 0.2, 0.8, args.seg_len, args.seg_len
+        speech_data_folder,
+        out_dir,
+        'training_list.txt',
+        'speech',
+        0.2,
+        0.8,
+        args.window_length_in_sec,
+        args.window_length_in_sec,
     )
 
     logging.info(f'Val: Skip {skip_num_val} samples. Get {speech_seg_num_val} segments! => {speech_val} ')
@@ -413,13 +427,13 @@ def main():
 
     logging.info(f"=== Write background data to manifest!")
     skip_num_val, background_seg_num_val, background_val = load_list_write_manifest(
-        background_data_folder, out_dir, 'validation_list.txt', 'background', 0, None, 0.15, args.seg_len
+        background_data_folder, out_dir, 'validation_list.txt', 'background', 0, None, 0.15, args.window_length_in_sec
     )
     skip_num_test, background_seg_num_test, background_test = load_list_write_manifest(
-        background_data_folder, out_dir, 'testing_list.txt', 'background', 0, None, 0.01, args.seg_len
+        background_data_folder, out_dir, 'testing_list.txt', 'background', 0, None, 0.01, args.window_length_in_sec
     )
     skip_num_train, background_seg_num_train, background_train = load_list_write_manifest(
-        background_data_folder, out_dir, 'training_list.txt', 'background', 0, None, 0.15, args.seg_len
+        background_data_folder, out_dir, 'training_list.txt', 'background', 0, None, 0.15, args.window_length_in_sec
     )
 
     logging.info(f'Val: Skip {skip_num_val} samples. Get {background_seg_num_val} segments! => {background_val}')

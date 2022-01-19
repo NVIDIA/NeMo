@@ -167,8 +167,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'batch_size': self._cfg.get('batch_size'),
             'vad_stream': True,
             'labels': ['infer',],
-            'time_length': self._vad_window_length_in_sec,
-            'shift_length': self._vad_shift_length_in_sec,
+            'window_length_in_sec': self._vad_window_length_in_sec,
+            'shift_length_in_sec': self._vad_shift_length_in_sec,
             'trim_silence': False,
             'num_workers': self._cfg.num_workers,
         }
@@ -179,11 +179,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             'manifest_filepath': manifest_file,
             'sample_rate': self._cfg.sample_rate,
             'batch_size': self._cfg.get('batch_size'),
-            'time_length': self._speaker_params.window_length_in_sec,
-            'shift_length': self._speaker_params.shift_length_in_sec,
             'trim_silence': False,
             'labels': None,
-            'task': "diarization",
             'num_workers': self._cfg.num_workers,
         }
         self._speaker_model.setup_test_data(spk_dl_config)
@@ -248,8 +245,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 frame_pred_dir=self._vad_dir,
                 smoothing_method=self._vad_params.smoothing,
                 overlap=self._vad_params.overlap,
-                seg_len=self._vad_window_length_in_sec,
-                shift_len=self._vad_shift_length_in_sec,
+                window_length_in_sec=self._vad_window_length_in_sec,
+                shift_length_in_sec=self._vad_shift_length_in_sec,
                 num_workers=self._cfg.num_workers,
             )
             self.vad_pred_dir = smoothing_pred_dir
@@ -259,7 +256,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
             postprocessing_params=self._vad_params,
-            shift_len=self._vad_shift_length_in_sec,
+            shift_length_in_sec=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
         AUDIO_VAD_RTTM_MAP = deepcopy(self.AUDIO_RTTM_MAP.copy())
@@ -271,9 +268,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
 
-        self._speaker_params.window_length_in_sec = window
-        self._speaker_params.shift_length_in_sec = shift
-
         self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
         logging.info(
             f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
@@ -281,8 +275,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=self._speaker_manifest_path,
             subsegments_manifest_file=self.subsegments_manifest_path,
-            window=self._speaker_params.window_length_in_sec,
-            shift=self._speaker_params.shift_length_in_sec,
+            window=window,
+            shift=shift,
         )
         return None
 
@@ -292,16 +286,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         external vad manifest and oracle VAD (generates speech activity labels from provided RTTM files)
         """
         if self.has_vad_model:
-            self._dont_auto_split = False
+            self._auto_split = True
             self._split_duration = 50
             manifest_vad_input = self._diarizer_params.manifest_filepath
 
-            if not self._dont_auto_split:
+            if self._auto_split:
                 logging.info("Split long audio file to avoid CUDA memory issue")
                 logging.debug("Try smaller split_duration if you still have CUDA memory issue")
                 config = {
-                    'manifest_filepath': manifest_vad_input,
-                    'time_length': self._vad_window_length_in_sec,
+                    'input': manifest_vad_input,
+                    'window_length_in_sec': self._vad_window_length_in_sec,
                     'split_duration': self._split_duration,
                     'num_workers': self._cfg.num_workers,
                 }
@@ -412,10 +406,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._perform_speech_activity_detection()
 
         # Segmentation
-        for scale_idx, (time_length, shift_length) in self.multiscale_args_dict['scale_dict'].items():
+        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
 
             # Segmentation for the current scale (scale_idx)
-            self._run_segmentation(time_length, shift_length, scale_tag=f'_scale{scale_idx}')
+            self._run_segmentation(window, shift, scale_tag=f'_scale{scale_idx}')
 
             # Embedding Extraction for the current scale (scale_idx)
             self._extract_embeddings(self.subsegments_manifest_path)

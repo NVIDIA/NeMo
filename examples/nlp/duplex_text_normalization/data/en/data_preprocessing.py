@@ -49,9 +49,9 @@ from argparse import ArgumentParser
 
 import inflect
 import regex as re
-import wordninja
 from tqdm import tqdm
 
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data.text_normalization.constants import EN_GREEK_TO_SPOKEN
 from nemo.collections.nlp.data.text_normalization.utils import (
     add_space_around_dash,
@@ -59,23 +59,6 @@ from nemo.collections.nlp.data.text_normalization.utils import (
     convert_superscript,
 )
 from nemo.utils import logging
-
-parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
-parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
-parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
-parser.add_argument(
-    "--max_integer_length",
-    default=4,
-    type=int,
-    help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.',
-)
-parser.add_argument(
-    "--max_denominator_length",
-    default=3,
-    type=int,
-    help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.',
-)
-args = parser.parse_args()
 
 engine = inflect.engine()
 
@@ -87,6 +70,7 @@ number_verbalizations = (
     + ["point"]
 )
 digit = "0123456789"
+processor = MosesProcessor(lang_id="en")
 
 
 def process_url(o):
@@ -128,7 +112,7 @@ def process_url(o):
             else:
                 o += o_token
         o = o.strip()
-        o_tokens = wordninja.split(o)
+        o_tokens = processor.tokenize(o).split()
         o = ' '.join(o_tokens)
 
     return o
@@ -397,4 +381,22 @@ def main():
 
 
 if __name__ == "__main__":
+
+    parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
+    parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
+    parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
+    parser.add_argument(
+        "--max_integer_length",
+        default=4,
+        type=int,
+        help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.',
+    )
+    parser.add_argument(
+        "--max_denominator_length",
+        default=3,
+        type=int,
+        help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.',
+    )
+    args = parser.parse_args()
+
     main()

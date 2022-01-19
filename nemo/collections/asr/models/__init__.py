@@ -19,7 +19,7 @@ try:
     from nemo.collections.asr.models.clustering_diarizer import ClusteringDiarizer
     from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
     from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-    from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel, ExtractSpeakerEmbeddingsModel
+    from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
     from nemo.collections.asr.models.tsvad_models import EncDecDiarLabelModel
     from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
     from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
@@ -33,7 +33,6 @@ except ModuleNotFoundError:
     class EncDecCTCModelBPE(CheckInstall): pass
     class EncDecCTCModel(CheckInstall): pass
     class EncDecSpeakerLabelModel(CheckInstall): pass
-    class ExtractSpeakerEmbeddingsModel(CheckInstall): pass
     class EncDecDiarLabelModel(CheckInstall): pass
     class EncDecRNNTBPEModel(CheckInstall): pass
     class EncDecRNNTModel(CheckInstall): pass
