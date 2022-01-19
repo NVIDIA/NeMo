@@ -47,7 +47,9 @@ class MegatronModule(torch.nn.Module):
         super(MegatronModule, self).__init__()
 
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         self.share_word_embeddings = share_word_embeddings
 
@@ -156,7 +158,9 @@ class Float16Module(MegatronModule):
     def __init__(self, module, precision):
         super().__init__()
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         self.precision = precision
 
         if precision == 16:
