@@ -464,7 +464,7 @@ Multiple test datasets work exactly the same way as validation datasets, simply 
 Bottleneck Models and Latent Variable Models (VAE, MIM)
 -------------------------------------------------------
 
-NMT with bottleneck encoder architecture is also supported, along with the training of Latent Variable Models (currently VAE, and MIM).
+NMT with bottleneck encoder architecture is also supported (i.e., fixed size bottleneck), along with the training of Latent Variable Models (currently VAE, and MIM).
 
 1. Supported  learning frameworks (**model.model_type**):
     * NLL - Conditional cross entropy (the usual NMT loss)
