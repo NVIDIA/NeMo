@@ -86,6 +86,7 @@ model:
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null
+    nemo_file: null
 
 
   head:

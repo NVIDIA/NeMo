@@ -45,16 +45,23 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         results = []
 
         model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_256",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_256",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_256/versions/1.6.0/files/stt_en_contextnet_256.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
             pretrained_model_name="stt_en_contextnet_512",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_512/versions/1.0.0/files/stt_en_contextnet_512.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_512/versions/1.6.0/files/stt_en_contextnet_512.nemo",
         )
         results.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="stt_en_contextnet_1024",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_1024/versions/1.0.0/files/stt_en_contextnet_1024.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_1024/versions/1.6.0/files/stt_en_contextnet_1024.nemo",
         )
         results.append(model)
 
