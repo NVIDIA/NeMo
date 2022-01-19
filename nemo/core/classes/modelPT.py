@@ -869,13 +869,27 @@ class ModelPT(LightningModule, Model):
             init_from_ptl_ckpt: Str name of a Pytorch Lightning checkpoint file. It will be loaded and
                 the state dict will extracted.
 
+            init_from_second_nemo_model: Str path to an additional .nemo model, which can be use to
+            instantiate/overwrite a part of the state dict
+
+            init_part_from_second_nemo_model: Optional str that needs to be contained in
+            parameter name for the parameter to be loaded from second nemo file
+
+            init_exclude_from_second_nemo_model: Optional str that needs to be not contained in
+            parameter name for the parameter to be loaded from second nemo file
+
         Args:
             cfg: The config used to instantiate the model. It need only contain one of the above keys.
             map_location: str or torch.device() which represents where the intermediate state dict
                 (from the pretrained model or checkpoint) will be loaded.
 
         """
-        args = ['init_from_nemo_model', 'init_from_pretrained_model', 'init_from_ptl_ckpt']
+        args = [
+            'init_from_nemo_model',
+            'init_from_pretrained_model',
+            'init_from_ptl_ckpt',
+            'init_from_second_nemo_model',
+        ]
         arg_matches = [(1 if arg in cfg and arg is not None else 0) for arg in args]
 
         if sum(arg_matches) == 0:
