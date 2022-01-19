@@ -61,6 +61,7 @@ def initialize_model_parallel_for_nemo(
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
         app_state.model_parallel_size,
+        app_state.data_parallel_size,
     ) = fake_initialize_model_parallel(
         world_size=world_size,
         rank=global_rank,
@@ -267,4 +268,4 @@ def fake_initialize_model_parallel(
     logging.info(f'All embedding group ranks: {all_pipeline_model_parallel_group_ranks}')
     logging.info(f'Rank {rank} has embedding rank: {embedding_rank}')
 
-    return tensor_model_parallel_rank, pipeline_model_parallel_rank, model_parallel_size
+    return tensor_model_parallel_rank, pipeline_model_parallel_rank, model_parallel_size, data_parallel_size

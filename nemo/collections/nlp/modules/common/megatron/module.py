@@ -196,3 +196,14 @@ class Float16Module(MegatronModule):
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+
+    def word_embeddings_weight(self):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            return self.module.language_model.embedding.word_embeddings.weight
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            if not self.share_word_embeddings:
+                raise Exception(
+                    'word_embeddings_weight() called for last ' 'stage, but share_word_embeddings is false'
+                )
+            return self.module.word_embeddings.weight
+        raise Exception('word_embeddings_weight() should be ' 'called for first and last stage only')

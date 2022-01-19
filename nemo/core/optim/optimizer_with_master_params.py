@@ -144,8 +144,8 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         if self._contiguous_grad_bucket:
             self._main_grad_buffers = {}
             # get the size of buffers
+            num_elements = {}
             for i, param_group in enumerate(self.optimizer.param_groups):
-                num_elements = {}
                 for param in param_group['params']:
                     if param.requires_grad:
                         num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
