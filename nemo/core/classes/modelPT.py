@@ -91,6 +91,11 @@ class ModelPT(LightningModule, Model):
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
 
+        if 'model' in cfg:
+            raise ValueError(
+                "Creating model config node is forbidden due to collision problem when loading from checkpoint."
+            )
+
         if 'target' not in cfg:
             # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)

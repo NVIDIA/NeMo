@@ -65,6 +65,7 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     multilingual: Optional[bool] = False
     preproc_out_dir: Optional[str] = None
     validate_input_ids: Optional[bool] = True
+    shared_embeddings: bool = False
 
     # network architecture configuration
     encoder_tokenizer: Any = MISSING

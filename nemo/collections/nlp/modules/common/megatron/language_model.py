@@ -74,6 +74,7 @@ def get_language_model(
     activations_checkpoint_num_layers=1,
     layernorm_epsilon=1e-5,
     bias_gelu_fusion=True,
+    persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
     use_soft_prompts=False,
@@ -121,6 +122,7 @@ def get_language_model(
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
         layernorm_epsilon=layernorm_epsilon,
         bias_gelu_fusion=bias_gelu_fusion,
+        persist_layer_norm=persist_layer_norm,
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
         use_soft_prompts=use_soft_prompts,
@@ -538,6 +540,7 @@ class TransformerLanguageModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         bias_gelu_fusion=True,
+        persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
         use_soft_prompts=False,
@@ -612,6 +615,7 @@ class TransformerLanguageModel(MegatronModule):
             hidden_dropout=hidden_dropout,
             use_cpu_initialization=use_cpu_initialization,
             bias_gelu_fusion=bias_gelu_fusion,
+            persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
         )
@@ -643,6 +647,7 @@ class TransformerLanguageModel(MegatronModule):
                 hidden_dropout=hidden_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_gelu_fusion=bias_gelu_fusion,
+                persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
             )
@@ -673,7 +678,7 @@ class TransformerLanguageModel(MegatronModule):
         get_key_value=False,
         pooling_sequence_index=0,
         enc_hidden_states=None,
-        output_enc_hidden=False,
+        output_enc_hidden_only=False,
     ):
         # Embeddings.
         if self.pre_process:
@@ -703,10 +708,10 @@ class TransformerLanguageModel(MegatronModule):
             if self.add_pooler:
                 pooled_output = self.pooler(encoder_output, pooling_sequence_index)
 
-        # output_enc_hidden refers to when we just need the encoder's
+        # output_enc_hidden_only refers to when we just need the encoder's
         # output. For example, it is helpful to compute
         # similarity between two sequences by average pooling
-        if not self.add_decoder or output_enc_hidden:
+        if not self.add_decoder or output_enc_hidden_only:
             if self.add_pooler and self.post_process:
                 return encoder_output, pooled_output
             else:

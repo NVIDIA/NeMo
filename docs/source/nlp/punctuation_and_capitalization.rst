@@ -534,10 +534,12 @@ For convenience, items of data config are described in 4 tables:
    * - **use_cache**
      - bool
      - ``true``
-     - Whether to use pickled features. If pickled features does not exist, then pickled features will be created.
-       For large usual datasets, pickled features may considerably reduce time for training starting. Tokenization
-       of source sequences is not fast because sequences are split into words before tokenization. For even larger
-       datasets (~4M), tarred datasets are recommended.
+     - Whether to use pickled features which are already present in ``cache_dir``.
+       For large not tarred datasets, pickled features may considerably reduce time required for training to start.
+       Tokenization of source sequences is not fast because sequences are split into words before tokenization.
+       For even larger datasets (~4M), tarred datasets are recommended. If pickled features are missing, then
+       new pickled features file will be created regardless of the value of ``use_cache`` parameter because
+       pickled features are required for distributed training.
    * - **cache_dir**
      - string
      - ``null``
