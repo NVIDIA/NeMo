@@ -43,6 +43,8 @@ from nemo.utils import logging
 __all__ = ['PTuneTextClassificationModel']
 
 
+SMALL_LOGITS = -100
+
 class PTuneTextClassificationModel(NLPModel, Exportable):
 
     # @property
@@ -161,69 +163,102 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
                    self.tokenizer.tokenize(' ' + x_t)) if x_t is not None else [])
                 ]
 
-    def forward(self, x_hs, x_ts, return_candidates=False):
-        bz = len(x_hs)
+    def get_ground_truth_labels(self, batch_size, label_ids):
+        returned_label = []
+        for i in range(batch_size):
+            returned_label.append(self.allowed_vocab[label_ids[i, 0].item()])
+        return torch.tensor(returned_label).to(self.device)
 
+    def get_prediction(self, batch_size, label_position, logits):
+        pred_ids = torch.argsort(logits, dim=2, descending=True)
+        top10 = []
+        returned_pred = []
+        for i in range(batch_size):
+            top10.append([])
+            pred_seq = pred_ids[i, label_position[i, 0]].tolist()
+            for pred in pred_seq:
+                if pred in self.allowed_vocab_ids:
+                    top10[-1].append(pred)
+                    if len(top10[-1]) >= 10:
+                        break
+            pred = top10[-1][0]
+            returned_pred.append(self.allowed_vocab[pred])
+        return top10, torch.tensor(returned_pred).to(self.device)
+
+    def get_encoder_input(self, sentences):
+        batch_size = len(sentences)
         # construct query ids
         prompt_tokens = [self.pseudo_token_id]
-        x_ts = [token_wrapper(x_t) for x_t in x_ts]
-        queries = [torch.LongTensor(self.get_query(x_hs[i], prompt_tokens)).squeeze(0) for i in range(bz)]
+
+        queries = [torch.LongTensor(self.get_query(sentences[i], prompt_tokens)).squeeze(0) for i in range(batch_size)]
         queries = pad_sequence(queries, True, padding_value=self.pad_token_id).long().to(self.device)
 
-        # construct label ids
-        label_ids = torch.LongTensor(self.tokenizer.tokenizer.convert_tokens_to_ids(x_ts)).reshape(
-            (bz, -1)).to(self.device)
+        # attention_mask indicates the boundary of attention
         attention_mask = queries != self.pad_token_id
         # get embedded input
         inputs_embeds = self.embed_input(queries)
 
-        def megatron_out():
-            bz, seq_len, _ = inputs_embeds.shape
-            labels = torch.empty_like(queries).fill_(-100).long()  # bz * seq_len
-            label_mask = (attention_mask.long().sum(dim=1) - 1).unsqueeze(1)
-            labels = labels.scatter_(1, label_mask, label_ids)
+        bz, seq_len, _ = inputs_embeds.shape
 
-            causal_mask = torch.tril(
-                torch.ones((bz, seq_len, seq_len),
-                           device=self.device)).view(bz, 1,
-                                                     seq_len, seq_len)
-            r = causal_mask.permute((1, 2, 0, 3)) * attention_mask.int()
-            new_atten = r.permute((2, 0, 1, 3))
-            new_atten = new_atten < 0.5
+        # get the GPT causal mask
+        causal_mask = torch.tril(
+            torch.ones((bz, seq_len, seq_len),
+                       device=self.device)).view(bz, 1,
+                                                 seq_len, seq_len)
+        # combine the attention_mask and causal_mask
+        r = causal_mask.permute((1, 2, 0, 3)) * attention_mask.int()
+        new_atten = r.permute((2, 0, 1, 3))
+        # convert it to the boolean
+        new_atten = new_atten < 0.5
 
-            position_ids = torch.arange(seq_len, dtype=torch.long, device=self.device)
-            position_ids = position_ids.unsqueeze(0).expand_as(inputs_embeds[:, :, 0])
-            position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
-            encoder_input = inputs_embeds + position_embeddings
+        # calculate the position embedding based on the seq_len
+        position_ids = torch.arange(seq_len, dtype=torch.long, device=self.device)
+        position_ids = position_ids.unsqueeze(0).expand_as(inputs_embeds[:, :, 0])
+        position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
 
-            output = self.model.model(None, None, encoder_input=encoder_input.half(),
-                                      attention_mask=new_atten,
-                                      labels=labels)
-            loss, logits = output
-            floss = (loss[(labels != -100)]).mean()
+        # get the final input for encoder
+        encoder_input = inputs_embeds + position_embeddings
 
-            pred_ids = torch.argsort(logits, dim=2, descending=True)
-            hit1 = 0
-            top10 = []
-            returned_pred = []
-            returned_label = []
-            for i in range(bz):
-                top10.append([])
-                pred_seq = pred_ids[i, label_mask[i, 0]].tolist()
-                for pred in pred_seq:
-                    if pred in self.allowed_vocab_ids:
-                        top10[-1].append(pred)
-                        if len(top10[-1]) >= 10:
-                            break
-                pred = top10[-1][0]
-                returned_pred.append(self.allowed_vocab[pred])
-                returned_label.append(self.allowed_vocab[label_ids[i, 0].item()])
-                if pred == label_ids[i, 0]:
-                    hit1 += 1
-            if return_candidates:
-                return floss, hit1, top10
-            return floss, hit1, torch.tensor(returned_pred).to(self.device), torch.tensor(returned_label).to(self.device)
-        return megatron_out()
+        # calculate the position of the output token
+        label_position = (attention_mask.long().sum(dim=1) - 1).unsqueeze(1)
+        return encoder_input, new_atten, label_position
+
+    def get_label_input(self, labels, label_position, seq_len):
+        batch_size, _ = label_position.shape
+        x_ts = [token_wrapper(x_t) for x_t in labels]
+
+        # construct label ids
+        label_ids = torch.LongTensor(self.tokenizer.tokenizer.convert_tokens_to_ids(x_ts)).reshape(
+            (batch_size, -1)).to(self.device)
+        labels = torch.zeros(batch_size, seq_len).to(self.device).fill_(SMALL_LOGITS).long()  # bz * seq_len
+        labels = labels.scatter_(1, label_position, label_ids)
+        return labels, label_ids
+
+    def forward_eval(self, sentences):
+        encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
+        batch_size, _, seq_len, _ = new_atten.shape
+
+        output = self.model.model(None, None, encoder_input=encoder_input,
+                                  attention_mask=new_atten)
+        logits = output
+
+        _, returned_pred = self.get_prediction(batch_size, label_position, logits)
+        return returned_pred
+
+    def forward(self, sentences, labels):
+        encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
+        batch_size, _, seq_len, _ = new_atten.shape
+        labels_input, label_ids = self.get_label_input(labels, label_position, seq_len)
+
+        output = self.model.model(None, None, encoder_input=encoder_input,
+                                  attention_mask=new_atten,
+                                  labels=labels_input)
+        loss, logits = output
+        floss = (loss[(labels != SMALL_LOGITS)]).mean()
+
+        _, returned_pred = self.get_prediction(batch_size, label_position, logits)
+        returned_label = self.get_ground_truth_labels(batch_size, label_ids)
+        return floss, returned_pred, returned_label
 
     def training_step(self, batch, batch_idx):
         """
@@ -231,8 +266,8 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         passed in as `batch`.
         """
         # forward pass
-        xs, ts  = batch
-        train_loss, hit1, pred_ids, label_ids = self.forward(xs, ts)
+        sentences, labels = batch
+        train_loss, _, _ = self.forward(sentences, labels)
 
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
@@ -248,10 +283,10 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        xs, ts  = batch
-        val_loss, hit1 , preds, labels = self.forward(xs, ts)
+        sentences, labels = batch
+        val_loss, preds, gt_labels = self.forward(sentences, labels)
 
-        tp, fn, fp, _ = self.classification_report(preds, labels)
+        tp, fn, fp, _ = self.classification_report(preds, gt_labels)
 
         return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
@@ -303,9 +338,6 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             self._test_dl = None
             return
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
-
-        # we need to create/update the loss module by using the weights calculated from the training data
-        self.create_loss_module()
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file_path:
