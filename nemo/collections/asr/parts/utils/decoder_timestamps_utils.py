@@ -722,8 +722,9 @@ class ASR_TIMESTAMPS:
             logprob (np.ndarray):
                 The log probability from the ASR model inference in numpy array format.
             onset_delay_in_sec (float):
-                The amount of delay that needs to be compensated for the pyctcdecode results.
-
+                The amount of delay that needs to be compensated for the timestamp outputs froM pyctcdecode.
+            beam_width (int):
+                The beam width parameter for beam search decodring.
         Returns:
             hyp_words (list):
                 List of words in the hypothesis.
