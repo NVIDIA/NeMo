@@ -317,6 +317,6 @@ We support three types of bucketing strategies:
 *   fully_randomized: similar to syned_randomized but each GPU has its own random order. So GPUs would not be synced.
 
 Tha parameter train_ds.bucketing_strategy can be set to specify one of these strategies. The recommended strategy is syned_randomized which gives the highest training speedup.
-The fully_randomized strategy would have lower speedup than syned_randomized but may give better accuracy.
+The fully_randomized strategy would have lower speedup than synced_randomized but may give better accuracy.
 
 Bucketing may improve the training speed more than 2x but may affect the final accuracy of the model slightly. Training for more epochs and using 'synced_randomized' strategy help to fill this gap.
