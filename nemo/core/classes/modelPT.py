@@ -864,8 +864,16 @@ class ModelPT(LightningModule, Model):
         requirement of exact model parameters matching.
 
         Initializations:
-            init_from_nemo_model: Str path to a .nemo model, which will be instantiated in order
-                to extract the state dict.
+            init_from_nemo_model: Str path to a .nemo model in order to load state_dict from single nemo file;
+                if loading from multiple files, pass in a list where each elements has the following fields:
+
+                path: Str path to .nemo model
+
+                parts_to_load: List of strings, at least one of which needs to be contained in parameter name
+                to be loaded from this .nemo file
+
+                excluded: Optional list of strings, which can be used to exclude any parameter containing one of
+                these strings from being loaded from this .nemo file
 
             init_from_pretrained_model: Str name of a pretrained model checkpoint (obtained via cloud).
                 The model will be downloaded (or a cached copy will be used), instantiated and then
@@ -893,7 +901,6 @@ class ModelPT(LightningModule, Model):
             'init_from_nemo_model',
             'init_from_pretrained_model',
             'init_from_ptl_ckpt',
-            'init_from_second_nemo_model',
         ]
         arg_matches = [(1 if arg in cfg and arg is not None else 0) for arg in args]
 
@@ -928,27 +935,24 @@ class ModelPT(LightningModule, Model):
                             model_path, map_location=map_location, strict=cfg.get("init_strict", True)
                         )
 
-                        parts = model_load_cfg.pop('parts', [])
+                        parts = model_load_cfg.pop('parts_to_load', [])
                         excluded = model_load_cfg.pop('excluded', [])
 
-                        #create dict
+                        # create dict
                         dict_to_load = {}
                         for k, v in restored_model.state_dict().items():
                             for p in parts:
-                                if not k.contains(p):
+                                if not p in k:
                                     continue
                             for e in excluded:
-                                if k.contains(e):
+                                if e in k:
                                     continue
                             dict_to_load[k] = v
 
                         # Restore checkpoint part into current model
                         self.load_state_dict(dict_to_load, strict=False)
-                        logging.info(
-                            f'Model checkpoint partially restored from nemo file with path : `{model_path}``'
-                        )
+                        logging.info(f'Model checkpoint partially restored from nemo file with path : `{model_path}``')
                         del restored_model
-
 
         if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
             with open_dict(cfg):
@@ -989,33 +993,6 @@ class ModelPT(LightningModule, Model):
                 logging.info(f'Model checkpoint restored from pytorch lightning chackpoint with path : `{ckpt_path}`')
 
                 del ckpt
-
-        if 'init_from_other_nemo_model' in cfg and cfg.init_from_other_nemo_model is not None:
-            with open_dict(cfg):
-                # Restore model
-                model_path = cfg.pop('init_from_other_nemo_model')
-                model_part = cfg.pop('init_from_other_nemo_model.subparts', "")
-                exclude = cfg.pop('init_from_other_nemo_model.excluded', "!!!")
-                restored_model = self.restore_from(
-                    model_path, map_location=map_location, strict=False, override_config_path=None
-                )
-                dict_to_load = {
-                    k: v
-                    for k, v in restored_model.state_dict().items()
-                    if k.startswith(model_part) and exclude not in k
-                }
-
-                # Restore checkpoint part into current model
-
-                self.load_state_dict(dict_to_load, strict=False)
-                if model_part != "":
-                    logging.info(
-                        f'Model checkpoint part `{model_part}` restored from other nemo file with path : `{model_path}`'
-                    )
-                else:
-                    logging.info(f'Model checkpoint restored from other nemo file with path : `{model_path}`')
-                if exclude != "!!!":
-                    logging.info(f'Excluded parameters containing `{exclude}`')
 
     def teardown(self, stage: str):
         """
