@@ -882,15 +882,6 @@ class ModelPT(LightningModule, Model):
             init_from_ptl_ckpt: Str name of a Pytorch Lightning checkpoint file. It will be loaded and
                 the state dict will extracted.
 
-            init_from_other_nemo_model: Str path to an additional .nemo model, which can be use to
-            instantiate/overwrite a part of the state dict
-
-            init_from_other_nemo_model.subparts: Optional str that needs to be contained in
-            parameter name for the parameter to be loaded from second nemo file
-
-            init_from_other_nemo_model.excluded: Optional str that needs to be not contained in
-            parameter name for the parameter to be loaded from second nemo file
-
         Args:
             cfg: The config used to instantiate the model. It need only contain one of the above keys.
             map_location: str or torch.device() which represents where the intermediate state dict
@@ -916,13 +907,12 @@ class ModelPT(LightningModule, Model):
 
         if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
             with open_dict(cfg):
-                # Restore model
                 if isinstance(cfg.init_from_nemo_model, str):
                     model_path = init_from_nemo_model
+                    # Restore model
                     restored_model = self.restore_from(
                         model_path, map_location=map_location, strict=cfg.get("init_strict", True)
                     )
-
                     # Restore checkpoint into current model
                     self.load_state_dict(restored_model.state_dict(), strict=False)
                     logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
@@ -931,6 +921,7 @@ class ModelPT(LightningModule, Model):
                     model_load_list = cfg.init_from_nemo_model
                     for model_load_cfg in model_load_list:
                         model_path = model_load_cfg.path
+                        # Restore model
                         restored_model = self.restore_from(
                             model_path, map_location=map_location, strict=cfg.get("init_strict", True)
                         )
