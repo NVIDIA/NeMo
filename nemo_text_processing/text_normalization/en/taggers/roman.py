@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_SIGMA, GraphFst, insert_space
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
@@ -65,6 +65,29 @@ class RomanFst(GraphFst):
         graph = pynutil.add_weight(pynini.compose(NEMO_ALPHA, graph), 1) | (
             pynini.compose(pynini.closure(NEMO_ALPHA, 2), graph)
         )
-        graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
-        graph = self.add_tokens(graph)
+
+        default_graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
+
+        if lm:
+
+            proper_names = pynini.string_map(load_labels(get_abs_path("data/roman/proper_names.tsv"))).optimize()
+            graph = (
+                pynutil.insert("key_the_ordinal: \"")
+                + proper_names
+                + pynutil.insert("\"")
+                + pynini.accep(" ")
+                + default_graph
+            )
+            key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
+            graph |= (
+                pynutil.insert("key_cardinal: \"")
+                + key_words
+                + pynutil.insert("\"")
+                + pynini.accep(" ")
+                + default_graph
+            )
+            graph |= pynini.difference(NEMO_SIGMA, pynini.union(key_words, proper_names)) + default_graph
+            default_graph = graph
+
+        graph = self.add_tokens(default_graph)
         self.fst = graph.optimize()

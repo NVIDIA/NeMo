@@ -35,12 +35,37 @@ class RomanFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="roman", kind="verbalize", deterministic=deterministic)
         suffix = OrdinalFst().suffix
 
-        integer = pynini.closure(NEMO_NOT_QUOTE)
-        integer |= pynini.closure(pynutil.insert("the "), 0, 1) + integer @ suffix
-        graph = pynutil.delete("integer: \"") + integer + pynutil.delete("\"")
+        cardinal = pynini.closure(NEMO_NOT_QUOTE)
+        ordinal = pynini.compose(cardinal, suffix)
+        ordinal_with_the = pynini.closure(pynutil.insert("the "), 0, 1) + ordinal
+
+        if lm:
+            graph = (
+                pynutil.delete("key_cardinal: \"")
+                + pynini.closure(NEMO_NOT_QUOTE, 1)
+                + pynutil.delete("\"")
+                + pynini.accep(" ")
+                + pynutil.delete("integer: \"")
+                + cardinal
+                + pynutil.delete("\"")
+            ).optimize()
+
+            graph |= (
+                    pynutil.delete("key_the_ordinal: \"")
+                    + pynini.closure(NEMO_NOT_QUOTE, 1)
+                    + pynutil.delete("\"")
+                    + pynini.accep(" ")
+                    + pynutil.delete("integer: \"")
+                    + pynutil.insert("the ")
+                    + ordinal
+                    + pynutil.delete("\"")
+            ).optimize()
+        else:
+            graph = pynutil.delete("integer: \"") + (cardinal | ordinal | ordinal_with_the).optimize() + pynutil.delete("\"")
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
