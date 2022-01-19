@@ -179,6 +179,7 @@ class TTSDataset(Dataset):
                     }
 
                     if "normalized_text" not in item:
+                        text = item["text"]
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(item["text"], **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
@@ -272,6 +273,7 @@ class TTSDataset(Dataset):
             hop_length=self.hop_len,
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
+            return_complex=None,
         )
 
         for data_type in self.sup_data_types:
@@ -281,6 +283,7 @@ class TTSDataset(Dataset):
             getattr(self, f"add_{data_type.name}")(**kwargs)
 
         self.use_beta_binomial_interpolator = False
+        self.add_align_prior_matrix()
 
     def add_log_mel(self, **kwargs):
         pass
@@ -344,11 +347,11 @@ class TTSDataset(Dataset):
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-        if sample["text_tokens"] is not None:
+        if "text_tokens" in sample:
             text = torch.tensor(sample["text_tokens"]).long()
             text_length = torch.tensor(len(sample["text_tokens"])).long()
         else:
-            tokenized = self.text_tokenizer(sample["raw_text"])
+            tokenized = self.text_tokenizer(sample["normalized_text"])
             text = torch.tensor(tokenized).long()
             text_length = torch.tensor(len(tokenized)).long()
 

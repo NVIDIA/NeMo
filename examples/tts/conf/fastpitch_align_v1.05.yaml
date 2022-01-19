@@ -93,7 +93,7 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: null
+      max_duration: 23.
       min_duration: 0.1
       ignore_file: null
       trim: false
