@@ -320,3 +320,4 @@ Tha parameter train_ds.bucketing_strategy can be set to specify one of these str
 The fully_randomized strategy would have lower speedup than synced_randomized but may give better accuracy.
 
 Bucketing may improve the training speed more than 2x but may affect the final accuracy of the model slightly. Training for more epochs and using 'synced_randomized' strategy help to fill this gap.
+Currently bucketing feature is just supported for tarred datasets.
