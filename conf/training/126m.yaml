@@ -1,25 +1,21 @@
-slurm:
-  partition: ???
-  account: null
-  time_limit: "1-00:00:00"
+bcp:
+  job_name: bignlp-${training.run.name}
   nodes: 8
-  exclusive: True
-  mem: 0
-  overcommit: True
   ntasks_per_node: 8
-  gpus_per_task: null
-  dependency: "singleton"
-  job_name: "bignlp-gpt3:126m"
-
+  gpus_per_task: 1
+  time_limit: "4D"
+  instance: "dgxa100.80g.8.norm"
+  workspace_common: "bignlp_ws_common"
+  workspace_scripts: ???
 
 run:
-  name: "126m"
-  log_dir: ${bignlp_path}/train_scripts/logs/126m
-
+  name: "126m-8f2"
+  results_dir: /workspace-scripts/results/${.name}
+  log_dir: ${.results_dir}
 
 trainer:
-  gpus: ${training.slurm.ntasks_per_node}
-  num_nodes: ${training.slurm.nodes}
+  num_nodes: ${training.bcp.nodes}
+  gpus: ${training.bcp.ntasks_per_node}
   accelerator: ddp
   precision: 16
   amp_backend: native
@@ -28,7 +24,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 01:12:00:00 # days:hours:minutes:seconds
+  max_time: 02:12:00:00 # days:hours:minutes:seconds
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
@@ -59,7 +55,6 @@ exp_manager:
   step_timing_kwargs:
     sync_cuda: True
     buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
-
 
 model:
   # model parallelism 
