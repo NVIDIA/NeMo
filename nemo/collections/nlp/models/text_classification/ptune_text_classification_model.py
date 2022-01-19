@@ -38,6 +38,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
 )
 from torch.nn.utils.rnn import pad_sequence
+from nemo.utils import logging
 
 __all__ = ['PTuneTextClassificationModel']
 
@@ -87,15 +88,9 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         hidden_size = self.model.cfg.hidden_size
 
 
-        # self.create_loss_module()
 
         # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
         self.classes = cfg.dataset.classes
-
-        # setup to track metrics
-        self.classification_report = ClassificationReport(
-            num_classes=len(self.classes), mode='micro', dist_sync_on_step=True
-        )
 
         self.embeddings = self.model.model.language_model.embedding.word_embeddings
 
@@ -103,6 +98,19 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         self.vocab = self.tokenizer.tokenizer.get_vocab()
 
         self.allowed_vocab_ids = set(self.vocab[token_wrapper(k)] for k in cfg.dataset.classes)
+
+        # map from id to label
+        self.allowed_vocab = {}
+        label_ids = {}
+        for i, k in enumerate(cfg.dataset.classes):
+            self.allowed_vocab[self.vocab[token_wrapper(k)]] = i
+            label_ids[k] = i
+
+        # setup to track metrics
+        self.classification_report = ClassificationReport(
+            num_classes=len(self.classes), label_ids=label_ids, mode='micro', dist_sync_on_step=True
+        )
+
 
         self.template = cfg.prompt_encoder.template
 
@@ -124,7 +132,6 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         self.pseudo_token_id = self.tokenizer.tokenizer.get_vocab()[cfg.pseudo_token]
         self.pad_token_id = self.tokenizer.tokenizer.pad_token_id if self.tokenizer.tokenizer.pad_token_id is not None else self.tokenizer.tokenizer.unk_token_id
         self.spell_length = sum(self.template)
-    
 
     def embed_input(self, queries):
         bz = queries.shape[0]
@@ -141,8 +148,14 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         return raw_embeds
 
     def get_query(self, x_h, prompt_tokens, x_t=None):
+        max_seq_len = self.model._cfg.encoder_seq_length
+        input_token_ids = self.tokenizer.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenizer.tokenize(' ' + x_h))
+        cut = 0
+        if len(input_token_ids) + sum(self.template) > max_seq_len:
+            logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
+            cut = len(input_token_ids) + sum(self.template) - max_seq_len
         return [prompt_tokens * self.template[0]
-                + self.tokenizer.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenizer.tokenize(' ' + x_h))  # head entity
+                + input_token_ids[cut:]  # head entity
                 + prompt_tokens * self.template[1]
                 + (self.tokenizer.tokenizer.convert_tokens_to_ids(
                    self.tokenizer.tokenize(' ' + x_t)) if x_t is not None else [])
@@ -161,7 +174,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         label_ids = torch.LongTensor(self.tokenizer.tokenizer.convert_tokens_to_ids(x_ts)).reshape(
             (bz, -1)).to(self.device)
         attention_mask = queries != self.pad_token_id
-       # get embedded input
+        # get embedded input
         inputs_embeds = self.embed_input(queries)
 
         def megatron_out():
@@ -192,6 +205,8 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             pred_ids = torch.argsort(logits, dim=2, descending=True)
             hit1 = 0
             top10 = []
+            returned_pred = []
+            returned_label = []
             for i in range(bz):
                 top10.append([])
                 pred_seq = pred_ids[i, label_mask[i, 0]].tolist()
@@ -201,21 +216,14 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
                         if len(top10[-1]) >= 10:
                             break
                 pred = top10[-1][0]
+                returned_pred.append(self.allowed_vocab[pred])
+                returned_label.append(self.allowed_vocab[label_ids[i, 0].item()])
                 if pred == label_ids[i, 0]:
                     hit1 += 1
             if return_candidates:
                 return floss, hit1, top10
-            return floss, hit1
+            return floss, hit1, torch.tensor(returned_pred).to(self.device), torch.tensor(returned_label).to(self.device)
         return megatron_out()
-
-    def create_loss_module(self):
-        # create the loss module if it is not yet created by the training data loader
-        if not hasattr(self, 'loss'):
-            if hasattr(self, 'class_weights') and self.class_weights:
-                # You may need to increase the number of epochs for convergence when using weighted_loss
-                self.loss = CrossEntropyLoss(weight=self.class_weights)
-            else:
-                self.loss = CrossEntropyLoss()
 
     def training_step(self, batch, batch_idx):
         """
@@ -224,7 +232,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         """
         # forward pass
         xs, ts  = batch
-        train_loss, hit1 = self.forward(xs, ts)
+        train_loss, hit1, pred_ids, label_ids = self.forward(xs, ts)
 
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
@@ -240,12 +248,8 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_type_ids, input_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
-        val_loss = self.loss(logits=logits, labels=labels)
-
-        preds = torch.argmax(logits, axis=-1)
+        xs, ts  = batch
+        val_loss, hit1 , preds, labels = self.forward(xs, ts)
 
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
@@ -300,11 +304,6 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             return
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-        # calculate the class weights to be used in the loss function
-        if self.cfg.dataset.class_balancing == 'weighted_loss':
-            self.class_weights = calc_class_weights(train_data_config.file_path, self.cfg.dataset.num_classes)
-        else:
-            self.class_weights = None
         # we need to create/update the loss module by using the weights calculated from the training data
         self.create_loss_module()
 

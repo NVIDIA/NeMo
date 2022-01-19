@@ -54,10 +54,6 @@ model:
 
   dataset:
     classes: ??? # The class labels, e.g. ['positive', 'neutral', 'negative']
-    do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
-    max_seq_length: 256 # the maximum length BERT supports is 512
-    class_balancing: null # null or 'weighted_loss'. 'weighted_loss' enables the weighted class balancing of the loss, may be used for handling unbalanced classes
-    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
 
   train_ds:
     file_path: null

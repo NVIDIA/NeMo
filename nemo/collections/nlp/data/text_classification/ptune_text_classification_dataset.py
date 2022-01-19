@@ -36,14 +36,15 @@ def token_wrapper(token: str) -> str:
 
 
 class BankPTextClassificationDataset(Dataset):
-    def __init__(self, input_file: str, sentiments: List[str]):
+    def __init__(self, input_file: str, sentiments: List[str], data: List[str]=None):
         super().__init__()
         if input_file and not os.path.exists(input_file):
             raise FileNotFoundError(
                 f'Data file `{input_file}` not found! Each line of the data file should contain json object'
                 f'where `sentence` key maps to sentence and `sentiment` key maps to sentiment'
             )
-        data = load_file(input_file)
+        if data is None:
+            data = load_file(input_file)
         self.x_hs, self.x_ts = [], []
         self.data = data
 
