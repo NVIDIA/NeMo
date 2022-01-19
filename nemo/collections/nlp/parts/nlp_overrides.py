@@ -131,7 +131,6 @@ class NLPDDPPlugin(DDPPlugin):
             )
             self._model.require_backward_grad_sync = False
             self._register_ddp_hooks()
-
             if self.no_ddp_communication_hook:
                 # When using custom gradient accumulation and allreduce, disable
                 # DDP communication hook that works on the gradient bucket.
