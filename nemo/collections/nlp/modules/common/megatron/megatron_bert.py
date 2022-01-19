@@ -17,13 +17,22 @@
 import os
 
 import torch
-from apex.transformer.enums import AttnMaskType
-from apex.transformer.parallel_state import (
-    get_model_parallel_group,
-    model_parallel_is_initialized,
-    set_pipeline_model_parallel_rank,
-    set_pipeline_model_parallel_world_size,
-)
+
+try:
+    from apex.transformer.enums import AttnMaskType
+    from apex.transformer.parallel_state import (
+        get_model_parallel_group,
+        model_parallel_is_initialized,
+        set_pipeline_model_parallel_rank,
+        set_pipeline_model_parallel_world_size,
+    )
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
