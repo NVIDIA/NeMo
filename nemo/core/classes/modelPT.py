@@ -865,7 +865,7 @@ class ModelPT(LightningModule, Model):
 
         Initializations:
             init_from_nemo_model: Str path to a .nemo model in order to load state_dict from single nemo file;
-                if loading from multiple files, pass in a list where each elements has the following fields:
+            if loading from multiple files, pass in a list where each element has the following fields:
 
                 path: Str path to .nemo model
 
