@@ -410,7 +410,10 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self._init_growth_tracker = state_dict["_growth_tracker"]
         if self._growth_tracker is not None:
             self._growth_tracker.fill_(state_dict["_growth_tracker"])
-        self._hysteresis_tracker = state_dict["_hysteresis_tracker"]
+        if "_hysterisis_tracker" in state_dict:
+            self._hysteresis_tracker = state_dict["_hysterisis_tracker"]
+        else:
+            self._hysteresis_tracker = 1
 
 
 class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
