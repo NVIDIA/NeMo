@@ -524,8 +524,6 @@ Training requires the use of the following script (instead of ``enc_dec_nmt.py``
 
 .. code ::
 
-    python examples/nlp/machine_translation/enc_dec_nmt-bottleneck.py
-
     python -- examples/nlp/machine_translation/enc_dec_nmt-bottleneck.py \
           --config-path=conf \
           --config-name=aayn_bottleneck \
