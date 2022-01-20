@@ -130,16 +130,25 @@ class CardinalFst(GraphFst):
             "cents", "00"
         )  # Only used as terminus of hundred sequence. deux cents -> 200, deux cent un -> 201
 
-        graph_digit_no_one = pynini.project(pynini.union("un", "une"), 'input')
+        graph_digit_no_one = pynini.union("un", "une")
         graph_digit_no_one = (pynini.project(graph_digit, "input") - graph_digit_no_one.arcsort()) @ graph_digit
 
         graph_hundreds_component_singular = (
             graph_digit_no_one + delete_hyphen + graph_cent_singular
-        )  # Regular way: [1-9] * 100
+        )  # Regular way: [2-9] * 100
 
-        graph_hundreds_component_singular = pynini.union(graph_hundreds_component_singular, pynini.cross("cent", "1"))
+        at_least_one_digit = (
+            pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)  # needs at least one non-zero
+        )
+
         graph_hundreds_component_singular += delete_hyphen
-        graph_hundreds_component_singular += graph_tens_component_with_leading_zeros
+        graph_hundreds_component_singular += graph_tens_component_with_leading_zeros @ at_least_one_digit
+
+        # Introducing 100-199
+        graph_one_hundred = pynini.cross("cent", "1")
+        graph_one_hundred += delete_hyphen + graph_tens_component_with_leading_zeros
+
+        graph_hundreds_component_singular |= graph_one_hundred
 
         graph_hundreds_component_plural = graph_digit_no_one + delete_hyphen + graph_cent_plural
 
@@ -149,9 +158,7 @@ class CardinalFst(GraphFst):
             pynutil.insert("0") + graph_tens_component_with_leading_zeros,
         )
 
-        graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component @ (
-            pynini.closure(NEMO_DIGIT) + (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT)
-        )
+        graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component @ at_least_one_digit
         self.graph_hundreds_component_at_least_one_none_zero_digit = rewrite(
             graph_hundreds_component_at_least_one_none_zero_digit
         ).optimize()
@@ -160,14 +167,21 @@ class CardinalFst(GraphFst):
         graph_tens_of_hundreds_component_singular = (
             graph_tens_component + delete_hyphen + graph_cent_singular
         )  # Tens of hundreds. e.g. 1900 = nineteen hundred/ 'dix neuf cents"
-        graph_tens_of_hundreds_component_singular += delete_hyphen + graph_tens_component_with_leading_zeros
+        graph_tens_of_hundreds_component_singular += (
+            delete_hyphen + graph_tens_component_with_leading_zeros @ at_least_one_digit
+        )
         graph_tens_of_hundreds_component_plural = graph_tens_component + delete_hyphen + graph_cent_plural
         graph_tens_of_hundred_component = (
             graph_tens_of_hundreds_component_plural | graph_tens_of_hundreds_component_singular
         )
 
+        filter_out_one = pynini.difference(pynini.closure(NEMO_DIGIT), pynini.closure("0") + "1")
+        self.filter_out_one = filter_out_one.optimize()
+
         graph_thousands = pynini.union(
-            graph_hundreds_component_at_least_one_none_zero_digit + delete_hyphen + pynutil.delete("mille"),
+            graph_hundreds_component_at_least_one_none_zero_digit @ self.filter_out_one
+            + delete_hyphen
+            + pynutil.delete("mille"),
             pynutil.insert("001") + pynutil.delete("mille"),  # because 'mille', not 'un mille'
             pynutil.insert("000", weight=0.1),
         )
