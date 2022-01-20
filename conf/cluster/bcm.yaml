@@ -1,0 +1,7 @@
+slurm:
+  partition: null
+  account: null
+  time_limit: "1-12:00:00"
+  exclusive: True
+  job_name_prefix: "bignlp-"
+

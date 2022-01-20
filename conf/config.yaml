@@ -16,6 +16,7 @@ run_training: True
 run_conversion: False
 run_evaluation: False
 
+cluster_type: bcm  # bcm or bcp
 training_config: 126m  # Must match - training above.
 bignlp_path: /workspace-scripts/bignlp-scripts # Path should end with bignlp-scripts
 data_dir: /workspace-common/data/the_pile  # Location to store and read the data. Absolute or relative

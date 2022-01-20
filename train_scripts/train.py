@@ -5,6 +5,47 @@ import subprocess
 import hydra
 import omegaconf
 
+
+def create_slurm_file(
+    new_script_path,
+    train_cmd,
+    job_name,
+    flags="",
+    dependency=None,
+    time="04:00:00",
+    exclusive=True,
+    mem=0,
+    overcommit=True,
+    nodes=1,
+    ntasks_per_node=8,
+    gpus_per_task=1,
+    partition="batch",
+    account=None,
+):
+    with open(new_script_path, "w") as f:
+        f.writelines("#!/bin/bash\n")
+        f.writelines(f"#SBATCH --nodes={nodes}\n")
+        f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
+        if gpus_per_task is not None:
+            f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if dependency is not None:
+            if dependency != "singleton":
+                dependency = f"afterany:{dependency}"
+            f.writelines(f"#SBATCH --dependency={dependency}\n")
+        f.writelines(f"#SBATCH -p {partition}\n")
+        if account is not None:
+            f.writelines(f"#SBATCH -A {account}\n")
+        f.writelines(f"#SBATCH --job-name={job_name}\n")
+        f.writelines(f"#SBATCH --mem={mem}\n")
+        if exclusive:
+            f.writelines("#SBATCH --exclusive\n")
+        if overcommit:
+            f.writelines("#SBATCH --overcommit\n")
+        f.writelines(f"#SBATCH --time={time}\n\n")
+        f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
+        f.writelines("set +x\n")
+
+
 def create_bcp_submit_cmd(
     job_name,
     container,

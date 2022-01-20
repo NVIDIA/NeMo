@@ -1,0 +1,6 @@
+bcp:
+  job_name_prefix: bignlp-
+  instance: "dgxa100.80g.8.norm"
+  workspace_common: "bignlp_ws_common"
+  workspace_scripts: null
+
