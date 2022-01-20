@@ -390,11 +390,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
                 "val_mel_target",
-                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = spec_predict[0].data.cpu().numpy()
+            spec_predict = spec_predict[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
