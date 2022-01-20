@@ -437,6 +437,7 @@ def check_resume(
     elif len(last_checkpoints) > 1:
         if 'mp_rank' or 'tp_rank' in str(last_checkpoints[0]):
             checkpoint = last_checkpoints[0]
+            checkpoint = uninject_model_parallel_rank(checkpoint)
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:

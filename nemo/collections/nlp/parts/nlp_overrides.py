@@ -172,7 +172,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
         # PTL override to accomodate model parallel checkpoints
-        filepath = self.inject_model_parallel_rank(filepath)
+        filepath = inject_model_parallel_rank(filepath)
         return super().save_checkpoint(checkpoint, filepath)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
@@ -197,7 +197,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def remove_checkpoint(self, filepath: _PATH) -> None:
         # PTL override to accomodate model parallel checkpoints
-        filepath = self.inject_model_parallel_rank(filepath)
+        filepath = inject_model_parallel_rank(filepath)
         logging.info(f'Removing checkpoint: {filepath}')
         return super().remove_checkpoint(filepath)
 
