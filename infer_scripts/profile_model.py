@@ -197,6 +197,7 @@ def main():
             *get_convert_model_cmds(
                 workspace_path=navigator_workspace_path,
                 navigator_config_path=navigator_config_on_workspace_path,
+                tensor_parallel_size=tensor_parallel_size,
                 model_name=args.model_name,
                 src_model_path=src_model_path,
                 output_model_path=converted_model_path,
