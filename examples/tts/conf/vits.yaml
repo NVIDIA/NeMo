@@ -163,6 +163,7 @@ model:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     nfilt: ${model.n_mel_channels}
+    stft_pad_amount: 384
     frame_splicing: 1
     highfreq: 8000
     log: true
@@ -177,6 +178,8 @@ model:
     pad_to: 1
     pad_value: 0
     preemph: null
+    stft_conv: false
+    nb_augmentation_prob : 0
     sample_rate: ${model.sample_rate}
     window: hann
     exact_pad: true
