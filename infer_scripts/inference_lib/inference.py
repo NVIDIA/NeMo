@@ -15,6 +15,7 @@ import enum
 import logging
 import pathlib
 import shutil
+import typing
 
 import yaml
 
@@ -101,16 +102,24 @@ def get_convert_model_cmds(
     src_model_path: pathlib.Path,
     output_model_path: pathlib.Path,
     verbose: bool = False,
+    tensor_parallel_size: typing.Optional[int] = None,
 ):
     if src_model_path.name.endswith(".ft"):
         return []
     else:
+        # if need to overwrite tensor_parallel_size from navigator config path
+        if tensor_parallel_size is not None:
+            ft_gpu_sizes_arg = f"--ft-gpu-counts {tensor_parallel_size}"
+        else:
+            ft_gpu_sizes_arg = ""
+
         return [
             f"MODEL_NAVIGATOR_RUN_BY=1 model-navigator convert "
             f"--workspace-path {workspace_path.resolve().absolute()} "
             f"--config-path {navigator_config_path.resolve().absolute()} "
             f"--model-name {model_name} "
             f"--model-path {src_model_path.resolve().absolute()} "
+            f"{ft_gpu_sizes_arg} "
             f"{'--model-format megatron ' if not src_model_path.suffix else ''}"
             f"--output-path {output_model_path.resolve().absolute()} "
             f"{'--verbose ' if verbose else ''}"
