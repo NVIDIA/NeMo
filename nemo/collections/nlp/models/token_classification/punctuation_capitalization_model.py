@@ -682,13 +682,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"The artifact `class_labels.punct_labels_file` was not found in checkpoint. Will rely on "
                     f"`punct_label_ids` parameter"
                 )
-                self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids.to_container()
+                self.punct_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.punct_label_ids)
             else:
                 self.punct_label_ids = load_label_ids(
                     self.register_artifact('class_labels.punct_labels_file', str(punct_label_vocab_file))
                 )
         elif self._cfg.common_dataset_parameters.punct_label_ids is not None:
-            self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids.to_container()
+            self.punct_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.punct_label_ids)
         else:
             raise ValueError(
                 f"Could not set attribute `punct_label_ids`. Config parameters "
@@ -704,13 +704,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"The artifact `class_labels.capit_labels_file` was not found in checkpoint. Will rely on "
                     f"`capit_label_ids` parameter"
                 )
-                self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids.to_container()
+                self.capit_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.capit_label_ids)
             else:
                 self.capit_label_ids = load_label_ids(
                     self.register_artifact('class_labels.capit_labels_file', str(capit_label_vocab_file))
                 )
         elif self._cfg.common_dataset_parameters.capit_label_ids is not None:
-            self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids.to_container()
+            self.capit_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.capit_label_ids)
         else:
             raise ValueError(
                 f"Could not set attribute `capit_label_ids`. Config parameters "
