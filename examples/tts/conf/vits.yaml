@@ -163,7 +163,6 @@ model:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
     nfilt: ${model.n_mel_channels}
-    stft_pad_amount: 384
     frame_splicing: 1
     highfreq: 8000
     log: true
