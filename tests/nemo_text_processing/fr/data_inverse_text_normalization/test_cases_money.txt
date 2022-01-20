@@ -12,6 +12,7 @@ vingt euro cinq~20,05 €
 un euro~1 €
 deux euro~2 €
 un cent~0,01 $
+deux cents~0,02 $
 cinq euro et soixante~5,60 €
 cinquante centimes~0,50 €
 quatre-vingt mille won~80 000 ₩
