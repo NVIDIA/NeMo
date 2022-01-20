@@ -14,9 +14,14 @@ model:
     labels: ${model.labels}
     batch_size: 128
     shuffle: True
-    is_tarred: False
+    # tarred datasets
+    is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
     augmentor:
       shift:
         prob: 1.0

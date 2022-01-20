@@ -71,11 +71,18 @@ class TokenClassificationModel(NLPModel):
             config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
+            trainer=trainer,
         )
 
+        if cfg.language_model.get('nemo_file', None) is not None:
+            hidden_size = self.bert_model.cfg.hidden_size
+        else:
+            hidden_size = self.bert_model.config.hidden_size
+
         self.classifier = TokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=hidden_size,
             num_classes=len(self._cfg.label_ids),
             num_layers=self._cfg.head.num_fc_layers,
             activation=self._cfg.head.activation,
@@ -122,9 +129,13 @@ class TokenClassificationModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if self._cfg.language_model.get('nemo_file', None) is not None:
+            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 
