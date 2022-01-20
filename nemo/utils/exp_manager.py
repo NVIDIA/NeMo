@@ -762,6 +762,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         filepath = os.path.join(dirname, basename)
         return filepath
 
+    # TODO remove _save_last_checkpoint after fix for issue #https://github.com/PyTorchLightning/pytorch-lightning/issues/11451
     def _save_last_checkpoint(self, trainer, monitor_candidates) -> None:
         if not self.save_last:
             return
