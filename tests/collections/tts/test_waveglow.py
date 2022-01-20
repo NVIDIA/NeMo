@@ -95,7 +95,6 @@ class TestWaveGlow:
                 tmp_file_name,
                 verbose=False,
                 input_example=inp,
-                output_example=res1,
                 try_script=False,
                 check_trace=False,
                 do_constant_folding=True,
