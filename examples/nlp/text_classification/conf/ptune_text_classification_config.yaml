@@ -50,7 +50,7 @@ model:
 
   prompt_encoder:
     template: [3, 3, 0]
-    dropout: 0.1
+    dropout: 0.0
 
   dataset:
     classes: ??? # The class labels, e.g. ['positive', 'neutral', 'negative']
@@ -84,18 +84,16 @@ model:
 
   optim:
     name: adam
-    lr: 2e-5
+    lr: 1e-5
     # optimizer arguments
     betas: [0.9, 0.999]
-    weight_decay: 0.01
+    weight_decay: 0.0005
 
     # scheduler setup
     sched:
-      name: WarmupAnnealing
+      name: ExponentialLR
       # Scheduler params
-      warmup_steps: null
-      warmup_ratio: 0.1
-      last_epoch: -1
+      gamma: 0.98
       # pytorch lightning args
       monitor: val_loss
       reduce_on_plateau: false
