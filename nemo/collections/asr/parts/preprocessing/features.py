@@ -422,7 +422,6 @@ class FilterbankFeatures(nn.Module):
 
         # dot with filterbank energies
         x = torch.matmul(self.fb.to(x.dtype), x)
-        print(self.fb)
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":
