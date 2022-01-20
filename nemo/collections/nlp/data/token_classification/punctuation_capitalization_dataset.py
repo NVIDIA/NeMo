@@ -875,8 +875,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         num_samples: int = -1,
         tokens_in_batch: int = 5000,
         pad_label: str = 'O',
-        punct_label_ids: Optional[Dict[str, int]] = None,
-        capit_label_ids: Optional[Dict[str, int]] = None,
+        punct_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
+        capit_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = True,
         use_cache: bool = True,
@@ -893,6 +893,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         batch_building_progress_queue: Optional[mp.Queue] = None,
     ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
+        if isinstance(punct_label_ids, DictConfig):
+            punct_label_ids = OmegaConf.to_container(punct_label_ids)
+        if isinstance(capit_label_ids, DictConfig):
+            capit_label_ids = OmegaConf.to_container(capit_label_ids)
         self._check_constructor_parameters(
             text_file,
             labels_file,
@@ -1028,9 +1032,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and'
-                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with'
-                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are'
+                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and '
+                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with '
+                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are '
                 f'separated with spaces. Each line of the files should follow the format:\n'
                 f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
                 f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
