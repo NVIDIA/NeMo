@@ -122,12 +122,11 @@ class Exportable(ABC):
         self,
         output: str,
         input_example=None,
-        output_example=None,
         verbose=False,
         export_params=True,
         do_constant_folding=True,
         keep_initializers_as_inputs=False,
-        onnx_opset_version: int = 13,
+        onnx_opset_version=None,
         try_script: bool = False,
         set_eval: bool = True,
         check_trace: bool = False,
@@ -136,11 +135,20 @@ class Exportable(ABC):
         check_tolerance=0.01,
     ):
         my_args = locals()
-        del my_args['self']
+        my_args.pop('self')
+
+        exportables = []
+        for m in self.modules():
+            if isinstance(m, Exportable):
+                exportables.append(m)
 
         qual_name = self.__module__ + '.' + self.__class__.__qualname__
         format = self.get_format(output)
         output_descr = f"{qual_name} exported to {format}"
+
+        # Pytorch's default for None is too low, can't pass through
+        if onnx_opset_version is None:
+            onnx_opset_version = 13
 
         try:
             # Disable typechecks
@@ -150,59 +158,86 @@ class Exportable(ABC):
             forward_method, old_forward_method = self._wrap_forward_method()
 
             # Set module to eval mode
-            self._set_eval(set_eval)
+            if set_eval:
+                self.eval()
 
             if input_example is None:
                 input_example = self._get_input_example()
 
-            my_args['input_example'] = input_example
+            # Remove i/o examples from args we propagate to enclosed Exportables
+            my_args.pop('output')
+            my_args.pop('input_example')
 
-            # Run (posibly overridden) prepare method before calling forward()
-            self._prepare_for_export(**my_args)
+            # Run (posibly overridden) prepare methods before calling forward()
+            for ex in exportables:
+                ex._prepare_for_export(**my_args)
+            self._prepare_for_export(output=output, input_example=input_example, **my_args)
 
             input_list, input_dict = self._setup_input_example(input_example)
-
             input_names = self._process_input_names()
             output_names = self._process_output_names()
-
             output_example = tuple(self.forward(*input_list, **input_dict))
 
             with torch.jit.optimized_execution(True), torch.no_grad():
-                jitted_model = self._try_jit_compile_model(self, try_script)
+                jitted_model = None
+                if try_script:
+                    try:
+                        jitted_model = torch.jit.script(module)
+                    except Exception as e:
+                        logging.error(f"jit.script() failed!\{e}")
 
                 if format == ExportFormat.TORCHSCRIPT:
-                    self._export_torchscript(
-                        jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose
-                    )
-
+                    if jitted_model is None:
+                        jitted_model = torch.jit.trace_module(
+                            self,
+                            {"forward": tuple(input_list) + tuple(input_dict.values())},
+                            strict=False,
+                            optimize=True,
+                            check_trace=check_trace,
+                            check_tolerance=check_tolerance,
+                        )
+                    if verbose:
+                        logging.info(f"JIT code:\n{jitted_model.code}")
+                    jitted_model.save(output)
+                    assert os.path.exists(output)
                 elif format == ExportFormat.ONNX:
-                    self._export_onnx(
+                    if jitted_model is None:
+                        jitted_model = self
+
+                    # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
+                    if dynamic_axes is None and use_dynamic_axes:
+                        dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
+                        dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
+
+                    torch.onnx.export(
                         jitted_model,
                         input_example,
-                        output_example,
-                        input_names,
-                        output_names,
-                        use_dynamic_axes,
-                        do_constant_folding,
-                        dynamic_axes,
                         output,
-                        export_params,
-                        keep_initializers_as_inputs,
-                        onnx_opset_version,
-                        verbose,
+                        input_names=input_names,
+                        output_names=output_names,
+                        verbose=verbose,
+                        export_params=export_params,
+                        do_constant_folding=do_constant_folding,
+                        keep_initializers_as_inputs=keep_initializers_as_inputs,
+                        dynamic_axes=dynamic_axes,
+                        opset_version=onnx_opset_version,
                     )
 
                     # Verify the model can be read, and is valid
-                    self._verify_onnx_export(
-                        output,
-                        output_example,
-                        input_list,
-                        input_dict,
-                        input_names,
-                        output_names,
-                        check_tolerance,
-                        check_trace,
-                    )
+                    onnx_model = onnx.load(output)
+                    onnx.checker.check_model(onnx_model, full_check=True)
+
+                    if check_trace:
+                        self._verify_runtime(
+                            onnx_model,
+                            input_list,
+                            input_dict,
+                            input_names,
+                            output_names,
+                            output_example,
+                            output,
+                            check_tolerance,
+                        )
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
@@ -211,22 +246,6 @@ class Exportable(ABC):
                 type(self).forward = old_forward_method
             self._export_teardown()
         return ([output], [output_descr])
-
-    def _verify_onnx_export(
-        self, output, output_example, input_list, input_dict, input_names, output_names, check_tolerance, check_trace
-    ):
-        onnx_model = onnx.load(output)
-        onnx.checker.check_model(onnx_model, full_check=True)
-        test_runtime = check_trace
-
-        if test_runtime:
-            logging.info(f"Graph ips: {[x.name for x in onnx_model.graph.input]}")
-            logging.info(f"Graph ops: {[x.name for x in onnx_model.graph.output]}")
-
-        if test_runtime:
-            self._verify_runtime(
-                onnx_model, input_list, input_dict, input_names, output_names, output_example, output, check_tolerance
-            )
 
     def _verify_runtime(
         self, onnx_model, input_list, input_dict, input_names, output_names, output_example, output, check_tolerance
@@ -251,79 +270,6 @@ class Exportable(ABC):
                     logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
         status = "SUCCESS" if all_good else "FAIL"
         logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
-
-    def _export_onnx(
-        self,
-        jitted_model,
-        input_example,
-        output_example,
-        input_names,
-        output_names,
-        use_dynamic_axes,
-        do_constant_folding,
-        dynamic_axes,
-        output,
-        export_params,
-        keep_initializers_as_inputs,
-        onnx_opset_version,
-        verbose,
-    ):
-        if jitted_model is None:
-            jitted_model = self
-
-        dynamic_axes = self._get_dynamic_axes(dynamic_axes, input_names, output_names, use_dynamic_axes)
-
-        torch.onnx.export(
-            jitted_model,
-            input_example,
-            output,
-            input_names=input_names,
-            output_names=output_names,
-            verbose=verbose,
-            export_params=export_params,
-            do_constant_folding=do_constant_folding,
-            keep_initializers_as_inputs=keep_initializers_as_inputs,
-            dynamic_axes=dynamic_axes,
-            opset_version=onnx_opset_version,
-            example_outputs=output_example,
-        )
-
-    def _get_dynamic_axes(self, dynamic_axes, input_names, output_names, use_dynamic_axes):
-        # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
-        if dynamic_axes is None and use_dynamic_axes:
-            dynamic_axes = get_input_dynamic_axes(self.input_module, input_names)
-            dynamic_axes = {**dynamic_axes, **get_output_dynamic_axes(self.output_module, output_names)}
-        return dynamic_axes
-
-    def _export_torchscript(self, jitted_model, output, input_dict, input_list, check_trace, check_tolerance, verbose):
-        if jitted_model is None:
-            jitted_model = torch.jit.trace_module(
-                self,
-                {"forward": tuple(input_list) + tuple(input_dict.values())},
-                strict=False,
-                optimize=True,
-                check_trace=check_trace,
-                check_tolerance=check_tolerance,
-            )
-        if verbose:
-            print(jitted_model.code)
-        jitted_model.save(output)
-        assert os.path.exists(output)
-
-    def _try_jit_compile_model(self, module, try_script):
-        jitted_model = None
-        if try_script:
-            try:
-                jitted_model = torch.jit.script(module)
-            except Exception as e:
-                print("jit.script() failed!", e)
-        return jitted_model
-
-    def _set_eval(self, set_eval):
-        if set_eval:
-            self.freeze()
-            self.input_module.freeze()
-            self.output_module.freeze()
 
     @property
     def disabled_deployment_input_names(self):
@@ -402,8 +348,8 @@ class Exportable(ABC):
             input_list = input_list[:-1]
         return input_list, input_dict
 
-    def _get_input_example(self):
-        return self.input_module.input_example()
+    def _get_input_example(self, **args):
+        return self.input_module.input_example(**args)
 
     def _process_input_names(self):
         input_names = get_input_names(self.input_module)
@@ -420,3 +366,8 @@ class Exportable(ABC):
             if name in output_names:
                 output_names.remove(name)
         return output_names
+
+    def _augment_output_filename(self, output, prepend: str):
+        path, filename = os.path.split(output)
+        filename = f"{prepend}-{filename}"
+        return os.path.join(path, filename)

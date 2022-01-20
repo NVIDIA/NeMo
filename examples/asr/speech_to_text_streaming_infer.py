@@ -27,7 +27,7 @@ from argparse import ArgumentParser
 
 import librosa
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -38,8 +38,6 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 )
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
-from omegaconf import OmegaConf, open_dict
-
 
 # can_gpu = torch.cuda.is_available()
 
@@ -83,7 +81,13 @@ def set_streaming_mode(asr_model):
 
 
 def model_process(
-    asr_model, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None, previous_hypotheses=None
+    asr_model,
+    audio_signal,
+    length,
+    cache_last_channel=None,
+    cache_last_time=None,
+    cache_pre_encode=None,
+    previous_hypotheses=None,
 ):
 
     out = asr_model.encoder(
@@ -215,8 +219,7 @@ def main():
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
         cache_pre_encode=cache_pre_encode,
-        previous_hypotheses=None
-
+        previous_hypotheses=None,
     )
     print(asr_out_stream)
     asr_out_stream_total = asr_out_stream
@@ -224,17 +227,23 @@ def main():
     step_num = 1
     previous_hypotheses = best_hyp
     for i in range(1, processed_signal.size(-1), buffer_size):
-        asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, previous_hypotheses = model_process(
+        (
+            asr_out_stream,
+            cache_last_channel_next,
+            cache_last_time_next,
+            cache_pre_encode_next,
+            previous_hypotheses,
+        ) = model_process(
             asr_model=asr_model,
             audio_signal=processed_signal[:, :, i : i + buffer_size],
             length=torch.tensor([buffer_size]),
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
             cache_pre_encode=cache_pre_encode_next,
-            previous_hypotheses=previous_hypotheses
+            previous_hypotheses=previous_hypotheses,
         )
         cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_buffer_size:, :]
-        #print(asr_out_stream)
+        # print(asr_out_stream)
         print(asr_out_stream.size())
         asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
         step_num += 1

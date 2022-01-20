@@ -91,6 +91,11 @@ class ModelPT(LightningModule, Model):
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
 
+        if 'model' in cfg:
+            raise ValueError(
+                "Creating model config node is forbidden due to collision problem when loading from checkpoint."
+            )
+
         if 'target' not in cfg:
             # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)
@@ -120,10 +125,10 @@ class ModelPT(LightningModule, Model):
                 self.setup_training_data(self._cfg.train_ds)
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_multiple_validation_data(val_data_config=None)
+                self.setup_multiple_validation_data(val_data_config=cfg.validation_ds)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_multiple_test_data(test_data_config=None)
+                self.setup_multiple_test_data(test_data_config=cfg.test_ds)
 
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:

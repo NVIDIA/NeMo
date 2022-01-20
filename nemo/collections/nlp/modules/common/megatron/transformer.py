@@ -18,10 +18,10 @@ import math
 
 import torch
 import torch.nn.functional as F
-from apex.normalization.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 from apex.transformer import parallel_state, tensor_parallel
 from apex.transformer.enums import AttnMaskType, AttnType, LayerType
 from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+from apex.transformer.utils import divide as safe_divide
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     bias_dropout_add_fused_train,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
@@ -154,9 +155,9 @@ class ParallelAttention(MegatronModule):
 
         # Per attention head and per partition values.
         world_size = parallel_state.get_tensor_model_parallel_world_size()
-        self.hidden_size_per_partition = tensor_parallel.divide(projection_size, world_size)
-        self.hidden_size_per_attention_head = tensor_parallel.divide(projection_size, num_attention_heads)
-        self.num_attention_heads_per_partition = tensor_parallel.divide(num_attention_heads, world_size)
+        self.hidden_size_per_partition = safe_divide(projection_size, world_size)
+        self.hidden_size_per_attention_head = safe_divide(projection_size, num_attention_heads)
+        self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
@@ -395,6 +396,7 @@ class ParallelTransformerLayer_(MegatronModule):
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         bias_dropout_fusion=True,
+        persist_layer_norm=False,
         use_cpu_initialization=False,
         bias_gelu_fusion=True,
         openai_gelu=False,
@@ -418,7 +420,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
+        self.input_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -440,7 +442,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
+        self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
@@ -459,7 +461,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_dropout=attention_dropout,
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
+            self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
         # MLP
         self.mlp = ParallelMLP(
@@ -586,7 +588,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             return super().forward(
                 hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
             )
-        with torch.cuda.amp.autocast(dtype=self.dtype):
+        with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
                 hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, layer_past, get_key_value
             )
@@ -617,6 +619,7 @@ class ParallelTransformer(MegatronModule):
         hidden_dropout=0.1,
         use_cpu_initialization=False,
         bias_gelu_fusion=True,
+        persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
     ):
@@ -632,6 +635,7 @@ class ParallelTransformer(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.input_tensor = None
+        self.self_attn_mask_type = self_attn_mask_type
 
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
@@ -662,6 +666,7 @@ class ParallelTransformer(MegatronModule):
                 hidden_dropout=hidden_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_gelu_fusion=bias_gelu_fusion,
+                persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
             )
@@ -694,7 +699,7 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(hidden_size, eps=layernorm_epsilon)
+            self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]

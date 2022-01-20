@@ -36,6 +36,7 @@ Introduction
 NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), natural language processing (NLP), and text-to-speech synthesis (TTS).
 The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
+`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
 
 `Introductory video. <https://www.youtube.com/embed/wBgpMf_KQVw>`_
 
@@ -70,7 +71,7 @@ Key Features
     * `Neural Duplex Text Normalization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/text_normalization.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
-    * Spectrogram generation: Tacotron2, GlowTTS, FastSpeech2, FastPitch, FastSpeech2
+    * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
     * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN
     * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
@@ -172,25 +173,30 @@ Megatron GPT training requires NVIDIA Apex to be installed.
 
     git clone https://github.com/NVIDIA/apex
     cd apex
-    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+    git checkout b88c507edb0d067d5570f7a8efe03a90664a3d16
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
+To build a nemo container with Dockerfile from a branch, please run 
 
-If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.10-py3 and then installing from GitHub.
-Note NVIDIA's PyTorch 21.10-py3 has not yet been released publicly. Please use a container with the nightly version of PyTorch installed if you are 
-unable to access the NVIDIA's PyTorch 21.10 container.
+.. code-block:: bash
+
+    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest .
+
+
+If you chose to work with main branch, we recommend using NVIDIA's PyTorch container version 21.12-py3 and then installing from GitHub.
 
 .. code-block:: bash
 
     docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g \
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
-    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.10-py3
+    stack=67108864 --device=/dev/snd nvcr.io/nvidia/pytorch:21.12-py3
 
 Examples
 --------
 
-Many example can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
+Many examples can be found under `"Examples" <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ folder.
 
 
 Contributing

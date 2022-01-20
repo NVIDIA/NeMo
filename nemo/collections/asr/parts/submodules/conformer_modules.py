@@ -47,7 +47,7 @@ class ConformerLayer(torch.nn.Module):
         self_attention_model='rel_pos',
         n_heads=4,
         conv_kernel_size=31,
-        conv_norm="batch_norm",
+        conv_norm_type='batch_norm',
         dropout=0.1,
         dropout_att=0.1,
         pos_bias_u=None,
@@ -68,7 +68,7 @@ class ConformerLayer(torch.nn.Module):
         # convolution module
         self.norm_conv = LayerNorm(d_model)
         self.conv = ConformerConvolution(
-            d_model=d_model, kernel_size=conv_kernel_size, conv_norm=conv_norm, is_causal=is_causal
+            d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type, is_causal=is_causal
         )
 
         # multi-headed self-attention module
@@ -170,7 +170,7 @@ class ConformerConvolution(nn.Module):
         kernel_size (int): kernel size for depthwise convolution
     """
 
-    def __init__(self, d_model, kernel_size, conv_norm="batch_norm", is_causal=False):
+    def __init__(self, d_model, kernel_size, norm_type="batch_norm", is_causal=False):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
@@ -203,10 +203,12 @@ class ConformerConvolution(nn.Module):
                 groups=d_model,
                 bias=True,
             )
-        if conv_norm == "batch_norm":
+        if norm_type == 'batch_norm':
             self.batch_norm = nn.BatchNorm1d(d_model)
-        elif conv_norm == "layer_norm":
+        elif norm_type == 'layer_norm':
             self.batch_norm = nn.LayerNorm(d_model)
+        else:
+            raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
@@ -225,14 +227,14 @@ class ConformerConvolution(nn.Module):
             x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)
         else:
             x = self.depthwise_conv(x)
-        # if self.is_causal:
-        #     x = x[:, :, : -self.depthwise_conv.padding[0]]
-        if type(self.batch_norm) == nn.LayerNorm:
+
+        if isinstance(self.batch_norm, nn.LayerNorm):
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
             x = x.transpose(1, 2)
         else:
             x = self.batch_norm(x)
+
         x = self.activation(x)
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)

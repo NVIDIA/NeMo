@@ -350,6 +350,23 @@ class HifiGanModel(Vocoder, Exportable):
             class_=cls,
         )
         list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_hifigan_ft_mixertts",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixertts.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_hifigan_ft_mixerttsx",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixerttsx.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
         return list_of_models
 
     def load_state_dict(self, state_dict, strict=True):
@@ -375,16 +392,19 @@ class HifiGanModel(Vocoder, Exportable):
         Base version does common necessary module replacements (Apex etc)
         """
         if self.generator is not None:
-            self.generator.remove_weight_norm()
+            try:
+                self.generator.remove_weight_norm()
+            except ValueError:
+                return
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
         return ({'spec': mel},)
 
     def forward_for_export(self, spec):

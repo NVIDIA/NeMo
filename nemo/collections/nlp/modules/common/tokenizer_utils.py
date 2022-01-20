@@ -14,7 +14,6 @@
 
 import os.path
 from dataclasses import MISSING, dataclass
-from os import path
 from typing import Dict, List, Optional
 
 import nemo
@@ -82,12 +81,14 @@ def get_tokenizer(
     Args:
         tokenizer_name: sentencepiece or pretrained model from the hugging face list,
             for example: bert-base-cased
-            To see the list of all HuggingFace pretrained models, use: nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
+            To see the list of all HuggingFace pretrained models, use:
+            nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
-        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation
+            procedure of BPE to help
             model better learn word compositionality and become robust to segmentation errors. 
             It has emperically been shown to improve inference time BLEU scores.
     """
@@ -120,7 +121,8 @@ def get_tokenizer(
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
 
     logging.info(
-        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, "
+        f"special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name,
@@ -159,6 +161,9 @@ def get_nmt_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
+    if (library != 'byte-level') and (model_name is None and not os.path.isfile(tokenizer_model)):
+        raise ValueError("No Tokenizer path provided or file does not exist!")
+
     if library == 'yttm':
         logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model} with r2l: {r2l}.')
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout, r2l=r2l)
@@ -174,11 +179,11 @@ def get_nmt_tokenizer(
     elif library == 'sentencepiece':
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, special_tokens=special_tokens_dict
+            model_path=tokenizer_model
         )
     elif library == 'byte-level':
         logging.info(f'Using byte-level tokenization')
-        return ByteLevelTokenizer()
+        return ByteLevelTokenizer(special_tokens_dict)
     elif library == 'megatron':
         if model_name in megatron_tokenizer_model_map:
             model_name = megatron_tokenizer_model_map[model_name]

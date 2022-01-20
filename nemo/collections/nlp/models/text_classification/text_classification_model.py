@@ -62,11 +62,18 @@ class TextClassificationModel(NLPModel, Exportable):
             config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
             config_dict=cfg.language_model.config,
             checkpoint_file=cfg.language_model.lm_checkpoint,
+            nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
+            trainer=trainer,
         )
 
+        if cfg.language_model.get('nemo_file', None) is not None:
+            hidden_size = self.bert_model.cfg.hidden_size
+        else:
+            hidden_size = self.bert_model.config.hidden_size
+
         self.classifier = SequenceClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=hidden_size,
             num_classes=cfg.dataset.num_classes,
             num_layers=cfg.classifier_head.num_output_layers,
             activation='relu',
@@ -102,9 +109,12 @@ class TextClassificationModel(NLPModel, Exportable):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if self._cfg.language_model.get('nemo_file', None) is not None:
+            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 

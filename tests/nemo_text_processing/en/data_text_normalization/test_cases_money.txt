@@ -1,4 +1,5 @@
 $2~two dollars
+$2.00~two dollars
 ₩460 billion~four hundred sixty billion won
 ¥30 billion~thirty billion yen
 $45 billion~forty five billion dollars
@@ -8,9 +9,21 @@ $15.2 billion~fifteen point two billion dollars
 4 million yuan~four million yuan
 $15000~fifteen thousand dollars
 $1~one dollar
+$1.00~one dollar
+$1.00~one dollar
+$2~two dollars
+$2.00~two dollars
+$2.000~two dollars
 $20~twenty dollars
-$20.506~twenty point five o six dollars
-$.506~point five o six dollars
+$20.506~twenty point five zero six dollars
+$20.50~twenty dollars fifty cents
+$20.5~twenty dollars fifty cents
+$20.01~twenty dollars one cent
+$20.010~twenty dollars one cent
+$0.010~one cent
+$0.02~two cents
+$.01~one cent
+$.506~point five zero six dollars
 $18~eighteen dollars
 $18925000~eighteen million nine hundred twenty five thousand dollars
 $18,925,000~eighteen million nine hundred twenty five thousand dollars
@@ -36,3 +49,6 @@ $18125~eighteen thousand one hundred twenty five dollars
 $18124~eighteen thousand one hundred twenty four dollars
 $18129~eighteen thousand one hundred twenty nine dollars
 £18000~eighteen thousand pounds
+$50.00-$100.00~fifty dollars - one hundred dollars
+$1,925.21~one thousand nine hundred twenty five dollars twenty one cents
+$1,234.123~one thousand two hundred thirty four point one two three dollars

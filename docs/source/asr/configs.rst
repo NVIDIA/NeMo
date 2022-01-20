@@ -41,11 +41,15 @@ An example ASR train and validation configuration should look similar to the fol
       trim_silence: True
       max_duration: 16.7
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
       num_workers: 8
       pin_memory: true
+      # tarred datasets
+      is_tarred: false # If set to true, uses the tarred version of the Dataset
+      tarred_audio_filepaths: null     # Not used if is_tarred is false
+      shuffle_n: 2048                  # Not used if is_tarred is false
+      # bucketing params
+      bucketing_strategy: "synced_randomized"
+      bucketing_batch_size: null
 
     validation_ds:
       manifest_filepath: ???
@@ -313,7 +317,7 @@ Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder. The decoder
 | :code:`vocabulary`      | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
 |                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
+| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                              |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 For example, a decoder config corresponding to the encoder above should look similar to the following:
@@ -351,14 +355,14 @@ While the configs for Citrinet and QuartzNet are similar, we note the additional
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 | **Parameter**             | **Datatype**     | **Description**                                                                                           | **Supported Values**              |
 +===========================+==================+===========================================================================================================+===================================+
-| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`   |
+| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
+| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
+| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
-|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`            |
+| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                  |
+|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`              |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 
 A Citrinet-512 config should look similar to the following:
