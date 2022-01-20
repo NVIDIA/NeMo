@@ -188,7 +188,8 @@ class VitsModel(TextToWaveform):
                 self._cfg.mel_fmax
             )
             y_mel = modules.slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
-            y_hat_mel = modules.mel_spectrogram_torch(
+
+            y_hat_mel = modules.audio_to_mel_torch(
                 y_hat.squeeze(1),
                 self._cfg.filter_length,
                 self._cfg.n_mel_channels,
