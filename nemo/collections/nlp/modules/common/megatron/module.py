@@ -18,6 +18,8 @@ import torch
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 
+from nemo.utils import logging
+
 try:
     from apex.transformer import parallel_state, tensor_parallel
 
@@ -26,8 +28,6 @@ try:
 except (ImportError, ModuleNotFoundError):
 
     HAVE_APEX = False
-
-from nemo.utils import logging
 
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
