@@ -73,6 +73,16 @@ python convert_to_tarred_audio_dataset.py \
     --shuffle_seed=1 \
     --write_metadata
 
+
+python convert_to_tarred_audio_dataset.py \
+    --manifest_path="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/dev_test_all.json" \
+    --target_dir="/media/smajumdar/data/Datasets/Librispeech_Dev_Test_Tarred/" \
+    --num_shards=32 \
+    --max_duration=120 \
+    --min_duration=0.1 \
+    --shuffle_seed=1 \
+    --workers=-1
+
 """
 import argparse
 import copy
