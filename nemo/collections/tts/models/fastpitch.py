@@ -308,20 +308,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             self.tb_logger.add_image(
                 "train_mel_target",
-                plot_spectrogram_to_numpy(mels[0].data.cpu().numpy()),
+                plot_spectrogram_to_numpy(mels[0].data.cpu().float().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = mels_pred[0].data.cpu().numpy()
+            spec_predict = mels_pred[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
             if self.learn_alignment:
-                attn = attn_hard[0].data.cpu().numpy().squeeze()
+                attn = attn_hard[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
                     "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
                 )
-                soft_attn = attn_soft[0].data.cpu().numpy().squeeze()
+                soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
                     "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
                 )
