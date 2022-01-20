@@ -40,8 +40,9 @@ python convert_to_tarred_audio_dataset.py \
     --num_shards=<number of tarfiles that will contain the audio> \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
-    --shuffle --shuffle_seed=1
-    --sort_in_shards
+    --shuffle --shuffle_seed=1 \
+    --sort_in_shards \
+    --workers=-1
 
 
 2) Concatenating more tarfiles to a pre-existing tarred dataset
@@ -54,6 +55,7 @@ python convert_to_tarred_audio_dataset.py \
     --min_duration=<float representing minimum duration of audio samples> \
     --shuffle --shuffle_seed=1 \
     --sort_in_shards \
+    --workers=-1 \
     --concat_manifest_paths \
     <space separated paths to 1 or more manifest files to concatenate into the original tarred dataset>
 
@@ -66,6 +68,7 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=16.7 \
     --min_duration=0.01 \
     --shuffle \
+    --workers=-1 \
     --sort_in_shards \
     --shuffle_seed=1 \
     --write_metadata
