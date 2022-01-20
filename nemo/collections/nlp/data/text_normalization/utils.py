@@ -215,7 +215,7 @@ def post_process_punct(input: str, normalized_text: str):
     normalized_text = [x for x in normalized_text]
     punct_default = [x for x in string.punctuation]
     punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
-    punct_marks = punct_default + punct_unicode
+    punct_marks = set(punct_default + punct_unicode)
     try:
         for punct in punct_marks:
             equal = True
