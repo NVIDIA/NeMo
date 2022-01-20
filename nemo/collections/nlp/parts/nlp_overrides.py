@@ -88,6 +88,10 @@ class NLPDDPPlugin(DDPPlugin):
 
         app_state = AppState()
 
+        # Ensure find_unused_parameters always defaults to false even if the default changes in DistributedDataParallel
+        ddp_kwargs = {'find_unused_parameters': False}
+        ddp_kwargs.update(self._ddp_kwargs)
+
         if app_state.model_parallel_size is not None:
             logging.info(f"Configuring DDP for model parallelism.")
 
@@ -100,8 +104,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=False,
-                **self._ddp_kwargs,
+                **ddp_kwargs,
             )
 
             if self.no_ddp_communication_hook:
