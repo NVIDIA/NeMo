@@ -172,7 +172,7 @@ class NLPDDPPlugin(DDPPlugin):
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
         # PTL override to accomodate model parallel checkpoints
-        filepath = self._inject_model_parallel_rank(filepath)
+        filepath = self.inject_model_parallel_rank(filepath)
         return super().save_checkpoint(checkpoint, filepath)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
@@ -197,24 +197,9 @@ class NLPDDPPlugin(DDPPlugin):
 
     def remove_checkpoint(self, filepath: _PATH) -> None:
         # PTL override to accomodate model parallel checkpoints
-        filepath = self._inject_model_parallel_rank(filepath)
+        filepath = self.inject_model_parallel_rank(filepath)
         logging.info(f'Removing checkpoint: {filepath}')
         return super().remove_checkpoint(filepath)
-
-    def _inject_model_parallel_rank(self, filepath):
-        app_state = AppState()
-        # inserts mp_rank_XX for model parallel checkpoints
-        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-            # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            if app_state.pipeline_model_parallel_size == 1:
-                filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
-            else:
-                filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
-            return filepath
-        else:
-            return filepath
 
     @property
     def should_rank_save_checkpoint(self) -> bool:

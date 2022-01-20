@@ -24,6 +24,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.parts.utils_funcs import inject_model_parallel_rank
 
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
@@ -376,8 +377,8 @@ class SaveRestoreConnector:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
-        app_state = AppState()
-        model_weights = os.path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        model_weights = os.path.join(dirname, basename)
+        model_weights = inject_model_parallel_rank(model_weights)
         return model_weights
 
     @staticmethod
