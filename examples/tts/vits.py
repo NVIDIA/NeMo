@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-from pytorch_lightning.plugins import DDPPlugin
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models.vits import VitsModel
