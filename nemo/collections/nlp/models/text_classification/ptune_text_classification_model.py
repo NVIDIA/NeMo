@@ -256,7 +256,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
                                   attention_mask=new_atten,
                                   labels=labels_input)
         loss, logits = output
-        floss = (loss[(labels != SMALL_LOGITS)]).mean()
+        floss = (loss[(labels_input != SMALL_LOGITS)]).mean()
 
         _, returned_pred = self.get_prediction(batch_size, label_position, logits)
         returned_label = self.get_ground_truth_labels(batch_size, label_ids)
