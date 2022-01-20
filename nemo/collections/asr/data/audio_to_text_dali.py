@@ -22,7 +22,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor
+from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor, expand_audio_filepaths
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
@@ -164,6 +164,7 @@ class _AudioTextDALIDataset(Iterator):
         trim: bool = False,
         shuffle: bool = False,
         drop_last: bool = False,
+        shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
@@ -346,6 +347,16 @@ class _AudioTextDALIDataset(Iterator):
                 self.is_tarred_dataset = False
 
             elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
+                audio_tar_filepaths = expand_audio_filepaths(
+                    audio_tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=global_rank
+                )
+                audio_tar_index_filepaths = expand_audio_filepaths(
+                    audio_tar_index_filepaths,
+                    shard_strategy=shard_strategy,
+                    world_size=world_size,
+                    global_rank=global_rank,
+                )
+
                 if len(audio_tar_filepaths) != len(audio_tar_index_filepaths):
                     raise ValueError(
                         "Number of filepaths provided for `audio_tar_filepaths` must match "
@@ -603,6 +614,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         shuffle: bool = False,
         drop_last: bool = False,
         parser: Union[str, Callable] = 'en',
+        shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
@@ -632,6 +644,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             shuffle=shuffle,
             drop_last=drop_last,
             parser=parser,
+            shard_strategy=shard_strategy,
             device_id=device_id,
             global_rank=global_rank,
             world_size=world_size,
@@ -691,6 +704,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         trim: bool = False,
         shuffle: bool = False,
         drop_last: bool = False,
+        shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
@@ -739,6 +753,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             shuffle=shuffle,
             drop_last=drop_last,
             parser=TokenizerWrapper(tokenizer),
+            shard_strategy=shard_strategy,
             device_id=device_id,
             global_rank=global_rank,
             world_size=world_size,
