@@ -865,7 +865,7 @@ class ModelPT(LightningModule, Model):
 
         Initializations:
             init_from_nemo_model: Str path to a .nemo model in order to load state_dict from single nemo file;
-            if loading from multiple files, pass in a list where each element has the following fields:
+            if loading from multiple files, pass in a dict where the values have the following fields:
 
                 path: Str path to .nemo model
 
@@ -918,8 +918,8 @@ class ModelPT(LightningModule, Model):
                     logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
                     del restored_model
                 else:
-                    model_load_list = cfg.init_from_nemo_model
-                    for model_load_cfg in model_load_list:
+                    model_load_dict = cfg.init_from_nemo_model
+                    for model_load_cfg in model_load_dict.values():
                         model_path = model_load_cfg.path
                         # Restore model
                         restored_model = self.restore_from(
@@ -932,13 +932,17 @@ class ModelPT(LightningModule, Model):
                         # create dict
                         dict_to_load = {}
                         for k, v in restored_model.state_dict().items():
+                            should_add = True
                             for p in parts:
-                                if not p in k:
-                                    continue
+                                if not (p in k):
+                                    should_add = False
+                                    break
                             for e in excluded:
                                 if e in k:
-                                    continue
-                            dict_to_load[k] = v
+                                    should_add = False
+                                    break
+                            if should_add:
+                                dict_to_load[k] = v
 
                         # Restore checkpoint part into current model
                         self.load_state_dict(dict_to_load, strict=False)
