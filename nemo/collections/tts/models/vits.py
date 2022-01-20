@@ -39,16 +39,6 @@ class VitsModel(TextToWaveform):
 
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
-
-        self._parser = parsers.make_parser(
-            labels=cfg.labels,
-            name='en',
-            unk_id=-1,
-            blank_id=-1,
-            do_normalize=True,
-            abbreviation_version="fastpitch",
-            make_table=False,
-        )
         
         super().__init__(cfg=cfg, trainer=trainer)
 
