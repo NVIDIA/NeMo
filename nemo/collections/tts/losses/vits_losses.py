@@ -1,5 +1,4 @@
 import torch
-from torch.nn import functional as F
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types.elements import LossType, VoidType
