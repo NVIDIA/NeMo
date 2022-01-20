@@ -104,9 +104,11 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         # map from id to label
         self.allowed_vocab = {}
         label_ids = {}
+        self.id_to_label = {}
         for i, k in enumerate(cfg.dataset.classes):
             self.allowed_vocab[self.vocab[token_wrapper(k)]] = i
             label_ids[k] = i
+            self.id_to_label[i] = k
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
@@ -398,26 +400,17 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         # store predictions for all queries in a single list
         all_preds = []
         mode = self.training
-        device = next(self.parameters()).device
         try:
             # Switch model to evaluation mode
             self.eval()
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
             dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
-            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, max_seq_length)
-
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries)
             for i, batch in enumerate(infer_datalayer):
-                input_ids, input_type_ids, input_mask, subtokens_mask = batch
-
-                logits = self.forward(
-                    input_ids=input_ids.to(device),
-                    token_type_ids=input_type_ids.to(device),
-                    attention_mask=input_mask.to(device),
-                )
-
-                preds = tensor2list(torch.argmax(logits, axis=-1))
-                all_preds.extend(preds)
+                sentences, _ = batch
+                preds = self.forward_eval(sentences)
+                all_preds.extend([self.id_to_label[i.item()] for i in preds])
         finally:
             # set mode back to its original value
             self.train(mode=mode)
@@ -425,7 +418,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         return all_preds
 
     def _setup_infer_dataloader(
-        self, cfg: Dict, queries: List[str], max_seq_length: int = -1
+        self, cfg: Dict, queries: List[str]
     ) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
@@ -437,17 +430,16 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         Returns:
             A pytorch DataLoader.
         """
-        pass
-        # dataset = BankPTextClassificationDataset()
-        # return torch.utils.data.DataLoader(
-        #     dataset=dataset,
-        #     batch_size=cfg["batch_size"],
-        #     shuffle=False,
-        #     num_workers=cfg.get("num_workers", 0),
-        #     pin_memory=cfg.get("pin_memory", False),
-        #     drop_last=False,
-        #     collate_fn=dataset.collate_fn,
-        # )
+        dataset = BankPTextClassificationDataset(None, None, queries)
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=cfg["batch_size"],
+            shuffle=False,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=False,
+            collate_fn=dataset.collate_fn,
+        )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

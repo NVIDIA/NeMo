@@ -44,11 +44,15 @@ class BankPTextClassificationDataset(Dataset):
                 f'where `sentence` key maps to sentence and `sentiment` key maps to sentiment'
             )
         if data is None:
-            data = load_file(input_file)
+            json_data = load_file(input_file)
+        else:
+            json_data = []
+            for line in data:
+                json_data.append({'sentence': line+' Sentiment ', 'sentiment': ''})
         self.x_hs, self.x_ts = [], []
-        self.data = data
+        self.data = json_data
 
-        for d in data:
+        for d in json_data:
             if d['sentiment'] not in sentiments:
                 continue
             self.x_ts.append(d['sentiment'])
