@@ -15,7 +15,7 @@ import io
 import math
 import os
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, Iterable, List, Optional, Union
 
 import braceexpand
 import librosa
@@ -24,6 +24,7 @@ import torch
 import webdataset as wd
 from scipy.stats import betabinom
 from torch.nn import functional as F
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing import collections, parsers
@@ -1448,7 +1449,6 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
 class BucketingDataset(IterableDataset):
     """
     A Dataset which wraps another IterableDataset and adopts it for bucketing
-
     Args:
         dataset (IterableDataset): The IterableDataset to get wrapped
         bucketing_batch_size (int): Number of samples to build a batch
@@ -1492,3 +1492,17 @@ class BucketingIterator:
         if len(batches) == 0:
             raise StopIteration
         return batches
+
+
+class RandomizedChainDataset(ChainDataset):
+    def __init__(self, datasets: Iterable[Dataset], rnd_seed=0) -> None:
+        super(RandomizedChainDataset, self).__init__(list(datasets))
+        self.rnd_gen = np.random.RandomState(rnd_seed)
+
+    def __iter__(self):
+        shuffled_order = self.rnd_gen.permutation(len(self.datasets))
+        for dataset_idx in shuffled_order:
+            d = self.datasets[dataset_idx]
+            assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
+            for x in d:
+                yield x
