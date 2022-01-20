@@ -273,7 +273,7 @@ class TTSDataset(Dataset):
             hop_length=self.hop_len,
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
-            return_complex=None,
+            return_complex=False,
         )
 
         for data_type in self.sup_data_types:
