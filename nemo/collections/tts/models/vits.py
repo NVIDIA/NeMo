@@ -1,25 +1,20 @@
-from dataclasses import dataclass
-from typing import Any, Dict
-
 import omegaconf
 import torch
+from dataclasses import dataclass
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
+from typing import Any, Dict
 
 import nemo.collections.tts.modules.vits_modules as modules
-from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
-import nemo.collections.tts.modules.vits_modules as modules
 
 
 @dataclass
@@ -37,16 +32,6 @@ class VitsModel(TextToWaveform):
 
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
-
-        self._parser = parsers.make_parser(
-            labels=cfg.labels,
-            name='en',
-            unk_id=-1,
-            blank_id=-1,
-            do_normalize=True,
-            abbreviation_version="fastpitch",
-            make_table=False,
-        )
         
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -255,8 +240,6 @@ class VitsModel(TextToWaveform):
             "loss_dur": loss_dur,
             "loss_kl * c_kl": loss_kl,
             "loss_gen_all": loss_gen_all,
-            "losses_disc_r": losses_disc_r,
-            "losses_disc_g": losses_disc_g,
             "loss_disc_all": loss_disc_all,
         }
 
