@@ -45,6 +45,7 @@ class VitsModel(TextToWaveform):
         OmegaConf.merge(cfg, schema)
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
+        # self.audio_to_melspec_precessor.fb = torch.tensor
         self.melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
 
         self.encoder = instantiate(cfg.input_fft)
@@ -189,16 +190,9 @@ class VitsModel(TextToWaveform):
             )
             y_mel = modules.slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
 
-            y_hat_mel = modules.audio_to_mel_torch(
-                y_hat.squeeze(1),
-                self._cfg.filter_length,
-                self._cfg.n_mel_channels,
-                self._cfg.sample_rate,
-                self._cfg.hop_size,
-                self._cfg.preprocessor.n_window_size,
-                self._cfg.mel_fmin,
-                self._cfg.mel_fmax
-            )
+            y_hat_lengths = self.audio_to_melspec_precessor.get_seq_len(y_hat)
+            y_hat_mel = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
+
             y = torch.unsqueeze(y, 1)
             y = modules.slice_segments(y, ids_slice * self._cfg.hop_size, self._cfg.segment_size)  # slice
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
