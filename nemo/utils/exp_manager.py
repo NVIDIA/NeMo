@@ -723,7 +723,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
             if self.tensor_model_parallel_size is not None and self.tensor_model_parallel_size > 1:
-                checkpoint = self._uninject_mp_rank(checkpoint)
+                checkpoint = uninject_model_parallel_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
                 continue
