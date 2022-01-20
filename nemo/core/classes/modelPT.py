@@ -908,7 +908,7 @@ class ModelPT(LightningModule, Model):
         if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
             with open_dict(cfg):
                 if isinstance(cfg.init_from_nemo_model, str):
-                    model_path = init_from_nemo_model
+                    model_path = cfg.init_from_nemo_model
                     # Restore model
                     restored_model = self.restore_from(
                         model_path, map_location=map_location, strict=cfg.get("init_strict", True)
