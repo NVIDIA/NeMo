@@ -41,11 +41,15 @@ An example ASR train and validation configuration should look similar to the fol
       trim_silence: True
       max_duration: 16.7
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
       num_workers: 8
       pin_memory: true
+      # tarred datasets
+      is_tarred: false # If set to true, uses the tarred version of the Dataset
+      tarred_audio_filepaths: null     # Not used if is_tarred is false
+      shuffle_n: 2048                  # Not used if is_tarred is false
+      # bucketing params
+      bucketing_strategy: "synced_randomized"
+      bucketing_batch_size: null
 
     validation_ds:
       manifest_filepath: ???

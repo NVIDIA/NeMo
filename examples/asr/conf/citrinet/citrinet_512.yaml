@@ -23,9 +23,14 @@ model:
     trim_silence: false
     max_duration: 16.7
     shuffle: true
+    use_start_end_token: false
+    # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null
-    use_start_end_token: false
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
 
   validation_ds:
     manifest_filepath: ???

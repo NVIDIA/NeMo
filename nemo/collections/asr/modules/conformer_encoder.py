@@ -65,6 +65,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to True.
         conv_kernel_size (int): the size of the convolutions in the convolutional modules
             Defaults to 31.
+        conv_norm_type (str): the type of the normalization in the convolutional modules
+            Defaults to 'batch_norm'.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
         dropout_emb (float): the dropout rate used for the positional embeddings
@@ -123,6 +125,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         untie_biases=True,
         pos_emb_max_len=5000,
         conv_kernel_size=31,
+        conv_norm_type='batch_norm',
         dropout=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
@@ -195,6 +198,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 self_attention_model=self_attention_model,
                 n_heads=n_heads,
                 conv_kernel_size=conv_kernel_size,
+                conv_norm_type=conv_norm_type,
                 dropout=dropout,
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
