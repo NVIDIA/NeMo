@@ -121,6 +121,17 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+"""
+python speech_to_label.py \
+    --config-path="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/speech_commands/configs" \
+    --config-name="matchboxnet_3x1x64_v1.yaml" \
+    model.train_ds.manifest_filepath="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/speech_commands/manifests/v1_validation_manifest.json" \
+    model.validation_ds.manifest_filepath=/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/speech_commands/manifests/v1_validation_manifest.json \
+    model.test_ds.manifest_filepath=/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/speech_commands/manifests/v1_validation_manifest.json \
+    trainer.gpus=2 \
+    trainer.accelerator="ddp" \
+    trainer.max_steps=5 
+"""
 
 @hydra_runner(config_path="../conf/matchboxnet", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
@@ -136,8 +147,6 @@ def main(cfg):
     trainer.fit(asr_model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
-        gpu = 1 if cfg.trainer.gpus != 0 else 0
-        trainer = pl.Trainer(gpus=gpu)
         if asr_model.prepare_test(trainer):
             trainer.test(asr_model)
 
