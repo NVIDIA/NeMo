@@ -44,8 +44,7 @@ class VitsModel(TextToWaveform):
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
 
-        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
-        self.melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
+        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
 
         self.encoder = instantiate(cfg.input_fft)
         self.duration_predictor = instantiate(cfg.duration_predictor)

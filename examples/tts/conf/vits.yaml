@@ -23,7 +23,7 @@ n_window_size: 1024
 n_window_stride: 256
 n_fft: 1024
 lowfreq: 0
-highfreq: 8000
+highfreq: null
 window: "hann"
 
 pitch_loss_scale: 0.1
