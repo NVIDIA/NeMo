@@ -11,7 +11,6 @@ from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 from nemo.collections.tts.modules.monotonic_align import maximum_path
 from nemo.collections.tts.modules.vits_mel_processing import librosa_mel_fn, spectral_normalize_torch
 
-#from nemo.collections.tts.vits_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 
 LRELU_SLOPE = 0.1
 
@@ -1087,8 +1086,6 @@ def generate_path(duration, mask):
     duration: [b, 1, t_x]
     mask: [b, 1, t_y, t_x]
     """
-    device = duration.device
-    
     b, _, t_y, t_x = mask.shape
     cum_duration = torch.cumsum(duration, -1)
     
@@ -1185,16 +1182,12 @@ class Decoder(nn.Module):
             self.ffn_layers.append(FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout, causal=True))
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
-    def subsequent_mask(length):
-        mask = torch.tril(torch.ones(length, length)).unsqueeze(0).unsqueeze(0)
-        return mask
-
     def forward(self, x, x_mask, h, h_mask):
         """
         x: decoder input
         h: encoder output
         """
-        self_attn_mask = self.subsequent_mask(x_mask.size(2)).to(device=x.device, dtype=x.dtype)
+        self_attn_mask = torch.tril(torch.ones(x_mask.size(2), x_mask.size(2))).unsqueeze(0).unsqueeze(0).to(device=x.device, dtype=x.dtype)
         encdec_attn_mask = h_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
         x = x * x_mask
         for i in range(self.n_layers):
@@ -1262,7 +1255,7 @@ class MultiHeadAttention(nn.Module):
 
     def attention(self, query, key, value, mask=None):
         # reshape [b, d, t] -> [b, n_h, t, d_k]
-        b, d, t_s, t_t = (*key.size(), query.size(2))
+        b, d, t_s, t_t = key.size(0), key.size(1), key.size(2), query.size(2)
         query = query.view(b, self.n_heads, self.k_channels, t_t).transpose(2, 3)
         key = key.view(b, self.n_heads, self.k_channels, t_s).transpose(2, 3)
         value = value.view(b, self.n_heads, self.k_channels, t_s).transpose(2, 3)
@@ -1312,7 +1305,6 @@ class MultiHeadAttention(nn.Module):
         return ret
 
     def _get_relative_embeddings(self, relative_embeddings, length):
-        max_relative_position = 2 * self.window_size + 1
         # Pad first before slice to avoid using cond ops.
         pad_length = max(length - (self.window_size + 1), 0)
         slice_start_position = max((self.window_size + 1) - length, 0)

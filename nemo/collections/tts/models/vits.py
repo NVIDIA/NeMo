@@ -8,11 +8,10 @@ from torch.cuda.amp import autocast
 from torch.nn import functional as F
 from typing import Any, Dict
 
-import nemo.collections.tts.modules.vits_modules as modules
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator
+from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator, spec_to_mel_torch, slice_segments, clip_grad_value_
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
@@ -51,7 +50,7 @@ class VitsModel(TextToWaveform):
         self.pitch_predictor = instantiate(cfg.pitch_predictor)
 
         self.generator = instantiate(cfg.generator)
-        self.multiperioddisc = modules.MultiPeriodDiscriminator()
+        self.multiperioddisc = MultiPeriodDiscriminator()
         self.feat_matching_loss = FeatureLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
@@ -178,7 +177,7 @@ class VitsModel(TextToWaveform):
         with autocast(enabled=False):
             y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
             (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
-            mel = modules.spec_to_mel_torch(
+            mel = spec_to_mel_torch(
                 spec,
                 self._cfg.filter_length,
                 self._cfg.n_mel_channels,
@@ -186,7 +185,7 @@ class VitsModel(TextToWaveform):
                 self._cfg.mel_fmin,
                 self._cfg.mel_fmax
             )
-            y_mel = modules.slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
+            y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
 
             y_hat_mel = modules.audio_to_mel_torch(
                 y_hat.squeeze(1),
@@ -199,7 +198,7 @@ class VitsModel(TextToWaveform):
                 self._cfg.mel_fmax
             )
             y = torch.unsqueeze(y, 1)
-            y = modules.slice_segments(y, ids_slice * self._cfg.hop_size, self._cfg.segment_size)  # slice
+            y = slice_segments(y, ids_slice * self._cfg.hop_size, self._cfg.segment_size)  # slice
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
             loss_disc_all = loss_disc
@@ -207,7 +206,7 @@ class VitsModel(TextToWaveform):
         # train discriminator
         self.optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
-        modules.clip_grad_value_(self.net_d.parameters(), None)
+        clip_grad_value_(self.net_d.parameters(), None)
         self.optim_d.step()
 
         with autocast(enabled=True):
@@ -224,7 +223,7 @@ class VitsModel(TextToWaveform):
         # train generator
         self.optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
-        modules.clip_grad_value_(self.net_g.parameters(), None)
+        clip_grad_value_(self.net_g.parameters(), None)
         self.optim_d.step()
 
         schedulers = self.lr_schedulers()
@@ -319,6 +318,7 @@ class VitsModel(TextToWaveform):
         """Omitted."""
         pass
 
+    @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
         list_of_models = []
         # TODO: List available models??
