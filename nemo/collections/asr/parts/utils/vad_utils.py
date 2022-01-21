@@ -372,15 +372,19 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
 
-    seg_speech_table = pd.DataFrame(speech_segments, columns=['start', 'end'])
-    seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
-    seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_length_in_sec
-    seg_speech_table['vad'] = 'speech'
+    speech_segments = list(speech_segments)
+    speech_segments.sort()
+    speech_segments =  [i + (i[1] - i[0],) for i in speech_segments]
 
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
-    seg_speech_table.to_csv(save_path, columns=['start', 'dur', 'vad'], sep='\t', index=False, header=False)
+    # TODO We do not need to write to disk in riva offline mode, 
+    with open(save_path, "w") as fp:
+        for i in a:
+            fp.write(str(i[0]) + " " + str(i[2]) + " " + "speech" + "\n")
+
     return save_path
+
 
 
 def binarization(sequence, per_args):
