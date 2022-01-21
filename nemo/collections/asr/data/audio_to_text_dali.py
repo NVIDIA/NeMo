@@ -45,7 +45,7 @@ __all__ = [
 Below minimum version is required to access the "read_idxs" argument in
 dali.fn.readers.nemo_asr
 """
-__DALI_MINIMUM_VERSION__ = "1.4"
+__DALI_MINIMUM_VERSION__ = "1.11"
 
 DALI_INSTALLATION_MESSAGE = (
     "Could not import `nvidia.dali`.\n"
