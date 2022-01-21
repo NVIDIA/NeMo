@@ -18,6 +18,7 @@ import shutil
 from itertools import repeat
 from multiprocessing import Pool
 
+import math
 import IPython.display as ipd
 import librosa
 import matplotlib.pyplot as plt
@@ -243,6 +244,8 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     See discription in generate_overlap_vad_seq.
     """
     try:
+
+        # TODO this func needs dedicate refactor for torch conversion
         smoothing_method = per_args['smoothing_method']
         overlap = per_args['overlap']
         window_length_in_sec = per_args['window_length_in_sec']
@@ -276,7 +279,10 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
 
         if smoothing_method == 'mean':
             preds = np.zeros(target_len)
+            # preds = torch.zeros(target_len)
             pred_count = np.zeros(target_len)
+            # pred_count = torch.zeros(target_len)
+
 
             for i, og_pred in enumerate(frame):
                 if i % jump_on_frame != 0:
@@ -303,16 +309,18 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
                         preds[j].append(og_pred)
 
             preds = np.array([np.median(l) for l in preds])
+            # preds = torch.tensor([torch.median(l) for l in preds])
+
             nan_idx = np.isnan(preds)
+            # nan_idx = torch.isnan(preds)
             last_non_nan_pred = preds[~nan_idx][-1]
             preds[nan_idx] = last_non_nan_pred
 
         else:
             raise ValueError("smoothing_method should be either mean or median")
 
-        round_final = np.round(preds, 4)
         with open(overlap_filepath, "w") as f:
-            f.write("\n".join([str(i) for i in a]))
+            f.write("\n".join(["{:.4f}".format(pred) for pred in preds]))
 
         return overlap_filepath
 
@@ -389,7 +397,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     save_path = os.path.join(out_dir, save_name)
     # TODO We do not need to write to disk in riva offline mode, 
     with open(save_path, "w") as fp:
-        for i in a:
+        for i in speech_segments:
             fp.write(str(i[0]) + " " + str(i[2]) + " " + "speech" + "\n")
 
     return save_path
@@ -548,6 +556,11 @@ def merge_overlap_segment(segments):
     return merged_set
 
 
+def percentile(data, perc: int):
+    size = len(data)
+    return sorted(data)[int(math.ceil((size * perc) / 100)) - 1]
+
+
 def cal_vad_onset_offset(scale, onset, offset, sequence=None):
     """
     Calculate onset and offset threshold given different scale.
@@ -556,11 +569,11 @@ def cal_vad_onset_offset(scale, onset, offset, sequence=None):
         mini = 0
         maxi = 1
     elif scale == "relative":
-        mini = np.nanmin(sequence)
-        maxi = np.nanmax(sequence)
+        mini = min(sequence)
+        maxi = max(sequence)
     elif scale == "percentile":
-        mini = np.nanpercentile(sequence, 1)
-        maxi = np.nanpercentile(sequence, 99)
+        mini = percentile(sequence, 1)
+        maxi = percentile(sequence, 99)
 
     onset = mini + onset * (maxi - mini)
     offset = mini + offset * (maxi - mini)
