@@ -208,6 +208,7 @@ class MegatronGPTModel(NLPModel):
                 forward_only=False,
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler,
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
@@ -227,23 +228,15 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        # TODO: @sangkug how do we reduce the embeddings with O2 implementation?
-        if not self.megatron_amp_o2:
-            # we all-reduce gradients manually
+        if self.megatron_amp_o2:
+            # main grads are stored in the MainParamsOptimizer wrapper
+            self._optimizer.allreduce_gradients()
+
+            self.allreduce_first_last_embeddings()
+        else:
             self.allreduce_gradients()
 
-            # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-            # All-reduce word_embeddings' grad across first and last stages to ensure
-            # that word_embeddings parameters stay in sync.
-            # This should only run for models that support pipelined model parallelism
-            # (BERT and GPT-2).
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-                parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
-            ):
-                if self.model.share_word_embeddings:
-                    word_embeddings_weight = self.model.word_embeddings_weight()
-                    grad = word_embeddings_weight.grad
-                    torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            self.allreduce_first_last_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -344,38 +337,35 @@ class MegatronGPTModel(NLPModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
+    def allreduce_first_last_embeddings(self):
+
+        # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
+        # All-reduce word_embeddings' grad across first and last stages to ensure
+        # that word_embeddings parameters stay in sync.
+        # This should only run for models that support pipelined model parallelism
+        # (BERT and GPT-2).
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
+        ):
+            if self.model.share_word_embeddings:
+                word_embeddings_weight = self.model.word_embeddings_weight()
+                grad = word_embeddings_weight.grad
+                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+
     def get_forward_output_and_loss_func(self):
-        if self.megatron_amp_o2:
+        def fwd_output_and_loss_func(batch, model):
+            tokens, labels, loss_mask, attention_mask, position_ids = batch
+            attention_mask = attention_mask[0:1]
+            output_tensor = model(tokens, position_ids, attention_mask, labels)
 
-            def fwd_output_and_loss_func(batch, model):
-                tokens, labels, loss_mask, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
-                output_tensor = model(tokens, position_ids, attention_mask, labels)
+            def loss_func(output_tensor):
+                loss = self.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                return loss, {'avg': reduced_loss}
 
-                def loss_func(output_tensor):
-                    loss = self.loss_func(loss_mask, output_tensor)
-                    reduced_loss = average_losses_across_data_parallel_group([loss])
-                    return loss, {'avg': reduced_loss}
+            return output_tensor, loss_func
 
-                return output_tensor, loss_func
-
-            return fwd_output_and_loss_func
-        else:
-
-            @torch.autocast('cuda', dtype=self.autocast_dtype)
-            def fwd_output_and_loss_func(batch, model):
-                tokens, labels, loss_mask, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
-                output_tensor = model(tokens, position_ids, attention_mask, labels)
-
-                def loss_func(output_tensor):
-                    loss = self.loss_func(loss_mask, output_tensor)
-                    reduced_loss = average_losses_across_data_parallel_group([loss])
-                    return loss, {'avg': reduced_loss}
-
-                return output_tensor, loss_func
-
-            return fwd_output_and_loss_func
+        return fwd_output_and_loss_func
 
     def validation_step(self, batch, batch_idx):
         """

@@ -518,7 +518,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
                     _ = closure()
             else:
                 _ = closure()
-                optimizer.allreduce_main_grads()
+                # optimizer.allreduce_main_grads()
 
             self._after_closure(model, optimizer, optimizer_idx)
             return optimizer.step(**kwargs)
@@ -544,7 +544,6 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             # note: the scaler will skip the `optimizer.step` if nonfinite gradients are found
             self.scaler.step(optimizer, **kwargs)
             self.scaler.update()
-            model.log('grad_scale', self.scaler.get_scale())
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
@@ -553,16 +552,6 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             yield
         finally:
             pass
-
-
-class NLPFitLoop(FitLoop):
-    pass
-
-    class NLPFitLoop(FitLoop):
-        pass
-
-
-# TODO: implement
 
 
 class NLPDataConnector(DataConnector):

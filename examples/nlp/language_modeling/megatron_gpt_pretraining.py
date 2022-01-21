@@ -77,6 +77,8 @@ def main(cfg) -> None:
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
 
+    # NLPDataConnector used to provide global batches which are needed
+    # for Apex fwd/bwd functions
     trainer._data_connector = NLPDataConnector(trainer)
 
     exp_manager(trainer, cfg.exp_manager)
