@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
-from typing import List
+from typing import Dict, List, Optional
+
 from nemo.core.classes import Dataset
+from nemo.core.classes.common import typecheck
+from nemo.core.neural_types import NeuralType, StringLabel, StringType
 
 __all__ = ['BankPTextClassificationDataset', 'token_wrapper']
-
-import json
 
 
 def load_file(filename):
@@ -36,7 +38,11 @@ def token_wrapper(token: str) -> str:
 
 
 class BankPTextClassificationDataset(Dataset):
-    def __init__(self, input_file: str, sentiments: List[str], data: List[str]=None):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"sentences": [NeuralType(('T'), StringType())], "labels": [NeuralType(('T'), StringLabel())]}
+
+    def __init__(self, input_file: str, sentiments: List[str], data: List[str] = None):
         super().__init__()
         if input_file and not os.path.exists(input_file):
             raise FileNotFoundError(
@@ -48,7 +54,7 @@ class BankPTextClassificationDataset(Dataset):
         else:
             json_data = []
             for line in data:
-                json_data.append({'sentence': line+' Sentiment ', 'sentiment': ''})
+                json_data.append({'sentence': line + ' Sentiment ', 'sentiment': ''})
         self.x_hs, self.x_ts = [], []
         self.data = json_data
 

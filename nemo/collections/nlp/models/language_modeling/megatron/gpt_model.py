@@ -31,7 +31,7 @@ def post_language_model_processing(
     parallel_output,
     forward_method_parallel_output,
     fp16_lm_cross_entropy,
-    return_logits=False
+    return_logits=False,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -168,7 +168,7 @@ class GPTModel(MegatronModule):
             prompt_tags=prompt_tags,
             layer_past=layer_past,
             get_key_value=get_key_value,
-            encoder_input=encoder_input
+            encoder_input=encoder_input,
         )
 
         if self.post_process:
@@ -180,7 +180,7 @@ class GPTModel(MegatronModule):
                 self.parallel_output,
                 forward_method_parallel_output,
                 self.fp16_lm_cross_entropy,
-                return_logits=encoder_input is not None
+                return_logits=encoder_input is not None,
             )
         else:
             return lm_output

@@ -12,21 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import Dict, List, Optional
 
-from nemo.core.classes import Exportable, NeuralModule
 import torch
 from torch import nn
+
+from nemo.core.classes import Exportable, NeuralModule
+from nemo.core.classes.common import typecheck
+from nemo.core.neural_types import ChannelType, NeuralType
 
 __all__ = ['SequenceClassifier']
 
 
 class PromptEncoder(NeuralModule, Exportable):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"output_embeds": NeuralType(('T', 'C'), ChannelType())}
 
-    def __init__(self,
-                 template: List[int],
-                 hidden_size: int,
-                 lstm_dropout: float):
+    def __init__(self, template: List[int], hidden_size: int, lstm_dropout: float, num_layers: int):
         super().__init__()
         self.spell_length = sum(template)
         self.hidden_size = hidden_size
@@ -43,16 +46,19 @@ class PromptEncoder(NeuralModule, Exportable):
         # embedding
         self.embedding = torch.nn.Embedding(len(self.cloze_mask[0]), self.hidden_size)
         # LSTM
-        self.lstm_head = torch.nn.LSTM(input_size=self.hidden_size,
-                                       hidden_size=self.hidden_size // 2,
-                                       num_layers=2,
-                                       dropout=lstm_dropout,
-                                       bidirectional=True,
-                                       batch_first=True)
-        self.mlp_head = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
-                                      nn.ReLU(),
-                                      nn.Linear(self.hidden_size, self.hidden_size))
+        self.lstm_head = torch.nn.LSTM(
+            input_size=self.hidden_size,
+            hidden_size=self.hidden_size // 2,
+            num_layers=num_layers,
+            dropout=lstm_dropout,
+            bidirectional=True,
+            batch_first=True,
+        )
+        self.mlp_head = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.hidden_size)
+        )
 
+    @typecheck()
     def forward(self):
         input_embeds = self.embedding(self.seq_indices).unsqueeze(0)
         output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0]).squeeze()

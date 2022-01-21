@@ -19,25 +19,25 @@ from typing import Dict, List, Optional
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.nlp.data.text_classification.ptune_text_classification_dataset import BankPTextClassificationDataset, token_wrapper 
+from nemo.collections.nlp.data.text_classification.ptune_text_classification_dataset import (
+    BankPTextClassificationDataset,
+    token_wrapper,
+)
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import NeuralType
-from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.megatron.megatron_init import (
-    initialize_model_parallel_for_nemo,
-)
-from torch.nn.utils.rnn import pad_sequence
+from nemo.core.neural_types import LossType, NeuralType, PredictionsType, StringLabel, StringType
 from nemo.utils import logging
 
 __all__ = ['PTuneTextClassificationModel']
@@ -45,15 +45,19 @@ __all__ = ['PTuneTextClassificationModel']
 
 SMALL_LOGITS = -100
 
+
 class PTuneTextClassificationModel(NLPModel, Exportable):
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"sentences": [NeuralType(('T'), StringType())], "labels": [NeuralType(('T'), StringLabel())]}
 
-    # @property
-    # def input_types(self) -> Optional[Dict[str, NeuralType]]:
-    #     return self.bert_model.input_types
-
-    # @property
-    # def output_types(self) -> Optional[Dict[str, NeuralType]]:
-    #     return self.classifier.output_types
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "floss": NeuralType((), LossType()),
+            "returned_pred": NeuralType(('B'), PredictionsType()),
+            "returned_label": NeuralType(('B'), PredictionsType()),
+        }
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the BERTTextClassifier model."""
@@ -81,15 +85,15 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
 
         self.class_weights = None
 
-        self.model = MegatronGPTModel.restore_from(self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
-                                                   trainer=trainer).half()
+        self.model = MegatronGPTModel.restore_from(
+            self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
+            trainer=trainer,
+        ).half()
 
         for param in self.model.parameters():
             param.requires_grad = cfg.use_lm_finetune
 
         hidden_size = self.model.cfg.hidden_size
-
-
 
         # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
         self.classes = cfg.dataset.classes
@@ -115,13 +119,13 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             num_classes=len(self.classes), label_ids=label_ids, mode='micro', dist_sync_on_step=True
         )
 
-
         self.template = cfg.prompt_encoder.template
 
         self.prompt_encoder = PromptEncoder(
             template=cfg.prompt_encoder.template,
             hidden_size=hidden_size,
-            lstm_dropout=cfg.prompt_encoder.dropout
+            lstm_dropout=cfg.prompt_encoder.dropout,
+            num_layers=cfg.prompt_encoder.num_layers,
         )
 
         # load prompt encoder
@@ -134,7 +138,11 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         #     self.pad_token_id = self.tokenizer.eod
         # else:
         self.pseudo_token_id = self.tokenizer.tokenizer.get_vocab()[cfg.pseudo_token]
-        self.pad_token_id = self.tokenizer.tokenizer.pad_token_id if self.tokenizer.tokenizer.pad_token_id is not None else self.tokenizer.tokenizer.unk_token_id
+        self.pad_token_id = (
+            self.tokenizer.tokenizer.pad_token_id
+            if self.tokenizer.tokenizer.pad_token_id is not None
+            else self.tokenizer.tokenizer.unk_token_id
+        )
         self.spell_length = sum(self.template)
 
     def embed_input(self, queries):
@@ -144,7 +152,9 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
         raw_embeds = self.embeddings(queries_for_embedding)
 
-        blocked_indices = (queries == self.pseudo_token_id).nonzero().reshape((bz, self.spell_length, 2))[:, :, 1]  # bz
+        blocked_indices = (
+            (queries == self.pseudo_token_id).nonzero().reshape((bz, self.spell_length, 2))[:, :, 1]
+        )  # bz
         replace_embeds = self.prompt_encoder()
         for bidx in range(bz):
             for i in range(self.prompt_encoder.spell_length):
@@ -158,12 +168,16 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         if len(input_token_ids) + sum(self.template) > max_seq_len:
             logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
             cut = len(input_token_ids) + sum(self.template) - max_seq_len
-        return [prompt_tokens * self.template[0]
-                + input_token_ids[cut:]  # head entity
-                + prompt_tokens * self.template[1]
-                + (self.tokenizer.tokenizer.convert_tokens_to_ids(
-                   self.tokenizer.tokenize(' ' + x_t)) if x_t is not None else [])
-                ]
+        return [
+            prompt_tokens * self.template[0]
+            + input_token_ids[cut:]  # head entity
+            + prompt_tokens * self.template[1]
+            + (
+                self.tokenizer.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(' ' + x_t))
+                if x_t is not None
+                else []
+            )
+        ]
 
     def get_ground_truth_labels(self, batch_size, label_ids):
         returned_label = []
@@ -203,10 +217,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         bz, seq_len, _ = inputs_embeds.shape
 
         # get the GPT causal mask
-        causal_mask = torch.tril(
-            torch.ones((bz, seq_len, seq_len),
-                       device=self.device)).view(bz, 1,
-                                                 seq_len, seq_len)
+        causal_mask = torch.tril(torch.ones((bz, seq_len, seq_len), device=self.device)).view(bz, 1, seq_len, seq_len)
         # combine the attention_mask and causal_mask
         r = causal_mask.permute((1, 2, 0, 3)) * attention_mask.int()
         new_atten = r.permute((2, 0, 1, 3))
@@ -230,31 +241,35 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         x_ts = [token_wrapper(x_t) for x_t in labels]
 
         # construct label ids
-        label_ids = torch.LongTensor(self.tokenizer.tokenizer.convert_tokens_to_ids(x_ts)).reshape(
-            (batch_size, -1)).to(self.device)
+        label_ids = (
+            torch.LongTensor(self.tokenizer.tokenizer.convert_tokens_to_ids(x_ts))
+            .reshape((batch_size, -1))
+            .to(self.device)
+        )
         labels = torch.zeros(batch_size, seq_len).to(self.device).fill_(SMALL_LOGITS).long()  # bz * seq_len
         labels = labels.scatter_(1, label_position, label_ids)
         return labels, label_ids
 
+    @typecheck()
     def forward_eval(self, sentences):
         encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
         batch_size, _, seq_len, _ = new_atten.shape
 
-        output = self.model.model(None, None, encoder_input=encoder_input,
-                                  attention_mask=new_atten)
+        output = self.model.model(None, None, encoder_input=encoder_input, attention_mask=new_atten)
         logits = output
 
         _, returned_pred = self.get_prediction(batch_size, label_position, logits)
         return returned_pred
 
+    @typecheck()
     def forward(self, sentences, labels):
         encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
         batch_size, _, seq_len, _ = new_atten.shape
         labels_input, label_ids = self.get_label_input(labels, label_position, seq_len)
 
-        output = self.model.model(None, None, encoder_input=encoder_input,
-                                  attention_mask=new_atten,
-                                  labels=labels_input)
+        output = self.model.model(
+            None, None, encoder_input=encoder_input, attention_mask=new_atten, labels=labels_input
+        )
         loss, logits = output
         floss = (loss[(labels_input != SMALL_LOGITS)]).mean()
 
@@ -269,7 +284,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         """
         # forward pass
         sentences, labels = batch
-        train_loss, _, _ = self.forward(sentences, labels)
+        train_loss, _, _ = self.forward(sentences=sentences, labels=labels)
 
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', train_loss)
@@ -286,7 +301,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         passed in as `batch`.
         """
         sentences, labels = batch
-        val_loss, preds, gt_labels = self.forward(sentences, labels)
+        val_loss, preds, gt_labels = self.forward(sentences=sentences, labels=sentences)
 
         tp, fn, fp, _ = self.classification_report(preds, gt_labels)
 
@@ -371,10 +386,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
                 [WORD][SPACE][WORD][SPACE][WORD][...][TAB][LABEL]'
             )
 
-        dataset = BankPTextClassificationDataset(
-            input_file,
-            self._cfg.dataset.classes
-        )
+        dataset = BankPTextClassificationDataset(input_file, self._cfg.dataset.classes)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -417,9 +429,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             logging.set_verbosity(logging_level)
         return all_preds
 
-    def _setup_infer_dataloader(
-        self, cfg: Dict, queries: List[str]
-    ) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(self, cfg: Dict, queries: List[str]) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 

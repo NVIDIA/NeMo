@@ -51,6 +51,7 @@ model:
   prompt_encoder:
     template: [3, 3, 0]
     dropout: 0.0
+    num_layers: 2
 
   dataset:
     classes: ??? # The class labels, e.g. ['positive', 'neutral', 'negative']
