@@ -96,7 +96,7 @@ model:
     mag_power: 1.0
     n_fft: ${model.n_window_size}
     n_window_size: ${model.n_window_size}
-    n_window_stride:  ${model.n_window_stride}
+    n_window_stride: ${model.n_window_stride}
     normalize: null
     pad_to: 1
     pad_value: 0
@@ -164,17 +164,18 @@ model:
       d_model: 1  # Disable scaling based on model dim
 
 trainer:
-  devices: -1 # number of gpus
-  max_epochs: 1500
   num_nodes: 1
+  devices: -1 # number of gpus
   accelerator: gpu
   strategy: ddp
+  precision: 32
+  max_epochs: 1500
   accumulate_grad_batches: 1
+  gradient_clip_val: 1000.0
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  gradient_clip_val: 1000.0
-  flush_logs_every_n_steps: 1000
   log_every_n_steps: 100
+  flush_logs_every_n_steps: 1000
   check_val_every_n_epoch: 5
 
 exp_manager:
