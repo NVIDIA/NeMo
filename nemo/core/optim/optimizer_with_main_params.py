@@ -93,10 +93,10 @@ class GradBucket(object):
         return buffer_tensor
 
 
-class MasterOptimizerWrapper(torch.optim.Optimizer):
+class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     """
     Float16 optimizer wrapper for half precision (fp16 and bf16) data types.
-    This optimizer wrapper holds master parameters and gradients in fp32 to support
+    This optimizer wrapper holds main parameters and gradients in fp32 to support
     stable convergence.
 
     Arguments:
