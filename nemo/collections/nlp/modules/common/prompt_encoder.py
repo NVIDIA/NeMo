@@ -21,15 +21,27 @@ from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import ChannelType, NeuralType
 
-__all__ = ['SequenceClassifier']
+__all__ = ['PromptEncoder']
 
 
 class PromptEncoder(NeuralModule, Exportable):
+    """
+    The Prompt Encoder network that is used to generate the virtual token embeddings
+    """
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(('T', 'C'), ChannelType())}
 
     def __init__(self, template: List[int], hidden_size: int, lstm_dropout: float, num_layers: int):
+        """
+        Initializes the PromptEncoder module.
+        Args:
+            template: the template sizes of the vitural tokens for different clozes
+            hidden_size: hidden dimension
+            lstm_dropout: the dropout used for the LSTM
+            num_layers: number of layers used in the LSTM
+        """
         super().__init__()
         self.spell_length = sum(template)
         self.hidden_size = hidden_size
@@ -59,7 +71,7 @@ class PromptEncoder(NeuralModule, Exportable):
         )
 
     @typecheck()
-    def forward(self):
+    def forward(self) -> torch.Tensor:
         input_embeds = self.embedding(self.seq_indices).unsqueeze(0)
         output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0]).squeeze()
         return output_embeds

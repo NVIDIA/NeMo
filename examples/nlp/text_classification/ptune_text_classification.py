@@ -13,24 +13,22 @@
 # limitations under the License.
 
 """
-This script contains an example on how to train, evaluate and perform inference with the TextClassificationModel.
-TextClassificationModel in NeMo supports text classification problems such as sentiment analysis or
+This script contains an example on how to train, evaluate and perform inference with the PTuneTextClassificationModel.
+PTuneTextClassificationModel in NeMo supports text classification problems such as sentiment analysis or
 domain/intent detection for dialogue systems, as long as the data follows the format specified below.
 
 ***Data format***
-TextClassificationModel requires the data to be stored in TAB separated files (.tsv) with two columns of sentence and
-label. Each line of the data file contains text sequences, where words are separated with spaces and label separated
-with [TAB], i.e.:
-
-[WORD][SPACE][WORD][SPACE][WORD][TAB][LABEL]
+PTuneTextClassificationModel requires the data to be stored in loose json format with two keys of sentence and
+label in each line, i.e. 
+{"sentence": "sentence string", "label": "label string"}
 
 For example:
 
-hide new secretions from the parental units[TAB]0
-that loves its characters and communicates something rather beautiful about human nature[TAB]1
+{"sentence": "hide new secretions from the parental units", "label": "0"}
+{"sentence": "that loves its characters and communicates something rather beautiful about human nature", "label":"1"}
 ...
 
-If your dataset is stored in another format, you need to convert it to this format to use the TextClassificationModel.
+If your dataset is stored in another format, you need to convert it to this format to use the PTuneTextClassificationModel.
 
 
 ***Setting the configs***
@@ -41,12 +39,12 @@ The most important ones are:
     trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
             precision level, etc.
 
-This script uses the `/examples/nlp/text_classification/conf/text_classification_config.yaml` default config file
+This script uses the `/examples/nlp/text_classification/conf/ptune_text_classification_config.yaml` default config file
 by default. You may update the config file from the file directly or by using the command line arguments.
 Other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
-You first need to set the num_classes in the config file which specifies the number of classes in the dataset.
-Notice that some config lines, including `model.dataset.classes_num`, have `???` as their value, this means that values
+You first need to set the classes in the config file which specifies the class types in the dataset.
+Notice that some config lines, including `model.dataset.classes`, have `???` as their value, this means that values
 for these fields are required to be specified by the user. We need to specify and set the `model.train_ds.file_name`,
 `model.validation_ds.file_name`, and `model.test_ds.file_name` in the config file to the paths of the train, validation,
  and test files if they exist. We may do it by updating the config file or by setting them from the command line.
@@ -55,8 +53,8 @@ for these fields are required to be specified by the user. We need to specify an
 ***How to run the script?***
 For example the following would train a model for 50 epochs in 2 GPUs on a classification task with 2 classes:
 
-# python text_classification_with_bert.py
-        model.dataset.num_classes=2
+# python ptune_text_classification.py
+        model.dataset.classes=[Label1, Label2]
         model.train_ds=PATH_TO_TRAIN_FILE
         model.validation_ds=PATH_TO_VAL_FILE
         trainer.max_epochs=50
@@ -65,10 +63,10 @@ For example the following would train a model for 50 epochs in 2 GPUs on a class
 This script would also reload the last checkpoint after the training is done and does evaluation on the dev set,
 then performs inference on some sample queries.
 
-By default, this script uses examples/nlp/text_classification/conf/text_classifciation_config.py config file, and
+By default, this script uses examples/nlp/text_classification/conf/ptune_text_classifciation_config.py config file, and
 you may update all the params in the config file from the command line. You may also use another config file like this:
 
-# python text_classification_with_bert.py --config-name==PATH_TO_CONFIG_FILE
+# python ptune_text_classification.py --config-name==PATH_TO_CONFIG_FILE
         model.dataset.num_classes=2
         model.train_ds=PATH_TO_TRAIN_FILE
         model.validation_ds=PATH_TO_VAL_FILE
@@ -78,7 +76,7 @@ you may update all the params in the config file from the command line. You may 
 ***Load a saved model***
 This script would save the model after training into '.nemo' checkpoint file specified by nemo_path of the model config.
 You may restore the saved model like this:
-    model = TextClassificationModel.restore_from(restore_path=NEMO_FILE_PATH)
+    model = PTuneTextClassificationModel.restore_from(restore_path=NEMO_FILE_PATH)
 
 ***Evaluation a saved model on another dataset***
 # If you wanted to evaluate the saved model on another dataset, you may restore the model and create a new data loader:

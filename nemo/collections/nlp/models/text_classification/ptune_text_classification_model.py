@@ -21,20 +21,16 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.nn.utils.rnn import pad_sequence
 
-from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.text_classification.ptune_text_classification_dataset import (
-    BankPTextClassificationDataset,
+    PTuneTextClassificationDataset,
     token_wrapper,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common import SequenceClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LossType, NeuralType, PredictionsType, StringLabel, StringType
@@ -60,7 +56,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         }
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """Initializes the BERTTextClassifier model."""
+        """Initializes the PTune TextClassifier model."""
         super().__init__(cfg=cfg, trainer=trainer)
 
         initialize_model_parallel_for_nemo(
@@ -103,6 +99,10 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         # set allowed vocab set
         self.vocab = self.tokenizer.tokenizer.get_vocab()
 
+        #make sure classes are part of the vocab
+        for k in cfg.dataset.classes:
+            if token_wrapper(k) not in self.vocab:
+                logging.error(f'class {k} is not part of the vocabulary. Please add it to your vocab')
         self.allowed_vocab_ids = set(self.vocab[token_wrapper(k)] for k in cfg.dataset.classes)
 
         # map from id to label
@@ -132,11 +132,6 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         self.hidden_size = hidden_size
         self.tokenizer.add_special_tokens({'additional_special_tokens': [cfg.pseudo_token]})
 
-        # if 'megatron' in self.args.model_name:
-        #     self.pseudo_token_id = self.tokenizer.tokenizer.convert_tokens_to_ids(
-        #         self.args.pseudo_token)
-        #     self.pad_token_id = self.tokenizer.eod
-        # else:
         self.pseudo_token_id = self.tokenizer.tokenizer.get_vocab()[cfg.pseudo_token]
         self.pad_token_id = (
             self.tokenizer.tokenizer.pad_token_id
@@ -386,7 +381,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
                 [WORD][SPACE][WORD][SPACE][WORD][...][TAB][LABEL]'
             )
 
-        dataset = BankPTextClassificationDataset(input_file, self._cfg.dataset.classes)
+        dataset = PTuneTextClassificationDataset(input_file, self._cfg.dataset.classes)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -399,13 +394,13 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         )
 
     @torch.no_grad()
-    def classifytext(self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1) -> List[int]:
+    def classifytext(self, queries: List[str], batch_size: int = 1, prompt: str = 'Sentiment') -> List[int]:
         """
         Get prediction for the queries
         Args:
             queries: text sequences
             batch_size: batch size to use during inference
-            max_seq_length: sequences longer than max_seq_length will get truncated. default -1 disables truncation.
+            prompt: the prompt string appended at the end of your input sentence
         Returns:
             all_preds: model predictions
         """
@@ -418,7 +413,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
             dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
-            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries)
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, prompt)
             for i, batch in enumerate(infer_datalayer):
                 sentences, _ = batch
                 preds = self.forward_eval(sentences)
@@ -429,18 +424,18 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             logging.set_verbosity(logging_level)
         return all_preds
 
-    def _setup_infer_dataloader(self, cfg: Dict, queries: List[str]) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(self, cfg: Dict, queries: List[str], prompt: str) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 
         Args:
             cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
             queries: text
-            max_seq_length: maximum length of queries, default is -1 for no limit
+            prompt: the prompt string appended at the end of your input sentence
         Returns:
             A pytorch DataLoader.
         """
-        dataset = BankPTextClassificationDataset(None, None, queries)
+        dataset = PTuneTextClassificationDataset(None, None, queries, prompt)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg["batch_size"],

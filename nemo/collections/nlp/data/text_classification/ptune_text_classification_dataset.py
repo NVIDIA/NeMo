@@ -19,10 +19,9 @@ import os
 from typing import Dict, List, Optional
 
 from nemo.core.classes import Dataset
-from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import NeuralType, StringLabel, StringType
 
-__all__ = ['BankPTextClassificationDataset', 'token_wrapper']
+__all__ = ['PTuneTextClassificationDataset', 'token_wrapper']
 
 
 def load_file(filename):
@@ -37,35 +36,35 @@ def token_wrapper(token: str) -> str:
     return 'Ġ' + token
 
 
-class BankPTextClassificationDataset(Dataset):
+class PTuneTextClassificationDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"sentences": [NeuralType(('T'), StringType())], "labels": [NeuralType(('T'), StringLabel())]}
 
-    def __init__(self, input_file: str, sentiments: List[str], data: List[str] = None):
+    def __init__(self, input_file: str, sentiments: List[str], data: List[str] = None, prompt: str = 'Sentiment'):
         super().__init__()
         if input_file and not os.path.exists(input_file):
             raise FileNotFoundError(
                 f'Data file `{input_file}` not found! Each line of the data file should contain json object'
-                f'where `sentence` key maps to sentence and `sentiment` key maps to sentiment'
+                f'where `sentence` key maps to sentence and `label` key maps to label'
             )
         if data is None:
             json_data = load_file(input_file)
         else:
             json_data = []
             for line in data:
-                json_data.append({'sentence': line + ' Sentiment ', 'sentiment': ''})
+                json_data.append({'sentence': line + f' {prompt} ', 'label': ''})
         self.x_hs, self.x_ts = [], []
         self.data = json_data
 
         for d in json_data:
-            if d['sentiment'] not in sentiments:
+            if d['label'] not in sentiments:
                 continue
-            self.x_ts.append(d['sentiment'])
+            self.x_ts.append(d['label'])
             self.x_hs.append(d['sentence'])
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, i):
-        return self.data[i]['sentence'], self.data[i]['sentiment']
+        return self.data[i]['sentence'], self.data[i]['label']
