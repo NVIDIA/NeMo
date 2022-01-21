@@ -49,20 +49,20 @@ For more details about the config files and different ways of model restoration,
 
 To run this script and train the model from scratch, use:
     python punctuation_capitalization_train_evaluate.py \
-        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
+        model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA> \
+        model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
         model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
         model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE>
 
 To use one of the pretrained versions of the model and finetune it, run:
     python punctuation_capitalization_train_evaluate.py \
         pretrained_model=punctuation_en_bert \
-        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
+        model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA> \
+        model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
         model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
         model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE>
     
@@ -73,13 +73,13 @@ If you wish to perform testing after training set `do_testing` to `true:
     python punctuation_capitalization_train_evaluate.py \
         +do_testing=true \
         pretrained_model=punctuation_en_bert \
-        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
+        model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
         model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
         model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA> \
+        model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
         model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
         model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
-        model.test_ds.ds_item=<PATH_TO_TEST_DATA> \
+        model.test_ds.ds_item=<PATH/TO/TEST_DATA> \
         model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
         model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
 
@@ -88,7 +88,7 @@ Set `do_training` to `false` and `do_testing` to `true` to perform evaluation wi
         +do_testing=true \
         +do_training=false \
         pretrained_model=punctuation_en_bert \
-        model.test_ds.ds_item=<PATH_TO_TEST_DATA> \
+        model.test_ds.ds_item=<PATH/TO/TEST/DATA> \
         model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
         model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
 
