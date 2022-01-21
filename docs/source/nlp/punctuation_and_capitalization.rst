@@ -782,7 +782,11 @@ To train the model from scratch, run:
 
       python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
              model.train_ds.ds_item=<PATH/TO/TRAIN/DATA_DIR> \
+             model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+             model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
              model.validation_ds.ds_item=<PATH/TO/DEV/DATA_DIR> \
+             model.validation_ds.text_file=<NAME_OF_DEV_TEXT_FILE> \
+             model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
              trainer.gpus=[0,1] \
              optim.name=adam \
              optim.lr=0.0001
@@ -796,7 +800,11 @@ To train from the pre-trained model, run:
 
       python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
              model.train_ds.ds_item=<PATH/TO/TRAIN/DATA_DIR> \
+             model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+             model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
              model.validation_ds.ds_item=<PATH/TO/DEV/DATA_DIR> \
+             model.validation_ds.text_file=<NAME_OF_DEV_TEXT_FILE> \
+             model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
              pretrained_model=<PATH/TO/SAVE/.nemo>
 
 
