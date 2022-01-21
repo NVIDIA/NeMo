@@ -61,7 +61,7 @@ from torch.nn.parallel import DistributedDataParallel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import inject_model_parallel_rank
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.core.optim import MasterOptimizerWrapper
+from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
 
 try:
@@ -501,7 +501,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
         **kwargs: Any,
     ) -> None:
         assert isinstance(
-            optimizer, MasterOptimizerWrapper
+            optimizer, MainParamsOptimizerWrapper
         ), "MegatronHalfPrecisionPlugin supports only the optimizer with master parameters"
 
         if self.scaler is None:
