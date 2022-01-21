@@ -56,7 +56,6 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
 class KernelPredictor(torch.nn.Module):
@@ -473,7 +472,6 @@ class MultiPeriodDiscriminator(NeuralModule):
         return y_d_rs, y_d_gs, fmap_rs, fmap_gs
 
 
-@experimental
 class DiscriminatorR(NeuralModule):
     def __init__(self, cfg, resolution):
         super().__init__()
@@ -532,7 +530,6 @@ class DiscriminatorR(NeuralModule):
         return mag
 
 
-@experimental
 class MultiResolutionDiscriminator(NeuralModule):
     def __init__(self, cfg, debug=False):
         super().__init__()
