@@ -227,6 +227,13 @@ class SentencePieceTokenizer(TokenizerSpec):
             raise NameError("Use function token_to_id to retrieve special tokens other than unk, pad, bos, and eos.")
 
     @property
+    def mask_id(self):
+        if self.legacy:
+            return self.tokens_to_ids([self.mask_token])[0]
+        else:
+            raise NameError("Use function token_to_id to retrieve special tokens other than unk, pad, bos, and eos.")
+
+    @property
     def unk_id(self):
         return self.tokenizer.unk_id()
 

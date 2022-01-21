@@ -20,11 +20,12 @@
 # Because we will use it to handle files which have duplicate filenames but with different offsets
 # (see function create_shard for details)
 
-# Recommend to use --sort_in_shards to speedup the training by reducing the paddings in the batches
 
-# Bucketing can also help to improve the training speed. You may use --buckets_num to specify the number of buckets.
+# Bucketing can help to improve the training speed. You may use --buckets_num to specify the number of buckets.
 # It creates multiple tarred datasets, one per bucket, based on the audio durations.
 # The range of [min_duration, max_duration) is split into equal sized buckets.
+# Recommend to use --sort_in_shards to speedup the training by reducing the paddings in the batches
+# More info on how to use bucketing feature: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/datasets.html
 
 # Usage:
 1) Creating a new tarfile dataset
