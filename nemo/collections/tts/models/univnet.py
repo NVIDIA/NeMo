@@ -26,12 +26,11 @@ from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, Genera
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 HAVE_WANDB = True
 try:
@@ -39,7 +38,6 @@ try:
 except ModuleNotFoundError:
     HAVE_WANDB = False
 
-@experimental
 class UnivNetModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -301,6 +299,27 @@ class UnivNetModel(Vocoder):
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+
+    @classmethod
+    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_univnet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_univnet/versions/1.7.0/files/tts_en_lj_univnet.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_libritts_univnet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_univnet/versions/1.7.0/files/tts_en_libritts_univnet.nemo",
+            description="This model is trained on all LibriTTS training data (train-clean-100, train-clean-360, and train-other-500) sampled at 22050Hz, and has been tested on generating English voices.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        return list_of_models
 
     def input_example(self):
         """
