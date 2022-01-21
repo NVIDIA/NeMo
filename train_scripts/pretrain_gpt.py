@@ -13,11 +13,9 @@ rank2gpu = [0, 4, 2, 6, 1, 5, 3, 7]
 
 def pause_and_prime_dns_connections() -> None:
     if int(os.environ.get("GROUP_RANK")) > 0:
-        print(f'\n SPPDNS: Sleeping rank: {os.environ.get("RANK")}')
         time.sleep(20)
         prime_dns_connections()
     elif int(os.environ.get("LOCAL_RANK")) != 0:
-        print(f'\n SPPDNS: Sleeping rank: {os.environ.get("RANK")}')
         time.sleep(10)
 
 def prime_dns_connections() -> None:
@@ -63,15 +61,19 @@ def main(cfg):
     gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
     core_mapping = f"exec numactl --physcpubind={dgxa100_gpu2core[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} --membind={dgxa100_gpu2mem[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} -- "
     flags = f"--config-path={training_config_path} --config-name={training_config} "
-    # cmd = f'cd /opt/bignlp/NeMo; git rev-parse HEAD; cd /opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
     
-    pause_and_prime_dns_connections()
-    cmd = f'cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
+    cmd_prefix = f'cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"'
+    
+    if cfg["cluster_type"] == "bcm":
+        cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
+    else if cfg["cluster_type"] == "bcp":
+        pause_and_prime_dns_connections()
+        cmd = f'{cmd_prefix}; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     
     if int(os.environ.get("RANK")) == 0:
         print(f'Command is: {cmd}\n')
     else:
-        print(f' Command-prefix at R{os.environ.get("RANK")} is: cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")} <hydra_train_args> <flags>... \n')
+        print(f' Command-prefix at R{os.environ.get("RANK")} is: {cmd_prefix}\n')
               
     os.system(f"{cmd}")
 

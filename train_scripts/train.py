@@ -105,7 +105,6 @@ def run_training(cfg, hydra_args="", dependency=None):
     results_dir = run_cfg.results_dir
     log_dir = run_cfg.log_dir
     time_limit = run_cfg.time_limit
-    name = run_cfg.name
     
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
@@ -171,10 +170,10 @@ def run_training(cfg, hydra_args="", dependency=None):
         return dependency
 
     # BCP parameters
-    if clf.cluster_type == "bcp":
+    if cfg.cluster_type == "bcp":
         bcp_cfg = cluster_cfg.bcp
         instance = bcp_cfg.instance
-        job_name_prefix = slurm_cfg.job_name_prefix
+        job_name_prefix = bcp_cfg.job_name_prefix
         job_name = job_name_prefix + name
 
         create_bcp_file(
@@ -197,7 +196,7 @@ def run_training(cfg, hydra_args="", dependency=None):
             num_nodes=nodes,
             ntasks_per_node=ntasks_per_node,
             array_type="PYTORCH",
-            total_runtime=time_limit
+            total_runtime=run_cfg.time_limit_bcp
         )
         print(f"\n Submit command after data is ready:\n {submit_cmd}")
         print(f"\n Script file: {new_script_path}")
