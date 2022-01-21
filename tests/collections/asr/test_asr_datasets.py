@@ -527,9 +527,8 @@ class TestASRDatasets:
 
             dataset_cfg = {
                 'manifest_filepath': f.name,
-                'audio_tar_filepaths': audio_tar_filepaths,
-                'audio_tar_index_filepaths': audio_tar_index_filepaths,
                 'tarred_audio_filepaths': audio_tar_filepaths,
+                'tarred_audio_index_filepaths': audio_tar_index_filepaths,
                 'sample_rate': 16000,
                 'labels': self.labels,
                 'batch_size': batch_size,
