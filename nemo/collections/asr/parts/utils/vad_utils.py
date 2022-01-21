@@ -311,12 +311,14 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
             raise ValueError("smoothing_method should be either mean or median")
 
         round_final = np.round(preds, 4)
-        np.savetxt(overlap_filepath, round_final, delimiter='\n')
+        with open(overlap_filepath, "w") as f:
+            f.write("\n".join([str(i) for i in a]))
+
         return overlap_filepath
 
     except Exception as e:
         raise (e)
-
+ 
 
 def generate_vad_segment_table(
     vad_pred_dir, postprocessing_params, shift_length_in_sec, num_workers, out_dir=None, threshold=None
