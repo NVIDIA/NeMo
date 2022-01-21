@@ -293,7 +293,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
 
     def training_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, durs, f0, f0_mask = batch
-        mel, mel_len = self.preprocessor(audio, audio_len)
+        mel, mel_len = self.preprocessor(input_signal=audio, length=audio_len)
         pred_mel = self(text=text, text_len=text_len, durs=durs, f0=f0)
         loss = self._metrics(true_mel=mel, true_mel_len=mel_len, pred_mel=pred_mel)
         train_log = {'train_loss': loss}
@@ -301,7 +301,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, durs, f0, f0_mask = batch
-        mel, mel_len = self.preprocessor(audio, audio_len)
+        mel, mel_len = self.preprocessor(input_signal=audio, length=audio_len)
         pred_mel = self(text=text, text_len=text_len, durs=durs, f0=f0)
         loss = self._metrics(true_mel=mel, true_mel_len=mel_len, pred_mel=pred_mel)
         val_log = {'val_loss': loss}
