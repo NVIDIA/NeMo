@@ -91,9 +91,11 @@ model:
 
     # scheduler setup
     sched:
-      name: ExponentialLR
+      name: WarmupAnnealing
       # Scheduler params
-      gamma: 0.98
+      warmup_steps: null
+      warmup_ratio: 0.1
+      last_epoch: -1
       # pytorch lightning args
       monitor: val_loss
       reduce_on_plateau: false
