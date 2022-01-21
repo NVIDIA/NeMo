@@ -29,7 +29,6 @@ from nemo.utils.decorators import experimental
 
 try:
     import nvidia.dali as dali
-    from nvidia.dali.fn import decoders
     from nvidia.dali.pipeline import Pipeline
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
     from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
@@ -375,7 +374,7 @@ class _AudioTextDALIDataset(Iterator):
                     num_shards=self.num_shards,
                     pad_last_batch=True,
                 )
-                audio = decoders.audio(
+                audio = dali.fn.audio(
                     tar_file, dtype=dali.types.FLOAT, downmix=True, sample_rate=float(self.sample_rate),
                 )[0]
                 indices = dali.fn.get_property(tar_file, key="source_info")
