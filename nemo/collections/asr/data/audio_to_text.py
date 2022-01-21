@@ -183,12 +183,12 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
             if bkey in audio_tar_filepaths:
                 audio_tar_filepaths = audio_tar_filepaths.replace(bkey, "}")
 
+    if isinstance(audio_tar_filepaths, str):
+        # Brace expand
+        audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
+
     # Check for distributed and partition shards accordingly
     if world_size > 1:
-        if isinstance(audio_tar_filepaths, str):
-            # Brace expand
-            audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
-
         if shard_strategy == 'scatter':
             logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
 

@@ -359,8 +359,9 @@ class _AudioTextDALIDataset(Iterator):
 
                 if len(audio_tar_filepaths) != len(audio_tar_index_filepaths):
                     raise ValueError(
-                        "Number of filepaths provided for `audio_tar_filepaths` must match "
-                        "`audio_tar_index_filepaths`"
+                        f"Number of filepaths provided for `audio_tar_filepaths` must match "
+                        f"`audio_tar_index_filepaths`. Got {len(audio_tar_filepaths)} audio_tar_filepaths and "
+                        f"{len(audio_tar_index_filepaths)} audio_tar_index_filepaths."
                     )
 
                 tar_file = dali.fn.readers.webdataset(
@@ -408,7 +409,7 @@ class _AudioTextDALIDataset(Iterator):
             else:
                 # Additive gaussian noise (dither)
                 if self.dither > 0.0:
-                    gaussian_noise = dali.fn.normal_distribution(audio)
+                    gaussian_noise = dali.fn.random.normal(audio)
                     audio = audio + self.dither * gaussian_noise
 
                 # Preemphasis filter
@@ -455,14 +456,22 @@ class _AudioTextDALIDataset(Iterator):
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
                 spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
                 self.pipe.set_outputs(spec, spec_len, indices)
+
+        import time
+
+        x = time.time()
         # Building DALI pipeline
         self.pipe.build()
+        y = time.time()
+
+        logging.info(f"Time for pipe.build() : {(y - x)} seconds")
 
         if has_preprocessor:
             output_names = ['processed_signal', 'processed_signal_len', 'manifest_indices']
         else:
             output_names = ['audio', 'audio_len', 'manifest_indices']
 
+        x = time.time()
         last_batch_policy = LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
         self._iter = DALIPytorchIterator(
             [self.pipe],
@@ -472,6 +481,8 @@ class _AudioTextDALIDataset(Iterator):
             dynamic_shape=True,
             auto_reset=True,
         )
+        y = time.time()
+        logging.info(f"Time for DALIPytorchIterator to initialize : {(y - x)} seconds")
 
         # TODO come up with a better solution
         class DummyDataset:
@@ -483,6 +494,7 @@ class _AudioTextDALIDataset(Iterator):
 
         self.dataset = DummyDataset(self)  # Used by NeMo
 
+        x = time.time()
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
@@ -494,6 +506,8 @@ class _AudioTextDALIDataset(Iterator):
             pad_id=pad_id,
             index_by_file_id=self.is_tarred_dataset,
         )
+        y = time.time()
+        logging.info(f"Time to build nemo manifest processor - {(y - x)} seconds")
 
     def reset(self):
         self._iter.reset()
