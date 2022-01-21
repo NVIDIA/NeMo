@@ -297,9 +297,14 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         sentences, labels = batch
         val_loss, preds, gt_labels = self.forward(sentences=sentences, labels=labels)
 
+        hit = 0
+        for pred, gt_label in zip(preds, gt_labels):
+            if pred == gt_label:
+                hit += 1
+
         tp, fn, fp, _ = self.classification_report(preds, gt_labels)
 
-        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp, 'hit': hit}
 
     def validation_epoch_end(self, outputs):
         """
@@ -315,11 +320,14 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
 
         avg_loss = torch.stack([x[f'val_loss'] for x in outputs]).mean()
 
+        total_hit = sum([x[f'hit'] for x in outputs])
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
 
+        total_data = torch.sum(self.classification_report.num_examples_per_class)
+        accuracy = total_hit / total_data.item()
         logging.info(f'{prefix}_report: {report}')
-
+        logging.info(f'{total_hit} correct out of {total_data}, accuracy: {accuracy*100:.2f}')
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
         self.log(f'{prefix}_precision', precision)
         self.log(f'{prefix}_f1', f1)
