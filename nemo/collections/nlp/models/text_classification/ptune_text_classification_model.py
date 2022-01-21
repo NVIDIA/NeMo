@@ -245,15 +245,14 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         labels = labels.scatter_(1, label_position, label_ids)
         return labels, label_ids
 
-    @typecheck()
     def forward_eval(self, sentences):
         encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
         batch_size, _, seq_len, _ = new_atten.shape
 
-        output = self.model.model(None, None, encoder_input=encoder_input, attention_mask=new_atten)
+        output = self.model.model(None, None, encoder_input=encoder_input.to(self.device), attention_mask=new_atten.to(self.device))
         logits = output
 
-        _, returned_pred = self.get_prediction(batch_size, label_position, logits)
+        _, returned_pred = self.get_prediction(batch_size, label_position.to(self.device), logits)
         return returned_pred
 
     @typecheck()
@@ -296,7 +295,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         passed in as `batch`.
         """
         sentences, labels = batch
-        val_loss, preds, gt_labels = self.forward(sentences=sentences, labels=sentences)
+        val_loss, preds, gt_labels = self.forward(sentences=sentences, labels=labels)
 
         tp, fn, fp, _ = self.classification_report(preds, gt_labels)
 
@@ -381,7 +380,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
                 [WORD][SPACE][WORD][SPACE][WORD][...][TAB][LABEL]'
             )
 
-        dataset = PTuneTextClassificationDataset(input_file, self._cfg.dataset.classes)
+        dataset = PTuneTextClassificationDataset(input_file)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -435,7 +434,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         Returns:
             A pytorch DataLoader.
         """
-        dataset = PTuneTextClassificationDataset(None, None, queries, prompt)
+        dataset = PTuneTextClassificationDataset(None, queries, prompt)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg["batch_size"],

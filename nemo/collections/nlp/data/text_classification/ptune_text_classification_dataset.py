@@ -41,27 +41,28 @@ class PTuneTextClassificationDataset(Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"sentences": [NeuralType(('T'), StringType())], "labels": [NeuralType(('T'), StringLabel())]}
 
-    def __init__(self, input_file: str, sentiments: List[str], data: List[str] = None, prompt: str = 'Sentiment'):
+    def __init__(self, input_file: str, queries: List[str] = None, prompt: str = 'Sentiment'):
+        """
+        A dataset class that feed data for P-tuning model
+        Args:
+            input_file: loose json data file. The format is {"sentence":"input sentence", "label":"class label"}
+            queries: list of query input sentences
+            prompt: the prompt string appended at the end of your input sentence
+        """
         super().__init__()
         if input_file and not os.path.exists(input_file):
             raise FileNotFoundError(
                 f'Data file `{input_file}` not found! Each line of the data file should contain json object'
                 f'where `sentence` key maps to sentence and `label` key maps to label'
             )
-        if data is None:
+        if queries is None:
             json_data = load_file(input_file)
         else:
             json_data = []
-            for line in data:
+            for line in queries:
                 json_data.append({'sentence': line + f' {prompt} ', 'label': ''})
-        self.x_hs, self.x_ts = [], []
         self.data = json_data
 
-        for d in json_data:
-            if d['label'] not in sentiments:
-                continue
-            self.x_ts.append(d['label'])
-            self.x_hs.append(d['sentence'])
 
     def __len__(self):
         return len(self.data)

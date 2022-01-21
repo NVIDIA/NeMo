@@ -24,8 +24,8 @@ label in each line, i.e.
 
 For example:
 
-{"sentence": "hide new secretions from the parental units", "label": "0"}
-{"sentence": "that loves its characters and communicates something rather beautiful about human nature", "label":"1"}
+{"sentence": "The output of the contracts totals 72 MWe. ", "label": "neutral"}
+{"sentence": "Pretax profit totaled EUR 9.0 mn , down from EUR 36.3 mn in 2007 .", "label": "negative"}
 ...
 
 If your dataset is stored in another format, you need to convert it to this format to use the PTuneTextClassificationModel.
@@ -130,6 +130,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.test_ds.file_path:
         logging.info("===========================================================================================")
         logging.info("Starting the testing of the trained model on test set...")
+        trainer = pl.Trainer(**cfg.trainer)
         trainer.test(model=model, ckpt_path=None, verbose=False)
         logging.info("Testing finished!")
         logging.info("===========================================================================================")
@@ -140,7 +141,7 @@ def main(cfg: DictConfig) -> None:
         logging.info("Starting the inference on some sample queries...")
 
         # max_seq_length=512 is the maximum length BERT supports.
-        results = model.classifytext(queries=cfg.model.infer_samples, batch_size=16, max_seq_length=512)
+        results = model.cuda().classifytext(queries=cfg.model.infer_samples, batch_size=1, prompt='Sentiment')
         logging.info('The prediction results of some sample queries with the trained model:')
         for query, result in zip(cfg.model.infer_samples, results):
             logging.info(f'Query : {query}')

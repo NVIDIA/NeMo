@@ -103,9 +103,9 @@ model:
 
   # List of some sample queries for inference after training is done
   infer_samples: [
-    'by the end of no such thing the audience , like beatrice , has a watchful affection for the monster .',
-    'director rob marshall went out gunning to make a great one .',
-    'uneasy mishmash of styles and genres .',
+    'For example , net sales increased by 5.9 % from the first quarter , and EBITDA increased from a negative EUR 0.2 mn in the first quarter of 2009 .',
+    '8 May 2009 - Finnish liquid handling products and diagnostic test systems maker Biohit Oyj ( HEL : BIOBV ) said today ( 8 May 2009 ) its net loss narrowed to EUR0 .1 m ( USD0 .14 m ) for the first quarter of 2009 from EUR0 .4 m for the same period of 2008 .',
+    'CHS Expo Freight is a major Finnish fair , exhibition and culture logistics company that provides logistics services to various events by land , air and sea .',
   ]
 
 exp_manager:
