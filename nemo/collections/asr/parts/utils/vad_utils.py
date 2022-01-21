@@ -248,8 +248,12 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
         window_length_in_sec = per_args['window_length_in_sec']
         shift_length_in_sec = per_args['shift_length_in_sec']
         out_dir = per_args['out_dir']
-
-        frame = np.loadtxt(frame_filepath)
+        
+        frame = []
+        with open(frame_filepath, "r") as f:
+            for line in f.readlines():
+                frame.append(float(line))
+            
         name = os.path.basename(frame_filepath).split(".frame")[0] + "." + smoothing_method
         overlap_filepath = os.path.join(out_dir, name)
 
@@ -367,7 +371,10 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     out_dir = per_args['out_dir']
 
     name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
-    sequence = np.loadtxt(pred_filepath)
+    sequence = []
+    with open(pred_filepath, "r") as f:
+        for line in f.readlines():
+            sequence.append(float(line))
 
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
