@@ -3,6 +3,7 @@ import sys
 import re
 import socket
 import time
+
 import hydra
 
 
@@ -54,7 +55,7 @@ def main(cfg):
 
     bignlp_path = cfg["bignlp_path"]
     training_config = cfg["training_config"]
-    code_dir = cfg["code_dir"]
+    code_dir = cfg["code_dir"] # TODO: CHECK
     code_path = (
         f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
     )

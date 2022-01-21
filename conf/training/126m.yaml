@@ -1,6 +1,8 @@
 run:
   name: 126m
   log_dir: /workspace-scripts/results/${.name}
+  time_limit: "1-12:00:00"
+  dependency: "singleton"
 
 trainer:
   num_nodes: 8

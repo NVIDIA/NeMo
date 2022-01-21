@@ -22,6 +22,9 @@ def create_slurm_file(
     partition="batch",
     account=None,
 ):
+    """
+    Creates a slurm file to launch a training job.
+    """
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
@@ -86,58 +89,115 @@ def create_bcp_file(
     os.chmod(new_script_path, 0o755)
 
 def run_training(cfg, hydra_args="", dependency=None):
+    """
+    Main function to launch a training job, with the config given in cfg.
+    """
     # Read config
-    bignlp_path = cfg.get("bignlp_path")
-    container = cfg.get("container")
-    train_cfg = cfg.get("training")
-    run_cfg = train_cfg.get("run")
-    megatron_cfg = train_cfg.get("megatron")
+    bignlp_path = cfg.bignlp_path
+    container_mounts = cfg.container_mounts
+    container = cfg.container
+    train_cfg = cfg.training
+    cluster_cfg = cfg.cluster
+    run_cfg = train_cfg.run
 
     # Run parameters
-    name = run_cfg.get("name")
-    results_dir = run_cfg.get("results_dir")
-    log_dir = run_cfg.get("log_dir")
+    name = run_cfg.name
+    results_dir = run_cfg.results_dir
+    log_dir = run_cfg.log_dir
+    time_limit = run_cfg.time_limit
+    name = run_cfg.name
     
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-        
+    
+    # Shared between BCP and BCM 
     new_script_path = os.path.join(bignlp_path, f"train_scripts/{name}.sh")
     code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
     train_cmd = f"python3 -u {code_path} {hydra_args}"
 
-    bcp_cfg = train_cfg.get("bcp")
-    create_bcp_file(
-        bignlp_path=bignlp_path,
-        new_script_path=new_script_path,
-        train_cmd=train_cmd,
-        num_nodes=bcp_cfg.get("nodes"),
-        log_file=f"{log_dir}/log.txt",
-        err_file=f"{log_dir}/err.txt"
-    )
-    
-    # BCP submit command
-    num_nodes = bcp_cfg.get("nodes")
-    ntasks_per_node = bcp_cfg.get("ntasks_per_node")
-    gpus_per_task = bcp_cfg.get("gpus_per_task")
-    instance = bcp_cfg.get("instance")
-    time_limit = bcp_cfg.get("time_limit")
+    nodes = train_cfg.trainer.num_nodes
+    ntasks_per_node = train_cfg.trainer.gpus
+    gpus_per_task = ntasks_per_node
 
-    submit_cmd = create_bcp_submit_cmd(
-        job_name=bcp_cfg.get("job_name"),
-        container=container,
-        workspace_common=bcp_cfg.get("workspace_common"),
-        workspace_scripts=bcp_cfg.get("workspace_scripts"),
-        bignlp_path=bignlp_path,
-        bcp_script=new_script_path,
-        instance=instance,
-        num_nodes=num_nodes,
-        ntasks_per_node=ntasks_per_node,
-        array_type="PYTORCH",
-        total_runtime=time_limit
-    )
+    # BCM parameters
+    if cfg.cluster_type == "bcm":
+        slurm_cfg = cluster_cfg.slurm
+        partition = slurm_cfg.partition
+        account = slurm_cfg.account
+        exclusive = slurm_cfg.exclusive
+        job_name_prefix = slurm_cfg.job_name_prefix
+        if dependency is None:
+            dependency = run_cfg.dependency
+        job_name = job_name_prefix + name
 
-    print(f"\n Submit command after data is ready:\n {submit_cmd}")
-    print(f"\n Script file: {new_script_path}")
-    
+        # Process container-mounts.
+        mounts_str = f"{bignlp_path}:{bignlp_path}"
+        if container_mounts is not None:
+            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+            for mount in container_mounts:
+                if mount is not None and isinstance(mount, str):
+                    mounts_str += f",{mount}:{mount}"
+
+        flags = (
+            f"--container-image {container} "
+            f"--container-mounts {mounts_str} "
+            f"-o {log_dir}/{name}-%j.log "
+            f"-e {log_dir}/{name}-%j.error "
+        )
+
+        create_slurm_file(
+            new_script_path=new_script_path,
+            train_cmd=train_cmd,
+            job_name=job_name,
+            flags=flags,
+            dependency=dependency,
+            exclusive=exclusive,
+            mem=mem,
+            overcommit=overcommit,
+            time=time_limit,
+            nodes=nodes,
+            ntasks_per_node=ntasks_per_node,
+            gpus_per_task=gpus_per_task,
+            partition=partition,
+            account=account,
+        )
+        job_id = subprocess.check_output(
+            [f"sbatch --parsable {new_script_path}"], shell=True
+        )
+        dependency = job_id = job_id.decode("utf-8")
+        print(f"Submitted Training script with job id: {dependency}")
+        return dependency
+
+    # BCP parameters
+    if clf.cluster_type == "bcp":
+        bcp_cfg = cluster_cfg.bcp
+        instance = bcp_cfg.instance
+        job_name_prefix = slurm_cfg.job_name_prefix
+        job_name = job_name_prefix + name
+
+        create_bcp_file(
+            bignlp_path=bignlp_path,
+            new_script_path=new_script_path,
+            train_cmd=train_cmd,
+            num_nodes=nodes,
+            log_file=f"{log_dir}/log.txt",
+            err_file=f"{log_dir}/err.txt"
+        )
+
+        submit_cmd = create_bcp_submit_cmd(
+            job_name=job_name,
+            container=container,
+            workspace_common=bcp_cfg.workspace_common,
+            workspace_scripts=bcp_cfg.workspace_scripts,
+            bignlp_path=bignlp_path,
+            bcp_script=new_script_path,
+            instance=instance,
+            num_nodes=nodes,
+            ntasks_per_node=ntasks_per_node,
+            array_type="PYTORCH",
+            total_runtime=time_limit
+        )
+        print(f"\n Submit command after data is ready:\n {submit_cmd}")
+        print(f"\n Script file: {new_script_path}")
