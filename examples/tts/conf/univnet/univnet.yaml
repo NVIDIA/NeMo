@@ -66,9 +66,9 @@ trainer:
 exp_manager:
   exp_dir: null
   name: ${name}
-  create_tensorboard_logger: false
+  create_tensorboard_logger: true
 
-  create_wandb_logger: True
+  create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
     project: null
