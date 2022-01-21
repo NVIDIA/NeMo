@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,14 +34,15 @@ from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
     MAIN_DATA_TYPES,
     VALID_SUPPLEMENTARY_DATA_TYPES,
-    AlignPriorMatrix,
+    DurationPrior,
     Durations,
     Energy,
     LMTokens,
     LogMel,
     Pitch,
+    Voiced_mask,
+    P_voiced,
     SpeakerID,
-    TTSDataType,
     WithLens,
 )
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
@@ -56,7 +58,7 @@ class TTSDataset(Dataset):
         text_tokenizer: Union[BaseTokenizer, Callable[[str], List[int]]],
         tokens: Optional[List[str]] = None,
         text_normalizer: Optional[Union[Normalizer, Callable[[str], str]]] = None,
-        text_normalizer_call_kwargs: Optional[Dict] = None,
+        text_normalizer_call_args: Optional[Dict] = None,
         text_tokenizer_pad_id: Optional[int] = None,
         sup_data_types: Optional[List[str]] = None,
         sup_data_path: Optional[Union[Path, str]] = None,
@@ -81,15 +83,14 @@ class TTSDataset(Dataset):
                 dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
                 json. Each line should contain the following:
                     "audio_filepath": <PATH_TO_WAV>
-                    "text": <THE_TRANSCRIPT>,
-                    "normalized_text": <NORMALIZED_TRANSCRIPT> (Optional),
                     "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional)
                     "duration": <Duration of audio clip in seconds> (Optional)
+                    "text": <THE_TRANSCRIPT> (Optional)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
             text_tokenizer (Optional[Union[BaseTokenizer, Callable[[str], List[int]]]]): BaseTokenizer or callable which represents text tokenizer.
             tokens (Optional[List[str]]): Tokens from text_tokenizer. Should be specified if text_tokenizer is not BaseTokenizer.
             text_normalizer (Optional[Union[Normalizer, Callable[[str], str]]]): Normalizer or callable which represents text normalizer.
-            text_normalizer_call_kwargs (Optional[Dict]): Additional arguments for text_normalizer function.
+            text_normalizer_call_args (Optional[Dict]): Additional arguments for text_normalizer function.
             text_tokenizer_pad_id (Optional[int]): Index of padding. Should be specified if text_tokenizer is not BaseTokenizer.
             sup_data_types (Optional[List[str]]): List of supplementary data types.
             sup_data_path (Optional[Union[Path, str]]): A folder that contains or will contain supplementary data (e.g. pitch).
@@ -112,13 +113,13 @@ class TTSDataset(Dataset):
             highfreq (Optional[int]): The highfreq input to the mel filter calculation. Defaults to None.
         Keyword Args:
             durs_file (Optional[str]): String path to pickled durations location.
-            durs_type (Optional[str]): Type of durations. Currently supported only "aligner-based".
-            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator for calculating alignment prior matrix. Defaults to False.
+            durs_type (Optional[str]): Type of durations. Currently supported only "aligned-based".
+            use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator. Defaults to False.
             pitch_fmin (Optional[float]): The fmin input to librosa.pyin. Defaults to librosa.note_to_hz('C2').
             pitch_fmax (Optional[float]): The fmax input to librosa.pyin. Defaults to librosa.note_to_hz('C7').
-            pitch_mean (Optional[float]): The mean that we use to normalize the pitch.
+            pitch_avg (Optional[float]): The mean that we use to normalize the pitch.
             pitch_std (Optional[float]): The std that we use to normalize the pitch.
-            pitch_norm (Optional[bool]): Whether to normalize pitch (via pitch_mean and pitch_std) or not.
+            pitch_norm (Optional[bool]): Whether to normalize pitch (via pitch_avg and pitch_std) or not.
         """
         super().__init__()
 
@@ -126,9 +127,7 @@ class TTSDataset(Dataset):
         self.text_normalizer_call = (
             self.text_normalizer.normalize if isinstance(self.text_normalizer, Normalizer) else self.text_normalizer
         )
-        self.text_normalizer_call_kwargs = (
-            text_normalizer_call_kwargs if text_normalizer_call_kwargs is not None else {}
-        )
+        self.text_normalizer_call_args = text_normalizer_call_args if text_normalizer_call_args is not None else {}
 
         self.text_tokenizer = text_tokenizer
 
@@ -157,7 +156,6 @@ class TTSDataset(Dataset):
             [DATA_STR2DATA_CLASS[d_as_str] for d_as_str in sup_data_types] if sup_data_types is not None else []
         )
         self.sup_data_types_set = set(self.sup_data_types)
-
         self.data = []
         audio_files = []
         total_duration = 0
@@ -166,26 +164,24 @@ class TTSDataset(Dataset):
                 logging.info(f"Loading dataset from {manifest_file}.")
                 for line in tqdm(f):
                     item = json.loads(line)
-
+                    #logging.info(f"what's item: {item}.")
                     file_info = {
                         "audio_filepath": item["audio_filepath"],
-                        "original_text": item["text"],
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
-                        "speaker_id": item["speaker"] if "speaker" in item else None,
+                        "text_tokens": None,
+                        "speaker_id": item["speaker"] if "speaker" in item else 0,
                     }
 
-                    if "normalized_text" not in item:
+                    if "text" in item:
                         text = item["text"]
 
                         if self.text_normalizer is not None:
-                            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
+                            text = self.text_normalizer_call(text, **self.text_normalizer_call_args)
 
-                        file_info["normalized_text"] = text
-                        file_info["text_tokens"] = self.text_tokenizer(text)
-                    else:
-                        file_info["normalized_text"] = item["normalized_text"]
-                        file_info["text_tokens"] = self.text_tokenizer(item["normalized_text"])
+                        text_tokens = self.text_tokenizer(text)
+                        file_info["raw_text"] = item["text"]
+                        file_info["text_tokens"] = text_tokens
 
                     audio_files.append(file_info)
 
@@ -275,7 +271,7 @@ class TTSDataset(Dataset):
         for data_type in self.sup_data_types:
             if data_type not in VALID_SUPPLEMENTARY_DATA_TYPES:
                 raise NotImplementedError(f"Current implementation of TTSDataset doesn't support {data_type} type.")
-
+           
             getattr(self, f"add_{data_type.name}")(**kwargs)
 
     def add_log_mel(self, **kwargs):
@@ -294,11 +290,11 @@ class TTSDataset(Dataset):
                 self.durs.append(durs)
             else:
                 raise NotImplementedError(
-                    f"{durs_type} duration type is not supported. Only aligner-based is supported at this moment."
+                    f"{durs_type} duration type is not supported. Only align-based is supported at this moment."
                 )
 
-    def add_align_prior_matrix(self, **kwargs):
-        self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
+    def add_duration_prior(self, **kwargs):
+        self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', True)
 
         if self.use_beta_binomial_interpolator:
             self.beta_binomial_interpolator = BetaBinomialInterpolator()
@@ -306,9 +302,15 @@ class TTSDataset(Dataset):
     def add_pitch(self, **kwargs):
         self.pitch_fmin = kwargs.pop("pitch_fmin", librosa.note_to_hz('C2'))
         self.pitch_fmax = kwargs.pop("pitch_fmax", librosa.note_to_hz('C7'))
-        self.pitch_mean = kwargs.pop("pitch_mean", None)
+        self.pitch_avg = kwargs.pop("pitch_avg", None)
         self.pitch_std = kwargs.pop("pitch_std", None)
         self.pitch_norm = kwargs.pop("pitch_norm", False)
+    
+    def add_voiced_mask(self, **kwargs):
+        pass
+    
+    def add_p_voiced(self, **kwargs):
+        pass
 
     def add_energy(self, **kwargs):
         pass
@@ -337,6 +339,7 @@ class TTSDataset(Dataset):
 
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
+        #print("audio_length", audio_length)
 
         text = torch.tensor(sample["text_tokens"]).long()
         text_length = torch.tensor(len(sample["text_tokens"])).long()
@@ -363,23 +366,24 @@ class TTSDataset(Dataset):
         if Durations in self.sup_data_types_set:
             durations = self.durs[index]
 
-        align_prior_matrix = None
-        if AlignPriorMatrix in self.sup_data_types_set:
+        duration_prior = None
+        if DurationPrior in self.sup_data_types_set:
             if self.use_beta_binomial_interpolator:
                 mel_len = self.get_log_mel(audio).shape[2]
-                align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
+                duration_prior = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
                 prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
 
                 if prior_path.exists():
-                    align_prior_matrix = torch.load(prior_path)
+                    duration_prior = torch.load(prior_path)
                 else:
                     mel_len = self.get_log_mel(audio).shape[2]
-                    align_prior_matrix = beta_binomial_prior_distribution(text_length, mel_len)
-                    align_prior_matrix = torch.from_numpy(align_prior_matrix)
-                    torch.save(align_prior_matrix, prior_path)
+                    duration_prior = beta_binomial_prior_distribution(text_length, mel_len)
+                    duration_prior = torch.from_numpy(duration_prior)
+                    torch.save(duration_prior, prior_path)
 
         pitch, pitch_length = None, None
+        
         if Pitch in self.sup_data_types_set:
             pitch_name = (
                 f"{audio_stem}_pitch_pyin_"
@@ -389,9 +393,13 @@ class TTSDataset(Dataset):
 
             pitch_path = Path(self.sup_data_path) / pitch_name
             if pitch_path.exists():
-                pitch = torch.load(pitch_path).float()
+                dikt = torch.load(pitch_path)
+                pitch = dikt['pitch'].float()
+                p_voiced = dikt['p_voiced'].float()
+                voiced_mask = dikt['voiced_mask'].float()
+                #pitch = torch.load(pitch_path).float()
             else:
-                pitch, _, _ = librosa.pyin(
+                pitch, voiced_mask, p_voiced = librosa.pyin(
                     audio.numpy(),
                     fmin=self.pitch_fmin,
                     fmax=self.pitch_fmax,
@@ -400,11 +408,18 @@ class TTSDataset(Dataset):
                     fill_na=0.0,
                 )
                 pitch = torch.from_numpy(pitch).float()
-                torch.save(pitch, pitch_path)
+                #torch.save(pitch, pitch_path)
+                voiced_mask = torch.from_numpy(voiced_mask).float()
+                p_voiced = torch.from_numpy(p_voiced).float()
+                torch.save({'pitch': pitch,
+                            'voiced_mask': voiced_mask,
+                            'p_voiced': p_voiced}, pitch_path)
 
-            if self.pitch_mean is not None and self.pitch_std is not None and self.pitch_norm:
-                pitch -= self.pitch_mean
-                pitch[pitch == -self.pitch_mean] = 0.0  # Zero out values that were perviously zero
+                
+
+            if self.pitch_avg is not None and self.pitch_std is not None and self.pitch_norm:
+                pitch -= self.pitch_avg
+                pitch[pitch == -self.pitch_avg] = 0.0  # Zero out values that were perviously zero
                 pitch /= self.pitch_std
 
             pitch_length = torch.tensor(len(pitch)).long()
@@ -433,9 +448,11 @@ class TTSDataset(Dataset):
             log_mel,
             log_mel_length,
             durations,
-            align_prior_matrix,
+            duration_prior,
             pitch,
             pitch_length,
+            voiced_mask, 
+            p_voiced,
             energy,
             energy_length,
             speaker_id,
@@ -449,7 +466,7 @@ class TTSDataset(Dataset):
         for data_type in MAIN_DATA_TYPES + self.sup_data_types:
             result.append(data_dict[data_type.name])
 
-            if issubclass(data_type, TTSDataType) and issubclass(data_type, WithLens):
+            if issubclass(data_type, WithLens):
                 result.append(data_dict[f"{data_type.name}_lens"])
 
         return tuple(result)
@@ -463,9 +480,11 @@ class TTSDataset(Dataset):
             _,
             log_mel_lengths,
             durations_list,
-            align_prior_matrices_list,
+            duration_priors_list,
             pitches,
             pitches_lengths,
+            voiced_masks, 
+            p_voiceds,
             energies,
             energies_lengths,
             _,
@@ -479,18 +498,18 @@ class TTSDataset(Dataset):
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
-            log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
+            log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
-        align_prior_matrices = (
+        duration_priors = (
             torch.zeros(
-                len(align_prior_matrices_list),
-                max([prior_i.shape[0] for prior_i in align_prior_matrices_list]),
-                max([prior_i.shape[1] for prior_i in align_prior_matrices_list]),
+                len(duration_priors_list),
+                max([prior_i.shape[0] for prior_i in duration_priors_list]),
+                max([prior_i.shape[1] for prior_i in duration_priors_list]),
             )
-            if AlignPriorMatrix in self.sup_data_types_set
+            if DurationPrior in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids = [], [], [], [], [], [], []
+        audios, tokens, log_mels, durations_list, pitches, voiced_masks, p_voiceds, energies, speaker_ids = [], [], [], [], [], [], [], [], []
 
         for i, sample_tuple in enumerate(batch):
             (
@@ -501,9 +520,11 @@ class TTSDataset(Dataset):
                 log_mel,
                 log_mel_len,
                 durations,
-                align_prior_matrix,
+                duration_prior,
                 pitch,
                 pitch_length,
+                voiced_mask, 
+                p_voiced,
                 energy,
                 energy_length,
                 speaker_id,
@@ -519,12 +540,14 @@ class TTSDataset(Dataset):
                 log_mels.append(general_padding(log_mel, log_mel_len, max_log_mel_len, pad_value=log_mel_pad))
             if Durations in self.sup_data_types_set:
                 durations_list.append(general_padding(durations, len(durations), max_durations_len))
-            if AlignPriorMatrix in self.sup_data_types_set:
-                align_prior_matrices[
-                    i, : align_prior_matrix.shape[0], : align_prior_matrix.shape[1]
-                ] = align_prior_matrix
+            if DurationPrior in self.sup_data_types_set:
+                duration_priors[i, : duration_prior.shape[0], : duration_prior.shape[1]] = duration_prior
             if Pitch in self.sup_data_types_set:
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
+            if Pitch in self.sup_data_types_set:
+                voiced_masks.append(general_padding(voiced_mask, pitch_length.item(), max_pitches_len))
+            if Pitch in self.sup_data_types_set:
+                p_voiceds.append(general_padding(voiced_mask, pitch_length.item(), max_pitches_len))
             if Energy in self.sup_data_types_set:
                 energies.append(general_padding(energy, energy_length.item(), max_energies_len))
             if SpeakerID in self.sup_data_types_set:
@@ -538,14 +561,15 @@ class TTSDataset(Dataset):
             "log_mel": torch.stack(log_mels) if LogMel in self.sup_data_types_set else None,
             "log_mel_lens": torch.stack(log_mel_lengths) if LogMel in self.sup_data_types_set else None,
             "durations": torch.stack(durations_list) if Durations in self.sup_data_types_set else None,
-            "align_prior_matrix": align_prior_matrices if AlignPriorMatrix in self.sup_data_types_set else None,
+            "duration_prior": duration_priors if DurationPrior in self.sup_data_types_set else None,
             "pitch": torch.stack(pitches) if Pitch in self.sup_data_types_set else None,
             "pitch_lens": torch.stack(pitches_lengths) if Pitch in self.sup_data_types_set else None,
+            "voiced_mask": torch.stack(voiced_masks) if Pitch in self.sup_data_types_set else None,
+            "p_voiced": torch.stack(p_voiceds) if Pitch in self.sup_data_types_set else None,
             "energy": torch.stack(energies) if Energy in self.sup_data_types_set else None,
             "energy_lens": torch.stack(energies_lengths) if Energy in self.sup_data_types_set else None,
             "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
         }
-
         return data_dict
 
     def _collate_fn(self, batch):
@@ -557,7 +581,6 @@ class TTSDataset(Dataset):
 class MixerTTSDataset(TTSDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
     def _albert(self):
         from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
 
@@ -567,12 +590,12 @@ class MixerTTSDataset(TTSDataset):
 
         self.id2lm_tokens = {}
         for i, d in enumerate(self.data):
-            normalized_text = d["normalized_text"]
+            raw_text = d["raw_text"]
 
             assert isinstance(self.text_tokenizer, EnglishPhonemesTokenizer) or isinstance(
                 self.text_tokenizer, EnglishCharsTokenizer
             )
-            preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(normalized_text)
+            preprocess_text_as_tts_input = self.text_tokenizer.text_preprocessing_func(raw_text)
 
             lm_tokens_as_ids = self.lm_model_tokenizer.encode(preprocess_text_as_tts_input, add_special_tokens=False)
 
@@ -600,9 +623,11 @@ class MixerTTSDataset(TTSDataset):
             log_mel,
             log_mel_length,
             durations,
-            align_prior_matrix,
+            duration_prior,
             pitch,
             pitch_length,
+            voiced_mask,
+            p_voiced,
             energy,
             energy_length,
             speaker_id,
@@ -611,7 +636,7 @@ class MixerTTSDataset(TTSDataset):
         lm_tokens = None
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.tensor(self.id2lm_tokens[index]).long()
-
+        #print("audio_lenght mixedtts", audio_length)
         return (
             audio,
             audio_length,
@@ -620,9 +645,11 @@ class MixerTTSDataset(TTSDataset):
             log_mel,
             log_mel_length,
             durations,
-            align_prior_matrix,
+            duration_prior,
             pitch,
             pitch_length,
+            voiced_mask,
+            p_voiced,
             energy,
             energy_length,
             speaker_id,
@@ -631,9 +658,9 @@ class MixerTTSDataset(TTSDataset):
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
-        data_dict = self.general_collate_fn(list(zip(*batch[:13])))
-        lm_tokens_list = batch[13]
-
+        data_dict = self.general_collate_fn(list(zip(*batch[:15])))
+        lm_tokens_list = batch[15]
+    
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.full(
                 (len(lm_tokens_list), max([lm_tokens.shape[0] for lm_tokens in lm_tokens_list])),
@@ -643,6 +670,23 @@ class MixerTTSDataset(TTSDataset):
                 lm_tokens[i, : lm_tokens_i.shape[0]] = lm_tokens_i
 
             data_dict[LMTokens.name] = lm_tokens
-
+       
         joined_data = self.join_data(data_dict)
-        return joined_data
+        joined_data_dict = {
+            "audio": joined_data[0],
+            "audio_lens": joined_data[1],
+            "text": joined_data[2],
+            "text_lens": joined_data[3],
+            "log_mel": joined_data[4],
+            "log_mel_lens": joined_data[5],
+            "duration_prior": joined_data[6],
+            "pitch": joined_data[7],
+            "pitch_lens":joined_data[8],
+            "voiced_mask": joined_data[9],
+            "p_voiced": joined_data[10],
+            "energy": joined_data[11],
+            "energy_lens":joined_data[12],
+            "speaker_id": joined_data[13],
+            "lm_token":joined_data[14], }
+        #print("audio_lens", joined_data_dict["audio_lens"])
+        return joined_data_dict
