@@ -63,7 +63,6 @@ class PTuneTextClassificationDataset(Dataset):
                 json_data.append({'sentence': line + f' {prompt} ', 'label': ''})
         self.data = json_data
 
-
     def __len__(self):
         return len(self.data)
 

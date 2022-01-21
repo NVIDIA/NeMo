@@ -99,7 +99,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         # set allowed vocab set
         self.vocab = self.tokenizer.tokenizer.get_vocab()
 
-        #make sure classes are part of the vocab
+        # make sure classes are part of the vocab
         for k in cfg.dataset.classes:
             if token_wrapper(k) not in self.vocab:
                 logging.error(f'class {k} is not part of the vocabulary. Please add it to your vocab')
@@ -249,7 +249,9 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
         batch_size, _, seq_len, _ = new_atten.shape
 
-        output = self.model.model(None, None, encoder_input=encoder_input.to(self.device), attention_mask=new_atten.to(self.device))
+        output = self.model.model(
+            None, None, encoder_input=encoder_input.to(self.device), attention_mask=new_atten.to(self.device)
+        )
         logits = output
 
         _, returned_pred = self.get_prediction(batch_size, label_position.to(self.device), logits)
