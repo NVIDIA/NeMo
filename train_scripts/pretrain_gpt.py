@@ -53,7 +53,7 @@ def main(cfg):
 
     bignlp_path = cfg["bignlp_path"]
     training_config = cfg["training_config"]
-    code_dir = cfg["code_dir"] # TODO: CHECK
+    code_dir = "/opt/bignlp/NeMo"
     code_path = (
         f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
     )
@@ -64,16 +64,16 @@ def main(cfg):
     
     cmd_prefix = f'cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"'
     
-    if cfg["cluster_type"] == "bcm":
+    if cfg.cluster_type == "bcm":
         cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
-    else if cfg["cluster_type"] == "bcp":
+    else if cfg.cluster_type == "bcp":
         pause_and_prime_dns_connections()
         cmd = f'{cmd_prefix}; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     
-    if int(os.environ.get("RANK")) == 0:
-        print(f'Command is: {cmd}\n')
-    else:
-        print(f' Command-prefix at R{os.environ.get("RANK")} is: {cmd_prefix}\n')
+        if int(os.environ.get("RANK")) == 0:
+            print(f'Command is: {cmd}\n')
+        else:
+            print(f' Command-prefix at R{os.environ.get("RANK")} is: {cmd_prefix}\n')
               
     os.system(f"{cmd}")
 

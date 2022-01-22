@@ -1,10 +1,8 @@
 run:
   name: 126m
-  log_dir: /workspace-scripts/results/${.name}
-  results_dir: ${.log_dir}
-  time_limit: "1-12:00:00"
+  log_dir: ${cluster.base_log_dir}/train_scripts/logs/${.name}
+  time_limit: "4:00:00"
   dependency: "singleton"
-  time_limit_bcp: "1D12H"
 
 trainer:
   num_nodes: 8

@@ -1,7 +1,5 @@
-slurm:
-  partition: null
-  account: null
-  time_limit: "1-12:00:00"
-  exclusive: True
-  job_name_prefix: "bignlp-"
-
+partition: luna
+account: joc
+base_log_dir: ${bignlp_path}
+exclusive: True
+job_name_prefix: "joc-big_nlp:"

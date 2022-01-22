@@ -102,12 +102,9 @@ def run_training(cfg, hydra_args="", dependency=None):
 
     # Run parameters
     name = run_cfg.name
-    results_dir = run_cfg.results_dir
     log_dir = run_cfg.log_dir
     time_limit = run_cfg.time_limit
     
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     
@@ -118,15 +115,14 @@ def run_training(cfg, hydra_args="", dependency=None):
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.gpus
-    gpus_per_task = ntasks_per_node
+    gpus_per_task = None # ntasks_per_node
 
     # BCM parameters
     if cfg.cluster_type == "bcm":
-        slurm_cfg = cluster_cfg.slurm
-        partition = slurm_cfg.partition
-        account = slurm_cfg.account
-        exclusive = slurm_cfg.exclusive
-        job_name_prefix = slurm_cfg.job_name_prefix
+        partition = cluster_cfg.partition
+        account = cluster_cfg.account
+        exclusive = cluster_cfg.exclusive
+        job_name_prefix = cluster_cfg.job_name_prefix
         if dependency is None:
             dependency = run_cfg.dependency
         job_name = job_name_prefix + name
@@ -153,8 +149,6 @@ def run_training(cfg, hydra_args="", dependency=None):
             flags=flags,
             dependency=dependency,
             exclusive=exclusive,
-            mem=mem,
-            overcommit=overcommit,
             time=time_limit,
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,

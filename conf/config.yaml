@@ -19,9 +19,8 @@ run_evaluation: False
 
 cluster_type: bcm  # bcm or bcp
 training_config: 126m  # Must match - training above.
-bignlp_path: /workspace-scripts/bignlp-scripts # Path should end with bignlp-scripts
+bignlp_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/unify_bcm_bcp/bignlp-scripts # Path should end with bignlp-scripts
 data_dir: /workspace-common/data/the_pile  # Location to store and read the data. Absolute or relative
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
 container: nvcr.io/ea-bignlp/bignlp-training:21.12-py3
-code_dir: /opt/bignlp/NeMo

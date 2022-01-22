@@ -1,28 +1,20 @@
-bcp:
-  job_name: bignlp-${evaluation.run.name}
+run:
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "4:00:00"
   nodes: 1
   ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
   gpus_per_task: null
-  time_limit: "4H"
-  instance: "dgxa100.40g.8.norm"
-  workspace_common: "bignlp_ws_common"
-  workspace_scripts: "bignlp_ws_scripts_mk"
-  
-run:
-  name: ${.eval_name}_${.model_train_name}
-  eval_name: "eval_lambada"
-  convert_name: "convert_nemo"
-  model_train_name: "126m-8g1"
+  eval_name: eval_lambada
+  convert_name: convert_nemo
+  model_train_name: 126m
   tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
-  results_dir: /workspace-scripts/results/${.model_train_name}
-  checkpoints_dir: ${.results_dir}/${.convert_name}
-  output_path: ${.results_dir}/${.eval_name}
+  output_path: ${cluster.job_name_prefix}/eval_scripts/logs
 
 model:
   type: nemo-gpt3
   # path of checkpoint; must be .nemo file
-  checkpoint_path: ${evaluation.run.checkpoints_dir}/megatron_gpt.nemo 
+  checkpoint_path: ${cluster.job_name_prefix}/conversion_scripts/checkpoints/{evaluation.run.model_train_name}/megatron_gpt.nemo 
   tensor_model_parallel_size: 1 #1 for 126m, 2 for 5b
-  eval_batch_size: 1
+  eval_batch_size: 16
   vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
   merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
