@@ -30,19 +30,15 @@ from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
+from nemo.utils.apex_check import is_megatron_supported
 
-try:
+if is_megatron_supported():
+    from nemo.collections.nlp.modules.common.megatron.module import Float16Module
     from apex.transformer import parallel_state
 
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -67,8 +63,8 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not is_megatron_supported():
+            logging.warning("Apex was not found or not recent. Using model parallel or megatron models will error out.")
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -201,8 +197,8 @@ class NLPDDPPlugin(DDPPlugin):
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         super().__init__()
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+        if not is_megatron_supported():
+            logging.warning("Apex was not found or not recent. Using model parallel or megatron models will error out.")
 
     def save_to(self, model, save_path: str):
         app_state = AppState()

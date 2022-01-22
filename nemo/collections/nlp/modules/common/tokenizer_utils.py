@@ -24,16 +24,11 @@ from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.lm_utils import get_pretrained_lm_models_list
-from nemo.collections.nlp.parts.nlp_overrides import HAVE_APEX
 from nemo.utils import logging
+from nemo.utils.apex_check import is_megatron_supported
 
-try:
+if is_megatron_supported():
     from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_tokenizer
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 
 __all__ = ['get_tokenizer', 'get_tokenizer_list']
@@ -89,7 +84,7 @@ def get_tokenizer(
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
         bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation
             procedure of BPE to help
-            model better learn word compositionality and become robust to segmentation errors. 
+            model better learn word compositionality and become robust to segmentation errors.
             It has emperically been shown to improve inference time BLEU scores.
     """
     if special_tokens is None:
@@ -98,8 +93,8 @@ def get_tokenizer(
         special_tokens_dict = special_tokens
 
     if 'megatron' in tokenizer_name:
-        if not HAVE_APEX:
-            raise RuntimeError("Apex required to use megatron.")
+        if not is_megatron_supported():
+            raise RuntimeError("Recent version of apex required to use megatron.")
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
