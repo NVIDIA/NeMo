@@ -67,7 +67,9 @@ class GradBucket(object):
 
     def __init__(self, numel):
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         self.numel = numel
         self.data = torch.zeros(self.numel, dtype=torch.float, device=torch.cuda.current_device(), requires_grad=False)
@@ -110,7 +112,9 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         self, optimizer, fp32_grad_accum=False, contiguous_grad_bucket=False, async_grad_allreduce=False,
     ):
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         self.optimizer = optimizer
         assert self.optimizer, 'no optimizer is provided.'
