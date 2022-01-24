@@ -879,10 +879,10 @@ class ModelPT(LightningModule, Model):
 
         # Restore checkpoint part into current model
         self.load_state_dict(dict_to_load, strict=False)
-        logging.info(f'Model checkpoint partially restored from `{load_from_string}``')
+        logging.info(f'Model checkpoint partially restored from {load_from_string}')
         if len(excluded_param_names) > 0:
             logging.info(
-                f'The following parameters were excluded from loading from `{load_from_string}` : `{excluded_param_names}` `'
+                f'The following parameters were excluded from loading from {load_from_string} : {excluded_param_names}'
             )
             logging.info(f'Make sure that this is what you wanted!')
 
@@ -958,7 +958,7 @@ class ModelPT(LightningModule, Model):
                             model_path, map_location=map_location, strict=cfg.get("init_strict", True)
                         )
 
-                        include = model_load_cfg.pop('include', [])
+                        include = model_load_cfg.pop('include', [""])
                         exclude = model_load_cfg.pop('exclude', [])
 
                         self.load_part_of_state_dict(
@@ -1005,7 +1005,7 @@ class ModelPT(LightningModule, Model):
                             model_name, map_location=map_location, strict=cfg.get("init_strict", True)
                         )
 
-                        include = model_load_cfg.pop('include', [])
+                        include = model_load_cfg.pop('include', [""])
                         exclude = model_load_cfg.pop('exclude', [])
 
                         self.load_part_of_state_dict(
@@ -1038,7 +1038,7 @@ class ModelPT(LightningModule, Model):
                         # Restore model
                         ckpt = torch.load(ckpt_path, map_location=map_location)
 
-                        include = model_load_cfg.pop('include', [])
+                        include = model_load_cfg.pop('include', [""])
                         exclude = model_load_cfg.pop('exclude', [])
 
                         self.load_part_of_state_dict(
