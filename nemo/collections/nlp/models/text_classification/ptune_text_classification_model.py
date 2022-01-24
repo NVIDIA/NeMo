@@ -331,6 +331,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         logging.info(f'{prefix}_report: {report}')
         logging.info(f'{total_hit} correct out of {total_data}, accuracy: {accuracy*100:.2f}')
         self.log(f'{prefix}_loss', avg_loss, prog_bar=True)
+        self.log(f'{prefix}_accuracy', accuracy)
         self.log(f'{prefix}_precision', precision)
         self.log(f'{prefix}_f1', f1)
         self.log(f'{prefix}_recall', recall)
