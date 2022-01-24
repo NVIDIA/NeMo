@@ -66,7 +66,8 @@ def main(cfg):
     
     if cfg.cluster_type == "bcm":
         cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
-    else if cfg.cluster_type == "bcp":
+        cmd = f'{cmd_prefix}; python3 {code_path} {hydra_train_args} {flags}'
+    elif cfg.cluster_type == "bcp":
         pause_and_prime_dns_connections()
         cmd = f'{cmd_prefix}; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     

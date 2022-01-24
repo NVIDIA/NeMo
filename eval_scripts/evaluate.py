@@ -37,7 +37,8 @@ def create_slurm_file(
         if account is not None:
             f.writelines(f"#SBATCH -A {account}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
-        f.writelines(f"#SBATCH --mem={mem}\n")
+        if mem is not None:
+            f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
         if overcommit:
@@ -128,6 +129,7 @@ def run_evaluation(cfg, dependency=None):
         base_log_dir = cfg.cluster.base_log_dir
         exclusive = cfg.cluster.exclusive
         job_name_prefix = cfg.cluster.job_name_prefix
+        job_name = os.path.join(job_name_prefix, name)
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path}"
@@ -175,8 +177,8 @@ def run_evaluation(cfg, dependency=None):
             flags=flags,
             dependency=dependency,
             exclusive=exclusive,
-            mem=mem,
-            overcommit=overcommit,
+            mem=None,
+            overcommit=None,
             time=time_limit,
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,

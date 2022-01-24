@@ -37,7 +37,8 @@ def create_slurm_file(
         if account is not None:
             f.writelines(f"#SBATCH -A {account}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
-        f.writelines(f"#SBATCH --mem={mem}\n")
+        if mem is not None:
+            f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
         if overcommit:
@@ -103,13 +104,14 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     gpus_per_task = run_cfg.gpus_per_task
     convert_name = run_cfg.convert_name
     model_train_name = run_cfg.model_train_name
-    results_dir = run_cfg.results_dir
     output_path = run_cfg.output_path
+    log_dir = run_cfg.log_dir
     nemo_file_name = run_cfg.nemo_file_name
     
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    log_dir = output_path
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
     new_script_path = os.path.join(bignlp_path, f"conversion_scripts/{name}.sh")
     code_path = os.path.join(bignlp_path, "conversion_scripts/convert_ckpt.py")
@@ -139,13 +141,13 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         )
         create_slurm_file(
             new_script_path=new_script_path,
-            convert_cmd=convert_cmd,
+            convert_cmd=cmd_str,
             job_name=job_name,
             flags=flags,
             dependency=dependency,
             exclusive=exclusive,
-            mem=mem,
-            overcommit=overcommit,
+            mem=None,
+            overcommit=None,
             time=time_limit,
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
