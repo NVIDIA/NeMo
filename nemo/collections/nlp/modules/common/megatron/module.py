@@ -15,9 +15,20 @@
 """Megatron Module"""
 
 import torch
-from apex.transformer import parallel_state, tensor_parallel
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
+
+from nemo.utils import logging
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
@@ -34,6 +45,12 @@ class MegatronModule(torch.nn.Module):
 
     def __init__(self, share_word_embeddings=True):
         super(MegatronModule, self).__init__()
+
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         self.share_word_embeddings = share_word_embeddings
 
     def word_embeddings_weight(self):
@@ -140,6 +157,10 @@ def float16_to_fp32(val):
 class Float16Module(MegatronModule):
     def __init__(self, module, precision):
         super().__init__()
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         self.precision = precision
 
         if precision == 16:
