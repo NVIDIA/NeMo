@@ -1,20 +1,8 @@
-from logging import disable
-import os
-
-import transformers
 from lm_eval.base import LM
 from lm_eval import utils
-import sys
-from tqdm import tqdm
-import time
 import torch
 import torch.nn.functional as F
-import re
-from argparse import ArgumentParser
 from pytorch_lightning.trainer.trainer import Trainer
-from hydra import compose, initialize
-from omegaconf import OmegaConf
-import hydra
 from torch.utils.data import Dataset, DataLoader
 
 try:

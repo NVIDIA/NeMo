@@ -1,7 +1,6 @@
 import argparse
 import json
 from typing import Union
-import numpy as np
 import random
 import logging
 import sys
@@ -10,7 +9,6 @@ import string
 import time
 from datetime import datetime
 import subprocess
-import torch
 
 
 from lm_eval import models, tasks, evaluator, base, utils
