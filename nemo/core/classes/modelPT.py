@@ -899,15 +899,26 @@ class ModelPT(LightningModule, Model):
 
                 path: Str path to .nemo model
 
-                include: List of strings, at least one of which needs to be contained in parameter name
-                to be loaded from this .nemo file
+                include: Optional list of strings, at least one of which needs to be contained in parameter name
+                to be loaded from this .nemo file. Default: everything is included.
 
                 exclude: Optional list of strings, which can be used to exclude any parameter containing one of
-                these strings from being loaded from this .nemo file
+                these strings from being loaded from this .nemo file. Default: nothing is excluded.
+
+                hydra usage example:
+
+                init_from_nemo_model:
+                    model0:
+                        path:<path/to/model1>
+                        include:["encoder"]
+                    model1:
+                        path:<path/to/model2>
+                        include:["decoder"]
+                        exclude:["embed"]
 
             init_from_pretrained_model: Str name of a pretrained model checkpoint (obtained via cloud).
                 The model will be downloaded (or a cached copy will be used), instantiated and then
-                its state dict will be extracted. If loading from multiple files, you can pass in a dict
+                its state dict will be extracted. If loading from multiple models, you can pass in a dict
                 with the same format as for init_from_nemo_model, except with "name" instead of "path"
 
             init_from_ptl_ckpt: Str name of a Pytorch Lightning checkpoint file. It will be loaded and
