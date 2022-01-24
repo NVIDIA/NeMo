@@ -56,5 +56,5 @@ __all__ = [
     "FastSpeech2HifiGanE2EModel",
     "AlignerModel",
     "MixerTTSModel",
-    "UnivNetModel"
+    "UnivNetModel",
 ]

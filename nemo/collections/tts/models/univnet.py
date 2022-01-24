@@ -38,6 +38,7 @@ try:
 except ModuleNotFoundError:
     HAVE_WANDB = False
 
+
 class UnivNetModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -49,8 +50,9 @@ class UnivNetModel(Vocoder):
         # 1. we need to pass grads
         # 2. we need remove fmax limitation
         self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
-        self.generator = instantiate(cfg.generator,
-                                     n_mel_channels=cfg.preprocessor.nfilt, hop_length=cfg.preprocessor.n_window_stride)
+        self.generator = instantiate(
+            cfg.generator, n_mel_channels=cfg.preprocessor.nfilt, hop_length=cfg.preprocessor.n_window_stride
+        )
         self.mpd = MultiPeriodDiscriminator(cfg.discriminator.mpd, debug=cfg.debug if "debug" in cfg else False)
         self.mrd = MultiResolutionDiscriminator(cfg.discriminator.mrd, debug=cfg.debug if "debug" in cfg else False)
 
@@ -152,8 +154,7 @@ class UnivNetModel(Vocoder):
 
         # train generator
         self.optim_g.zero_grad()
-        loss_sc, loss_mag = self.mrstft_loss(
-            x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len)
+        loss_sc, loss_mag = self.mrstft_loss(x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len)
         loss_sc = torch.stack(loss_sc).mean()
         loss_mag = torch.stack(loss_mag).mean()
         loss_mrstft = (loss_sc + loss_mag) * self.stft_lamb

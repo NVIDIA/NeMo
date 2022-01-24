@@ -16,8 +16,8 @@
 #                   --audio_folder=<source data>
 #                   --dest_folder=<where to store the results>
 import argparse
-import os
 import json
+import os
 import subprocess
 
 parser = argparse.ArgumentParser(description="Processing Aishell2 Data")
