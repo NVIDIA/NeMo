@@ -512,7 +512,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
                     _ = closure()
             else:
                 _ = closure()
-                # optimizer.allreduce_main_grads()
+                optimizer.allreduce_main_grads()
 
             self._after_closure(model, optimizer, optimizer_idx)
             return optimizer.step(**kwargs)
