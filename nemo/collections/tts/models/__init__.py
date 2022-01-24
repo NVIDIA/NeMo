@@ -30,6 +30,7 @@ try:
     from nemo.collections.tts.models.uniglow import UniGlowModel
     from nemo.collections.tts.models.waveglow import WaveGlowModel
     from nemo.collections.tts.models.mixer_tts import MixerTTSModel
+    from nemo.collections.tts.models.univnet import UnivNetModel
 except ModuleNotFoundError:
     pass
 
@@ -55,4 +56,5 @@ __all__ = [
     "FastSpeech2HifiGanE2EModel",
     "AlignerModel",
     "MixerTTSModel",
+    "UnivNetModel",
 ]
