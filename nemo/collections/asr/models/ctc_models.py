@@ -170,6 +170,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
+            if self.cfg.decoder.num_classes < 1 and self.cfg.decoder.vocabulary is not None:
+                logging.info(
+                    "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                        self.cfg.decoder.num_classes, len(self.cfg.decoder.vocabulary)
+                    )
+                )
+                cfg.decoder["num_classes"] = len(self.cfg.decoder.vocabulary)
+
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 
         self.loss = CTCLoss(
