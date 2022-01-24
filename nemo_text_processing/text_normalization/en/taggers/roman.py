@@ -69,11 +69,11 @@ class RomanFst(GraphFst):
         default_graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
 
         if lm:
-
-            proper_names = pynini.string_map(load_labels(get_abs_path("data/roman/proper_names.tsv"))).optimize()
+            names = pynini.string_map(load_labels(get_abs_path("data/roman/male.tsv"))).optimize()
+            names |= pynini.string_map(load_labels(get_abs_path("data/roman/female.tsv"))).optimize()
             graph = (
                 pynutil.insert("key_the_ordinal: \"")
-                + proper_names
+                + names
                 + pynutil.insert("\"")
                 + pynini.accep(" ")
                 + default_graph
@@ -86,7 +86,14 @@ class RomanFst(GraphFst):
                 + pynini.accep(" ")
                 + default_graph
             )
-            graph |= pynini.difference(NEMO_SIGMA, pynini.union(key_words, proper_names)) + default_graph
+            graph |= pynini.difference(NEMO_SIGMA, pynini.union(key_words, names)) + default_graph
+
+            # two and more roman numerals, single digit roman numbers could be initials or I
+            graph |= pynini.compose(
+                pynini.closure(NEMO_ALPHA, 2), (pynutil.insert("default_cardinal: \"default\" ") + default_graph)
+            )
+            # from pynini.lib.rewrite import top_rewrites
+            # import pdb; pdb.set_trace()
             default_graph = graph
 
         graph = self.add_tokens(default_graph)

@@ -89,7 +89,7 @@ def get_hundreds_graph(deterministic: bool = True):
             weight=-0.001,
         )
     )
-    return graph
+    return graph.optimize()
 
 
 def _get_year_graph(deterministic: bool = True):
@@ -106,7 +106,7 @@ def _get_year_graph(deterministic: bool = True):
         + NEMO_DIGIT
         + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)
     ) @ graph
-    return graph
+    return graph.optimize()
 
 
 class DateFst(GraphFst):
@@ -126,7 +126,7 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool):
+    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
@@ -172,7 +172,20 @@ class DateFst(GraphFst):
 
         two_digit_year = NEMO_DIGIT ** (2) @ (cardinal.single_digits_graph | cardinal_graph)
         two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
+
+        # if lm:
+        #     two_digit_year = pynini.compose(pynini.difference(NEMO_DIGIT, "0") + NEMO_DIGIT ** (3), two_digit_year)
+        #     year_graph = pynini.compose(pynini.difference(NEMO_DIGIT, "0") + NEMO_DIGIT ** (2), year_graph)
+        #     year_graph |= pynini.compose(pynini.difference(NEMO_DIGIT, "0") + NEMO_DIGIT ** (4, ...), year_graph)
+
         graph_year = pynutil.insert(" year: \"") + pynutil.delete(" ") + year_graph + pynutil.insert("\"")
+        graph_year |= (
+            pynutil.insert(" year: \"")
+            + pynini.accep(",")
+            + pynini.closure(pynini.accep(" "), 0, 1)
+            + year_graph
+            + pynutil.insert("\"")
+        )
         optional_graph_year = pynini.closure(graph_year, 0, 1)
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
 
@@ -183,6 +196,8 @@ class DateFst(GraphFst):
             | (delete_extra_space + day_graph + graph_year)
         )
 
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
         delete_sep = pynutil.delete(pynini.union("-", "/", "."))
         graph_mdy |= (
             month_numbers_graph
@@ -220,6 +235,17 @@ class DateFst(GraphFst):
 
         final_graph |= graph_ymd | year_graph_standalone
 
+        # from pynini.lib.rewrite import top_rewrites
+        # import pdb; pdb.set_trace()
+        # print()
+
+        if lm:
+            final_graph |= (
+                pynutil.insert("year: \"")
+                + pynini.union("in ", "In ", "IN ")
+                + pynutil.add_weight(year_graph, YEAR_WEIGHT)
+                + pynutil.insert("\"")
+            )
         if not deterministic:
             ymd_to_mdy_graph = None
             ymd_to_dmy_graph = None

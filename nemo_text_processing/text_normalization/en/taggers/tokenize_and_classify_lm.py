@@ -118,7 +118,7 @@ class ClassifyFst(GraphFst):
             # use False deterministic for measure to add range graph to cardinal options
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
             measure_graph = measure.fst
-            date_graph = DateFst(cardinal=cardinal, deterministic=False).fst
+            date_graph = DateFst(cardinal=cardinal, deterministic=True, lm=True).fst
             word_graph = WordFst(deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
             telephone_graph = TelephoneFst(deterministic=True).fst
@@ -145,27 +145,42 @@ class ClassifyFst(GraphFst):
             v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic, lm=True).fst
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
-            v_abbreviation = vAbbreviation(deterministic=deterministic).fst
 
             classify_and_verbalize = (
                 pynutil.add_weight(whitelist_graph, 1.01)
-                    | pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                    | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
+                | pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
             ).optimize()
+
+            # classify = (
+            #         pynutil.add_weight(whitelist_graph, 1.01)
+            #         | pynutil.add_weight(time_graph, 1.1)
+            #         | pynutil.add_weight(decimal_graph, 1.1)
+            #         | pynutil.add_weight(measure_graph, 1.1)
+            #         | pynutil.add_weight(cardinal_graph, 1.1)
+            #         | pynutil.add_weight(ordinal_graph, 1.1)
+            #         | pynutil.add_weight(telephone_graph, 1.1)
+            #         | pynutil.add_weight(electronic_graph, 1.1)
+            #         | pynutil.add_weight(fraction_graph, 1.1)
+            #         | pynutil.add_weight(money_graph, 1.1)
+            #         | pynutil.add_weight(date_graph, 1.09)
+            # ).optimize()
+            # classify_and_verbalize = classify
 
             roman_graph = RomanFst(deterministic=deterministic, lm=True).fst
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 98)
-            abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
-            classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
+
+            # abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
+            # classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)

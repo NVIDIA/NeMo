@@ -189,4 +189,11 @@ class CardinalFst(GraphFst):
         serial_graph |= (
             num_graph + delimiter + num_graph + delimiter + num_graph + pynini.closure(delimiter + num_graph)
         )
+
+        # exclude ordinal numbers from serial options
+        endings = ["rd", "th", "st", "nd"]
+        endings += [x.upper() for x in endings]
+        serial_graph = pynini.compose(
+            pynini.difference(NEMO_SIGMA, pynini.closure(NEMO_DIGIT, 1) + pynini.union(*endings)), serial_graph
+        )
         return pynutil.add_weight(serial_graph, 2)

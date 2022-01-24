@@ -55,17 +55,25 @@ class RomanFst(GraphFst):
             ).optimize()
 
             graph |= (
-                    pynutil.delete("key_the_ordinal: \"")
-                    + pynini.closure(NEMO_NOT_QUOTE, 1)
-                    + pynutil.delete("\"")
-                    + pynini.accep(" ")
-                    + pynutil.delete("integer: \"")
-                    + pynutil.insert("the ")
-                    + ordinal
-                    + pynutil.delete("\"")
+                pynutil.delete("default_cardinal: \"default\" integer: \"") + cardinal + pynutil.delete("\"")
+            ).optimize()
+
+            graph |= (
+                pynutil.delete("key_the_ordinal: \"")
+                + pynini.closure(NEMO_NOT_QUOTE, 1)
+                + pynutil.delete("\"")
+                + pynini.accep(" ")
+                + pynutil.delete("integer: \"")
+                + pynutil.insert("the ")
+                + ordinal
+                + pynutil.delete("\"")
             ).optimize()
         else:
-            graph = pynutil.delete("integer: \"") + (cardinal | ordinal | ordinal_with_the).optimize() + pynutil.delete("\"")
+            graph = (
+                pynutil.delete("integer: \"")
+                + (cardinal | ordinal | ordinal_with_the).optimize()
+                + pynutil.delete("\"")
+            )
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
