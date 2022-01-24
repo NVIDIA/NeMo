@@ -22,33 +22,21 @@ from torch.cuda import amp
 from nemo.collections.tts.losses.radttsloss import RadTTSLoss
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss
 from nemo.collections.tts.modules.radtts import RadTTSModule
-#from flowtron_p import FlowtronP
-#from data import Data, DataCollate
-#from flowtron_logger import FlowtronLogger
-#from flowtron_plotting_utils import plot_alignment_to_numpy
 from nemo.collections.tts.modules.alignment import plot_alignment_to_numpy
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 
 from nemo.collections.tts.helpers.radam import RAdam
 from timeit import default_timer as timer
 import hashlib
-#from common import update_params
-
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingWarmRestarts
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-
-# =====START: ADDED FOR DISTRIBUTED======
-#from distributed import init_distributed, apply_gradient_allreduce, reduce_tensor
-#from torch.utils.data.distributed import DistributedSampler
-# =====END:   ADDED FOR DISTRIBUTED======
 import pytorch_lightning as pl
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-#from pytorch_lightning import LightningModule
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.core.classes import Exportable
@@ -84,7 +72,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                                       self.train_config.mask_unvoiced_f0)
         
         self.attention_kl_loss = AttentionBinarizationLoss()
-        self.model = RadTTSModule(**self.model_config)
+        self.model = instantiate(cfg.modelConfig)
         self._parser = None
         self._tb_logger = None
         self.cfg = cfg
@@ -387,15 +375,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         """Omitted."""
         pass
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
-        # FIXME: return masks as well?
         self.eval()
         s = [0]
-        speaker = torch.tensor(s).long()#.to(self.device)
-        use_amp = True
-        with amp.autocast(use_amp):
-            with torch.no_grad():
-                outputs = self.model.infer_complete(
-                    speaker, tokens, sigma = 0.8, sigma_txt = 0.666, sigma_feats = 0.666,
+        speaker = torch.tensor(s).long().cuda()#.to(self.device)
+        outputs = self.model.infer_complete(speaker, tokens, sigma = 0.8, sigma_txt = 0.666, sigma_feats = 0.666,
                     token_dur_scaling = 1.00, token_duration_max=100, f0_mean=0.00,
                     f0_std=0.00, energy_mean=0.00,
                     energy_std=0.00)

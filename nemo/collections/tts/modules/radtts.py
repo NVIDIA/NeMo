@@ -224,25 +224,17 @@ class RadTTSModule(torch.nn.Module):
 
     def encode_speaker(self, spk_ids):
         spk_ids = spk_ids * 0 if self.dummy_speaker_embedding else spk_ids
-        #print("spk_ids embedding", spk_ids)
         spk_vecs = self.speaker_embedding(spk_ids)
         return spk_vecs
 
     def encode_text(self, text, in_lens):
         # text_embeddings: b x len_text x n_text_dim
-        #print("text inside encode",text)
-        #print("in_lens inside encode", in_lens)
         text_embeddings = self.embedding(text).transpose(1, 2)
         # text_enc: b x n_text_dim x encoder_dim (512)
-        #print("doooooooooooooooooooooonnnnnnnnnnnnnnnneeeeee")
-        #print("text_embeddings", text_embeddings)
-        #print("text_embeddings size", text_embeddings.size())
-        #print("in_lens size", in_lens.size())
         if in_lens is None:
             text_enc = self.encoder.infer(text_embeddings).transpose(1, 2)
         else:
             text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
-        #print("doooooooooooooooooooooonnnnnnnnnnnnnnnneeeeee  2222")
         return text_enc, text_embeddings
 
     def preprocess_context(self, context, speaker_vecs, out_lens=None, f0=None,
@@ -266,18 +258,14 @@ class RadTTSModule(torch.nn.Module):
                 if energy_avg is not None:
                     context_w_spkvec = torch.cat(
                         (context_w_spkvec, energy_avg), 1)
-            #print("out_lens", out_lens)
             unfolded_out_lens = (out_lens // self.n_group_size).long().cpu()
             
-            #print("unfolded_out_lens", unfolded_out_lens)
             unfolded_out_lens_packed = nn.utils.rnn.pack_padded_sequence(
                 context_w_spkvec.transpose(1, 2), unfolded_out_lens,
                 batch_first=True, enforce_sorted=False)
             self.context_lstm.flatten_parameters()
-            #print("unfolded_out_lens_packed", unfolded_out_lens_packed)
             context_lstm_packed_output, _ = self.context_lstm(
                 unfolded_out_lens_packed)
-            #print("context_lstm_packed_output", context_lstm_packed_output)
             context_lstm_padded_output, dc = nn.utils.rnn.pad_packed_sequence(
                 context_lstm_packed_output, batch_first=True)
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
@@ -333,17 +321,9 @@ class RadTTSModule(torch.nn.Module):
     def forward(self, mel, speaker_ids, text, in_lens, out_lens,
                 binarize_attention=False, attn_prior=None, aug_idxs=None,
                 f0=None, energy_avg=None, voiced_mask=None, p_voiced=None):
-        # disable_aug to true for the validation loop
-        #print("speaker size y", speaker_ids.size())
-        #print("speaker", speaker_ids)
-        #print("text size before", text.size())
-        #print("text before", text)
         speaker_vecs = self.encode_speaker(speaker_ids)
         # set the indicator flags to indicate augmentation
         speaker_vecs = self.set_speaker_vec_aug_index(speaker_vecs, aug_idxs)
-        #print("text size y", text.size())
-        #print("text", text)
-        #print("in_lens", in_lens)
         text_enc, text_embeddings = self.encode_text(text, in_lens)
         if self.use_text_conditional_priors:
             text_conditional_priors = self.prior_predictor(text_embeddings)

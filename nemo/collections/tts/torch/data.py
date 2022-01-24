@@ -581,6 +581,7 @@ class TTSDataset(Dataset):
 class MixerTTSDataset(TTSDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
     def _albert(self):
         from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
 
@@ -626,8 +627,6 @@ class MixerTTSDataset(TTSDataset):
             duration_prior,
             pitch,
             pitch_length,
-            voiced_mask,
-            p_voiced,
             energy,
             energy_length,
             speaker_id,
@@ -636,7 +635,7 @@ class MixerTTSDataset(TTSDataset):
         lm_tokens = None
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.tensor(self.id2lm_tokens[index]).long()
-        #print("audio_lenght mixedtts", audio_length)
+
         return (
             audio,
             audio_length,
@@ -648,8 +647,6 @@ class MixerTTSDataset(TTSDataset):
             duration_prior,
             pitch,
             pitch_length,
-            voiced_mask,
-            p_voiced,
             energy,
             energy_length,
             speaker_id,
@@ -658,9 +655,9 @@ class MixerTTSDataset(TTSDataset):
 
     def _collate_fn(self, batch):
         batch = list(zip(*batch))
-        data_dict = self.general_collate_fn(list(zip(*batch[:15])))
-        lm_tokens_list = batch[15]
-    
+        data_dict = self.general_collate_fn(list(zip(*batch[:13])))
+        lm_tokens_list = batch[13]
+
         if LMTokens in self.sup_data_types_set:
             lm_tokens = torch.full(
                 (len(lm_tokens_list), max([lm_tokens.shape[0] for lm_tokens in lm_tokens_list])),
@@ -670,23 +667,6 @@ class MixerTTSDataset(TTSDataset):
                 lm_tokens[i, : lm_tokens_i.shape[0]] = lm_tokens_i
 
             data_dict[LMTokens.name] = lm_tokens
-       
+
         joined_data = self.join_data(data_dict)
-        joined_data_dict = {
-            "audio": joined_data[0],
-            "audio_lens": joined_data[1],
-            "text": joined_data[2],
-            "text_lens": joined_data[3],
-            "log_mel": joined_data[4],
-            "log_mel_lens": joined_data[5],
-            "duration_prior": joined_data[6],
-            "pitch": joined_data[7],
-            "pitch_lens":joined_data[8],
-            "voiced_mask": joined_data[9],
-            "p_voiced": joined_data[10],
-            "energy": joined_data[11],
-            "energy_lens":joined_data[12],
-            "speaker_id": joined_data[13],
-            "lm_token":joined_data[14], }
-        #print("audio_lens", joined_data_dict["audio_lens"])
-        return joined_data_dict
+        return joined_data

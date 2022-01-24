@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from hydra.utils import instantiate
 
 from nemo.collections.tts.helpers.common import get_mask_from_lengths
 from nemo.collections.tts.helpers.common import ConvNorm, Invertible1x1Conv
@@ -14,6 +15,7 @@ def get_FP_model(config):
     hparams = config['hparams']
     if name == 'dp':
         model = FP(**hparams)
+        #model = instantiate(hparams)
     elif name == 'dpfp':
         model = FPFP(**hparams)
     elif name == 'dpfa':
