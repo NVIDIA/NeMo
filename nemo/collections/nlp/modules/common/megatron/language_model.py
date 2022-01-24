@@ -695,7 +695,7 @@ class TransformerLanguageModel(MegatronModule):
             else:
                 encoder_input = embedding_output
         else:
-            encoder_input = encoder_input
+            pass
 
         # encoder.
         if enc_hidden_states is None:
