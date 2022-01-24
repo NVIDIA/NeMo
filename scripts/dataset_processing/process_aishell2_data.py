@@ -17,7 +17,6 @@
 #                   --dest_folder=<where to store the results>
 import argparse
 import os
-import sys
 import json
 import subprocess
 

@@ -87,7 +87,6 @@ def __process_transcript(file_path: str):
         a list of metadata entries for processed files.
     """
     entries = []
-    root = os.path.dirname(file_path)
     with open(file_path, encoding="utf-8") as fin:
         text = fin.readlines()[0]
         transcript_text = text.lower().strip()
