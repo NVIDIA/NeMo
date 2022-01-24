@@ -40,7 +40,7 @@ else
 fi
 
 OUT_MANIFEST="$(dirname ${MANIFEST})"
-OUT_MANIFEST=$OUT_MANIFEST/manifest_filtered.json
+OUT_MANIFEST=$OUT_MANIFEST/manifest_transcribed.json
 # Add transcripts to the manifest file, ASR model predictions will be stored under "pred_text" field
 python ${SCRIPTS_DIR}/../../../examples/asr/transcribe_speech.py \
 $ARG_MODEL=$MODEL_NAME_OR_PATH \

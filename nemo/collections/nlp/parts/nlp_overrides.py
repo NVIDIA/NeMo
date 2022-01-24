@@ -68,7 +68,9 @@ class NLPDDPPlugin(DDPPlugin):
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -202,7 +204,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         super().__init__()
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -410,7 +414,10 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self._init_growth_tracker = state_dict["_growth_tracker"]
         if self._growth_tracker is not None:
             self._growth_tracker.fill_(state_dict["_growth_tracker"])
-        self._hysteresis_tracker = state_dict["_hysteresis_tracker"]
+        if "_hysterisis_tracker" in state_dict:
+            self._hysteresis_tracker = state_dict["_hysterisis_tracker"]
+        else:
+            self._hysteresis_tracker = 1
 
 
 class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
