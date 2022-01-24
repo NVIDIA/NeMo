@@ -26,6 +26,7 @@ model:
     shuffle: true
     is_tarred: false
     tarred_audio_filepaths: null
+    shuffle_n: 2048
     use_start_end_token: false
     # bucketing params
     bucketing_strategy: "synced_randomized"

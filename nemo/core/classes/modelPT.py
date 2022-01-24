@@ -949,7 +949,7 @@ class ModelPT(LightningModule, Model):
                     self.load_state_dict(restored_model.state_dict(), strict=False)
                     logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
                     del restored_model
-                else:
+                elif isinstance(cfg.init_from_nemo_model, dict):
                     model_load_dict = cfg.init_from_nemo_model
                     for model_load_cfg in model_load_dict.values():
                         model_path = model_load_cfg.path
@@ -966,6 +966,8 @@ class ModelPT(LightningModule, Model):
                         )
 
                         del restored_model
+                else:
+                    raise TypeError("Invalid type: init_from_nemo_model is not a string or a dict!")
 
         if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
             with open_dict(cfg):
@@ -996,7 +998,7 @@ class ModelPT(LightningModule, Model):
                     logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
 
                     del restored_model
-                else:
+                elif isinstance(cfg.init_from_pretrained_model, dict):
                     model_load_dict = cfg.init_from_pretrained_model
                     for model_load_cfg in model_load_dict.values():
                         model_name = model_load_cfg.name
@@ -1016,6 +1018,8 @@ class ModelPT(LightningModule, Model):
                         )
 
                         del restored_model
+                else:
+                    raise TypeError("Invalid type: init_from_pretrained_model is not a string or a dict!")
 
         if 'init_from_ptl_ckpt' in cfg and cfg.init_from_ptl_ckpt is not None:
             with open_dict(cfg):
@@ -1031,7 +1035,7 @@ class ModelPT(LightningModule, Model):
                     )
 
                     del ckpt
-                else:
+                elif isinstance(cfg.init_from_ptl_ckpt, dict):
                     model_load_dict = cfg.init_from_ptl_ckpt
                     for model_load_cfg in model_load_dict.values():
                         ckpt_path = model_load_cfg.path
@@ -1046,6 +1050,8 @@ class ModelPT(LightningModule, Model):
                         )
 
                         del ckpt
+                else:
+                    raise TypeError("Invalid type: init_from_ptl_ckpt is not a string or a dict!")
 
     def teardown(self, stage: str):
         """
