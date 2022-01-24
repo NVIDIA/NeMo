@@ -14,16 +14,20 @@
 
 
 import json
+import math
 import pickle
 from pathlib import Path
+from random import random
 from typing import Callable, Dict, List, Optional, Union
 
 import librosa
+import numpy as np
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.tts.torch.helpers import (
     BetaBinomialInterpolator,
     beta_binomial_prior_distribution,
@@ -554,7 +558,7 @@ class TTSDataset(Dataset):
         return joined_data
 
 
-class MixerTTSDataset(TTSDataset):
+class MixerTTSXDataset(TTSDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -646,3 +650,141 @@ class MixerTTSDataset(TTSDataset):
 
         joined_data = self.join_data(data_dict)
         return joined_data
+
+
+class VocoderDataset(Dataset):
+    def __init__(
+        self,
+        manifest_filepath: str,
+        sample_rate: int,
+        n_segments: Optional[int] = None,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        ignore_file: Optional[str] = None,
+        trim: Optional[bool] = False,
+        load_precomputed_mel: bool = False,
+        hop_length: int = 256,
+    ):
+        if isinstance(manifest_filepath, str):
+            manifest_filepath = [manifest_filepath]
+        self.manifest_filepath = manifest_filepath
+
+        self.data = []
+        audio_files = []
+        total_duration = 0
+        for manifest_file in self.manifest_filepath:
+            with open(Path(manifest_file).expanduser(), 'r') as f:
+                logging.info(f"Loading dataset from {manifest_file}.")
+                for line in tqdm(f):
+                    item = json.loads(line)
+
+                    if "mel_filepath" not in item and load_precomputed_mel:
+                        raise ValueError(f"mel_filepath is missing in {manifest_file}")
+
+                    file_info = {
+                        "audio_filepath": item["audio_filepath"],
+                        "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
+                        "duration": item["duration"] if "duration" in item else None,
+                    }
+
+                    audio_files.append(file_info)
+
+                    if file_info["duration"] is None:
+                        logging.info(
+                            "Not all audio files have duration information. Duration logging will be disabled."
+                        )
+                        total_duration = None
+
+                    if total_duration is not None:
+                        total_duration += item["duration"]
+
+        logging.info(f"Loaded dataset with {len(audio_files)} files.")
+        if total_duration is not None:
+            logging.info(f"Dataset contains {total_duration / 3600:.2f} hours.")
+
+        if ignore_file:
+            logging.info(f"using {ignore_file} to prune dataset.")
+            with open(Path(ignore_file).expanduser(), "rb") as f:
+                wavs_to_ignore = set(pickle.load(f))
+
+        pruned_duration = 0 if total_duration is not None else None
+        pruned_items = 0
+        for item in audio_files:
+            audio_path = item['audio_filepath']
+            audio_id = Path(audio_path).stem
+
+            # Prune data according to min/max_duration & the ignore file
+            if total_duration is not None:
+                if (min_duration and item["duration"] < min_duration) or (
+                    max_duration and item["duration"] > max_duration
+                ):
+                    pruned_duration += item["duration"]
+                    pruned_items += 1
+                    continue
+
+            if ignore_file and (audio_id in wavs_to_ignore):
+                pruned_items += 1
+                pruned_duration += item["duration"]
+                wavs_to_ignore.remove(audio_id)
+                continue
+
+            self.data.append(item)
+
+        logging.info(f"Pruned {pruned_items} files. Final dataset contains {len(self.data)} files")
+        if pruned_duration is not None:
+            logging.info(
+                f"Pruned {pruned_duration / 3600:.2f} hours. Final dataset contains "
+                f"{(total_duration - pruned_duration) / 3600:.2f} hours."
+            )
+
+        self.load_precomputed_mel = load_precomputed_mel
+        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate)
+        self.sample_rate = sample_rate
+        self.n_segments = n_segments
+        self.hop_length = hop_length
+        self.trim = trim
+
+    def _collate_fn(self, batch):
+        if self.load_precomputed_mel:
+            return torch.utils.data.dataloader.default_collate(batch)
+
+        audio_lengths = [audio_len for _, audio_len in batch]
+        audio_signal = torch.zeros(len(batch), max(audio_lengths), dtype=torch.float)
+
+        for i, sample in enumerate(batch):
+            audio_signal[i].narrow(0, 0, sample[0].size(0)).copy_(sample[0])
+
+        return audio_signal, torch.tensor(audio_lengths, dtype=torch.long)
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+
+        if not self.load_precomputed_mel:
+            features = AudioSegment.segment_from_file(
+                sample["audio_filepath"],
+                n_segments=self.n_segments if self.n_segments is not None else -1,
+                trim=self.trim,
+            )
+            features = torch.tensor(features.samples)
+            audio, audio_length = features, torch.tensor(features.shape[0]).long()
+
+            return audio, audio_length
+        else:
+            features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
+            audio, audio_length = features, torch.tensor(features.shape[0]).long()
+
+            mel = np.load(sample["mel_filepath"])
+            frames = math.ceil(self.n_segments / self.hop_length)
+
+            if len(audio) > self.n_segments:
+                start = random.randint(0, mel.shape[1] - frames - 2)
+                mel = mel[:, start : start + frames]
+                audio = audio[start * self.hop_length : (start + frames) * self.hop_length]
+            else:
+                mel = np.pad(mel, ((0, 0), (0, frames - mel.shape[1])))
+                audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
+
+            return audio, audio.shape[1], mel
+
+    def __len__(self):
+        return len(self.data)

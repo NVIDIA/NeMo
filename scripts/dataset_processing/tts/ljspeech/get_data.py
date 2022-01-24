@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import argparse
-import urllib.request
 import json
-
-import sox
 import tarfile
-import wget
+import urllib.request
 from pathlib import Path
 
+import sox
+import wget
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from tqdm import tqdm
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Download LJSpeech and create manifests with predefined split')
@@ -56,7 +57,7 @@ def __process_data(data_root, whitelist_path):
     if whitelist_path is None:
         wget.download(
             "https://raw.githubusercontent.com/NVIDIA/NeMo/main/nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv",
-            out=data_root,
+            out=str(data_root),
         )
         whitelist_path = data_root / "whitelist_lj_speech.tsv"
 
@@ -72,18 +73,18 @@ def __process_data(data_root, whitelist_path):
 
     # Create manifests (based on predefined NVIDIA's split)
     filelists = ['train', 'val', 'test']
-    for split in filelists:
+    for split in tqdm(filelists):
         # Download file list if necessary
         filelist_path = data_root / f"ljs_audio_text_{split}_filelist.txt"
 
         if not filelist_path.exists():
-            wget.download(f"{FILELIST_BASE}/ljs_audio_text_{split}_filelist.txt", out=data_root)
+            wget.download(f"{FILELIST_BASE}/ljs_audio_text_{split}_filelist.txt", out=str(data_root))
 
         manifest_target = data_root / f"{split}_manifest.json"
         with open(manifest_target, 'w') as f_out:
             with open(filelist_path, 'r') as filelist:
                 print(f"\nCreating {manifest_target}...")
-                for line in filelist:
+                for line in tqdm(filelist):
                     basename = line[6:16]
 
                     text = line[21:].strip()
@@ -94,7 +95,7 @@ def __process_data(data_root, whitelist_path):
                     assert wav_path.exists(), f"{wav_path} does not exist!"
 
                     entry = {
-                        'audio_filepath': wav_path,
+                        'audio_filepath': str(wav_path),
                         'duration': sox.file_info.duration(wav_path),
                         'text': text,
                         'normalized_text': norm_text,
