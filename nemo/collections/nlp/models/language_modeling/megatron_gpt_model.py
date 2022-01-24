@@ -228,12 +228,15 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        if self.megatron_amp_o2:
-            # main grads are stored in the MainParamsOptimizer wrapper
-            self._optimizer.allreduce_gradients()
+        # if self.megatron_amp_o2:
+        #     # main grads are stored in the MainParamsOptimizer wrapper
+        #     self._optimizer.allreduce_main_grads()
 
-            self.allreduce_first_last_embeddings()
-        else:
+        #     self.allreduce_first_last_embeddings()
+        # else:
+
+        # when using megatron_amp_o2 all-reduce is done in the MainParamsOptimizerWrapper
+        if not self.megatron_amp_o2:
             self.allreduce_gradients()
 
             self.allreduce_first_last_embeddings()
