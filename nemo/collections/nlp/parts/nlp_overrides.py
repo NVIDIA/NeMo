@@ -129,7 +129,7 @@ class NLPDDPPlugin(DDPPlugin):
         # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            if torch.distributed.is_initialized():
+            if torch.distributed.is_initialized() and app_state.data_parallel_group is None:
                 parallel_state.initialize_model_parallel(app_state.model_parallel_size)
                 app_state.model_parallel_group = parallel_state.get_tensor_model_parallel_group()
                 app_state.data_parallel_group = parallel_state.get_data_parallel_group()

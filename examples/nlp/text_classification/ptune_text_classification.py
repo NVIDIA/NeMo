@@ -93,7 +93,11 @@ You may restore the saved model like this:
     eval_model.set_trainer(eval_trainer)
     eval_trainer.test(model=eval_model, verbose=False)
 """
+import os
+import pathlib
+
 import pytorch_lightning as pl
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.text_classification.ptune_text_classification_model import (
@@ -121,19 +125,46 @@ def main(cfg: DictConfig) -> None:
     logging.info('Training finished!')
     logging.info("===========================================================================================")
 
-    if cfg.model.nemo_path:
-        # '.nemo' file contains the last checkpoint and the params to initialize the model
-        model.save_to(cfg.model.nemo_path)
-        logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
-
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
         logging.info("===========================================================================================")
         logging.info("Starting the testing of the trained model on test set...")
-        trainer = pl.Trainer(**cfg.trainer)
         trainer.test(model=model, ckpt_path=None, verbose=False)
         logging.info("Testing finished!")
         logging.info("===========================================================================================")
+
+        # extract the path of the best checkpoint from the training, you may update it to any checkpoint
+        checkpoint_path = trainer.checkpoint_callback.best_model_path
+        tensor_parallel_size = cfg.model.tensor_model_parallel_size
+        pathobj = pathlib.Path(checkpoint_path)
+        checkpoint_folder = str(pathobj.parent)
+        checkpoint_name = str(pathobj.name)
+
+        rank = trainer.accelerator.training_type_plugin.local_rank
+        if tensor_parallel_size > 1:
+            # inject model parallel rank
+            checkpoint_path = os.path.join(checkpoint_folder, f'mp_rank_{rank:02d}', checkpoint_name)
+        else:
+            checkpoint_path = os.path.join(checkpoint_folder, checkpoint_name)
+
+        # Load the checkpoint
+        best_eval_model = PTuneTextClassificationModel.load_from_checkpoint(
+            checkpoint_path=checkpoint_path, strict=False, trainer=trainer
+        )
+        logging.info(f'best checkpoint path: {checkpoint_path}')
+        logging.info("Running Test with best EVAL checkpoint!")
+        # setup the test dataset
+        best_eval_model.setup_test_data(test_data_config=cfg.model.test_ds)
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        trainer.test(model=best_eval_model, ckpt_path=None, verbose=False)
+        logging.info("Beset EVAL Testing finished!")
+        logging.info("===========================================================================================")
+
+    if cfg.model.nemo_path:
+        # '.nemo' file contains the last checkpoint and the params to initialize the model
+        best_eval_model.save_to(cfg.model.nemo_path)
+        logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
 
     # perform inference on a list of queries.
     if "infer_samples" in cfg.model and cfg.model.infer_samples:
@@ -141,7 +172,9 @@ def main(cfg: DictConfig) -> None:
         logging.info("Starting the inference on some sample queries...")
 
         # max_seq_length=512 is the maximum length BERT supports.
-        results = model.cuda().classifytext(queries=cfg.model.infer_samples, batch_size=1, prompt='Sentiment')
+        results = best_eval_model.cuda().classifytext(
+            queries=cfg.model.infer_samples, batch_size=1, prompt='Sentiment'
+        )
         logging.info('The prediction results of some sample queries with the trained model:')
         for query, result in zip(cfg.model.infer_samples, results):
             logging.info(f'Query : {query}')
