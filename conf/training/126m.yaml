@@ -75,8 +75,8 @@ model:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
     model: null
-    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
-    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
+    vocab_file: ${cluster.data_dir}/bpe/vocab.json
+    merge_file: ${cluster.data_dir}/bpe/merges.txt
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
