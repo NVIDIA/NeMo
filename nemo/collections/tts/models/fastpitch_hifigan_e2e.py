@@ -33,7 +33,7 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
-    MelSpectrogramType,
+    AudioSignal,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
