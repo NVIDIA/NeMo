@@ -228,14 +228,16 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
+        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
+        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
         if self.megatron_amp_o2:
             # main grads are stored in the MainParamsOptimizer wrapper
-            self._optimizer.allreduce_main_grads()
+            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
 
             self.allreduce_first_last_embeddings()
         else:
 
-            self.allreduce_gradients()
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
             self.allreduce_first_last_embeddings()
 
