@@ -76,12 +76,13 @@ def main(cfg):
     os.makedirs(log_dir, exist_ok=True)
     nemo_file_path = os.path.join(log_dir, nemo_file_name)
 
-    code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_gpt_ckpt_to_nemo.py"
+    code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
     cmd = f"python -u {code_path} " \
           f"--checkpoint_folder {checkpoint_folder} " \
           f"--checkpoint_name {checkpoint_name} " \
           f"--nemo_file_path {nemo_file_path} " \
-          f"--tensor_model_parallel_size {tensor_model_parallel_size} "
+          f"--tensor_model_parallel_size {tensor_model_parallel_size} " \
+          f"--model_type gpt "
 
     os.system(f"{cmd}")
 
