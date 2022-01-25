@@ -48,9 +48,9 @@ is that it requires 3 copies of the dataset to exist simultanously -
 2) The extracted dataset in HF cache
 3) The preprocessed audio files preserved in the output_dir provided in the script.
 
-Due to this, make sure your HDD is large enough to store the dataset !
+Due to this, make sure your HDD is large enough to store the processed dataset !
 
-# Usage - Offline Mode
+## Usage - Offline Mode
 
 python convert_hf_dataset_to_nemo.py \
     output_dir=<Path to some storage drive that will holde preprocessed audio files> \
@@ -59,14 +59,14 @@ python convert_hf_dataset_to_nemo.py \
     split=<`split` argument in HF datasets, can be null> \
     use_auth_token=<Can be `True` or `False` depending on whether the dataset requires authentication>
 
-This will create an output directory of multiple subfolders containing the preprocessed .wav files,
+This will create an output directory of multiple sub-folders containing the preprocessed .wav files,
 along with a nemo compatible JSON manifest file.
 
 NOTE:
     The JSON manifest itself is not preprocessed ! You should perform text normalization, and cleanup
     inconsistent text by using NeMo Text Normalization tool and Speech Data Explorer toolkit !
 
-# Usage - Streaming Mode
+## Usage - Streaming Mode
 
 NOTE:
     This mode is not well supported. It trades of speed for storage by only having one copy of the dataset in
