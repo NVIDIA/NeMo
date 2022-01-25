@@ -94,7 +94,9 @@ def get_tokenizer(
 
     if 'megatron' in tokenizer_name:
         if not is_megatron_supported():
-            raise RuntimeError("Recent version of apex required to use megatron.")
+            logging.warning(
+                "Apex was not found or not recent. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
