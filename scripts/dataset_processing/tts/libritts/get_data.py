@@ -37,9 +37,9 @@ parser.add_argument("--num-workers", default=4, type=int)
 args = parser.parse_args()
 
 URLS = {
-    'TRAIN_CLEAN_100': ("https://www.openslr.org/resources/60/train-clean-100.tar.gz"),
-    'TRAIN_CLEAN_360': ("https://www.openslr.org/resources/60/train-clean-360.tar.gz"),
-    'TRAIN_OTHER_500': ("https://www.openslr.org/resources/60/train-other-500.tar.gz"),
+    'TRAIN_CLEAN_100': "https://www.openslr.org/resources/60/train-clean-100.tar.gz",
+    'TRAIN_CLEAN_360': "https://www.openslr.org/resources/60/train-clean-360.tar.gz",
+    'TRAIN_OTHER_500': "https://www.openslr.org/resources/60/train-other-500.tar.gz",
     'DEV_CLEAN': "https://www.openslr.org/resources/60/dev-clean.tar.gz",
     'DEV_OTHER': "https://www.openslr.org/resources/60/dev-other.tar.gz",
     'TEST_CLEAN': "https://www.openslr.org/resources/60/test-clean.tar.gz",
@@ -66,14 +66,13 @@ def __extract_file(filepath, data_dir):
 def __process_transcript(file_path: str):
     entries = []
     with open(file_path, encoding="utf-8") as fin:
-        text = fin.readlines()[0]
+        text = fin.readlines()[0].strip()
 
         # TODO(oktai15): add normalized text via Normalizer/NormalizerWithAudio
         wav_file = file_path.replace(".normalized.txt", ".wav")
         assert os.path.exists(wav_file), f"{wav_file} not found!"
         duration = subprocess.check_output(f"soxi -D {wav_file}", shell=True)
-        transcript_text = text.lower().strip()
-        entry = {'audio_filepath': os.path.abspath(wav_file), 'duration': float(duration), 'text': transcript_text}
+        entry = {'audio_filepath': os.path.abspath(wav_file), 'duration': float(duration), 'text': text}
 
         entries.append(entry)
 

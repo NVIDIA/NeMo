@@ -337,7 +337,7 @@ class TTSDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.data[index]
-        audio_stem = Path(sample["audio_filepath"]).stem
+        audio_path_as_text_id = sample["audio_filepath"].replace("/", "-").split(".")[0]
 
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
@@ -352,7 +352,10 @@ class TTSDataset(Dataset):
             if mel_path is not None and Path(mel_path).exists():
                 log_mel = torch.load(mel_path)
             else:
-                mel_path = Path(self.sup_data_path) / f"mel_{audio_stem}.pt"
+                mel_folder = Path(self.sup_data_path) / "mel"
+                mel_folder.mkdir(exist_ok=True, parents=True)
+
+                mel_path = mel_folder / f"mel{audio_path_as_text_id}.pt"
 
                 if mel_path.exists():
                     log_mel = torch.load(mel_path)
@@ -373,7 +376,10 @@ class TTSDataset(Dataset):
                 mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
-                prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
+                prior_folder = Path(self.sup_data_path) / "align_prior_matrix"
+                prior_folder.mkdir(exist_ok=True, parents=True)
+
+                prior_path = prior_folder / f"prior{audio_path_as_text_id}.pt"
 
                 if prior_path.exists():
                     align_prior_matrix = torch.load(prior_path)
@@ -385,13 +391,11 @@ class TTSDataset(Dataset):
 
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
-            pitch_name = (
-                f"{audio_stem}_pitch_pyin_"
-                f"fmin{self.pitch_fmin}_fmax{self.pitch_fmax}_"
-                f"fl{self.win_length}_hs{self.hop_len}.pt"
-            )
+            pitch_folder = Path(self.sup_data_path) / "pitch"
+            pitch_folder.mkdir(exist_ok=True, parents=True)
 
-            pitch_path = Path(self.sup_data_path) / pitch_name
+            pitch_path = pitch_folder / f"pitch{audio_path_as_text_id}.pt"
+
             if pitch_path.exists():
                 pitch = torch.load(pitch_path).float()
             else:
@@ -415,7 +419,11 @@ class TTSDataset(Dataset):
 
         energy, energy_length = None, None
         if Energy in self.sup_data_types_set:
-            energy_path = Path(self.sup_data_path) / f"{audio_stem}_energy_wl{self.win_length}_hs{self.hop_len}.pt"
+            energy_folder = Path(self.sup_data_path) / "energy"
+            energy_folder.mkdir(exist_ok=True, parents=True)
+
+            energy_path = energy_folder / f"energy{audio_path_as_text_id}.pt"
+
             if energy_path.exists():
                 energy = torch.load(energy_path).float()
             else:
