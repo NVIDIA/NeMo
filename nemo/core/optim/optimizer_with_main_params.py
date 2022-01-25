@@ -186,6 +186,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         if self._contiguous_grad_bucket:
                             num_elements[i] -= param.data.nelement()
                             main_param.grad = self._main_grad_buffers[i].get(param.data.shape, num_elements[i])
+                            # Add a pointer to main_grad in model param for first-last stage embedding param reduction
+                            param.main_grad = main_param.grad
 
                         # Replace the optimizer params with the new fp32 copy.
                         param_group['params'][j] = main_param
