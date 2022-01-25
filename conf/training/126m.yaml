@@ -1,7 +1,8 @@
 run:
   name: 126m
-  log_dir: ${cluster.base_log_dir}/train_scripts/logs/${.name}
+  log_dir: ${cluster.base_log_dir}/${.name}
   time_limit: "4:00:00"
+  time_limit_bcp: "4D"
   dependency: "singleton"
 
 trainer:

@@ -165,7 +165,7 @@ def run_training(cfg, hydra_args="", dependency=None):
 
     # BCP parameters
     if cfg.cluster_type == "bcp":
-        bcp_cfg = cluster_cfg.bcp
+        bcp_cfg = cluster_cfg
         instance = bcp_cfg.instance
         job_name_prefix = bcp_cfg.job_name_prefix
         job_name = job_name_prefix + name
