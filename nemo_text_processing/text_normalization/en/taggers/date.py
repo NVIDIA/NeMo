@@ -152,6 +152,9 @@ class DateFst(GraphFst):
             pynutil.insert("year: \"") + pynutil.add_weight(year_graph, YEAR_WEIGHT) + pynutil.insert("\"")
         )
 
+        if lm:
+            year_graph_standalone |= pynutil.insert("year: \"") + pynini.union("in ", "In ", "IN ") + pynutil.add_weight(year_graph, YEAR_WEIGHT) + pynutil.insert("\"")
+
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_graph + pynutil.insert("\"")
 
@@ -187,6 +190,7 @@ class DateFst(GraphFst):
             + pynutil.insert("\"")
         )
         optional_graph_year = pynini.closure(graph_year, 0, 1)
+
         year_graph = pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
 
         graph_mdy = month_graph + (
@@ -196,8 +200,6 @@ class DateFst(GraphFst):
             | (delete_extra_space + day_graph + graph_year)
         )
 
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
         delete_sep = pynutil.delete(pynini.union("-", "/", "."))
         graph_mdy |= (
             month_numbers_graph
@@ -235,17 +237,6 @@ class DateFst(GraphFst):
 
         final_graph |= graph_ymd | year_graph_standalone
 
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb; pdb.set_trace()
-        # print()
-
-        if lm:
-            final_graph |= (
-                pynutil.insert("year: \"")
-                + pynini.union("in ", "In ", "IN ")
-                + pynutil.add_weight(year_graph, YEAR_WEIGHT)
-                + pynutil.insert("\"")
-            )
         if not deterministic:
             ymd_to_mdy_graph = None
             ymd_to_dmy_graph = None
