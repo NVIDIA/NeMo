@@ -1,0 +1,79 @@
+name: "UnivNet"
+train_dataset: ???
+validation_datasets: ???
+
+defaults:
+  - model/generator: c32
+  - model/train_ds: train_ds
+  - model/validation_ds: val_ds
+
+model:
+  discriminator:
+    mpd:
+      periods: [2,3,5,7,11]
+      kernel_size: 5
+      stride: 3
+      use_spectral_norm: false
+      lrelu_slope: 0.2
+    mrd:
+      resolutions: [[1024, 120, 600], [2048, 240, 1200], [512, 50, 240]] # (filter_length, hop_length, win_length)
+      use_spectral_norm: false
+      lrelu_slope: 0.2
+  preprocessor:
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
+    dither: 0.0
+    frame_splicing: 1
+    nfilt: 80
+    highfreq: 8000
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    lowfreq: 0
+    mag_power: 1.0
+    n_fft: 1024
+    n_window_size: 1024
+    n_window_stride: 256
+    normalize: null
+    pad_to: 0
+    pad_value: -11.52
+    preemph: null
+    sample_rate: 22050
+    window: hann
+    use_grads: false
+    exact_pad: true
+
+  optim:
+    _target_: torch.optim.AdamW
+    lr: 0.0001
+    betas: [0.5, 0.9]
+
+  max_steps: 1000000
+  stft_lamb: 2.5
+  denoise_strength: 0.0025
+
+trainer:
+  gpus: -1 # number of gpus
+  max_steps: ${model.max_steps}
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  flush_logs_every_n_steps: 200
+  log_every_n_steps: 100
+  check_val_every_n_epoch: 10
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: true
+
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
