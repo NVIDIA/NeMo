@@ -64,6 +64,9 @@ class WhiteListFst(GraphFst):
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
         if not deterministic:
             graph |= _get_whitelist_non_deterministic_graph()
+            graph |= pynini.invert(
+                _get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))
+            ).optimize()
 
         if input_file:
             whitelist_provided = _get_whitelist_graph(input_case, input_file)

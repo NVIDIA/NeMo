@@ -118,13 +118,13 @@ class ClassifyFst(GraphFst):
             # use False deterministic for measure to add range graph to cardinal options
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
             measure_graph = measure.fst
-            date_graph = DateFst(cardinal=cardinal, deterministic=True, lm=True).fst
+            date_graph = DateFst(cardinal=cardinal, deterministic=False, lm=True).fst
             word_graph = WordFst(deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
             telephone_graph = TelephoneFst(deterministic=True).fst
             electronic_graph = ElectronicFst(deterministic=True).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
-            whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
+            whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
             whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=True).graph
 
