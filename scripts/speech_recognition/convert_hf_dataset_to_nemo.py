@@ -12,16 +12,84 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Python wrapper over HuggingFace Datasets to create preprocessed NeMo ASR Datasets.
+
+List of HuggingFace datasets : https://huggingface.co/datasets
+(Please filter by task: automatic-speech-recognition)
+
+# Setup
+After installation of huggingface datasets (pip install datasets), some datasets might require authentication
+- for example Mozilla Common Voice. You should go to the above link, register as a user and generate an API key.
+
+## Authenticated Setup Steps
+
+Website steps:
+- Visit https://huggingface.co/settings/profile
+- Visit "Access Tokens" on list of items.
+- Create new token - provide a name for the token and "read" access is sufficient.
+  - PRESERVE THAT TOKEN API KEY. You can copy that key for next step.
+- Visit the HuggingFace Dataset page for Mozilla Common Voice
+  - There should be a section that asks you for your approval.
+  - Make sure you are logged in and then read that agreement.
+  - If and only if you agree to the text, then accept the terms.
+
+Code steps:
+- Now on your machine, run `huggingface-cli login`
+- Paste your preserved HF TOKEN API KEY (from above).
+
+Now you should be logged in. When running the script, dont forget to set `use_auth_token=True` !
+
+# Usage
+The script supports two modes, but the offline mode is the preferred mechanism. The drawback of the offline mode
+is that it requires 3 copies of the dataset to exist simultanously -
+
+1) The .arrow files for HF cache
+2) The extracted dataset in HF cache
+3) The preprocessed audio files preserved in the output_dir provided in the script.
+
+Due to this, make sure your HDD is large enough to store the dataset !
+
+# Usage - Offline Mode
+
+python convert_hf_dataset_to_nemo.py \
+    output_dir=<Path to some storage drive that will holde preprocessed audio files> \
+    path=<`path` argument in HF datasets, cannot be null> \
+    name=<`name` argument in HF datasets, can be null> \
+    split=<`split` argument in HF datasets, can be null> \
+    use_auth_token=<Can be `True` or `False` depending on whether the dataset requires authentication>
+
+This will create an output directory of multiple subfolders containing the preprocessed .wav files,
+along with a nemo compatible JSON manifest file.
+
+NOTE:
+    The JSON manifest itself is not preprocessed ! You should perform text normalization, and cleanup
+    inconsistent text by using NeMo Text Normalization tool and Speech Data Explorer toolkit !
+
+# Usage - Streaming Mode
+
+NOTE:
+    This mode is not well supported. It trades of speed for storage by only having one copy of the dataset in
+    output_dir, however the speed of processing is around 10x slower than offline mode. Some datasets (such as MCV)
+    fail to run entirely.
+
+    DO NOT USE if you have sufficient disk space.
+
+python convert_hf_dataset_to_nemo.py \
+    ... all the arguments from above \
+    streaming=True
+
+"""
+
 import json
 import os
-import shutil
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 from omegaconf import OmegaConf, open_dict
 import hydra
 from hydra.core.config_store import ConfigStore
 
-from datasets import load_dataset, IterableDataset, Audio, Dataset
+from datasets import load_dataset, IterableDataset, Audio
 import librosa
 import soundfile
 import tqdm
@@ -49,6 +117,10 @@ class HFDatasetConvertionConfig:
 
 
 def prepare_output_dirs(cfg: HFDatasetConvertionConfig):
+    """
+    Prepare output directories and subfolders as needed.
+    Also prepare the arguments of the config with these directories.
+    """
     output_dir = os.path.abspath(cfg.output_dir)
     output_dir = os.path.join(output_dir, cfg.path)
 
@@ -63,6 +135,14 @@ def prepare_output_dirs(cfg: HFDatasetConvertionConfig):
 
 
 def infer_dataset_segments(batch):
+    """
+    Helper method to run in batch mode over a mapped Dataset.
+
+    Infers the path of the subdirectories for the dataset, removing {extracted/HASH}.
+
+    Returns:
+        A cleaned list of path segments
+    """
     segments = []
     segment, path = os.path.split(batch['audio']['path'])
     segments.insert(0, path)
@@ -78,6 +158,17 @@ def infer_dataset_segments(batch):
 
 
 def prepare_audio_filepath(audio_filepath):
+    """
+    Helper method to run in batch mode over a mapped Dataset.
+
+    Prepares the audio filepath and its subdirectories. Remaps the extension to .wav file.
+
+    Args:
+        audio_filepath: String path to the audio file.
+
+    Returns:
+        Cleaned filepath renamed to be a wav file.
+    """
     audio_basefilepath = os.path.split(audio_filepath)[0]
     if not os.path.exists(audio_basefilepath):
         os.makedirs(audio_basefilepath, exist_ok=True)
@@ -92,6 +183,15 @@ def prepare_audio_filepath(audio_filepath):
 
 
 def build_map_dataset_to_nemo_func(cfg: HFDatasetConvertionConfig, basedir):
+    """
+    Helper method to run in batch mode over a mapped Dataset.
+
+    Creates a function that can be passed to Dataset.map() containing the config and basedir.
+    Useful to map a HF dataset to NeMo compatible format in an efficient way for offline processing.
+
+    Returns:
+        A function pointer which can be used for Dataset.map()
+    """
     def map_dataset_to_nemo(batch):
         # Write audio file to correct path
         if cfg.streaming:
@@ -116,7 +216,16 @@ def build_map_dataset_to_nemo_func(cfg: HFDatasetConvertionConfig, basedir):
 def convert_offline_dataset_to_nemo(
     dataset: IterableDataset, cfg: HFDatasetConvertionConfig, basedir: str, manifest_filepath: str
 ):
-    # Disable until fix https://github.com/huggingface/datasets/pull/3556 is merged
+    """
+    Converts a HF dataset to a audio-preprocessed Nemo dataset in Offline mode.
+    Also writes out a nemo compatible manifest file.
+
+    Args:
+        dataset: Iterable HF Dataset.
+        cfg: HFDatasetConvertionConfig.
+        basedir: Base output directory.
+        manifest_filepath: Filepath of manifest.
+    """
     dataset = dataset.map(build_map_dataset_to_nemo_func(cfg, basedir))
     ds_iter = iter(dataset)
 
@@ -137,6 +246,16 @@ def convert_offline_dataset_to_nemo(
 def convert_streaming_dataset_to_nemo(
     dataset: IterableDataset, cfg: HFDatasetConvertionConfig, basedir: str, manifest_filepath: str
 ):
+    """
+    Converts a HF dataset to a audio-preprocessed Nemo dataset in Streaming mode.
+    Also writes out a nemo compatible manifest file.
+
+    Args:
+        dataset: Iterable HF Dataset.
+        cfg: HFDatasetConvertionConfig.
+        basedir: Base output directory.
+        manifest_filepath: Filepath of manifest.
+    """
     # Disable until fix https://github.com/huggingface/datasets/pull/3556 is merged
     # dataset = dataset.map(build_map_dataset_to_nemo_func(cfg, basedir))
 
@@ -171,6 +290,14 @@ def convert_streaming_dataset_to_nemo(
 
 
 def process_dataset(dataset: IterableDataset, cfg: HFDatasetConvertionConfig):
+    """
+    Top level method that processes a given IterableDataset to Nemo compatible dataset.
+    It also writes out a nemo compatible manifest file.
+
+    Args:
+        dataset: HF Dataset.
+        cfg: HFDatasetConvertionConfig
+    """
     dataset = dataset.cast_column("audio", Audio(cfg.sampling_rate, mono=True))
 
     if cfg.split_output_dir is None:
@@ -200,12 +327,14 @@ def process_dataset(dataset: IterableDataset, cfg: HFDatasetConvertionConfig):
 
 @hydra.main(config_name='hfds_config', config_path=None)
 def main(cfg: HFDatasetConvertionConfig):
+    # Convert dataclass to omegaconf
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
+    # Prepare output subdirs
     prepare_output_dirs(cfg)
 
-    # Load dataset in streaming mode
+    # Load dataset in offline/streaming mode
     dataset = None
     try:
         dataset = load_dataset(
@@ -227,6 +356,7 @@ def main(cfg: HFDatasetConvertionConfig):
         print(traceback.format_exc())
         exit(1)
 
+    # Multiple datasets were provided at once, process them one by one into subdirs.
     if isinstance(dataset, dict):
         print()
         print("Multiple splits found for dataset", cfg.path, ":", list(dataset.keys()))
@@ -245,6 +375,7 @@ def main(cfg: HFDatasetConvertionConfig):
         cfg.split_output_dir = None
 
     else:
+        # Single dataset was found, process into resolved directory.
         print("Single split found for dataset", cfg.path, "| Split chosen =", cfg.split)
 
         if cfg.split is not None:
@@ -253,15 +384,8 @@ def main(cfg: HFDatasetConvertionConfig):
         process_dataset(dataset, cfg)
 
 
+# Register the dataclass as a valid config
 ConfigStore.instance().store(name='hfds_config', node=HFDatasetConvertionConfig)
 
 if __name__ == '__main__':
-    cfg = HFDatasetConvertionConfig(
-        path='mozilla-foundation/common_voice_7_0',
-        name="ab",
-        split=None,
-        output_dir='/media/smajumdar/data/Datasets/Timit',
-        use_auth_token=True,
-    )
-
-    main(cfg)
+    main()
