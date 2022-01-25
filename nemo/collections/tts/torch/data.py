@@ -16,12 +16,11 @@
 import json
 import math
 import pickle
+import random
 from pathlib import Path
-from random import random
 from typing import Callable, Dict, List, Optional, Union
 
 import librosa
-import numpy as np
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
@@ -671,11 +670,18 @@ class VocoderDataset(Dataset):
         ignore_file: Optional[str] = None,
         trim: Optional[bool] = False,
         load_precomputed_mel: bool = False,
-        hop_length: int = 256,
+        hop_length: Optional[int] = None,
     ):
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
         self.manifest_filepath = manifest_filepath
+
+        if load_precomputed_mel:
+            if hop_length is None:
+                raise ValueError("hop_length must be specified when load_precomputed_mel is True")
+
+            if n_segments is None:
+                raise ValueError("n_segments must be specified when load_precomputed_mel is True")
 
         self.data = []
         audio_files = []
@@ -781,7 +787,7 @@ class VocoderDataset(Dataset):
             features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-            mel = np.load(sample["mel_filepath"])
+            mel = torch.load(sample["mel_filepath"])
             frames = math.ceil(self.n_segments / self.hop_length)
 
             if len(audio) > self.n_segments:
@@ -789,10 +795,10 @@ class VocoderDataset(Dataset):
                 mel = mel[:, start : start + frames]
                 audio = audio[start * self.hop_length : (start + frames) * self.hop_length]
             else:
-                mel = np.pad(mel, ((0, 0), (0, frames - mel.shape[1])))
-                audio = torch.nn.functional.pad(audio, (0, self.n_segments - audio.shape[1]))
+                mel = torch.nn.functional.pad(mel, (0, frames - mel.shape[1]))
+                audio = torch.nn.functional.pad(audio, (0, self.n_segments - len(audio)))
 
-            return audio, audio.shape[1], mel
+            return audio, len(audio), mel
 
     def __len__(self):
         return len(self.data)
