@@ -22,8 +22,8 @@
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
-        "pattern": "(.)+",
-        "target": "$1",
+        "pattern": ".*tts.*",
+        "target": "tts",
         "flags": "gu"
       }
     ],
