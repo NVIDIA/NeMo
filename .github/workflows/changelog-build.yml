@@ -16,4 +16,6 @@ jobs:
         uses: mikepenz/release-changelog-builder-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        fromTag: "1.4.0"
+        with:
+          fromTag: "v1.4.0"
+          toTag: "v1.5.1"
