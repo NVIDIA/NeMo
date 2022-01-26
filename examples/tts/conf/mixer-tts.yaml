@@ -81,7 +81,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
+      _target_: nemo.collections.tts.torch.data.TTSDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -109,7 +109,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
+      _target_: nemo.collections.tts.torch.data.TTSDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
