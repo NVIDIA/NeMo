@@ -9,9 +9,9 @@
       "ignore"
     ],
     "sort": "ASC",
-    "template": "${{CHANGELOG}}\\n\\nUncategorized:\\n${{UNCATEGORIZED}}\\n\\nIgnored:\\n${{IGNORED}}\\n\\n${{UNCATEGORIZED_COUNT}}\\n${{IGNORED_COUNT}}",
+    "template": "${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\nIgnored:\n${{IGNORED}}\n\n${{UNCATEGORIZED_COUNT}}\n${{IGNORED_COUNT}}",
     "pr_template": "- ${{TITLE}} :: PR: #${{NUMBER}}",
-    "empty_template": "${{OWNER}}\\n${{REPO}}\\n${{FROM_TAG}}\\n${{TO_TAG}}",
+    "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
         "pattern": "(.)+",
