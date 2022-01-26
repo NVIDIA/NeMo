@@ -17,6 +17,14 @@
         "labels": ["nlp", "megatron"]
       },
       {
+        "title": "## Text Normalization / Inverse Text Normalization",
+        "labels": ["tn", "itn"]
+      },
+      {
+        "title": "## NeMo Tools",
+        "labels": ["tools"]
+      },
+      {
         "title": "## Documentation",
         "labels": ["docs"]
       }
@@ -42,13 +50,13 @@
         "on_property": "body"
       },
       {
-        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)",
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
         "target": "asr",
         "flags": "giu",
         "on_property": "title"
       },
       {
-        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)",
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
         "target": "asr",
         "flags": "giu",
         "on_property": "body"
@@ -74,6 +82,30 @@
       {
         "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
         "target": "nmt",
+        "flags": "giu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
+        "target": "tn",
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
+        "target": "tn",
+        "flags": "giu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*sde.*)|(.*ctc segment.*)",
+        "target": "tools",
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*sde.*)|(.*ctc segment.*)",
+        "target": "tools",
         "flags": "giu",
         "on_property": "body"
       },
