@@ -127,7 +127,8 @@ class EnglishG2p(BaseG2p):
             logging.warning(
                 f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
                 "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
-                "You can use the latest official version of CMUDict directly from NeMo using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.01."
+                "You can use the latest official version of CMUDict (0.7b) with additional changes from NVIDIA directly from NeMo "
+                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.01."
             )
 
             return nltk.corpus.cmudict.dict()

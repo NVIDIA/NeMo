@@ -295,7 +295,7 @@ pipeline {
         stage('L2: Speech Pre-training - CitriNet') {
           steps {
             sh 'python examples/asr/speech_pretraining/speech_pre_training.py \
-            --config-path="../conf/citrinet_ssl/" --config-name="citrinet_ssl_ci" \
+            --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus=[1] \
