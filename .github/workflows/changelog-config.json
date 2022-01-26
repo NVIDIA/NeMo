@@ -24,7 +24,8 @@
       {
         "pattern": ".*tts.*",
         "target": "tts",
-        "flags": "gu"
+        "flags": "gu",
+        "on_property": "title|body"
       }
     ],
     "duplicate_filter": {
