@@ -14,7 +14,7 @@ jobs:
           repository: 'NVIDIA/NeMo'
 
       - name: Build Changelog
-        id: github_release
+        id: github_tag
         uses: mikepenz/release-changelog-builder-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -23,3 +23,7 @@ jobs:
           repo: "NeMo"
           fromTag: "v1.4.0"
           toTag: "v1.5.1"
+
+      - name: Print Changelog
+        run: |
+          echo "${{steps.github_tag.outputs.changelog}}"
