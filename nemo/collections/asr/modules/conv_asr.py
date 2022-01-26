@@ -427,6 +427,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
 
         if num_classes <= 0:
             num_classes = len(vocabulary)
+            logging.info(f"num_classes of ConvASRDecoder is set to the size of the vocabulary: {num_classes}.")
 
         if vocabulary is not None:
             if num_classes != len(vocabulary):
