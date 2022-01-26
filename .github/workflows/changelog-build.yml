@@ -19,6 +19,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repo: "NVIDIA/NeMo"
+          owner: "NVIDIA"
+          repo: "NeMo"
           fromTag: "v1.4.0"
           toTag: "v1.5.1"
