@@ -102,6 +102,7 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: False
 
     dataloader_params:
       drop_last: false

@@ -276,14 +276,12 @@ class TTSDataset(Dataset):
             return_complex=False,
         )
 
+        self.use_beta_binomial_interpolator = False
         for data_type in self.sup_data_types:
             if data_type not in VALID_SUPPLEMENTARY_DATA_TYPES:
                 raise NotImplementedError(f"Current implementation of TTSDataset doesn't support {data_type} type.")
 
             getattr(self, f"add_{data_type.name}")(**kwargs)
-
-        self.use_beta_binomial_interpolator = False
-        self.add_align_prior_matrix()
 
     def add_log_mel(self, **kwargs):
         pass
@@ -379,16 +377,20 @@ class TTSDataset(Dataset):
 
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
+            mel_len = self.get_log_mel(audio).shape[2]
+            align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
-                mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
                 prior_path = Path(self.sup_data_path) / f"pr_{audio_stem}.pt"
 
                 if prior_path.exists():
                     align_prior_matrix = torch.load(prior_path)
-                else:
-                    mel_len = self.get_log_mel(audio).shape[2]
+                    # if align_prior_matrix.shape[1] != mel_len or align_prior_matrix.shape[0] != text_length:
+                    #     align_prior_matrix = None
+                    #     logging.info(f"Regenerating {prior_path}")
+
+                if align_prior_matrix is None:
                     align_prior_matrix = beta_binomial_prior_distribution(text_length, mel_len)
                     align_prior_matrix = torch.from_numpy(align_prior_matrix)
                     torch.save(align_prior_matrix, prior_path)

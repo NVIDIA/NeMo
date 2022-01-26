@@ -155,7 +155,7 @@ model:
     n_layers: 2
 
   optim:
-    name: adam
+    name: adamw
     lr: 1e-1
     betas: [0.9, 0.98]
     weight_decay: 1e-6
