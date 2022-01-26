@@ -1,24 +1,42 @@
+<<<<<<< HEAD
 # This config contains the default values for training Mixer-TTS model on LJSpeech dataset.
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
 name: "VITS"
 
+=======
+name: "VITS"
+
+sample_rate: 22050
+
+>>>>>>> vits
 train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
 sup_data_types: [ "duration_prior"]
 
+<<<<<<< HEAD
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
 
+=======
+>>>>>>> vits
 # LJSpeech stats (per frame), train
 pitch_mean: 212.35873413085938
 pitch_std: 68.52806091308594
 
+<<<<<<< HEAD
 # default values for sample_rate=22050
 sample_rate: 22050
+=======
+# default values from librosa.pyin
+pitch_fmin: 65.40639132514966
+pitch_fmax: 2093.004522404789
+
+# default values for sample_rate=22050
+>>>>>>> vits
 n_mels: 80
 n_window_size: 1024
 n_window_stride: 256
@@ -33,7 +51,10 @@ mel_loss_scale: 1.0
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b-030921"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
+<<<<<<< HEAD
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
+=======
+>>>>>>> vits
 
 filter_channels: 768
 filter_length: 1024
@@ -73,6 +94,7 @@ model:
   mel_fmin: 0.0
   mel_fmax: null
 
+<<<<<<< HEAD
   text_normalizer:
     _target_: nemo_text_processing.text_normalization.normalize.Normalizer
     lang: en
@@ -96,6 +118,8 @@ model:
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
 
+=======
+>>>>>>> vits
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.torch.data.TTSDataset"
@@ -117,11 +141,33 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
 
+<<<<<<< HEAD
 
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 16
+=======
+      text_tokenizer:
+        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        punct: True
+        stresses: True
+        chars: True
+        space: ' '
+        silence: null
+        apostrophe: True
+        sep: '|'
+        add_blank_at: null
+        pad_with_space: True
+        g2p:
+          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+          phoneme_dict: ${phoneme_dict_path}
+          heteronyms: ${heteronyms_path}
+    dataloader_params:
+      drop_last: false
+      shuffle: true
+      batch_size: 2
+>>>>>>> vits
       num_workers: 4
       pin_memory: false
 
@@ -146,11 +192,33 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
 
+<<<<<<< HEAD
+=======
+      text_tokenizer:
+        _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+        punct: True
+        stresses: True
+        chars: True
+        space: ' '
+        silence: null
+        apostrophe: True
+        sep: '|'
+        add_blank_at: null
+        pad_with_space: True
+        g2p:
+          _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
+          phoneme_dict: ${phoneme_dict_path}
+          heteronyms: ${heteronyms_path}
+>>>>>>> vits
 
     dataloader_params:
       drop_last: false
       shuffle: true
+<<<<<<< HEAD
       batch_size: 16
+=======
+      batch_size: 2
+>>>>>>> vits
       num_workers: 1
       pin_memory: false
 
@@ -234,6 +302,7 @@ model:
     initial_channel: 384 # initial_input_size: 384
 
 trainer:
+<<<<<<< HEAD
   num_nodes: 1
   devices: 1
   accelerator: gpu
@@ -246,11 +315,24 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
   flush_logs_every_n_steps: 1000
+=======
+  gpus: -1 # number of gpus
+  max_epochs: 20000
+  num_nodes: 1
+  accelerator: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+  # gradient_clip_val: 1000.0
+  flush_logs_every_n_steps: 1000
+  log_every_n_steps: 100
+>>>>>>> vits
   check_val_every_n_epoch: 5
 
 exp_manager:
   exp_dir: null
   name: ${name}
+<<<<<<< HEAD
   create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
@@ -263,3 +345,7 @@ exp_manager:
     entity: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
+=======
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+>>>>>>> vits
