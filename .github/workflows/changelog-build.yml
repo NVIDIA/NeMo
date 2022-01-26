@@ -19,7 +19,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          configuration: ".github/workflows/changelog-config.json"
+          configuration: "changelog-config.json"
           owner: "NVIDIA"
           repo: "NeMo"
           fromTag: "v1.4.0"
@@ -29,3 +29,4 @@ jobs:
       - name: Print Changelog
         run: |
           echo "${{steps.github_tag.outputs.changelog}}"
+          echo "${{steps.github_tag.outputs.pull_requests}}"
