@@ -138,13 +138,13 @@
         "on_property": "body"
       },
       {
-        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)",
+        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)|(.*patch.*)",
         "target": "bug",
         "flags": "gimu",
         "on_property": "title"
       },
       {
-        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)",
+        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)|(.*patch.*)",
         "target": "bug",
         "flags": "gimu",
         "on_property": "body"
