@@ -14,7 +14,7 @@
       },
       {
         "title": "## NMT",
-        "labels": ["nlp", "megatron"]
+        "labels": ["nmt", "megatron"]
       },
       {
         "title": "## Text Normalization / Inverse Text Normalization",
@@ -40,85 +40,85 @@
       {
         "pattern": "(.*tts.*)|(.*g2p.*)",
         "target": "tts",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*tts.*)|(.*g2p.*)",
         "target": "tts",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       },
       {
         "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
         "target": "asr",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
         "target": "asr",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       },
       {
         "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
         "target": "nlp",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
         "target": "nlp",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       },
       {
         "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
         "target": "nmt",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
         "target": "nmt",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       },
       {
         "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
         "target": "tn",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
         "target": "tn",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       },
       {
         "pattern": "(.*sde.*)|(.*ctc segment.*)",
         "target": "tools",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*sde.*)|(.*ctc segment.*)",
         "target": "tools",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       },
       {
         "pattern": "(.*doc.*)",
         "target": "docs",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "title"
       },
       {
         "pattern": "(.*doc.*)",
         "target": "docs",
-        "flags": "giu",
+        "flags": "gimu",
         "on_property": "body"
       }
     ],
