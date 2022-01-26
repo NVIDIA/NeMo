@@ -46,7 +46,18 @@ model:
 
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
+  
+  text_normalizer:
+      _target_: nemo_text_processing.text_normalization.normalize.Normalizer
+      lang: en
+      input_case: cased
+      whitelist: ${whitelist_path}
 
+  text_normalizer_call_kwargs:
+      verbose: false
+      punct_pre_process: true
+      punct_post_process: true
+      
   train_ds:
     dataset:
       _target_: "nemo.collections.tts.torch.data.TTSDataset"
@@ -66,7 +77,9 @@ model:
       ignore_file: null
       trim: False
       pitch_fmin: ${pitch_fmin}
-      pitch_fmax: ${pitch_fmax}   
+      pitch_fmax: ${pitch_fmax} 
+      
+      
       
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
@@ -111,8 +124,6 @@ model:
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
       
-      #lm_model: ${lm_model}
-      
       
         
       text_tokenizer:
@@ -152,16 +163,11 @@ model:
   trainerConfig:
     sigma: 1
     iters_per_checkpoint: 3000
-    batch_size: 4
     seed: null
-    checkpoint_path: ""
     ignore_layers: []
     finetune_layers: []
     include_layers: []
-    warmstart_checkpoint_path: ""
     with_tensorboard: true
-    fp16_run: 1
-    grad_clip_val: 1
     dur_loss_weight: 1
     ctc_loss_weight: 1
     mask_unvoiced_f0: false

@@ -40,7 +40,9 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.core.classes import Exportable
+from nemo.utils import logging
 torch.cuda.empty_cache()
+
 
 class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -212,7 +214,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         else:
             # no binarization, soft-only
             binarize = False
-        #print("val textttttttttttttttttttttttttttttttttttttt",text)
         outputs = self.model(
             mel, speaker_ids, text, in_lens, out_lens,
             binarize_attention=binarize, attn_prior=attn_prior,
@@ -299,11 +300,11 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.log_train_images = True
         
     def configure_optimizers(self):
-        print("Initializing %s optimizer" % (self.optim.name))
+        logging.info("Initializing %s optimizer" % (self.optim.name))
         if len(self.train_config.finetune_layers):
             for name, param in model.named_parameters():
                 if any([l in name for l in self.train_config.finetune_layers]):  # short list hack
-                    print("Fine-tuning parameter", name)
+                    logging.info("Fine-tuning parameter", name)
                     param.requires_grad = True
                 else:
                     param.requires_grad = False
@@ -314,7 +315,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             optimizer = RAdam(self.model.parameters(), lr=self.optim.lr,
                               weight_decay=self.optim.weight_decay)
         else:
-            print("Unrecognized optimizer %s!" % (self.optim.name))
+            logging.info("Unrecognized optimizer %s!" % (self.optim.name))
             exit(1)
     
         if self.optim.sched.name == 'cosine':

@@ -25,6 +25,7 @@ from nemo.collections.tts.helpers.common import get_mask_from_lengths, shift_and
 from nemo.collections.tts.modules.feature_prediction_model import get_FP_model
 from nemo.collections.tts.modules.alignment import mas
 from nemo.collections.tts.modules.radttstransformer import FFTransformer
+from nemo.utils import logging
 
 
 class FlowStep(nn.Module):
@@ -175,10 +176,10 @@ class RadTTSModule(torch.nn.Module):
 
                 if context_lstm_norm is not None:
                     if 'spectral' in context_lstm_norm:
-                        print("Applying spectral norm to context encoder LSTM")
+                        logging.info("Applying spectral norm to context encoder LSTM")
                         lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
                     elif 'weight' in context_lstm_norm:
-                        print("Applying weight norm to context encoder LSTM")
+                        logging.info("Applying weight norm to context encoder LSTM")
                         lstm_norm_fn_pntr = torch.nn.utils.weight_norm
 
                     self.context_lstm = lstm_norm_fn_pntr(
@@ -691,16 +692,16 @@ class RadTTSModule(torch.nn.Module):
         for name, module in self.named_modules():
             try:
                 nn.utils.remove_spectral_norm(module, name='weight_hh_l0')
-                print("Removed spectral norm from %s" % {name})
+                logging.info("Removed spectral norm from %s" % {name})
             except:
                 pass
             try:
                 nn.utils.remove_spectral_norm(module, name='weight_hh_l0_reverse')
-                print("Removed spectral norm from %s" % {name})
+                logging.info("Removed spectral norm from %s" % {name})
             except:
                 pass
             try:
                 nn.utils.remove_weight_norm(module)
-                print("Removed wnorm from %s" % {name})
+                logging.info("Removed wnorm from %s" % {name})
             except:
                 pass

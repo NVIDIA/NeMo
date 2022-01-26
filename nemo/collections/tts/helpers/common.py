@@ -22,6 +22,7 @@ from torch.cuda import amp
 import numpy as np
 import ast
 import numbers
+from nemo.utils import logging
 
 
 def shift_and_scale_data(data, mean=0.0, std=0.0, dtype=None):
@@ -125,7 +126,7 @@ def masked_instance_norm(x, mask, eps=1e-8):
 
 def update_params(config, params):
     for param in params:
-        print(param)
+        logging.info(param)
         k, v = param.split("=")
         try:
             v = ast.literal_eval(v)
@@ -138,10 +139,10 @@ def update_params(config, params):
             cur_param = ['.'.join(k_split[1:])+"="+str(v)]
             update_params(config[parent_k], cur_param)
         elif k in config and len(k_split) == 1:
-            print(f"overridding {k} with {v}")
+            logging.info(f"overridding {k} with {v}")
             config[k] = v
         else:
-            print("{}, {} params not updated".format(k, v))
+            logging.info("{}, {} params not updated".format(k, v))
 
 
 def truncated_normal(shape, mean=0, std=1, trunc_std=1.1):
@@ -463,10 +464,10 @@ class Encoder(nn.Module):
                             batch_first=True, bidirectional=True)
         if lstm_norm_fn is not None:
             if 'spectral' in lstm_norm_fn:
-                print("Applying spectral norm to text encoder LSTM")
+                logging.info("Applying spectral norm to text encoder LSTM")
                 lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
             elif 'weight' in lstm_norm_fn:
-                print("Applying weight norm to text encoder LSTM")
+                logging.info("Applying weight norm to text encoder LSTM")
                 lstm_norm_fn_pntr = torch.nn.utils.weight_norm
             self.lstm = lstm_norm_fn_pntr(self.lstm, 'weight_hh_l0')
             self.lstm = lstm_norm_fn_pntr(self.lstm, 'weight_hh_l0_reverse')
@@ -478,8 +479,6 @@ class Encoder(nn.Module):
             x (torch.tensor): N x C x L padded input of text embeddings
             in_lens (torch.tensor): 1D tensor of sequence lengths
         """
-        #print("common X", x)
-        #print("common in_lens", in_lens)
         if x.size()[0] > 1:
             x_embedded = []
             for b_ind in range(x.size()[0]):  # TODO: improve speed
@@ -495,9 +494,7 @@ class Encoder(nn.Module):
 
         # recent amp change -- change in_lens to int
         in_lens = in_lens.int().cpu()
-        #print("in_lens not sorted", in_lens)
         in_lens = sorted(in_lens, reverse=True)
-        #print("in_lens sorted", in_lens)
         x = nn.utils.rnn.pack_padded_sequence(x, in_lens, batch_first=True)
 
         self.lstm.flatten_parameters()
