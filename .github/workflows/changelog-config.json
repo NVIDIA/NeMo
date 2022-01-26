@@ -11,6 +11,10 @@
       {
         "title": "## 🧪 Tests",
         "labels": ["test"]
+      },
+      {
+        "title": "## Uncategorized",
+        "labels": []
       }
     ],
     "ignore_labels": [
@@ -49,6 +53,6 @@
     "exclude_merge_branches": [
     ],
     "tag_resolver": {
-      "method": "semver",
-    },
+      "method": "semver"
+    }
 }
