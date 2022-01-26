@@ -163,7 +163,11 @@ class ConformerConvolution(nn.Module):
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
 
         x = self.depthwise_conv(x)
-        x = self.batch_norm(x)
+        if torch.onnx.is_in_onnx_export():
+            with torch.cuda.amp.autocast(enabled=False):
+                x = self.batch_norm(x.to(dtype=torch.float)).to(dtype=x.dtype)
+        else:
+            x = self.batch_norm(x)
         x = self.activation(x)
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)

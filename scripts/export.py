@@ -109,6 +109,7 @@ def nemo_export(argv):
         autocast = nullcontext
         if torch.cuda.is_available:
             model = model.cuda()
+            model.eval()
             if args.autocast:
                 autocast = torch.cuda.amp.autocast
             with autocast(), torch.no_grad():

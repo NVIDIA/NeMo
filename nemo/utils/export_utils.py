@@ -20,36 +20,6 @@ import torch.nn as nn
 
 from nemo.utils import logging
 
-apex_available = True
-
-try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm
-
-    def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
-        """
-        Replaces Apex's FusedLayerNorm with nn.LayerNorm. This is required for ONNX export.
-        Args:
-           n: the FusedLayerNorm pytorch module to replace
-        Returns:
-           Equivalent LayerNorm module
-        """
-        if not apex_available or not isinstance(n, FusedLayerNorm):
-            return None
-
-        dev = next(n.parameters()).device
-        mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
-
-        n_state = n.state_dict()
-        mod.load_state_dict(n_state)
-        return mod
-
-    default_Apex_replacements = {"FusedLayerNorm": replace_FusedLayerNorm}
-
-except Exception as e:
-    default_Apex_replacements = {}
-    apex_available = False
-
-
 def expand_Conv1D(conv1d: nn.Module) -> Optional[nn.Conv2d]:
     """
     Expands a Conv1D into a Conv2D. This is required for many (closed source) commercial tools with poor support for 1D Convolutions in Onnx.
@@ -219,7 +189,6 @@ def replace_for_export(model: nn.Module, replace_1D_2D: bool = False) -> nn.Modu
     Returns:
         model, possibly modified in-place
     """
-    replace_modules(model, default_Apex_replacements)
     if replace_1D_2D:
         # TODO: add squeeze/unsqueeze
         replace_modules(model, default_1D_2D_replacements)

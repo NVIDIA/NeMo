@@ -148,7 +148,7 @@ class Exportable(ABC):
 
         # Pytorch's default for None is too low, can't pass through
         if onnx_opset_version is None:
-            onnx_opset_version = 13
+            onnx_opset_version = 14
 
         try:
             # Disable typechecks
@@ -225,7 +225,6 @@ class Exportable(ABC):
 
                     # Verify the model can be read, and is valid
                     onnx_model = onnx.load(output)
-                    onnx.checker.check_model(onnx_model, full_check=True)
 
                     if check_trace:
                         self._verify_runtime(
@@ -254,6 +253,7 @@ class Exportable(ABC):
             import onnxruntime
         except (ImportError, ModuleNotFoundError):
             logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
+            onnx.checker.check_model(onnx_model, full_check=True)
             return
 
         sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
