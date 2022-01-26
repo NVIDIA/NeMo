@@ -334,9 +334,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         it sets up labels for provided finetune data from manifest files
 
         Args:
-            model_config: cfg which has train_ds, optional validation_ds, optional test_ds and
-            mandatory encoder and decoder model params
-            make sure you set num_classes correctly for finetune data
+            model_config: cfg which has train_ds, optional validation_ds, optional test_ds, 
+            mandatory encoder and decoder model params. Make sure you set num_classes correctly for finetune data.
 
         Returns: 
             None
@@ -386,7 +385,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
         """
-        returns the speaker embeddings for a provided audio file
+        Returns the speaker embeddings for a provided audio file.
 
         Args:
             path2audio_file: path to audio wav file
@@ -419,7 +418,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
     @torch.no_grad()
     def verify_speakers(self, path2audio_file1, path2audio_file2, threshold=0.7):
         """
-        Verify if two audio files are from same speaker or not
+        Verify if two audio files are from the same speaker or not.
 
         Args:
             path2audio_file1: path to audio wav file of speaker 1  

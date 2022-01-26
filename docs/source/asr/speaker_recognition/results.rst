@@ -80,9 +80,9 @@ This python call will download best pretrained model from NGC and writes embeddi
 Speaker Verification Inference
 ------------------------------
 
-Speaker Verification is a task of verifying if two utterances are from same speaker or not.
+Speaker Verification is a task of verifying if two utterances are from the same speaker or not.
 
-We provide a helper function to verify the audio files and return True if two provided audio files are from same speaker, False otherwise.
+We provide a helper function to verify the audio files and return True if two provided audio files are from the same speaker, False otherwise.
 
 The audio files should be 16KHz mono channel wav files.
 
