@@ -504,9 +504,11 @@ class MegatronT5Model(NLPModel):
                 self.tokenizer.add_special_tokens({'eos_token': '</s>'})
 
             # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
-            for i in range (self.num_sentinel_tokens):
+            for i in range(self.num_sentinel_tokens):
                 if f'▁<extra_id_{i}>' in self.tokenizer.vocab:
-                    self.tokenizer.special_token_to_id[f'<extra_id_{i}>'] = self.tokenizer.text_to_ids(f'<extra_id_{i}>')[0]
+                    self.tokenizer.special_token_to_id[f'<extra_id_{i}>'] = self.tokenizer.text_to_ids(
+                        f'<extra_id_{i}>'
+                    )[0]
                 else:
                     self.tokenizer.add_special_tokens([f'<extra_id_{i}>'])
 
