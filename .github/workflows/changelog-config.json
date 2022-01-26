@@ -25,7 +25,7 @@
         "pattern": ".*tts.*",
         "target": "tts",
         "flags": "gu",
-        "on_property": "title|body"
+        "on_property": ["title", "body"]
       }
     ],
     "duplicate_filter": {
