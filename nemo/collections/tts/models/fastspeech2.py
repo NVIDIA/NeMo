@@ -98,7 +98,7 @@ class FastSpeech2Model(SpectrogramGenerator):
         },
         output_types={
             "mel_spec": NeuralType(('B', 'T', 'C'), MelSpectrogramType()),
-            "log_dur_preds": NeuralType(('B', 'T'), TokenDurationType(), optional=True),
+            "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType(), optional=True),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "energy_preds": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
             "encoded_text_mask": NeuralType(('B', 'T', 'D'), MaskType()),
