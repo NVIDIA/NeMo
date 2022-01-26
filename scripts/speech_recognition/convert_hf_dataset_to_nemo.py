@@ -83,17 +83,17 @@ python convert_hf_dataset_to_nemo.py \
 
 import json
 import os
+import traceback
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
-from omegaconf import OmegaConf, open_dict
-import hydra
-from hydra.core.config_store import ConfigStore
 
-from datasets import load_dataset, IterableDataset, Audio
+import hydra
 import librosa
 import soundfile
 import tqdm
-import traceback
+from datasets import Audio, IterableDataset, load_dataset
+from hydra.core.config_store import ConfigStore
+from omegaconf import OmegaConf, open_dict
 
 
 @dataclass
@@ -192,6 +192,7 @@ def build_map_dataset_to_nemo_func(cfg: HFDatasetConvertionConfig, basedir):
     Returns:
         A function pointer which can be used for Dataset.map()
     """
+
     def map_dataset_to_nemo(batch):
         # Write audio file to correct path
         if cfg.streaming:
