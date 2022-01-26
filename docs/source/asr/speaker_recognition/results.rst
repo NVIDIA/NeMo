@@ -76,6 +76,20 @@ This python call will download best pretrained model from NGC and writes embeddi
 .. code-block:: bash
   
     python examples/speaker_tasks/recognition/extract_speaker_embeddings.py --manifest=manifest.json
+  
+Speaker Verification Inference
+------------------------------
+
+Speaker Verification is a task of verifying if two utterances are from the same speaker or not.
+
+We provide a helper function to verify the audio files and return True if two provided audio files are from the same speaker, False otherwise.
+
+The audio files should be 16KHz mono channel wav files.
+
+.. code-block:: python
+
+  speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="titanet_large")
+  decision = speaker_model.verify_speakers('path/to/one/audio_file','path/to/other/audio_file')
 
 
 NGC Pretrained Checkpoints
