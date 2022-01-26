@@ -19,7 +19,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          configuration: "changelog-config.json"
+          configuration: ".github/workflows/changelog-config.json"
           owner: "NVIDIA"
           repo: "NeMo"
           fromTag: "v1.4.0"
