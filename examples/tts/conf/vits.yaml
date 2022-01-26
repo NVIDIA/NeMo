@@ -1,13 +1,11 @@
 name: "VITS"
 
-labels: [' ', '!', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-         'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+sample_rate: 22050
+
 train_dataset: ???
 validation_datasets: ???
-test_datasets: null
-sample_rate: 22050
-sup_data_path: null
-sup_data_types: null
+sup_data_path: ???
+sup_data_types: [ "duration_prior"]
 
 # LJSpeech stats (per frame), train
 pitch_mean: 212.35873413085938
@@ -30,8 +28,8 @@ pitch_loss_scale: 0.1
 durs_loss_scale: 0.1
 mel_loss_scale: 1.0
 
-phoneme_dict_path: null # "scripts/tts_dataset_files/cmudict-0.7b-030921"
-heteronyms_path: null # "scripts/tts_dataset_files/heteronyms-030921"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b-030921"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 
 filter_channels: 768
 filter_length: 1024
@@ -73,7 +71,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
+      _target_: "nemo.collections.tts.torch.data.TTSDataset"
       manifest_filepath: ${train_dataset}
       sample_rate: ${sample_rate}
       sup_data_path: ${sup_data_path}
@@ -116,7 +114,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.torch.data.MixerTTSDataset"
+      _target_: "nemo.collections.tts.torch.data.TTSDataset"
       manifest_filepath: ${validation_datasets}
       sample_rate: ${sample_rate}
       sup_data_path: ${sup_data_path}
