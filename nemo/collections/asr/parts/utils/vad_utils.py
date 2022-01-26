@@ -59,7 +59,7 @@ def prepare_manifest(config):
     # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
     if type(config['input']) == str:
         input_list = []
-        with open(config['input'], 'r') as manifest:
+        with open(config['input'], 'r', encoding='utf-8') as manifest:
             for line in manifest.readlines():
                 input_list.append(json.loads(line.strip()))
     elif type(config['input']) == list:
@@ -83,7 +83,7 @@ def prepare_manifest(config):
         logging.info("The prepared manifest file exists. Overwriting!")
         os.remove(manifest_vad_input)
 
-    with open(manifest_vad_input, 'a') as fout:
+    with open(manifest_vad_input, 'a', encoding='utf-8') as fout:
         for res in results:
             for r in res:
                 json.dump(r, fout)
@@ -160,7 +160,7 @@ def write_vad_infer_manifest(file, args_func):
 
     except Exception as e:
         err_file = "error.log"
-        with open(err_file, 'w') as fout:
+        with open(err_file, 'w', encoding='utf-8') as fout:
             fout.write(file + ":" + str(e))
     return res
 
@@ -655,7 +655,7 @@ def vad_tune_threshold_on_dev(
         metric.reset()  # reset internal accumulator
 
         # save results for analysis
-        with open(result_file + ".txt", "a") as fp:
+        with open(result_file + ".txt", "a", encoding='utf-8') as fp:
             fp.write(f"{param}, {all_perf[str(param)] }\n")
 
         if score < min_score:
@@ -697,7 +697,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     """
     groundtruth_RTTM_dict = {}
     if os.path.isfile(groundtruth_RTTM):
-        with open(groundtruth_RTTM, "r") as fp:
+        with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
             groundtruth_RTTM_files = fp.read().splitlines()
     elif os.path.isdir(groundtruth_RTTM):
         groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
@@ -711,7 +711,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
 
     vad_pred_dict = {}
     if os.path.isfile(vad_pred):
-        with open(vad_pred, "r") as fp:
+        with open(vad_pred, "r", encoding='utf-8') as fp:
             vad_pred_files = fp.read().splitlines()
     elif os.path.isdir(vad_pred):
         vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
@@ -833,7 +833,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
     all_len = 0
 
     data = []
-    for line in open(manifest_vad_input, 'r'):
+    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
@@ -857,7 +857,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
 
             all_len += len(to_save)
             outpath = os.path.join(out_dir, data[i] + ".frame")
-            with open(outpath, "a") as fout:
+            with open(outpath, "a", encoding='utf-8') as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
 

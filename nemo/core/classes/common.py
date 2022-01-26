@@ -586,7 +586,7 @@ class FileIO(ABC):
         """
         if hasattr(self, '_cfg'):
             self._cfg = maybe_update_config_version(self._cfg)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
             raise NotImplementedError()
