@@ -17,6 +17,7 @@ import os
 from typing import List, Optional, Union
 
 from attr import asdict
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -51,7 +52,9 @@ def get_lm_model(
     config_dict: Optional[dict] = None,
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
+    nemo_file: Optional[str] = None,
     vocab_file: Optional[str] = None,
+    trainer: Optional[Trainer] = None,
 ) -> BertModule:
     """
     Helper function to instantiate a language model encoder, either from scratch or a pretrained model.
@@ -83,16 +86,22 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    if "megatron" in pretrained_model_name:
-        raise ValueError('megatron-lm BERT models have been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support.')
-        # TODO: enable megatron bert in nemo
-        # model, checkpoint_file = get_megatron_lm_model(
-        #     config_dict=config_dict,
-        #     config_file=config_file,
-        #     pretrained_model_name=pretrained_model_name,
-        #     checkpoint_file=checkpoint_file,
-        #     vocab_file=vocab_file,
-        # )
+    if nemo_file is not None:
+        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+        import torch
+
+        class Identity(torch.nn.Module):
+            def __init__(self):
+                super(Identity, self).__init__()
+
+            def forward(self, x, *args):
+                return x
+
+        model = MegatronBertModel.restore_from(restore_path=nemo_file, trainer=trainer)
+        # remove the headers that are only revelant for pretraining
+        model.model.lm_head = Identity()
+        model.model.binary_head = Identity()
+        model.model.language_model.pooler = Identity()
     else:
         model = get_huggingface_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name,

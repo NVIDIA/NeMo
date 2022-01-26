@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import itertools
+import os
+import re
 from argparse import ArgumentParser
 from collections import OrderedDict
-from typing import List
+from math import factorial
+from typing import Dict, List, Union
 
 from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
@@ -36,6 +39,9 @@ try:
     NLP_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     NLP_AVAILABLE = False
+
+
+SPACE_DUP = re.compile(' {2,}')
 
 
 class Normalizer:
@@ -115,6 +121,73 @@ class Normalizer:
             res.append(text)
         return res
 
+    def _estimate_number_of_permutations_in_nested_dict(
+        self, token_group: Dict[str, Union[OrderedDict, str, bool]]
+    ) -> int:
+        num_perms = 1
+        for k, inner in token_group.items():
+            if isinstance(inner, dict):
+                num_perms *= self._estimate_number_of_permutations_in_nested_dict(inner)
+        num_perms *= factorial(len(token_group))
+        return num_perms
+
+    def _split_tokens_to_reduce_number_of_permutations(
+        self, tokens: List[dict], max_number_of_permutations_per_split: int = 729
+    ) -> List[List[dict]]:
+        """
+        Splits a sequence of tokens in a smaller sequences of tokens in a way that maximum number of composite
+        tokens permutations does not exceed ``max_number_of_permutations_per_split``.
+
+        For example,
+
+        .. code-block:: python
+            tokens = [
+                {"tokens": {"date": {"year": "twenty eighteen", "month": "december", "day": "thirty one"}}},
+                {"tokens": {"date": {"year": "twenty eighteen", "month": "january", "day": "eight"}}},
+            ]
+            split = normalizer._split_tokens_to_reduce_number_of_permutations(
+                tokens, max_number_of_permutations_per_split=6
+            )
+            assert split == [
+                [{"tokens": {"date": {"year": "twenty eighteen", "month": "december", "day": "thirty one"}}}],
+                [{"tokens": {"date": {"year": "twenty eighteen", "month": "january", "day": "eight"}}}],
+            ]
+
+        Date tokens contain 3 items each which gives 6 permutations for every date. Since there are 2 dates, total
+        number of permutations would be ``6 * 6 == 36``. Parameter ``max_number_of_permutations_per_split`` equals 6,
+        so input sequence of tokens is split into 2 smaller sequences.
+
+        Args:
+            tokens (:obj:`List[dict]`): a list of dictionaries, possibly nested.
+            max_number_of_permutations_per_split (:obj:`int`, `optional`, defaults to :obj:`243`): a maximum number
+                of permutations which can be generated from input sequence of tokens.
+
+        Returns:
+            :obj:`List[List[dict]]`: a list of smaller sequences of tokens resulting from ``tokens`` split.
+        """
+        splits = []
+        prev_end_of_split = 0
+        current_number_of_permutations = 1
+        for i, token_group in enumerate(tokens):
+            n = self._estimate_number_of_permutations_in_nested_dict(token_group)
+            if n * current_number_of_permutations > max_number_of_permutations_per_split:
+                splits.append(tokens[prev_end_of_split:i])
+                prev_end_of_split = i
+                current_number_of_permutations = 1
+            if n > max_number_of_permutations_per_split:
+                raise ValueError(
+                    f"Could not split token list with respect to condition that every split can generate number of "
+                    f"permutations less or equal to "
+                    f"`max_number_of_permutations_per_split={max_number_of_permutations_per_split}`. "
+                    f"There is an unsplittable token group that generates more than "
+                    f"{max_number_of_permutations_per_split} permutations. Try to increase "
+                    f"`max_number_of_permutations_per_split` parameter."
+                )
+            current_number_of_permutations *= n
+        splits.append(tokens[prev_end_of_split:])
+        assert sum([len(s) for s in splits]) == len(tokens)
+        return splits
+
     def normalize(
         self, text: str, verbose: bool = False, punct_pre_process: bool = False, punct_post_process: bool = False
     ) -> str:
@@ -145,23 +218,29 @@ class Normalizer:
             print(tagged_text)
         self.parser(tagged_text)
         tokens = self.parser.parse()
-        tags_reordered = self.generate_permutations(tokens)
-        for tagged_text in tags_reordered:
-            tagged_text = pynini.escape(tagged_text)
+        split_tokens = self._split_tokens_to_reduce_number_of_permutations(tokens)
+        output = ""
+        for s in split_tokens:
+            tags_reordered = self.generate_permutations(s)
+            verbalizer_lattice = None
+            for tagged_text in tags_reordered:
+                tagged_text = pynini.escape(tagged_text)
 
-            verbalizer_lattice = self.find_verbalizer(tagged_text)
-            if verbalizer_lattice.num_states() == 0:
-                continue
-            output = self.select_verbalizer(verbalizer_lattice)
-            if punct_post_process:
-                # do post-processing based on Moses detokenizer
-                if self.processor:
-                    output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
-                    output = post_process_punct(input=original_text, normalized_text=output)
-                else:
-                    print("NEMO_NLP collection is not available: skipping punctuation post_processing")
-            return output
-        raise ValueError()
+                verbalizer_lattice = self.find_verbalizer(tagged_text)
+                if verbalizer_lattice.num_states() != 0:
+                    break
+            if verbalizer_lattice is None:
+                raise ValueError(f"No permutations were generated from tokens {s}")
+            output += ' ' + self.select_verbalizer(verbalizer_lattice)
+        output = SPACE_DUP.sub(' ', output[1:])
+        if punct_post_process:
+            # do post-processing based on Moses detokenizer
+            if self.processor:
+                output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
+                output = post_process_punct(input=original_text, normalized_text=output)
+            else:
+                print("NEMO_NLP collection is not available: skipping punctuation post_processing")
+        return output
 
     def _permute(self, d: OrderedDict) -> List[str]:
         """

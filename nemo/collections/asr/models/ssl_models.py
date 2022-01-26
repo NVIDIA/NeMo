@@ -19,7 +19,6 @@ from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import ModelPT
@@ -66,6 +65,22 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
         self.loss = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.loss)
 
         self.spec_augmentation = SpeechEncDecSelfSupervisedModel.from_config_dict(self._cfg.spec_augment)
+
+        # dropout for features/spectrograms (applied before masking)
+        self.dropout_features = (
+            torch.nn.Dropout(self._cfg.dropout_features) if "dropout_features" in self._cfg else None
+        )
+
+        # dropout for targets (applied before quantization)
+        self.dropout_features_q = (
+            torch.nn.Dropout(self._cfg.dropout_features_q) if "dropout_features_q" in self._cfg else None
+        )
+
+        # Feature penalty for preprocessor encodings (for Wav2Vec training)
+        if "feature_penalty" in self._cfg:
+            self.feat_pen, self.pen_factor = 0.0, self._cfg.feature_penalty
+        else:
+            self.feat_pen, self.pen_factor = None, None
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -245,7 +260,14 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
                 input_signal=input_signal, length=input_signal_length,
             )
 
+        if self.pen_factor:
+            self.feat_pen = processed_signal.float().pow(2).mean() * self.pen_factor
         spectrograms = processed_signal.detach().clone()
+
+        if self.dropout_features:
+            processed_signal = self.dropout_features(processed_signal)
+        if self.dropout_features_q:
+            spectrograms = self.dropout_features_q(spectrograms)
 
         processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
@@ -255,7 +277,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
             spec_masks[idx, :, proc_len:] = 0.0
 
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
-
         outputs = self.decoder_ssl(encoder_output=encoded)
 
         return spectrograms, spec_masks, outputs
@@ -267,9 +288,10 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
 
         self.loss.set_num_updates(self.trainer.global_step)
         loss_value = self.loss(spectrograms=spectrograms, spec_masks=spec_masks, decoder_outputs=outputs)
+        if self.feat_pen:
+            loss_value += self.feat_pen
 
         tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
-
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -277,7 +299,8 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
         spectrograms, spec_masks, outputs = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         loss_value = self.loss(spectrograms=spectrograms, spec_masks=spec_masks, decoder_outputs=outputs)
-
+        if self.feat_pen:
+            loss_value += self.feat_pen
         return {
             'val_loss': loss_value,
         }

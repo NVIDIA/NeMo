@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -46,6 +46,7 @@ python megatron_gpt_prompt_tuning.py \
         trainer.max_steps=$MAX_STEPS \
         restore_from_path=$RESTORE_PATH \
         exp_manager.name=$EXPR_NAME \
+        exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
         +model.use_soft_prompts=True \
         +model.num_prompt_tokens=$PROMPT_LENGTH \
         +model.existing_prompt_tags=[] \
@@ -82,6 +83,7 @@ python megatron_gpt_prompt_tuning.py \
         trainer.val_check_interval=$VAL_CHECK_INTERVAL \
         restore_from_path=$RESTORE_PATH \
         exp_manager.name=$EXPR_NAME \
+        exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
         +model.use_soft_prompts=True \
         +model.num_prompt_tokens=$PROMPT_LENGTH \
         +model.existing_prompt_tags=['Winogrande'] \
@@ -115,6 +117,7 @@ python megatron_gpt_prompt_tuning.py \
         trainer.gpus=$GPUS \
         trainer.max_steps=$MAX_STEPS \
         exp_manager.name=$EXPR_NAME \
+        exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
         restore_from_path=$RESTORE_PATH \
         +model.use_soft_prompts=True \
         +model.num_prompt_tokens=$PROMPT_LENGTH \
@@ -122,6 +125,7 @@ python megatron_gpt_prompt_tuning.py \
         +model.new_prompt_tags=['BoolQ'] \
         +model.new_prompt_init_text=['true false question answer reading comprehension'] \
         +model.new_prompt_init_methods=['text'] \
+        +model.calc_loss_on_answer_only=False \
         model.data.data_prefix=None \
         +model.data.train_ds='boolq_prompt_tuning_train.jsonl' \
         +model.data.valid_ds='boolq_prompt_tuning_val.jsonl' \
@@ -143,7 +147,13 @@ def main(cfg) -> None:
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
+
     exp_manager(trainer, cfg.exp_manager)
+
+    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
+    with open_dict(cfg):
+        cfg.model.precision = cfg.trainer.precision
+
     model = MegatronGPTModel.restore_from(cfg.restore_from_path, cfg.model, trainer=trainer)
 
     # Init all new prompts
