@@ -1,8 +1,16 @@
 {
     "categories": [
       {
-        "title": "## Uncategorized",
-        "labels": []
+        "title": "## ASR",
+        "labels": ["asr", "rnnt", "transducer"]
+      },
+      {
+        "title": "## TTS",
+        "labels": ["tts"]
+      },
+      {
+        "title": "## NLP / NMT",
+        "labels": ["nlp", "nmt", "megatron"]
       }
     ],
     "ignore_labels": [
@@ -16,8 +24,7 @@
       {
         "pattern": "(.)+",
         "target": "$1",
-        "flags": "gu",
-        "method": "match"
+        "flags": "gu"
       }
     ],
     "duplicate_filter": {
