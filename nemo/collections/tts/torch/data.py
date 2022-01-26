@@ -55,7 +55,7 @@ from nemo.utils import logging
 class TTSDataset(Dataset):
     def __init__(
         self,
-        manifest_filepath: str,
+        manifest_filepath: Union[str, Path, List[str], List[Path]],
         sample_rate: int,
         text_tokenizer: Union[BaseTokenizer, Callable[[str], List[int]]],
         tokens: Optional[List[str]] = None,
@@ -78,11 +78,12 @@ class TTSDataset(Dataset):
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
-        It loads main data types (audio and text) and specified supplementary data types (e.g. log mel, durations, pitch).
-        Most supplementary data types will be computed on the fly and saved in the supplementary_folder if they did not exist before.
+        It loads main data types (audio, text) and specified supplementary data types (log mel, durations, align prior matrix, pitch, energy, speaker id).
+        Some of supplementary data types will be computed on the fly and saved in the sup_data_path if they did not exist before.
+        Saved folder can be changed for some supplementary data types (see keyword args section).
         Arguments for supplementary data should be also specified in this class and they will be used from kwargs (see keyword args section).
         Args:
-            manifest_filepath (str, Path, List[str, Path]): Path(s) to the .json manifests containing information on the
+            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing information on the
                 dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
                 json. Each line should contain the following:
                     "audio_filepath": <PATH_TO_WAV>,
@@ -116,6 +117,10 @@ class TTSDataset(Dataset):
             lowfreq (int): The lowfreq input to the mel filter calculation. Defaults to 0.
             highfreq (Optional[int]): The highfreq input to the mel filter calculation. Defaults to None.
         Keyword Args:
+            log_mel_folder (Optional[Union[Path, str]]): The folder that contains or will contain log mel spectrograms.
+            align_prior_matrix_folder (Optional[Union[Path, str]]): The folder that contains or will contain align prior matrices.
+            pitch_folder (Optional[Union[Path, str]]): The folder that contains or will contain pitch.
+            energy_folder (Optional[Union[Path, str]]): The folder that contains or will contain energy.
             durs_file (Optional[str]): String path to pickled durations location.
             durs_type (Optional[str]): Type of durations. Currently supported only "aligner-based".
             use_beta_binomial_interpolator (Optional[bool]): Whether to use beta-binomial interpolator for calculating alignment prior matrix. Defaults to False.
@@ -294,7 +299,11 @@ class TTSDataset(Dataset):
         return filtered_data
 
     def add_log_mel(self, **kwargs):
-        self.log_mel_folder = Path(self.sup_data_path) / LogMel.name
+        self.log_mel_folder = kwargs.pop('log_mel_folder', None)
+
+        if self.log_mel_folder is None:
+            self.log_mel_folder = Path(self.sup_data_path) / LogMel.name
+
         self.log_mel_folder.mkdir(exist_ok=True, parents=True)
 
     def add_durations(self, **kwargs):
@@ -314,7 +323,11 @@ class TTSDataset(Dataset):
                 )
 
     def add_align_prior_matrix(self, **kwargs):
-        self.align_prior_matrix_folder = Path(self.sup_data_path) / AlignPriorMatrix.name
+        self.align_prior_matrix_folder = kwargs.pop('align_prior_matrix_folder', None)
+
+        if self.align_prior_matrix_folder is None:
+            self.align_prior_matrix_folder = Path(self.sup_data_path) / AlignPriorMatrix.name
+
         self.align_prior_matrix_folder.mkdir(exist_ok=True, parents=True)
 
         self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
@@ -323,7 +336,11 @@ class TTSDataset(Dataset):
             self.beta_binomial_interpolator = BetaBinomialInterpolator()
 
     def add_pitch(self, **kwargs):
-        self.pitch_folder = Path(self.sup_data_path) / Pitch.name
+        self.pitch_folder = kwargs.pop('pitch_folder', None)
+
+        if self.pitch_folder is None:
+            self.pitch_folder = Path(self.sup_data_path) / Pitch.name
+
         self.pitch_folder.mkdir(exist_ok=True, parents=True)
 
         self.pitch_fmin = kwargs.pop("pitch_fmin", librosa.note_to_hz('C2'))
@@ -333,7 +350,11 @@ class TTSDataset(Dataset):
         self.pitch_norm = kwargs.pop("pitch_norm", False)
 
     def add_energy(self, **kwargs):
-        self.energy_folder = Path(self.sup_data_path) / Energy.name
+        self.energy_folder = kwargs.pop('energy_folder', None)
+
+        if self.energy_folder is None:
+            self.energy_folder = Path(self.sup_data_path) / Energy.name
+
         self.energy_folder.mkdir(exist_ok=True, parents=True)
 
     def add_speaker_id(self, **kwargs):
@@ -681,7 +702,7 @@ class MixerTTSXDataset(TTSDataset):
 class VocoderDataset(Dataset):
     def __init__(
         self,
-        manifest_filepath: Union[str, Path, List[str, Path]],
+        manifest_filepath: Union[str, Path, List[str], List[Path]],
         sample_rate: int,
         n_segments: Optional[int] = None,
         max_duration: Optional[float] = None,
@@ -693,7 +714,7 @@ class VocoderDataset(Dataset):
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
-            manifest_filepath (str, Path, List[str, Path]): Path(s) to the .json manifests containing information on the
+            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing information on the
             dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
             json. Each line should contain the following:
                 "audio_filepath": <PATH_TO_WAV>,
