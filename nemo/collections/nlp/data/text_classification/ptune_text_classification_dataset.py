@@ -1,4 +1,4 @@
-# Copyright 2018 The Google AI Language Team Authors and
+# Copyright 2022 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #

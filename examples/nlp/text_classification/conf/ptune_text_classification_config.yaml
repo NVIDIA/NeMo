@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,9 +32,9 @@ trainer:
   logger: False  # Provided by exp_manager
 
 model:
-  tensor_model_parallel_size: 2 # tensor model parallel size used in the LM model
+  tensor_model_parallel_size: 1 # tensor model parallel size used in the LM model
   seed: 1234
-  nemo_path: ptune_text_classification_model.nemo # filename to save the model and associated artifacts to .nemo file
+  nemo_path: null # filename to save the model and associated artifacts to .nemo file
   use_lm_finetune: False # whether fine tune the language model
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
 

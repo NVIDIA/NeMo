@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         self.model = MegatronGPTModel.restore_from(
             self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
             trainer=trainer,
-        ).half()
+        )
 
         for param in self.model.parameters():
             param.requires_grad = cfg.use_lm_finetune
@@ -262,10 +262,19 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
         batch_size, _, seq_len, _ = new_atten.shape
         labels_input, label_ids = self.get_label_input(labels, label_position, seq_len)
+        # workaround to do auto-cast
+        # get the LM dtype
+        dtype = self.model.model.language_model.encoder.layers[0].dtype
 
-        output = self.model.model(
-            None, None, encoder_input=encoder_input, attention_mask=new_atten, labels=labels_input
-        )
+        if dtype == torch.float32:
+            output = self.model.model(
+                None, None, encoder_input=encoder_input, attention_mask=new_atten, labels=labels_input
+            )
+        else:
+            with torch.autocast(device_type="cuda", dtype=dtype):
+                output = self.model.model(
+                    None, None, encoder_input=encoder_input, attention_mask=new_atten, labels=labels_input
+                )
         loss, logits = output
         floss = (loss[(labels_input != SMALL_LOGITS)]).mean()
 
