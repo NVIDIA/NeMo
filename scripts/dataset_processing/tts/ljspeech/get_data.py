@@ -20,6 +20,10 @@ from pathlib import Path
 
 import sox
 import wget
+
+import sys
+# sys.path.append("/nemo_text_processing/text_normalization/")
+# sys.path.insert(0, '/nemo_text_processing/text_normalization/normalize/')
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
