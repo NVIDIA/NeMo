@@ -249,9 +249,19 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         encoder_input, new_atten, label_position = self.get_encoder_input(sentences)
         batch_size, _, seq_len, _ = new_atten.shape
 
-        output = self.model.model(
-            None, None, encoder_input=encoder_input.to(self.device), attention_mask=new_atten.to(self.device)
-        )
+        # workaround to do auto-cast
+        # get the LM dtype
+        dtype = self.model.model.language_model.encoder.layers[0].dtype
+
+        if dtype == torch.float32:
+            output = self.model.model(
+                None, None, encoder_input=encoder_input.to(self.device), attention_mask=new_atten.to(self.device)
+            )
+        else:
+            with torch.autocast(device_type="cuda", dtype=dtype):
+                output = self.model.model(
+                    None, None, encoder_input=encoder_input.to(self.device), attention_mask=new_atten.to(self.device)
+                )
         logits = output
 
         _, returned_pred = self.get_prediction(batch_size, label_position.to(self.device), logits)
