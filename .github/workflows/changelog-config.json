@@ -2,15 +2,23 @@
     "categories": [
       {
         "title": "## ASR",
-        "labels": ["asr", "rnnt", "transducer"]
+        "labels": ["asr"]
       },
       {
         "title": "## TTS",
         "labels": ["tts"]
       },
       {
-        "title": "## NLP / NMT",
-        "labels": ["nlp", "nmt", "megatron"]
+        "title": "## NLP",
+        "labels": ["nlp"]
+      },
+      {
+        "title": "## NMT",
+        "labels": ["nlp", "megatron"]
+      },
+      {
+        "title": "## Documentation",
+        "labels": ["docs"]
       }
     ],
     "ignore_labels": [
@@ -22,10 +30,64 @@
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
-        "pattern": ".*tts.*",
+        "pattern": "(.*tts.*)|(.*g2p.*)",
         "target": "tts",
-        "flags": "gu",
-        "on_property": ["title", "body"]
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*tts.*)|(.*g2p.*)",
+        "target": "tts",
+        "flags": "giu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)",
+        "target": "asr",
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)",
+        "target": "asr",
+        "flags": "giu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
+        "target": "nlp",
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
+        "target": "nlp",
+        "flags": "giu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
+        "target": "nmt",
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
+        "target": "nmt",
+        "flags": "giu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*doc.*)",
+        "target": "docs",
+        "flags": "giu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*doc.*)",
+        "target": "docs",
+        "flags": "giu",
+        "on_property": "body"
       }
     ],
     "duplicate_filter": {
