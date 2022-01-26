@@ -21,17 +21,22 @@ from transformers import (
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
+    AutoModelForCausalLM,
     BertConfig,
     DistilBertConfig,
     RobertaConfig,
+    GPT2Config
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
+from nemo.collections.nlp.modules.common.huggingface.gpt2 import GPT2Encoder
+
 from nemo.utils import logging
 
 __all__ = ["get_huggingface_lm_model", "get_huggingface_pretrained_lm_models_list", "VOCAB_FILE_NAME"]
@@ -62,6 +67,18 @@ HUGGINGFACE_MODELS = {
         "config": AlbertConfig,
         "pretrained_model_list": ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
+    "GPT2Model": {
+        "default": "gpt2",
+        "class": GPT2Encoder,
+        "config": GPT2Config,
+        "pretrained_model_list": GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
+    "GPT2LMHeadModel": {
+        "default": "gpt2",
+        "class": GPT2Encoder,
+        "config": GPT2Config,
+        "pretrained_model_list": GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
 }
 
 VOCAB_FILE_NAME = {
@@ -69,6 +86,7 @@ VOCAB_FILE_NAME = {
     'RobertaTokenizer': "vocab.json",
     'BertTokenizer': "vocab.txt",
     'DistilBertTokenizer': "vocab.txt",
+    "GPT2Tokenizer":"vocab.json"
 }
 
 
@@ -89,11 +107,16 @@ def get_huggingface_lm_model(
     """
 
     try:
-        automodel = AutoModel.from_pretrained(pretrained_model_name)
+        if 'gpt' in pretrained_model_name:
+            automodel = AutoModelForCausalLM.from_pretrained(pretrained_model_name)
+        else:
+            automodel = AutoModel.from_pretrained(pretrained_model_name)
+            
     except Exception as e:
         raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
 
     model_type = type(automodel).__name__
+    
     if model_type in HUGGINGFACE_MODELS:
         model_class = HUGGINGFACE_MODELS[model_type]["class"]
         if config_file:
