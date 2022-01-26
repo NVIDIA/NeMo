@@ -30,7 +30,7 @@ NGC Pretrained Checkpoints
 --------------------------
 
 The ASR collection has checkpoints of several models trained on various datasets for a variety of tasks. These checkpoints are 
-obtainable via NGC `NeMo Automatic Speech Recognition collection <https://ngc.nvidia.com/catalog/models/nvidia:nemospeechmodels>`_.
+obtainable via NGC `NeMo Automatic Speech Recognition collection <https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_asr>`_.
 The model cards on NGC contain more information about each of the checkpoints available.
 
 The tables below list the ASR models available from NGC. The models can be accessed via the :code:`from_pretrained()` method inside
