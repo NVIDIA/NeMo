@@ -29,4 +29,5 @@ jobs:
       - name: Print Changelog
         run: |
           echo "${{steps.github_tag.outputs.changelog}}"
+          echo "--- PRs ---"
           echo "${{steps.github_tag.outputs.pull_requests}}"
