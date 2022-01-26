@@ -9,12 +9,8 @@
         "labels": ["tts"]
       },
       {
-        "title": "## NLP",
-        "labels": ["nlp"]
-      },
-      {
-        "title": "## NMT",
-        "labels": ["nmt", "megatron"]
+        "title": "## NLP / NMT",
+        "labels": ["nlp", "nmt", "megatron"]
       },
       {
         "title": "## Text Normalization / Inverse Text Normalization",
@@ -25,8 +21,16 @@
         "labels": ["tools"]
       },
       {
+        "title": "## Export",
+        "labels": ["export"]
+      },
+      {
         "title": "## Documentation",
         "labels": ["docs"]
+      },
+      {
+        "title": "## Bugfixes",
+        "labels": ["bug"]
       }
     ],
     "ignore_labels": [
@@ -62,7 +66,7 @@
         "on_property": "body"
       },
       {
-        "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
+        "pattern": "()(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
         "target": "nlp",
         "flags": "gimu",
         "on_property": "title"
@@ -74,13 +78,13 @@
         "on_property": "body"
       },
       {
-        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
+        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
         "target": "nmt",
         "flags": "gimu",
         "on_property": "title"
       },
       {
-        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)",
+        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
         "target": "nmt",
         "flags": "gimu",
         "on_property": "body"
@@ -110,6 +114,18 @@
         "on_property": "body"
       },
       {
+        "pattern": "(.*trt.*)|(.*onnx.*)",
+        "target": "export",
+        "flags": "gimu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*trt.*)|(.*onnx.*)",
+        "target": "export",
+        "flags": "gimu",
+        "on_property": "body"
+      },
+      {
         "pattern": "(.*doc.*)",
         "target": "docs",
         "flags": "gimu",
@@ -118,6 +134,18 @@
       {
         "pattern": "(.*doc.*)",
         "target": "docs",
+        "flags": "gimu",
+        "on_property": "body"
+      },
+      {
+        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)",
+        "target": "bug",
+        "flags": "gimu",
+        "on_property": "title"
+      },
+      {
+        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)",
+        "target": "bug",
         "flags": "gimu",
         "on_property": "body"
       }
