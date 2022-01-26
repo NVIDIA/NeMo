@@ -49,11 +49,10 @@ class Variant:
         )
         parameters_to_be_included_in_name = [
             ("io", io),
-            ("half", self.is_half),
+            ("half", int(self.is_half) if self.is_half is not None else None),
             ("pp", self.pipeline_parallel_size),
             ("tp", self.tensor_parallel_size),
             ("mbs", self.max_batch_size),
-            ("vocab", self.vocab_size),
         ]
         parameters = "-".join([f"{k}_{v}" for k, v in parameters_to_be_included_in_name if v is not None])
         if parameters:
