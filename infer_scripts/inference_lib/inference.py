@@ -177,7 +177,7 @@ def get_profile_cmds(
 
     max_shapes = [f"INPUT_ID=-1,1,{input_len}", "REQUEST_INPUT_LEN=-1,1", "REQUEST_OUTPUT_LEN=-1,1"]
     value_ranges = [
-        f"INPUT_ID=1,{variant.end_id}",
+        f"INPUT_ID={variant.end_id},{variant.end_id}",
         f"REQUEST_INPUT_LEN={input_len},{input_len}",
         f"REQUEST_OUTPUT_LEN={output_len},{output_len}",
     ]

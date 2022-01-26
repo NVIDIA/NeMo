@@ -19,6 +19,7 @@ import itertools
 import logging
 import pathlib
 import shutil
+import sys
 import textwrap
 
 import yaml
@@ -374,6 +375,7 @@ def main():
         LOGGER.info(f"[{analyze_job.job_id}] summary: \n{analysis_summary_path.read_text()}")
     else:
         LOGGER.warning("No successful profile results were found, thus don't run analyze job.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
