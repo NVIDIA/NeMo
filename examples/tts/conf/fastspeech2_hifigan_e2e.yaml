@@ -54,7 +54,7 @@ model:
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
-    nfilt: ${n_mels}
+    nfilt: ${model.n_mels}
     frame_splicing: 1
     highfreq: 8000
     log: true
