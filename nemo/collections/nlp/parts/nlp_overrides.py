@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 import os
 import shutil
 import tempfile
@@ -34,15 +43,6 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
-
-try:
-    from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
 
 
 class NLPDDPPlugin(DDPPlugin):
