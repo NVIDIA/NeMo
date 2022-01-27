@@ -35,6 +35,13 @@ from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
 
+try:
+    from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+
+    HAVE_NLPPLUGIN = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLPPLUGIN = False
+
 __all__ = ['ModelPT']
 
 
@@ -458,6 +465,7 @@ class ModelPT(LightningModule, Model):
             logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
 
         if 'sched' in optim_config and self._trainer is not None:
+
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
             if self._trainer.max_steps is None or self.trainer.max_steps < 0:
@@ -471,6 +479,9 @@ class ModelPT(LightningModule, Model):
                     optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
                 elif self._trainer.accelerator == "ddp":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
+                elif HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                    app = AppState()
+                    optim_config['sched']['t_num_workers'] = app.data_parallel_size
                 else:
                     logging.warning(
                         f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
