@@ -66,7 +66,7 @@
         "on_property": "body"
       },
       {
-        "pattern": "()(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
+        "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
         "target": "nlp",
         "flags": "gimu",
         "on_property": "title"
