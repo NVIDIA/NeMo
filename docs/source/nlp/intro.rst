@@ -5,7 +5,7 @@ Natural Language Processing (NLP)
    :maxdepth: 2
 
    models
-   megatron_finetuning
+   megatron_downstream_tasks
    api
 
 
