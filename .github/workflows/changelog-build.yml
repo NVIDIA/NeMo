@@ -33,7 +33,7 @@ jobs:
           owner: "NVIDIA"
           repo: "NeMo"
           fromTag: ${{ steps.previous_tag.outputs.tag }}
-          toTag: "${{ github.ref_name:10 }}"
+          toTag: "${{ github.ref_name }}"
 
       - name: Print Changelog
         run: |
