@@ -40,6 +40,8 @@ except ModuleNotFoundError:
 
 
 class UnivNetModel(Vocoder):
+    """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram"""
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
