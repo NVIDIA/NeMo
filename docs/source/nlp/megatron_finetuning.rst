@@ -48,23 +48,23 @@ and specify ``--bert_config`` and ``--bert_checkpoint`` for your model.
 Prompt Tuning
 -----------------
 
-Prompt tuning is a continuous or soft prompt approach to finding the optimal prompt for a specific prompting-based tasks. Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning utilizes continuous prompt tokens that can be optimized via gradient decent. In addition to increased task performance compared to discrete prompting methods, prompt tuning has been shown to yield performance competitive with finetuning all a model’s parameters for T5 style models greater than 10B parameters. This is particularly exciting because prompt tuning typically involves tuning parameters amounting to less then 1% of the original model’s size. A model can also be prompt tuned for multiple tasks simultaneously without the risk of over fitting on any one task leading to a degradation in performance on other tasks. With these benefits, prompt tuning can be used as a lighter weight and more flexible alternative to full model finetuning. Prompt tuning can also be used additively with other discrete prompt selection methods.
+Prompt tuning is a continuous or soft prompt approach to finding the optimal prompt for a specific prompting-based tasks. Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning utilizes continuous prompt tokens that can be optimized via gradient decent. In addition to increased task performance compared to discrete prompting methods, prompt tuning has been shown to yield performance competitive with finetuning all of a model’s parameters for T5 style models greater than 10B parameters. This is particularly exciting because prompt tuning typically involves tuning parameters amounting to less then 1% of the original model’s size. A model can also be prompt tuned for multiple tasks simultaneously without the risk of over fitting on any one task leading to a degradation in performance on other tasks. With these benefits, prompt tuning can be used as a lighter weight and more flexible alternative to full model finetuning. Prompt tuning can also be used additively with other discrete prompt selection methods.
 
 Implementation Overview
 ^^^^^^^^^^
 
-Our current prompt tuning implementation adapt’s Lester et. al’s EMNLP 2021 "`The Power of Scale for Parameter-Efficient Prompt Tuning <https://arxiv.org/abs/2104.08691>`_" :cite:`nlp-prompt-tuning-Lester2021promptunting` to prompt tuning for GPT style models. In this implementation, a number of soft tokens specified by the user are prepended to the beginning of the discrete token input embeddings during the forward pass. During training, all model parameters are frozen except for those corresponding to the soft tokens. Only the soft prompt parameters are updated via gradient decent in the backward pass. Each soft token has the same dimensionality as a regular token embedding from the model’s vocabulary corresponding to the ``hidden_size`` hyperparameter. Soft token embeddings can be initialized randomly or with selected existing embeddings from the pretrained model.
+Our current prompt tuning implementation adapt’s Lester et. al’s EMNLP 2021 "`The Power of Scale for Parameter-Efficient Prompt Tuning <https://arxiv.org/abs/2104.08691>`_" to prompt tuning for GPT style models. In this implementation, a number of soft tokens specified by the user are prepended to the beginning of the discrete token input embeddings during the forward pass. During training, all model parameters are frozen except for those corresponding to the soft tokens. Only the soft prompt parameters are updated via gradient decent in the backward pass. Each soft token has the same dimensionality as a regular token embedding from the model’s vocabulary corresponding to the ``hidden_size`` hyperparameter. Soft token embeddings can be initialized randomly or with selected existing embeddings from the pretrained model.
 
 Data Formatting
 ^^^^^^^^^^
 
-The dataset should be a .jsonl file where each json object has 3 fields: ``prompt_tag``, ``text``, and ``answer``.
+The dataset should be a .jsonl file where each json object has 2 fields: ``prompt_tag`` and ``text``.
 
 .. code::
 
-  {"prompt_tag": [tag1], "text": [text1], "answer": [answer1]}
-  {"prompt_tag": [tag1], "text": [text2], "answer": [answer2]}
-  {"prompt_tag": [tag1], "text": [text3], "answer": [answer3]}
+  {"prompt_tag": [tag1], "text": [text1]}
+  {"prompt_tag": [tag1], "text": [text2]}
+  {"prompt_tag": [tag1], "text": [text3]}
   
 .. _data-example-label:
 
@@ -98,9 +98,6 @@ Prompt Tuning Specific Config Values
    * - **model.new_prompt_init_text**
      - list of strings
      - The text you want to use for soft prompt initalization if ``model.new_prompt_init_methods`` is set to ['text']. The text is tokenized and clipped or tiled to match ``model.num_prompt_tokens``. The vocab embeddings associated with each token are copied and use to initialize the soft prompts.
-   * - **model.calc_loss_on_answer_only**
-     - bool
-     - Whether to calculate cross entropy loss on the full text input or only the answer portion of the input during prompt tuning. 
    * - **model.data.train_ds**
      - string
      - path to training dataset .json or .jsonl file. See `Data Formatting`_ for an example
