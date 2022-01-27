@@ -35,6 +35,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LossType, NeuralType, PredictionsType, StringLabel, StringType
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 
 __all__ = ['PTuneTextClassificationModel']
 
@@ -107,17 +108,12 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
 
         # map from id to label
         self.allowed_vocab = {}
-        label_ids = {}
+        self.label_ids = {}
         self.id_to_label = {}
         for i, k in enumerate(cfg.dataset.classes):
             self.allowed_vocab[self.vocab[token_wrapper(k)]] = i
-            label_ids[k] = i
+            self.label_ids[k] = i
             self.id_to_label[i] = k
-
-        # setup to track metrics
-        self.classification_report = ClassificationReport(
-            num_classes=len(self.classes), label_ids=label_ids, mode='micro', dist_sync_on_step=True
-        )
 
         self.template = cfg.prompt_encoder.template
 
@@ -139,6 +135,18 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             else self.tokenizer.tokenizer.unk_token_id
         )
         self.spell_length = sum(self.template)
+
+    def setup(self, stage):
+        # setup to track metrics, need to put here
+        # as data_parallel_group is initialized when calling `fit, or test function`
+        app = AppState()
+        self.classification_report = ClassificationReport(
+            num_classes=len(self.classes),
+            label_ids=self.label_ids,
+            mode='micro',
+            dist_sync_on_step=True,
+            process_group=app.data_parallel_group,
+        )
 
     def embed_input(self, queries):
         bz = queries.shape[0]
