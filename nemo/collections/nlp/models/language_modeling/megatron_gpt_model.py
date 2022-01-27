@@ -771,7 +771,7 @@ class MegatronGPTModel(NLPModel):
             if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
                 self.cfg.persist_layer_norm = False
 
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR == 12):
+            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
                 # NVFUSER
                 torch._C._jit_set_profiling_executor(True)
                 torch._C._jit_set_profiling_mode(True)
