@@ -1,8 +1,13 @@
 name: 'ChangelogBuild'
+
+env:
+  FROM_TAG: "v1.4.0"
+
+
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 jobs:
   changelog:
@@ -10,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-#        with:
-#          repository: 'NVIDIA/NeMo'
 
       - name: Build Changelog
         id: github_tag
@@ -19,15 +22,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          configuration: ".github/workflows/changelog-config.json"
+          configuration: ".github/workflows/config/changelog-config.json"
           owner: "NVIDIA"
           repo: "NeMo"
-          fromTag: "v1.4.0"
-          toTag: "v1.5.1"
-          outputFile: "changelog.md"
+          fromTag: ${{ env.FROM_TAG }}
+          toTag: "${{ github.ref_name:10 }}"
 
       - name: Print Changelog
         run: |
           echo "${{steps.github_tag.outputs.changelog}}"
-          echo "--- PRs ---"
-          echo "${{steps.github_tag.outputs.pull_requests}}"
+          echo "--- DONE ---"
