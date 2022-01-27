@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from typing import Any, Dict, List, Optional
 
@@ -56,6 +57,9 @@ class MegatronGPTModel(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
+        # used in NVIDIA NGC PyTorch containers
+        self._enable_nvidia_optimizations()
+
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
@@ -69,8 +73,6 @@ class MegatronGPTModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
-
-        set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
@@ -755,3 +757,30 @@ class MegatronGPTModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
+
+    def _enable_nvidia_optimizations(self):
+        "These optimizations are present in NVIDIA NGC PyTorch Containers"
+
+        # Version check
+        nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+        if nvidia_torch_version is not None:
+            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+
+            # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
+            if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
+                self.cfg.persist_layer_norm = False
+
+            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR == 12):
+                # NVFUSER
+                torch._C._jit_set_profiling_executor(True)
+                torch._C._jit_set_profiling_mode(True)
+                torch._C._jit_override_can_fuse_on_cpu(False)
+                torch._C._jit_override_can_fuse_on_gpu(False)
+                torch._C._jit_set_texpr_fuser_enabled(False)
+                torch._C._jit_set_nvfuser_enabled(True)
+                torch._C._debug_set_autodiff_subgraph_inlining(False)
+
+        else:
+            # Not a Nvidia container. Dependency check is on users
+            pass
