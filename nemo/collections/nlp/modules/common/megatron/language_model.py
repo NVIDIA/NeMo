@@ -679,9 +679,10 @@ class TransformerLanguageModel(MegatronModule):
         pooling_sequence_index=0,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
+        encoder_input=None,
     ):
         # Embeddings.
-        if self.pre_process:
+        if self.pre_process and encoder_input is None:
             embedding_output = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
             # Soft prompts
@@ -694,7 +695,7 @@ class TransformerLanguageModel(MegatronModule):
             else:
                 encoder_input = embedding_output
         else:
-            encoder_input = None
+            pass
 
         # encoder.
         if enc_hidden_states is None:
