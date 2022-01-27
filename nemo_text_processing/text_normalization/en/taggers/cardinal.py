@@ -21,6 +21,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
     insert_space,
+    NEMO_CHAR
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
@@ -196,4 +197,8 @@ class CardinalFst(GraphFst):
         serial_graph = pynini.compose(
             pynini.difference(NEMO_SIGMA, pynini.closure(NEMO_DIGIT, 1) + pynini.union(*endings)), serial_graph
         )
-        return pynutil.add_weight(serial_graph, 2)
+
+        serial_graph = pynutil.add_weight(serial_graph, 2)
+        serial_graph |= pynini.closure(NEMO_NOT_SPACE, 1) + (pynini.cross("^2", " squared") | pynini.cross("^3", " cubed"))
+
+        return serial_graph
