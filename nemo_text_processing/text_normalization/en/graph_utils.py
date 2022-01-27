@@ -18,7 +18,7 @@ import string
 from pathlib import Path
 from typing import Dict
 
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -114,6 +114,24 @@ except (ModuleNotFoundError, ImportError):
     TO_UPPER = None
 
     PYNINI_AVAILABLE = False
+
+def roman_to_int():
+	def _load_roman(file: str):
+		roman = load_labels(get_abs_path(file))
+		roman_numerals = [(x, y) for x, y in roman] + [(x.upper(), y) for x, y in roman]
+		return pynini.string_map(roman_numerals)
+
+	digit_teen = _load_roman("data/roman/digit_teen.tsv") 
+	ties = _load_roman("data/roman/ties.tsv") 
+	hundreds = _load_roman("data/roman/hundreds.tsv")
+
+	graph = (
+		(ties | digit_teen | hundreds)
+		| (ties + insert_space + digit_teen)
+		| (hundreds + pynini.closure(insert_space + ties, 0, 1) + pynini.closure(insert_space + digit_teen, 0, 1))
+	).optimize()
+
+	return graph
 
 
 def generator_main(file_name: str, graphs: Dict[str, pynini.FstLike]):

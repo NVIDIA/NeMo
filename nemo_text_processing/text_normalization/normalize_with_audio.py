@@ -281,7 +281,7 @@ def parse_args():
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
     parser.add_argument(
-        "--language", help="Select target language", choices=["en", "ru", "de"], default="en", type=str
+        "--language", help="Select target language", choices=["en", "ru", "de", "es"], default="en", type=str
     )
     parser.add_argument("--audio_data", default=None, help="path to an audio file or .json manifest")
     parser.add_argument(
