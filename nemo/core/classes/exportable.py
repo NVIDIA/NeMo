@@ -24,7 +24,7 @@ from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils import logging
 from nemo.utils.export_utils import replace_for_export
-
+from torch.onnx import TrainingMode, ExportTypes
 __all__ = ['ExportFormat', 'Exportable']
 
 
@@ -124,11 +124,11 @@ class Exportable(ABC):
         input_example=None,
         verbose=False,
         export_params=True,
-        do_constant_folding=True,
+        do_constant_folding=False,
         keep_initializers_as_inputs=False,
         onnx_opset_version=None,
         try_script: bool = False,
-        set_eval: bool = True,
+        training = TrainingMode.PRESERVE,
         check_trace: bool = False,
         use_dynamic_axes: bool = True,
         dynamic_axes=None,
@@ -146,7 +146,7 @@ class Exportable(ABC):
         format = self.get_format(output)
         output_descr = f"{qual_name} exported to {format}"
 
-        # Pytorch's default for None is too low, can't pass through
+        # Pytorch's default for None is too low, can't pass None through
         if onnx_opset_version is None:
             onnx_opset_version = 14
 
@@ -157,32 +157,30 @@ class Exportable(ABC):
             # Allow user to completely override forward method to export
             forward_method, old_forward_method = self._wrap_forward_method()
 
-            # Set module to eval mode
-            if set_eval:
-                self.eval()
+            # Set module mode
+            with torch.onnx.select_model_mode_for_export(self, training), torch.jit.optimized_execution(True), torch.no_grad():
 
-            if input_example is None:
-                input_example = self._get_input_example()
+                if input_example is None:
+                    input_example = self._get_input_example()
 
-            # Remove i/o examples from args we propagate to enclosed Exportables
-            my_args.pop('output')
-            my_args.pop('input_example')
-
-            # Run (posibly overridden) prepare methods before calling forward()
-            for ex in exportables:
-                ex._prepare_for_export(**my_args)
-            self._prepare_for_export(output=output, input_example=input_example, **my_args)
-
-            input_list, input_dict = self._setup_input_example(input_example)
-            input_names = self._process_input_names()
-            output_names = self._process_output_names()
-            output_example = tuple(self.forward(*input_list, **input_dict))
-
-            with torch.jit.optimized_execution(True), torch.no_grad():
+                # Remove i/o examples from args we propagate to enclosed Exportables
+                my_args.pop('output')
+                my_args.pop('input_example')
+                
+                # Run (posibly overridden) prepare methods before calling forward()
+                for ex in exportables:
+                    ex._prepare_for_export(**my_args)
+                self._prepare_for_export(output=output, input_example=input_example, **my_args)
+                
+                input_list, input_dict = self._setup_input_example(input_example)
+                input_names = self._process_input_names()
+                output_names = self._process_output_names()
+                output_example = tuple(self.forward(*input_list, **input_dict))
+            
                 jitted_model = None
                 if try_script:
                     try:
-                        jitted_model = torch.jit.script(module)
+                        jitted_model = torch.jit.script(self)
                     except Exception as e:
                         logging.error(f"jit.script() failed!\{e}")
 

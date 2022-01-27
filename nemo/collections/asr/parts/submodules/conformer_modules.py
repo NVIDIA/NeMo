@@ -160,7 +160,10 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    def run_batch_norm(self, x):
+    def fill_and_norm(self, x, pad_mask):
+        if pad_mask is not None:
+            x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
+        x = self.depthwise_conv(x)
         if isinstance(self.batch_norm, nn.LayerNorm):
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
@@ -174,18 +177,16 @@ class ConformerConvolution(nn.Module):
         x = self.pointwise_conv1(x)
         x = nn.functional.glu(x, dim=1)
 
-        if pad_mask is not None:
-            x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
-
-        x = self.depthwise_conv(x)
-
         if torch.onnx.is_in_onnx_export():
             with torch.cuda.amp.autocast(enabled=False):
-                x = self.run_batch_norm(x.to(dtype=torch.float)).to(dtype=x.dtype)
-        else:
-            x = self.run_batch_norm(x)
+                x = self.fill_and_norm(x.to(dtype=torch.float), pad_mask).to(dtype=x.dtype)
+                # This is how Swish works internally and ONNX implements it as such
+                # However, it places it on CPU. 
+                x.mul_(x.sigmoid())
+        else:            
+            x = self.fill_and_norm(x, pad_mask)
+            x = self.activation(x)
 
-        x = self.activation(x)
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
         return x

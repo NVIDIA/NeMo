@@ -109,29 +109,29 @@ def nemo_export(argv):
         autocast = nullcontext
         if torch.cuda.is_available:
             model = model.cuda()
-            model.eval()
-            if args.autocast:
-                autocast = torch.cuda.amp.autocast
-            with autocast(), torch.no_grad():
-                logging.info(f"Exporting model with autocast={args.autocast}")
-                #
-                #  Add custom export parameters here
-                #
-                in_args = {}
-                if args.max_batch is not None:
-                    in_args["max_batch"] = args.max_batch
-                if args.max_dim is not None:
-                    in_args["max_dim"] = args.max_dim
+        model.eval()
+        if args.autocast:
+            autocast = torch.cuda.amp.autocast
+        with autocast(), torch.no_grad():
+            logging.info(f"Exporting model with autocast={args.autocast}")
+            #
+            #  Add custom export parameters here
+            #
+            in_args = {}
+            if args.max_batch is not None:
+                in_args["max_batch"] = args.max_batch
+            if args.max_dim is not None:
+                in_args["max_dim"] = args.max_dim
 
-                input_example = model._get_input_example(**in_args)
+            input_example = model._get_input_example(**in_args)
 
-                _, descriptions = model.export(
-                    out,
-                    check_trace=args.runtime_check,
-                    input_example=input_example,
-                    onnx_opset_version=args.onnx_opset,
-                    verbose=args.verbose,
-                )
+            _, descriptions = model.export(
+                out,
+                check_trace=args.runtime_check,
+                input_example=input_example,
+                onnx_opset_version=args.onnx_opset,
+                verbose=args.verbose,
+            )
     except Exception as e:
         logging.error(
             "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
