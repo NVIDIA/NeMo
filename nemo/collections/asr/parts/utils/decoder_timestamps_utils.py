@@ -296,8 +296,8 @@ class FrameBatchASR_Logits(FrameBatchASR):
 
 class ASR_TIMESTAMPS:
     """
-    A Class designed for extracting word timestamps while ASR decoding process.
-    This class contains a few setups for a slew of NeMo ASR models such as QuartzNet, CitriNet amd ConformerCTC models.
+    A class designed for extracting word timestamps while the ASR decoding process.
+    This class contains a few setups for a slew of NeMo ASR models such as QuartzNet, CitriNet and ConformerCTC models.
     """
 
     def __init__(self, **cfg_diarizer):
@@ -314,11 +314,11 @@ class ASR_TIMESTAMPS:
 
     def set_asr_model(self):
         """
-        Initialize the parameters for the given ASR model
+        Initialize the parameters for the given ASR model.
         Currently, the following NGC models are supported:
 
-            stt_en_quartznet15x5
-            stt_en_citrinet*
+            stt_en_quartznet15x5,
+            stt_en_citrinet*,
             stt_en_conformer_ctc*
 
         To assign a proper decoding function for generating timestamp output,
@@ -327,7 +327,7 @@ class ASR_TIMESTAMPS:
 
         decoder_delay_in_sec is the amount of delay that is compensated during the word timestamp extraction.
         word_ts_anchor_offset is the reference point for a word and used for matching the word with diarization labels.
-        Each ASR model has different optimal decoder delay and word timestamp anchor offset.
+        Each ASR model has a different optimal decoder delay and word timestamp anchor offset.
         To obtain an optimized diarization result with ASR, decoder_delay_in_sec and word_ts_anchor_offset
         need to be searched on a development set.
         """
@@ -403,16 +403,16 @@ class ASR_TIMESTAMPS:
 
     def run_ASR_QuartzNet_CTC(self, asr_model: Type[EncDecCTCModel]) -> Tuple[Dict, Dict]:
         """
-        Launche QuartzNet ASR model and collect logit, timestamps and text output
+        Launch QuartzNet ASR model and collect logit, timestamps and text output.
 
         Args:
             asr_model (class):
                 The loaded NeMo ASR model.
 
         Returns:
-            words_list (list):
+            words_dict (dict):
                 Dictionary of the sequence of words from hypothesis.
-            words_ts_list (list):
+            word_ts_dict (dict):
                 Dictionary of the time-stamps of words.
         """
         words_dict, word_ts_dict = {}, {}
@@ -496,8 +496,10 @@ class ASR_TIMESTAMPS:
         Args:
             trans (list):
                 List of character output (str).
-            timestamps (list):
-                List of timestamps (int) for each character.
+            char_ts (list):
+                List of timestamps of the characters.
+            time_stride (float):
+                The size of stride of the model in second.
 
         Returns:
             spaces_in_sec (list):
@@ -524,18 +526,16 @@ class ASR_TIMESTAMPS:
 
     def run_ASR_CitriNet_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
-        Launch CitriNet ASR model and collect logit, timestamps and text output
+        Launch CitriNet ASR model and collect logit, timestamps and text output.
 
         Args:
-            audio_file_list (list):
-                Dictionary of audio file paths.
             asr_model (class):
                 The loaded NeMo ASR model.
 
         Returns:
-            words_list (list):
+            words_dict (dict):
                 Dictionary of the sequence of words from hypothesis.
-            words_ts_list (list):
+            word_ts_dict (dict):
                 Dictionary of the timestamps of hypothesis words.
         """
         words_dict, word_ts_dict = {}, {}
@@ -577,7 +577,7 @@ class ASR_TIMESTAMPS:
 
     def set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[float, float, float]:
         """
-        Prepare the parameters for the buffered inference
+        Prepare the parameters for the buffered inference.
         """
         cfg = copy.deepcopy(asr_model._cfg)
         OmegaConf.set_struct(cfg.preprocessor, False)
@@ -611,18 +611,16 @@ class ASR_TIMESTAMPS:
 
     def run_ASR_BPE_CTC(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[Dict, Dict]:
         """
-        Launch CTC-BPE based ASR model and collect logit, timestamps and text output
+        Launch CTC-BPE based ASR model and collect logit, timestamps and text output.
 
         Args:
-            audio_file_list (list):
-                List of audio file paths.
             asr_model (class):
                 The loaded NeMo ASR model.
 
         Returns:
-            words_list (list):
+            words_dict (dict):
                 Dictionary of the sequence of words from hypothesis.
-            words_ts_list (list):
+            word_ts_dict (dict):
                 Dictionary of the time-stamps of words.
         """
         torch.manual_seed(0)
@@ -698,7 +696,7 @@ class ASR_TIMESTAMPS:
             end_stamp (float):
                 The end time of the session in sec.
 
-        Return:
+        Returns:
             word_timestamps (list):
                 List of the timestamps for the resulting words.
         """
@@ -721,9 +719,13 @@ class ASR_TIMESTAMPS:
         Launch pyctcdecode with the loaded pretrained language model.
 
         Args:
-            logprob (np.ndarray): The log probability from the ASR model inference in numpy array format.
-
-        Return:
+            logprob (np.ndarray):
+                The log probability from the ASR model inference in numpy array format.
+            onset_delay_in_sec (float):
+                The amount of delay that needs to be compensated for the timestamp outputs froM pyctcdecode.
+            beam_width (int):
+                The beam width parameter for beam search decodring.
+        Returns:
             hyp_words (list):
                 List of words in the hypothesis.
             word_ts (list):
@@ -741,7 +743,7 @@ class ASR_TIMESTAMPS:
     @staticmethod
     def get_word_ts_from_wordframes(idx, word_frames: List[List[float]], frame_duration: float, onset_delay: float):
         """
-        Extract word timestamps from word frames generated from pyctcdecode
+        Extract word timestamps from word frames generated from pyctcdecode.
         """
         offset = -1 * 2.25 * frame_duration - onset_delay
         frame_begin = word_frames[idx][1][0]
@@ -756,7 +758,7 @@ class ASR_TIMESTAMPS:
     @staticmethod
     def align_decoder_delay(word_ts, decoder_delay_in_sec: float):
         """
-        Subtract decoder_delay_in_sec from the word timestamp output
+        Subtract decoder_delay_in_sec from the word timestamp output.
         """
         for k in range(len(word_ts)):
             word_ts[k] = [

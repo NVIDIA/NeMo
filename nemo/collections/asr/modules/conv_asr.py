@@ -80,15 +80,15 @@ class ConvASREncoder(NeuralModule, Exportable):
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=8192):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         device = next(self.parameters()).device
-        input_example = torch.randn(1, self._feat_in, 8192, device=device)
-        lens = torch.full(size=(input_example.shape[0],), fill_value=8192, device=device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim, device=device)
+        lens = torch.full(size=(input_example.shape[0],), fill_value=max_dim, device=device)
         return tuple([input_example, lens])
 
     @property
@@ -247,13 +247,13 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
 
         logging.warning(f"Turned off {m_count} masked convolutions")
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
@@ -439,15 +439,13 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     def _prepare_for_export(self, **kwargs):
@@ -487,16 +485,16 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         feat_out,
         feat_hidden,
         stride_layers,
+        non_stride_layers=0,
         kernel_size=11,
         init_mode="xavier_uniform",
         activation="relu",
+        stride_transpose=True,
     ):
         super().__init__()
 
-        if stride_layers > 0 and (kernel_size < 3 or kernel_size % 2 == 0):
-            raise ValueError(
-                "Kernel size in this decoder needs to be >= 3 and odd when using at least 1 stride layer."
-            )
+        if ((stride_layers + non_stride_layers) > 0) and (kernel_size < 3 or kernel_size % 2 == 0):
+            raise ValueError("Kernel size in this decoder needs to be >= 3 and odd when using at least 1 conv layer.")
 
         activation = jasper_activations[activation]()
 
@@ -507,15 +505,43 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         self.decoder_layers = [nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)]
         for i in range(stride_layers):
             self.decoder_layers.append(activation)
+            if stride_transpose:
+                self.decoder_layers.append(
+                    nn.ConvTranspose1d(
+                        self.feat_hidden,
+                        self.feat_hidden,
+                        kernel_size,
+                        stride=2,
+                        padding=(kernel_size - 3) // 2 + 1,
+                        output_padding=1,
+                        bias=True,
+                        groups=self.feat_hidden,
+                    )
+                )
+            else:
+                self.decoder_layers.append(
+                    nn.Conv1d(
+                        self.feat_hidden,
+                        self.feat_hidden,
+                        kernel_size,
+                        stride=2,
+                        padding=(kernel_size - 1) // 2,
+                        bias=True,
+                        groups=self.feat_hidden,
+                    )
+                )
+            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
+            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
+        for i in range(non_stride_layers):
+            self.decoder_layers.append(activation)
             self.decoder_layers.append(
-                nn.ConvTranspose1d(
+                nn.Conv1d(
                     self.feat_hidden,
                     self.feat_hidden,
                     kernel_size,
-                    stride=2,
-                    padding=(kernel_size - 3) // 2 + 1,
-                    output_padding=1,
                     bias=True,
+                    groups=self.feat_hidden,
+                    padding=kernel_size // 2,
                 )
             )
             self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
@@ -532,15 +558,13 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return self.decoder_layers(encoder_output).transpose(-2, -1)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     def _prepare_for_export(self, **kwargs):
@@ -561,13 +585,13 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         https://arxiv.org/pdf/2005.04290.pdf
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 128).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
@@ -719,13 +743,13 @@ class SpeakerDecoder(NeuralModule, Exportable):
             Defaults to "xavier_uniform".
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self.input_feat_in, 256).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self.input_feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property
