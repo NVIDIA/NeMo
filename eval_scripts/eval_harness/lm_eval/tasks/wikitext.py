@@ -54,7 +54,9 @@ class WikiText(PerplexityTask):
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             if not os.path.exists(cache_dir + '/wikitext/wikitext-2-raw/wiki.valid.raw'):
                 os.makedirs(cache_dir + '/wikitext', exist_ok=True)
-                download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip", cache_dir + "/wikitext/wikitext-2-raw-v1.zip", "ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11")
+                download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip",
+                              local_directory=cache_dir + "/wikitext/wikitext-2-raw-v1.zip",
+                              expected_checksum="ef7edb566e3e2b2d31b29c1fdb0c89a4cc683597484c3dc2517919c615435a11")
                 sh(f"cd {cache_dir}/wikitext && unzip wikitext-2-raw-v1.zip")
 
         if torch.distributed.is_initialized():
@@ -111,7 +113,7 @@ class WikiText103(WikiText):
             if not os.path.exists(cache_dir + '/wikitext/wikitext-103-raw/wiki.valid.raw'):
                 os.makedirs(cache_dir + '/wikitext', exist_ok=True)
                 download_file("https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-103-raw-v1.zip",
-                              cache_dir + "/wikitext//wikitext-103-raw-v1.zip")
+                              local_directory=cache_dir + "/wikitext//wikitext-103-raw-v1.zip")
                 sh(f"cd {cache_dir}/wikitext && unzip wikitext-103-raw-v1.zip")
 
         if torch.distributed.is_initialized():
