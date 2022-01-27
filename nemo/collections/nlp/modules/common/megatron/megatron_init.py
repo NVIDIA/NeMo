@@ -66,4 +66,3 @@ def _set_random_seed(seed_):
             tensor_parallel.model_parallel_cuda_manual_seed(seed)
     else:
         raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
-
