@@ -357,7 +357,7 @@ def get_dali_bpe_dataset(
 class ASRPredictionWriter(BasePredictionWriter):
     def __init__(self, dataset, output_file: str):
         super().__init__(write_interval="batch")
-        self.outf = open(output_file, 'w')
+        self.outf = open(output_file, 'w', encoding='utf-8')
         self.dataset = dataset
         self.samples_num = 0
 
