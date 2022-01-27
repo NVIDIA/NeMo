@@ -145,12 +145,12 @@ def get_tarred_dataset(
 
     Args:
         config: Config of the TarredAudioToBPEDataset or TarredAudioToCharDataset.
-        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
-            Passsing None would return a char-based dataset.
         shuffle_n: How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
+        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
+            Passsing None would return a char-based dataset.
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
@@ -240,6 +240,7 @@ def get_dali_char_dataset(
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
+        preprocessor_cfg: Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
 
     Returns:
         An instance of AudioToCharDALIDataset.
@@ -287,7 +288,7 @@ def get_dali_bpe_dataset(
         device_id: Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+        preprocessor_cfg: Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
 
     Returns:
         An instance of AudioToCharDALIDataset.
