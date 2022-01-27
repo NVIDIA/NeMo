@@ -11,9 +11,9 @@ from typing import Any, Dict
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator, spec_to_mel_torch, slice_segments, clip_grad_value_
+from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator, audio_to_mel_torch, spec_to_mel_torch, slice_segments, clip_grad_value_
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 @dataclass
@@ -29,8 +29,24 @@ class VitsConfig:
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
 
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
+        # setup normalizer
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
+
+        # setup tokenizer
+        self.tokenizer = None
+        self._setup_tokenizer(cfg)
+        assert self.tokenizer is not None
+
+        num_tokens = len(self.tokenizer.tokens)
+        self.tokenizer_pad = self.tokenizer.pad
+        self.tokenizer_unk = self.tokenizer.oov
         
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -117,6 +133,38 @@ class VitsModel(TextToWaveform):
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
         )
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
+            normalizer_kwargs = {}
+
+            if "whitelist" in cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
+                )
+
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
+
+    def _setup_tokenizer(self, cfg):
+        text_tokenizer_kwargs = {}
+        if "g2p" in cfg.text_tokenizer:
+            g2p_kwargs = {}
+
+            if "phoneme_dict" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["phoneme_dict"] = self.register_artifact(
+                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                )
+
+            if "heteronyms" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["heteronyms"] = self.register_artifact(
+                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                )
+
+            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+
+        self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     def parse(self, str_input: str) -> torch.tensor:
         # TODO: Implement
@@ -187,7 +235,7 @@ class VitsModel(TextToWaveform):
             )
             y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
 
-            y_hat_mel = modules.audio_to_mel_torch(
+            y_hat_mel = audio_to_mel_torch(
                 y_hat.squeeze(1),
                 self._cfg.filter_length,
                 self._cfg.n_mel_channels,
@@ -293,8 +341,7 @@ class VitsModel(TextToWaveform):
                 dataformats="HWC",
             )
 
-    @staticmethod
-    def _loader(cfg):
+    def _loader(self, cfg):
         try:
             # _ = cfg.model.train_ds.manifest_filepath
             _ = cfg['dataset']['manifest_filepath']
@@ -302,12 +349,16 @@ class VitsModel(TextToWaveform):
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
 
-        dataset = instantiate(cfg.dataset)
+        dataset = instantiate(
+            cfg.dataset,
+            text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer
+            )
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
         
-
     def setup_training_data(self, cfg):
         self._train_dl = self._loader(cfg)
 

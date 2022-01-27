@@ -377,10 +377,7 @@ class TTSDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.data[index]
-<<<<<<< HEAD
         audio_path_as_text_id = sample["audio_filepath"].replace("/", "-").split(".")[0]
-=======
->>>>>>> main
 
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
@@ -402,14 +399,10 @@ class TTSDataset(Dataset):
             if mel_path is not None and Path(mel_path).exists():
                 log_mel = torch.load(mel_path)
             else:
-<<<<<<< HEAD
                 mel_folder = Path(self.sup_data_path) / "mel"
                 mel_folder.mkdir(exist_ok=True, parents=True)
 
                 mel_path = mel_folder / f"mel{audio_path_as_text_id}.pt"
-=======
-                mel_path = self.log_mel_folder / f"{rel_audio_path_as_text_id}.pt"
->>>>>>> main
 
                 if mel_path.exists():
                     log_mel = torch.load(mel_path)
@@ -432,14 +425,10 @@ class TTSDataset(Dataset):
                 mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
-<<<<<<< HEAD
                 prior_folder = Path(self.sup_data_path) / "align_prior_matrix"
                 prior_folder.mkdir(exist_ok=True, parents=True)
 
                 prior_path = prior_folder / f"prior{audio_path_as_text_id}.pt"
-=======
-                prior_path = self.align_prior_matrix_folder / f"{rel_audio_path_as_text_id}.pt"
->>>>>>> main
 
                 if prior_path.exists():
                     align_prior_matrix = torch.load(prior_path)
@@ -452,14 +441,10 @@ class TTSDataset(Dataset):
         # Load pitch if needed
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
-<<<<<<< HEAD
             pitch_folder = Path(self.sup_data_path) / "pitch"
             pitch_folder.mkdir(exist_ok=True, parents=True)
 
             pitch_path = pitch_folder / f"pitch{audio_path_as_text_id}.pt"
-=======
-            pitch_path = self.pitch_folder / f"{rel_audio_path_as_text_id}.pt"
->>>>>>> main
 
             if pitch_path.exists():
                 pitch = torch.load(pitch_path).float()
@@ -485,14 +470,10 @@ class TTSDataset(Dataset):
         # Load energy if needed
         energy, energy_length = None, None
         if Energy in self.sup_data_types_set:
-<<<<<<< HEAD
             energy_folder = Path(self.sup_data_path) / "energy"
             energy_folder.mkdir(exist_ok=True, parents=True)
 
             energy_path = energy_folder / f"energy{audio_path_as_text_id}.pt"
-=======
-            energy_path = self.energy_folder / f"{rel_audio_path_as_text_id}.pt"
->>>>>>> main
 
             if energy_path.exists():
                 energy = torch.load(energy_path).float()
@@ -734,57 +715,19 @@ class MixerTTSXDataset(TTSDataset):
 class VocoderDataset(Dataset):
     def __init__(
         self,
-<<<<<<< HEAD
         manifest_filepath: str,
         sample_rate: int,
         n_segments: Optional[int] = None,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         ignore_file: Optional[str] = None,
-=======
-        manifest_filepath: Union[str, Path, List[str], List[Path]],
-        sample_rate: int,
-        n_segments: Optional[int] = None,
-        max_duration: Optional[float] = None,
-        min_duration: Optional[float] = None,
-        ignore_file: Optional[Union[str, Path]] = None,
->>>>>>> main
         trim: Optional[bool] = False,
         load_precomputed_mel: bool = False,
         hop_length: Optional[int] = None,
     ):
-<<<<<<< HEAD
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
         self.manifest_filepath = manifest_filepath
-=======
-        """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
-        Args:
-            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing information on the
-            dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
-            json. Each line should contain the following:
-                "audio_filepath": <PATH_TO_WAV>,
-                "duration": <Duration of audio clip in seconds> (Optional),
-                "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional)
-            sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
-            n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
-                n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
-                be randomly sampled everytime the audio is batched. Can be set to None to load the entire audio.
-                Must be specified if load_precomputed_mel is True.
-            max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
-                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
-                audio to compute duration. Defaults to None which does not prune.
-            min_duration (Optional[float]): Min duration of audio clips in seconds. All samples lower than this will be
-                pruned prior to training. Note: Requires "duration" to be set in the manifest file. It does not load
-                audio to compute duration. Defaults to None which does not prune.
-            ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
-                that will be pruned prior to training. Defaults to None which does not prune.
-            trim (bool): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
-            load_precomputed_mel (bool): Whether to load precomputed mel (useful for fine-tuning). Note: Requires "mel_filepath" to be set in the manifest file.
-            hop_length (Optional[int]): The hope length between fft computations. Must be specified if load_precomputed_mel is True.
-        """
-        super().__init__()
->>>>>>> main
 
         if load_precomputed_mel:
             if hop_length is None:
@@ -793,17 +736,8 @@ class VocoderDataset(Dataset):
             if n_segments is None:
                 raise ValueError("n_segments must be specified when load_precomputed_mel is True")
 
-<<<<<<< HEAD
         self.data = []
         audio_files = []
-=======
-        # Initialize and read manifest file(s), filter out data by duration and ignore_file
-        if isinstance(manifest_filepath, str):
-            manifest_filepath = [manifest_filepath]
-        self.manifest_filepath = manifest_filepath
-
-        data = []
->>>>>>> main
         total_duration = 0
         for manifest_file in self.manifest_filepath:
             with open(Path(manifest_file).expanduser(), 'r') as f:
@@ -820,11 +754,7 @@ class VocoderDataset(Dataset):
                         "duration": item["duration"] if "duration" in item else None,
                     }
 
-<<<<<<< HEAD
                     audio_files.append(file_info)
-=======
-                    data.append(file_info)
->>>>>>> main
 
                     if file_info["duration"] is None:
                         logging.info(
@@ -835,7 +765,6 @@ class VocoderDataset(Dataset):
                     if total_duration is not None:
                         total_duration += item["duration"]
 
-<<<<<<< HEAD
         logging.info(f"Loaded dataset with {len(audio_files)} files.")
         if total_duration is not None:
             logging.info(f"Dataset contains {total_duration / 3600:.2f} hours.")
@@ -875,16 +804,6 @@ class VocoderDataset(Dataset):
                 f"{(total_duration - pruned_duration) / 3600:.2f} hours."
             )
 
-=======
-        logging.info(f"Loaded dataset with {len(data)} files.")
-        if total_duration is not None:
-            logging.info(f"Dataset contains {total_duration / 3600:.2f} hours.")
-
-        self.data = TTSDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
-        self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
-
-        # Initialize audio and mel related parameters
->>>>>>> main
         self.load_precomputed_mel = load_precomputed_mel
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate)
         self.sample_rate = sample_rate
