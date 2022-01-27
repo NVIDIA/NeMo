@@ -58,7 +58,7 @@ Our current prompt tuning implementation adapt’s Lester et. al’s EMNLP 2021 
 Data Formatting
 ^^^^^^^^^^
 
-The dataset should be a .jsonl file where each json object has 2 fields: ``prompt_tag`` and ``text``.
+The dataset should be a .json file where each json object has 2 fields: ``prompt_tag`` and ``text``.
 
 .. code::
 
