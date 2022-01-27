@@ -19,7 +19,7 @@ jobs:
 
       - name: Get Previous tag
         id: previous_tag
-        run: echo "::set-output name=tag_name::$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1))"
+        run: echo "::set-output name=tag_name::$(git for-each-ref --sort=-creatordate --format '%(refname)' refs/tags | awk 'FNR == 2 {print substr($1, 11, length($1))}')"
 
       - name: Build Changelog
         id: github_tag
