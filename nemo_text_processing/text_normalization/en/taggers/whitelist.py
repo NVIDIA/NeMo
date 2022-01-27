@@ -62,9 +62,6 @@ class WhiteListFst(GraphFst):
             # e.g. "IN", "OH", "OK"
             # TODO or only exclude above?
             graph |= pynini.union(", ", ",") + pynini.invert(_get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))).optimize()
-            from pynini.lib.rewrite import top_rewrites
-            import pdb; pdb.set_trace()
-            print()
 
         if input_file:
             whitelist_provided = _get_whitelist_graph(input_case, input_file)

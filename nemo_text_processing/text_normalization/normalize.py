@@ -32,13 +32,14 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
-try:
-    from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+# try:
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
 
-    NLP_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    NLP_AVAILABLE = False
+#     NLP_AVAILABLE = True
+# except (ModuleNotFoundError, ImportError) as e:
+#     print(e)
+#     NLP_AVAILABLE = False
 
 
 SPACE_DUP = re.compile(' {2,}')
