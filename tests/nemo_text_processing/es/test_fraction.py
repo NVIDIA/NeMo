@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,33 +22,20 @@ from parameterized import parameterized
 from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
-class TestOrdinal:
-    inverse_normalizer = (
-        InverseNormalizer(lang='es', cache_dir=CACHE_DIR, overwrite_cache=False) if PYNINI_AVAILABLE else None
-    )
-
-    @parameterized.expand(parse_test_case_file('es/data_inverse_text_normalization/test_cases_ordinal.txt'))
-    @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
-    )
-    @pytest.mark.run_only_on('CPU')
-    @pytest.mark.unit
-    def test_denorm(self, test_input, expected):
-        pred = self.inverse_normalizer.inverse_normalize(test_input, verbose=False)
-        assert pred == expected
-
+class TestFraction:
     normalizer = (
         Normalizer(input_case='cased', lang='es', cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE
         else None
     )
+
     normalizer_with_audio = (
         NormalizerWithAudio(input_case='cased', lang='es', cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE and CACHE_DIR
         else None
     )
 
-    @parameterized.expand(parse_test_case_file('es/data_text_normalization/test_cases_ordinal.txt'))
+    @parameterized.expand(parse_test_case_file('es/data_text_normalization/test_cases_fraction.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
@@ -60,6 +47,6 @@ class TestOrdinal:
 
         if self.normalizer_with_audio:
             pred_non_deterministic = self.normalizer_with_audio.normalize(
-                test_input, n_tagged=30, punct_post_process=False,
+                test_input, n_tagged=1000, punct_post_process=False
             )
             assert expected in pred_non_deterministic
