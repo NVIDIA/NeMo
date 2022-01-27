@@ -12,6 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 import os
 import shutil
 import tempfile
@@ -34,15 +43,6 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
-
-try:
-    from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -68,7 +68,9 @@ class NLPDDPPlugin(DDPPlugin):
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -127,7 +129,7 @@ class NLPDDPPlugin(DDPPlugin):
         # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            if torch.distributed.is_initialized():
+            if torch.distributed.is_initialized() and app_state.data_parallel_group is None:
                 parallel_state.initialize_model_parallel(app_state.model_parallel_size)
                 app_state.model_parallel_group = parallel_state.get_tensor_model_parallel_group()
                 app_state.data_parallel_group = parallel_state.get_data_parallel_group()
@@ -202,7 +204,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         super().__init__()
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -410,7 +414,10 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self._init_growth_tracker = state_dict["_growth_tracker"]
         if self._growth_tracker is not None:
             self._growth_tracker.fill_(state_dict["_growth_tracker"])
-        self._hysteresis_tracker = state_dict["_hysteresis_tracker"]
+        if "_hysterisis_tracker" in state_dict:
+            self._hysteresis_tracker = state_dict["_hysterisis_tracker"]
+        else:
+            self._hysteresis_tracker = 1
 
 
 class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):

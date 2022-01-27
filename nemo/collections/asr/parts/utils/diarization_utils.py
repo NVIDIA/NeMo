@@ -70,7 +70,7 @@ def write_txt(w_path, val):
 
 def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
     """
-    Take the alignment between two lists and get the difference
+    Take the alignment between two lists and get the difference.
     """
     orig_words = '\n'.join(text1.split()) + '\n'
     pred_words = '\n'.join(text2.split()) + '\n'
@@ -85,7 +85,7 @@ def get_diff_text(text1: List[str], text2: List[str]) -> List[Tuple[int, str]]:
 
 def get_speaker_error_mismatch(ctm_error_dict, error_buffer, w_range_buffer, pred_rttm_eval):
     """
-    Calculate the diarization confuse error using the reference CTM file.
+    Calculate the diarization confusion error using the reference CTM file.
     """
     correct_count, error_count, align_error = 0, 0, []
     for k, _d in enumerate(error_buffer):
@@ -172,8 +172,6 @@ class ASR_DIAR_OFFLINE(object):
         Args:
             word_ts_dict (dict):
                 List containing word timestamps.
-            audio_file_list (list):
-                List of audio file paths.
         """
         self.VAD_RTTM_MAP = {}
         for idx, (uniq_id, word_timestamps) in enumerate(word_ts_dict.items()):
@@ -254,10 +252,8 @@ class ASR_DIAR_OFFLINE(object):
         Read frame-level VAD outputs.
 
         Args:
-            oracle_model (ClusteringDiarizer):
-                ClusteringDiarizer instance.
-            audio_file_path (List):
-                List containing file paths for audio files.
+            vad_processing_dir (str):
+                The path where VAD results are saved.
         """
         for uniq_id in self.AUDIO_RTTM_MAP:
             frame_vad = os.path.join(vad_processing_dir, uniq_id + '.median')
@@ -369,10 +365,7 @@ class ASR_DIAR_OFFLINE(object):
             audio_file_list (list):
                 List containing audio file paths.
             word_ts_dict (dict):
-                Contains word_ts_stt_end lists.
-                word_ts_stt_end = [stt, end]
-                    stt: Start of the word in sec.
-                    end: End of the word in sec.
+                Dictionary containing timestamps of words.
             params (dict):
                 The parameter dictionary for diarization and ASR decoding.
 
@@ -412,15 +405,12 @@ class ASR_DIAR_OFFLINE(object):
         in a for loop.
 
         Args:
-            diar_labels (list):
-                List of the Diarization output labels in str.
-            word_list (list):
-                List of words from ASR inference.
-            word_ts_list (list):
-                List Containing word_ts_stt_end lists.
-                word_ts_stt_end = [stt, end]
-                    stt: Start of the word in sec.
-                    end: End of the word in sec.
+            diar_labels (dict):
+                Dictionary of the Diarization output labels in str.
+            word_hyp (dict):
+                Dictionary of words from ASR inference.
+            word_ts_hyp (dict):
+                Dictionary containing the start time and the end time of each word.
 
         Returns:
             total_riva_dict (dict):
@@ -483,9 +473,11 @@ class ASR_DIAR_OFFLINE(object):
             uniq_id (str):
                 A unique ID (key) that identifies each input audio file.
             diar_hyp (list):
-                The word sequence from ASR output.
+                Dictionary containing the word sequence from ASR output.
             word_dict_seq_list (list):
                 List containing words and corresponding word timestamps in dictionary format.
+            total_riva_dict (dict):
+                Dictionary containing the final transcription, alignment and speaker labels.
 
         Returns:
             total_riva_dict (dict):
@@ -717,8 +709,6 @@ class ASR_DIAR_OFFLINE(object):
             DER_result_dict (dict):
                 Dictionary that stores DER, FA, Miss, CER, mapping, the estimated
                 number of speakers and speaker counting accuracy.
-            ref_labels_list (list):
-                List containing the ground truth speaker labels for each segment.
 
         Returns:
             wder_dict (dict):
@@ -755,7 +745,7 @@ class ASR_DIAR_OFFLINE(object):
             error_dict['rttm_based_wder'] = rttm_wder
             error_dict.update(DER_result_dict[uniq_id])
 
-            # If CTM files are provided, evaluate word-level diarization and wer with the CTM files.
+            # If CTM files are provided, evaluate word-level diarization and WER with the CTM files.
             if self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']:
                 self.ctm_exists[uniq_id] = True
                 ctm_content = open(self.AUDIO_RTTM_MAP[uniq_id]['ctm_filepath']).readlines()

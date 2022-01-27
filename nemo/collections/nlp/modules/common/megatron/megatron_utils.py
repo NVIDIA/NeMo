@@ -13,17 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
-import json
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import torch
 import wget
 from torch.hub import _get_torch_home
 
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 __all__ = [
     "get_megatron_lm_model",
@@ -97,34 +94,6 @@ MEGATRON_CONFIG_MAP = {
         "tokenizer_name": "bert-large-cased",
     },
 }
-
-
-def get_megatron_lm_model(
-    pretrained_model_name: str,
-    config_dict: Optional[dict] = None,
-    config_file: Optional[str] = None,
-    checkpoint_file: Optional[str] = None,
-    vocab_file: Optional[str] = None,
-    merges_file: Optional[str] = None,
-) -> Tuple[MegatronBertEncoder, str]:
-    """
-    Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
-
-    Args:
-        pretrained_mode_name: model name from MEGATRON_CONFIG_MAP
-            for example: megatron-bert-cased
-        config_dict: model configuration parameters
-        config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
-        checkpoint_file: path to checkpoint file or directory if using model parallel.
-        vocab_file: path to vocab file
-
-    Returns:
-        model: MegatronBertEncoder
-        checkpoint_file: path to checkpoint file or directory
-    """
-    raise ValueError(
-        f'megatron-lm bert has been deprecated in NeMo 1.5. Please use an earlier release of NeMo. Megatron bert support will be added back to NeMo in a future release.'
-    )
 
 def compute_model_parallel_rank(local_rank, model_parallel_size):
     return local_rank % model_parallel_size
