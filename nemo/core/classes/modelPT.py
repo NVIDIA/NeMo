@@ -960,7 +960,7 @@ class ModelPT(LightningModule, Model):
                     self.load_state_dict(restored_model.state_dict(), strict=False)
                     logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
                     del restored_model
-                elif isinstance(cfg.init_from_nemo_model, dict):
+                elif isinstance(cfg.init_from_nemo_model, DictConfig):
                     model_load_dict = cfg.init_from_nemo_model
                     for model_load_cfg in model_load_dict.values():
                         model_path = model_load_cfg.path
@@ -1009,7 +1009,7 @@ class ModelPT(LightningModule, Model):
                     logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
 
                     del restored_model
-                elif isinstance(cfg.init_from_pretrained_model, dict):
+                elif isinstance(cfg.init_from_pretrained_model, DictConfig):
                     model_load_dict = cfg.init_from_pretrained_model
                     for model_load_cfg in model_load_dict.values():
                         model_name = model_load_cfg.name
@@ -1046,7 +1046,7 @@ class ModelPT(LightningModule, Model):
                     )
 
                     del ckpt
-                elif isinstance(cfg.init_from_ptl_ckpt, dict):
+                elif isinstance(cfg.init_from_ptl_ckpt, DictConfig):
                     model_load_dict = cfg.init_from_ptl_ckpt
                     for model_load_cfg in model_load_dict.values():
                         ckpt_path = model_load_cfg.path
