@@ -33,7 +33,7 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
-    MelSpectrogramType,
+    AudioSignal,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
@@ -202,7 +202,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             "splice": NeuralType(optional=True),
         },
         output_types={
-            "audio": NeuralType(('B', 'S', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal()),
             "splices": NeuralType(),
             "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -237,10 +237,9 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
 
         gen_in = len_regulated
-        splices = None
+        splices = []
         if splice:
             output = []
-            splices = []
             for i, sample in enumerate(len_regulated):
                 start = np.random.randint(low=0, high=min(int(sample.size(0)), int(dec_lens[i])) - self.splice_length)
                 # Splice generated spec
@@ -250,7 +249,7 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
 
         output = self.generator(x=gen_in.transpose(1, 2))
 
-        return output, splices, log_durs_predicted, pitch_predicted
+        return output, torch.tensor(splices), log_durs_predicted, pitch_predicted
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         audio, _, text, text_lens, durs, pitch, _ = batch
@@ -267,8 +266,12 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
             real_score_ms, gen_score_ms, _, _ = self.multiscaledisc(real_audio, audio_pred)
 
-            loss_mp, loss_mp_real, _ = self.disc_loss(real_score_mp, gen_score_mp)
-            loss_ms, loss_ms_real, _ = self.disc_loss(real_score_ms, gen_score_ms)
+            loss_mp, loss_mp_real, _ = self.disc_loss(
+                disc_real_outputs=real_score_mp, disc_generated_outputs=gen_score_mp
+            )
+            loss_ms, loss_ms_real, _ = self.disc_loss(
+                disc_real_outputs=real_score_ms, disc_generated_outputs=gen_score_ms
+            )
             loss_mp /= len(loss_mp_real)
             loss_ms /= len(loss_ms_real)
             loss_disc = loss_mp + loss_ms
@@ -298,9 +301,9 @@ class FastPitchHifiGanE2EModel(TextToWaveform):
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
             _, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
-            _, gen_score_ms, _, _ = self.multiscaledisc(real_audio, audio_pred)
-            loss_gen_mp, list_loss_gen_mp = self.gen_loss(gen_score_mp)
-            loss_gen_ms, list_loss_gen_ms = self.gen_loss(gen_score_ms)
+            _, gen_score_ms, _, _ = self.multiscaledisc(y=real_audio, y_hat=audio_pred)
+            loss_gen_mp, list_loss_gen_mp = self.gen_loss(disc_outputs=gen_score_mp)
+            loss_gen_ms, list_loss_gen_ms = self.gen_loss(disc_outputs=gen_score_ms)
             loss_gen_mp /= len(list_loss_gen_mp)
             loss_gen_ms /= len(list_loss_gen_ms)
             total_loss = loss_gen_mp + loss_gen_ms + loss_mel
