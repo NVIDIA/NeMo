@@ -355,7 +355,7 @@ class _AudioTextDALIDataset(Iterator):
                     global_rank=global_rank,
                 )
 
-                if len(audio_tar_filepaths) != len(audio_tar_index_filepaths):
+                if len(audio_tar_filepaths) != len(audio_tar_index_filepaths) and len(audio_tar_index_filepaths) != 0:
                     raise ValueError(
                         f"Number of filepaths provided for `audio_tar_filepaths` must match "
                         f"`audio_tar_index_filepaths`. Got {len(audio_tar_filepaths)} audio_tar_filepaths and "
