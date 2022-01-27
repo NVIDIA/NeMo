@@ -54,19 +54,17 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
-        def _get_whitelist_non_deterministic_graph(file="data/whitelist_alternatives.tsv"):
-            whitelist = load_labels(get_abs_path(file))
-            whitelist_lower = [(x.lower(), y.lower()) for x, y in whitelist]
-            whitelist_cased = [(x, y) for x, y in whitelist]
-            graph = pynini.string_map(whitelist_lower + whitelist_cased)
-            return graph
-
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
         if not deterministic:
-            graph |= _get_whitelist_non_deterministic_graph()
-            graph |= pynini.invert(
-                _get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))
-            ).optimize()
+            graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
+
+            # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
+            # e.g. "IN", "OH", "OK"
+            # TODO or only exclude above?
+            graph |= pynini.union(", ", ",") + pynini.invert(_get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))).optimize()
+            from pynini.lib.rewrite import top_rewrites
+            import pdb; pdb.set_trace()
+            print()
 
         if input_file:
             whitelist_provided = _get_whitelist_graph(input_case, input_file)
