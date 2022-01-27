@@ -1,12 +1,9 @@
-name: 'Changelog Build'
-
-env:
-  FALLBACK_TAG: "v1.5.0"
+name: 'Changelog Build (Release)'
 
 on:
   push:
     tags:
-      - 'v*'
+      - '*'
 
 jobs:
   changelog:
@@ -19,7 +16,12 @@ jobs:
 
       - name: Get Previous tag
         id: previous_tag
-        run: echo "::set-output name=tag_name::$(git for-each-ref --sort=-creatordate --format '%(refname)' refs/tags | awk 'FNR == 2 {print substr($1, 11, length($1))}')"
+        # git for-each-ref --sort=-creatordate --format '%(refname)' refs/tags ==> refs/tags/vX.Y.Z in decending order of date
+        # awk 'FNR == 2 {print substr($1, 11, length($1))}') ==> Strips the /refs/tags/ part of the tag
+        # set-output name=tag_name:: ==> Takes the clean tag vX.Y.Z and sets it to steps.previous_tag.outputs.tag_name
+        run: |
+          echo "::set-output name=tag_name::$(git for-each-ref --sort=-creatordate --format '%(refname)' refs/tags | awk 'FNR == 3 {print substr($1, 11, length($1))}')"
+          echo ${{ steps.previous_tag.outputs.tag_name }}
 
       - name: Build Changelog
         id: github_tag
@@ -31,9 +33,9 @@ jobs:
           owner: "NVIDIA"
           repo: "NeMo"
           fromTag: ${{ steps.previous_tag.outputs.tag_name }}
-          toTag: "${{ github.ref_name }}"
+          toTag: v1.5.1
 
       - name: Print Changelog
         run: |
-          echo "${{steps.github_tag.outputs.changelog}}"
+          echo "\n\n${{steps.github_tag.outputs.changelog}}"
           echo "--- DONE ---"
