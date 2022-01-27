@@ -53,7 +53,7 @@ Due to this, make sure your HDD is large enough to store the processed dataset !
 ## Usage - Offline Mode
 
 python convert_hf_dataset_to_nemo.py \
-    output_dir=<Path to some storage drive that will holde preprocessed audio files> \
+    output_dir=<Path to some storage drive that will hold preprocessed audio files> \
     path=<`path` argument in HF datasets, cannot be null> \
     name=<`name` argument in HF datasets, can be null> \
     split=<`split` argument in HF datasets, can be null> \
@@ -93,7 +93,7 @@ import soundfile
 import tqdm
 from datasets import Audio, IterableDataset, load_dataset
 from hydra.core.config_store import ConfigStore
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 
 
 @dataclass
