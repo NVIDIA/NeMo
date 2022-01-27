@@ -19,9 +19,7 @@ jobs:
 
       - name: Get Previous tag
         id: previous_tag
-        uses: "WyriHaximus/github-action-get-previous-tag@v1.1.0"
-        with:
-          fallback: ${{ env.FALLBACK_TAG }} # Optional fallback tag to use when no tag can be found
+        run: echo "::set-output name=tag_name::$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1))"
 
       - name: Build Changelog
         id: github_tag
@@ -32,7 +30,7 @@ jobs:
           configuration: ".github/workflows/config/changelog-config.json"
           owner: "NVIDIA"
           repo: "NeMo"
-          fromTag: ${{ steps.previous_tag.outputs.tag }}
+          fromTag: ${{ steps.previous_tag.outputs.tag_name }}
           toTag: "${{ github.ref_name }}"
 
       - name: Print Changelog
