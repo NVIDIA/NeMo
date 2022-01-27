@@ -20,8 +20,6 @@ from contextlib import contextmanager
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
 
 import torch
-from deprecate.utils import void
-from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -44,7 +42,6 @@ from pytorch_lightning.plugins.environments.cluster_environment import ClusterEn
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
 from pytorch_lightning.utilities.types import _PATH
 from pytorch_lightning.utilities.warnings import rank_zero_warn
@@ -246,11 +243,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             dir_name = os.path.dirname(save_path)
 
             # first we save the weights for each model parallel rank
-            if app_state.pipeline_model_parallel_size == 1:
+            if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                 if app_state.data_parallel_rank == 0:
-                    mp_model_weights = os.path.join(
-                        dir_name, f'mp_rank_{app_state.tensor_model_parallel_rank:02d}_' + self.model_weights_ckpt
-                    )
+                    mp_model_weights = inject_model_parallel_rank(os.path.join(dir_name, self.model_weights_ckpt))
 
                     self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
 
@@ -258,19 +253,41 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                     torch.distributed.barrier()
 
                 # create nemo file from folder with all mp_ranks checkpoints
-                if app_state.tensor_model_parallel_rank == 0 and app_state.data_parallel_rank == 0:
+                if (
+                    app_state.pipeline_model_parallel_rank == 0
+                    and app_state.tensor_model_parallel_rank == 0
+                    and app_state.data_parallel_rank == 0
+                ):
                     with tempfile.TemporaryDirectory() as tmpdir:
 
-                        # move weights to the tmpdir
-                        for tp_rank in range(app_state.tensor_model_parallel_size):
-                            os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
-                            mp_model_weights = os.path.join(
-                                dir_name, f'mp_rank_{tp_rank:02d}_' + self.model_weights_ckpt
-                            )
-                            shutil.move(
-                                mp_model_weights,
-                                os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
-                            )
+                        if app_state.pipeline_model_parallel_size == 1:
+                            # move weights to the tmpdir
+                            for tp_rank in range(app_state.tensor_model_parallel_size):
+                                os.makedirs(os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}'))
+                                mp_model_weights = os.path.join(
+                                    dir_name, f'mp_rank_{tp_rank:02d}_' + self.model_weights_ckpt
+                                )
+                                shutil.move(
+                                    mp_model_weights,
+                                    os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
+                                )
+                        else:
+                            # move weights to the tmpdir
+                            for tp_rank, pp_rank in itertools.product(
+                                range(app_state.tensor_model_parallel_size),
+                                range(app_state.pipeline_model_parallel_size),
+                            ):
+                                # range(app_state.tensor_model_parallel_size):
+                                os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
+                                mp_model_weights = os.path.join(
+                                    dir_name, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}_' + self.model_weights_ckpt
+                                )
+                                shutil.move(
+                                    mp_model_weights,
+                                    os.path.join(
+                                        tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
+                                    ),
+                                )
 
                         # create config and artifacts in tmpdir
                         config_yaml = os.path.join(tmpdir, self.model_config_yaml)
@@ -281,10 +298,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
                         # create tar file
                         self._make_nemo_file_from_folder(save_path, tmpdir)
-                else:
-                    logging.info(
-                        "Saving .nemo for pipeline parallel is not implemented yet. Please use a conversion script."
-                    )
 
         else:
             return super().save_to(model, save_path)
