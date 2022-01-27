@@ -17,7 +17,23 @@
 import math
 
 import torch
-from apex.transformer import parallel_state
+import torch.nn.functional as F
+from apex.transformer import parallel_state, tensor_parallel
+
+def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
+    """LM logits using word embedding weights."""
+    # Parallel logits.
+    input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
+    # Matrix multiply.
+    if bias is None:
+        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
+    else:
+        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+    # Gather if needed.
+    if parallel_output:
+        return logits_parallel
+
+    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
 
 
 def init_method_normal(sigma):
@@ -133,3 +149,24 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
     attention_mask = attention_mask < 0.5
 
     return attention_mask, loss_mask, position_ids
+
+
+def enc_dec_extended_attention_mask(attention_mask_list):
+    def attn_mask_postprocess(attn_mask):
+        # [b, 1, s, s]
+        # Attn_masks for enc-dec attn and dec attn is None when trying to get just the encoder hidden states.
+        if attn_mask is None:
+            return None
+        extended_attention_mask = attn_mask.unsqueeze(1)
+        return extended_attention_mask
+
+    return [attn_mask_postprocess(attn_mask) for attn_mask in attention_mask_list]
+
+
+def build_position_ids(token_ids):
+    # Create position ids
+    seq_length = token_ids.size(1)
+    position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
+    position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
+
+    return position_ids

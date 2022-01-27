@@ -25,27 +25,11 @@ from apex.transformer.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    parallel_lm_logits,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
 )
-
-
-def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
-    """LM logits using word embedding weights."""
-    # Parallel logits.
-    input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
-    # Matrix multiply.
-    if bias is None:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
-    else:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
-    # Gather if needed.
-    if parallel_output:
-        return logits_parallel
-
-    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
-
 
 def get_language_model(
     hidden_size,
