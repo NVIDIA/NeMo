@@ -1,8 +1,7 @@
-name: 'ChangelogBuild'
+name: 'Changelog Build'
 
 env:
-  FROM_TAG: "v1.4.0"
-
+  FALLBACK_TAG: "v1.5.0"
 
 on:
   push:
@@ -14,7 +13,15 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2.4.0
+        with:
+          fetch-depth: 0 # Required due to the way Git works, without it this action won't be able to find any or the correct tags
+
+      - name: Get Previous tag
+        id: previous_tag
+        uses: "WyriHaximus/github-action-get-previous-tag@v1.1.0"
+        with:
+          fallback: ${{ env.FALLBACK_TAG }} # Optional fallback tag to use when no tag can be found
 
       - name: Build Changelog
         id: github_tag
@@ -25,7 +32,7 @@ jobs:
           configuration: ".github/workflows/config/changelog-config.json"
           owner: "NVIDIA"
           repo: "NeMo"
-          fromTag: ${{ env.FROM_TAG }}
+          fromTag: ${{ steps.previous_tag.outputs.tag }}
           toTag: "${{ github.ref_name:10 }}"
 
       - name: Print Changelog
