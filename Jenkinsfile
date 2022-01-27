@@ -1322,8 +1322,7 @@ pipeline {
       parallel {
         stage('L2: NMT Training Post-LN') {
             steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python enc_dec_nmt.py \
+              sh 'python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
               do_testing=false \
@@ -1349,8 +1348,7 @@ pipeline {
               +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
               +exp_manager.create_checkpoint_callback=true \
               '
-              sh 'cd examples/nlp/machine_translation && \
-              python enc_dec_nmt.py \
+              sh 'python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
               do_testing=true \
