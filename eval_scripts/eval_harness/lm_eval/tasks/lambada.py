@@ -24,7 +24,7 @@ class LAMBADA(Task):
             if not os.path.exists(path + '/lambada_test.jsonl'):
                 download_file(
                     "http://eaidata.bmk.sh/data/lambada_test.jsonl",
-                    local_directory=path + '/lambada_test.jsonl',
+                    local_file=path + '/lambada_test.jsonl',
                     expected_checksum="4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226"
                 )
         except:
