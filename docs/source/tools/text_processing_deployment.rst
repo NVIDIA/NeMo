@@ -1,8 +1,8 @@
 NeMo Text Processing Deployment
 ===============================================
 
-This tool deploys :doc:`NeMo Inverse Text Normalization (ITN) <../nemo_text_processing/inverse_text_normalization>` and :doc:`NeMo Text Normalization (TN) <../nemo_text_processing/text_normalization>` for production :cite:`tools-itn_deploy-zhang2021nemo`.
-It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`tools-itn_deploy-sparrowhawk` -- an open-source version of Google Kestrel :cite:`tools-itn_deploy-ebden2015kestrel`.
+This tool deploys :doc:`NeMo Inverse Text Normalization (ITN) <../nemo_text_processing/inverse_text_normalization>` and :doc:`NeMo Text Normalization (TN) <../nemo_text_processing/text_normalization>` for production :cite:`tools-zhang2021nemo`.
+It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`tools-sparrowhawk` -- an open-source version of Google Kestrel :cite:`tools-ebden2015kestrel`.
 
 Requirements
 ------------------------
@@ -75,5 +75,5 @@ References
 
 .. bibliography:: tools_all.bib
     :style: plain
-    :labelprefix: TOOLS-ITN_DEPLOY
-    :keyprefix: tools-itn_deploy-
+    :labelprefix: TOOLS
+    :keyprefix: tools-
