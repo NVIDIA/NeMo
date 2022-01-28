@@ -116,22 +116,24 @@ class CardinalFst(GraphFst):
                 | cardinal_with_leading_zeros
             )
 
+        if lm:
+            final_graph |= self.range_graph
+
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
 
         self.fst = final_graph.optimize()
 
     def get_range_graph(self):
-        range_graph = (
-            pynini.closure(pynutil.insert("from "), 0, 1) + self.graph + pynini.cross("-", " to ") + self.graph
-        )
-        range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
-        range_graph |= (
-            pynini.closure(pynutil.insert("from "), 0, 1)
-            + get_hundreds_graph()
-            + pynini.cross("-", " to ")
-            + get_hundreds_graph()
-        )
+        # use hundreds graph for 4 digit numbers
+        graph = (get_hundreds_graph() | (pynini.compose(NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT, self.graph) | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph))).optimize()
+
+        if not self.deterministic:
+            graph |= pynutil.add_weight(self.graph, 0.001)
+            graph.optimize()
+
+        range_graph = (pynutil.add_weight(pynini.accep("from "), -0.001) | pynutil.insert("from ")) + graph + pynini.cross("-", " to ") + graph
+        range_graph |= graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + graph
 
         return range_graph.optimize()
 
