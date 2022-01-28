@@ -88,7 +88,7 @@ class _RNNTNumba(Function):
     def backward(ctx, grad_output):
         if grad_output is not None and ctx.grads is not None:
             grad_output = grad_output.view(-1, 1, 1, 1).to(ctx.grads)
-            return ctx.grads.mul(grad_output), None, None, None, None, None, None, None
+            return ctx.grads.mul_(grad_output), None, None, None, None, None, None, None
 
 
 def rnnt_loss(
