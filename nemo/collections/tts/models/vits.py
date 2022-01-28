@@ -1,13 +1,18 @@
+from encodings import normalize_encoding
 import omegaconf
 import torch
 from dataclasses import dataclass
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 from typing import Any, Dict
+import wandb
 
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
@@ -15,6 +20,9 @@ from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPerio
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
+# to call optimizer_step
+def closure(): 
+    return
 
 @dataclass
 class VitsConfig:
@@ -47,6 +55,8 @@ class VitsModel(TextToWaveform):
         num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
+
+        # self.scaler = trainer.precision_plugin.scaler
         
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -58,7 +68,7 @@ class VitsModel(TextToWaveform):
             raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
         # Ensure passed cfg is compliant with schema
         OmegaConf.merge(cfg, schema)
-
+        
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
 
         self.encoder = instantiate(cfg.input_fft)
@@ -85,15 +95,12 @@ class VitsModel(TextToWaveform):
         self.register_buffer('pitch_mean', torch.zeros(1))
         self.register_buffer('pitch_std', torch.zeros(1))
 
-        self.mel_loss_coeff = cfg.mel_loss_coeff
-
         self.log_train_images = False
         self.logged_real_samples = False
         self._tb_logger = None
         self.hann_window = None
-        self.splice_length = cfg.splice_length
         self.sample_rate = cfg.sample_rate
-        self.hop_size = cfg.hop_size
+        self.hop_size = cfg.n_window_stride
         self.n_fft = cfg.train_ds.dataset.n_fft
         self.win_length = cfg.train_ds.dataset.win_length
 
@@ -133,6 +140,9 @@ class VitsModel(TextToWaveform):
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
         )
+
+        self.precision_plugin = self.trainer.accelerator.precision_plugin # to call optimizer_step
+
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
             normalizer_kwargs = {}
@@ -204,7 +214,7 @@ class VitsModel(TextToWaveform):
 
             y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
             y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.hop_size
-
+        
         return y_hat, y_hat_lengths
 
 
@@ -217,14 +227,17 @@ class VitsModel(TextToWaveform):
         return spec
 
     def training_step(self, batch, batch_idx):
+
+        
         (y, y_lengths, x, x_lengths) = batch
 
         spec = self.get_spec(y)
         spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
 
-        with autocast(enabled=False):
+        with autocast(enabled=True):
             y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
             (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
+        
             mel = spec_to_mel_torch(
                 spec,
                 self._cfg.filter_length,
@@ -233,29 +246,44 @@ class VitsModel(TextToWaveform):
                 self._cfg.mel_fmin,
                 self._cfg.mel_fmax
             )
-            y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self._cfg.hop_size)
+            y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
+        
+        y_hat = y_hat.float()
+        y_hat_mel = audio_to_mel_torch(
+            y_hat.squeeze(1),
+            self._cfg.filter_length,
+            self._cfg.n_mel_channels,
+            self._cfg.sample_rate,
+            self.cfg.n_window_stride,
+            self._cfg.preprocessor.n_window_size,
+            self._cfg.mel_fmin,
+            self._cfg.mel_fmax
+        )
 
-            y_hat_mel = audio_to_mel_torch(
-                y_hat.squeeze(1),
-                self._cfg.filter_length,
-                self._cfg.n_mel_channels,
-                self._cfg.sample_rate,
-                self._cfg.hop_size,
-                self._cfg.preprocessor.n_window_size,
-                self._cfg.mel_fmin,
-                self._cfg.mel_fmax
-            )
-            y = torch.unsqueeze(y, 1)
-            y = slice_segments(y, ids_slice * self._cfg.hop_size, self._cfg.segment_size)  # slice
-            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
+        
+        y = torch.unsqueeze(y, 1)
+        y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)  # slice
+        
+        y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
+        with autocast(enabled=False):
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
             loss_disc_all = loss_disc
 
         # train discriminator
+        # self.optim_d.zero_grad()
+        # self.scaler.scale(loss_disc_all).backward()
+        # self.scaler.unscale_(self.optim_d)
+
+        # norm_d = clip_grad_value_(self.net_d.parameters(), None)#self.cfg.trainer.gradient_clip_val)
+        # self.scaler.update()
+        # self.scaler.step(self.optim_d)
+
         self.optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
-        clip_grad_value_(self.net_d.parameters(), None)
-        self.optim_d.step()
+        self.precision_plugin.optimizer_step(self, self.optim_d, 0, closure) # dunno why
+        norm_d = clip_grad_value_(self.net_d.parameters(), None)
+
+        # print('grad_d', norm_d)
 
         with autocast(enabled=True):
             # Generator
@@ -268,12 +296,24 @@ class VitsModel(TextToWaveform):
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
+
+
         # train generator
+
+        
+        # self.optim_g.zero_grad()
+        # self.scaler.scale(loss_gen_all).backward()
+        # self.scaler.unscale_(self.optim_g)
+        # norm_g = clip_grad_value_(self.net_g.parameters(), None) # self.cfg.trainer.gradient_clip_val)
+        # self.scaler.update()
+        # self.scaler.step(self.optim_g)
+
         self.optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
-        clip_grad_value_(self.net_g.parameters(), None)
-        self.optim_d.step()
+        self.precision_plugin.optimizer_step(self, self.optim_g, 1, closure) # dunno why
+        norm_g = clip_grad_value_(self.net_g.parameters(), None)
 
+        # print('grad_g', norm_g)
         schedulers = self.lr_schedulers()
         if schedulers is not None:
             sch1, sch2 = schedulers
@@ -288,6 +328,8 @@ class VitsModel(TextToWaveform):
             "loss_kl * c_kl": loss_kl,
             "loss_gen_all": loss_gen_all,
             "loss_disc_all": loss_disc_all,
+            "grad_gen" : norm_g,
+            "grad_disc" : norm_d,
         }
 
         for i, v in enumerate(losses_gen):
@@ -312,34 +354,36 @@ class VitsModel(TextToWaveform):
         y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
 
         # plot audio once per epoch
-        if batch_idx == 0 and self.logger is not None and self.logger.experiment is not None:
-            self.logger.experiment.add_audio(
-                "val_wav_target",
-                y[0, : y_lengths[0]].data.cpu().numpy(),
-                self.global_step,
-                sample_rate=self.sample_rate,
-            )
+        if batch_idx == 0 and self.logger is not None and isinstance(self.logger, WandbLogger):
+            specs = []
+            audios = []
 
-            self.logger.experiment.add_audio(
-                "val_wav_predicted",
-                y_hat[0, : y_hat_lengths[0]].data.cpu().numpy(),
-                self.global_step,
-                sample_rate=self.sample_rate,
-            )
+            specs += [
+                wandb.Image(
+                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
+                    caption=f"val_mel_target",
+                ),
+                wandb.Image(
+                    plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
+                    caption=f"val_mel_predicted",
+                ),
+            ]
 
-            self.logger.experiment.add_image(
-                "val_mel_target",
-                plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
+            audios += [
+                wandb.Audio(
+                    y[0, : y_lengths[0]].data.cpu().numpy(),
+                    caption=f"val_wav_target",
+                    sample_rate=self.sample_rate,
+                ),
+                wandb.Audio(
+                    y_hat[0, : y_hat_lengths[0]].data.cpu().numpy(),
+                    caption=f"val_wav_predicted",
+                    sample_rate=self.sample_rate,
+                ),
+            ]
 
-            self.logger.experiment.add_image(
-                "val_mel_predicted",
-                plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
-                self.global_step,
-                dataformats="HWC",
-            )
+            self.logger.experiment.log({"specs": specs, "audios": audios})
+                
 
     def _loader(self, cfg):
         try:
