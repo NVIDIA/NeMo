@@ -55,6 +55,7 @@ model:
     se_context_size: -1
     kernel_size_factor: 0.25
     filters: 1024
+    enc_final: 1024
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
@@ -400,7 +401,7 @@ model:
 
 
 
-      - filters: &enc_final 1024
+      - filters: ${model.model_defaults.enc_final}
         repeat: 1
         kernel: [41]
         stride: [1]
@@ -415,7 +416,7 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
-    feat_in: *enc_final
+    feat_in: ${model.model_defaults.enc_final}
     num_classes: -1  # filled with vocabulary size from tokenizer at runtime
     vocabulary: []  # filled with vocabulary from tokenizer at runtime
 

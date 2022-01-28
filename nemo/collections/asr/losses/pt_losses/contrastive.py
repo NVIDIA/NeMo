@@ -93,7 +93,7 @@ class ContrastiveLoss(Loss):
         self.prob_ppl_weight = prob_ppl_weight
         if self.quantized_targets:
             quantizer_cfg = {
-                "_target_": "nemo.collections.asr.modules.wav2vec_modules.GumbelVectorQuantizer",
+                "_target_": "nemo.collections.asr.parts.submodules.ssl_quantizers.GumbelVectorQuantizer",
                 "dim": in_dim * combine_time_steps,
                 "vq_dim": proj_dim,
                 "num_vars": codebook_size,
@@ -143,6 +143,7 @@ class ContrastiveLoss(Loss):
         masks = masks.mean(-1) > self.mask_threshold
         out_masked_only = decoder_outputs[masks]
         targets_masked_only = targets[masks]
+
         # T'xC
         # number of masked time steps to predict (T')
 
@@ -197,7 +198,6 @@ class ContrastiveLoss(Loss):
 
         if not isinstance(loss, torch.Tensor):
             loss = torch.Tensor([0]).to(device=decoder_outputs.device)
-
         return loss
 
     def _calculate_similarity(self, logits, negatives, targets):
