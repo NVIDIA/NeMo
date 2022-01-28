@@ -22,7 +22,7 @@ This script serves three goals:
 python speech_to_text_buffered_infer_rnnt.py \
     --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
     --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/test_other.json" \
-    --batch_size=128 \
+    --batch_size=32 \
     --model_stride=4 \
     --output_path="." \
     --total_buffer_in_secs=5.0 \
