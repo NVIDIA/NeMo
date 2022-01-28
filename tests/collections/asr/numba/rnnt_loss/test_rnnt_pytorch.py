@@ -330,7 +330,7 @@ class TestRNNTLossPytorch:
     @pytest.mark.unit
     @pytest.mark.parametrize('device', DEVICES)
     @pytest.mark.parametrize('fastemit_lambda', [1.0, 0.01, 0.00001])
-    def test_case_small_clamp(self, device, fastemit_lambda):
+    def test_case_small_fastemit_clamp(self, device, fastemit_lambda):
         if device == 'cuda':
             numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
