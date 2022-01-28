@@ -71,7 +71,6 @@ def main(cfg):
     del load
 
     # Run parameters
-    name = run_cfg.name
     nemo_file_name = run_cfg.nemo_file_name
     output_dir = run_cfg.output_path
     os.makedirs(output_dir, exist_ok=True)

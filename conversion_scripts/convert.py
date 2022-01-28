@@ -70,12 +70,10 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     output_path = run_cfg.output_path
     nemo_file_name = run_cfg.nemo_file_name
     
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
+    os.makedirs(output_path, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
 
-    new_script_path = os.path.join(bignlp_path, f"conversion_scripts/{name}.sh")
+    new_script_path = os.path.join(bignlp_path, f"conversion_scripts/{model_train_name}.sh")
     code_path = os.path.join(bignlp_path, "conversion_scripts/convert_ckpt.py")
     cmd_str = f"python3 -u {code_path} {hydra_args}"
     
@@ -83,7 +81,6 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         # BCM parameters
         partition = cfg.cluster.partition
         account = cfg.cluster.account
-        base_log_dir = cfg.cluster.base_log_dir
         exclusive = cfg.cluster.exclusive
         job_name_prefix = cfg.cluster.job_name_prefix
 
@@ -98,13 +95,13 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
             f"--no-container-mount-home "
             f"--container-image {container} "
             f"--container-mounts {mounts_str} "
-            f"-o {log_dir}/{name}-%j.log "
-            f"-e {log_dir}/{name}-%j.error "
+            f"-o {base_results_dir}/{model_train_name}/conversion/convert-%j.log "
+            f"-e {base_results_dir}/{model_train_name}/conversion/convert-%j.error "
         )
         create_slurm_file(
             new_script_path=new_script_path,
             convert_cmd=cmd_str,
-            job_name=job_name,
+            job_name=job_name_prefix+job_name,
             flags=flags,
             dependency=dependency,
             exclusive=exclusive,

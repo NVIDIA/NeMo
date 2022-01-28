@@ -20,7 +20,7 @@ trainer:
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 8 # AGB=8 for 80GB, 32 for 40 GB nodes
+  accumulate_grad_batches: 9 
   gradient_clip_val: 1.0
 
 exp_manager:
