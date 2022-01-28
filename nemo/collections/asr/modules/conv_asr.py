@@ -420,6 +420,15 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
         super().__init__()
 
+        if vocabulary is None and num_classes < 0:
+            raise ValueError(
+                f"Neither of the vocabulary and num_classes are set! At least one of them need to be set."
+            )
+
+        if num_classes <= 0:
+            num_classes = len(vocabulary)
+            logging.info(f"num_classes of ConvASRDecoder is set to the size of the vocabulary: {num_classes}.")
+
         if vocabulary is not None:
             if num_classes != len(vocabulary):
                 raise ValueError(
