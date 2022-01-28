@@ -7,7 +7,7 @@ import hydra
 def main(cfg):
     bignlp_path = cfg.bignlp_path
     data_cfg = cfg.data_preparation
-    data_dir = cfg.cluster.data_dir
+    data_dir = cfg.data_dir
     assert data_dir is not None, "data_dir must be a valid path"
 
     # Vocab

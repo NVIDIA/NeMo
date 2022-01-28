@@ -3,8 +3,6 @@ import multiprocessing
 
 import hydra
 
-from . import utils
-
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
@@ -13,9 +11,11 @@ def main(cfg):
     Arguments:
         cfg: main config file.
     """
+    import utils
+
     bignlp_path = cfg.bignlp_path
     data_cfg = cfg.data_preparation
-    data_dir = cfg.cluster.data_dir
+    data_dir = cfg.data_dir
     pile_url_train = data_cfg.the_pile_url
     assert data_dir is not None, "data_dir must be a valid path."
 
@@ -32,6 +32,8 @@ def download_bcp(cfg, file_numbers):
         cfg: main config file.
         file_numbers: list of file numbers to download.
     """
+    from . import utils
+
     bignlp_path = cfg.bignlp_path
     data_cfg = cfg.data_preparation
     data_dir = cfg.data_dir

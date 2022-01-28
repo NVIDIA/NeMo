@@ -95,6 +95,8 @@ def run_evaluation(cfg, dependency=None):
     container = cfg.container
     container_mounts = cfg.container_mounts
     eval_cfg = cfg.evaluation
+    data_dir = cfg.data_dir
+    base_results_dir = cfg.base_results_dir
     run_cfg = eval_cfg.run
     model_cfg = eval_cfg.model
 
@@ -147,7 +149,7 @@ def run_evaluation(cfg, dependency=None):
         job_name = os.path.join(job_name_prefix, name)
 
         # Process container-mounts.
-        mounts_str = f"{bignlp_path}:{bignlp_path}"
+        mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         if container_mounts is not None:
             assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
             for mount in container_mounts:

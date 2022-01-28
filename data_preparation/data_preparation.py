@@ -70,6 +70,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     bignlp_path = cfg.bignlp_path
     container = cfg.container
     container_mounts = cfg.container_mounts
+    data_dir = cfg.data_dir
+    base_results_dir = cfg.base_results_dir
     data_cfg = cfg.data_preparation
 
     # Data preparation config
@@ -116,7 +118,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         job_name_prefix = cfg.cluster.job_name_prefix
 
         # Process container-mounts.
-        mounts_str = f"{bignlp_path}:{bignlp_path}"
+        mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         if container_mounts is not None:
             assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
             for mount in container_mounts:

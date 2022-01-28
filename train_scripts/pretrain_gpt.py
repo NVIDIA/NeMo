@@ -53,6 +53,10 @@ def main(cfg):
 
     bignlp_path = cfg.bignlp_path
     training_config = cfg.training_config
+    nccl_topo_file = cfg.nccl_topology_xml_file
+    if nccl_topo_file is not None:
+        nccl_cmd = f"export NCCL_TOPO_FILE={nccl_topo_file}; "
+
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
         f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
@@ -67,15 +71,15 @@ def main(cfg):
     if cfg.wandb_api_key_file is not None:
         with open(cfg.wandb_api_key_file, "r") as f:
             wandb_api_key = f.readline().rstrip()
-        wandb_cmd = f"wandb login {wandb_api_key}"
+        wandb_cmd = f"wandb login {wandb_api_key}; "
     
     # Write command to launch training.
-    cmd_prefix = f'{wandb_cmd}; cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"'
+    cmd_prefix = f'{wandb_cmd} cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; {nccl_cmd}'
     if cfg.cluster_type == "bcm":
-        cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
+        cmd = f'{cmd_prefix} {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
     elif cfg.cluster_type == "bcp":
         pause_and_prime_dns_connections()
-        cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
+        cmd = f'{cmd_prefix} {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     os.system(f"{cmd}")
 
 

@@ -72,6 +72,8 @@ def run_training(cfg, hydra_args="", dependency=None):
     container = cfg.container
     train_cfg = cfg.training
     cluster_cfg = cfg.cluster
+    data_dir = cfg.data_dir
+    base_results_dir = cfg.base_results_dir
     run_cfg = train_cfg.run
 
     # Run parameters
@@ -102,7 +104,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         job_name = job_name_prefix + name
 
         # Process container-mounts.
-        mounts_str = f"{bignlp_path}:{bignlp_path}"
+        mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         if container_mounts is not None:
             assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
             for mount in container_mounts:
