@@ -72,7 +72,7 @@ def main(cfg):
     # Run parameters
     name = run_cfg.get("name")
     nemo_file_name = run_cfg.get("nemo_file_name")
-    log_dir = os.path.join(bignlp_path, run_cfg.get("output_path"), name)
+    log_dir = run_cfg.get("output_path")
     os.makedirs(log_dir, exist_ok=True)
     nemo_file_path = os.path.join(log_dir, nemo_file_name)
 

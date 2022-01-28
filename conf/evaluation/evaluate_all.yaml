@@ -1,25 +1,20 @@
-slurm:
-  partition: ???
-  account: null
-  time_limit: "4:00:00"
+run:
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "2:00:00"
   nodes: 1
-  exclusive: True
-  mem: 0
-  overcommit: True
   ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
   gpus_per_task: null
-  dependency: "singleton"
-  job_name: "bignlp-gpt3:evaluate_all"
-
-run:
-    name: eval_all
-    tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
-    output_path: ${bignlp_path}/eval_scripts/logs
+  eval_name: eval_all
+  convert_name: convert_nemo
+  model_train_name: 126m
+  tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
+  output_path: ${cluster.base_log_dir}/eval_scripts/logs
 
 model:
-    type: nemo-gpt3
-    checkpoint_path: ${bignlp_path}/conversion_scripts/checkpoints/5b_nemo/megatron_gpt.nemo # path of checkpoint; must be .nemo file
-    tensor_model_parallel_size: 2
-    eval_batch_size: 1
-    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
-    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
+  type: nemo-gpt3
+  # path of checkpoint; must be .nemo file
+  checkpoint_path: ${cluster.base_log_dir}/conversion_scripts/logs/${evaluation.run.model_train_name}/megatron_gpt.nemo 
+  tensor_model_parallel_size: 1 #1 for 126m, 2 for 5b, 8 for 20b
+  eval_batch_size: 16
+  vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
+  merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt

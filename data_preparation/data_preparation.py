@@ -46,28 +46,23 @@ def create_slurm_file(
 
 def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Read config
-    data_cfg = cfg["data_preparation"]
-    bignlp_path = cfg.get("bignlp_path")
-    container_mounts = cfg.get("container_mounts")
-    slurm_cfg = data_cfg["slurm"]
-    container = cfg["container"]
+    bignlp_path = cfg.bignlp_path
+    container = cfg.container
+    container_mounts = cfg.container_mounts
+    data_cfg = cfg.data_preparation
 
     # Data preparation config
-    download_the_pile = data_cfg.get("download_the_pile")
-    file_numbers = data_cfg["file_numbers"]
-    preprocess_data = data_cfg.get("preprocess_data")
-    download_vocab_url = data_cfg.get("download_vocab_url")
-    download_merges_url = data_cfg.get("download_merges_url")
-    vocab_save_dir = data_cfg.get("vocab_save_dir")
-    merges_save_dir = data_cfg.get("merges_save_dir")
-    log_dir = data_cfg.get("log_dir")
-
-    # Slurm config
-    partition = slurm_cfg["partition"]
-    time_limit = slurm_cfg["time_limit"]
-    nodes = slurm_cfg["nodes"]
-    account = slurm_cfg["account"]
-
+    download_the_pile = data_cfg.download_the_pile
+    file_numbers = data_cfg.file_numbers
+    preprocess_data = data_cfg.preprocess_data
+    download_vocab_url = data_cfg.download_vocab_url
+    download_merges_url = data_cfg.download_merges_url
+    vocab_save_dir = data_cfg.vocab_save_dir
+    merges_save_dir = data_cfg.merges_save_dir
+    log_dir = data_cfg.log_dir
+    nodes = data_cfg.nodes
+    time_limit = data_cfg.time_limit
+    
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -94,7 +89,13 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         for mount in container_mounts:
             if mount is not None and isinstance(mount, str):
                 mounts_str += f",{mount}:{mount}"
-
+    
+    
+    # BCM config
+    if cfg.cluster_type == "bcm":
+        partition = cfg.cluster.partition
+        account = cfg.cluster.account
+        exclusive = cfg.cluster.exclusive
 
     assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
     if download_the_pile:
@@ -126,6 +127,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         dependency = job_id_1.decode("utf-8")
         print(f"Submitted Download script with job id: {dependency}")
 
+
         # Extract The Pile dataset files
         flags = (
             f"--container-image {container} "
@@ -153,6 +155,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         )
         dependency = job_id_2.decode("utf-8")
         print(f"Submitted Extract script with job id: {dependency}")
+
 
     assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
     if preprocess_data:
