@@ -79,9 +79,7 @@ def convert(rank, world_size, args):
 
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    trainer = Trainer(gpus=args.tensor_model_parallel_size)
-    # TODO: reach out to PTL For an API-safe local rank override
-    trainer.accelerator.training_type_plugin._local_rank = rank
+    trainer = Trainer(gpus=args.tensor_model_parallel_size * args.pipeline_model_parallel_size)
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
@@ -91,12 +89,6 @@ def convert(rank, world_size, args):
         tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
         pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
     )
-
-    # # pick tp_rank, pp_rank based on rank
-    # all_ranks = list(
-    #     itertools.product(range(app_state.tensor_model_parallel_size), range(app_state.pipeline_model_parallel_size))
-    # )
-    # app_state.tensor_model_parallel_rank, app_state.pipeline_model_parallel_rank = all_ranks[rank]
 
     app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
     app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
