@@ -139,7 +139,6 @@ class CpuRNNT_metadata:
 
 
 class LogSoftmaxGradModification(Function):
-
     @staticmethod
     def forward(ctx, acts, clamp):
         if clamp < 0:
@@ -156,7 +155,10 @@ class LogSoftmaxGradModification(Function):
         # Clamp the gradients of loss(logsoftmax(...))
         # CPU computes logsoftmax explicitly, so we need to override t
         grad_output = torch.clamp(grad_output, -ctx.clamp, ctx.clamp)
-        return grad_output, None,
+        return (
+            grad_output,
+            None,
+        )
 
 
 class CPURNNT:

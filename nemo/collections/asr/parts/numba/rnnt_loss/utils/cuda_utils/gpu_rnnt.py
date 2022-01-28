@@ -223,7 +223,7 @@ class GPURNNT:
                 self.alphabet_size_,
                 self.blank_,
                 self.fastemit_lambda_,
-                self.clamp_
+                self.clamp_,
             )
 
         # // cost
