@@ -22,7 +22,6 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -213,6 +212,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
+        num_workers: int = 0,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -226,6 +226,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Bigger will result in better throughput performance but would use more memory.
             return_hypotheses: (bool) Either return hypotheses or text
         With hypotheses can do some postprocessing like getting timestamp or rescoring
+            num_workers: (int) number of workers for DataLoader
 
         Returns:
             A list of transcriptions in the same order as paths2audio_files. Will also return
@@ -240,6 +241,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         device = next(self.parameters()).device
         dither_value = self.preprocessor.featurizer.dither
         pad_to_value = self.preprocessor.featurizer.pad_to
+
+        if num_workers is None:
+            num_workers = min(batch_size, os.cpu_count() - 1)
 
         try:
             self.preprocessor.featurizer.dither = 0.0
@@ -260,7 +264,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                         entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
 
-                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+                config = {
+                    'paths2audio_files': paths2audio_files,
+                    'batch_size': batch_size,
+                    'temp_dir': tmpdir,
+                    'num_workers': num_workers,
+                }
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
@@ -462,10 +471,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
             dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
-        if type(dataset) is ChainDataset:
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
+        if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -835,7 +844,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             'batch_size': batch_size,
             'trim_silence': False,
             'shuffle': False,
-            'num_workers': min(batch_size, os.cpu_count() - 1),
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
         }
 
@@ -885,19 +894,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
-    def export(self, output: str, input_example=None, output_example=None, **kwargs):
+    def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
-            self._augment_output_filename(output, 'Encoder'),
-            input_example=input_example,
-            output_example=None,
-            **kwargs,
+            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
         )
         decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
         decoder_exp, decoder_descr = decoder_joint.export(
             self._augment_output_filename(output, 'Decoder-Joint'),
             # TODO: propagate from export()
             input_example=None,
-            output_example=None,
             **kwargs,
         )
         return encoder_exp + decoder_exp, encoder_descr + decoder_descr

@@ -15,7 +15,24 @@
 """Megatron Module"""
 
 import torch
-from apex.transformer import parallel_state, tensor_parallel
+from torch.autograd import Variable
+from torch.nn.parameter import Parameter
+
+from nemo.utils import logging
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
+
+_FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
+_HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
+_BF16_TYPES = (torch.BFloat16Tensor, torch.cuda.BFloat16Tensor)
 
 
 def param_is_not_shared(param):
@@ -28,6 +45,12 @@ class MegatronModule(torch.nn.Module):
 
     def __init__(self, share_word_embeddings=True):
         super(MegatronModule, self).__init__()
+
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         self.share_word_embeddings = share_word_embeddings
 
     def word_embeddings_weight(self):
@@ -90,3 +113,86 @@ class MegatronModule(torch.nn.Module):
                 "this needs to be handled manually. If you are training "
                 "something is definitely wrong."
             )
+
+
+def conversion_helper(val, conversion):
+    """Apply conversion to val. Recursively apply conversion if `val`
+    #is a nested tuple/list structure."""
+    if not isinstance(val, (tuple, list)):
+        return conversion(val)
+    rtn = [conversion_helper(v, conversion) for v in val]
+    if isinstance(val, tuple):
+        rtn = tuple(rtn)
+    return rtn
+
+
+def fp32_to_float16(val, float16_converter):
+    """Convert fp32 `val` to fp16/bf16"""
+
+    def half_conversion(val):
+        val_typecheck = val
+        if isinstance(val_typecheck, (Parameter, Variable)):
+            val_typecheck = val.data
+        if isinstance(val_typecheck, _FLOAT_TYPES):
+            val = float16_converter(val)
+        return val
+
+    return conversion_helper(val, half_conversion)
+
+
+def float16_to_fp32(val):
+    """Convert fp16/bf16 `val` to fp32"""
+
+    def float_conversion(val):
+        val_typecheck = val
+        if isinstance(val_typecheck, (Parameter, Variable)):
+            val_typecheck = val.data
+        if isinstance(val_typecheck, (_BF16_TYPES, _HALF_TYPES)):
+            val = val.float()
+        return val
+
+    return conversion_helper(val, float_conversion)
+
+
+class Float16Module(MegatronModule):
+    def __init__(self, module, precision):
+        super().__init__()
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+        self.precision = precision
+
+        if precision == 16:
+            self.add_module('module', module.half())
+
+            def float16_converter(val):
+                return val.half()
+
+        elif precision == 'bf16':
+            self.add_module('module', module.bfloat16())
+
+            def float16_converter(val):
+                return val.bfloat16()
+
+        else:
+            raise Exception(f'{precision} is not supported. Float16Module supports ' 'only fp16 and bf16.')
+
+        self.float16_converter = float16_converter
+
+    def set_input_tensor(self, input_tensor):
+        return self.module.set_input_tensor(input_tensor)
+
+    def forward(self, *inputs, **kwargs):
+        if parallel_state.is_pipeline_first_stage():
+            inputs = fp32_to_float16(inputs, self.float16_converter)
+        outputs = self.module(*inputs, **kwargs)
+        if parallel_state.is_pipeline_last_stage():
+            outputs = float16_to_fp32(outputs)
+        return outputs
+
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        return self.module.state_dict(destination, prefix, keep_vars)
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
