@@ -303,7 +303,6 @@ def process_dataset(dataset: IterableDataset, cfg: HFDatasetConvertionConfig):
 
     if cfg.split_output_dir is None:
         basedir = cfg.resolved_output_dir
-        split = None
         manifest_filename = f"{cfg.path.replace('/', '_')}_manifest.json"
     else:
         basedir = cfg.split_output_dir
