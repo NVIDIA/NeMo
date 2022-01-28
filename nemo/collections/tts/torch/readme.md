@@ -49,14 +49,3 @@ for batch in tqdm(dataloader, total=len(dataloader)):
 pitch_tensor = torch.cat(pitch_list)
 print(f"PITCH_MEAN, PITCH_STD = {pitch_tensor.mean().item()}, {pitch_tensor.std().item()}")
 ```
-
-## ToDos
-
- - [ ] Populate *torch_tts*
-   - [x] Create a new datalayer that can be used interchangeably
-   - [x] Add TTS models with new dataset
- - [ ] Split Lightning away from core
-   - [x] v0.1 that import checks a lot of lightning
-   - [ ] Split up code (core, collections, utils) better
- - [ ] Enable building *text_normlization* without installing lightning
- - [ ] Look into how `Serialization` works without hydra

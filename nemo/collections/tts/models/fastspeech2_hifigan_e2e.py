@@ -30,9 +30,9 @@ from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
+    AudioSignal,
     LengthsType,
     MaskType,
-    MelSpectrogramType,
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
@@ -52,7 +52,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
             cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
+        self.audio_to_melspec_preprocessor = instantiate(cfg.preprocessor)
         self.encoder = instantiate(cfg.encoder)
         self.variance_adapter = instantiate(cfg.variance_adaptor)
 
@@ -145,7 +145,7 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
             "energies": NeuralType(('B', 'T'), RegressionValuesType(), optional=True),
         },
         output_types={
-            "audio": NeuralType(('B', 'S', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal()),
             "splices": NeuralType(),
             "log_dur_preds": NeuralType(('B', 'T'), TokenLogDurationType()),
             "pitch_preds": NeuralType(('B', 'T'), RegressionValuesType()),
@@ -166,11 +166,10 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         )
 
         gen_in = context
-        splices = None
+        splices = []
         if splice:
             # Splice generated spec
             output = []
-            splices = []
             for i, sample in enumerate(context):
                 start = np.random.randint(low=0, high=min(int(sample.size(0)), int(spec_len[i])) - self.splice_length)
                 output.append(sample[start : start + self.splice_length, :])
@@ -179,17 +178,16 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
 
         output = self.generator(x=gen_in.transpose(1, 2))
 
-        return output, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
+        return output, torch.tensor(splices), log_dur_preds, pitch_preds, energy_preds, encoded_text_mask
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         f, fl, t, tl, durations, pitch, energies = batch
-        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
+        _, spec_len = self.audio_to_melspec_preprocessor(f, fl)
 
         # train discriminator
         if optimizer_idx == 0:
             with torch.no_grad():
                 audio_pred, splices, _, _, _, _ = self(
-                    spec=spec,
                     spec_len=spec_len,
                     text=t,
                     text_length=tl,
@@ -203,10 +201,14 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
                 real_audio = torch.stack(real_audio).unsqueeze(1)
 
             real_score_mp, gen_score_mp, _, _ = self.multiperioddisc(real_audio, audio_pred)
-            real_score_ms, gen_score_ms, _, _ = self.multiscaledisc(real_audio, audio_pred)
+            real_score_ms, gen_score_ms, _, _ = self.multiscaledisc(y=real_audio, y_hat=audio_pred)
 
-            loss_mp, loss_mp_real, _ = self.disc_loss(real_score_mp, gen_score_mp)
-            loss_ms, loss_ms_real, _ = self.disc_loss(real_score_ms, gen_score_ms)
+            loss_mp, loss_mp_real, _ = self.disc_loss(
+                disc_real_outputs=real_score_mp, disc_generated_outputs=gen_score_mp
+            )
+            loss_ms, loss_ms_real, _ = self.disc_loss(
+                disc_real_outputs=real_score_ms, disc_generated_outputs=gen_score_ms
+            )
             loss_mp /= len(loss_mp_real)
             loss_ms /= len(loss_ms_real)
             loss_disc = loss_mp + loss_ms
@@ -219,7 +221,6 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
         # train generator
         elif optimizer_idx == 1:
             audio_pred, splices, log_dur_preds, pitch_preds, energy_preds, encoded_text_mask = self(
-                spec=spec,
                 spec_len=spec_len,
                 text=t,
                 text_length=tl,
@@ -241,14 +242,14 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
             loss_mel = torch.nn.functional.l1_loss(real_spliced_spec, pred_spliced_spec)
             loss_mel *= self.mel_loss_coeff
             _, gen_score_mp, real_feat_mp, gen_feat_mp = self.multiperioddisc(real_audio, audio_pred)
-            _, gen_score_ms, real_feat_ms, gen_feat_ms = self.multiscaledisc(real_audio, audio_pred)
-            loss_gen_mp, list_loss_gen_mp = self.gen_loss(gen_score_mp)
-            loss_gen_ms, list_loss_gen_ms = self.gen_loss(gen_score_ms)
+            _, gen_score_ms, real_feat_ms, gen_feat_ms = self.multiscaledisc(y=real_audio, y_hat=audio_pred)
+            loss_gen_mp, list_loss_gen_mp = self.gen_loss(disc_outputs=gen_score_mp)
+            loss_gen_ms, list_loss_gen_ms = self.gen_loss(disc_outputs=gen_score_ms)
             loss_gen_mp /= len(list_loss_gen_mp)
             loss_gen_ms /= len(list_loss_gen_ms)
             total_loss = loss_gen_mp + loss_gen_ms + loss_mel
-            loss_feat_mp = self.feat_matching_loss(real_feat_mp, gen_feat_mp)
-            loss_feat_ms = self.feat_matching_loss(real_feat_ms, gen_feat_ms)
+            loss_feat_mp = self.feat_matching_loss(fmap_r=real_feat_mp, fmap_g=gen_feat_mp)
+            loss_feat_ms = self.feat_matching_loss(fmap_r=real_feat_ms, fmap_g=gen_feat_ms)
             total_loss += loss_feat_mp + loss_feat_ms
             self.log(name="loss_gen_disc_feat", value=loss_feat_mp + loss_feat_ms)
             self.log(name="loss_gen_disc_feat_ms", value=loss_feat_ms)
@@ -295,8 +296,8 @@ class FastSpeech2HifiGanE2EModel(TextToWaveform):
 
     def validation_step(self, batch, batch_idx):
         f, fl, t, tl, _, _, _ = batch
-        spec, spec_len = self.audio_to_melspec_precessor(f, fl)
-        audio_pred, _, _, _, _, _ = self(spec=spec, spec_len=spec_len, text=t, text_length=tl, splice=False)
+        spec, spec_len = self.audio_to_melspec_preprocessor(f, fl)
+        audio_pred, _, _, _, _, _ = self(spec_len=spec_len, text=t, text_length=tl, splice=False)
         audio_pred.squeeze_()
         pred_spec, _ = self.melspec_fn(audio_pred, seq_len=spec_len)
         loss = self.mel_val_loss(spec_pred=pred_spec, spec_target=spec, spec_target_len=spec_len, pad_value=-11.52)
