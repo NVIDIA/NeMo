@@ -178,7 +178,7 @@ class TestRNNTCUDAKernels:
     @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
     @pytest.mark.unit
     def test_compute_grads_kernel(self):
-        # numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         fastemit_lambda = 0.0
         clamp = 0.0
@@ -257,8 +257,22 @@ class TestRNNTCUDAKernels:
         grad_blocks_per_grid = B * T * U
         grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
         gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, stream, 0](
-            grads, x_c, denom, alphas, betas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
-            fastemit_lambda, clamp
+            grads,
+            x_c,
+            denom,
+            alphas,
+            betas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
+            fastemit_lambda,
+            clamp,
         )
 
         # sync kernel
@@ -270,5 +284,3 @@ class TestRNNTCUDAKernels:
 
         assert np.abs(diff).mean() <= 1e-5
         assert np.square(diff).mean() <= 1e-10
-
-
