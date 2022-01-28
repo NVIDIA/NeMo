@@ -1153,6 +1153,10 @@ class ModelPT(LightningModule, Model):
         self._cfg = cfg
         self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
 
+        # TODO: Remove in NeMo 1.7 (or when PTL fixes this on their end)
+        if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
+            self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
+
     @staticmethod
     def _is_model_being_restored() -> bool:
         app_state = AppState()
