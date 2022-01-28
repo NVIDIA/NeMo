@@ -33,7 +33,7 @@ from numba import cuda
 
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import rnnt_helper
 
-GPU_RNNT_THREAD_SIZE = 128
+GPU_RNNT_THREAD_SIZE = 256
 
 
 @cuda.jit(device=True, inline=True)
