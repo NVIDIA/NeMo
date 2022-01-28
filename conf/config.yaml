@@ -24,7 +24,7 @@ data_dir: ${bignlp_path}/data  # Location to store and read the data.
 base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
-container: nvcr.io/ea-bignlp/bignlp-training:21.12-py3
+container: nvcr.io/nvidian/swdl/bignlp:22.01.01-py3-base
 
 wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
 nccl_topology_xml_file: null  # This file will be exported as "export NCCL_TOPO_FILE=${nccl_topology_xml_file}"
