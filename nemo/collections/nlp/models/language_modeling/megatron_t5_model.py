@@ -480,25 +480,37 @@ class MegatronT5Model(NLPModel):
 
             # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
             if not hasattr(self.tokenizer, 'pad_token'):
-                if hasattr(self.tokenizer.tokenizer, 'pad_id'):
+                if hasattr(self.tokenizer.tokenizer, 'pad_id') and self.tokenizer.tokenizer.pad_id() > 0:
                     self.tokenizer.pad_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.pad_id())
+                else:
+                    self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
             else:
                 self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
             if not hasattr(self.tokenizer, 'bos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'bos_id'):
+                if hasattr(self.tokenizer.tokenizer, 'bos_id') and self.tokenizer.tokenizer.bos_id() > 0:
                     self.tokenizer.bos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.bos_id())
+                else:
+                    self.tokenizer.add_special_tokens({'bos_token': '<bos>'})
             else:
                 self.tokenizer.add_special_tokens({'bos_token': '<s>'})
 
             if not hasattr(self.tokenizer, 'eos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'eos_id'):
+                if hasattr(self.tokenizer.tokenizer, 'eos_id') and self.tokenizer.tokenizer.eos_id() > 0:
                     self.tokenizer.eos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.eos_id())
+                else:
+                    self.tokenizer.add_special_tokens({'eos_token': '<eos>'})
             else:
                 self.tokenizer.add_special_tokens({'eos_token': '</s>'})
 
-            additional_tokens = [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-            self.tokenizer.add_special_tokens(additional_tokens)
+            # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
+            for i in range(self.num_sentinel_tokens):
+                if f'▁<extra_id_{i}>' in self.tokenizer.vocab:
+                    self.tokenizer.special_token_to_id[f'<extra_id_{i}>'] = self.tokenizer.text_to_ids(
+                        f'<extra_id_{i}>'
+                    )[0]
+                else:
+                    self.tokenizer.add_special_tokens([f'<extra_id_{i}>'])
 
     def list_available_models():
         pass
