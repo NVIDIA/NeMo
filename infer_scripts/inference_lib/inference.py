@@ -15,6 +15,7 @@ import enum
 import logging
 import pathlib
 import shutil
+import typing
 
 import yaml
 
@@ -101,16 +102,24 @@ def get_convert_model_cmds(
     src_model_path: pathlib.Path,
     output_model_path: pathlib.Path,
     verbose: bool = False,
+    tensor_parallel_size: typing.Optional[int] = None,
 ):
     if src_model_path.name.endswith(".ft"):
         return []
     else:
+        # if need to overwrite tensor_parallel_size from navigator config path
+        if tensor_parallel_size is not None:
+            ft_gpu_sizes_arg = f"--ft-gpu-counts {tensor_parallel_size}"
+        else:
+            ft_gpu_sizes_arg = ""
+
         return [
             f"MODEL_NAVIGATOR_RUN_BY=1 model-navigator convert "
             f"--workspace-path {workspace_path.resolve().absolute()} "
             f"--config-path {navigator_config_path.resolve().absolute()} "
             f"--model-name {model_name} "
             f"--model-path {src_model_path.resolve().absolute()} "
+            f"{ft_gpu_sizes_arg} "
             f"{'--model-format megatron ' if not src_model_path.suffix else ''}"
             f"--output-path {output_model_path.resolve().absolute()} "
             f"{'--verbose ' if verbose else ''}"
@@ -168,7 +177,7 @@ def get_profile_cmds(
 
     max_shapes = [f"INPUT_ID=-1,1,{input_len}", "REQUEST_INPUT_LEN=-1,1", "REQUEST_OUTPUT_LEN=-1,1"]
     value_ranges = [
-        f"INPUT_ID=1,{variant.end_id}",
+        f"INPUT_ID={variant.end_id},{variant.end_id}",
         f"REQUEST_INPUT_LEN={input_len},{input_len}",
         f"REQUEST_OUTPUT_LEN={output_len},{output_len}",
     ]

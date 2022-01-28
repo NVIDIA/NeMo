@@ -1,19 +1,12 @@
-from logging import disable
 import os
-import shutil
-import tarfile
 import tempfile
 
-import transformers
 from lm_eval.base import LM
 from lm_eval import utils
-import sys
 from tqdm import tqdm
-import time
 import torch
 import torch.nn.functional as F
-import re
-from argparse import ArgumentParser
+
 from pytorch_lightning.trainer.trainer import Trainer
 from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf
@@ -109,7 +102,7 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
                     return instance
                 else:
                     app_state = AppState()
-                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -117,10 +110,11 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                if 'fused_fp16' in conf:
-                    conf.fused_fp16 = False
-                if 'fused_bf16' in conf:
-                    conf.fused_bf16 = False
+                if "precision" in conf:
+                    conf.precision = 32
+                if "megatron_amp_O2" in conf:
+                    conf.megatron_amp_O2 = False
+
                 if self.vocab_file is not None:
                     conf.tokenizer.vocab_file = self.vocab_file
                 if self.merge_file is not None:

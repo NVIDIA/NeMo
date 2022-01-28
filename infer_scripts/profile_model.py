@@ -19,6 +19,7 @@ import itertools
 import logging
 import pathlib
 import shutil
+import sys
 import textwrap
 
 import yaml
@@ -197,6 +198,7 @@ def main():
             *get_convert_model_cmds(
                 workspace_path=navigator_workspace_path,
                 navigator_config_path=navigator_config_on_workspace_path,
+                tensor_parallel_size=tensor_parallel_size,
                 model_name=args.model_name,
                 src_model_path=src_model_path,
                 output_model_path=converted_model_path,
@@ -373,6 +375,7 @@ def main():
         LOGGER.info(f"[{analyze_job.job_id}] summary: \n{analysis_summary_path.read_text()}")
     else:
         LOGGER.warning("No successful profile results were found, thus don't run analyze job.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

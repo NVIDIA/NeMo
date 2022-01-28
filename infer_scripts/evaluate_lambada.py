@@ -26,16 +26,10 @@ from torch.nn.utils.rnn import pad_sequence
 from tritonclient.utils import np_to_triton_dtype
 
 import inference_lib.gpt_token_encoder as encoder
+import inference_lib.text_generation as text_generation
 
-START_ID = 50256
-END_ID = 50256
 
 MAX_TEST_GRAM = 4
-PROTOCOL_MAP = {
-    "http": (httpclient, "localhost:8000"),
-    "https": (httpclient, "localhost:8000"),
-    "grpc": (grpcclient, "localhost:8001"),
-}
 
 
 def wait_for_model(protocol: str, url: str, model_name: str, verbose: bool = False, timeout_s: int = 120):
@@ -46,23 +40,6 @@ def wait_for_model(protocol: str, url: str, model_name: str, verbose: bool = Fal
     client = TritonClient(server_url, verbose=verbose)
     client.wait_for_server_ready(timeout=timeout_s)
     client.wait_for_model(model_name=model_name, model_version="1")
-
-
-def send_requests(url, protocol, input_start_ids, input_len, output_len, verbose, model_name="fastertransformer"):
-    use_ssl = protocol == "https"
-    with client_util.InferenceServerClient(url, verbose=verbose, ssl=use_ssl) as client:
-        input_data = input_start_ids
-        inputs = [
-            client_util.InferInput("INPUT_ID", input_data.shape, np_to_triton_dtype(input_data.dtype)),
-            client_util.InferInput("REQUEST_INPUT_LEN", input_len.shape, np_to_triton_dtype(input_len.dtype)),
-            client_util.InferInput("REQUEST_OUTPUT_LEN", output_len.shape, np_to_triton_dtype(output_len.dtype)),
-        ]
-        inputs[0].set_data_from_numpy(input_data)
-        inputs[1].set_data_from_numpy(input_len)
-        inputs[2].set_data_from_numpy(output_len)
-        result = client.infer(model_name, inputs)
-
-        return result.as_numpy("OUTPUT0")
 
 
 def load_data(enc, dataset_path, number_of_samples):
@@ -79,7 +56,7 @@ def load_data(enc, dataset_path, number_of_samples):
     return all_ids, raw_text
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-v", "--verbose", action="store_true", required=False, default=False, help="Enable verbose output"
@@ -91,7 +68,8 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default="http",
-        help=f'Protocol ({"|".join(PROTOCOL_MAP)}) used to communicate with inference service. Default is "http".',
+        help=f'Protocol ({"|".join(text_generation.PROTOCOL_MAP)})' + \
+                f' used to communicate with inference service. Default is "http".',
     )
     parser.add_argument("-b", "--batch_size", type=int, default=128, required=False, help="Specify batch size")
     parser.add_argument(
@@ -120,9 +98,11 @@ if __name__ == "__main__":
     #                     help='Specify beam width')
 
     FLAGS = parser.parse_args()
-    client_util, default_url = PROTOCOL_MAP.get(FLAGS.protocol, (None, None))
+    client_util, default_url = text_generation.PROTOCOL_MAP.get(
+            FLAGS.protocol, (None, None))
     if client_util is None:
-        print(f'unexpected protocol "{FLAGS.protocol}" expects: {"|".join(PROTOCOL_MAP)}')
+        print(f'unexpected protocol "{FLAGS.protocol}"' + \
+              f' expects: {"|".join(text_generation.PROTOCOL_MAP)}')
         exit(1)
 
     if FLAGS.url is None:
@@ -134,6 +114,7 @@ if __name__ == "__main__":
     vocab_file = os.path.join(FLAGS.datasets_dir, "gpt2-vocab.json")
     lambada_dataset_file = os.path.join(FLAGS.datasets_dir, "lambada_test.jsonl")
     enc = encoder.get_encoder(vocab_file, merge_file)
+    end_id = text_generation.vocabulary_validate(enc, FLAGS.url, FLAGS.model_name, FLAGS.protocol)
 
     all_ids, raw_text = load_data(enc, lambada_dataset_file, FLAGS.number_of_samples)
     prev_index = 0
@@ -147,7 +128,7 @@ if __name__ == "__main__":
         prev_index += FLAGS.batch_size
         input_len = np.array([[sentence.shape[-1]] for sentence in context], np.uint32)
 
-        padded_context = pad_sequence(context, batch_first=True, padding_value=END_ID)
+        padded_context = pad_sequence(context, batch_first=True, padding_value=end_id)
         padded_context = (
             padded_context.cpu()
             .numpy()
@@ -161,8 +142,15 @@ if __name__ == "__main__":
         # input_len = np.tile(input_len.reshape([-1, 1]), (1, FLAGS.beam_width)).reshape([-1, 1])
         # input_len = input_len.reshape((batch_size, FLAGS.beam_width))
         output_len = np.ones_like(input_len).astype(np.uint32)
-        output_ids = send_requests(
-            FLAGS.url, FLAGS.protocol, padded_context, input_len, output_len, FLAGS.verbose, FLAGS.model_name
+        output_ids = text_generation.send_requests(
+            url=FLAGS.url,
+            protocol=FLAGS.protocol,
+            input_start_ids=padded_context,
+            input_len=input_len,
+            output_len=output_len,
+            verbose=FLAGS.verbose,
+            client_util=client_util,
+            model_name=FLAGS.model_name,
         )
 
         generated_tokens = output_ids[:, 0, -1]
@@ -178,7 +166,7 @@ if __name__ == "__main__":
         prev_index += FLAGS.batch_size
         input_len = np.array([[sentence.shape[-1]] for sentence in input_start_ids], np.uint32)
 
-        padded_input_start_ids = pad_sequence(input_start_ids, batch_first=True, padding_value=END_ID)
+        padded_input_start_ids = pad_sequence(input_start_ids, batch_first=True, padding_value=end_id)
         batch_size = padded_input_start_ids.shape[0]
 
         for i in range(padded_input_start_ids.shape[-1] - 1):
@@ -189,8 +177,15 @@ if __name__ == "__main__":
             context_input_len = context_input_len.reshape([-1, 1])
             output_len = np.ones_like(context_input_len).astype(np.uint32) * MAX_TEST_GRAM
 
-            output_ids = send_requests(
-                FLAGS.url, FLAGS.protocol, context, context_input_len, output_len, FLAGS.verbose, FLAGS.model_name
+            output_ids = text_generation.send_requests(
+                url=FLAGS.url,
+                protocol=FLAGS.protocol,
+                input_start_ids=context,
+                input_len=context_input_len,
+                output_len=output_len,
+                verbose=FLAGS.verbose,
+                client_util=client_util,
+                model_name=FLAGS.model_name,
             )
 
             for j in range(1, MAX_TEST_GRAM + 1):
@@ -232,3 +227,8 @@ if __name__ == "__main__":
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerow(res)
+
+
+if __name__ == "__main__":
+    main()
+

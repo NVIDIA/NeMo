@@ -242,6 +242,7 @@ class PyxisJob(BaseJob):
 class SlurmClusterParameters:
     account: typing.Optional[str] = None
     partition: typing.Optional[str] = None
+    exclude: typing.Optional[str] = None
     srun_args: typing.Optional[str] = None
     support_gpus_allocation: typing.Optional[bool] = True
 
@@ -256,6 +257,7 @@ class PyxisJobSpec:
     time: str
     output: pathlib.Path
     account: typing.Optional[str] = None
+    exclude: typing.Optional[str] = None
     container_mounts: typing.Optional[str] = None
     container_workdir: typing.Optional[pathlib.Path] = None
     srun_args: typing.Optional[str] = None
@@ -319,6 +321,7 @@ class PyxisJobSpec:
             gpus_per_task=gpus_per_task,
             mem_per_cpu=mem_per_cpu,
             mem_per_gpu=mem_per_gpu,
+            exclude=cluster_parameters.exclude,
         )
 
 
@@ -374,8 +377,13 @@ class PyxisExecutor(BaseExecutor):
     _cancel_command = "scancel {job_id}"
 
     def get_cluster_parameters_for_job_definition(self, job_definition: JobDefinition) -> SlurmClusterParameters:
+        exclude = self._cluster_config.get("exclude")
+        if exclude is not None and isinstance(exclude, list):
+            exclude = ",".join(exclude)
+
         return SlurmClusterParameters(
             account=self._cluster_config.get("account"),
+            exclude=exclude,
             partition=self._cluster_config.get("partition"),
             srun_args=" ".join(self._cluster_config.get("srun_args", [])),
             support_gpus_allocation=self._cluster_config.get(
