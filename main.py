@@ -2,6 +2,7 @@ import sys
 import os
 import subprocess
 
+import copy
 import hydra
 import omegaconf
 
@@ -45,19 +46,29 @@ def main(cfg):
     run_conversion = cfg.run_conversion
     run_evaluation = cfg.run_evaluation
 
-
+    cfg_copy = copy.deepcopy(cfg)
     dependency = None
     if run_data_preparation:
         dependency = data_preparation.run_data_preparation(cfg, hydra_args=hydra_args, dependency=dependency)
+    else:
+        cfg_copy._content.pop("data_preparation")
 
     if run_training:
         dependency = train.run_training(cfg, hydra_args=hydra_args, dependency=dependency)
+    else:
+        cfg_copy._content.pop("training")
 
     if run_conversion:
         dependency = convert.convert_ckpt(cfg, hydra_args=hydra_args, dependency=dependency)
+    else:
+        cfg_copy._content.pop("conversion")
 
     if run_evaluation:
         dependency = evaluate.run_evaluation(cfg, dependency=dependency)
+    else:
+        cfg_copy._content.pop("evaluation")
+
+    print(omegaconf.OmegaConf.to_yaml(cfg_copy))
 
 
 if __name__ == "__main__":
