@@ -1,20 +1,8 @@
-slurm:
-  partition: ???
-  account: null
-  time_limit: "7-00:00:00"
-  nodes: 80
-  exclusive: True
-  mem: 0
-  overcommit: True
-  ntasks_per_node: 8
-  gpus_per_task: 1
-  dependency: "singleton"
-  job_name: "bignlp-gpt3:20b"
-
-
 run:
   name: 20b
-  log_dir: ${bignlp_path}/train_scripts/logs/20b
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "8-00:00:00"
+  dependency: "singleton"
 
 
 trainer:
@@ -28,7 +16,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 06:23:30:00
+  max_time: 07:23:30:00
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
@@ -38,7 +26,7 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${training.run.log_dir}
+  explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
   name: megatron_gpt
   create_wandb_logger: False
@@ -88,8 +76,8 @@ model:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
     model: null
-    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
-    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
+    vocab_file: ${data_dir}/bpe/vocab.json
+    merge_file: ${data_dir}/bpe/merges.txt
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32

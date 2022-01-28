@@ -1,5 +1,7 @@
 partition: null
 account: null
-base_log_dir: ${bignlp_path}
 exclusive: True
-job_name_prefix: "joc-big_nlp:"
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"

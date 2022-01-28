@@ -1,8 +1,8 @@
 defaults:
   - _self_
-  - cluster: bcm
+  - cluster: bcm  # Must match custer_type below.
   - data_preparation: download_pile
-  - training: 126m  # Must match training_config below.
+  - training: 5b  # Must match training_config below.
   - conversion: convert
   - evaluation: evaluate_all
   - override hydra/job_logging: stdout
@@ -17,10 +17,12 @@ run_training: True
 run_conversion: True
 run_evaluation: True
 
-cluster_type: bcm  # bcm or bcp
-training_config: 126m  # Must match - training above.
+cluster_type: bcm  # bcm or bcp. Must match - cluster above.
+training_config: 5b  # Must match - training above.
 bignlp_path: ??? # Path should end with bignlp-scripts
-data_dir: ${bignlp_path}/data_preparation/data  # Location to store and read the data. Absolute or relative
+data_dir: ${bignlp_path}/data  # Location to store and read the data.
+base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
 container: nvcr.io/ea-bignlp/bignlp-training:21.12-py3
+wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.

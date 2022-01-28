@@ -1,8 +1,7 @@
 run:
-  name: "5b-20f8"
-  log_dir: ${cluster.base_log_dir}/${.name}
-  time_limit: "8:00:00:00"
-  time_limit_bcp: "8D"
+  name: 5b
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "7-00:00:00"
   dependency: "singleton"
 
 trainer:
@@ -16,7 +15,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 120000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 08:00:00:00
+  max_time: 06:23:30:00
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
@@ -25,13 +24,13 @@ trainer:
   gradient_clip_val: 1.0
 
 exp_manager:
-  explicit_log_dir: ${training.run.log_dir}
+  explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: False
+  create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_gpt_pretraining
-    name: dev
+    project: nemo_gpt3
+    name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
@@ -74,8 +73,8 @@ model:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
     model: null
-    vocab_file: ${cluster.data_dir}/bpe/vocab.json
-    merge_file: ${cluster.data_dir}/bpe/merges.txt
+    vocab_file: ${data_dir}/bpe/vocab.json
+    merge_file: ${data_dir}/bpe/merges.txt
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -115,62 +114,62 @@ model:
     eod_mask_loss: False # Mask loss for the end of document tokens
     data_prefix: # Should be weight path weight path... for a blended dataset
       - .0333
-      - ${cluster.data_dir}/my-gpt3_00_text_document
+      - ${data_dir}/my-gpt3_00_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_01_text_document
+      - ${data_dir}/my-gpt3_01_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_02_text_document
+      - ${data_dir}/my-gpt3_02_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_03_text_document
+      - ${data_dir}/my-gpt3_03_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_04_text_document
+      - ${data_dir}/my-gpt3_04_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_05_text_document
+      - ${data_dir}/my-gpt3_05_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_06_text_document
+      - ${data_dir}/my-gpt3_06_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_07_text_document
+      - ${data_dir}/my-gpt3_07_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_08_text_document
+      - ${data_dir}/my-gpt3_08_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_09_text_document
+      - ${data_dir}/my-gpt3_09_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_10_text_document
+      - ${data_dir}/my-gpt3_10_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_11_text_document
+      - ${data_dir}/my-gpt3_11_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_12_text_document
+      - ${data_dir}/my-gpt3_12_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_13_text_document
+      - ${data_dir}/my-gpt3_13_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_14_text_document
+      - ${data_dir}/my-gpt3_14_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_15_text_document
+      - ${data_dir}/my-gpt3_15_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_16_text_document
+      - ${data_dir}/my-gpt3_16_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_17_text_document
+      - ${data_dir}/my-gpt3_17_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_18_text_document
+      - ${data_dir}/my-gpt3_18_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_19_text_document
+      - ${data_dir}/my-gpt3_19_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_20_text_document
+      - ${data_dir}/my-gpt3_20_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_21_text_document
+      - ${data_dir}/my-gpt3_21_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_22_text_document
+      - ${data_dir}/my-gpt3_22_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_23_text_document
+      - ${data_dir}/my-gpt3_23_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_24_text_document
+      - ${data_dir}/my-gpt3_24_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_25_text_document
+      - ${data_dir}/my-gpt3_25_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_26_text_document
+      - ${data_dir}/my-gpt3_26_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_27_text_document
+      - ${data_dir}/my-gpt3_27_text_document
       - .0333
-      - ${cluster.data_dir}/my-gpt3_28_text_document
+      - ${data_dir}/my-gpt3_28_text_document
       - .0334
-      - ${cluster.data_dir}/my-gpt3_29_text_document
+      - ${data_dir}/my-gpt3_29_text_document

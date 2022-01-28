@@ -1,7 +1,6 @@
 import sys
 import os
 import subprocess
-import glob
 
 import hydra
 import omegaconf
@@ -47,44 +46,6 @@ def create_slurm_file(
         f.writelines(f'srun {flags} --ntasks={ntasks_per_node} sh -c "{convert_cmd}"\n\n')
         f.writelines("set +x\n")
 
-
-def create_bcp_submit_cmd(
-    job_name,
-    container,
-    workspace_common,
-    workspace_scripts,
-    bignlp_path,
-    bcp_script,
-    instance,
-    num_nodes,
-    array_type="PYTORCH",
-    total_runtime="10H"
-):
-    base_cmd = f"cd {bignlp_path}; {bcp_script}"
-    if (num_nodes == 1):
-        num_nodes = 2  # bcprun needs at least 2 nodes
-    submit_cmd = f"ngc batch run --name \"{job_name}\" --image \"{container}\" \
-    --commandline \"{base_cmd}\" --workspace {workspace_common}:/workspace-common \
-    --workspace {workspace_scripts}:/workspace-scripts --result /result \
-    --preempt RUNONCE --instance {instance} --replicas {num_nodes} \
-    --array-type {array_type} --total-runtime {total_runtime}"
-    
-    return submit_cmd
-            
-def create_bcp_file(
-    bignlp_path,
-    cmd_str,
-    num_nodes,
-    ntasks_per_node,
-    log_file,
-    err_file,
-    new_script_path
-):
-    with open(new_script_path, "w") as f:
-        # Replace {bignlp_path}/bcprun2 below by bcprun once new bcprun is deployed
-        f.writelines(f'{bignlp_path}/bcprun2 -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str}" >> {log_file} 2>>{err_file} \n\n')
-        f.writelines("set +x\n") 
-    os.chmod(new_script_path, 0o755)
         
 def convert_ckpt(cfg, hydra_args="", dependency=None):
     # Read config
@@ -96,22 +57,21 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     model_cfg = convert_cfg.model
 
     # Run parameters
-    name = run_cfg.name
     job_name = run_cfg.job_name
-    time_limit = run_cfg.time_limit
     nodes = run_cfg.nodes
+    time_limit = run_cfg.time_limit
     ntasks_per_node = run_cfg.ntasks_per_node
     gpus_per_task = run_cfg.gpus_per_task
     convert_name = run_cfg.convert_name
     model_train_name = run_cfg.model_train_name
+    results_dir = run_cfg.results_dir
     output_path = run_cfg.output_path
-    log_dir = run_cfg.log_dir
     nemo_file_name = run_cfg.nemo_file_name
     
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
 
     new_script_path = os.path.join(bignlp_path, f"conversion_scripts/{name}.sh")
     code_path = os.path.join(bignlp_path, "conversion_scripts/convert_ckpt.py")
@@ -163,33 +123,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         return dependency
 
     elif cfg.cluster_type == "bcp":
-        # BCP parameters
-        bcp_cfg = cfg.cluster
-        instance = bcp_cfg.instance
-    
-        create_bcp_file(
-            bignlp_path=bignlp_path,
-            new_script_path=new_script_path,
-            cmd_str=cmd_str,
-            num_nodes=nodes,
-            ntasks_per_node=ntasks_per_node,
-            log_file=f"{log_dir}/log.txt",
-            err_file=f"{log_dir}/err.txt"
-        )
-
-        submit_cmd = create_bcp_submit_cmd(
-            job_name=bcp_cfg.get("job_name"),
-            container=container,
-            workspace_common=bcp_cfg.get("workspace_common"),
-            workspace_scripts=bcp_cfg.get("workspace_scripts"),
-            bignlp_path=bignlp_path,
-            bcp_script=new_script_path,
-            instance=instance,
-            num_nodes=nodes,
-            array_type="PYTORCH",
-            total_runtime=time_limit
-        )
-        
-        print(f"\n Submit command after training is done:\n {submit_cmd}")
-        print(f"\n Script file: {new_script_path}")
-    
+        submit_cmd = f"NGC_TASKS_PER_NODE={ntasks_per_node} {cmd_str}"
+        job_id = subprocess.check_output([f"{submit_cmd}"], shell=True)
+        print(f"Conversion job submitted with command: \n{submit_cmd}")
+        return job_id

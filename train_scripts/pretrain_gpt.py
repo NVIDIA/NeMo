@@ -48,11 +48,11 @@ def main(cfg):
             args[index] = "{}={}".format(k, v.replace("'", "\\'"))
 
     train_args = [x.replace("training.", "") for x in args if x[:9] == "training."]
-    train_args = [x.replace("None", "null") for x in train_args if "run." not in x and "slurm." not in x and "bcp." not in x]
+    train_args = [x.replace("None", "null") for x in train_args if "run." not in x]
     hydra_train_args = " ".join(train_args)
 
-    bignlp_path = cfg["bignlp_path"]
-    training_config = cfg["training_config"]
+    bignlp_path = cfg.bignlp_path
+    training_config = cfg.training_config
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
         f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
@@ -61,22 +61,23 @@ def main(cfg):
     gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
     core_mapping = f"exec numactl --physcpubind={dgxa100_gpu2core[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} --membind={dgxa100_gpu2mem[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} -- "
     flags = f"--config-path={training_config_path} --config-name={training_config} "
+
+    # W&B Api Key file.
+    wandb_cmd = ""
+    if cfg.wandb_api_key_file is not None:
+        with open(cfg.wandb_api_key_file, "r") as f:
+            wandb_api_key = f.readline().rstrip()
+        wandb_cmd = f"wandb login {wandb_api_key}"
     
-    cmd_prefix = f'cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"'
-    
+    # Write command to launch training.
+    cmd_prefix = f'{wandb_cmd}; cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"'
     if cfg.cluster_type == "bcm":
         cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
-        cmd = f'{cmd_prefix}; python3 {code_path} {hydra_train_args} {flags}'
     elif cfg.cluster_type == "bcp":
         pause_and_prime_dns_connections()
-        cmd = f'{cmd_prefix}; cp {bignlp_path}/megatron_gpt_pretraining.py {code_path}; {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
-    
-        if int(os.environ.get("RANK")) == 0:
-            print(f'Command is: {cmd}\n')
-        else:
-            print(f' Command-prefix at R{os.environ.get("RANK")} is: {cmd_prefix}\n')
-              
+        cmd = f'{cmd_prefix}; {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     os.system(f"{cmd}")
+
 
 if __name__ == "__main__":
     main()

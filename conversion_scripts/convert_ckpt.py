@@ -10,10 +10,10 @@ from nemo.utils.get_rank import is_global_rank_zero
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
     # Read Config
-    bignlp_path = cfg.get("bignlp_path")
-    convert_cfg = cfg.get("conversion")
-    run_cfg = convert_cfg.get("run")
-    model_cfg = convert_cfg.get("model")
+    bignlp_path = cfg.bignlp_path
+    convert_cfg = cfg.conversion
+    run_cfg = convert_cfg.run
+    model_cfg = convert_cfg.model
 
     # Modify config
     args = sys.argv[1:]
@@ -29,12 +29,13 @@ def main(cfg):
                 model_cfg[k] = v
 
     # Model parameters
-    checkpoint_folder = model_cfg.get("checkpoint_folder")
-    checkpoint_name = model_cfg.get("checkpoint_name")
-    tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
-    vocab_file = model_cfg.get("vocab_file")
-    merge_file = model_cfg.get("merge_file")
+    checkpoint_folder = model_cfg.checkpoint_folder
+    checkpoint_name = model_cfg.checkpoint_name
+    tensor_model_parallel_size = model_cfg.tensor_model_parallel_size
+    vocab_file = model_cfg.vocab_file
+    merge_file = model_cfg.merge_file
 
+    # Checkpoint finding
     if checkpoint_name == "latest":
         if tensor_model_parallel_size > 1:
             checkpoint_dir = os.path.join(checkpoint_folder, "mp_rank_00")
@@ -70,11 +71,11 @@ def main(cfg):
     del load
 
     # Run parameters
-    name = run_cfg.get("name")
-    nemo_file_name = run_cfg.get("nemo_file_name")
-    log_dir = run_cfg.get("output_path")
-    os.makedirs(log_dir, exist_ok=True)
-    nemo_file_path = os.path.join(log_dir, nemo_file_name)
+    name = run_cfg.name
+    nemo_file_name = run_cfg.nemo_file_name
+    output_dir = run_cfg.output_path
+    os.makedirs(output_dir, exist_ok=True)
+    nemo_file_path = os.path.join(output_dir, nemo_file_name)
 
     code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
     cmd = f"python -u {code_path} " \
@@ -84,7 +85,7 @@ def main(cfg):
           f"--tensor_model_parallel_size {tensor_model_parallel_size} " \
           f"--model_type gpt "
 
-    os.system(f"{cmd}")
+    os.system(cmd)
 
 
 if __name__ == "__main__":

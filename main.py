@@ -40,10 +40,10 @@ def main(cfg):
     hydra_args = convert_to_cli(cfg)
 
     # Read config
-    run_data_preparation = cfg.get("run_data_preparation")
-    run_training = cfg.get("run_training")
-    run_conversion = cfg.get("run_conversion")
-    run_evaluation = cfg.get("run_evaluation")
+    run_data_preparation = cfg.run_data_preparation
+    run_training = cfg.run_training
+    run_conversion = cfg.run_conversion
+    run_evaluation = cfg.run_evaluation
 
 
     dependency = None

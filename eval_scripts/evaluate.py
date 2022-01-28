@@ -116,17 +116,32 @@ def run_evaluation(cfg, dependency=None):
     convert_name = run_cfg.convert_name
     model_train_name = run_cfg.model_train_name
     tasks = run_cfg.tasks
-    output_path = run_cfg.output_path
+    results_dir = run_cfg.results_dir
     
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    log_dir = output_path
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+    
+    # Command to download the eval datasets.
+    cache_dir = os.path.join(results_dir, "data_cache")
+    code_path1 = os.path.join(bignlp_path, "eval_scripts/eval_harness/download.py")
+    eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache_dir {cache_dir} " \
+    
+    # Command to run the model on the eval datasets.
+    new_script_path = os.path.join(bignlp_path, f"eval_scripts/{name}.sh")
+    code_path2 = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
+    eval_cmd2 = f"python -u {code_path2} " \
+                f"--name {name} " \
+                f"--model {model_type} " \
+                f"--tasks {tasks} " \
+                f"--cache_dir {cache_dir} " \
+                f"--batch_size {batch_size} " \
+                f"--output_path {results_dir} " \
+                f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size},vocab_file={vocab_file},merges_file={merge_file} "
 
     if cfg.cluster_type == "bcm":
         # BCM parameters
         partition = cfg.cluster.partition
         account = cfg.cluster.account
-        base_log_dir = cfg.cluster.base_log_dir
         exclusive = cfg.cluster.exclusive
         job_name_prefix = cfg.cluster.job_name_prefix
         job_name = os.path.join(job_name_prefix, name)
@@ -143,32 +158,10 @@ def run_evaluation(cfg, dependency=None):
             f"--no-container-mount-home "
             f"--container-image {container} "
             f"--container-mounts {mounts_str} "
-            f"-o {log_dir}/{name}-%j.log "
-            f"-e {log_dir}/{name}-%j.error "
+            f"-o {results_dir}/{name}-%j.log "
+            f"-e {results_dir}/{name}-%j.error "
         )
 
-
-    elif cfg.cluster_type == "bcp":
-        # BCP parameters
-        instance = cfg.cluster.instance
-  
-        
-    cache_dir = os.path.join(output_path, "data_cache")
-    code_path1 = os.path.join(bignlp_path, "eval_scripts/eval_harness/download.py")
-    eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache_dir {cache_dir} " \
-
-    new_script_path = os.path.join(bignlp_path, f"eval_scripts/{name}.sh")
-    code_path2 = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
-    eval_cmd2 = f"python -u {code_path2} " \
-                f"--name {name} " \
-                f"--model {model_type} " \
-                f"--tasks {tasks} " \
-                f"--cache_dir {cache_dir} " \
-                f"--batch_size {batch_size} " \
-                f"--output_path {log_dir} " \
-                f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size},vocab_file={vocab_file},merges_file={merge_file} "
-
-    if cfg.cluster_type == "bcm":
         create_slurm_file(
             new_script_path=new_script_path,
             eval_cmd1=eval_cmd1,
@@ -194,29 +187,9 @@ def run_evaluation(cfg, dependency=None):
         return dependency
 
     elif cfg.cluster_type == "bcp":
-        create_bcp_file(
-            bignlp_path=bignlp_path,
-            new_script_path=new_script_path,
-            eval_cmd1=eval_cmd1,
-            eval_cmd2=eval_cmd2,
-            num_nodes=nodes,
-            ntasks_per_node=ntasks_per_node,
-            log_file=f"{log_dir}/log.txt",
-            err_file=f"{log_dir}/err.txt"
-        )
+        print(f"Evaluation dataset download job submitted with command: \n{eval_cmd1}")
+        subprocess.check_output([f"{eval_cmd1}"], shell=True)
 
-        submit_cmd = create_bcp_submit_cmd(
-            job_name=bcp_cfg.get("job_name"),
-            container=container,
-            workspace_common=bcp_cfg.get("workspace_common"),
-            workspace_scripts=bcp_cfg.get("workspace_scripts"),
-            bignlp_path=bignlp_path,
-            bcp_script=new_script_path,
-            instance=instance,
-            num_nodes=nodes,
-            array_type="PYTORCH",
-            total_runtime=time_limit
-        )
-        
-        print(f"\n Submit command after conversion done:\n {submit_cmd}")
-        print(f"\n Script file: {new_script_path}")
+        print(f"Evaluation job submitted with command: \n{eval_cmd2}")
+        subprocess.check_output([f"{eval_cmd2}"], shell=True)
+        return None

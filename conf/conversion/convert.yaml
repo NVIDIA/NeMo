@@ -1,19 +1,18 @@
 run:
-  name: ${.convert_name}_${.model_train_name}
-  job_name: bignlp-${conversion.run.name}
-  time_limit: "2:00:00"
+  job_name: convert_${conversion.run.model_train_name}
   nodes: 1
+  time_limit: "4:00:00"
   ntasks_per_node: ${conversion.model.tensor_model_parallel_size}
-  gpus_per_task: null
+  gpus_per_task: 1
   convert_name: convert_nemo
-  model_train_name: 126m
-  log_dir: ${cluster.base_log_dir}/conversion_scripts/logs/${.model_train_name}
-  output_path: ${cluster.base_log_dir}/conversion_scripts/logs/${.model_train_name}
+  model_train_name: 5b
+  results_dir: ${base_results_dir}/{.model_train_name}
+  output_path: ${cluster.base_log_dir}/${.model_train_name}
   nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
 
 model:
-  checkpoint_folder: ${bignlp_path}/train_scripts/logs/${conversion.run.model_train_name}/checkpoints
+  checkpoint_folder: ${base_results_dir}/${conversion.run.model_train_name}/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
-  tensor_model_parallel_size: 1 # 1 for 126m, 2 for 5b, and 8 for 20b
-  vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
-  merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
+  tensor_model_parallel_size: 2 # 1 for 126m, 2 for 5b, and 8 for 20b
+  vocab_file: ${data_dir}/bpe/vocab.json
+  merge_file: ${data_dir}/bpe/merges.txt
