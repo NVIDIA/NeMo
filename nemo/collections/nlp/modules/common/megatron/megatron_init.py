@@ -166,7 +166,6 @@ def fake_initialize_model_parallel(
 
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
-    # num_data_parallel_groups = world_size // data_parallel_size
 
     # TODO: virtual pipeline model parallelism is not yet implemented in NeMo. This is needed for interleaved pipelining.
     # if virtual_pipeline_model_parallel_size_ is not None:
@@ -183,9 +182,7 @@ def fake_initialize_model_parallel(
         for j in range(tensor_model_parallel_size):
             ranks = range(start_rank + j, end_rank, tensor_model_parallel_size)
             all_data_parallel_group_ranks.append(list(ranks))
-            # group = torch.distributed.new_group(ranks)
             if rank in ranks:
-                # _DATA_PARALLEL_GROUP = group
                 data_parallel_group = list(ranks)
                 logging.info(f'Rank {rank} has data parallel group: {data_parallel_group}')
 
@@ -198,23 +195,17 @@ def fake_initialize_model_parallel(
     for i in range(data_parallel_size):
         ranks = [data_parallel_group_ranks[i] for data_parallel_group_ranks in all_data_parallel_group_ranks]
         all_model_parallel_group_ranks.append(ranks)
-        # group = torch.distributed.new_group(ranks)
         if rank in ranks:
-            # _MODEL_PARALLEL_GROUP = group
             logging.info(f'Rank {rank} has model parallel group: {list(ranks)}')
     logging.info(f'All model parallel group ranks: {all_model_parallel_group_ranks}')
 
     # Build the tensor model-parallel groups.
-    # global _TENSOR_MODEL_PARALLEL_GROUP
-    # assert _TENSOR_MODEL_PARALLEL_GROUP is None, "tensor model parallel group is already initialized"
     all_tensor_model_parallel_group_ranks = []
     tensor_model_parallel_group = None
     for i in range(num_tensor_model_parallel_groups):
         ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
         all_tensor_model_parallel_group_ranks.append(list(ranks))
-        # group = torch.distributed.new_group(ranks)
         if rank in ranks:
-            # _TENSOR_MODEL_PARALLEL_GROUP = group
             tensor_model_parallel_group = list(ranks)
             logging.info(f'Rank {rank} has tensor model parallel group: {tensor_model_parallel_group}')
 
@@ -225,11 +216,6 @@ def fake_initialize_model_parallel(
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
-    # global _PIPELINE_MODEL_PARALLEL_GROUP
-    # global _PIPELINE_GLOBAL_RANKS
-    # assert _PIPELINE_MODEL_PARALLEL_GROUP is None, "pipeline model parallel group is already initialized"
-    # global _EMBEDDING_GROUP
-    # assert _EMBEDDING_GROUP is None, "embedding group is already initialized"
     all_pipeline_model_parallel_group_ranks = []
     all_embedding_group_ranks = []
     pipeline_model_parallel_group = None
@@ -238,10 +224,7 @@ def fake_initialize_model_parallel(
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
         all_pipeline_model_parallel_group_ranks.append(list(ranks))
-        # group = torch.distributed.new_group(ranks)
         if rank in ranks:
-            # _PIPELINE_MODEL_PARALLEL_GROUP = group
-            # _PIPELINE_GLOBAL_RANKS = ranks
             pipeline_model_parallel_group = list(ranks)
             logging.info(f'Rank {rank} has pipeline model parallel group: {pipeline_model_parallel_group}')
 
@@ -253,9 +236,7 @@ def fake_initialize_model_parallel(
         else:
             embedding_ranks = ranks
             all_embedding_group_ranks.append(list(embedding_ranks))
-        # group = torch.distributed.new_group(embedding_ranks)
         if rank in embedding_ranks:
-            # _EMBEDDING_GROUP = group
             embedding_group = list(embedding_ranks)
             logging.info(f'Rank {rank} has embedding group: {embedding_group}')
 
