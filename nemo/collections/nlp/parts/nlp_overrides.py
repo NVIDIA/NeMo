@@ -245,7 +245,16 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             # first we save the weights for each model parallel rank
             if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                 if app_state.data_parallel_rank == 0:
-                    mp_model_weights = inject_model_parallel_rank(os.path.join(dir_name, self.model_weights_ckpt))
+                    if app_state.pipeline_model_parallel_size == 1:
+                        mp_model_weights = os.path.join(
+                            dir_name, f'mp_rank_{app_state.tensor_model_parallel_rank:02d}_' + self.model_weights_ckpt
+                        )
+                    else:
+                        mp_model_weights = os.path.join(
+                            dir_name,
+                            f'tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}_'
+                            + self.model_weights_ckpt,
+                        )
 
                     self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
 
@@ -277,7 +286,6 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                                 range(app_state.tensor_model_parallel_size),
                                 range(app_state.pipeline_model_parallel_size),
                             ):
-                                # range(app_state.tensor_model_parallel_size):
                                 os.makedirs(os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}'))
                                 mp_model_weights = os.path.join(
                                     dir_name, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}_' + self.model_weights_ckpt
