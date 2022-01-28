@@ -22,8 +22,15 @@ from typing import List
 
 from nemo.utils import logging
 
-__all__ = ['BaseInputExample', 'SGDInputExample', 'SGDInputExample', 
-            'STR_DONTCARE', 'STATUS_OFF', 'STATUS_ACTIVE', 'STATUS_DONTCARE']
+__all__ = [
+    'BaseInputExample',
+    'SGDInputExample',
+    'SGDInputExample',
+    'STR_DONTCARE',
+    'STATUS_OFF',
+    'STATUS_ACTIVE',
+    'STATUS_DONTCARE',
+]
 
 
 class DialogueInputExample(object):
@@ -49,6 +56,7 @@ class DialogueInputExample(object):
 
     def __str__(self):
         return self.data
+
 
 class DialogueSGDInputExample(DialogueInputExample):
     pass
@@ -100,6 +108,7 @@ class DialogueSGDInputExample(DialogueInputExample):
     }
 
     """
+
 
 STR_DONTCARE = "dontcare"
 

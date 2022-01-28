@@ -13,6 +13,9 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.data_processor import DialogueSGDDataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_bert_dataset import DialogueBERTDataset, DialogueSGDBERTDataset
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_bert_dataset import (
+    DialogueBERTDataset,
+    DialogueSGDBERTDataset,
+)
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_gpt_dataset import DialogueGPTDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.schema import Schema

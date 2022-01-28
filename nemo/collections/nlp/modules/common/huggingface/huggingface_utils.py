@@ -20,23 +20,22 @@ from transformers import (
     ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
     AutoModelForCausalLM,
     BertConfig,
     DistilBertConfig,
+    GPT2Config,
     RobertaConfig,
-    GPT2Config
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
-from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.collections.nlp.modules.common.huggingface.gpt2 import GPT2Encoder
-
+from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
 
 __all__ = ["get_huggingface_lm_model", "get_huggingface_pretrained_lm_models_list", "VOCAB_FILE_NAME"]
@@ -86,7 +85,7 @@ VOCAB_FILE_NAME = {
     'RobertaTokenizer': "vocab.json",
     'BertTokenizer': "vocab.txt",
     'DistilBertTokenizer': "vocab.txt",
-    "GPT2Tokenizer":"vocab.json"
+    "GPT2Tokenizer": "vocab.json",
 }
 
 
@@ -111,12 +110,12 @@ def get_huggingface_lm_model(
             automodel = AutoModelForCausalLM.from_pretrained(pretrained_model_name)
         else:
             automodel = AutoModel.from_pretrained(pretrained_model_name)
-            
+
     except Exception as e:
         raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
 
     model_type = type(automodel).__name__
-    
+
     if model_type in HUGGINGFACE_MODELS:
         model_class = HUGGINGFACE_MODELS[model_type]["class"]
         if config_file:

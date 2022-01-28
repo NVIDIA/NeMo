@@ -20,7 +20,7 @@ import torch
 
 from nemo.core.classes import NeuralModule
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType, StringType, VoidType, IntType, FloatType
+from nemo.core.neural_types import ChannelType, FloatType, IntType, MaskType, NeuralType, StringType, VoidType
 from nemo.utils import logging
 
 __all__ = ['GPTModule']
@@ -35,18 +35,20 @@ class GPTModule(NeuralModule, Exportable):
             "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
             "labels": NeuralType(('B', 'T'), ChannelType(), optional=True),
             'past_key_values': [[NeuralType(None, StringType(), optional=True)]],
-            'use_cache': NeuralType(None, VoidType(), optional=True), 
+            'use_cache': NeuralType(None, VoidType(), optional=True),
             'position_ids': NeuralType(('B', 'T'), ChannelType(), optional=True),
             "return_dict": NeuralType(None, StringType(), optional=True),
             "output_attentions": NeuralType(None, StringType(), optional=True),
             "output_hidden_states": NeuralType(None, StringType(), optional=True),
-            "max_length":  NeuralType(None, IntType(), optional=True),
+            "max_length": NeuralType(None, IntType(), optional=True),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {'loss': NeuralType(None, FloatType(), optional=True), 
-                'hidden_states': NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {
+            'loss': NeuralType(None, FloatType(), optional=True),
+            'hidden_states': NeuralType(('B', 'T', 'D'), ChannelType()),
+        }
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""

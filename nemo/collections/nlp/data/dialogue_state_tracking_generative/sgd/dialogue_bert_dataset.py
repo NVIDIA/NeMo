@@ -17,20 +17,24 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
-from typing import Dict, Optional, List
+import collections
+import copy
+import json
+import re
+from typing import Dict, List, Optional
 
 import numpy as np
-import torch 
-import re
-import copy
-import collections
-import json
+import torch
 
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
+    STATUS_ACTIVE,
+    STATUS_DONTCARE,
+    STATUS_OFF,
+    STR_DONTCARE,
+    SGDInputExample,
+)
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, NeuralType
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
-    SGDInputExample, STATUS_ACTIVE, STATUS_OFF, STATUS_DONTCARE, STR_DONTCARE
-)
 
 __all__ = ['DialogueSGDBERTDataset', 'DialogueBERTDataset']
 
@@ -41,6 +45,7 @@ class DialogueBERTDataset(Dataset):
         # Therefore, we leave this class unimplemented first
         raise NotImplementedError()
 
+
 class DialogueSGDBERTDataset(Dataset):
     '''
     Dataset Class 
@@ -50,11 +55,7 @@ class DialogueSGDBERTDataset(Dataset):
             (e.g. intent classification, slot filling or both together etc)
     '''
 
-    def __init__(self, dataset_split: str, 
-                       dialogues_processor: object, 
-                       tokenizer,
-                       schemas,
-                       schema_config):
+    def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, schemas, schema_config):
         """ Constructor
         Args:
             dataset_split: dataset split`
@@ -68,15 +69,13 @@ class DialogueSGDBERTDataset(Dataset):
         self.raw_features = dialogues_processor.get_dialog_examples(dataset_split)
 
         data = [feature.data for feature in self.raw_features]
-        
 
-        #with open("sample_data.json", "w")as write_file:
+        # with open("sample_data.json", "w")as write_file:
         #    json.dump(data, write_file)
-            
-        #raise ValueError
+
+        # raise ValueError
         for idx in range(len(self.raw_features)):
             self.bert_process_one_sample(idx)
-        
 
     def _tokenize(self, utterance: str):
         """
@@ -205,10 +204,10 @@ class DialogueSGDBERTDataset(Dataset):
         base_example = SGDInputExample(schema_config=self.schema_config, tokenizer=self.tokenizer)
         base_example.service_schema = self.schemas.get_service_schema(service)
         base_example.service_id = example_id_num[-1]
-        
-        base_example.example_id = example_id #f"{turn_id}-{service}"
+
+        base_example.example_id = example_id  # f"{turn_id}-{service}"
         base_example.example_id_num = example_id_num
-        
+
         for model_task in range(self.schema_config["NUM_TASKS"]):
             if model_task == 0:
                 for intent_id, intent in enumerate(schemas.get_service_schema(service).intents):
@@ -229,7 +228,7 @@ class DialogueSGDBERTDataset(Dataset):
                         intent_description,
                         system_user_utterance,
                     )
-                    
+
                     if intent == ex["labels"]["intent"]:
                         task_example.intent_status = STATUS_ACTIVE
 
@@ -252,7 +251,7 @@ class DialogueSGDBERTDataset(Dataset):
                         slot_description,
                         user_utterance,
                     )
-                    
+
                     if slot in ex["labels"]["slots"]:
                         task_example.requested_slot_status = STATUS_ACTIVE
                     examples.append(task_example)
@@ -335,13 +334,11 @@ class DialogueSGDBERTDataset(Dataset):
                         system_user_utterance,
                     )
 
-                    
-
                     user_span_boundaries = self._find_subword_indices(
                         state_update,
                         user_utterance,
                         ex["label_positions"]["slots"],
-                        #user_frame["slots"],
+                        # user_frame["slots"],
                         user_alignments,
                         user_tokens,
                         2 + len(slot_tokens) + len(system_tokens),
@@ -358,9 +355,7 @@ class DialogueSGDBERTDataset(Dataset):
                     #     )
                     # else:
                     system_span_boundaries = {}
-                    task_example.add_noncategorical_slots(
-                        state_update, user_span_boundaries, system_span_boundaries
-                    )
+                    task_example.add_noncategorical_slots(state_update, user_span_boundaries, system_span_boundaries)
                     if task_example.noncategorical_slot_status == 0:
                         off_slots.append(task_example)
                     else:
@@ -406,7 +401,7 @@ class DialogueSGDBERTDataset(Dataset):
             # Get all values present in the utterance for the specified slot.
             value_char_spans = {}
             for key, slot_span in char_slot_spans.items():
-                #print(key, slot, slot_span, char_slot_spans)
+                # print(key, slot, slot_span, char_slot_spans)
                 if slot_span["slot"] == slot:
                     value = utterance[slot_span["start"] : slot_span["exclusive_end"]]
                     start_tok_idx = alignments[slot_span["start"]]
@@ -419,5 +414,3 @@ class DialogueSGDBERTDataset(Dataset):
                     span_boundaries[slot] = value_char_spans[v]
                     break
         return span_boundaries
-
-

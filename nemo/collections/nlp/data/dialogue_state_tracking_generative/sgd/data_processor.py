@@ -27,8 +27,11 @@ from typing import Dict, List
 
 import numpy as np
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import DialogueInputExample, DialogueSGDInputExample
 from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
+    DialogueInputExample,
+    DialogueSGDInputExample,
+)
 from nemo.utils import logging
 
 __all__ = ['DialogueSGDDataProcessor']
@@ -41,6 +44,7 @@ FILE_RANGES = {
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
     "debug_sample": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
 }
+
 
 class DialogueDataProcessor(DataProcessor):
     """
@@ -59,6 +63,7 @@ class DialogueDataProcessor(DataProcessor):
             the Dataset class can then determine which labels to use
     
     """
+
     def __init__(self):
         raise NotImplementedError()
 
@@ -74,6 +79,7 @@ class DialogueDataProcessor(DataProcessor):
     def get_test_examples(self):
         """Gets a collection of `InputExample`s for the test set."""
         raise NotImplementedError()
+
 
 class DialogueSGDDataProcessor(DialogueDataProcessor):
     """Data Processor for SGD dialogues."""
@@ -157,7 +163,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 dial_examples, slots_relation_list = self._generate_dialog_examples(
                     dataset, self.schemas, self._subsample
                 )
-                
+
                 with open(dial_file, "wb") as f:
                     np.save(f, dial_examples)
 
@@ -376,13 +382,13 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
 
         examples = []
         slot_carryover_values = collections.defaultdict(list)
-        
+
         for service, user_frame in user_frames.items():
-            
+
             state = user_frame["state"]["slot_values"]
             state_update = self._get_state_update(state, prev_states.get(service, {}))
             states[service] = state
-            
+
             dataset_split, dialog_id, turn_id_ = turn_id.split('-')
             dialog_id_1, dialog_id_2 = dialog_id.split('_')
             example_id = f"{turn_id}-{service}"
@@ -417,34 +423,28 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 "labels": {
                     "service": service,
                     "intent": intent,
-                    "slots": {
-                        slot: state[slot] for slot in state_update
-                    }
+                    "slots": {slot: state[slot] for slot in state_update},
                 },
-                "label_positions":{
-                    "slots": {
-                        slot["slot"]: slot for slot in user_frames[service]["slots"]
-                    }
-                },
+                "label_positions": {"slots": {slot["slot"]: slot for slot in user_frames[service]["slots"]}},
                 "possible_labels": {
                     "service": schemas.services,
                     "intent": schemas.get_service_schema(service).intents,
                     "slots": {
-                        slot: schemas.get_service_schema(service).get_categorical_slot_values(slot) 
-                            if slot in categorical_slots else []
-                                for slot in all_possible_slots
-                    }
+                        slot: schemas.get_service_schema(service).get_categorical_slot_values(slot)
+                        if slot in categorical_slots
+                        else []
+                        for slot in all_possible_slots
+                    },
                 },
                 "description": {
                     "service": schemas.get_service_schema(service).description,
                     "intent": schemas.get_service_schema(service).intent_descriptions[intent],
                     "slots": {
                         slot: schemas.get_service_schema(service).slot_descriptions[slot] for slot in state_update
-                    }
-                }
+                    },
+                },
             }
 
-            
             examples.append(DialogueSGDInputExample(one_example))
 
             if service not in prev_states and int(turn_id_) > 0:
@@ -459,7 +459,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     for prev_slot_name, prev_values in prev_slot_value_list.items():
                         for prev_value in prev_values:
                             slot_carryover_values[prev_value].append((prev_service, prev_slot_name))
-            
+
         return examples, states, slot_carryover_values
 
     def _find_subword_indices(
@@ -503,7 +503,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
 
     # debug this
     def _tokenize_new(self, utterance: str):
-        tokens = self._tokenizer.tokenizer(utterance) 
+        tokens = self._tokenizer.tokenizer(utterance)
         return self._tokenizer.tokenizer(utterance), [], {}
 
     def _tokenize(self, utterance: str):

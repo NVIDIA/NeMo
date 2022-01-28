@@ -26,9 +26,13 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative import Schema, DialogueSGDDataProcessor, DialogueSGDBERTDataset
 from nemo.collections.nlp.data.dialogue_state_tracking.sgd.evaluate import evaluate, get_in_domain_services
 from nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils import write_predictions_to_file
+from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
+    DialogueSGDBERTDataset,
+    DialogueSGDDataProcessor,
+    Schema,
+)
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -578,13 +582,15 @@ class SGDQAModel(NLPModel):
         if not os.path.exists(data_dir):
             raise FileNotFoundError(f"Data directory is not found at: {data_dir}.")
 
-        #dataset = SGDDataset(dataset_split=split, dialogues_processor=self.dialogues_processor)
+        # dataset = SGDDataset(dataset_split=split, dialogues_processor=self.dialogues_processor)
 
-        dataset = DialogueSGDBERTDataset(dataset_split=split, 
-                                dialogues_processor=self.dialogues_processor,
-                                tokenizer=self.dialogues_processor._tokenizer,
-                                schemas=self.dialogues_processor.schemas,
-                                schema_config=self.dialogues_processor.schema_config)
+        dataset = DialogueSGDBERTDataset(
+            dataset_split=split,
+            dialogues_processor=self.dialogues_processor,
+            tokenizer=self.dialogues_processor._tokenizer,
+            schemas=self.dialogues_processor.schemas,
+            schema_config=self.dialogues_processor.schema_config,
+        )
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,

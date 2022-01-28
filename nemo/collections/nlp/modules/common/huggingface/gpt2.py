@@ -28,19 +28,31 @@ class GPT2Encoder(GPT2LMHeadModel, GPTModule):
     """
 
     @typecheck()
-    def forward(self, input_ids, attention_mask=None, 
-                token_type_ids=None, labels=None, return_dict=False,
-                output_attentions=False, output_hidden_states=False, 
-                past_key_values=None, use_cache=False, position_ids=None, max_length=128):
-        res = super().forward(input_ids=input_ids, 
-                              attention_mask=attention_mask, 
-                              token_type_ids=token_type_ids, 
-                              return_dict=return_dict,
-                              labels=labels,
-                              output_attentions=output_attentions,
-                              output_hidden_states=output_hidden_states,
-                              past_key_values=past_key_values,
-                              position_ids=position_ids,
-                              use_cache=use_cache)
-        
+    def forward(
+        self,
+        input_ids,
+        attention_mask=None,
+        token_type_ids=None,
+        labels=None,
+        return_dict=False,
+        output_attentions=False,
+        output_hidden_states=False,
+        past_key_values=None,
+        use_cache=False,
+        position_ids=None,
+        max_length=128,
+    ):
+        res = super().forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            return_dict=return_dict,
+            labels=labels,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
+            use_cache=use_cache,
+        )
+
         return res if not return_dict else res
