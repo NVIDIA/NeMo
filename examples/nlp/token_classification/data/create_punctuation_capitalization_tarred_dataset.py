@@ -23,6 +23,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_t
     METADATA_PUNCT_LABEL_VOCAB_KEY,
     build_label_ids_from_list_of_labels,
     check_labels_for_being_unique_before_building_label_ids,
+    check_tar_file_prefix,
     create_tarred_dataset,
 )
 
@@ -50,9 +51,9 @@ the class will handle iteration and constructing masks and token types for BERT 
 Example of usage:
 
 python create_punctuation_capitalization_tarred_dataset.py \
-  --text <PATH_TO_TEXT_FILE> \
-  --labels <PATH_TO_LABELS_FILE> \
-  --output_dir <PATH_TO_OUTPUT_DIR> \
+  --text <PATH/TO/TEXT/FILE> \
+  --labels <PATH/TO/LABELS/FILE> \
+  --output_dir <PATH/TO/OUTPUT/DIR> \
   --lines_per_dataset_fragment 10000 \
   --tokens_in_batch 8000 \
   --num_batches_per_tarfile 5 \
@@ -230,7 +231,8 @@ def get_args() -> argparse.Namespace:
         "--tar_file_prefix",
         "-x",
         default="punctuation_capitalization",
-        help="A string from which tar file names start.",
+        help="A string from which tar file names start. It can contain only characters 'A-Z', 'a-z', '0-9', '_', '-', "
+        "'.'.",
     )
     parser.add_argument(
         "--n_jobs",
@@ -283,6 +285,7 @@ def get_args() -> argparse.Namespace:
         check_labels_for_being_unique_before_building_label_ids(
             args.pad_label, args.capit_labels, '--pad_label', '--capit_labels', parser.error
         )
+    check_tar_file_prefix(args.tar_file_prefix, parser.error, '--tar_file_prefix')
     return args
 
 

@@ -145,7 +145,7 @@ class LengthRegulator(nn.Module):
         output = []
         for i, frame in enumerate(x):
             expanded_len = int(dur[i] + 0.5)
-            expanded = frame.expand(expanded_len, -1)
+            expanded = frame.repeat(expanded_len, 1)
             output.append(expanded)
         output = torch.cat(output, 0)
         return output

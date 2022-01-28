@@ -289,8 +289,10 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
 
                 compile_helper()
                 from nemo.collections.nlp.data.language_modeling.megatron import helpers
-            except:
-                raise Exception(f'Could not compile helpers.')
+            except ImportError:
+                raise ImportError(
+                    f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+                )
 
             sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch)
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
@@ -316,7 +318,6 @@ def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_
             )
 
     torch.distributed.barrier()
-
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
