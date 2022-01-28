@@ -34,8 +34,8 @@ bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processin
 
 if [ -x "$(command -v conda)" ]; then
 
-  echo 'Installing numba=0.54.1'
-  conda install -y -c conda-forge numba=0.54.1
+  echo 'Installing numba=0.55.0'
+  conda install -y -c conda-forge numba==0.55
   # echo 'Attempting update to numba installation via conda'
   # conda update -c conda-forge numba -y >  /dev/null 2>&1 && echo "Numba updated!" || echo "Numba could not be updated!"
 fi
