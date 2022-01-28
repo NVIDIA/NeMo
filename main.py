@@ -30,8 +30,14 @@ def convert_to_cli(cfg):
         elif k == "file_numbers":
             result += f"{k}=\\'{v}\\' "
         else:
-            result += f"{k}={v} "
+            result += f"{k}={convert_to_null(v)} "
     return result
+
+
+def convert_to_null(val):
+    if val is None:
+        return "null"
+    return val
 
 
 @hydra.main(config_path="conf", config_name="config")
