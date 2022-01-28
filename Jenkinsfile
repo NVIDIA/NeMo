@@ -1322,8 +1322,33 @@ pipeline {
       parallel {
         stage('L2: NMT Training Post-LN') {
             steps {
-              sh 'cd examples/nlp/machine_translation && \
-              python enc_dec_nmt.py \
+              sh 'python examples/nlp/machine_translation/enc_dec_nmt.py \
+              --config-path=conf \
+              --config-name=aayn_base \
+              do_testing=false \
+              model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+              model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+              model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.encoder.num_layers=1 \
+              model.encoder.hidden_size=64 \
+              model.encoder.inner_size=256 \
+              model.decoder.num_layers=1 \
+              model.decoder.hidden_size=64 \
+              model.decoder.inner_size=256 \
+              trainer.gpus=[0] \
+              +trainer.val_check_interval=2 \
+              +trainer.limit_val_batches=1 \
+              +trainer.max_steps=2 \
+              trainer.precision=16 \
+              +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
+              +exp_manager.create_checkpoint_callback=true \
+              '
+              sh 'python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
               --config-name=aayn_base \
               do_testing=true \
@@ -1335,10 +1360,20 @@ pipeline {
               model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
               model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
               model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
+              model.encoder.num_layers=1 \
+              model.encoder.hidden_size=64 \
+              model.encoder.inner_size=256 \
+              model.decoder.num_layers=1 \
+              model.decoder.hidden_size=64 \
+              model.decoder.inner_size=256 \
               trainer.gpus=[0] \
-              +trainer.fast_dev_run=true \
-              +trainer.limit_test_batches=2 \
-              exp_manager=null \
+              +trainer.val_check_interval=2 \
+              +trainer.limit_val_batches=1 \
+              +trainer.limit_test_batches=1 \
+              +trainer.max_steps=4 \
+              +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
+              +exp_manager.create_checkpoint_callback=true \
+              +exp_manager.resume_if_exists=True \
               '
             }
         }
@@ -1501,40 +1536,6 @@ pipeline {
       }
     }
 
-    // TODO: add when megatron bert is supported again in NeMo
-    // stage('L2: NMT Megatron BERT Model Parallel Size 2 Encoder') {
-    //   when {
-    //     anyOf{
-    //       branch 'r1.6.0'
-    //       changeRequest target: 'r1.6.0'
-    //     }
-    //   }
-    //   failFast true
-    //   steps{
-    //     sh 'cd examples/nlp/machine_translation && \
-    //     python enc_dec_nmt.py \
-    //     --config-path=conf \
-    //     --config-name=megatron \
-    //     model.encoder.model_name=megatron-bert-uncased \
-    //     model.encoder.checkpoint_file=/home/TestData/nlp/mp_2_bert_toy/iter_2000000 \
-    //     model.encoder.hidden_size=1024 \
-    //     model.encoder.num_attention_heads=16 \
-    //     model.encoder.num_layers=24 \
-    //     model.encoder.max_position_embeddings=512 \
-    //     model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-    //     model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
-    //     model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-    //     model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-    //     model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-    //     model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
-    //     model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/tt_tokenizer.BPE.4096.model \
-    //     model.decoder.hidden_size=1024 \
-    //     trainer.gpus=[0,1] \
-    //     +trainer.fast_dev_run=true \
-    //     exp_manager=null \
-    //     '
-    //   }
-    // }
 
     stage('L2: NMT Tarred Dataset Creation') {
       when {
