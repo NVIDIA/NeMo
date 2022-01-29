@@ -21,12 +21,12 @@ This script serves three goals:
 
 python speech_to_text_buffered_infer_rnnt.py \
     --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
-    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/test_other.json" \
-    --batch_size=32 \
+    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/subset/test_other_10.json" \
+    --batch_size=1 \
     --model_stride=4 \
     --output_path="." \
-    --total_buffer_in_secs=5.0 \
-    --chunk_len_in_ms=4000
+    --total_buffer_in_secs=10.0 \
+    --chunk_len_in_ms=8000
 
 """
 
@@ -42,13 +42,13 @@ from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASRRNNT
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASRRNNT, BatchedFrameBatchASR
 from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
 
 
-def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
+def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device, batch_size):
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
     # Do not normalize whatever the model's preprocessor setting is
@@ -57,16 +57,34 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
     preprocessor.to(device)
     hyps = []
     refs = []
+    audio_filepaths = []
 
-    with torch.cuda.amp.autocast():
-        with open(mfst, "r") as mfst_f:
-            for l in tqdm.tqdm(mfst_f, desc='Sample: '):
-                asr.reset()
-                row = json.loads(l.strip())
-                asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
-                hyp = asr.transcribe(tokens_per_chunk, delay)
-                hyps.append(hyp)
-                refs.append(row['text'])
+    with open(mfst, "r") as mfst_f:
+        print("Parsing manifest files...")
+        for l in (mfst_f):
+            row = json.loads(l.strip())
+            audio_filepaths.append(row['audio_filepath'])
+            refs.append(row['text'])
+
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast():
+            batch = []
+            for idx in tqdm.tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
+                batch.append((audio_filepaths[idx], refs[idx]))
+
+                if len(batch) == batch_size:
+                    audio_files = [sample[0] for sample in batch]
+
+                    asr.reset()
+                    asr.read_audio_file(audio_files, delay, model_stride_in_secs)
+                    hyp_list = asr.transcribe(tokens_per_chunk, delay)
+                    hyps.extend(hyp_list)
+
+                    batch.clear()
+
+    for hyp, ref in zip(hyps, refs):
+        print("hyp:", hyp)
+        print("ref:", ref)
 
     wer = word_error_rate(hypotheses=hyps, references=refs)
     return hyps, refs, wer
@@ -140,7 +158,7 @@ def main():
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     print("Tokens per chunk :", tokens_per_chunk, "Min Delay :", mid_delay)
 
-    frame_asr = FrameBatchASRRNNT(
+    frame_asr = BatchedFrameBatchASR(
         asr_model=asr_model,
         frame_len=chunk_len,
         total_buffer=args.total_buffer_in_secs,
@@ -158,6 +176,7 @@ def main():
         cfg.preprocessor,
         model_stride_in_secs,
         asr_model.device,
+        args.batch_size,
     )
     logging.info(f"WER is {round(wer, 4)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
 

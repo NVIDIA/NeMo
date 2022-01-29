@@ -24,6 +24,8 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
+from nemo.constants import monitor_time
+
 
 def LCSubStrMerge(X, Y):
     # LCSuff is the table with zero
@@ -319,6 +321,7 @@ class AudioFeatureIterator(IterableDataset):
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
         self._features, self._features_len = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
         self._features = self._features.squeeze()
+        print("features len", self._features_len)
 
     def __iter__(self):
         return self
@@ -647,11 +650,328 @@ class FrameBatchASR:
         return hypothesis
 
 
+class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
+    """
+    Class to append each feature frame to a buffer and return
+    an array of buffers.
+    """
+
+    def __init__(self, asr_model, frame_len=1.6, batch_size=4, total_buffer=4.0):
+        '''
+        Args:
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+          offset: number of symbols to drop for smooth streaming
+        '''
+        super().__init__(asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer)
+
+        # OVERRIDES
+        timestep_duration = asr_model._cfg.preprocessor.window_stride
+        total_buffer_len = int(total_buffer / timestep_duration)
+        self.buffer = np.ones([batch_size, self.n_feat, total_buffer_len],
+                              dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+
+        self.all_frame_reader = [None for _ in range(self.batch_size)]
+        self.signal_end = [False for _ in range(self.batch_size)]
+
+        self.reset()
+        del self.buffered_len
+        del self.buffered_features_size
+
+    def reset(self):
+        '''
+        Reset frame_history and decoder's state
+        '''
+        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.prev_char = ''
+        self.unmerged = []
+        self.frame_buffers = []
+        # self.buffered_len = 0
+        self.feature_buffer = (
+                np.ones([self.batch_size, self.n_feat, self.feature_buffer_len],
+                        dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
+        self.all_frame_reader = [None for _ in range(self.batch_size)]
+        self.signal_end = [False for _ in range(self.batch_size)]
+
+    def get_batch_frames(self):
+        if all(self.signal_end):
+            return []
+        batch_frames = []
+        # for frame in self.frame_reader:
+        #     batch_frames.append(np.copy(frame))
+        #     if len(batch_frames) == self.batch_size:
+        #         return batch_frames
+        for idx, frame_reader in enumerate(self.all_frame_reader):
+            try:
+                frame = next(frame_reader)
+                frame = np.copy(frame)
+
+                batch_frames.append(frame)
+            except StopIteration:
+                self.signal_end[idx] = True
+
+        return batch_frames
+
+    def get_frame_buffers(self, frames):
+        # Build buffers for each frame
+        self.frame_buffers = []
+        for idx in range(self.batch_size):
+            frame = frames[idx]
+            if frame is not None:
+                self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len:]
+                self.buffer[idx, :, -self.n_frame_len:] = frame
+                # self.buffered_len += frame.shape[1]
+                self.frame_buffers.append(np.copy(self.buffer[idx]))
+            else:
+                self.buffer[idx, :, : -self.n_frame_len] *= 0.0
+                self.buffer[idx, :, -self.n_frame_len:] *= 0.0
+                # self.buffered_len += frame.shape[1]
+                self.frame_buffers.append(np.copy(self.buffer[idx]))
+
+        return self.frame_buffers
+
+    def set_frame_reader(self, frame_reader, idx):
+        self.all_frame_reader[idx] = frame_reader
+        self.signal_end[idx] = False
+
+    def _update_feature_buffer(self, feat_frame, idx):
+        if feat_frame is not None:
+            self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[idx, :, feat_frame.shape[1]:]
+            self.feature_buffer[idx, :, -feat_frame.shape[1]:] = feat_frame
+            # self.buffered_features_size += feat_frame.shape[1]
+        else:
+            self.feature_buffer[idx, :, : -feat_frame.shape[1]] *= 0.0
+            self.feature_buffer[idx, :, -feat_frame.shape[1]:] *= 0.0
+
+    def get_norm_consts_per_frame(self, batch_frames):
+        norm_consts = []
+        for idx, frame in enumerate(batch_frames):
+            self._update_feature_buffer(frame, idx)
+            mean_from_buffer = np.mean(self.feature_buffer, axis=2)  # [B, self.n_feat]
+            stdev_from_buffer = np.std(self.feature_buffer, axis=2)  # [B, self.n_feat]
+            norm_consts.append((mean_from_buffer.reshape((self.batch_size, self.n_feat, 1)), stdev_from_buffer.reshape((self.batch_size, self.n_feat, 1))))
+        return norm_consts
+
+    def normalize_frame_buffers(self, frame_buffers, norm_consts):
+        CONSTANT = 1e-5
+        for i, frame_buffer in enumerate(frame_buffers):
+            frame_buffers[i] = (frame_buffer - norm_consts[i][0]) / (norm_consts[i][1] + CONSTANT)
+
+    def get_buffers_batch(self):
+        batch_frames = self.get_batch_frames()
+
+        while len(batch_frames) > 0:
+        # while not all(self.signal_end):
+
+            frame_buffers = self.get_frame_buffers(batch_frames)
+            norm_consts = self.get_norm_consts_per_frame(batch_frames)
+            # if len(frame_buffers) == 0:
+            #     continue
+            self.normalize_frame_buffers(frame_buffers, norm_consts)
+            return frame_buffers
+        return []
+
+
 # class for streaming frame-based ASR
 # 1) use reset() method to reset FrameASR's state
 # 2) call transcribe(frame) to do ASR on
 #    contiguous signal's frames
-class FrameBatchASRRNNT(FrameBatchASR):
+class BatchedFrameBatchASR(FrameBatchASR):
+    """
+    class for streaming frame-based ASR use reset() method to reset FrameASR's
+    state call transcribe(frame) to do ASR on contiguous signal's frames
+    """
+
+    def __init__(
+        self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, max_steps_per_timestep: int = 5, stateful_decoding: bool = False
+    ):
+        '''
+        Args:
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+          offset: number of symbols to drop for smooth streaming
+        '''
+        super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
+
+        self.max_steps_per_timestep = max_steps_per_timestep
+        self.stateful_decoding = stateful_decoding
+
+        self.all_alignments = [[] for _ in range(self.batch_size)]
+        self.all_preds = [[] for _ in range(self.batch_size)]
+        self.previous_hypotheses = None
+
+        self._cached_feat_shape = None
+        self._cached_feat_len = None
+
+        try:
+            self.eos_id = self.asr_model.tokenizer.eos_id
+        except Exception:
+            self.eos_id = -1
+
+        print("Performing Stateful decoding :", self.stateful_decoding)
+
+        # OVERRIDES
+        self.frame_bufferer = BatchedFeatureFrameBufferer(
+            asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
+        )
+
+        self.reset()
+
+    def reset(self):
+        """
+        Reset frame_history and decoder's state
+        """
+        super().reset()
+
+        self.all_alignments = [[] for _ in range(self.batch_size)]
+        self.all_preds = [[] for _ in range(self.batch_size)]
+        self.previous_hypotheses = None
+
+        self._cached_feat_shape = None
+        self._cached_feat_len = None
+
+        self.data_layer = [AudioBuffersDataLayer() for _ in range(self.batch_size)]
+        self.data_loader = [DataLoader(self.data_layer[idx], batch_size=1, collate_fn=speech_collate_fn)
+                            for idx in range(self.batch_size)]
+
+    def read_audio_file(self, audio_filepath: list, delay, model_stride_in_secs):
+        assert len(audio_filepath) == self.batch_size
+
+        for idx in range(self.batch_size):
+            samples = get_samples(audio_filepath[idx])
+            samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+            frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
+            self.set_frame_reader(frame_reader, idx)
+
+    def set_frame_reader(self, frame_reader, idx):
+        self.frame_bufferer.set_frame_reader(frame_reader, idx)
+
+    @torch.no_grad()
+    def infer_logits(self):
+        frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+        while len(frame_buffers) > 0:
+            self.frame_buffers += frame_buffers[:]
+
+            for idx, buffer in enumerate(frame_buffers):
+                self.data_layer[idx].set_signal(buffer[:])
+
+            self._get_batch_preds()
+            frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+    @torch.no_grad()
+    def _get_batch_preds(self):
+        device = self.asr_model.device
+
+        data_iters = [iter(data_loader) for data_loader in self.data_loader]
+
+        feat_signals = []
+        feat_signal_lens = []
+
+        # while not all(self.frame_bufferer.signal_end):
+        for idx in range(self.batch_size):
+            batch = next(data_iters[idx])
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            feat_signals.append(feat_signal)
+            feat_signal_lens.append(feat_signal_len)
+
+        feat_signal = torch.cat(feat_signals, 0)
+        feat_signal_len = torch.cat(feat_signal_lens, 0)
+
+        with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})'):
+            encoded, encoded_len = self.asr_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
+
+            monitor_time.print_pad()
+            print("Encoded shape :", encoded.shape, "Len", encoded_len)
+
+        with monitor_time('rnnt autoregressive decoding'):
+            best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+                encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+            )
+
+        if self.stateful_decoding:
+            # preserve last state from hypothesis
+            self.previous_hypotheses = best_hyp
+
+        for idx, hyp in enumerate(best_hyp):
+            self.all_alignments[idx].append(hyp.alignments)
+
+        preds = [hyp.y_sequence for hyp in best_hyp]
+        for idx, pred in enumerate(preds):
+            has_signal_ended = self.frame_bufferer.signal_end[idx]
+            if not has_signal_ended:
+                self.all_preds[idx].append(pred.cpu().numpy())
+
+        if self.stateful_decoding:
+            reset_states = self.asr_model.decoder.initialize_state(encoded)
+
+            for idx, pred in enumerate(preds):
+                if len(pred) > 0 and pred[-1] == self.eos_id:
+                    # reset states :
+                    self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
+                    self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
+                        reset_states, idx)
+
+        del encoded, encoded_len
+        del best_hyp, pred
+
+    def transcribe(
+            self, tokens_per_chunk: int, delay: int,
+    ):
+        print()
+        with monitor_time('infer logits'):
+            self.infer_logits()
+
+        self.unmerged = [[] for _ in range(self.batch_size)]
+        for idx, alignments in enumerate(self.all_alignments):
+            for alignment in alignments:
+                alignment = alignment[len(alignment) - 1 - delay: len(alignment) - 1 - delay + tokens_per_chunk]
+
+                ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+
+                if len(ids) > 0:
+                    self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,
+                                                              max_steps_per_timestep=self.max_steps_per_timestep)
+
+        output = []
+        for idx in range(self.batch_size):
+            output.append(self.greedy_merge(self.unmerged[idx]))
+        return output
+
+    def _alignment_decoder(self, alignments, tokenizer, blank_id):
+        s = []
+        ids = []
+
+        for t in range(len(alignments)):
+            for u in range(len(alignments[t])):
+                token_id = int(alignments[t][u])
+                if token_id != blank_id:
+                    token = tokenizer.ids_to_tokens([token_id])[0]
+                    s.append(token)
+                    ids.append(token_id)
+
+                else:
+                    # blank token
+                    pass
+
+        return ids, s
+
+    def greedy_merge(self, preds):
+        decoded_prediction = [p for p in preds]
+        hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
+        return hypothesis
+
+
+# class for streaming frame-based ASR
+# 1) use reset() method to reset FrameASR's state
+# 2) call transcribe(frame) to do ASR on
+#    contiguous signal's frames
+class FrameBatchASRRNNT(BatchedFrameBatchASR):
     """
     class for streaming frame-based ASR use reset() method to reset FrameASR's
     state call transcribe(frame) to do ASR on contiguous signal's frames
@@ -692,28 +1012,41 @@ class FrameBatchASRRNNT(FrameBatchASR):
 
     @torch.no_grad()
     def infer_logits(self):
-        frame_buffers = self.frame_bufferer.get_buffers_batch()
-
-        while len(frame_buffers) > 0:
-            self.frame_buffers += frame_buffers[:]
-            self.data_layer.set_signal(frame_buffers[:])
-            self._get_batch_preds()
+        with monitor_time('get buffered batch()'):
             frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+        with monitor_time('outer loop : get batch preds'):
+            while len(frame_buffers) > 0:
+                monitor_time.print_pad()
+                print("num buffers", len(frame_buffers))
+                self.frame_buffers += frame_buffers[:]
+                self.data_layer.set_signal(frame_buffers[:])
+                self._get_batch_preds()
+                frame_buffers = self.frame_bufferer.get_buffers_batch()
 
     @torch.no_grad()
     def _get_batch_preds(self):
         device = self.asr_model.device
+
+        monitor_time.print_pad()
+        print("len dataloader :", len(self.data_layer))
         for batch in iter(self.data_loader):
 
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            encoded, encoded_len = self.asr_model(
-                processed_signal=feat_signal, processed_signal_length=feat_signal_len
-            )
 
-            best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
-            )
+            with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})'):
+                encoded, encoded_len = self.asr_model(
+                    processed_signal=feat_signal, processed_signal_length=feat_signal_len
+                )
+
+                monitor_time.print_pad()
+                print("Encoded shape :", encoded.shape, "Len", encoded_len)
+
+            with monitor_time('rnnt autoregressive decoding'):
+                best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+                    encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+                )
 
             if self.stateful_decoding:
                 # preserve last state from hypothesis
@@ -742,7 +1075,9 @@ class FrameBatchASRRNNT(FrameBatchASR):
     def transcribe(
         self, tokens_per_chunk: int, delay: int,
     ):
-        self.infer_logits()
+        print()
+        with monitor_time('infer logits'):
+            self.infer_logits()
         self.unmerged = []
         for idx, alignment in enumerate(self.all_alignments):
             alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
