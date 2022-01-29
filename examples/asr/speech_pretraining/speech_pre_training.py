@@ -30,7 +30,8 @@ python speech_pre_training.py \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
     trainer.gpus=-1 \
-    trainer.accelerator="ddp" \
+    trainer.accelerator="gpu" \
+    strategy="ddp"  \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
     model.optim.lr=0.001 \

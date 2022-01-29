@@ -92,7 +92,7 @@ class ParallelTranscriptionConfig:
 
     # decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
-    trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
+    trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="gpu", strategy="ddp")
 
 
 def match_train_config(predict_ds, train_ds):
