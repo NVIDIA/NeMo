@@ -108,7 +108,7 @@ trainer:
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
 
-  checkpoint_callback: false # Provided by exp_manager
+  enable_checkpointing: False # Provided by exp_manager
   logger: false # Provided by exp_manager
 exp_manager:
   exp_dir: null

@@ -123,7 +123,7 @@ trainer:
   accelerator: gpu
   strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   log_every_n_steps: 200
   check_val_every_n_epoch: 25

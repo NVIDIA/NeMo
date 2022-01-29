@@ -824,7 +824,7 @@ class TestOptimizersSchedulers:
                 num_processes=num_processes,
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
-                checkpoint_callback=False,
+                enable_checkpointing=False,
                 progress_bar_refresh_rate=0,
                 weights_summary=None,
             )
@@ -912,7 +912,7 @@ class TestOptimizersSchedulers:
                 num_processes=num_processes,
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
-                checkpoint_callback=False,
+                enable_checkpointing=False,
                 progress_bar_refresh_rate=0,
                 weights_summary=None,
             )
