@@ -465,7 +465,7 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer._distrib_type.value is None:
+                if self._trainer._distrib_type is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.devices or 1
                 elif self._trainer._distrib_type.value == "ddp_cpu":
                     optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
