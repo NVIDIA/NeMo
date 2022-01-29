@@ -54,6 +54,7 @@ def main(cfg):
     bignlp_path = cfg.bignlp_path
     training_config = cfg.training_config
     nccl_topo_file = cfg.nccl_topology_xml_file
+    nccl_cmd = ""
     if nccl_topo_file is not None:
         nccl_cmd = f"export NCCL_TOPO_FILE={nccl_topo_file}; "
 
