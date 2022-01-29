@@ -1,4 +1,3 @@
-import numpy as np
 import math
 
 import numpy as np
@@ -6,13 +5,24 @@ import torch
 from torch import nn
 from torch.nn import Conv1d, ConvTranspose1d, Conv2d
 from torch.nn import functional as F
+from librosa.filters import mel as librosa_mel_fn
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
 from nemo.collections.tts.modules.monotonic_align import maximum_path
-from nemo.collections.tts.modules.vits_mel_processing import librosa_mel_fn, spectral_normalize_torch
+
+# TODO: LARGE refactoring
 
 
 LRELU_SLOPE = 0.1
+
+
+def dynamic_range_compression_torch(x, C=1, clip_val=1e-5):
+    return torch.log(torch.clamp(x, min=clip_val) * C)
+
+
+def spectral_normalize_torch(magnitudes):
+    output = dynamic_range_compression_torch(magnitudes)
+    return output
 
 
 class LayerNorm(nn.Module):

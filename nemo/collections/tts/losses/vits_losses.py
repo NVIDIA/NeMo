@@ -4,6 +4,7 @@ from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types.elements import LossType, VoidType
 from nemo.core.neural_types.neural_type import NeuralType
 
+# TODO: check if we can use the same losses from other modules
 
 class FeatureLoss(Loss):
     def input_types(self):

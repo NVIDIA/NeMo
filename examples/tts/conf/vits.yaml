@@ -1,6 +1,8 @@
-# This config contains the default values for training Mixer-TTS model on LJSpeech dataset.
+# This config contains the default values for training VITS model on LJSpeech dataset.
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
+
+# TODO: remove unnecessary arguments
 
 name: VITS
 
@@ -50,7 +52,6 @@ model:
   lowfreq: ${lowfreq}
   highfreq: ${highfreq}
   window: ${window}
-
 
   splice_length: 64
   lr: 2e-4
@@ -164,8 +165,8 @@ model:
 
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures #change to STFT
-    
+    # TODO: change to STFT
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     nfilt: ${model.n_mel_channels}
     highfreq: ${model.highfreq}
     log: true
@@ -190,49 +191,6 @@ model:
 
     exact_pad: true
     use_grads: false
-
-  input_fft:
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
-    n_layer: 6
-    n_head: 1
-    d_model: ${model.symbols_embedding_dim}
-    d_head: 64
-    d_inner: 1536
-    kernel_size: 3
-    dropout: 0.1
-    dropatt: 0.1
-    dropemb: 0.0
-    n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
-    d_embed: ${model.symbols_embedding_dim}
-    padding_idx: 0
-
-  output_fft:
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
-    n_layer: 6
-    n_head: 1
-    d_model: ${model.symbols_embedding_dim}
-    d_head: 64
-    d_inner: 1536
-    kernel_size: 3
-    dropout: 0.1
-    dropatt: 0.1
-    dropemb: 0.0
-
-  duration_predictor:
-    _target_: nemo.collections.tts.modules.vits_modules.StochasticDurationPredictor
-    in_channels: ${model.symbols_embedding_dim} # input_size: ${model.symbols_embedding_dim}
-    kernel_size: 3
-    filter_channels: ${filter_length} # filter_size: 256
-    p_dropout: 0.1 # dropout: 0.1
-    # n_layers: 6
-
-  pitch_predictor:
-    _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
-    input_size: ${model.symbols_embedding_dim}
-    kernel_size: 3
-    filter_size: ${filter_length}
-    dropout: 0.1
-    n_layers: ${model.n_layers}
 
   generator:
     _target_: nemo.collections.tts.modules.vits_modules.Generator
