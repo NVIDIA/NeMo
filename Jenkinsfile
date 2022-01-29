@@ -653,7 +653,8 @@ pipeline {
     //     +trainer.fast_dev_run=true \
     //     model.dataset.use_cache=false \
     //     model.language_model.pretrained_model_name=megatron-bert-345m-cased \
-    //     trainer.accelerator=ddp \
+    //     trainer.accelerator=gpu \
+    //     trainer.strategy=ddp \
     //     exp_manager=null'
     //       }
     //     }
@@ -686,7 +687,8 @@ pipeline {
         trainer.gpus=[0,1] \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=bert-base-cased \
-        trainer.accelerator=ddp \
+        trainer.accelerator=gpu \
+        trainer.strategy=ddp \
         exp_manager=null  && \
         rm -rf sgd_outputs'
           }
@@ -833,7 +835,8 @@ pipeline {
     //     model.train_ds.batch_size=10 \
     //     model.dataset.max_seq_length=50 \
     //     model.dataset.use_cache=false \
-    //     trainer.accelerator=ddp \
+    //     trainer.accelerator=gpu \
+    //     trainer.strategy=ddp \
     //     trainer.precision=16 \
     //     trainer.gpus=[1] \
     //     +trainer.fast_dev_run=true \
@@ -866,7 +869,8 @@ pipeline {
             model.train_ds.num_samples=1 \
             model.validation_ds.batch_size=1 \
             model.validation_ds.num_samples=1 \
-            trainer.accelerator=ddp \
+            trainer.accelerator=gpu \
+            trainer.strategy=ddp \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \

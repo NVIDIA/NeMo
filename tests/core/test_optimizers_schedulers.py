@@ -819,7 +819,8 @@ class TestOptimizersSchedulers:
         ):
             trainer = pl.Trainer(
                 max_epochs=max_epochs,
-                accelerator="ddp_cpu",
+                strategy="ddp_cpu",
+                accelerator="cpu",
                 num_processes=num_processes,
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
@@ -906,7 +907,8 @@ class TestOptimizersSchedulers:
         ):
             trainer = pl.Trainer(
                 max_steps=max_steps,
-                accelerator="ddp_cpu",
+                strategy="ddp_cpu",
+                accelerator="cpu",
                 num_processes=num_processes,
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
