@@ -14,8 +14,13 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_SIGMA, GraphFst, insert_space, NEMO_CHAR
-from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_CHAR,
+    NEMO_SIGMA,
+    GraphFst,
+    insert_space,
+)
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
@@ -37,63 +42,40 @@ class RomanFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True, lm: bool = False):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="roman", kind="classify", deterministic=deterministic)
 
-        def _load_roman(file: str, lm: bool = False):
-            roman = load_labels(get_abs_path(file))
-            roman_numerals = [(x.upper(), y) for x, y in roman]
-            if not lm:
-                roman_numerals += [(x, y) for x, y in roman]
-            return pynini.string_map(roman_numerals)
+        default_graph = pynini.string_file(get_abs_path("data/roman/roman_to_spoken.tsv")).optimize()
+        default_graph = pynutil.insert("integer: \"") + default_graph + pynutil.insert("\"")
+        names = pynini.string_map(load_labels(get_abs_path("data/roman/male.tsv"))).optimize()
+        names |= pynini.string_map(load_labels(get_abs_path("data/roman/female.tsv"))).optimize()
 
-        cardinal_graph = CardinalFst(deterministic=True).graph
-        digit_teen = _load_roman("data/roman/digit_teen.tsv", lm) @ cardinal_graph
-        ties = _load_roman("data/roman/ties.tsv", lm) @ cardinal_graph
-        hundreds = _load_roman("data/roman/hundreds.tsv", lm) @ cardinal_graph
-
+        # roman numerals from I to IV with a preceding name are converted to ordinal form
         graph = (
-            (ties | digit_teen | hundreds)
-            | (ties + insert_space + digit_teen)
-            | (hundreds + pynini.closure(insert_space + ties, 0, 1) + pynini.closure(insert_space + digit_teen, 0, 1))
+            pynutil.insert("key_the_ordinal: \"")
+            + names
+            + pynutil.insert("\"")
+            + pynini.accep(" ")
+            + pynini.compose(pynini.union("I", "II", "III", "IV"), default_graph)
+        ).optimize()
+        key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
+
+        # single symbol roman numerals with preceding key words are converted to cardinal form
+        graph = pynini.leniently_compose(
+            graph,
+            pynutil.insert("key_cardinal: \"")
+            + key_words
+            + pynutil.insert("\"")
+            + pynini.accep(" ")
+            + pynini.compose(NEMO_ALPHA, graph),
+            NEMO_SIGMA,
         ).optimize()
 
-        graph = graph + pynini.closure(pynutil.delete("."), 0, 1)
-
-        # A single letter roman numbers are often confused with "I" or initials, add a little weight to make sure
-        # the original token is among non-deterministic options
-        graph = pynutil.add_weight(pynini.compose(NEMO_ALPHA, graph), 1) | (
-            pynini.compose(pynini.closure(NEMO_ALPHA, 2), graph)
+        # two and more roman numerals, single digit roman numbers could be initials or I
+        roman_to_cardinal = pynini.compose(
+            pynini.closure(NEMO_ALPHA, 2), (pynutil.insert("default_cardinal: \"default\" ") + default_graph)
         )
 
-        default_graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
-
-        if lm:
-            names = pynini.string_map(load_labels(get_abs_path("data/roman/male.tsv"))).optimize()
-            names |= pynini.string_map(load_labels(get_abs_path("data/roman/female.tsv"))).optimize()
-            graph = (
-                pynutil.insert("key_the_ordinal: \"")
-                + names
-                + pynutil.insert("\"")
-                + pynini.accep(" ")
-                + pynini.compose(pynini.union("I", "II", "III", "IV"), default_graph)
-            )
-            key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
-            graph |= (
-                pynutil.insert("key_cardinal: \"")
-                + key_words
-                + pynutil.insert("\"")
-                + pynini.accep(" ")
-                + default_graph
-            )
-            graph |= pynini.difference(NEMO_SIGMA, pynini.union(key_words, names)) + default_graph
-
-            # two and more roman numerals, single digit roman numbers could be initials or I
-            graph |= pynini.compose(
-                pynini.closure(NEMO_ALPHA, 2), (pynutil.insert("default_cardinal: \"default\" ") + default_graph)
-            )
-
-            default_graph = graph
-
-        graph = self.add_tokens(default_graph)
+        graph |= roman_to_cardinal
+        graph = self.add_tokens(graph)
         self.fst = graph.optimize()

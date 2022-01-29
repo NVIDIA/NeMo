@@ -61,7 +61,10 @@ class WhiteListFst(GraphFst):
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
             # e.g. "IN", "OH", "OK"
             # TODO or only exclude above?
-            graph |= pynini.union(", ", ",") + pynini.invert(_get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))).optimize()
+            graph |= (
+                pynini.union(", ", ",")
+                + pynini.invert(_get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))).optimize()
+            )
 
         if input_file:
             whitelist_provided = _get_whitelist_graph(input_case, input_file)

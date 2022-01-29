@@ -153,7 +153,12 @@ class DateFst(GraphFst):
         )
 
         if lm:
-            year_graph_standalone |= pynutil.insert("year: \"") + pynini.union("in ", "In ", "IN ") + pynutil.add_weight(year_graph, YEAR_WEIGHT) + pynutil.insert("\"")
+            year_graph_standalone |= (
+                pynutil.insert("year: \"")
+                + pynini.union("in ", "In ", "IN ")
+                + pynutil.add_weight(year_graph, YEAR_WEIGHT)
+                + pynutil.insert("\"")
+            )
 
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_graph + pynutil.insert("\"")

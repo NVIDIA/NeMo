@@ -16,12 +16,12 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
+    NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
     NEMO_SIGMA,
     GraphFst,
     insert_space,
-    NEMO_CHAR
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
@@ -126,13 +126,24 @@ class CardinalFst(GraphFst):
 
     def get_range_graph(self):
         # use hundreds graph for 4 digit numbers
-        graph = (get_hundreds_graph() | (pynini.compose(NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT, self.graph) | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph))).optimize()
+        graph = (
+            get_hundreds_graph()
+            | (
+                pynini.compose(NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT, self.graph)
+                | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph)
+            )
+        ).optimize()
 
         if not self.deterministic:
             graph |= pynutil.add_weight(self.graph, 0.001)
             graph.optimize()
 
-        range_graph = (pynutil.add_weight(pynini.accep("from "), -0.001) | pynutil.insert("from ")) + graph + pynini.cross("-", " to ") + graph
+        range_graph = (
+            (pynutil.add_weight(pynini.accep("from "), -0.001) | pynutil.insert("from "))
+            + graph
+            + pynini.cross("-", " to ")
+            + graph
+        )
         range_graph |= graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + graph
 
         return range_graph.optimize()
@@ -201,6 +212,8 @@ class CardinalFst(GraphFst):
         )
 
         serial_graph = pynutil.add_weight(serial_graph, 2)
-        serial_graph |= pynini.closure(NEMO_NOT_SPACE, 1) + (pynini.cross("^2", " squared") | pynini.cross("^3", " cubed"))
+        serial_graph |= pynini.closure(NEMO_NOT_SPACE, 1) + (
+            pynini.cross("^2", " squared") | pynini.cross("^3", " cubed")
+        )
 
         return serial_graph
