@@ -67,11 +67,11 @@ class MLLoss(torch.nn.Module):
         self.reduction = reduction
         self.pad_fsavec = topo_type == "compact"
         if graph_type == "topo":
-            from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingTopologyCompiler as compiler
+            from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler as compiler
 
             self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops)
         elif graph_type == "graph":
-            from nemo.collections.asr.parts.k2.graph_compilers import CtcTrainingNumGraphCompiler as compiler
+            from nemo.collections.asr.parts.k2.graph_compilers import CtcNumGraphCompiler as compiler
 
             if isinstance(aux_graph, str):
                 aux_graph = load_graph(aux_graph)

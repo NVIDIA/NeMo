@@ -100,7 +100,7 @@ class MAPLoss(torch.nn.Module):
         if self.pad_fsavec:
             shift_labels_inpl([lm_graph], 1)
         if self.loss_type == "mmi":
-            from nemo.collections.asr.parts.k2.graph_compilers import MmiTrainingGraphCompiler as compiler
+            from nemo.collections.asr.parts.k2.graph_compilers import MmiGraphCompiler as compiler
         else:
             raise ValueError(f"Invalid value of `loss_type`: {self.loss_type}.")
         self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_selfloops, aux_graph=lm_graph,)
@@ -245,13 +245,13 @@ class MAPLoss(torch.nn.Module):
             row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
             num_sparse = create_sparse_wrapped(
                 indices=[k2.index_select(row_ids, num_lats.seqframe_idx), num_lats.seqframe_idx, num_lats.phones,],
-                values=num_lats.get_arc_post(True, True).exp(),
+                values=num_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,
             )
             den_sparse = create_sparse_wrapped(
                 indices=[k2.index_select(row_ids, den_lats.seqframe_idx), den_lats.seqframe_idx, den_lats.phones,],
-                values=den_lats.get_arc_post(True, True).exp(),
+                values=den_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,
             )

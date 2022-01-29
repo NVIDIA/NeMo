@@ -35,8 +35,8 @@ from nemo.collections.asr.parts.k2.topologies import build_topo
 from nemo.collections.asr.parts.k2.utils import compose_with_self_loops, intersect_with_self_loops
 
 
-class CtcTrainingTopologyCompiler(object):
-    """Default training graph compiler.
+class CtcTopologyCompiler(object):
+    """Default graph compiler.
     It applies its topology to the input token sequence to compile the numerator graph.
     
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/training/ctc_graph.py
@@ -75,8 +75,8 @@ class CtcTrainingTopologyCompiler(object):
         return decoding_graphs
 
 
-class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
-    """Training graph compiler with auxiliary graph to compose with the topology.
+class CtcNumGraphCompiler(CtcTopologyCompiler):
+    """Graph compiler with auxiliary graph to compose with the topology.
     The numerator graph contains the auxiliary graph information.
     """
 
@@ -108,8 +108,8 @@ class CtcTrainingNumGraphCompiler(CtcTrainingTopologyCompiler):
         return super().compile(targets, target_lengths)
 
 
-class MmiTrainingGraphCompiler(CtcTrainingNumGraphCompiler):
-    """Training graph compiler for MMI loss.
+class MmiGraphCompiler(CtcNumGraphCompiler):
+    """Graph compiler for MMI loss.
     The denominator graph is a composition of the auxiliary graph and the topology.
     It is returned along with the numerator graph on every compile() call.
     """

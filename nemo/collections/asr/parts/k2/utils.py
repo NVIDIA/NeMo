@@ -28,6 +28,7 @@
 
 import itertools
 import os
+import struct
 from pickle import UnpicklingError
 from typing import List, Optional, Tuple, Union
 
@@ -43,19 +44,19 @@ def create_supervision(input_lengths: torch.Tensor,) -> Tuple[torch.Tensor, torc
     """
     supervisions = torch.stack(
         (torch.tensor(range(input_lengths.shape[0])), torch.zeros(input_lengths.shape[0]), input_lengths.cpu(),), 1,
-    ).to(torch.int32)
+    ).to(dtype=torch.int32)
     # the duration column has to be sorted in decreasing order
-    order = torch.argsort(supervisions[:, -1], descending=True)
-    return supervisions[order], order
+    order = torch.argsort(supervisions[:, -1], descending=True).to(dtype=torch.int32)
+    return supervisions[order.to(dtype=torch.long)], order
 
 
 def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
     """Produces a tensor of reverse permutation for a given indices.
     
-    Copied from https://github.com/k2-fsa/snowfall/blob/master/snowfall/common.py
+    Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/common.py
     """
-    ans = torch.zeros(indices.shape, device=indices.device, dtype=torch.long)
-    ans[indices] = torch.arange(0, indices.shape[0], device=indices.device)
+    ans = torch.zeros(indices.shape, device=indices.device, dtype=indices.dtype)
+    ans[indices.to(dtype=torch.long)] = torch.arange(0, indices.shape[0], device=indices.device, dtype=indices.dtype)
     return ans
 
 
@@ -181,6 +182,14 @@ def shift_labels_inpl(lattices: List[k2.Fsa], shift: int):
             mask = lattice.aux_labels > 0
             lattice.aux_labels[mask] += shift
     return lattices
+
+
+def get_arc_weights(graph: k2.Fsa):
+    """Returns 1d torch.Tensor with arc weights of a given graph.
+    """
+    weights_int = graph.arcs_as_tensor()[:, -1].tolist()
+    weights_float = struct.unpack('%sf' % len(weights_int), struct.pack('%si' % len(weights_int), *weights_int))
+    return torch.Tensor(weights_float)
 
 
 def get_tot_objf_and_finite_mask(tot_scores: torch.Tensor, reduction: str) -> Tuple[torch.Tensor, torch.Tensor]:
