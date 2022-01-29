@@ -491,7 +491,6 @@ class Serialization(ABC):
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
                     )
-                instance = cls(cfg=config, trainer=trainer)
                 try:
                     accepts_trainer = Serialization._inspect_signature_for_trainer(cls)
                     if accepts_trainer:
