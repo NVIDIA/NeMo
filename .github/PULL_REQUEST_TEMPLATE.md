@@ -11,7 +11,7 @@ Please have one of the following:
 - [ ] Did you add or updated any necessary documentation?
 
 
-### If you haven't finished some of the above items you can still open "Draft" PR.
+If you haven't finished some of the above items you can still open "Draft" PR.
 
 
 ## Who can review?
