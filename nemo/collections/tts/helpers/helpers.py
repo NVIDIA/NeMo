@@ -99,7 +99,8 @@ def get_num_workers(trainer):
         return trainer.num_gpus * trainer.num_nodes
     else:
         logging.warning(
-            f"The lightning trainer received strategy: {trainer._distrib_type.value}. We " "recommend to use 'ddp' instead."
+            f"The lightning trainer received strategy: {trainer._distrib_type.value}. We "
+            "recommend to use 'ddp' instead."
         )
         return trainer.num_gpus * trainer.num_nodes
 
