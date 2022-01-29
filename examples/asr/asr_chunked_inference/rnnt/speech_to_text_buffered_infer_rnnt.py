@@ -22,11 +22,11 @@ This script serves three goals:
 python speech_to_text_buffered_infer_rnnt.py \
     --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
     --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/subset/test_other_10.json" \
-    --batch_size=1 \
     --model_stride=4 \
     --output_path="." \
     --total_buffer_in_secs=10.0 \
-    --chunk_len_in_ms=8000
+    --chunk_len_in_ms=8000 \
+    --batch_size=1
 
 """
 
@@ -44,6 +44,8 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASRRNNT, BatchedFrameBatchASR
 from nemo.utils import logging
+
+from nemo.constants import monitor_time
 
 can_gpu = torch.cuda.is_available()
 
@@ -66,16 +68,29 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
             audio_filepaths.append(row['audio_filepath'])
             refs.append(row['text'])
 
-    with torch.inference_mode():
-        with torch.cuda.amp.autocast():
-            batch = []
-            for idx in tqdm.tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
-                batch.append((audio_filepaths[idx], refs[idx]))
+    with monitor_time("TOTAL TIME"):
+        with torch.inference_mode():
+            with torch.cuda.amp.autocast():
+                batch = []
+                for idx in tqdm.tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
+                    batch.append((audio_filepaths[idx], refs[idx]))
 
-                if len(batch) == batch_size:
-                    audio_files = [sample[0] for sample in batch]
+                    if len(batch) == batch_size:
+                        audio_files = [sample[0] for sample in batch]
 
+                        asr.reset()
+                        asr.read_audio_file(audio_files, delay, model_stride_in_secs)
+                        hyp_list = asr.transcribe(tokens_per_chunk, delay)
+                        hyps.extend(hyp_list)
+
+                        batch.clear()
+
+                if len(batch) > 0:
+                    asr.batch_size = len(batch)
+                    asr.frame_bufferer.batch_size = len(batch)
                     asr.reset()
+
+                    audio_files = [sample[0] for sample in batch]
                     asr.read_audio_file(audio_files, delay, model_stride_in_secs)
                     hyp_list = asr.transcribe(tokens_per_chunk, delay)
                     hyps.extend(hyp_list)
@@ -143,7 +158,10 @@ def main():
     # Change Decoding Config
     decoding_cfg = asr_model.cfg.decoding
     with open_dict(decoding_cfg):
-        decoding_cfg.strategy = "greedy_batch"
+        if args.stateful_decoding:
+            decoding_cfg.strategy = "greedy"
+        else:
+            decoding_cfg.strategy = "greedy_batch"
         decoding_cfg.preserve_alignments = True
 
     asr_model.change_decoding_strategy(decoding_cfg)

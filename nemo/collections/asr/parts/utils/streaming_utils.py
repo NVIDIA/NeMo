@@ -709,6 +709,7 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
 
                 batch_frames.append(frame)
             except StopIteration:
+                batch_frames.append(None)
                 self.signal_end[idx] = True
 
         return batch_frames
@@ -741,8 +742,8 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
             self.feature_buffer[idx, :, -feat_frame.shape[1]:] = feat_frame
             # self.buffered_features_size += feat_frame.shape[1]
         else:
-            self.feature_buffer[idx, :, : -feat_frame.shape[1]] *= 0.0
-            self.feature_buffer[idx, :, -feat_frame.shape[1]:] *= 0.0
+            self.feature_buffer[idx, :, :] *= 0.0
+            # self.feature_buffer[idx, :, :] *= 0.0
 
     def get_norm_consts_per_frame(self, batch_frames):
         norm_consts = []
@@ -930,6 +931,7 @@ class BatchedFrameBatchASR(FrameBatchASR):
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
             for alignment in alignments:
+                # len(alignment) - 1 - delay + tokens_per_chunk
                 alignment = alignment[len(alignment) - 1 - delay: len(alignment) - 1 - delay + tokens_per_chunk]
 
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
