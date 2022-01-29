@@ -15,7 +15,7 @@
 import os
 
 from nemo_text_processing.text_normalization.es.taggers.cardinal import CardinalFst
-#from nemo_text_processing.text_normalization.de.taggers.date import DateFst
+from nemo_text_processing.text_normalization.es.taggers.date import DateFst
 from nemo_text_processing.text_normalization.es.taggers.decimals import DecimalFst
 #from nemo_text_processing.text_normalization.es.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.es.taggers.fraction import FractionFst
@@ -24,7 +24,7 @@ from nemo_text_processing.text_normalization.es.taggers.fraction import Fraction
 from nemo_text_processing.text_normalization.es.taggers.ordinal import OrdinalFst
 #from nemo_text_processing.text_normalization.es.taggers.telephone import TelephoneFst
 #from nemo_text_processing.text_normalization.es.taggers.time import TimeFst
-#from nemo_text_processing.text_normalization.es.taggers.whitelist import WhiteListFst
+from nemo_text_processing.text_normalization.es.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.es.taggers.word import WordFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
@@ -97,8 +97,8 @@ class ClassifyFst(GraphFst):
             #     cardinal=self.cardinal, decimal=self.decimal, fraction=self.fraction, deterministic=deterministic
             # )
             # measure_graph = self.measure.fst
-            # self.date = DateFst(cardinal=self.cardinal, deterministic=deterministic)
-            # date_graph = self.date.fst
+            self.date = DateFst(cardinal=self.cardinal, deterministic=deterministic)
+            date_graph = self.date.fst
             word_graph = WordFst(deterministic=deterministic).fst
             # self.time = TimeFst(deterministic=deterministic)
             # time_graph = self.time.fst
@@ -108,17 +108,17 @@ class ClassifyFst(GraphFst):
             # electronic_graph = self.electronic.fst
             # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
             # money_graph = self.money.fst
-            # self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
-            # whitelist_graph = self.whitelist.fst
+            self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
+            whitelist_graph = self.whitelist.fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = (
-                # pynutil.add_weight(whitelist_graph, 1.01)
+                pynutil.add_weight(whitelist_graph, 1.01)
                 # | pynutil.add_weight(time_graph, 1.1)
                 # | pynutil.add_weight(measure_graph, 1.1)
-                pynutil.add_weight(cardinal_graph, 1.1)
+                | pynutil.add_weight(cardinal_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
-                # | pynutil.add_weight(date_graph, 1.1)
+                | pynutil.add_weight(date_graph, 1.1)
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 # | pynutil.add_weight(money_graph, 1.1)

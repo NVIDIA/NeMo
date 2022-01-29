@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.es.verbalizers.cardinal import CardinalFst
-#from nemo_text_processing.text_normalization.es.verbalizers.date import DateFst
+from nemo_text_processing.text_normalization.es.verbalizers.date import DateFst
 from nemo_text_processing.text_normalization.es.verbalizers.decimals import DecimalFst
 #from nemo_text_processing.text_normalization.es.verbalizers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.es.verbalizers.fraction import FractionFst
@@ -48,8 +48,8 @@ class VerbalizeFst(GraphFst):
         decimal_graph = decimal.fst
         fraction = FractionFst(deterministic=deterministic)
         fraction_graph = fraction.fst
-        # date = DateFst(ordinal=ordinal)
-        # date_graph = date.fst
+        date = DateFst(ordinal=ordinal)
+        date_graph = date.fst
         # measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=deterministic)
         # measure_graph = measure.fst
         # electronic = ElectronicFst(deterministic=deterministic)
@@ -64,7 +64,7 @@ class VerbalizeFst(GraphFst):
             #| measure_graph
             | decimal_graph
             | ordinal_graph
-            #| date_graph
+            | date_graph
             #| electronic_graph
             #| money_graph
             | fraction_graph
