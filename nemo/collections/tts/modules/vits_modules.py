@@ -10,7 +10,7 @@ from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
 from nemo.collections.tts.modules.monotonic_align import maximum_path
 
-# TODO: LARGE refactoring
+# TODO: need to do LARGE refactoring
 
 
 LRELU_SLOPE = 0.1
@@ -192,7 +192,7 @@ class WN(torch.nn.Module):
         for l in self.res_skip_layers:
             torch.nn.utils.remove_weight_norm(l)
 
-
+# TODO: reuse from hifigan if it is possible?
 class ResBlock1(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlock1, self).__init__()
@@ -237,7 +237,7 @@ class ResBlock1(torch.nn.Module):
         for l in self.convs2:
             remove_weight_norm(l)
 
-
+# TODO: reuse from hifigan if it is possible?
 class ResBlock2(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super(ResBlock2, self).__init__()
@@ -538,6 +538,7 @@ class TextEncoder(nn.Module):
         self.kernel_size = kernel_size
         self.p_dropout = p_dropout
 
+        # TODO: specify padding idx
         self.emb = nn.Embedding(n_vocab, hidden_channels)
         nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
 
@@ -626,7 +627,7 @@ class PosteriorEncoder(nn.Module):
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
 
-
+# TODO: reuse from hifigan if it is possible?
 class Generator(torch.nn.Module):
     def __init__(self, initial_channel, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=0):
         super(Generator, self).__init__()
@@ -681,7 +682,7 @@ class Generator(torch.nn.Module):
         for l in self.resblocks:
             l.remove_weight_norm()
 
-
+# TODO: reuse from hifigan if it is possible?
 class DiscriminatorP(torch.nn.Module):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
         super(DiscriminatorP, self).__init__()
@@ -718,7 +719,7 @@ class DiscriminatorP(torch.nn.Module):
 
         return x, fmap
 
-
+# TODO: reuse from hifigan if it is possible?
 class DiscriminatorS(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(DiscriminatorS, self).__init__()
@@ -746,7 +747,7 @@ class DiscriminatorS(torch.nn.Module):
 
         return x, fmap
 
-
+# TODO: reuse from hifigan if it is possible?
 class MultiPeriodDiscriminator(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(MultiPeriodDiscriminator, self).__init__()
@@ -907,6 +908,7 @@ class SynthesizerTrn(nn.Module):
         o = self.dec((z * y_mask)[:,:,:max_len], g=g)
         return o, attn, y_mask, (z, z_p, m_p, logs_p)
 
+    # TODO: do we really need it?
     def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
         assert self.n_speakers > 0, "n_speakers have to be larger than 0."
         g_src = self.emb_g(sid_src).unsqueeze(-1)
@@ -978,12 +980,6 @@ def init_weights(m, mean=0.0, std=0.01):
 
 def get_padding(kernel_size, dilation=1):
     return int((kernel_size*dilation - dilation)/2)
-
-
-def convert_pad_shape(pad_shape):
-    l = pad_shape[::-1]
-    pad_shape = [item for sublist in l for item in sublist]
-    return pad_shape
 
 
 def intersperse(lst, item):
@@ -1083,7 +1079,7 @@ def shift_1d(x):
     x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [1, 0]]))[:, :, :-1]
     return x
 
-
+# TODO: reuse from helpers get_mask_from_lengths?
 def sequence_mask(length, max_length=None):
     if max_length is None:
         max_length = length.max()

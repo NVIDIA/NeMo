@@ -46,8 +46,6 @@ class VitsModel(TextToWaveform):
         
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
 
-        # TODO: how model knows padding idx? num tokens?
-        self.generator = instantiate(cfg.generator)
         self.multiperioddisc = MultiPeriodDiscriminator()
         self.feat_matching_loss = FeatureLoss()
         self.disc_loss = DiscriminatorLoss()
@@ -63,6 +61,8 @@ class VitsModel(TextToWaveform):
         self.n_fft = cfg.train_ds.dataset.n_fft
         self.win_length = cfg.train_ds.dataset.win_length
 
+        # TODO: need to add SynthesizerTrn in config
+        # TODO: how model knows padding idx? num tokens?
         self.net_g = SynthesizerTrn(
             n_vocab = cfg.symbols_embedding_dim,
             spec_channels = cfg.train_ds.dataset.n_fft // 2 + 1,
@@ -188,7 +188,6 @@ class VitsModel(TextToWaveform):
 
     def training_step(self, batch, batch_idx):
         # TODO: support accum gradient or don't allow to use accum gradient in init
-
         (y, y_lengths, x, x_lengths) = batch
 
         spec = self.get_spec(y)

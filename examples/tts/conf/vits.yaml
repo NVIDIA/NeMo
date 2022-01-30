@@ -2,7 +2,7 @@
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
-# TODO: remove unnecessary arguments
+# TODO: remove unnecessary arguments, refactoring
 
 name: VITS
 
@@ -163,7 +163,6 @@ model:
       num_workers: 1
       pin_memory: false
 
-
   preprocessor:
     # TODO: change to STFT
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
@@ -173,7 +172,6 @@ model:
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
     lowfreq: ${model.lowfreq}
-    
     n_fft: ${model.n_fft}
     n_window_size: ${model.n_window_size}
     n_window_stride: ${model.n_window_stride}
@@ -188,7 +186,6 @@ model:
     stft_conv: false
     nb_augmentation_prob : 0
     mag_power: 1.0
-
     exact_pad: true
     use_grads: false
 
