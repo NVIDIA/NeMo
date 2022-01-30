@@ -228,8 +228,7 @@ class VitsModel(TextToWaveform):
             loss_disc_all = loss_disc
 
         # get optimizers
-        optimizers, _ = self.optimizers()
-        optim_g, optim_d = optimizers
+        optim_g, optim_d = self.optimizers()
 
         # train discriminator
         optim_d.zero_grad()
