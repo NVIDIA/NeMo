@@ -27,6 +27,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
     enc_dec_extended_attention_mask
 )
+from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModel
 
 
 class T5LMHead(MegatronModule):
@@ -59,6 +62,8 @@ class T5Model(MegatronModule):
 
     def __init__(
         self,
+        encoder_arch,
+        decoder_arch,
         vocab_size,
         hidden_size,
         max_position_embeddings,
@@ -82,6 +87,8 @@ class T5Model(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
+        hidden_steps=-1,
+        hidden_blocks=1,
     ):
         super(T5Model, self).__init__()
 
@@ -96,6 +103,83 @@ class T5Model(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
+        encoder = get_encoder_model(
+            arch=encoder_arch,
+            hidden_size=hidden_size,
+            ffn_hidden_size=hidden_size,
+            num_layers=num_layers,
+            max_position_embeddings=max_position_embeddings,
+            num_tokentypes=num_tokentypes,
+            vocab_size=vocab_size,
+            num_attention_heads=num_attention_heads,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            init_method=init_method_normal(init_method_std),
+            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+            encoder_attn_mask_type=AttnMaskType.padding,
+            pre_process=pre_process,
+            post_process=post_process,
+            init_method_std=init_method_std,
+            use_cpu_initialization=init_method_std,
+            hidden_dropout=hidden_dropout,
+            precision=precision,
+            fp32_residual_connection=fp32_residual_connection,
+            activations_checkpoint_method=activations_checkpoint_method,
+            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            layernorm_epsilon=layernorm_epsilon,
+            bias_gelu_fusion=bias_gelu_fusion,
+            persist_layer_norm=persist_layer_norm,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
+            use_soft_prompts=use_soft_prompts,
+            num_prompt_tokens=num_prompt_tokens,
+            prompt_tags=prompt_tags,
+            hidden_steps=hidden_steps,
+            hidden_blocks=hidden_steps,
+        )
+
+        encoder = get_decoder_model(
+            arch=decoder_arch,
+            hidden_size=hidden_size,
+            ffn_hidden_size=hidden_size,
+            num_layers=num_layers,
+            max_position_embeddings=max_position_embeddings,
+            num_tokentypes=num_tokentypes,
+            vocab_size=vocab_size,
+            num_attention_heads=num_attention_heads,
+            decoder_attn_mask_type=decoder_attn_mask_type,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            init_method=init_method_normal(init_method_std),
+            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+            encoder_attn_mask_type=AttnMaskType.padding,
+            pre_process=pre_process,
+            post_process=post_process,
+            init_method_std=init_method_std,
+            use_cpu_initialization=init_method_std,
+            hidden_dropout=hidden_dropout,
+            precision=precision,
+            fp32_residual_connection=fp32_residual_connection,
+            activations_checkpoint_method=activations_checkpoint_method,
+            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            layernorm_epsilon=layernorm_epsilon,
+            bias_gelu_fusion=bias_gelu_fusion,
+            persist_layer_norm=persist_layer_norm,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
+            use_soft_prompts=use_soft_prompts,
+            num_prompt_tokens=num_prompt_tokens,
+            prompt_tags=prompt_tags,
+            hidden_steps=hidden_steps,
+            hidden_blocks=hidden_steps,
+        )
+
+        self.enc_dec_model = MegatronTransformerEncoderDecoderModel(
+            encoder_input_embedder=encoder_input_embedder,
+            encoder=encoder,
+            decoder_input_embedder=decoder_input_embedder,
+            decoder=decoder,
+        )
         self.language_model, self._language_model_key = get_language_model(
             vocab_size=vocab_size,
             hidden_size=hidden_size,

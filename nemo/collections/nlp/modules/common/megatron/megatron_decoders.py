@@ -44,7 +44,6 @@ def get_decoder_model(
     add_pooler,
     vocab_size,
     num_attention_heads,
-    decoder_attn_mask_type,
     apply_query_key_layer_scaling=True,
     kv_channels=None,
     init_method=None,
@@ -90,7 +89,6 @@ def get_decoder_model(
         decoder = MegatronTransformerDecoderModel(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
-            decoder_attn_mask_type=decoder_attn_mask_type,
             num_tokentypes=num_tokentypes,
             vocab_size=vocab_size,
             max_position_embeddings=max_position_embeddings,
@@ -100,7 +98,6 @@ def get_decoder_model(
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             ffn_hidden_size=ffn_hidden_size,
-            add_decoder=add_decoder,
             decoder_attn_mask_type=decoder_attn_mask_type,
             add_pooler=add_pooler,
             pre_process=pre_process,
