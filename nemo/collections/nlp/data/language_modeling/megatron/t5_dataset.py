@@ -89,7 +89,7 @@ class T5Dataset(MegatronDataset):
         self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
 
         self.sentinel_tokens = tokenizer.additional_special_tokens_ids
-        assert len(self.sentinel_tokens) > 0, "Provide the argument --vocab-extra-ids 100 to the script"
+        assert len(self.sentinel_tokens) > 0
 
     def __len__(self):
         return self.samples_mapping.shape[0]
