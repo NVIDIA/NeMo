@@ -134,7 +134,6 @@ class NLPDDPPlugin(DDPPlugin):
                 process_group=parallel_state.get_data_parallel_group(),
                 **self._ddp_kwargs,
             )
-            self._model.require_backward_grad_sync = False
             self._register_ddp_hooks()
             if self.no_ddp_communication_hook:
                 # When using custom gradient accumulation and allreduce, disable
@@ -142,6 +141,7 @@ class NLPDDPPlugin(DDPPlugin):
                 # Instead, use the custom gradient function and communication hook,
                 # which is defined in the master optimizer wrapper.
                 self._model.register_comm_hook(None, noop_hook)
+                self._model.require_backward_grad_sync = False
 
         else:
             super().configure_ddp()

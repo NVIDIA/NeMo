@@ -180,6 +180,10 @@ class MegatronGPTModel(NLPModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
+        # if using O2 with no PP, we need a custom sync handler
+        custom_sync_context_handler = None
+        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            custom_sync_context_handler = None
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
@@ -189,7 +193,6 @@ class MegatronGPTModel(NLPModel):
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -219,12 +222,13 @@ class MegatronGPTModel(NLPModel):
 
         # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
         # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
-        if self.megatron_amp_o2:
+        if self.megatron_amp_o2 and not self.cfg.async_grad_allreduce:
             # main grads are stored in the MainParamsOptimizer wrapper
             self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
 
             self.allreduce_first_last_embeddings()
-        else:
+
+        elif not self.cfg.async_grad_allreduce:
 
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
