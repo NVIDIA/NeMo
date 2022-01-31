@@ -183,9 +183,9 @@ class MegatronGPTModel(NLPModel):
         """
         # if using O2 with no PP, we need a custom sync handler
         custom_sync_context_handler = None
-        if self.megatron_amp_o2 and not self.using_pipeline_paralleism:
+        if not self.using_pipeline_parallelism:
             # TODO: add O2 sync handler here
-            custom_sync_context_handler = None
+            custom_sync_context_handler = self._optimizer.no_sync
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
@@ -211,6 +211,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
+                custom_sync_context_handler=custom_sync_context_handler,
             )
 
         # only the last stages of the pipeline return losses
@@ -224,15 +225,14 @@ class MegatronGPTModel(NLPModel):
 
         # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
         # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
-        if self.megatron_amp_o2 and not self.cfg.async_grad_allreduce:
-            # main grads are stored in the MainParamsOptimizer wrapper
-            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
+        if self.using_pipeline_parallelism:
+            if self.megatron_amp_o2:
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
 
-            self.allreduce_first_last_embeddings()
+            elif not self.cfg.async_grad_allreduce:
 
-        elif not self.cfg.async_grad_allreduce:
-
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+                self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
             self.allreduce_first_last_embeddings()
 

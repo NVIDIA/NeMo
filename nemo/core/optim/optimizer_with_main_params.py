@@ -109,6 +109,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     def __init__(
         self, optimizer, fp32_grad_accum=False, contiguous_grad_bucket=False, async_grad_allreduce=False,
     ):
+        # TODO: UPDATE FOR FP16
         if not HAVE_APEX:
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
@@ -128,7 +129,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         self._fp32_grad_accum = fp32_grad_accum
         self._contiguous_grad_bucket = contiguous_grad_bucket
         self._async_grad_allreduce = async_grad_allreduce
-        self._require_backward_grad_sync = False
+        self._require_backward_grad_sync = True
 
         # Dummy tensor needed for apex multi-apply tensor.
         self._dummy_overflow_buf = None
@@ -349,6 +350,17 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         data-parallel ranks."""
         old_require_backward_grad_sync = self._require_backward_grad_sync
         self._require_backward_grad_sync = True
+        try:
+            yield
+        finally:
+            self._require_backward_grad_sync = old_require_backward_grad_sync
+
+    @contextmanager
+    def no_sync(self):
+        """ A context manager to disable gradient synchronizations across
+        data-parallel ranks."""
+        old_require_backward_grad_sync = self._require_backward_grad_sync
+        self._require_backward_grad_sync = False
         try:
             yield
         finally:
