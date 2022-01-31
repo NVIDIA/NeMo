@@ -12,4 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.callbacks.callbacks import LogEpochTimeCallback
+# TODO @blisc: Perhaps refactor instead of import guarding
+try:
+    from nemo.collections.common.callbacks.callbacks import LogEpochTimeCallback
+except ModuleNotFoundError:
+    from nemo.utils.exceptions import CheckInstall
+
+    # fmt: off
+    class LogEpochTimeCallback(CheckInstall): pass
+    # fmt: on

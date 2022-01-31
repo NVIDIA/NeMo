@@ -28,6 +28,6 @@ class BertEncoder(BertModel, BertModule):
     """
 
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids):
+    def forward(self, input_ids, attention_mask=None, token_type_ids=None):
         res = super().forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)[0]
         return res

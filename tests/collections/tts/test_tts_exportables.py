@@ -47,6 +47,7 @@ class TestExportable:
             filename = os.path.join(tmpdir, 'fp.onnx')
             model.export(output=filename, verbose=True, check_trace=True)
 
+    @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_HifiGanModel_export_to_onnx(self, hifigan_model):

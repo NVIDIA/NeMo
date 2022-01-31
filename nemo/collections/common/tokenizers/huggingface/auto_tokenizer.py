@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
 from typing import Optional
 
 from transformers import AutoTokenizer as AUTOTOKENIZER
@@ -25,42 +24,6 @@ __all__ = [
 ]
 
 
-def handle_quotes(text):
-    text_ = ""
-    quote = 0
-    i = 0
-    while i < len(text):
-        if text[i] == "\"":
-            if quote % 2:
-                text_ = text_[:-1] + "\""
-            else:
-                text_ += "\""
-                i += 1
-            quote += 1
-        else:
-            text_ += text[i]
-        i += 1
-    return text_
-
-
-def remove_spaces(text):
-    text = text.replace("( ", "(")
-    text = text.replace(" )", ")")
-    text = text.replace("[ ", "[")
-    text = text.replace(" ]", "]")
-    text = text.replace(" / ", "/")
-    text = text.replace("„ ", "„")
-    text = text.replace(" - ", "-")
-    text = text.replace(" ' ", "'")
-    text = re.sub(r'([0-9])( )([\.,])', '\\1\\3', text)
-    text = re.sub(r'([\.,])( )([0-9])', '\\1\\3', text)
-    text = re.sub(r'([0-9])(:)( )([0-9])', '\\1\\2\\4', text)
-    text = text.replace(" %", "%")
-    text = text.replace("$ ", "$")
-    text = re.sub(r'([^0-9])(,)([0-9])', '\\1\\2 \\3', text)
-    return text
-
-
 class AutoTokenizer(TokenizerSpec):
     '''
         Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
@@ -70,6 +33,7 @@ class AutoTokenizer(TokenizerSpec):
         self,
         pretrained_model_name: str,
         vocab_file: Optional[str] = None,
+        merges_file: Optional[str] = None,
         mask_token: Optional[str] = None,
         bos_token: Optional[str] = None,
         eos_token: Optional[str] = None,
@@ -97,19 +61,26 @@ class AutoTokenizer(TokenizerSpec):
             use_fast: whether to use fast HuggingFace tokenizer
         """
         try:
-            if vocab_file is not None:
-                message = 'Using "slow" HuggingFace tokenizer'
-                if use_fast:
-                    message += f'{vocab_file} is ignored in "fast" tokenizers, using a "slow" version'
+            # this logic deals with different huggingface tokenizers having different positional args
+            if vocab_file is None:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=False
+                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast,
+                )
+            elif merges_file is None:
+                self.tokenizer = AUTOTOKENIZER.from_pretrained(
+                    pretrained_model_name_or_path=pretrained_model_name, vocab_file=vocab_file, use_fast=use_fast,
                 )
             else:
                 self.tokenizer = AUTOTOKENIZER.from_pretrained(
-                    pretrained_model_name_or_path=pretrained_model_name, use_fast=use_fast
+                    pretrained_model_name_or_path=pretrained_model_name,
+                    vocab_file=vocab_file,
+                    merges_file=merges_file,
+                    use_fast=use_fast,
                 )
         except Exception as e:
-            raise ValueError(f'{pretrained_model_name} is not supported by HuggingFace. {e}')
+            raise ValueError(
+                f'Unable to instantiate HuggingFace AUTOTOKENIZER for {pretrained_model_name}. Exception: {e}'
+            )
 
         special_tokens_dict = {}
 
@@ -122,18 +93,23 @@ class AutoTokenizer(TokenizerSpec):
         if pad_token is not None:
             special_tokens_dict["pad_token"] = pad_token
 
+        # if the model does not have eos_token but has sep_token,
+        # set eos_token = sep_token, and vice versa
         if sep_token is not None:
             special_tokens_dict["sep_token"] = sep_token
         elif self.tokenizer.sep_token is None and self.tokenizer.eos_token:
             special_tokens_dict["sep_token"] = self.tokenizer.eos_token
-        if bos_token is not None:
-            special_tokens_dict["bos_token"] = bos_token
-        elif self.tokenizer.bos_token is None and self.tokenizer.cls_token:
-            special_tokens_dict["bos_token"] = self.tokenizer.cls_token
         if eos_token is not None:
             special_tokens_dict["eos_token"] = eos_token
         elif self.tokenizer.eos_token is None and self.tokenizer.sep_token:
             special_tokens_dict["eos_token"] = self.tokenizer.sep_token
+
+        # if the model does not have bos_token but has cls_token,
+        # set bos_token = cls_token, and vice versa
+        if bos_token is not None:
+            special_tokens_dict["bos_token"] = bos_token
+        elif self.tokenizer.bos_token is None and self.tokenizer.cls_token:
+            special_tokens_dict["bos_token"] = self.tokenizer.cls_token
         if cls_token is not None:
             special_tokens_dict["cls_token"] = cls_token
         elif self.tokenizer.cls_token is None and self.tokenizer.bos_token:
@@ -197,13 +173,18 @@ class AutoTokenizer(TokenizerSpec):
             setattr(self, k, getattr(self.tokenizer, k, None))
         return num_tokens_added
 
+    @property
+    def additional_special_tokens_ids(self):
+        """Returns a list of the additional special tokens (excluding bos, eos, pad, unk). Used to return sentinel tokens for e.g. T5."""
+        return [self.token_to_id(token) for token in self.additional_special_tokens]
+
     def text_to_tokens(self, text):
         tokens = self.tokenizer.tokenize(text)
         return tokens
 
     def tokens_to_text(self, tokens):
         text = self.tokenizer.convert_tokens_to_string(tokens)
-        return remove_spaces(handle_quotes(text.strip()))
+        return text
 
     def token_to_id(self, token):
         return self.tokens_to_ids([token])[0]
@@ -226,6 +207,11 @@ class AutoTokenizer(TokenizerSpec):
         tokens_clean = [t for t in tokens if t not in self.tokenizer.all_special_tokens]
         text = self.tokens_to_text(tokens_clean)
         return text
+
+    @property
+    def vocab(self):
+        id2vocab = {v: k for k, v in self.tokenizer.vocab.items()}
+        return [id2vocab[i] for i in range(len(id2vocab))]
 
     @property
     def pad_id(self):
@@ -258,3 +244,7 @@ class AutoTokenizer(TokenizerSpec):
     @property
     def name(self):
         return type(self.tokenizer).__name__
+
+    def save_vocabulary(self, save_directory: str, filename_prefix: str = None):
+        """Saves tokenizer's vocabulary and other artifacts to the specified directory"""
+        return self.tokenizer.save_vocabulary(save_directory=save_directory, filename_prefix=filename_prefix)

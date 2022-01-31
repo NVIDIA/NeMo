@@ -20,9 +20,8 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
-from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.collections.tts.data.datalayers import MelAudioDataset
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
+from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
@@ -30,7 +29,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import CosineAnnealing
+from nemo.core.optim.lr_scheduler import CosineAnnealing, compute_max_steps
 from nemo.utils import logging
 
 HAVE_WANDB = True
@@ -70,32 +69,64 @@ class HifiGanModel(Vocoder, Exportable):
 
         self.automatic_optimization = False
 
+    def _get_max_steps(self):
+        return compute_max_steps(
+            max_epochs=self._cfg.max_epochs,
+            accumulate_grad_batches=self.trainer.accumulate_grad_batches,
+            limit_train_batches=self.trainer.limit_train_batches,
+            num_workers=get_num_workers(self.trainer),
+            num_samples=len(self._train_dl.dataset),
+            batch_size=get_batch_size(self._train_dl),
+            drop_last=self._train_dl.drop_last,
+        )
+
+    def _get_warmup_steps(self, max_steps):
+        warmup_steps = self._cfg.sched.get("warmup_steps", None)
+        warmup_ratio = self._cfg.sched.get("warmup_ratio", None)
+
+        if warmup_steps is not None and warmup_ratio is not None:
+            raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
+
+        if warmup_steps is not None:
+            return warmup_steps
+
+        if warmup_ratio is not None:
+            return warmup_ratio * max_steps
+
+        raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
+
     def configure_optimizers(self):
         self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
         self.optim_d = instantiate(
             self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
         )
 
-        self.scheduler_g = CosineAnnealing(
-            optimizer=self.optim_g,
-            max_steps=self._cfg.max_steps,
-            min_lr=self._cfg.sched.min_lr,
-            warmup_steps=self._cfg.sched.warmup_ratio * self._cfg.max_steps,
-        )  # Use warmup to delay start
-        sch1_dict = {
-            'scheduler': self.scheduler_g,
-            'interval': 'step',
-        }
+        if hasattr(self._cfg, 'sched'):
+            max_steps = self._cfg.get("max_steps", None)
+            if max_steps is None or max_steps < 0:
+                max_steps = self._get_max_steps()
 
-        self.scheduler_d = CosineAnnealing(
-            optimizer=self.optim_d, max_steps=self._cfg.max_steps, min_lr=self._cfg.sched.min_lr,
-        )
-        sch2_dict = {
-            'scheduler': self.scheduler_d,
-            'interval': 'step',
-        }
+            warmup_steps = self._get_warmup_steps(max_steps)
 
-        return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
+            self.scheduler_g = CosineAnnealing(
+                optimizer=self.optim_g, max_steps=max_steps, min_lr=self._cfg.sched.min_lr, warmup_steps=warmup_steps,
+            )  # Use warmup to delay start
+            sch1_dict = {
+                'scheduler': self.scheduler_g,
+                'interval': 'step',
+            }
+
+            self.scheduler_d = CosineAnnealing(
+                optimizer=self.optim_d, max_steps=max_steps, min_lr=self._cfg.sched.min_lr,
+            )
+            sch2_dict = {
+                'scheduler': self.scheduler_d,
+                'interval': 'step',
+            }
+
+            return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
+        else:
+            return [self.optim_g, self.optim_d]
 
     @property
     def input_types(self):
@@ -123,7 +154,7 @@ class HifiGanModel(Vocoder, Exportable):
     def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
         return self(spec=spec).squeeze(1)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         # if in finetune mode the mels are pre-computed using a
         # spectrogram generator
         if self.input_as_mel:
@@ -169,9 +200,11 @@ class HifiGanModel(Vocoder, Exportable):
         self.optim_g.step()
 
         # run schedulers
-        sch1, sch2 = self.lr_schedulers()
-        sch1.step()
-        sch2.step()
+        schedulers = self.lr_schedulers()
+        if schedulers is not None:
+            sch1, sch2 = schedulers
+            sch1.step()
+            sch2.step()
 
         metrics = {
             "g_loss_fm_mpd": loss_fm_mpd,
@@ -256,7 +289,7 @@ class HifiGanModel(Vocoder, Exportable):
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
-            comp = stft_patch(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
+            comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
             real, imag = comp[..., 0], comp[..., 1]
             mags = torch.sqrt(real ** 2 + imag ** 2)
             phase = torch.atan2(imag, real)
@@ -317,6 +350,23 @@ class HifiGanModel(Vocoder, Exportable):
             class_=cls,
         )
         list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_hifigan_ft_mixertts",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixertts.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_hifigan_ft_mixerttsx",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixerttsx.nemo",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
+            class_=cls,
+        )
+        list_of_models.append(model)
+
         return list_of_models
 
     def load_state_dict(self, state_dict, strict=True):
@@ -342,16 +392,19 @@ class HifiGanModel(Vocoder, Exportable):
         Base version does common necessary module replacements (Apex etc)
         """
         if self.generator is not None:
-            self.generator.remove_weight_norm()
+            try:
+                self.generator.remove_weight_norm()
+            except ValueError:
+                return
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
         return ({'spec': mel},)
 
     def forward_for_export(self, spec):

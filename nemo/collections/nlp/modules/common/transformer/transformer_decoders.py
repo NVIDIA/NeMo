@@ -148,13 +148,23 @@ class TransformerDecoder(nn.Module):
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
-            memory_states = torch.cat((decoder_mems_list[i], decoder_states), dim=1)
+            inp1 = torch.transpose(decoder_mems_list[i], 1, 2)  # Putting seq_len to last dim to handle export cases
+            inp2 = torch.transpose(decoder_states, 1, 2)
+            memory_states = torch.cat((inp1, inp2), dim=2)
+            memory_states = torch.transpose(memory_states, 1, 2)  # Transposing back
         else:
             memory_states = decoder_states
         return memory_states
 
     def forward(
-        self, decoder_states, decoder_mask, encoder_states, encoder_mask, decoder_mems_list=None, return_mems=False
+        self,
+        decoder_states,
+        decoder_mask,
+        encoder_states,
+        encoder_mask,
+        decoder_mems_list=None,
+        return_mems=False,
+        return_mems_as_list=True,
     ):
         """
         Args:
@@ -167,34 +177,44 @@ class TransformerDecoder(nn.Module):
                 of decoder_states as keys and values if not None
             return_mems: bool, whether to return outputs of all decoder layers
                 or the last layer only
+            return_mems_as_list: bool, when True, mems returned are as a list; otherwise mems are Tensor
         """
         decoder_attn_mask = form_attention_mask(decoder_mask, diagonal=self.diagonal)
         encoder_attn_mask = form_attention_mask(encoder_mask)
         memory_states = self._get_memory_states(decoder_states, decoder_mems_list, 0)
-        cached_mems_list = [memory_states]
+        if return_mems_as_list:
+            cached_mems_list = [memory_states]
+        else:
+            cached_mems_list = memory_states.unsqueeze(0)
 
         for i, layer in enumerate(self.layers):
             decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
-            cached_mems_list.append(memory_states)
+            if return_mems_as_list:
+                cached_mems_list.append(memory_states)
+            else:
+                cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
 
         if self.final_layer_norm is not None:
             decoder_states = self.final_layer_norm(decoder_states)
-            memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
-            cached_mems_list.append(memory_states)
+            memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 2)
+            if return_mems_as_list:
+                cached_mems_list.append(memory_states)
+            else:
+                cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
 
         if return_mems:
             return cached_mems_list
         else:
             return cached_mems_list[-1]
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16, 1024), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        input_ids = torch.randint(low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(max_batch, max_dim), device=sample.device)
         return tuple([input_ids, encoder_mask, input_ids, encoder_mask])

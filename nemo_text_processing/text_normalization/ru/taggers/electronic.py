@@ -21,7 +21,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_LATIN
+from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_CYRILLIC
 from nemo_text_processing.text_normalization.ru.utils import get_abs_path
 
 try:
@@ -110,7 +110,7 @@ class ElectronicFst(GraphFst):
 
         graph = user_name + delete_space + pynutil.insert("собака ") + delete_space + domain + delete_space
         # replace all latin letters with their Ru verbalization
-        verbalizer_graph = (graph.optimize() @ (pynini.closure(TO_LATIN | RU_ALPHA | pynini.accep(" ")))).optimize()
+        verbalizer_graph = (graph.optimize() @ (pynini.closure(TO_CYRILLIC | RU_ALPHA | pynini.accep(" ")))).optimize()
         verbalizer_graph = verbalizer_graph.optimize()
 
         self.final_graph = (tagger_graph @ verbalizer_graph).optimize()

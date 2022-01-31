@@ -36,7 +36,12 @@ class MyTestOptimizer(torch.optim.Optimizer):
         self._step = 0
         super().__init__(params, {})
 
-    def step(self, *args, **kwargs):
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
         for group in self.param_groups:
             for p in group['params']:
                 if self._step == 0:
@@ -46,7 +51,22 @@ class MyTestOptimizer(torch.optim.Optimizer):
                 else:
                     p.data = 0.01 * torch.ones(p.shape)
         self._step += 1
-        return None
+        return loss
+
+
+class DoNothingOptimizer(torch.optim.Optimizer):
+    def __init__(self, params):
+        self._step = 0
+        super().__init__(params, {})
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        self._step += 1
+        return loss
 
 
 class OnesDataset(torch.utils.data.Dataset):
@@ -65,6 +85,7 @@ class ExampleModel(ModelPT):
     def __init__(self, *args, **kwargs):
         cfg = OmegaConf.structured({})
         super().__init__(cfg)
+        pl.seed_everything(1234)
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
 
     def train_dataloader(self):
@@ -101,6 +122,11 @@ class ExampleModel(ModelPT):
 
     def validation_epoch_end(self, loss):
         self.log("val_loss", torch.stack(loss).mean())
+
+
+class DoNothingModel(ExampleModel):
+    def configure_optimizers(self):
+        return DoNothingOptimizer(self.parameters())
 
 
 class TestExpManager:
@@ -299,13 +325,17 @@ class TestExpManager:
             {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
+        assert (
+            Path(test_trainer.checkpoint_connector.resume_from_checkpoint_fit_path).resolve() == checkpoint.resolve()
+        )
 
         # Succeed again and make sure that run_0 exists and previous log files were moved
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         exp_manager(test_trainer, {"resume_if_exists": True, "explicit_log_dir": str(log_dir)})
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
+        assert (
+            Path(test_trainer.checkpoint_connector.resume_from_checkpoint_fit_path).resolve() == checkpoint.resolve()
+        )
         prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0")
         assert prev_run_dir.exists()
         prev_log = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0" / "lightning_logs.txt")
@@ -314,7 +344,7 @@ class TestExpManager:
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_1(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(
+        exp_manager(
             test_trainer,
             {"checkpoint_callback_params": {"save_best_model": True}, "explicit_log_dir": str(tmp_path / "test")},
         )
@@ -329,7 +359,9 @@ class TestExpManager:
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
+        exp_manager(
+            test_trainer, {"explicit_log_dir": str(tmp_path / "test")},
+        )
         model = ExampleModel()
         test_trainer.fit(model)
 
@@ -341,7 +373,7 @@ class TestExpManager:
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(
+        exp_manager(
             test_trainer,
             {
                 "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
@@ -355,3 +387,54 @@ class TestExpManager:
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_make_checkpoint_dir(self, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4, check_val_every_n_epoch=5)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_restore_model(self, tmp_path):
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_top_k": 1, "save_last": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        checkpoint = list(Path(str(tmp_path / "test" / "checkpoints")).glob("*.ckpt"))
+        # Make sure that only the best and last checkpoint is saved
+        assert len(checkpoint) == 2
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
+
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=5)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_top_k": 1, "save_last": False},
+                "explicit_log_dir": str(tmp_path / "test"),
+                "resume_if_exists": True,
+                "resume_past_end": True,
+            },
+        )
+        model = DoNothingModel()
+        model.l1.weight = torch.nn.Parameter(torch.tensor((0.0, 0.0)).unsqueeze(0))
+        model.l1.bias = torch.nn.Parameter(torch.tensor(1.0))
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 1.0) < 1e-5
+
+        test_trainer.fit(model)
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5

@@ -78,6 +78,14 @@ the end-to-end pipeline.
      - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_talknet
      - Non-autoregressive convolution-based spectrogram generator
+   * - Mixer-TTS
+     - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_lj_mixertts
+     - Non-autoregressive mixer-based spectrogram generator
+   * - Mixer-TTS-X
+     - :class:`SpectrogramGenerator<nemo.collections.tts.models.base.SpectrogramGenerator>`
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_lj_mixerttsx
+     - Non-autoregressive mixer-based spectrogram generator conditioned on language model embeddings
    * - WaveGlow
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_waveglow_88m
@@ -97,6 +105,9 @@ the end-to-end pipeline.
    * - HiFiGAN
      - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_hifigan
+   * - UnivNet
+     - :class:`Vocoder<nemo.collections.tts.models.base.Vocoder>`
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:tts_en_lj_univnet
      - GAN-based vocoder
    * - FastPitch_HifiGan_E2E
      - :class:`TextToWaveform<nemo.collections.tts.models.base.TextToWaveform>`

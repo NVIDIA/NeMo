@@ -156,16 +156,18 @@ class WaveGlowModule(NeuralModule, Exportable):
                 "audio": NeuralType(('B', 'T'), AudioSignal()),
             }
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.n_mel_channels, 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.n_mel_channels, max_dim), device=par.device, dtype=par.dtype)
         z = torch.randn(
-            (1, self.n_mel_channels, 96 * self.upsample.stride[0] // self.n_group), device=par.device, dtype=par.dtype
+            (max_batch, self.n_mel_channels, max_dim * self.upsample.stride[0] // self.n_group),
+            device=par.device,
+            dtype=par.dtype,
         )
         return {"spec": mel, "z": z}
 
@@ -176,6 +178,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         if spec.size(2) > audio.size(1):
             spec = spec[:, :, : audio.size(1)]
 
+        # logging.debug(f"spec: {spec.shape}. n_group: {self.n_group}")
         spec = split_view(spec, self.n_group, 2).permute(0, 2, 1, 3)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         spec = spec.permute(0, 2, 1)

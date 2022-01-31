@@ -14,6 +14,7 @@
 
 import itertools
 import json
+import os
 import random
 from multiprocessing import Value
 from pathlib import Path
@@ -44,13 +45,14 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.utils import logging, model_utils
+from nemo.utils import logging, model_utils, timers
 
 __all__ = ['MTEncDecModel']
 
 
-class MTEncDecModel(EncDecNLPModel):
+class MTEncDecModel(EncDecNLPModel, Exportable):
     """
     Encoder-decoder machine translation model.
     """
@@ -71,9 +73,27 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
+        self.special_tokens = {}
 
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
+
+        self.validate_input_ids = cfg.get("validate_input_ids", True)
+        if self.multilingual:
+            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+                raise ValueError(
+                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
+                )
+            elif isinstance(self.src_language, ListConfig):
+                pass
+            elif isinstance(self.tgt_language, ListConfig):
+                for lng in self.tgt_language:
+                    self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
+            else:
+                raise ValueError(
+                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
+                )
+        self.shared_embeddings = cfg.get("shared_embeddings", False)
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
@@ -94,23 +114,16 @@ class MTEncDecModel(EncDecNLPModel):
             else 0.0,
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
+            special_tokens=self.special_tokens,
         )
 
         if self.multilingual:
-            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-                raise ValueError(
-                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
-                )
-            elif isinstance(self.src_language, ListConfig):
+            if isinstance(self.src_language, ListConfig):
                 for lng in self.src_language:
                     self.multilingual_ids.append(None)
-            elif isinstance(self.tgt_language, ListConfig):
+            else:
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
-            else:
-                raise ValueError(
-                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
-                )
 
             if isinstance(self.src_language, ListConfig):
                 self.tgt_language = [self.tgt_language] * len(self.src_language)
@@ -155,7 +168,6 @@ class MTEncDecModel(EncDecNLPModel):
         library = decoder_cfg_dict.pop('library', 'nemo')
         model_name = decoder_cfg_dict.pop('model_name', None)
         pretrained = decoder_cfg_dict.pop('pretrained', False)
-        decoder_cfg_dict['hidden_size'] = self.encoder.hidden_size
         self.decoder = get_transformer(
             library=library,
             model_name=model_name,
@@ -164,6 +176,9 @@ class MTEncDecModel(EncDecNLPModel):
             encoder=False,
             pre_ln_final_layer_norm=decoder_cfg_dict.get('pre_ln_final_layer_norm', False),
         )
+
+        # validate hidden_size of encoder and decoder
+        self._validate_encoder_decoder_hidden_size()
 
         self.log_softmax = TokenClassifier(
             hidden_size=self.decoder.hidden_size,
@@ -187,6 +202,24 @@ class MTEncDecModel(EncDecNLPModel):
             max_delta_length=cfg.max_generation_delta,
         )
 
+        # tie embedding weights
+        if self.shared_embeddings:
+            if not cfg.get("shared_tokenizer", True):
+                raise ValueError("shared_tokenizer cannot be False when shared_embeddings is True")
+
+            # validate vocabulary size and embedding dimension
+            if (
+                self.encoder.embedding.token_embedding.weight.shape
+                != self.decoder.embedding.token_embedding.weight.shape
+            ):
+                raise ValueError(
+                    f"Cannot tie encoder and decoder embeddings due to mismatch in embedding sizes "
+                    f"(num_embeddings, embedding_dim): {self.encoder.embedding.token_embedding.weight.shape} (encoder) "
+                    f"{self.decoder.embedding.token_embedding.weight.shape} (decoder)"
+                )
+
+            self.encoder.embedding.token_embedding.weight = self.decoder.embedding.token_embedding.weight
+
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
 
@@ -207,12 +240,23 @@ class MTEncDecModel(EncDecNLPModel):
         )
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
+    def _validate_encoder_decoder_hidden_size(self):
+        """
+        Validate encoder and decoder hidden sizes, and enforce same size.
+        Can be overridden by child classes to support encoder/decoder different
+        hidden_size.
+        """
+        if self.encoder.hidden_size != self.decoder.hidden_size:
+            raise ValueError(
+                f"Class does not support encoder.hidden_size ({self.encoder.hidden_size}) != decoder.hidden_size ({self.decoder.hidden_size}). Please use bottleneck architecture instead (i.e., model.encoder.arch = 'seq2seq' in conf/aayn_bottleneck.yaml)"
+            )
+
     def filter_predicted_ids(self, ids):
         ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
         return ids
 
     def test_encoder_ids(self, ids, raise_error=False):
-        invalid_ids = (ids >= self.encoder_tokenizer.vocab_size).any()
+        invalid_ids = torch.logical_or((ids >= self.encoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
 
         if raise_error and invalid_ids:
             raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
@@ -220,7 +264,7 @@ class MTEncDecModel(EncDecNLPModel):
         return not invalid_ids
 
     def test_decoder_ids(self, ids, raise_error=False):
-        invalid_ids = (ids >= self.decoder_tokenizer.vocab_size).any()
+        invalid_ids = torch.logical_or((ids >= self.decoder_tokenizer.vocab_size).any(), (ids < 0).any(),)
 
         if raise_error and invalid_ids:
             raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
@@ -229,9 +273,10 @@ class MTEncDecModel(EncDecNLPModel):
 
     @typecheck()
     def forward(self, src, src_mask, tgt, tgt_mask):
-        # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
-        self.test_encoder_ids(src, raise_error=True)
-        self.test_decoder_ids(tgt, raise_error=True)
+        if self.validate_input_ids:
+            # test src/tgt for id range (i.e., hellp in catching wrong tokenizer)
+            self.test_encoder_ids(src, raise_error=True)
+            self.test_decoder_ids(tgt, raise_error=True)
 
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
@@ -258,6 +303,7 @@ class MTEncDecModel(EncDecNLPModel):
             'train_loss': train_loss,
             'lr': self._optimizer.param_groups[0]['lr'],
         }
+
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
@@ -275,7 +321,7 @@ class MTEncDecModel(EncDecNLPModel):
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
+        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
             getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         else:
@@ -287,6 +333,7 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
@@ -326,8 +373,10 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
+            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(inputs)
             assert len(translations) == len(ground_truths)
 
             # Gather translations and ground truths from all workers
@@ -369,6 +418,7 @@ class MTEncDecModel(EncDecNLPModel):
                 for i in range(0, 3):
                     ind = random.randint(0, len(translations) - 1)
                     logging.info("    " + '\u0332'.join(f"Example {i}:"))
+                    logging.info(f"    Input:        {inputs[ind]}")
                     logging.info(f"    Prediction:   {translations[ind]}")
                     logging.info(f"    Ground Truth: {ground_truths[ind]}")
             else:
@@ -412,6 +462,7 @@ class MTEncDecModel(EncDecNLPModel):
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
         decoder_r2l=False,
+        special_tokens={},
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
@@ -427,7 +478,7 @@ class MTEncDecModel(EncDecNLPModel):
             bpe_dropout=encoder_bpe_dropout,
             model_name=encoder_model_name,
             vocab_file=self.register_artifact("encoder_tokenizer.vocab_file", encoder_tokenizer_vocab_file),
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
             r2l=encoder_r2l,
         )
@@ -437,19 +488,36 @@ class MTEncDecModel(EncDecNLPModel):
             bpe_dropout=decoder_bpe_dropout,
             model_name=decoder_model_name,
             vocab_file=None,
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
             r2l=decoder_r2l,
         )
+
+        # validate no token is negative for sentencepiece tokenizers
+        for tok_name, tok_library, tok_model in [
+            ("encoder_tokenizer", encoder_tokenizer_library, self.encoder_tokenizer),
+            ("decoder_tokenizer", decoder_tokenizer_library, self.decoder_tokenizer),
+        ]:
+            if tok_library == 'sentencepiece':
+                negative_tokens = []
+                for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
+                    v = getattr(tok_model.tokenizer, n)()
+                    if v < 0:
+                        negative_tokens.append(f"{n}={v}")
+
+                if negative_tokens:
+                    raise ValueError(
+                        f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}"
+                    )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
-        self.setup_validation_data(self._cfg.get('validation_ds'))
+        self.setup_validation_data(val_data_config)
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        self.setup_test_data(self._cfg.get('test_ds'))
+        self.setup_test_data(test_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
@@ -503,6 +571,27 @@ class MTEncDecModel(EncDecNLPModel):
                 if tar_files_list is None:
                     tar_files = metadata.get('tar_files')
                     if tar_files is not None:
+                        # update absolute path of tar files based on metadata_file path
+                        valid_tar_files = []
+                        metadata_basedir = os.path.abspath(os.path.dirname(metadata_file))
+                        updated_fn = 0
+                        for fn in tar_files:
+                            # if a file does not exist, look in metadata file directory
+                            if os.path.exists(fn):
+                                valid_fn = fn
+                            else:
+                                updated_fn += 1
+                                valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
+                                if not os.path.exists(valid_fn):
+                                    raise RuntimeError(
+                                        f"File in tarred dataset is missing from absolute and relative paths {fn}"
+                                    )
+
+                            valid_tar_files.append(valid_fn)
+
+                        tar_files = valid_tar_files
+
+                        logging.info(f'Updated the path of {updated_fn} tarred files')
                         logging.info(f'Loading from tarred dataset {tar_files}')
                 else:
                     tar_files = tar_files_list[idx]
@@ -684,6 +773,8 @@ class MTEncDecModel(EncDecNLPModel):
             self.source_processor = ChineseProcessor()
         elif source_lang == 'hi':
             self.source_processor = IndicProcessor(source_lang)
+        elif source_lang == 'ignore':
+            self.source_processor = None
         elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
             self.source_processor = MosesProcessor(source_lang)
 
@@ -695,6 +786,8 @@ class MTEncDecModel(EncDecNLPModel):
             self.target_processor = ChineseProcessor()
         elif target_lang == 'hi':
             self.target_processor = IndicProcessor(target_lang)
+        elif target_lang == 'ignore':
+            self.target_processor = None
         elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
 
@@ -709,23 +802,33 @@ class MTEncDecModel(EncDecNLPModel):
         return translations
 
     @torch.no_grad()
-    def batch_translate(self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False):
-        """	
-        Translates a minibatch of inputs from source language to target language.	
-        Args:	
-            src: minibatch of inputs in the src language (batch x seq_len)	
-            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)	
-        Returns:	
-            translations: a list strings containing detokenized translations	
-            inputs: a list of string containing detokenized inputs	
+    def batch_translate(
+        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}
+    ):
+        """
+        Translates a minibatch of inputs from source language to target language.
+        Args:
+            src: minibatch of inputs in the src language (batch x seq_len)
+            src_mask: mask tensor indicating elements to be ignored (batch x seq_len)
+        Returns:
+            translations: a list strings containing detokenized translations
+            inputs: a list of string containing detokenized inputs
         """
         mode = self.training
+        timer = cache.get("timer", None)
         try:
             self.eval()
+            if timer is not None:
+                timer.start("encoder")
             src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
+            if timer is not None:
+                timer.stop("encoder")
+                timer.start("sampler")
             best_translations = self.beam_search(
                 encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores
             )
+            if timer is not None:
+                timer.stop("sampler")
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
@@ -771,7 +874,12 @@ class MTEncDecModel(EncDecNLPModel):
     # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
     def translate(
-        self, text: List[str], source_lang: str = None, target_lang: str = None, return_beam_scores: bool = False
+        self,
+        text: List[str],
+        source_lang: str = None,
+        target_lang: str = None,
+        return_beam_scores: bool = False,
+        log_timing: bool = False,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -799,19 +907,53 @@ class MTEncDecModel(EncDecNLPModel):
             elif tgt_symbol in self.multilingual_ids:
                 prepend_ids = [tgt_symbol]
 
+        if log_timing:
+            timer = timers.NamedTimer()
+        else:
+            timer = None
+
+        cache = {
+            "timer": timer,
+        }
+
         try:
             self.eval()
             src, src_mask = self.prepare_inference_batch(text, prepend_ids)
             if return_beam_scores:
                 _, all_translations, scores, best_translations = self.batch_translate(
-                    src, src_mask, return_beam_scores=True
+                    src, src_mask, return_beam_scores=True, cache=cache,
                 )
-                return all_translations, scores, best_translations
+                return_val = all_translations, scores, best_translations
             else:
-                _, translations = self.batch_translate(src, src_mask, return_beam_scores=False)
+                _, best_translations = self.batch_translate(src, src_mask, return_beam_scores=False, cache=cache)
+                return_val = best_translations
         finally:
             self.train(mode=mode)
-        return translations
+
+        if log_timing:
+            timing = timer.export()
+            timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
+            tgt, tgt_mask = self.prepare_inference_batch(best_translations, prepend_ids, target=True)
+            timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
+
+            if type(return_val) is tuple:
+                return_val = return_val + (timing,)
+            else:
+                return_val = (return_val, timing)
+
+        return return_val
+
+    def export(self, output: str, input_example=None, **kwargs):
+        encoder_exp, encoder_descr = self.encoder.export(
+            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
+        )
+        decoder_exp, decoder_descr = self.decoder.export(
+            self._augment_output_filename(output, 'Decoder'),
+            # TODO: propagate from export()
+            input_example=None,
+            **kwargs,
+        )
+        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -889,6 +1031,146 @@ class MTEncDecModel(EncDecNLPModel):
             pretrained_model_name="nmt_en_zh_transformer6x6",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_zh_transformer6x6/versions/1.0.0rc1/files/nmt_en_zh_transformer6x6.nemo",
             description="En->Zh translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_zh_transformer6x6",
+        )
+        result.append(model)
+
+        # English <-> Hindi models
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_hi_en_transformer12x2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_hi_en_transformer12x2/versions/v1.0.0/files/nmt_hi_en_transformer12x2.nemo",
+            description="Hi->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_hi_en_transformer12x2",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_hi_transformer12x2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_hi_transformer12x2/versions/v1.0.0/files/nmt_en_hi_transformer12x2.nemo",
+            description="En->Hi translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_hi_transformer12x2",
+        )
+        result.append(model)
+
+        # De/Fr/Es -> English models
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_deesfr_en_transformer12x2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_deesfr_en_transformer12x2/versions/1.2.0/files/mnmt_deesfr_en_transformer12x2.nemo",
+            description="De/Es/Fr->En multilingual many-one translation model. The model has 12 encoder and 2 decoder layers with hidden dim 1,024. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_deesfr_en_transformer12x2",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_deesfr_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_deesfr_en_transformer24x6/versions/1.2.0/files/mnmt_deesfr_en_transformer24x6.nemo",
+            description="De/Es/Fr->En multilingual many-one translation model. The model has 24 encoder and 6 decoder layers with hidden dim 1,024. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_deesfr_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_deesfr_en_transformer6x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_deesfr_en_transformer6x6/versions/1.2.0/files/mnmt_deesfr_en_transformer6x6.nemo",
+            description="De/Es/Fr->En multilingual many-one translation model. The model has 6 encoder and 6 decoder layers with hidden dim 1,024. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_deesfr_en_transformer6x6",
+        )
+        result.append(model)
+
+        # English -> De/Fr/Es models
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_en_deesfr_transformer12x2",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_en_deesfr_transformer12x2/versions/1.2.0/files/mnmt_en_deesfr_transformer12x2.nemo",
+            description="En->De/Es/Fr multilingual one-many translation model. The model has 12 encoder and 2 decoder layers with hidden dim 1,024. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_en_deesfr_transformer12x2",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_en_deesfr_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_en_deesfr_transformer24x6/versions/1.2.0/files/mnmt_en_deesfr_transformer24x6.nemo",
+            description="En->De/Es/Fr multilingual one-many translation model. The model has 24 encoder and 6 decoder layers with hidden dim 1,024. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_en_deesfr_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_en_deesfr_transformer6x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_en_deesfr_transformer6x6/versions/1.2.0/files/mnmt_en_deesfr_transformer6x6.nemo",
+            description="En->De/Es/Fr multilingual one-many translation model. The model has 6 encoder and 6 decoder layers with hidden dim 1,024. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_en_deesfr_transformer6x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="mnmt_en_deesfr_transformerbase",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/mnmt_en_deesfr_transformerbase/versions/1.2.0/files/mnmt_en_deesfr_transformerbase.nemo",
+            description="En->De/Es/Fr multilingual one-many translation model. The model has 6 encoder and 6 decoder layers with hidden dim 512. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:mnmt_en_deesfr_transformerbase",
+        )
+        result.append(model)
+
+        # 24x6 models
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_de_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_de_transformer24x6/versions/1.5/files/en_de_24x6.nemo",
+            description="En->De translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_de_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_de_en_transformer24x6/versions/1.5/files/de_en_24x6.nemo",
+            description="De->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_de_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_es_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_es_transformer24x6/versions/1.5/files/en_es_24x6.nemo",
+            description="En->Es translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_es_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_es_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_es_en_transformer24x6/versions/1.5/files/es_en_24x6.nemo",
+            description="Es->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_es_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_fr_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_fr_transformer24x6/versions/1.5/files/en_fr_24x6.nemo",
+            description="En->Fr translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_fr_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_fr_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_fr_en_transformer24x6/versions/1.5/files/fr_en_24x6.nemo",
+            description="Fr->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_fr_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_ru_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_ru_transformer24x6/versions/1.5/files/en_ru_24x6.nemo",
+            description="En->Ru translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_ru_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_ru_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_ru_en_transformer24x6/versions/1.5/files/ru_en_24x6.nemo",
+            description="Ru->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_ru_en_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_en_zh_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_en_zh_transformer24x6/versions/1.5/files/en_zh_24x6.nemo",
+            description="En->Zh translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_zh_transformer24x6",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="nmt_zh_en_transformer24x6",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/nmt_zh_en_transformer24x6/versions/1.5/files/zh_en_24x6.nemo",
+            description="Zh->En translation model. See details here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_zh_en_transformer24x6",
         )
         result.append(model)
 

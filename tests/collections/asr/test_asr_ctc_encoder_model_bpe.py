@@ -75,6 +75,7 @@ def asr_model(test_data_dir):
 
 
 class TestEncDecCTCModel:
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor(self, asr_model):
         asr_model.train()
@@ -84,6 +85,7 @@ class TestEncDecCTCModel:
         instance2 = EncDecCTCModelBPE.from_config_dict(confdict)
         assert isinstance(instance2, EncDecCTCModelBPE)
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_forward(self, asr_model):
         asr_model = asr_model.eval()
@@ -114,6 +116,7 @@ class TestEncDecCTCModel:
         diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -127,6 +130,7 @@ class TestEncDecCTCModel:
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -144,8 +148,10 @@ class TestEncDecCTCModel:
             assert new_model.vocab_path.endswith('_vocab.txt')
             assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
+            assert new_model.tokenizer.tokenizer.vocab_size == 128
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
@@ -236,7 +242,7 @@ class TestEncDecCTCModel:
                 os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
 
     @pytest.mark.unit
-    def test_EncDecCTCDatasetConfig_for_AudioToBPEDataset(self):
+    def test_ASRDatasetConfig_for_AudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -255,15 +261,14 @@ class TestEncDecCTCModel:
             'bos_id',
             'eos_id',
             'blank_index',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
 
         result = assert_dataclass_signature_match(
-            audio_to_text.AudioToBPEDataset,
-            configs.EncDecCTCDatasetConfig,
-            ignore_args=IGNORE_ARGS,
-            remap_args=REMAP_ARGS,
+            audio_to_text.AudioToBPEDataset, configs.ASRDatasetConfig, ignore_args=IGNORE_ARGS, remap_args=REMAP_ARGS,
         )
         signatures_match, cls_subset, dataclass_subset = result
 
@@ -272,7 +277,7 @@ class TestEncDecCTCModel:
         assert dataclass_subset is None
 
     @pytest.mark.unit
-    def test_EncDecCTCDatasetConfig_for_TarredAudioToBPEDataset(self):
+    def test_ASRDatasetConfig_for_TarredAudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
             'is_tarred',
@@ -290,6 +295,8 @@ class TestEncDecCTCModel:
             'blank_index',
             'global_rank',
             'world_size',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {
@@ -302,7 +309,7 @@ class TestEncDecCTCModel:
 
         result = assert_dataclass_signature_match(
             audio_to_text.TarredAudioToBPEDataset,
-            configs.EncDecCTCDatasetConfig,
+            configs.ASRDatasetConfig,
             ignore_args=IGNORE_ARGS,
             remap_args=REMAP_ARGS,
         )

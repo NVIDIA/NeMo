@@ -67,15 +67,10 @@ class TimeFst(GraphFst):
         oclock = pynini.cross(pynini.union("o' clock", "o clock", "o'clock", "oclock"), "")
 
         final_graph_hour = pynutil.insert("hours: \"") + graph_hour + pynutil.insert("\"")
-        final_graph_minute = (
-            pynutil.insert("minutes: \"")
-            + (
-                pynutil.insert("00")
-                | oclock + pynutil.insert("00")
-                | pynutil.delete("o") + delete_space + graph_minute_single
-                | graph_minute_double
-            )
-            + pynutil.insert("\"")
+        graph_minute = (
+            oclock + pynutil.insert("00")
+            | pynutil.delete("o") + delete_space + graph_minute_single
+            | graph_minute_double
         )
         final_suffix = pynutil.insert("suffix: \"") + convert_space(suffix_graph) + pynutil.insert("\"")
         final_suffix_optional = pynini.closure(delete_space + insert_space + final_suffix, 0, 1)
@@ -92,7 +87,9 @@ class TimeFst(GraphFst):
         # five o' clock
         # two o eight, two thiry five (am/pm)
         # two pm/am
-        graph_hm = final_graph_hour + delete_extra_space + final_graph_minute
+        graph_hm = (
+            final_graph_hour + delete_extra_space + pynutil.insert("minutes: \"") + graph_minute + pynutil.insert("\"")
+        )
         # 10 past four, quarter past four, half past four
         graph_mh = (
             pynutil.insert("minutes: \"")
@@ -115,9 +112,20 @@ class TimeFst(GraphFst):
             + time_to_graph
             + pynutil.insert("\"")
         )
-        final_graph = (
-            (graph_hm | graph_mh | graph_quarter_time) + final_suffix_optional + final_time_zone_optional
-        ).optimize()
+
+        graph_h = (
+            final_graph_hour
+            + delete_extra_space
+            + pynutil.insert("minutes: \"")
+            + (pynutil.insert("00") | graph_minute)
+            + pynutil.insert("\"")
+            + delete_space
+            + insert_space
+            + final_suffix
+            + final_time_zone_optional
+        )
+        final_graph = (graph_hm | graph_mh | graph_quarter_time) + final_suffix_optional + final_time_zone_optional
+        final_graph |= graph_h
 
         final_graph = self.add_tokens(final_graph)
 

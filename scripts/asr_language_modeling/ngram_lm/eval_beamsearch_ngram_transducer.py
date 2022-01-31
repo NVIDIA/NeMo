@@ -214,6 +214,15 @@ def main():
     parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
     )
+
+    parser.add_argument(
+        "--search_strategy",
+        choices=["greedy", "beam"],
+        default="beam",
+        type=str,
+        help="The decoding scheme to be used for evaluation.",
+    )
+
     args = parser.parse_args()
 
     asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
@@ -240,12 +249,12 @@ def main():
     else:
         asr_model = asr_model.eval()
         rnnt_cfg = RNNTBPEDecodingConfig()
-        rnnt_cfg.strategy = "beam"  #beam greedy
-        rnnt_cfg.beam.beam_size = 4
+        rnnt_cfg.strategy = args.search_strategy  #beam greedy
+        rnnt_cfg.beam.beam_size = args.beam_width[0]
         rnnt_cfg.beam.ngram_lm_model = '/drive3/checkpoints/ngc/release_nemoasrset_2.0/transducer/lm/6gram_model_v1024.model'
         #'/drive3/checkpoints/ngc/release_8_17/conformer_transducer_bpe_en/small/4gram_ls_noencode.model'
-        rnnt_cfg.beam.ngram_lm_alpha = 1.0 #0.2
-        rnnt_cfg.beam.ngram_lm_beta = 0.0
+        rnnt_cfg.beam.ngram_lm_alpha = args.beam_alpha[0] #0.2
+        rnnt_cfg.beam.ngram_lm_beta = args.beam_beta[0]
         rnnt_cfg.beam.ngram_lm_bos = True
         rnnt_cfg.compute_hypothesis_token_set = False
         asr_model.change_decoding_strategy(OmegaConf.structured(rnnt_cfg))
@@ -263,7 +272,7 @@ def main():
             with torch.no_grad():
                 #all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
                 hypotheses, all_hypotheses = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, return_hypotheses=False)
-        #all_probs = [kenlm_utils.softmax(logits) for logits in all_logits]
+        # all_probs = [kenlm_utils.softmax(logits) for logits in all_logits]
         # if args.probs_cache_file:
         #     logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
         #     with open(args.probs_cache_file, 'wb') as f_dump:
