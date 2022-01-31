@@ -17,7 +17,7 @@ import itertools
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.data.datalayers import MelAudioDataset
