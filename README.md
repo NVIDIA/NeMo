@@ -4,6 +4,8 @@ Scripts and code to provide end-to-end data preparation and training for
 Megatron-LM.
 
 ## Table of contents
+
+<!-- OLD TOC
   - [Model Overview](#model-overview)
   - [Installation](#installation)
   - [General Configuration](#general-configuration)
@@ -42,30 +44,83 @@ Megatron-LM.
           - [Online scenario](#online-scenario)
           - [Offline scenario](#offline-scenario)
 
-## Installation:
-To be able to call the necessary scripts from the login node on a cluster, some
-packages must be installed using the requirements.txt file:
-        cd bignlp-scripts
-        pip3 install --user -r requirements.txt
+-->
 
-## General Configuration
-The first parameter that must be set is the bignlp_path parameter inside the
-conf/config.yaml file, which must point to the absolute path where this
-bignlp-scripts repository is stored in the file system. For BCP, this hydra
-scripts repository can be stored in a workspace mounted to /workspace-scripts in 
-the container and bignlp_path can be set to "/workspace-scripts/bignlp-scripts".
+<!-- # BigNLP-Scripts -->
+<!-- TOC -->
 
-## Model Overview
+- [1. Model Overview](#1-model-overview)
+- [2. Feature Matrix](#2-feature-matrix)
+- [3. Setup](#3-setup)
+    - [3.1. Support Matrix](#31-support-matrix)
+- [4. Quick Start Guide](#4-quick-start-guide)
+    - [4.1. Training BigNLP Models](#41-training-bignlp-models)
+        - [4.1.1. Prepare Environment](#411-prepare-environment)
+            - [4.1.1.1. Slurm](#4111-slurm)
+            - [4.1.1.2. Base Command Platform](#4112-base-command-platform)
+            - [4.1.1.3. Common](#4113-common)
+            - [4.1.1.4. General Configuration](#4114-general-configuration)
+        - [4.1.2. Data Preparation](#412-data-preparation)
+            - [4.1.2.1. Slurm](#4121-slurm)
+            - [4.1.2.2. Base Command Platform](#4122-base-command-platform)
+            - [4.1.2.3. Common](#4123-common)
+    - [4.2. Training with Predefined Configurations](#42-training-with-predefined-configurations)
+    - [4.3. Training with Custom Configurations](#43-training-with-custom-configurations)
+    - [4.4. Bring Your Own Dataset](#44-bring-your-own-dataset)
+    - [4.5. GPT-3 Training](#45-gpt-3-training)
+        - [4.5.1. Slurm](#451-slurm)
+        - [4.5.2. Base Command Platform](#452-base-command-platform)
+        - [4.5.3. Common](#453-common)
+    - [4.6. Resuming Training from Fewer Nodes](#46-resuming-training-from-fewer-nodes)
+    - [4.7. Model Evaluation](#47-model-evaluation)
+        - [4.7.1. Slurm](#471-slurm)
+        - [4.7.2. Base Command Platform](#472-base-command-platform)
+        - [4.7.3. Common](#473-common)
+- [5. Deploying the BigNLP Model](#5-deploying-the-bignlp-model)
+    - [5.1. Model Inference Deployment Process](#51-model-inference-deployment-process)
+    - [5.2. Prepare Environment](#52-prepare-environment)
+    - [5.3. Slurm](#53-slurm)
+        - [5.3.1. Base Command Platform](#531-base-command-platform)
+    - [5.4. Provide Model and Inference Configurationn](#54-provide-model-and-inference-configurationn)
+        - [5.4.1. Predefined Configuration for Selected Models](#541-predefined-configuration-for-selected-models)
+        - [5.4.2. Optimal Configuration Search](#542-optimal-configuration-search)
+            - [5.4.2.1. Random Weights Checkpoint Benchmark](#5421-random-weights-checkpoint-benchmark)
+            - [5.4.2.2. Trained Checkpoint Benchmark](#5422-trained-checkpoint-benchmark)
+        - [5.4.3. Review Deployment Search Results](#543-review-deployment-search-results)
+    - [5.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests](#55-prepare-nvidia-triton-model-repository-and-run-accuracyperformance-tests)
+    - [5.6. Run NVIDIA Triton Server with Selected Model Repository](#56-run-nvidia-triton-server-with-selected-model-repository)
+- [6. Performance](#6-performance)
+    - [6.1. Results](#61-results)
+        - [6.1.1. Training Accuracy Results](#611-training-accuracy-results)
+        - [6.1.2. Training Performance Results](#612-training-performance-results)
+        - [6.1.3. Inference Performance](#613-inference-performance)
+            - [6.1.3.1. B Model](#6131-b-model)
+            - [6.1.3.2. B Chatbot for Question Answering](#6132-b-chatbot-for-question-answering)
+            - [6.1.3.3. B: Translation and style transfer](#6133-b-translation-and-style-transfer)
+            - [6.1.3.4. Summary for 5B Results](#6134-summary-for-5b-results)
+            - [6.1.3.5. B Model](#6135-b-model)
+            - [6.1.3.6. B: Chatbot for Question Answering](#6136-b-chatbot-for-question-answering)
+            - [6.1.3.7. B: Translation and Style Transfer](#6137-b-translation-and-style-transfer)
+            - [6.1.3.8. Summary for 20B Results](#6138-summary-for-20b-results)
+            - [6.1.3.9. Model Size and Performance](#6139-model-size-and-performance)
+                - [6.1.3.9.1. Online Scenario](#61391-online-scenario)
+                - [6.1.3.9.2. Offline Scenario](#61392-offline-scenario)
+- [7. Changelog](#7-changelog)
 
-NeMo Megatron is a new version in the NeMo framework that allows developers to effectively train and scale language models to billions of parameters. With NeMo Megatron, you can train different variants of GPT-3 models and scale them to multiple nodes on superpods. This deep learning software stack is  optimized for NVIDIA DGX A100 SuperPODs using NVIDIA InfiniBand to provide efficient on-premises compute for training and inferring  complex workloads.
+<!-- /TOC -->
+Scripts and code to provide end-to-end data preparation and training for
+Megatron-LM.
 
-Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 style models on NVIDIA A100 SuperPOD to perform zero-shot tasks such as answering deep domain questions, translating languages, comprehending and summarizing complex documents. 
+## 1. Model Overview
+<a id="markdown-model-overview" name="model-overview"></a>
 
+NeMo Megatron is a new version in the NeMo framework that allows developers to effectively train and scale language models to billions of parameters. With NeMo Megatron, you can train different variants of GPT-3 models and scale them to multiple nodes on DGX SuperPOD deployments. This deep learning (DL) software stack is optimized for DGX SuperPOD configurations using NVIDIA InfiniBand technology to provide efficient on-premises compute for training and inferring complex workloads.
+<!-- Should this line be removed/replaced -->
+Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 style models on DGX SuperPOD to perform zero-shot tasks such as answering deep domain questions, translating languages, comprehending and summarizing complex documents.
 
 GPT-3 architecture
 
 <img src="img/model_overview.png"/>
-
 Figure1: The model includes 24 transformer layers, a hidden size of 4096, and 32 attention heads. The sequence length is 2048, and the optimizer is Adam. This model uses tensor parallelism of 2.
 
 
@@ -76,20 +131,21 @@ Main layers would be parallelized:
 * ParallelSelfAttention
 
 
-## Feature matrix
+## 2. Feature Matrix
+<a id="markdown-feature-matrix" name="feature-matrix"></a>
 
 | Feature                         | Training               | Inference                                                                                                                                                         |
 | ------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Data Parallelism                | Yes                    |                                                                                                                                                                   |
-| Tensor Parallelism              | Yes                    | Yes                                                                                                                                                               |
-| Pipeline Parallelism            | No                     | Yes (for Megatron checkpoints)                                                                                                                                    |
+| Data parallelism                | Yes                    |                                                                                                                                                                   |
+| Tensor parallelism              | Yes                    | Yes                                                                                                                                                               |
+| Pipeline parallelism            | No                     | Yes (for Megatron checkpoints)                                                                                                                                    |
 | Gradient checkpointing          | Yes                    |                                                                                                                                                                   |
 | Partial gradient checkpointing  | Yes                    |                                                                                                                                                                   |
 | FP32/TF32                       | Yes                    | Yes (FP16 enabled by default)                                                                                                                                     |
 | AMP/FP16                        | Yes (Model Size <= 5B) | Yes                                                                                                                                                               |
 | BF16                            | Yes (Model Size > 5B)  | No                                                                                                                                                                |
-| Multi GPU                       | Yes                    | Yes                                                                                                                                                               |
-| Multi Node                      | Yes                    | Yes                                                                                                                                                               |
+| Multi-GPU                       | Yes                    | Yes                                                                                                                                                               |
+| Multi-Node                      | Yes                    | Yes                                                                                                                                                               |
 | Inference deployment            | N/A                    | [NVIDIA Triton supported](https://github.com/triton-inference-server/backend#where-can-i-find-all-the-backends-that-are-available-for-triton), Faster Transformer |
 | SW stack support                | SLURM/BCM/PCP          | SLURM/BCM/PCP                                                                                                                                                     |
 | Distributed data pre processing | Yes (Piles only)       |                                                                                                                                                                   |
@@ -97,9 +153,11 @@ Main layers would be parallelized:
 
 
 
-## Setup
+## 3. Setup
+<a id="markdown-setup" name="setup"></a>
 
-### Support matrix
+### 3.1. Support Matrix
+<a id="markdown-support-matrix" name="support-matrix"></a>
 
 | Software          | EA                 |
 | ----------------- | ------------------ |
@@ -120,51 +178,136 @@ Main layers would be parallelized:
 | BCM               | 1.0.0              |
 
 
-## Quick Start Guide
-### Training BigNLP Models
+## 4. Quick Start Guide
+<a id="markdown-quick-start-guide" name="quick-start-guide"></a>
 
-#### 1. Prepare the environment
+### 4.1. Training BigNLP Models
+<a id="markdown-training-bignlp-models" name="training-bignlp-models"></a>
 
+#### 4.1.1. Prepare Environment
+<a id="markdown-prepare-environment" name="prepare-environment"></a>
+
+<!--
+The whole solution uses a set of Docker containers executed at the Slurm
+cluster using the pyxis plug-in Base Command Platform cluster. The training
+container also includes conversion scripts and NVIDIA Triton Model Navigator.
+The inference container is just the NVIDIA Triton Inference Server with the
+FasterTransformer backend installed.  For Base Command Platform, the BigNLP
+scripts repository (bcp branch) will be part of the container image. It is
+recommended to create a bignlp_ws_scripts_<username> workspace in your ace and
+copy the bignlp-scripts directory there  either from the container image or
+from git clone of the above repository if you have access.  Install the BigNLP
+scripts dependencies on the head node of your cluster. Base Command Platform
+clusters do not have a head login node. We're currently running these scripts
+on a DGX node in the Base Command Platform cluster. Once the cluster has
+cpu-only nodes then we can use those. Till then we can run on DGX node or in a
+local conda environment.  To be able to call the necessary scripts from the
+login node on a cluster, some packages must be installed there using the
+requirements.txt file:
+```
+cd bignlp-scripts
+pip install -r requirements.txt
+```
+You can use virtualenv to prevent polluting your head node environment for
+other Python projects. If your Slurm configuration environment lacks pip, then
+you can use get_pip.py with just python3.
+ -->
 The whole solution uses a set of Docker containers executed on at the Slurm
-cluster using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in. The training container also includes conversion scripts and NVIDIA Triton Model Navigator. The inference container comprises the NVIDIA Triton Inference Server with the FasterTransformer backend installed.
+cluster using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in. The
+training container also includes conversion scripts and NVIDIA Triton Model
+Navigator. The inference container comprises the NVIDIA Triton Inference Server
+with the FasterTransformer backend installed.
 
-The bignlp-scripts codebase is included as part of the training container. To copy it to a local directory in the cluster, it needs to be extracted from the container. To copy the code to a directory named /path/to/local/dir the following command can be executed.
+##### 4.1.1.1. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+The bignlp-scripts codebase is included as part of the training container. To
+copy it to a local directory in the cluster, it needs to be extracted from the
+container. To copy the code to a directory named /path/to/local/dir the
+following command can be executed.
 
 ```
 srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /workspace/mount_dir/"
 ```
 
-Install the BigNLP scripts dependencies on the head node of your cluster:
+##### 4.1.1.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+The bignlp-scripts-bcp codebase is included as part of the common training
+container for Base Command Platform and Base Command Manager. Before starting,
+set up the ngc cli and configuration as described in the Base Command Platform
+User Guide. Next, create a Base Command Platform workspace (eg
+`bignlp_ws_scripts_uname` where `uname` is your unique username, and copy the
+`/opt/bignlp/bignlp-scripts-bcp` directory from the container to bignlp-scripts
+directory in this workspace. See the Base Command Platform User Guide for how
+to create and work with Base Command Platform workspaces.
+
+Also mount this workspace to your local workstation at /workspace-scripts.
+
+```
+ngc workspace mount <bignlp_ws_scripts_uname> /workspace-scripts --mode RW
+```
+Verify that the `/workspace-scripts/bignlp-scripts` directory now exists.
+
+##### 4.1.1.3. Common
+<a id="markdown-common" name="common"></a>
+Install the BigNLP scripts dependencies on the head node of the cluster:
 
 ```
 pip install -r requirements.txt
 ```
 You can use virtualenv to prevent polluting your head node environment for
-other Python projects. If your Slurm configuration lacks pip, then you can
+other Python projects. If your configuration lacks pip, then you can
 install pip using use [get_pip.py](https://github.com/pypa/get-pip) with just `python3`.
 
-##### 1.1. General Configuration
+##### 4.1.1.4. General Configuration
+<a id="markdown-general-configuration" name="general-configuration"></a>
 
-The first parameter that must be set is the `bignlp_path` parameter inside the `conf/config.yaml` file. This parameter must point to the absolute path where the 
-`bignlp-scripts` repository is stored in the file system.
-Every other path or directory in all the config files can either be an absolute
-or a relative path. Every path starting with the “/” symbol will be considered
-an absolute path, and everything else will be treated as a relative path, and
-the path indicated in the `bignlp_path` parameter of the `conf/config.yaml` file
-will be appended to the beginning of each relative path. 
-The `bignlp_path` parameter will automatically be mounted to the container at the
-same path as in the local file system. Any additional directories that should
-be mounted must be specified using the `container_mounts` parameter. All the
-paths will be mounted to the same path inside and outside the container.
-The `data_dir` parameter can also be modified to point to where the dataset will
-be loaded from or saved. Please note that if a directory outside of the
-`bignlp_path` parameter is used, the directory must also be mounted using the
-`container_mounts` parameter.
+The first parameter that must be set is the `bignlp_path` parameter inside the
+`conf/config.yaml` file.  This parameter must point to the absolute path where
+the `bignlp-scripts` repository is stored in the file system.  Every other path
+or directory in all the config files can either be an absolute or a relative
+path. Every path starting with the “/” symbol will be considered an absolute
+path, and everything else will be treated as a relative path, and the path
+indicated in the `bignlp_path` parameter of the `conf/config.yaml` file will be
+appended to the beginning of each relative path.  Additionally, the config
+files in the subfolders of `conf/` (conversion, data_preparation, evaluation,
+and training) have a parameter `partition` under the parameter `slurm` which
+needs to be set to either a valid location if using slurm, or another string
+such as /dev/null if using Base Command Platform.
+
+Slurm: The `bignlp_path` parameter will automatically be mounted to the
+container at the same path as in the local file system. Any additional
+directories that should be mounted must be specified using the
+`container_mounts` parameter. All the paths will be mounted to the same path
+inside and outside the container.  The `data_dir` parameter can also be
+modified to point to where the dataset will be loaded from or saved. Please
+note that if a directory outside of the `bignlp_path` parameter is used, the
+directory must also be mounted using the `container_mounts` parameter.
+
+Base Command Platform: The `bignlp_path` can be set to
+/workspace-scripts/bignlp-scripts assuming your workspace
+`bignlp_ws_scripts_uname` will be mounted to /workspace-scripts directory of
+your job container. The `data_dir` parameter can also be modified to point to
+where the dataset will be loaded from or saved. Since the dat_dir needs RW
+access, this can be in a separate Base Command Platform workspace that can be
+shared with other users.  More about this in the data preparation section.
 
 `Main.py` is the main file that needs to be executed to run both the data
 preparation, training, and evaluation pipelines. Each of these pipelines has a
 parameter in the `conf/config.yaml` file that decides whether to run that
-pipeline or not. To run these pipelines execute:
+pipeline or not.
+
+Default settings in the `config/config.yaml` file are:
+
+```yaml
+run_data_preparation: True
+run_training: True
+run_conversion: True
+run_evaluation: True
+```
+
+To run these pipelines execute:
 
 ```
 python3 main.py
@@ -173,10 +316,11 @@ python3 main.py
 The entire repository uses `hydra/omegaconf` to handle job configuration using
 YAML files, so look at the documentation for those projects to learn more.
 
-#### 2. Data Preparation
-We provide utilities to download and prepare
-[The Pile](https://pile.eleuther.ai/)
-dataset, which is formed by 22 smaller datasets. The dataset is already blended
+#### 4.1.2. Data Preparation
+<a id="markdown-data-preparation" name="data-preparation"></a>
+We provide utilities to download and prepare [The Pile](https://pile.eleuther.ai/)
+dataset ([mirror](https://mystic.the-eye.eu/public/AI/pile/train/)),
+which is formed by 22 smaller datasets. The dataset is already blended
 by using the mix described in their [paper](https://arxiv.org/pdf/2101.00027.pdf).
 It is recommended to store this repository and the datasets in a file system
 shared by all the nodes (gpfs).
@@ -190,12 +334,16 @@ modified to perform the different tasks and to decide where to store the
 datasets, vocab, and merge files.
 
 The Pile dataset consists of 30 shards, and downloading, extracting and
-preprocessing each file takes approximately 1 hour assuming a 30MB/s download
-speed. The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel. To download a reduced portion of the dataset to run tests, the
-`file_numbers` parameter can be updated to download only one of the shards by
-changing “0-29” to “0”.
+preprocessing each file takes approximately 1 hour assuming a 30 MB/s download
+speed. The data preparation can be parallelized by using up to 30 nodes
+to download all 30 files in parallel. To download a reduced portion
+of the dataset to run tests, the `file_numbers` parameter can be updated
+to download only one of the shards by changing “0-29” to “0”.
 
-Set configuration for a Slurm cluster in the YAML file:
+##### 4.1.2.1. Slurm
+<a id="markdown-4121-slurm" name="4121-slurm"></a>
+
+Set configuration in the YAML file:
 
 ```yaml
 slurm:                    # example config for enterprise cluster
@@ -204,9 +352,25 @@ slurm:                    # example config for enterprise cluster
     time_limit: “2:00:00” # slurm time parameter
     Nodes: 30             # number of nodes to use per task
 ```
+The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
+
+##### 4.1.2.2. Base Command Platform
+<a id="markdown-4122-base-command-platform" name="4122-base-command-platform"></a>
+
+In order to run the data preparation script on Base Command Platform, set the
+`cluster` parameter in `conf/data_preparation/download_pile.yaml` to `bcp`.
+Also, set the parameters under `bcp` to the valid values for your cluster.  By
+default, the data preparation script will download the data into the `/data/`
+in the data workspace, creating the necessary folders along the way.
+
+With Base Command Platform, the 700+ GB dataset can be downloaded once and then
+shared by multiple users in the same ACE by setting the permissions of a
+workspace.
+
+##### 4.1.2.3. Common
+<a id="markdown-4123-common" name="4123-common"></a>
 
 Set the configuration for the data preparation job in the YAML file:
-
 ```yaml
 download_the_pile: True        # Whether to download the pile dataset from the internet.
 file_numbers: "0-29"           # The pile dataset consists of 30 files (0-29), choose which ones to download.
@@ -215,7 +379,9 @@ download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"    # U
 download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"   # URL to download the merges from.
 vocab_save_dir: ${bignlp_path}/data_preparation/bpe       # Location to save the vocab file upon downloading
 merges_save_dir: ${bignlp_path}/data_preparation/bpe       # Location to save the merge file upon downloading
+data_dir: ${bignlp_path}/data_preparation/bpe/the_pile # Sets where to download the pile on Base Command Platform
 log_dir: ${bignlp_path}/data_preparation/logs  # Location to save the logs
+cluster: slurm # Sets the cluster type to run on, bcp or slurm
 ```
 
 Example:
@@ -225,6 +391,7 @@ inference pipelines, set the `conf/config.yaml` file to:
 ```yaml
 run_data_preparation: True
 run_training: False
+run_conversion: False
 run_evaluation: False
 ```
 
@@ -233,9 +400,13 @@ And then run:
 python3 main.py
 ```
 
-### Training with Predefined configs
+### 4.2 Training with Predefined Configurations
+<a id="markdown-training-with-predefined-configurations" name="training-with-predefined-configurations"></a>
 
-We provide three configurations of three different model sizes: 126M, 5B and 20B parameters. These configurations include carefully selected hyper-parameters, which should be used as a guideline for any custom model configurations. All these configurations are provided in the `conf/training/`
+We provide three configurations of three different model sizes: 126M, 5B and
+20B parameters. These configurations include carefully selected
+hyper-parameters, which should be used as a guideline for any custom model
+configurations. All these configurations are provided in the `conf/training/`
 directory. The desired configuration can be chosen by selecting the training
 and the `training_config` parameters in the `conf/config.yaml` file.
 
@@ -243,13 +414,13 @@ and the `training_config` parameters in the `conf/config.yaml` file.
 
 The 126M model uses 8 nodes with 8 GPUs per node by default, and fp16 data type
 for training. The model includes 12 transformer layers, a hidden size of 768,
-    and 12 attention heads. The sequence length is 2048, and the optimizer is
-    Adam. This model does not use any model parallelism. For the details on all
-    the parameters, see the 126m.yaml config file.
+and 12 attention heads. The sequence length is 2048, and the optimizer is
+Adam. This model does not use any model parallelism.  For the details on
+all the parameters, see the `126m.yaml` config file.
 
-To train a 126M GPT-3 model, modify the conf/config.yaml file to set:
-```
-- training: 126m
+To train a 126M GPT-3 model, modify the `conf/config.yaml` file to set:
+```yaml
+training: 126m
 training_config: 126m
 run_training: True
 ```
@@ -262,11 +433,16 @@ python3 main.py
 
 **5B configuration:**
 
-The 5B model uses 20 nodes with 8 GPUs per node by default, and fp16 data type for training, and can be trained in about one week. The model includes 24 transformer layers, a hidden size of 4096, and 32 attention heads. The sequence length is 2048, and the optimizer is Adam. This model uses tensor parallelism of 2. For the details on all the parameters, see the 5b.yaml config file.
+The 5B model uses 20 nodes with 8 GPUs per node by default, and fp16 data type
+for training, and can be trained in about one week. The model includes 24
+transformer layers, a hidden size of 4096, and 32 attention heads. The
+sequence length is 2048, and the optimizer is Adam. This model uses tensor
+parallelism of 2. For the details on all the parameters, see the 5b.yaml
+config file.
 
 To train a 5B GPT-3 model, modify the `conf/config.yaml` file to set:
-```
-- training: 5b
+```yaml
+training: 5b
 training_config: 5b
 run_training: True
 ```
@@ -279,10 +455,15 @@ python3 main.py
 
 **20B configuration:**
 
-The 20B model uses 80 nodes with 8 GPUs per node by default, and bf16 data type for training, and can be trained in about one week. The model includes 44 transformer layers, a hidden size of 6144, and 48 attention heads. The sequence length is 2048, and the optimizer is Adam. This model uses tensor parallelism of 8. For the details on all the parameters, see the 20b.yaml config file.
+The 20B model uses 80 nodes with 8 GPUs per node by default, and bf16 data type
+for training, and can be trained in about one week. The model includes 44
+transformer layers, a hidden size of 6144, and 48 attention heads. The
+sequence length is 2048, and the optimizer is Adam. This model uses tensor
+parallelism of 8. For the details on all the parameters, see the 20b.yaml
+config file.
 
-To train a 20B GPT-3 model, modify the conf/config.yaml file to set:
-```
+To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
+```yaml
 - training: 20B
 training_config: 20B
 run_training: True
@@ -293,17 +474,19 @@ And run:
 python3 main.py
 ```
 
-### Training with Custom configs
+### 4.3 Training with Custom Configurations
+<a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
 
-The training config files can be modified, or other files can be created to be used for training. They should follow the same structure and guidelines as the existing model configurations.
+The training config files can be modified, or other files can be created to be
+used for training. They should follow the same structure and guidelines as the
+existing model configurations.
 
 As a guideline, any model of 5B parameters or less should use fp16 as a data
 type, whereas any model larger than 5B parameters should use bfloat16 (bf16) as
 a data type.
 
-
-### Bring Your Own Dataset
-
+### 4.4 Bring Your Own Dataset
+<a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
 If you want to train the GPT-3 model on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
 Then, you can run the data preprocessing pipeline without needing to download
@@ -317,26 +500,28 @@ your dataset, the training config file must be modified with the desired blend
 of training datasets, by changing the blend in the `model.data.data_prefix`
 parameter.
 
-
-### GPT-3 Training
-
+### 4.5 GPT-3 Training
+<a id="markdown-gpt-3-training" name="gpt-3-training"></a>
 We provide an easy-to-use yet powerful pipeline to perform distributed training
 of GPT-3 models across multiple nodes and GPUs. We also provide
 well-established recipes for different sizes of GPT-3 models, where the
 throughput has been maximized, and the convergence properties of the
-model have been tested and confirmed.
+models have been tested and confirmed.
 
-The configuration used for the training pipeline must be specified in the 
+The configuration used for the training pipeline must be specified in the
 `conf/config.yaml` file, specifying the training parameter, specifying which file
 to use for training purposes. The `run_training` parameter must be set to True to
 run the training pipeline. The default value is set to 5b, which can be found
 in `conf/training/5b.yaml`. The parameters can be modified to adjust the
 hyperparameters of the training runs.
 
+#### 4.5.1 Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
 Set configuration for a Slurm cluster in the YAML file:
 
 ```yaml
-Slurm:  # Refer to SLURM documentation for details on each sbatch parameter   
+Slurm:  # Refer to SLURM documentation for details on each sbatch parameter
     partition: ???
     account: null
     time_limit: "7-00:00:00"
@@ -350,8 +535,28 @@ Slurm:  # Refer to SLURM documentation for details on each sbatch parameter
     job_name: "bignlp-gpt3:5b"
 ```
 
-Example:
-To run only the training pipeline and not the data preparation, evaluation or inference pipelines, set the conf/config.yaml file to:
+#### 4.5.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+Set configuration for a Base Command Platform cluster in the YAML file:
+
+```yaml
+bcp: # Refer to Base Command Platform documentation for details of each parameter
+  job_name: bignlp-${training.run.name}
+  nodes: 20
+  ntasks_per_node: 8
+  gpus_per_task: 1
+  time_limit: "7D"
+  instance: "dgxa100.80g.8.norm"
+  workspace_common: "bignlp_ws_common"
+  workspace_scripts: ???
+```
+
+#### 4.5.3. Common
+<a id="markdown-common" name="common"></a>
+
+To run only the training pipeline and not the data preparation, evaluation or
+inference pipelines, set the conf/config.yaml file to:
 ```yaml
 run_data_preparation: False
 run_training: True
@@ -362,7 +567,16 @@ And then run:
 python3 main.py
 ```
 
-### Resuming Training from fewer nodes
+For Base Command Platform, this is a sample job command produced by "python3 main.py" when run
+with run_training set to True and others to False. This command can be submitted from
+your local node where ngc command line and config are set up.
+```
+ngc batch run --name "bignlp-126m-8f2" --image "nvcr.io/ea-bignlp/bignlp-training:21.10-py3-base"     --commandline "cd /workspace-scripts/bignlp-scripts; NGC_NTASKS_PER_NODE=8 /workspace-scripts/bignlp-scripts/train_scripts/126m-8f2.sh" --workspace bignlp_ws_common:/workspace-common     --workspace <bignlp_ws_scripts_uname>:/workspace-scripts --result /result     --preempt RUNONCE --instance dgxa100.80g.8.norm --replicas 8     --array-type PYTORCH --total-runtime 4D
+```
+
+### 4.6. Resuming Training from Fewer Nodes
+<a id="markdown-resuming-training-from-fewer-nodes" name="resuming-training-from-fewer-nodes"></a>
+
 To be able to resume a training run with a different number of nodes is to keep
 the global batch size unchanged. This ensures that each training step will be
 almost the same, regardless of the number of nodes. The global batch size (GBS)
@@ -386,8 +600,8 @@ To modify the number of nodes to be used, the user should modify the value of
 nodes gets cut in half (20 → 10), then the `accumulate\_grad\_batches` should be
 doubled (8 → 16).
 
-
-### Model Evaluation
+### 4.7. Model Evaluation
+<a id="markdown-model-evaluation" name="model-evaluation"></a>
 
 We also provide a simple tool to help evaluate the trained checkpoints. You can
 evaluate the capabilities of the GPT-3 model on the following ZeroShot
@@ -402,7 +616,11 @@ to `True` to run the evaluation pipeline. The default value is set to
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs.
 
+#### 4.7.1. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
 Set configuration for a Slurm cluster in the YAML file:
+
 ```yaml
 Slurm:  # Refer to SLURM documentation for details on each sbatch parameter:
     partition: ???
@@ -442,6 +660,7 @@ model:
 
 To run only the evaluation pipeline and not the data preparation, training or
 inference pipelines set the `conf/config.yaml` file to:
+
 ```yaml
 run_data_preparation: False
 run_training: False
@@ -503,15 +722,17 @@ Triton Inference Server’s optimization tool Model Analyzer helps to find the
 best configuration, taking into account constraints defined in the navigator’s
 configuration. It is possible to set constraints for latency, number of GPUs
 and [NVIDIA DGX A100](https://www.nvidia.com/en-us/data-center/dgx-a100/)
-machines. All generated models are profiled to report latency and throughput.
+systems. All generated models are profiled to report latency and throughput.
 Once the model is optimized, you can deploy it to your inference infrastructure
 and use it in production.
 
 
-### Model inference deployment process
+### 5.1. Model Inference Deployment Process
+<a id="markdown-model-inference-deployment-process" name="model-inference-deployment-process"></a>
 
 <img src="img/inference_deployment_flow.png"/>
-
+### 5.2. Prepare Environment
+<a id="markdown-prepare-environment" name="prepare-environment"></a>
 
 ### 1. Prepare environment
 
@@ -520,8 +741,8 @@ The training container also includes conversion
 scripts and NVIDIA Triton Model Navigator. The inference container is just the
 NVIDIA Triton Inference Server with the FasterTransformer backend installed.
 Install the BigNLP scripts dependencies on the:
-  - head node of your Slurm cluster
-  - your workstation if running them on BCP cluster
+  - Head node of your Slurm cluster.
+  - Your workstation if running them on Base Command Platform cluster.
 
 ```
 pip install -r requirements.txt
@@ -534,15 +755,18 @@ with just `python3`.
 
 You must set your configuration for a cluster in YAML file.
 
-#### 1.1 Slurm cluster
+### 5.2.1 Slurm
+<a id="markdown-slurm" name="slurm"></a>
 
 Sample Slurm cluster configuration file:
 
 ```yaml
 cluster:                # example config for enterprise cluster
   type: pyxis           # type of job executor to be used
-  account: null         # slurm account
-  partition: "batch"    # slurm partition
+  sbatch_parameters:    # this overwrites sbatch parameters generated by submitit
+    account: null       # slurm account
+    partition: "batch"  # slurm partition
+    exclude: null       # slurm nodes, which should be excluded from jobs
   srun_args: ["--mpi", "pmix"] # additional slurm arguments list
   enable_gpus_allocation: true
 env:
@@ -562,21 +786,23 @@ The `env` section sets development environment parameters:
  * `training_container_image`: NGC training container for BigNLP.
  * `inference_container_image`: NGC inference container for BigNLP.
 
-#### 1.2 BCP cluster
+#### 5.2.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
 
-Sample BCP cluster configuration file:
+Sample Base Command Platform cluster configuration file:
+
 ```yaml
 cluster:                # example config for enterprise cluster
   type: base_command    # type of job executor to be used
   instance_with_gpu: dgxa100.40g.8.norm
-  instance_without_gpu: dgxa100.40g.1.norm 
+  instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
   training_container_image: nvcr.io/ea-bignlp/bignlp-training:21.12-py3-base
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:21.12-py3-base
 ```
 
-The `cluster` section set BCP parameters:
+The `cluster` section set Base Command Platform parameters:
  * `instance_with_gpu`: Instance to be used when Job to be submitted will require GPUs
  * `instance_without_gpu`: Instance to be used when Job to be submitted will not require GPUs
 
@@ -585,7 +811,7 @@ The `env` section sets development environment parameters:
  * `training_container_image`: NGC training container for BigNLP.
  * `inference_container_image`: NGC inference container for BigNLP.
 
-When using BCP cluster [workspaces](https://docs.nvidia.com/base-command-platform/user-guide/index.html#managing-workspaces) 
+When using Base Command Platforms clusters [workspaces](https://docs.nvidia.com/base-command-platform/user-guide/index.html#managing-workspaces)
 are used to share with Jobs executed on computation node
 input data (checkpoints and datasets) and result files (Triton Model Repositories, result files, etc).
 Sample structure of workspace:
@@ -593,36 +819,40 @@ Sample structure of workspace:
 ```
 /5b-pile-all-optimize-checkpoint  # directory with Megatron checkpoints
 /5b.nemo                          # or Nemo checkpoint file
-/lambada                          # datset of accuracy testing
-/infer_workspace-20211201_000000  # workspace with results created on each execution of Inference Scripts
+/lambada                          # dataset of accuracy testing
+/infer_workspace-20211201_000000  # workspace with results which will be created on each execution of Inference Scripts
 ```
-  
-During the execution of Inference Scripts, it is checked if paths to input and output files are placed inside the directory
-where the NGC workspace is mounted. The exception is for Model Navigator and cluster config files - 
-they are not needed to be shared with Job container or are copied on the workspace by scripts.
-Also, the user needs to define the Inference Scripts workspace inside the NGC workspace. 
-Example Inference Script call: 
+
+During the execution of Inference Scripts, the paths to input and output files
+are placed inside the directory where the NGC workspace is mounted. The
+exception is for Model Navigator and cluster config files - they are not needed
+to be shared with the Job container or are copied on the workspace by scripts.
+Also, the user needs to define the Inference Scripts workspace inside the NGC
+workspace.  Example Inference Script call:
 
 ```sh
-./infer_scripts/prepare_model_repository \
-    --workspace-path <path_where_ngc_workspace_is_mounted>/infer_workspace-$(date +%Y%m%d_%H%M%S) \  # Inference Script must be 
-    --cluster-config-path ./conf/inference/cluster_bcp.yaml \  # not needed to be shared with job
-    --navigator-config-path ./conf/inference/medium_mbs_128-pp_1-tp_8-io_60_20.yaml \  # will be copied to wokspace by Inference Script
-    # other input/output files path should be inside mounted workspace
-    --model-path <path_where_ngc_workspace_is_mounted>/5b-pile-all-optimize-checkpoint \
-    --triton-model-repository-path <path_where_ngc_workspace_is_mounted>/my_mode_repo_megatron_5b_pp_1_tp_8_io_60_20 \
-    ...
+    python3 ./infer_scripts/prepare_model_repository.py \
+    --cluster-config-path ./conf/inference/cluster_bcp.yaml \
+    --navigator-config-path ./conf/inference/medium_mbs_128-pp_1-tp_8-io_60_20.yaml \ # will be copied to the infer_workspace folder
+    --model-path /<path_to_mounted_workspace>/5b-pile-all-optimize-checkpoint/release \
+    --model-name test_5b \
+    --model-repository-path /<path_to_mounted_workspace>/test_5b \ # location of the model repository
+    --dataset-dir /<path_to_mounted_workspace>/lambada \
+    --accuracy-tests --performance-tests \ # type of tests to run
+    --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S) # name of the infer_workspace folder for this run
 ```
 
-### 2. Provide model and inference configuration
+### 5.3. Provide Model and Inference Configurationn
+<a id="markdown-provide-model-and-inference-configurationn" name="provide-model-and-inference-configurationn"></a>
 
-#### 2.1 Predefined configuration for selected models
+#### 5.3.1. Predefined Configuration for Selected Models
+<a id="markdown-predefined-configuration-for-selected-models" name="predefined-configuration-for-selected-models"></a>
 
 The repository contains the conf/inference folder with predefined NVIDIA Triton
 Model Navigator configurations saved in YAML files. Those configurations are
 prepared for 5B, 20B, 175B and 530B GPT3 models for two input/output
 configurations 200/200 and 60/20. The configurations cover inference with
-several GPUs at one node.  The files are present in the
+several GPUs in a single node.  The files are present in the
 `conf/inference/optimal_configurations` folder.
 
 The configuration changes for different input sequence lengths and output
@@ -665,9 +895,11 @@ parameters:
 * **530B**: `530b.ft`
 
 
-#### 2.2. Optimal configuration search
+#### 5.3.2. Optimal Configuration Search
+<a id="markdown-optimal-configuration-search" name="optimal-configuration-search"></a>
 
-##### 2.2.1 Random weights checkpoint benchmark
+##### 5.3.2.1. Random Weights Checkpoint Benchmark
+<a id="markdown-random-weights-checkpoint-benchmark" name="random-weights-checkpoint-benchmark"></a>
 
 NVIDIA Triton Model Navigator can benchmark inference before training is
 finished and verify inference constraints ahead of time; for example maximum
@@ -702,11 +934,12 @@ python3 ./infer_scripts/profile_model_with_random_weights.py \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
     --model-path conf/inference/model_specs/5b.ft \
     --model-name ft_5B \
-    --tensor-parallel-sizes 1 \
+    --tensor-parallel-sizes 1 8 \
     --pipeline-parallel-sizes 1 \
-    --input-output-lengths 60,20 \
-    --max-batch-sizes 1 \
-    --max-latency-ms 100000
+    --input-output-lengths 60,20 200,200 \
+    --max-batch-sizes 128 \
+    --max-latency-ms 4000 \
+    --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S)
 ```
 
 The parameters:
@@ -716,8 +949,8 @@ The parameters:
 * `model-path`: This model path contains a YAML file with
    random checkpoint configuration.
 * `model-name`: Your model name for NVIDIA Triton repository.
-* `tensor-parallel-sizes`: Tensor parallel factor; for example, `1 2 4 8`
-* `pipeline-parallel-sizes`: Pipeline parallel factor; for example, `1 2 3 4`
+* `tensor-parallel-sizes`: Tensor parallel factor (Number of GPUs per node); for example, `1 2 4 8`
+* `pipeline-parallel-sizes`: Pipeline parallel factor (Number of nodes); for example, `1 2 3 4`
 * `input-output-lengths`: Analyzed input and output lengths in format of
    `<input_len>,<output_len>[ <input_len>,<output_len> …]`;
    for example, `60,20 200,200`
@@ -742,6 +975,7 @@ The repository contains two profile configurations for Model Navigator:
 
 
 The random model configuration for the model-path parameter is in YAML file:
+
 ```yaml
 decoder_layers: 105  # Number of decoder layers
 head_num: 128        # Number of heads in layer
@@ -768,7 +1002,8 @@ of model deployment is not constant for all configurations. The script
 normalizes this cost by dividing throughput of a model instance by the number
 of GPUs used for computation.
 
-##### 2.2.2. Trained checkpoint benchmark
+##### 5.3.2.2. Trained Checkpoint Benchmark
+<a id="markdown-trained-checkpoint-benchmark" name="trained-checkpoint-benchmark"></a>
 
 As an alternative to generating checkpoints randomly, you can use a trained
 checkpoint to look for optimal configuration; however, for larger models that
@@ -788,7 +1023,7 @@ The outputs:
 
 Model repository preparation for the NVIDIA Triton Inference Server:
 
-```
+```python
 python3 ./infer_scripts/profile_model.py \
     --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
@@ -798,7 +1033,8 @@ python3 ./infer_scripts/profile_model.py \
     --pipeline-parallel-sizes 1 \
     --input-output-lengths 60,20 \
     --max-batch-sizes 1 \
-    --max-latency-ms 100000
+    --max-latency-ms 4000 \
+    --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S)
 ```
 
 The parameters:
@@ -809,8 +1045,8 @@ The parameters:
    A NeMo checkpoint must be passed as a file with .nemo extension,
    but a Megatron checkpoint must be passed as a folder.
 * `model-name`: Your model name for NVIDIA Triton repository.
-* `tensor-parallel-sizes`: Tensor parallel factor; for example, `1 2 4 8`
-* `pipeline-parallel-sizes`: Pipeline parallel factor; for example, `1 2 3 4`
+* `tensor-parallel-sizes`: Tensor parallel factor (Number of GPUs per node); for example, `1 2 4 8`
+* `pipeline-parallel-sizes`: Pipeline parallel factor (Number of nodes); for example, `1 2 3 4`
 * `input-output-lengths`: Analyzed input and output lengths in format of
    `<input_len>,<output_len>[ <input_len>,<output_len> …]`;
    for example, `60,20 200,200`
@@ -831,7 +1067,8 @@ generated configurations and prints N-best configurations taking into account a
 maximum latency constraint. If you request very small maximum latency, then the
 script won’t be able to find any valid configurations.
 
-#### 2.3. Review deployment search results
+#### 5.4.3. Review Deployment Search Results
+<a id="markdown-review-deployment-search-results" name="review-deployment-search-results"></a>
 
 The `profile_model_with_random_weights.py` and
 `profile_model.py` scripts create a folder
@@ -885,8 +1122,11 @@ You should copy final folder with model to expand links into files.
   cp -rL <NVIDIA Triton store from script> <destination>
 ```
 
+### 5.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests
+<a
+id="markdown-prepare-nvidia-triton-model-repository-and-run-accuracy%2Fperformance-tests"
+name="prepare-nvidia-triton-model-repository-and-run-accuracy%2Fperformance-tests"></a>
 
-### 3. Prepare NVIDIA Triton Model Repository and run accuracy / performance tests
 Having the best config and trained checkpoint. A trained model checkpoint is
 required as this is final model deployment and verification. For large models,
 loading a checkpoint from storage can take a significant amount of time.
@@ -967,7 +1207,9 @@ accuracy for your model. The larger models must be run with many GPUs and nodes
 to work. The predefined configurations for some GPT3 architectures and
 inference tasks are described in the _Predefined configurations_ section above.
 
-### 4. Run NVIDIA Triton Server with selected Model Repository
+### 5.6. Run NVIDIA Triton Server with Selected Model Repository
+<a id="markdown-run-nvidia-triton-server-with-selected-model-repository"
+name="run-nvidia-triton-server-with-selected-model-repository"></a>
 
 The inputs:
 * NVIDIA Triton model repository with FasterTransformer checkpoint
@@ -1013,9 +1255,11 @@ If you notice warning about missing files, you should double check your model:
 [WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
 ```
 
-### 5. Text generation scripts
+## 6. Performance
+<a id="markdown-performance" name="performance"></a>
 
-#### 5.1 Setup
+### 6.1. Results
+<a id="markdown-results" name="results"></a>
 
 You must start BigNLP training container with interactive session at your cluster.
 You can do it with `srun` at slurm:
@@ -1029,7 +1273,7 @@ srun --partition=<SLURM PARTITION> \
 ```
 
 You must ensure that a vocabulary (`vocab.json`) and merge (`merges.txt`) files are accessible at a compute
-node so you can pass the folder with those files as parameter for 
+node so you can pass the folder with those files as parameter for
 scripts described below.
 
 You need working instance of Triton Inference Server with loaded
@@ -1072,7 +1316,7 @@ The word "car" comes from the French word for chariot, which was used to describ
 $
 ```
 
-You can change `output-len` to generate longer sequences, but a quality of output 
+You can change `output-len` to generate longer sequences, but a quality of output
 from a small checkpoint degrades significantly when length is increased.
 
 #### 5.3 Longer text generation
@@ -1230,7 +1474,10 @@ The table below shows examples of input and output used for text generated above
 ### Results
 #### Training Accuracy Results
 Training accuracy: NVIDIA SuperPOD (20 x 8 x A100 80GB for 5B model)
-We evaluated the 126M parameter and 5B parameter models on 8 different language tasks. The results can be found in the table below. All the tasks are provided as part of the evaluation harness, so the user can evaluate any .nemo checkpoint file on all these tasks.
+We evaluated the 126M parameter and 5B parameter models on 8 different language
+tasks. The results can be found in the table below. All the tasks are provided
+as part of the evaluation harness, so the user can evaluate any .nemo
+checkpoint file on all these tasks.
 
 |Task              |Metric            | 126M             | 5B               |
 | ---------------- | ---------------- | ---------------- | ---------------- |
@@ -1254,18 +1501,23 @@ We evaluated the 126M parameter and 5B parameter models on 8 different language 
 Training the 5B GPT-3 model to convergence takes 6.5 days, and the loss curve can be seen in the figure below:
 
 <img src="img/5B_GPT_3_loss_final.svg"/>
-
-The table below shows the converged training loss, the throughput, and the total time to train for the 5B GPT-3 model, using a given number of GPUs and a given Global Batch Size (GBS).
+The table below shows the converged training loss, the throughput, and the
+total time to train for the 5B GPT-3 model, using a given number of GPUs and a
+given Global Batch Size (GBS).
 
 | \#GPUs | GBS  | Seq Length | \#Tokens | Loss  | Throughput (Tokens/sec) | Time to Train |
 | ----- | ---- | ---------- | ------- | ----- | ----------------------- | ------------- |
 | 160   | 1280 | 2048       | 300B    | 1.685 | 610,795                 | 156           |
 
 
-#### Training Performance Results
-Training performance: NVIDIA SuperPOD (20 x 8 x A100 80GB for 5B model)
+#### 6.1.2. Training Performance Results
+<a id="markdown-training-performance-results" name="training-performance-results"></a>
+Training performance: DGX SuperPOD (20 x 8 x A100 80GB for 5B model)
 
-We measured the throughput of training a 5B parameter GPT-3 model on a SuperPOD using a different number of nodes, and we achieved near-linear scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.83x speedup. The table and chart below show the performance results.
+We measured the throughput of training a 5B parameter GPT-3 model on a DGX
+SuperPOD using a different number of nodes, and we achieved near-linear
+scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.83x
+speedup. The table and chart below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |        |
 | ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ |
@@ -1276,8 +1528,8 @@ We measured the throughput of training a 5B parameter GPT-3 model on a SuperPOD 
 
 <img src="img/5B_GPT_3_throughput.svg"/>
 
-
-#### Inference performance
+#### 6.1.3. Inference Performance
+<a id="markdown-inference-performance" name="inference-performance"></a>
 
 The most important factor for NLP model performance is the size of a model. You
 can use a smaller model to get faster inference but it will likely degrade your
@@ -1298,7 +1550,7 @@ The FasterTransformer hardware configuration is described by two parameters:
 * Tensor parallel (TP) size - number of GPUs used at each node for computation.
 * Pipeline parallel (PP) size - number of nodes used for one instance of model.
 The number of GPUs used for computation is determined by multiplying those two
-numbers. Only easily divisible parts of the whole DGX machine were considered
+numbers. Only easily divisible parts of the whole DGX A100 system was considered
 during tests so it will be easy to deploy a model in a cluster.
 
 The table below contains a summary of used configurations.
@@ -1314,18 +1566,20 @@ The table below contains a summary of used configurations.
 | 8  | 4  | 32    | 4      | 2560               |
 
 
-##### 5B model
+##### 6.1.3.1. B Model
+<a id="markdown-b-model" name="b-model"></a>
 
-The 5B model can fit into a single A100 80GB GPU. Still FasterTranformer can
+The 5B model can fit into a single A100 80GB GPU. Still FasterTransformer can
 run 5B model using tensor parallel splitting of model between multiple GPUs and
 pipeline parallel, when different transformer layers are distributed across
 many nodes it gives the possibility to utilize different tradeoffs (e.g.
-latency vs throughput). You can also consider using several DGX nodes in
+latency vs throughput). You can also consider using several DGX nodes in DGX
 SuperPOD as one instance of the FasterTransformer model. You should also
 consider an inference task for your application. Some inference tasks require
 longer token sequence lengths  for input and for output.
 
-##### 5B Chatbot for question answering
+##### 6.1.3.2. B Chatbot for Question Answering
+<a id="markdown-b-chatbot-for-question-answering" name="b-chatbot-for-question-answering"></a>
 
 Let’s consider a scenario with a chatbot for question answering. It can be
 implemented with FasterTransformer, when sequence length for input tokens is 60
@@ -1335,9 +1589,7 @@ batch size=256.
 
 
 <img src="img/5B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
-
 <img src="img/5B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
-
 
 If latency achievable at 1-GPU configuration fits within latency budget, then
 the best performance can be derived from the graph below, which shows how
@@ -1345,35 +1597,32 @@ latency and throughput change for different batch sizes used for computations.
 
 
 <img src="img/5B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
-
 A chatbot with a latency budget within 380 ms can work for batch size=64 and 1
 GPU used for computation.
 
 
-##### 5B: Translation and style transfer
+##### 6.1.3.3. B: Translation and style transfer
+<a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
 
 A translation or style transfer inference task requires input length 200 and
 output length 200.
 
 <img src="img/5B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
-
 <img src="img/5B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
-
 The graph for 1 GPU with many batch sizes shows what batch size can fit into a
 certain latency budget.
 
 
 <img src="img/5B_GPT_3_of_GPU_1_input_len_200_output_len_200.svg"/>
-
 The graph clearly shows that the translation or style transfer inference task
 with latency budget 2000 milliseconds can be deployed using 1 GPU and batch
 size = 16.
 
-##### Summary for 5B results
+##### 6.1.3.4. Summary for 5B Results
+<a id="markdown-summary-for-5b-results" name="summary-for-5b-results"></a>
 
 The table below contains performance measurements from all graphs for the 5B
-model running in FasterTransformer at NVIDIA DGX A100 80GB.
-
+model running in FasterTransformer at DGX A100 80 GB system.
 
 <details>
 
@@ -1395,34 +1644,28 @@ model running in FasterTransformer at NVIDIA DGX A100 80GB.
 
 </details>
 
-##### 20B model
+##### 6.1.3.5. B Model
+<a id="markdown-b-model" name="b-model"></a>
 
 To improve accuracy a larger model can be used.
 
-##### 20B: Chatbot for question answering
+##### 6.1.3.6. B: Chatbot for Question Answering
+<a id="markdown-b%3A-chatbot-for-question-answering" name="b%3A-chatbot-for-question-answering"></a>
 
 <img src="img/20B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
-
 <img src="img/20B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
-
 <img src="img/20B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
-
-
-
-##### 20B: Translation and style transfer
-
+##### 6.1.3.7. B: Translation and Style Transfer
+<a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
 
 <img src="img/20B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
-
 <img src="img/20B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
-
 <img src="img/20B_GPT_3_of_GPU_4_input_len_200_output_len_200.svg"/>
-
-
-##### Summary for 20B results
+##### 6.1.3.8. Summary for 20B Results
+<a id="markdown-summary-for-20b-results" name="summary-for-20b-results"></a>
 
 The table below contains performance measurements from all graphs for the 20B
-model running in FasterTransformer at NVIDIA DGX A100 80GB.
+model running in FasterTransformer at DGX A100 80GB.
 
 <details>
 
@@ -1444,21 +1687,19 @@ model running in FasterTransformer at NVIDIA DGX A100 80GB.
 
 </details>
 
-##### Model size and performance
-###### Online scenario
+##### 6.1.3.9. Model Size and Performance
+<a id="markdown-model-size-and-performance" name="model-size-and-performance"></a>
+
+###### 6.1.3.9.1. Online Scenario
+<a id="markdown-online-scenario" name="online-scenario"></a>
 
 An online scenario focuses on the minimization of latency. Large checkpoints
 were generated with randomly initialized weights.
 
-
 <img src="img/Chatbot_Q_A_batch_size_1_input_len_60_output_len_20.svg"/>
 
-
 <img src="img/Translation_or_style_transfer_batch_size_1_input_len_200_output_len_200.svg"/>
-
-The performance measurements were obtained at NVIDIA DGX A100 80GB nodes.
-
-
+The performance measurements were obtained on DGX A100 80 GB nodes.
 
 <details>
 
@@ -1479,18 +1720,16 @@ Performance for different model sizes in online scenario
 
 </details>
 
-###### Offline scenario
+###### 6.1.3.9.2. Offline Scenario
+<a id="markdown-offline-scenario" name="offline-scenario"></a>
 
 The offline scenario focuses on maximum throughput. The two graphs below show
 latency and throughput for two tasks. The first one is chatbot questions
 answering and a second one is translation or style transfer.
 
-
 <img src="img/Chatbot_Q_A_batch_size_256_input_len_60_output_len_20.svg"/>
 
-
 <img src="img/Translation_or_Style_Transfer_batch_size_max_input_len_200_output_len_200.svg"/>
-
 The chatbot scenario can be executed with batch size equal to 256 for all model
 sizes so it is possible to utilize computing resources in GPUs.
 
@@ -1514,7 +1753,8 @@ Performance for different model sizes in offline scenario
 
 </details>
 
-## Changelog
+## 7. Changelog
+<a id="markdown-changelog" name="changelog"></a>
 
-**November 2021**
+**January 2022**
 * Early access release
