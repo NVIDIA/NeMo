@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
 
 try:
     import pynini
@@ -89,6 +89,16 @@ class ElectronicFst(GraphFst):
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
         graph |= protocol
         ########
+
+        # ip
+        digit_to_str = pynini.invert(
+            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+        ).optimize() | pynini.cross("0", pynini.union("o", "oh", "zero"))
+        digit_to_str_graph = pynini.compose(
+            NEMO_DIGIT ** (1, 3), digit_to_str + pynini.closure(pynutil.insert(" ") + digit_to_str)
+        ).optimize()
+        ip_graph = digit_to_str_graph + (pynini.cross(".", " dot ") + digit_to_str_graph) ** 3
+        graph |= pynutil.insert("protocol: \"") + pynini.invert(ip_graph).optimize() + pynutil.insert("\"")
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
