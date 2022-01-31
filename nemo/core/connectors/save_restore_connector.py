@@ -142,9 +142,14 @@ class SaveRestoreConnector:
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
-                instance.load_state_dict(
-                    self._load_state_dict_from_disk(model_weights, map_location=map_location), strict=strict
-                )
+                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+                if conf.get('megatron_amp_O2', False):
+                    new_state_dict = {}
+                    for key in state_dict.keys():
+                        new_key = key.replace('model.', 'model.module.', 1)
+                        new_state_dict[new_key] = state_dict[key]
+                    state_dict = new_state_dict
+                instance.load_state_dict(state_dict, strict=strict)
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
                 instance._set_model_restore_state(is_being_restored=False)

@@ -31,6 +31,7 @@ def post_language_model_processing(
     parallel_output,
     forward_method_parallel_output,
     fp16_lm_cross_entropy,
+    return_logits=False,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -52,7 +53,10 @@ def post_language_model_processing(
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
 
-        return loss
+        if return_logits:
+            return loss, output
+        else:
+            return loss
 
 
 class GPTModel(MegatronModule):
@@ -82,6 +86,7 @@ class GPTModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         bias_gelu_fusion=True,
+        persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
         use_soft_prompts=False,
@@ -126,6 +131,7 @@ class GPTModel(MegatronModule):
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
             bias_gelu_fusion=bias_gelu_fusion,
+            persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             use_soft_prompts=use_soft_prompts,
@@ -152,6 +158,7 @@ class GPTModel(MegatronModule):
         layer_past=None,
         get_key_value=False,
         forward_method_parallel_output=None,
+        encoder_input=None,
     ):
 
         lm_output = self.language_model(
@@ -161,6 +168,7 @@ class GPTModel(MegatronModule):
             prompt_tags=prompt_tags,
             layer_past=layer_past,
             get_key_value=get_key_value,
+            encoder_input=encoder_input,
         )
 
         if self.post_process:
@@ -172,6 +180,7 @@ class GPTModel(MegatronModule):
                 self.parallel_output,
                 forward_method_parallel_output,
                 self.fp16_lm_cross_entropy,
+                return_logits=encoder_input is not None,
             )
         else:
             return lm_output

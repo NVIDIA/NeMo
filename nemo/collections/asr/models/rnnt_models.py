@@ -22,7 +22,6 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -213,7 +212,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         batch_size: int = 4,
         return_hypotheses: bool = False,
         partial_hypothesis: Optional[List['Hypothesis']] = None,
-        num_workers: int = None,
+        num_workers: int = 0,
     ) -> (List[str], Optional[List['Hypothesis']]):
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -472,10 +471,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
             dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
-        if type(dataset) is ChainDataset:
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
+        if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
