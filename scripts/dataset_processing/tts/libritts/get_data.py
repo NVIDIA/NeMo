@@ -54,6 +54,8 @@ parser.add_argument("--data-sets", default="dev_clean", type=str)
 parser.add_argument("--num-workers", default=4, type=int)
 
 parser.add_argument("--normalization-source", default="dataset", type=str, choices=[None, "dataset", "nemo"])
+parser.add_argument("--num-workers-for-normalizer", default=12, type=int)
+
 parser.add_argument("--pretrained-model", default="stt_en_citrinet_1024", type=str)
 parser.add_argument('--whitelist-path', type=str, default=None)
 
@@ -230,20 +232,16 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str):
 def normalize_manifest(normalizer, manifest_file, num_workers):
     manifest_out = manifest_file.replace('.json', '_normalized.json')
 
+    print(f'Normalizing of {manifest_file}...')
     with open(manifest_file, 'r') as f:
         lines = f.readlines()
 
-        print(f'Normalizing {len(lines)}lines of {manifest_file}...')
-        with open(manifest_out, 'w') as f_out:
-            # to save intermediate results to a file
-            batch = max(round(len(lines) / 10), 1000)
-            for i in range(0, len(lines), batch):
-                print(f'Processing batch {i} out of {round(len(lines)/batch)}.')
-                normalized_lines = Parallel(n_jobs=num_workers)(
-                    delayed(_normalize_line)(normalizer, line) for line in tqdm(lines[i : i + batch])
-                )
-                for line in normalized_lines:
-                    f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+    normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
+
+    with open(manifest_out, 'w') as f_out:
+        for line in normalized_lines:
+            f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+
     print(f'Normalized version saved at {manifest_out}')
 
 
@@ -288,7 +286,7 @@ def __process_transcript(file_path: str, normalization_source="dataset"):
     return entries
 
 
-def __process_data(data_folder, manifest_file, num_workers, normalization_source="dataset", normalizer=None, pretrained_model=None):
+def __process_data(data_folder, manifest_file, num_workers, num_workers_for_normalizer, normalization_source="dataset", normalizer=None, pretrained_model=None):
     files = []
     entries = []
 
@@ -322,13 +320,14 @@ def __process_data(data_folder, manifest_file, num_workers, normalization_source
             overwrite_transcripts=False
         )
         transcribe_manifest(cfg)
-        normalize_manifest(normalizer, output_filename, num_workers)
+        normalize_manifest(normalizer, output_filename, num_workers=num_workers_for_normalizer)
 
 
 def main():
     data_root = args.data_root
     data_sets = args.data_sets
     num_workers = args.num_workers
+    num_workers_for_normalizer = args.num_workers if args.num_workers_for_normalizer is None else args.num_workers_for_normalizer
 
     normalizer = None
     # TODO(oktai15): download whitelist_path
@@ -348,16 +347,17 @@ def main():
     for data_set in data_sets.split(','):
         filepath = data_root / f"{data_set}.tar.gz"
 
-        if args.without_download:
+        if not args.without_download:
             __maybe_download_file(URLS[data_set.upper()], filepath)
 
-        if args.without_extract:
+        if not args.without_extract:
             __extract_file(str(filepath), str(data_root))
 
         __process_data(
             data_folder=str(data_root / "LibriTTS" / data_set.replace("_", "-")),
             manifest_file=str(data_root / "LibriTTS" / f"{data_set}.json"),
             num_workers=num_workers,
+            num_workers_for_normalizer=num_workers_for_normalizer,
             normalization_source=args.normalization_source,
             normalizer=normalizer,
             pretrained_model=args.pretrained_model
