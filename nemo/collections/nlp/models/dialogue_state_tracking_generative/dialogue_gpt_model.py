@@ -19,35 +19,25 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 '''
 
 import collections
-import copy
 import os
-import re
 from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from torch import functional as F
-from torch import nn
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.evaluate import evaluate, get_in_domain_services
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils import write_predictions_to_file
 from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
     DialogueGPTDataset,
-    DialogueSGDBERTDataset,
     DialogueSGDDataProcessor,
     Schema,
 )
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -126,8 +116,8 @@ class DialogueGPTModel(NLPModel):
 
     # for inference only
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
+        #return self.model(batch)
         raise NotImplementedError()
-        return self.model(batch)
 
     def forward(self, input_ids, token_type_ids, attention_mask, labels):
         loss, logits = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)

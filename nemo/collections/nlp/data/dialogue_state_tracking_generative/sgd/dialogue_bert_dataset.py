@@ -18,23 +18,16 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
 import collections
-import copy
-import json
 import re
-from typing import Dict, List, Optional
+from typing import List
 
 import numpy as np
-import torch
 
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
     STATUS_ACTIVE,
-    STATUS_DONTCARE,
-    STATUS_OFF,
-    STR_DONTCARE,
     SGDInputExample,
 )
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import ChannelType, LabelsType, NeuralType
 
 __all__ = ['DialogueSGDBERTDataset', 'DialogueBERTDataset']
 
@@ -68,12 +61,6 @@ class DialogueSGDBERTDataset(Dataset):
         self.schema_config = schema_config
         self.raw_features = dialogues_processor.get_dialog_examples(dataset_split)
 
-        data = [feature.data for feature in self.raw_features]
-
-        # with open("sample_data.json", "w")as write_file:
-        #    json.dump(data, write_file)
-
-        # raise ValueError
         for idx in range(len(self.raw_features)):
             self.bert_process_one_sample(idx)
 
@@ -197,15 +184,13 @@ class DialogueSGDBERTDataset(Dataset):
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         system_user_utterance = system_utterance + ' ' + user_utterance
         system_user_tokens, system_user_alignments, system_user_inv_alignments = self._tokenize(system_user_utterance)
-        states = {}
         examples = []
-        slot_carryover_values = collections.defaultdict(list)
 
         base_example = SGDInputExample(schema_config=self.schema_config, tokenizer=self.tokenizer)
         base_example.service_schema = self.schemas.get_service_schema(service)
         base_example.service_id = example_id_num[-1]
 
-        base_example.example_id = example_id  # f"{turn_id}-{service}"
+        base_example.example_id = example_id
         base_example.example_id_num = example_id_num
 
         for model_task in range(self.schema_config["NUM_TASKS"]):
@@ -337,23 +322,12 @@ class DialogueSGDBERTDataset(Dataset):
                     user_span_boundaries = self._find_subword_indices(
                         state_update,
                         user_utterance,
-                        ex["label_positions"]["slots"],
-                        # user_frame["slots"],
+                        ex["label_positions"]["slots"], # user_frame["slots"],
                         user_alignments,
                         user_tokens,
                         2 + len(slot_tokens) + len(system_tokens),
                     )
 
-                    # if system_frame is not None:
-                    #     system_span_boundaries = self._find_subword_indices(
-                    #         state_update,
-                    #         system_utterance,
-                    #         system_frame["slots"],
-                    #         system_alignments,
-                    #         system_tokens,
-                    #         2 + len(slot_tokens),
-                    #     )
-                    # else:
                     system_span_boundaries = {}
                     task_example.add_noncategorical_slots(state_update, user_span_boundaries, system_span_boundaries)
                     if task_example.noncategorical_slot_status == 0:
@@ -365,7 +339,7 @@ class DialogueSGDBERTDataset(Dataset):
                     if self.dataset_split != 'train' or task_example.noncategorical_slot_status == 1:
                         task_example = task_example.make_copy_of_non_categorical_features()
                         task_example.task_mask[5] = 1
-                        # assert task_esxample.task_mask == [0, 0, 0, 0, 0, 1]
+                        # assert task_example.task_mask == [0, 0, 0, 0, 0, 1]
                         task_example.example_id = base_example.example_id + f"-5-{slot_id}-0"
                         task_example.example_id_num = base_example.example_id_num + [5, slot_id, 0]
                         examples.append(task_example)

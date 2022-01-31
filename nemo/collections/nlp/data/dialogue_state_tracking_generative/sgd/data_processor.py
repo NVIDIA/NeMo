@@ -28,10 +28,7 @@ from typing import Dict, List
 import numpy as np
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
-    DialogueInputExample,
-    DialogueSGDInputExample,
-)
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import DialogueSGDInputExample
 from nemo.utils import logging
 
 __all__ = ['DialogueSGDDataProcessor']
@@ -374,10 +371,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             examples: a list of `InputExample`s.
             prev_states: updated dialogue state e.g. {'Restaurants_1': {'city': ['San Jose'], 'cuisine': ['American']}}
         """
-        user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
-        system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         system_user_utterance = system_utterance + ' ' + user_utterance
-        system_user_tokens, system_user_alignments, system_user_inv_alignments = self._tokenize(system_user_utterance)
         states = {}
 
         examples = []
@@ -399,8 +393,6 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 schemas.get_service_id(service),
             ]
             intent = user_frames[service]["state"]['active_intent']
-            slots = user_frames[service]["state"]['requested_slots']
-            slot_values = user_frames[service]["state"]['slot_values']
             all_possible_slots = schemas.get_service_schema(service).slots
             categorical_slots = schemas.get_service_schema(service).categorical_slots
             """
@@ -500,76 +492,6 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     span_boundaries[slot] = value_char_spans[v]
                     break
         return span_boundaries
-
-    # debug this
-    def _tokenize_new(self, utterance: str):
-        tokens = self._tokenizer.tokenizer(utterance)
-        return self._tokenizer.tokenizer(utterance), [], {}
-
-    def _tokenize(self, utterance: str):
-        """
-        Tokenize the utterance
-
-        Args:
-            utterance: A string containing the utterance to be tokenized.
-
-        Returns:
-            bert_tokens: A list of tokens obtained by word-piece tokenization of the
-                utterance.
-            alignments: A dict mapping indices of characters corresponding to start
-                and end positions of words (not subwords) to corresponding indices in
-                bert_tokens list.
-            inverse_alignments: A list of size equal to bert_tokens. Each element is a
-                tuple containing the index of the starting and inclusive ending
-                character of the word corresponding to the subword. This list is used
-                during inference to map word-piece indices to spans in the original
-                utterance.
-        """
-        # utterance = tokenization.convert_to_unicode(utterance)
-
-        # After _naive_tokenize, spaces and punctuation marks are all retained, i.e.
-        # direct concatenation of all the tokens in the sequence will be the
-        # original string.
-        tokens = DialogueSGDDataProcessor._naive_tokenize(utterance)
-        # ['I', ' ', 'am', ' ', 'feeling', ' ', 'hungry', ' ', 'so', ' ', 'I', ' ', 'would', ' ', 'like', ' ', 'to', ' ', 'find', ' ', 'a', ' ', 'place', ' ', 'to', ' ', 'eat', '.']
-        # Filter out empty tokens and obtain aligned character index for each token.
-        alignments = {}
-        char_index = 0
-        bert_tokens = (
-            []
-        )  # ['I', 'am', 'feeling', 'hungry', 'so', 'I', 'would', 'like', 'to', 'find', 'a', 'place', 'to', 'eat', '.']
-        # These lists store inverse alignments to be used during inference.
-        bert_tokens_start_chars = []
-        bert_tokens_end_chars = []
-        for token in tokens:
-            if token.strip():
-                subwords = self._tokenizer.text_to_tokens(token)
-                # Store the alignment for the index of starting character and the
-                # inclusive ending character of the token.
-                alignments[char_index] = len(bert_tokens)
-                bert_tokens_start_chars.extend([char_index] * len(subwords))
-                bert_tokens.extend(subwords)
-                # The inclusive ending character index corresponding to the word.
-                inclusive_char_end = char_index + len(token) - 1
-                alignments[inclusive_char_end] = len(bert_tokens) - 1
-                bert_tokens_end_chars.extend([inclusive_char_end] * len(subwords))
-            char_index += len(token)
-        inverse_alignments = list(zip(bert_tokens_start_chars, bert_tokens_end_chars))
-        return bert_tokens, alignments, inverse_alignments
-
-    @classmethod
-    def _naive_tokenize(cls, s: str):
-        """
-        Tokenizes a string, separating words, spaces and punctuations.
-        Args:
-            s: a string
-        Returns:
-            seq_tok: list of words, spaces and punctuations from the string
-        """
-        # Spaces and punctuation marks are all retained, i.e. direct concatenation
-        # of all the tokens in the sequence will be the original string.
-        seq_tok = [tok for tok in re.split(r"([^a-zA-Z0-9])", s) if tok]
-        return seq_tok
 
     @classmethod
     def load_dialogues(cls, dialog_json_filepaths: List[str]) -> List[dict]:

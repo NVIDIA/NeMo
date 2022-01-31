@@ -17,17 +17,13 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
-import collections
-import copy
-import json
-import re
-from typing import Dict, List, Optional
 
-import numpy as np
+import copy
+import re
+
 import torch
 
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import ChannelType, LabelsType, NeuralType
 
 
 class DialogueGPTDataset(Dataset):
@@ -52,7 +48,8 @@ class DialogueGPTDataset(Dataset):
         self.cfg = cfg
         self.max_candidates = 2
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        _ = [self.preprocess_feature(idx) for idx in range(len(self.features))]
+        for idx in range(len(self.features)):
+            self.preprocess_feature(idx) 
 
     def transform(self, label):
         label = self.convert_camelcase_to_lower(label)
@@ -113,7 +110,6 @@ class DialogueGPTDataset(Dataset):
             e.g. <utterance> service: 
         '''
         ex = self.features[idx].data
-        example_id_num = ex["example_id_num"]
         utterance = ex["utterance"]
         label = ex["labels"][self.label_type]
         candidates = ex["possible_labels"][self.label_type]

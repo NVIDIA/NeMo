@@ -23,7 +23,7 @@ from typing import List
 from nemo.utils import logging
 
 __all__ = [
-    'BaseInputExample',
+    'DialogueInputExample',
     'SGDInputExample',
     'SGDInputExample',
     'STR_DONTCARE',
