@@ -24,6 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_space,
     generator_main,
+    NEMO_SIGMA
 )
 from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
@@ -52,6 +53,7 @@ from nemo_text_processing.text_normalization.en.verbalizers.ordinal import Ordin
 from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
+from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWordFst
 
 from nemo.utils import logging
 
@@ -98,6 +100,7 @@ class ClassifyFst(GraphFst):
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
+            self.whitelist_word = pynini.Far(far_file, mode='r')['whitelist_word']
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
@@ -105,7 +108,8 @@ class ClassifyFst(GraphFst):
             logging.info(f'Creating ClassifyFst grammars. This might take some time...')
             # TAGGERS
             cardinal = CardinalFst(deterministic=True, lm=True)
-            cardinal_graph = cardinal.fst
+            # don't use cardinals for 4 digit numbers -> use date format for that
+            cardinal_graph = pynini.compose(pynini.difference(NEMO_SIGMA, NEMO_DIGIT+NEMO_DIGIT+NEMO_DIGIT+NEMO_DIGIT), cardinal.fst)
 
             ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
             ordinal_graph = ordinal.fst
@@ -146,36 +150,34 @@ class ClassifyFst(GraphFst):
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
 
-            # classify_and_verbalize = (
-            #     pynutil.add_weight(whitelist_graph, 1.01)
-            #     | pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-            #     | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
-            # ).optimize()
-
-            classify = (
-                    pynutil.add_weight(whitelist_graph, 1.01)
-                    | pynutil.add_weight(time_graph, 1.1)
-                    | pynutil.add_weight(decimal_graph, 1.1)
-                    | pynutil.add_weight(measure_graph, 1.1)
-                    | pynutil.add_weight(cardinal_graph, 1.1)
-                    | pynutil.add_weight(ordinal_graph, 1.1)
-                    | pynutil.add_weight(telephone_graph, 1.1)
-                    | pynutil.add_weight(electronic_graph, 1.1)
-                    | pynutil.add_weight(fraction_graph, 1.1)
-                    | pynutil.add_weight(money_graph, 1.1)
-                    | pynutil.add_weight(date_graph, 1.09)
+            classify_and_verbalize = (
+                pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
             ).optimize()
-            classify_and_verbalize = classify
-            from pynini.lib.rewrite import top_rewrites
-            import pdb; pdb.set_trace()
+
+            # classify = (
+            #         pynutil.add_weight(whitelist_graph, 1.01)
+            #         | pynutil.add_weight(time_graph, 1.1)
+            #         | pynutil.add_weight(decimal_graph, 1.1)
+            #         | pynutil.add_weight(measure_graph, 1.1)
+            #         | pynutil.add_weight(cardinal_graph, 1.1)
+            #         | pynutil.add_weight(ordinal_graph, 1.1)
+            #         | pynutil.add_weight(telephone_graph, 1.1)
+            #         | pynutil.add_weight(electronic_graph, 1.1)
+            #         | pynutil.add_weight(fraction_graph, 1.1)
+            #         | pynutil.add_weight(money_graph, 1.1)
+            #         | pynutil.add_weight(date_graph, 1.09)
+            # ).optimize()
+            # classify_and_verbalize = classify
+
             roman_graph = RomanFst(deterministic=deterministic).fst
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 98)
@@ -193,37 +195,46 @@ class ClassifyFst(GraphFst):
                 1,
             )
 
-            token_plus_punct = (
-                pynini.closure(punct + pynutil.insert(" "))
-                + classify_and_verbalize
-                + pynini.closure(pynutil.insert(" ") + punct)
-            )
-
-            graph = token_plus_punct + pynini.closure(
-                (
-                    pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
-                    | (pynutil.insert(" ") + punct + pynutil.insert(" "))
+            def get_token_sem_graph(classify_and_verbalize):
+                token_plus_punct = (
+                    pynini.closure(punct + pynutil.insert(" "))
+                    + classify_and_verbalize
+                    + pynini.closure(pynutil.insert(" ") + punct)
                 )
-                + token_plus_punct
-            )
 
-            graph |= punct_only + pynini.closure(punct)
-            graph = delete_space + graph + delete_space
+                graph = token_plus_punct + pynini.closure(
+                    (
+                        pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                        | (pynutil.insert(" ") + punct + pynutil.insert(" "))
+                    )
+                    + token_plus_punct
+                )
 
-            remove_extra_spaces = pynini.closure(NEMO_NOT_SPACE, 1) + pynini.closure(
-                delete_extra_space + pynini.closure(NEMO_NOT_SPACE, 1)
-            )
-            remove_extra_spaces |= (
-                pynini.closure(pynutil.delete(" "), 1)
-                + pynini.closure(NEMO_NOT_SPACE, 1)
-                + pynini.closure(delete_extra_space + pynini.closure(NEMO_NOT_SPACE, 1))
-            )
+                graph |= punct_only + pynini.closure(punct)
+                graph = delete_space + graph + delete_space
 
-            graph = pynini.compose(graph.optimize(), remove_extra_spaces).optimize()
-            self.fst = graph
+                remove_extra_spaces = pynini.closure(NEMO_NOT_SPACE, 1) + pynini.closure(
+                    delete_extra_space + pynini.closure(NEMO_NOT_SPACE, 1)
+                )
+                remove_extra_spaces |= (
+                    pynini.closure(pynutil.delete(" "), 1)
+                    + pynini.closure(NEMO_NOT_SPACE, 1)
+                    + pynini.closure(delete_extra_space + pynini.closure(NEMO_NOT_SPACE, 1))
+                )
+
+                graph = pynini.compose(graph.optimize(), remove_extra_spaces).optimize()
+                return graph
+
+
+            self.fst = get_token_sem_graph(classify_and_verbalize)
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
-            self.fst_no_digits = pynini.compose(graph, no_digits).optimize()
+            self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
+
+            # whitelist graph will be used at the very end as a separate call
+            whitelist_word_graph = pynini.compose(pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.01), vWordFst(deterministic=deterministic).fst)
+            self.whitelist_word = get_token_sem_graph(whitelist_word_graph)
 
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
+                generator_main(f"{far_file.replace('.far', '_whitelist.fsr')}", {"whitelist_word": self.whitelist_word})
                 logging.info(f'ClassifyFst grammars are saved to {far_file}.')

@@ -61,15 +61,11 @@ class RomanFst(GraphFst):
         key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
 
         # single symbol roman numerals with preceding key words are converted to cardinal form
-        graph = pynini.leniently_compose(
-            graph,
-            pynutil.insert("key_cardinal: \"")
+        graph |= (pynutil.insert("key_cardinal: \"")
             + key_words
             + pynutil.insert("\"")
             + pynini.accep(" ")
-            + pynini.compose(NEMO_ALPHA, graph),
-            NEMO_SIGMA,
-        ).optimize()
+            + pynini.compose(NEMO_ALPHA, default_graph)).optimize()
 
         # two and more roman numerals, single digit roman numbers could be initials or I
         roman_to_cardinal = pynini.compose(
