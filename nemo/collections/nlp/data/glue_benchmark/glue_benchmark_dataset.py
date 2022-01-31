@@ -457,31 +457,13 @@ class TextToTextGLUEDataset(GLUEDataset):
             if len(enc_query) > self.max_seq_length:
                 enc_query = enc_query[: self.max_seq_length]
             dec_query = (
-                [self.tokenizer.cls_id]
+                [self.tokenizer.bos_id]
                 + self.tokenizer.text_to_ids(self.processor.label2string(example.label))
                 + [self.tokenizer.eos_id]
             )
 
-            # dec_query_length = len(dec_query)
-            # enc_padding_length = self.max_seq_length - len(enc_query)
-            # enc_query = enc_query + ([self.tokenizer.pad_id] * enc_padding_length)
-
-            # dec_padding_length = self.max_seq_length_decoder - len(dec_query)
-            # dec_query = dec_query + ([self.tokenizer.pad_id] * dec_padding_length)
-
             dec_input = dec_query[:-1]
             labels = dec_query[1:]
-
-            # enc_query = np.array(enc_query, dtype=np.int64)
-            # dec_input = np.array(dec_input, dtype=np.int64)
-            # labels = np.array(labels, dtype=np.int64)
-
-            # enc_mask = make_attention_mask(enc_query, enc_query, self.tokenizer.pad_id)
-            # dec_mask = make_attention_mask(dec_input, dec_input, self.tokenizer.pad_id) * make_history_mask(dec_input)
-            # enc_dec_mask = make_attention_mask(dec_input, enc_query, self.tokenizer.pad_id)
-
-            # loss_mask = ([1] * (dec_query_length - 1)) + ([0] * (dec_padding_length))
-            # loss_mask = np.array(loss_mask, dtype=np.int64)
 
             features.append([enc_query, dec_input, labels])
 

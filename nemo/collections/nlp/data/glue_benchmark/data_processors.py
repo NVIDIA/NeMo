@@ -207,6 +207,12 @@ class StsbProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"stsb sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return '%.1f' % float(label)
+
 
 class QqpProcessor(DataProcessor):
     """Processor for the QQP data set (GLUE version)."""
@@ -274,6 +280,12 @@ class QnliProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"qnli question: {text_a} sentence: {text_b}"
+
+    def label2string(self, label):
+        return label
+
 
 class RteProcessor(DataProcessor):
     """Processor for the RTE data set (GLUE version)."""
@@ -337,6 +349,12 @@ class WnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+    
+    def get_t5_prompted_query(self, text_a, text_b):
+        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
+
+    def label2string(self, label):
+        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
 
 
 class InputExample(object):
