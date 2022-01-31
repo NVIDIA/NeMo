@@ -266,7 +266,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
             f'rm "{compiled_helpers_lib}" \''
         os.system(clean)
-        preproc_npernode = bcp_cfg.get("preproc_npernode", 1)
+        preproc_npernode = data_cfg.bcp_preproc_npernode
         cmd = f"mpirun --allow-run-as-root " + \
               f"-npernode {preproc_npernode} " + \
               f"python3 {code} {hydra_args}"

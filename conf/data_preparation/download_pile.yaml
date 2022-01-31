@@ -11,3 +11,4 @@ rm_downloaded: True # Extract script will remove downloaded zst after extraction
 rm_extracted: True # Preprocess script will remove extracted files after preproc.
 nodes: 30
 time_limit: "4:00:00"
+bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
