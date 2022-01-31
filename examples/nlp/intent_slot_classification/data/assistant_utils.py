@@ -54,7 +54,7 @@ def get_intent_queries(infold, intent_names, mode):
     intent_queries = ['sentence\tlabel\n']
 
     for index, intent in enumerate(intent_names):
-        queries = open(f'{infold}/{mode}set/{intent}.csv', 'r').readlines()
+        queries = open(f'{infold}/{mode}set/{intent}.csv', 'r', encoding='utf-8').readlines()
         for query in queries[1:]:
             phrases = query.split(";")
             intent_query = phrases[4][1:-1] + "\t" + str(index)
@@ -73,7 +73,7 @@ def get_slots(infold, modes):
     for mode in modes:
         path = f'{infold}/{mode}set'
         for filename in os.listdir(path):
-            lines = open(f'{path}/{filename}', 'r').readlines()
+            lines = open(f'{path}/{filename}', 'r', encoding='utf-8').readlines()
             for line in lines[1:]:
                 query = line.split(";")[3]
                 slot_phrases = re.findall('\[.*?\]', query)
@@ -94,7 +94,7 @@ def get_slot_queries(infold, slot_dict, mode, intent_names):
 
     # keep the same order of files/queries as for intents
     for intent in intent_names:
-        lines = open(f'{infold}/{mode}set/{intent}.csv', 'r').readlines()
+        lines = open(f'{infold}/{mode}set/{intent}.csv', 'r', encoding='utf-8').readlines()
         for line in lines[1:]:
             slot_query = ""
             query = line.split(";")[3]
