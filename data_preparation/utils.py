@@ -6,8 +6,7 @@ import zstandard as zstd
 
 
 def download_single_file(url, save_dir, file_name):
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, file_name)
     if os.path.exists(save_path):
         print(f"File {save_path} already exists, skipping download.")
@@ -34,9 +33,8 @@ def download_single_file(url, save_dir, file_name):
     return save_path
 
 
-def extract_single_zst_file(input_path, save_dir, file_name):
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+def extract_single_zst_file(input_path, save_dir, file_name, rm_input=False):
+    os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, file_name)
     if os.path.exists(save_path):
         print(f"File {save_path} already exists, skipping extraction.")
@@ -63,3 +61,33 @@ def extract_single_zst_file(input_path, save_dir, file_name):
                 if update_len >= 3000000:
                     pbar.update(update_len)
                     update_len = 0
+    if rm_input:
+        os.remove(input_path)
+
+
+def convert_file_numbers(file_numbers_str):
+    final_list = []
+    split_comma = file_numbers_str.split(",")
+    for elem in split_comma:
+        if "-" in elem:
+            split_dash = elem.split("-")
+            final_list += list(range(int(split_dash[0]), int(split_dash[1]) + 1))
+        else:
+            final_list.append(int(elem))
+    return final_list
+
+
+def split_list(inlist, ngroups):
+    '''Splits list into groups.
+    inlist = list(range(18))  # given list
+    ngroups = 5  # desired number of parts
+    Returns: [[0, 1, 2], [3, 4, 5, 6], [7, 8, 9], [10, 11, 12, 13],
+              [14, 15, 16, 17]]
+    '''
+    nlen = len(inlist)
+    list_groups = []
+    for ii in range(ngroups):
+        idx_start = (ii * nlen) // ngroups
+        idx_end = ((ii + 1) * nlen) // ngroups
+        list_groups.append(inlist[idx_start:idx_end])
+    return list_groups
