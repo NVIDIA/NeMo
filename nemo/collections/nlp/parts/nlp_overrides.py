@@ -12,15 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
 import os
 import shutil
 import tempfile
@@ -30,6 +21,7 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Unio
 
 import pytorch_lightning as pl
 import torch
+from apex.transformer import parallel_state
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
@@ -67,7 +59,7 @@ class NLPDDPPlugin(DDPPlugin):
     ) -> None:
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
-        if not HAVE_APEX:
+        if parallel_state is None:
             logging.warning(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )

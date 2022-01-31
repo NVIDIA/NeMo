@@ -17,6 +17,7 @@ import json
 import os
 from typing import Any, Optional
 
+import apex
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
@@ -34,15 +35,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
 
-try:
-    import apex
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-
 __all__ = ['NLPModel']
 
 NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_tmp")
@@ -59,7 +51,7 @@ class NLPModel(ModelPT, Exportable):
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
         self.set_world_size(trainer)
-        if not HAVE_APEX:
+        if not apex:
             logging.warning(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
