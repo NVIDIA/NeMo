@@ -212,6 +212,9 @@ You can use virtualenv to prevent polluting your head node environment for
 other Python projects. If your Slurm configuration environment lacks pip, then
 you can use get_pip.py with just python3.
  -->
+**NOTE:** Ensure the high-speed filesystem is mounted on the job submission
+node(s) at the same path as on the compute nodes.
+
 The whole solution uses a set of Docker containers executed on at the Slurm
 cluster using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in. The
 training container also includes conversion scripts and NVIDIA Triton Model
