@@ -236,7 +236,10 @@ def normalize_manifest(normalizer, manifest_file, num_workers):
     with open(manifest_file, 'r') as f:
         lines = f.readlines()
 
-    normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
+    normalized_lines = []
+    for line in tqdm(lines):
+        normalized_lines.append(_normalize_line(normalizer, line))
+    # normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
 
     with open(manifest_out, 'w') as f_out:
         for line in normalized_lines:
