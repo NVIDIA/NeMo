@@ -40,6 +40,7 @@ exp_manager:
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${training.model.tensor_model_parallel_size}
   log_step_timing: True
@@ -82,6 +83,7 @@ model:
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
+  hysteresis: 2 # Gradient scale hysteresis
   fused_fp16: True # False if using fp32 or bf16
   fused_bf16: False # True if using bf16
   fp32_residual_connection: False # Move residual connections to fp32
