@@ -82,7 +82,7 @@ class FastSpeech2Model(SpectrogramGenerator):
                 "ERROR: You must specify a mappings.json file in the config file under model.mappings_filepath."
             )
         mappings_filepath = self.register_artifact('mappings_filepath', mappings_filepath)
-        with open(mappings_filepath, 'r') as f:
+        with open(mappings_filepath, 'r', encoding='utf-8') as f:
             mappings = json.load(f)
             self.word2phones = mappings['word2phones']
             self.phone2idx = mappings['phone2idx']
