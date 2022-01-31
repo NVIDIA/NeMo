@@ -103,6 +103,16 @@ class T5Model(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
+        encoder_input_embedder = Embedding(
+            hidden_size=hidden_size,
+            vocab_size=vocab_size,
+            max_sequence_length=max_position_embeddings,
+            init_method=init_method_normal(init_method_std),
+            num_tokentypes=num_tokentypes,
+            use_cpu_initialization=use_cpu_initialization,
+            embedding_dropout_prob=hidden_dropout,
+        )
+
         encoder = get_encoder_model(
             arch=encoder_arch,
             hidden_size=hidden_size,
@@ -138,7 +148,8 @@ class T5Model(MegatronModule):
             hidden_blocks=hidden_steps,
         )
 
-        encoder = get_decoder_model(
+        decoder_input_embedder = encoder_input_embedder
+        decoder = get_decoder_model(
             arch=decoder_arch,
             hidden_size=hidden_size,
             ffn_hidden_size=hidden_size,
@@ -179,35 +190,6 @@ class T5Model(MegatronModule):
             encoder=encoder,
             decoder_input_embedder=decoder_input_embedder,
             decoder=decoder,
-        )
-        self.language_model, self._language_model_key = get_language_model(
-            vocab_size=vocab_size,
-            hidden_size=hidden_size,
-            hidden_dropout=hidden_dropout,
-            num_tokentypes=num_tokentypes,
-            max_position_embeddings=max_position_embeddings,
-            num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
-            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-            kv_channels=kv_channels,
-            ffn_hidden_size=ffn_hidden_size,
-            add_pooler=False,
-            add_decoder=True,
-            encoder_attn_mask_type=AttnMaskType.padding,
-            decoder_attn_mask_type=AttnMaskType.causal,
-            init_method=init_method_normal(init_method_std),
-            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
-            pre_process=self.pre_process,
-            post_process=self.post_process,
-            init_method_std=init_method_std,
-            use_cpu_initialization=use_cpu_initialization,
-            fp32_residual_connection=fp32_residual_connection,
-            activations_checkpoint_method=activations_checkpoint_method,
-            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
-            layernorm_epsilon=layernorm_epsilon,
-            bias_gelu_fusion=bias_gelu_fusion,
-            openai_gelu=openai_gelu,
-            onnx_safe=onnx_safe,
         )
 
         self.lm_head = T5LMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
