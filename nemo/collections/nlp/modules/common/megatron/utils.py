@@ -170,3 +170,22 @@ def build_position_ids(token_ids):
     position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
 
     return position_ids
+
+
+def make_inference_attention_mask_3d(source_block, target_block, pad_id):
+    """
+    Returns a 3-dimensional (3-D) attention mask
+    :param source_block: 2-D array
+    :param target_block: 2-D array
+    """
+    mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
+    return mask
+
+def make_inference_history_mask_3d(block):
+    batch, length = block.shape
+    arange = torch.arange(length, device=block.device)
+    history_mask = (arange[None,] <= arange[:, None])[
+        None,
+    ]
+    history_mask = history_mask.expand(batch, length, length)
+    return history_mask

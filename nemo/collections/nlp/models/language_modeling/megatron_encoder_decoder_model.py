@@ -26,14 +26,18 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
+from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder_model import TokenEncoderDecoderModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    make_inference_attention_mask_3d,
+    make_inference_history_mask_3d,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
 
@@ -64,7 +68,8 @@ class MegatronEncoderDecoderModel(NLPModel):
         if not self.cfg.get('fused_bf16'):
             set_jit_fusion_options()
 
-        self.model = T5Model(
+        # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
+        self.model = TokenEncoderDecoderModel(
             vocab_size=padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -106,7 +111,6 @@ class MegatronEncoderDecoderModel(NLPModel):
             make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
         )
-
 
     def forward(
         self,
@@ -342,24 +346,6 @@ class MegatronEncoderDecoderModel(NLPModel):
         logging.info(f"response: {response}")
         return response
 
-    def make_inference_attention_mask_3d(self, source_block, target_block, pad_id):
-        """
-        Returns a 3-dimensional (3-D) attention mask
-        :param source_block: 2-D array
-        :param target_block: 2-D array
-        """
-        mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
-        return mask
-
-    def make_inference_history_mask_3d(self, block):
-        batch, length = block.shape
-        arange = torch.arange(length, device=block.device)
-        history_mask = (arange[None,] <= arange[:, None])[
-            None,
-        ]
-        history_mask = history_mask.expand(batch, length, length)
-        return history_mask
-
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
@@ -376,13 +362,13 @@ class MegatronEncoderDecoderModel(NLPModel):
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
-            enc_dec_mask = self.make_inference_attention_mask_3d(
+            enc_dec_mask = make_inference_attention_mask_3d(
                 predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
             )
-            dec_mask = self.make_inference_attention_mask_3d(
+            dec_mask = make_inference_attention_mask_3d(
                 predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id
             )
-            dec_mask = dec_mask * self.make_inference_history_mask_3d(predicted_tokens_dec)
+            dec_mask = dec_mask * make_inference_history_mask_3d(predicted_tokens_dec)
 
             enc_dec_mask = enc_dec_mask < 0.5
             dec_mask = dec_mask < 0.5
@@ -409,18 +395,18 @@ class MegatronEncoderDecoderModel(NLPModel):
     def complete(self, request: Dict):
         """
             Autoregressively invokes language model in the inference mode
-        Args:	
+        Args:
             request: Dictionary with the following fields
                 * prompt: a string which text the model should complete.
                 * tokens_to_generate: how many tokens to generate while doing prompt completion.
-        Returns:	
+        Returns:
             response: A python dictionary with the following fields
                 * prompt: original text of the prompt
                 * tokenized_prompt: list of (str) tokens from prompt
                 * completion: a python dictionary with the following subfields:
                     * tokens: a list of triples (token, token_id, log_prob) comprising completion
                     * text: completion text (as a single string)
-                
+
         """
         response = {}
         self.freeze()
@@ -432,7 +418,7 @@ class MegatronEncoderDecoderModel(NLPModel):
         tokens_enc = request['masked_sample']
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
-        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
+        enc_mask = make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
         enc_mask = enc_mask < 0.5
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))

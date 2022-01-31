@@ -33,7 +33,11 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    make_inference_attention_mask_3d,
+    make_inference_history_mask_3d,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
 
@@ -341,24 +345,6 @@ class MegatronT5Model(NLPModel):
         logging.info(f"response: {response}")
         return response
 
-    def make_inference_attention_mask_3d(self, source_block, target_block, pad_id):
-        """
-        Returns a 3-dimensional (3-D) attention mask
-        :param source_block: 2-D array
-        :param target_block: 2-D array
-        """
-        mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
-        return mask
-
-    def make_inference_history_mask_3d(self, block):
-        batch, length = block.shape
-        arange = torch.arange(length, device=block.device)
-        history_mask = (arange[None,] <= arange[:, None])[
-            None,
-        ]
-        history_mask = history_mask.expand(batch, length, length)
-        return history_mask
-
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
@@ -375,13 +361,13 @@ class MegatronT5Model(NLPModel):
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
-            enc_dec_mask = self.make_inference_attention_mask_3d(
+            enc_dec_mask = make_inference_attention_mask_3d(
                 predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
             )
-            dec_mask = self.make_inference_attention_mask_3d(
+            dec_mask = make_inference_attention_mask_3d(
                 predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id
             )
-            dec_mask = dec_mask * self.make_inference_history_mask_3d(predicted_tokens_dec)
+            dec_mask = dec_mask * make_inference_history_mask_3d(predicted_tokens_dec)
 
             enc_dec_mask = enc_dec_mask < 0.5
             dec_mask = dec_mask < 0.5
@@ -431,7 +417,7 @@ class MegatronT5Model(NLPModel):
         tokens_enc = request['masked_sample']
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
-        enc_mask = self.make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
+        enc_mask = make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
         enc_mask = enc_mask < 0.5
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
