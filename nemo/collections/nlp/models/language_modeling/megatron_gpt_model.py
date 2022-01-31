@@ -115,6 +115,7 @@ class MegatronGPTModel(NLPModel):
         self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.using_pipeline_parallelism = cfg.get('pipeline_model_parallel_size', 1) > 1
 
         if self.megatron_amp_o2:
 
@@ -182,7 +183,7 @@ class MegatronGPTModel(NLPModel):
         """
         # if using O2 with no PP, we need a custom sync handler
         custom_sync_context_handler = None
-        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+        if self.megatron_amp_o2 and not self.using_pipeline_paralleism:
             # TODO: add O2 sync handler here
             custom_sync_context_handler = None
 

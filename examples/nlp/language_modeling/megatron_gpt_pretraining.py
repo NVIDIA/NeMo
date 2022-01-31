@@ -67,7 +67,10 @@ def main(cfg) -> None:
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     fp32_grad_accum = cfg.model.get('fp32_grad_accum', False)
-    no_ddp_communication_hook = True if cfg.model.pipeline_model_parallel_size > 1 else False
+    using_pipeline_parallelism = cfg.model.pipeline_model_parallel_size > 1
+    no_ddp_communication_hook = (
+        True if (using_pipeline_parallelism or (megatron_amp_o2 and fp32_grad_accum)) else False
+    )
     plugins = [
         NLPDDPPlugin(
             num_nodes=cfg.trainer.num_nodes,
