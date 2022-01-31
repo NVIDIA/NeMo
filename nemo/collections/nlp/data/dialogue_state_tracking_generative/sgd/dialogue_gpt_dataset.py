@@ -49,7 +49,7 @@ class DialogueGPTDataset(Dataset):
         self.max_candidates = 2
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         for idx in range(len(self.features)):
-            self.preprocess_feature(idx) 
+            self.preprocess_feature(idx)
 
     def transform(self, label):
         label = self.convert_camelcase_to_lower(label)

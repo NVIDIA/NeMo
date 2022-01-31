@@ -322,7 +322,7 @@ class DialogueSGDBERTDataset(Dataset):
                     user_span_boundaries = self._find_subword_indices(
                         state_update,
                         user_utterance,
-                        ex["label_positions"]["slots"], # user_frame["slots"],
+                        ex["label_positions"]["slots"],  # user_frame["slots"],
                         user_alignments,
                         user_tokens,
                         2 + len(slot_tokens) + len(system_tokens),

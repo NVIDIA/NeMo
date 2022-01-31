@@ -116,7 +116,7 @@ class DialogueGPTModel(NLPModel):
 
     # for inference only
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        #return self.model(batch)
+        # return self.model(batch)
         raise NotImplementedError()
 
     def forward(self, input_ids, token_type_ids, attention_mask, labels):
