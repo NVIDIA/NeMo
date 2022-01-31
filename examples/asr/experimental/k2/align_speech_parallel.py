@@ -71,10 +71,7 @@ You may control the aligner's config by setting the ali_args:
 """
 
 
-import itertools
-import json
 import os
-import shutil
 from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
@@ -84,7 +81,6 @@ from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.asr.data.audio_to_ctm_dataset import ASRCTMPredictionWriter
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.configs.aligner_config import AlignerWrapperModelConfig
 from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig

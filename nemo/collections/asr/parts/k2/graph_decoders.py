@@ -18,11 +18,9 @@ import k2
 import torch
 
 import nemo.collections.asr.parts.k2.graph_compilers as graph_compilers
-from nemo.collections.asr.parts.k2.topologies import build_topo
 from nemo.collections.asr.parts.k2.utils import (
     create_supervision,
     get_arc_weights,
-    intersect_with_self_loops,
     invert_permutation,
     load_graph,
     make_blank_first,

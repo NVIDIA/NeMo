@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -137,10 +137,10 @@ class AlignerWrapperModel(ASRModel):
                 pred_candidate = greedy_predictions[i, :utt_len].cpu()
                 # replace consecutive tokens with <blank>
                 previous = self.blank_id
-                for i in range(utt_len):
-                    p = pred_candidate[i]
+                for j in range(utt_len):
+                    p = pred_candidate[j]
                     if p == previous and previous != self.blank_id:
-                        pred_candidate[i] = self.blank_id
+                        pred_candidate[j] = self.blank_id
                     previous = p
                 predictions.append(pred_candidate.to(device=greedy_predictions.device))
         return predictions, probs

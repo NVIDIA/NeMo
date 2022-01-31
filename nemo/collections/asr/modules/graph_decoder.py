@@ -15,7 +15,7 @@
 import torch
 
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, NeuralType, PredictionsType
+from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
 
 
 class ViterbiDecoderWithGraph(NeuralModule):
