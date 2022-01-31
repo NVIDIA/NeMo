@@ -191,6 +191,7 @@ class T5Model(MegatronModule):
             decoder_input_embedder=decoder_input_embedder,
             decoder=decoder,
         )
+        self._enc_dec_model_key = "enc_dec_model"
 
         self.lm_head = T5LMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
         self._lm_head_key = 'lm_head'
@@ -222,7 +223,7 @@ class T5Model(MegatronModule):
         # Handle case when decoder_input_ids is None to get just the encoder hidden states.
         decoder_position_ids = build_position_ids(decoder_input_ids) if decoder_input_ids is not None else None
 
-        lm_output = self.language_model(
+        lm_output = self.enc_dec_model(
             enc_input_ids=encoder_input_ids,
             enc_position_ids=encoder_position_ids,
             enc_attn_mask=encoder_attn_mask,
@@ -238,10 +239,10 @@ class T5Model(MegatronModule):
         if output_enc_hidden_only:
             return lm_output
 
-        decoder_output, encoder_output = lm_output
+        encoder_output, encoder_output_mask, decoder_output = lm_output
 
         # Output.
-        lm_logits = self.lm_head(decoder_output, self.language_model.embedding.word_embeddings.weight)
+        lm_logits = self.lm_head(decoder_output, self.enc_dec_model.decoder_input_embedder.word_embeddings.weight)
 
         if lm_labels is None:
             return lm_logits, encoder_output
@@ -258,7 +259,7 @@ class T5Model(MegatronModule):
         add an extra key."""
 
         state_dict_ = {}
-        state_dict_[self._language_model_key] = self.language_model.state_dict_for_save_checkpoint(
+        state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
         state_dict_[self._lm_head_key] = self.lm_head.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
@@ -267,5 +268,5 @@ class T5Model(MegatronModule):
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.language_model.load_state_dict(state_dict[self._language_model_key], strict=strict)
+        self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.lm_head.load_state_dict(state_dict[self._lm_head_key], strict=strict)
