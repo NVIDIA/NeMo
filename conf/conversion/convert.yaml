@@ -6,8 +6,8 @@ run:
   gpus_per_task: 1
   convert_name: convert_nemo
   model_train_name: 5b
-  results_dir: ${base_results_dir}/${.model_train_name}/conversion
-  output_path: ${base_results_dir}/${.model_train_name}/conversion
+  results_dir: ${base_results_dir}/${.model_train_name}/${.convert_name}
+  output_path: ${base_results_dir}/${.model_train_name}/${.convert_name}
   nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
 
 model:

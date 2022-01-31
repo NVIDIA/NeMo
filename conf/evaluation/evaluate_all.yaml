@@ -8,12 +8,12 @@ run:
   convert_name: convert_nemo
   model_train_name: 5b
   tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
-  results_dir: ${base_results_dir}/{.model_train_name}
+  results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
 
 model:
   type: nemo-gpt3
   # path of checkpoint; must be .nemo file
-  checkpoint_path: ${base_results_dir}/${evaluation.run.model_train_name}/convert_nemo/megatron_gpt.nemo 
+  checkpoint_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_gpt.nemo 
   tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
   eval_batch_size: 16
   vocab_file: ${data_dir}/bpe/vocab.json

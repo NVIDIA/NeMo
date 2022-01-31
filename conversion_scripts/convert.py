@@ -95,8 +95,8 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
             f"--no-container-mount-home "
             f"--container-image {container} "
             f"--container-mounts {mounts_str} "
-            f"-o {base_results_dir}/{model_train_name}/conversion/convert-%j.log "
-            f"-e {base_results_dir}/{model_train_name}/conversion/convert-%j.error "
+            f"-o {base_results_dir}/{model_train_name}/{convert_name}/convert-%j.log "
+            f"-e {base_results_dir}/{model_train_name}/{convert_name}/convert-%j.error "
         )
         create_slurm_file(
             new_script_path=new_script_path,
