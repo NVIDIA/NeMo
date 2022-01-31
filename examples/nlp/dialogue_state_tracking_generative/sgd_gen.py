@@ -120,7 +120,7 @@ def main(cfg: DictConfig) -> None:
 
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         model_class = SGDQAModel
-    elif 'gpt' in cfg.model.language_model.pretrained_model_name:
+    elif 'gpt' in cfg.model.language_model.pretrained_model_name.lower():
         model_class = DialogueGPTModel
 
     if cfg.pretrained_model or (cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)):
