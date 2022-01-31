@@ -183,6 +183,7 @@ class MegatronGPTModel(NLPModel):
         # if using O2 with no PP, we need a custom sync handler
         custom_sync_context_handler = None
         if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            # TODO: add O2 sync handler here
             custom_sync_context_handler = None
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
