@@ -357,11 +357,6 @@ def normalize_manifest(args):
                 normalized_lines = Parallel(n_jobs=args.n_jobs)(
                     delayed(_normalize_line)(normalizer, line) for line in tqdm(lines[i : i + batch])
                 )
-                print("DONE")
-                import pdb
-
-                pdb.set_trace()
-
                 for line in normalized_lines:
                     f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
     print(f'Normalized version saved at {manifest_out}')
