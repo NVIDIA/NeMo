@@ -202,8 +202,8 @@ class LMEncoderDecoderModel(MegatronModule):
     def forward(
         self,
         enc_input_ids,
-        dec_input_ids,
         enc_attn_mask,
+        dec_input_ids,
         dec_attn_mask,
         tokentype_ids=None,
         lm_labels=None,
@@ -219,63 +219,45 @@ class LMEncoderDecoderModel(MegatronModule):
 
         if output_enc_hidden_only:
             enc_output, enc_output_mask = self.enc_dec_model.encode(
-                enc_input=,
-                enc_attn_mask,
+                enc_input=enc_input,
+                enc_attn_mask=enc_attn_mask,
                 enc_layer_past=None,
                 enc_get_key_value=False,
             )
             ret_dict["enc_output"] = enc_output
             ret_dict["enc_output_mask"] = enc_output_mask
+        else:
+            dec_position_ids = build_position_ids(dec_input_ids)
+            dec_input = self.embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
+
+            ret_dict.update(
+                self.enc_dec_model.forward(
+                    enc_input=enc_input,
+                    enc_attn_mask=enc_attn_mask,
+                    dec_input=dec_input,
+                    dec_attn_mask=dec_attn_mask,
+                    enc_layer_past=None,
+                    enc_get_key_value=False,
+                    enc_output=None,
+                    enc_output_mask=None,
+                    dec_layer_past=None,
+                    dec_get_key_value=False,
+                )
+            )
+
+            lm_logits = self.lm_head(ret_dict["dec_output"], self.decoder_embedding.word_embeddings.weight)
+            ret_dict["lm_logits"] = lm_logits
+
+            if lm_labels is not None:
+                if self.fp16_lm_cross_entropy:
+                    assert lm_logits.dtype == torch.half
+                    lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
+                else:
+                    lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
+
+                ret_dict["lm_loss"] = lm_loss
 
         return ret_dict
-        # Handle case when dec_input_ids is None to get just the encoder hidden states.
-        dec_position_ids = build_position_ids(dec_input_ids) if dec_input_ids is not None else None
-
-        # FIXME: add learnable positional encoding into embeddings
-
-        # enc_input,
-        # enc_attn_mask,
-        # dec_input,
-        # dec_attn_mask,
-        # enc_layer_past=None,
-        # enc_get_key_value=False,
-        # enc_output=None,
-        # enc_output_mask=None,
-        # dec_layer_past=None,
-        # dec_get_key_value=False,
-
-        lm_output = self.enc_dec_model(
-            enc_input_ids=enc_input_ids,
-            enc_position_ids=enc_position_ids,
-            enc_attn_mask=enc_attn_mask,
-            dec_input_ids=dec_input_ids,
-            dec_position_ids=dec_position_ids,
-            dec_attn_mask=dec_attn_mask,
-            enc_dec_attn_mask=enc_dec_attn_mask,
-            tokentype_ids=tokentype_ids,
-            enc_hidden_states=enc_hidden_states,
-            output_enc_hidden_only=output_enc_hidden_only,
-        )
-
-        if output_enc_hidden_only:
-            return lm_output
-
-        enc_output, enc_output_mask, dec_output = lm_output
-
-        # TODO: do we want to return dict instead of tuple? Will allow more flexibility in extending model
-
-        # Output.
-        lm_logits = self.lm_head(dec_output, self.enc_dec_model.dec_embedding.word_embeddings.weight)
-
-        if lm_labels is None:
-            return lm_logits, enc_output, enc_output_mask
-        else:
-            if self.fp16_lm_cross_entropy:
-                assert lm_logits.dtype == torch.half
-                lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
-            else:
-                lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
-            return lm_loss, enc_output, enc_output_mask
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
