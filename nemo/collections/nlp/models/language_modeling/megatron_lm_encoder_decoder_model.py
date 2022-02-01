@@ -85,6 +85,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
         )
 
+        self._build_vocab()
+
+    def _build_vocab(self):
         padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
             make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
@@ -168,7 +171,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    # # TODO: normalize by number of nodes?
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
@@ -198,40 +200,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building T5 datasets.')
-        if self.cfg.data.seq_length_dec < self.cfg.data.seq_length * self.cfg.data.masked_lm_prob:
-            raise ValueError(
-                f"Cannot have decoder max sequence length ({self.cfg.data.seq_length_dec}) less than encoder sequence length ({self.cfg.data.seq_length}) * masked_lm_prob ({self.cfg.data.masked_lm_prob})"
-            )
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
-        eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
-        train_valid_test_num_samples = [
-            self.trainer.max_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self.cfg,
-            trainer=self.trainer,
-            tokenizer=self.tokenizer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            max_seq_length=self.cfg.data.seq_length,
-            max_seq_length_dec=self.cfg.data.seq_length_dec,
-            masked_lm_prob=self.cfg.data.masked_lm_prob,
-            short_seq_prob=self.cfg.data.short_seq_prob,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.skip_warmup,
-            dataset_type='t5',
-        )
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
-        logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-        logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building T5 datasets.')
-        return self._train_ds, self._validation_ds, self._test_ds
+        raise NotImplementedError("Please implement this method in child-class")
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
         """Buld dataloader given an input dataset."""

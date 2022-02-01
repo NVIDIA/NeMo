@@ -220,6 +220,8 @@ class LMEncoderDecoderModel(MegatronModule):
         # Handle case when decoder_input_ids is None to get just the encoder hidden states.
         decoder_position_ids = build_position_ids(decoder_input_ids) if decoder_input_ids is not None else None
 
+        # FIXME: add learnable positional encoding into embeddings
+
         lm_output = self.enc_dec_model(
             enc_input_ids=encoder_input_ids,
             enc_position_ids=encoder_position_ids,
