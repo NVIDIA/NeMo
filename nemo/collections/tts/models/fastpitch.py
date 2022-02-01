@@ -488,7 +488,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         if self.fastpitch.speaker_emb is not None:
             inputs['speaker'] = torch.randint(
-                0, self.fastpitch.speaker_emb.num_embeddings, (maz_batch,), device=par.device, dtype=torch.int64
+                0, self.fastpitch.speaker_emb.num_embeddings, (max_batch,), device=par.device, dtype=torch.int64
             )
 
         return (inputs,)

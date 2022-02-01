@@ -714,6 +714,24 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
         }
 
+    def input_example(self, max_text_len=10, max_lm_tokens_len=10):
+        text = torch.randint(
+            low=0, high=len(self.tokenizer.tokens), size=(1, max_text_len), device=self.device, dtype=torch.long,
+        )
+
+        inputs = {'text': text}
+
+        if self.cond_on_lm_embeddings:
+            inputs['lm_tokens'] = torch.randint(
+                low=0,
+                high=self.lm_embeddings.weight.shape[0],
+                size=(1, max_lm_tokens_len),
+                device=self.device,
+                dtype=torch.long,
+            )
+
+        return (inputs,)
+
     def forward_for_export(self, text, lm_tokens=None):
         text_mask = (text != self.tokenizer_pad).unsqueeze(2)
         spect = self.infer(text=text, text_mask=text_mask, lm_tokens=lm_tokens).transpose(1, 2)
