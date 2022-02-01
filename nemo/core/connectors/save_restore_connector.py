@@ -372,7 +372,7 @@ class SaveRestoreConnector:
                     OmegaConf.update(conf, conf_path, item.path)
                 else:
                     OmegaConf.update(conf, conf_path, item.hashed_path)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
