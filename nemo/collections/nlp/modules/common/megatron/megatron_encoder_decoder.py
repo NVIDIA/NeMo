@@ -94,7 +94,6 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
                 dec_attn_mask, enc_output_mask,
             )
 
-
         dec_output = self.decoder(
             dec_input,
             dec_attn_mask,

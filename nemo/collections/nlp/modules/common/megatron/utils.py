@@ -151,14 +151,15 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
     return attention_mask, loss_mask, position_ids
 
 
+def attn_mask_postprocess(attn_mask):
+    # [b, 1, s, s]
+    # Attn_masks for enc-dec attn and dec attn is None when trying to get just the encoder hidden states.
+    if attn_mask is None:
+        return None
+    extended_attention_mask = attn_mask.unsqueeze(1)
+    return extended_attention_mask
+
 def enc_dec_extended_attention_mask(attention_mask_list):
-    def attn_mask_postprocess(attn_mask):
-        # [b, 1, s, s]
-        # Attn_masks for enc-dec attn and dec attn is None when trying to get just the encoder hidden states.
-        if attn_mask is None:
-            return None
-        extended_attention_mask = attn_mask.unsqueeze(1)
-        return extended_attention_mask
 
     return [attn_mask_postprocess(attn_mask) for attn_mask in attention_mask_list]
 

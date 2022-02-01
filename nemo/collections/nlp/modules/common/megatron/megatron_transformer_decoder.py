@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
+    attn_mask_postprocess,
 )
 
 __all__ = []
@@ -128,11 +129,11 @@ class MegatronTransformerDecoderModel(MegatronModule):
         # transformer decoder
         dec_output = self.model(
             dec_input,
-            dec_attn_mask,
+            attn_mask_postprocess(dec_attn_mask),
             layer_past=layer_past,
             get_key_value=get_key_value,
             encoder_output=enc_output,
-            enc_dec_attn_mask=enc_dec_attn_mask,
+            enc_dec_attn_mask=attn_mask_postprocess(enc_dec_attn_mask),
         )
 
         return dec_output

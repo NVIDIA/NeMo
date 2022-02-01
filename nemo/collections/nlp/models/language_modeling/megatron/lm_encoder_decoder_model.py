@@ -100,7 +100,7 @@ class LMEncoderDecoderModel(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        encoder_input_embedder = Embedding(
+        self.encoder_input_embedder = Embedding(
             hidden_size=hidden_size,
             vocab_size=vocab_size,
             max_sequence_length=max_position_embeddings,
@@ -109,6 +109,9 @@ class LMEncoderDecoderModel(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             embedding_dropout_prob=hidden_dropout,
         )
+        self.decoder_input_embedder = encoder_input_embedder
+        self._encoder_input_embedder_key = "encoder_input_embedder"
+        self._decoder_input_embedder_key = "decoder_input_embedder"
 
         encoder = get_encoder_model(
             arch=encoder_arch,
@@ -145,7 +148,6 @@ class LMEncoderDecoderModel(MegatronModule):
             hidden_blocks=hidden_steps,
         )
 
-        decoder_input_embedder = encoder_input_embedder
         decoder = get_decoder_model(
             arch=decoder_arch,
             hidden_size=hidden_size,
@@ -189,8 +191,6 @@ class LMEncoderDecoderModel(MegatronModule):
             decoder=decoder,
         )
         self._enc_dec_model_key = "enc_dec_model"
-        self._encoder_input_embedder_key = "encoder_input_embedder"
-        self._decoder_input_embedder_key = "decoder_input_embedder"
 
         self.lm_head = MegatronLMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
         self._lm_head_key = 'lm_head'
