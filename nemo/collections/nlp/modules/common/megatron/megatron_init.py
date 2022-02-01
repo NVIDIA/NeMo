@@ -16,17 +16,23 @@ import random
 
 import numpy as np
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer.parallel_state import (
-    get_pipeline_model_parallel_rank,
-    set_pipeline_model_parallel_rank,
-    set_pipeline_model_parallel_world_size,
-    set_tensor_model_parallel_rank,
-    set_tensor_model_parallel_world_size,
-)
 
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.utils import AppState
+
+try:
+    from apex.transformer import tensor_parallel
+    from apex.transformer.parallel_state import (
+        get_pipeline_model_parallel_rank,
+        set_pipeline_model_parallel_rank,
+        set_pipeline_model_parallel_world_size,
+        set_tensor_model_parallel_rank,
+        set_tensor_model_parallel_world_size,
+    )
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def initialize_model_parallel_for_nemo(

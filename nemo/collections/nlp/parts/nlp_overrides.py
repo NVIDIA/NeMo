@@ -65,12 +65,12 @@ class NLPDDPPlugin(DDPPlugin):
         no_ddp_communication_hook: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
-        super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
-
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
+
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -203,11 +203,11 @@ class NLPDDPPlugin(DDPPlugin):
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
-        super().__init__()
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        super().__init__()
 
     def save_to(self, model, save_path: str):
         app_state = AppState()

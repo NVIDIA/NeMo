@@ -19,8 +19,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType, LayerType
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
@@ -29,6 +27,14 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType, LayerType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
