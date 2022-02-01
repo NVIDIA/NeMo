@@ -72,6 +72,7 @@ output_modes = {
     "qnli": "classification",
     "rte": "classification",
     "wnli": "classification",
+    "xnli": "classification",
 }
 GLUE_TASKS_NUM_LABELS = {
     "cola": 2,
