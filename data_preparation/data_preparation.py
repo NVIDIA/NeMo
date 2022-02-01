@@ -1,8 +1,6 @@
-import sys
 import os
 import subprocess
 
-import hydra
 import omegaconf
 
 from .dataprep_scripts import utils
@@ -53,18 +51,6 @@ def create_slurm_file(
         f.writelines("wait\n")
 
 
-def convert_file_numbers_to_list(file_numbers_str):
-    final_list = []
-    split_comma = file_numbers_str.split(",")
-    for elem in split_comma:
-        if "-" in elem:
-            split_dash = elem.split("-")
-            final_list += list(range(int(split_dash[0]), int(split_dash[1]) + 1))
-        else:
-            final_list.append(int(elem))
-    return final_list
-
-
 def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Read config
     bignlp_path = cfg.bignlp_path
@@ -85,8 +71,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     log_dir = data_cfg.log_dir
     nodes = data_cfg.nodes
     time_limit = data_cfg.time_limit
-
-    file_numbers_list = convert_file_numbers_to_list(str(file_numbers))
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -216,12 +200,15 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.cluster_type == "bcp":
-        joblog = os.path.join(log_dir, f"log-{task}.out")
-        nnodes = os.environ.get("NGC_ARRAY_SIZE", 1)
+        joblog = os.path.join(
+            log_dir, data_cfg.get("bcp_joblog", "joblog.log"))
+        nnodes = int(os.environ.get("NGC_ARRAY_SIZE", 1))
         assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
         if download_the_pile:
             # Downloading the files
-            cmd = f"mpirun --allow-run-as-root -npernode 1 python3 {download_code_path} {hydra_args}"
+            cmd = f"mpirun --allow-run-as-root " + \
+                  f"-np {nnodes} -npernode 1 " + \
+                  f"python3 {download_code_path} {hydra_args}"
             proc = subprocess.Popen(
                 cmd, shell=True, stdout=subprocess.PIPE,
                 universal_newlines=True)
@@ -235,7 +222,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             print(f"Finished Download script returncode: {proc.returncode}")
 
             # Extract The Pile dataset files
-            cmd = f"mpirun --allow-run-as-root -npernode 1 " + \
+            cmd = f"mpirun --allow-run-as-root " + \
+                  f"-np {nnodes} -npernode 1 " + \
                   f"python3 {extract_code_path} {hydra_args}"
             # print(f"Extract CMD:\n{cmd}")
             proc = subprocess.Popen(
@@ -258,12 +246,15 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             # Remove compiled helpers lib to avoid race condition
             compiled_helpers_lib = os.path.join(
                 megatron_dir, 'compiled_helpers_lib')
-            clean = f'mpirun --allow-run-as-root -npernode 1 ' + \
-                f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
-                f'rm "{compiled_helpers_lib}" \''
+            clean = f'mpirun --allow-run-as-root ' + \
+                    f'-np {nnodes} -npernode 1 ' + \
+                    f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
+                    f'rm "{compiled_helpers_lib}" \''
             os.system(clean)
-            preproc_npernode = data_cfg.bcp_preproc_npernode
+
+            preproc_npernode = int(data_cfg.bcp_preproc_npernode)
             cmd = f"mpirun --allow-run-as-root " + \
+                  f"-np {nnodes * preproc_npernode} " + \
                   f"-npernode {preproc_npernode} " + \
                   f"python3 {preprocess_code_path} {hydra_args}"
             # print(f"Preprocess CMD:\n{cmd}")
