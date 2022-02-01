@@ -20,6 +20,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
+# TODO(Oktai15): remove this script in 1.8.0 version
 @hydra_runner(config_path="conf", config_name="squeezewave")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)

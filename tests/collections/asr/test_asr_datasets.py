@@ -175,7 +175,7 @@ class TestASRDatasets:
         texts = []
 
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r') as m:
+            with open(manifest_path, 'r', encoding='utf-8') as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break
@@ -263,7 +263,7 @@ class TestASRDatasets:
         tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
 
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r') as m:
+            with open(manifest_path, 'r', encoding='utf-8') as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break

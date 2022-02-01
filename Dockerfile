@@ -90,7 +90,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
 
 # TODO: Try to remove once 21.07 container is the base container
 # install pinned numba version
-RUN conda install -c numba numba=0.54.1
+RUN conda install -c conda-forge numba=0.54.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
