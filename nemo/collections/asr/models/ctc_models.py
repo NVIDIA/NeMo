@@ -21,7 +21,6 @@ from typing import Dict, List, Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-from torch.utils.data import ChainDataset
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
@@ -171,6 +170,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
+            if self.cfg.decoder.num_classes < 1 and self.cfg.decoder.vocabulary is not None:
+                logging.info(
+                    "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                        self.cfg.decoder.num_classes, len(self.cfg.decoder.vocabulary)
+                    )
+                )
+                cfg.decoder["num_classes"] = len(self.cfg.decoder.vocabulary)
+
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
 
         self.loss = CTCLoss(
@@ -252,7 +259,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
                         entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
@@ -408,10 +415,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
             dataset = audio_to_text_dataset.get_char_dataset(config=config, augmentor=augmentor)
 
-        if type(dataset) is ChainDataset:
-            collate_fn = dataset.datasets[0].collate_fn
-        else:
+        if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,

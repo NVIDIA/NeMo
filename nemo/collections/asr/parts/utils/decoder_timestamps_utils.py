@@ -314,7 +314,7 @@ class ASR_TIMESTAMPS:
 
     def set_asr_model(self):
         """
-        Initialize the parameters for the given ASR model
+        Initialize the parameters for the given ASR model.
         Currently, the following NGC models are supported:
 
             stt_en_quartznet15x5,
@@ -410,9 +410,9 @@ class ASR_TIMESTAMPS:
                 The loaded NeMo ASR model.
 
         Returns:
-            words_list (list):
+            words_dict (dict):
                 Dictionary of the sequence of words from hypothesis.
-            words_ts_list (list):
+            word_ts_dict (dict):
                 Dictionary of the time-stamps of words.
         """
         words_dict, word_ts_dict = {}, {}
@@ -496,8 +496,10 @@ class ASR_TIMESTAMPS:
         Args:
             trans (list):
                 List of character output (str).
-            timestamps (list):
-                List of timestamps (int) for each character.
+            char_ts (list):
+                List of timestamps of the characters.
+            time_stride (float):
+                The size of stride of the model in second.
 
         Returns:
             spaces_in_sec (list):
@@ -531,9 +533,9 @@ class ASR_TIMESTAMPS:
                 The loaded NeMo ASR model.
 
         Returns:
-            words_list (list):
+            words_dict (dict):
                 Dictionary of the sequence of words from hypothesis.
-            words_ts_list (list):
+            word_ts_dict (dict):
                 Dictionary of the timestamps of hypothesis words.
         """
         words_dict, word_ts_dict = {}, {}
@@ -616,9 +618,9 @@ class ASR_TIMESTAMPS:
                 The loaded NeMo ASR model.
 
         Returns:
-            words_list (list):
+            words_dict (dict):
                 Dictionary of the sequence of words from hypothesis.
-            words_ts_list (list):
+            word_ts_dict (dict):
                 Dictionary of the time-stamps of words.
         """
         torch.manual_seed(0)
@@ -717,8 +719,12 @@ class ASR_TIMESTAMPS:
         Launch pyctcdecode with the loaded pretrained language model.
 
         Args:
-            logprob (np.ndarray): The log probability from the ASR model inference in numpy array format.
-
+            logprob (np.ndarray):
+                The log probability from the ASR model inference in numpy array format.
+            onset_delay_in_sec (float):
+                The amount of delay that needs to be compensated for the timestamp outputs froM pyctcdecode.
+            beam_width (int):
+                The beam width parameter for beam search decodring.
         Returns:
             hyp_words (list):
                 List of words in the hypothesis.

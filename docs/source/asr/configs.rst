@@ -41,11 +41,15 @@ An example ASR train and validation configuration should look similar to the fol
       trim_silence: True
       max_duration: 16.7
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
       num_workers: 8
       pin_memory: true
+      # tarred datasets
+      is_tarred: false # If set to true, uses the tarred version of the Dataset
+      tarred_audio_filepaths: null     # Not used if is_tarred is false
+      shuffle_n: 2048                  # Not used if is_tarred is false
+      # bucketing params
+      bucketing_strategy: "synced_randomized"
+      bucketing_batch_size: null
 
     validation_ds:
       manifest_filepath: ???
@@ -721,12 +725,14 @@ All ASR scripts support easy fine-tuning by partially/fully loading the pretrain
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
 
+There are multiple ASR subtasks inside the ``examples/asr/`` directory, you can substitute the ``<subtask>`` tag below.
+
 Fine-tuning via a NeMo model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
@@ -741,7 +747,7 @@ Fine-tuning via a NeMo pretrained model name
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
@@ -755,7 +761,7 @@ Fine-tuning via a Pytorch Lightning checkpoint
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
