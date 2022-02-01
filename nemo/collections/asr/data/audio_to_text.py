@@ -32,6 +32,7 @@ from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 __all__ = [
     'AudioToCharDataset',
@@ -41,8 +42,6 @@ __all__ = [
     'TarredAudioToCharDataset',
     'TarredAudioToBPEDataset',
 ]
-
-from nemo.utils.decorators import deprecated
 
 
 def _speech_collate_fn(batch, pad_id):
