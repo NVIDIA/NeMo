@@ -139,7 +139,13 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
             get_key_value=dec_get_key_value,
         )
 
-        return enc_output, enc_output_mask, dec_output
+        ret_dict = {
+            "enc_output": enc_output,
+            "enc_output_mask": enc_output_mask,
+            "dec_output": dec_output,
+        }
+
+        return ret_dict
 
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

@@ -100,7 +100,7 @@ class LMEncoderDecoderModel(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        self.encoder_input_embedder = Embedding(
+        self.encoder_embedding = Embedding(
             hidden_size=hidden_size,
             vocab_size=vocab_size,
             max_sequence_length=max_position_embeddings,
@@ -109,9 +109,9 @@ class LMEncoderDecoderModel(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             embedding_dropout_prob=hidden_dropout,
         )
-        self.decoder_input_embedder = encoder_input_embedder
-        self._encoder_input_embedder_key = "encoder_input_embedder"
-        self._decoder_input_embedder_key = "decoder_input_embedder"
+        self.decoder_embedding = encoder_embedding
+        self._encoder_embedding_key = "encoder_embedding"
+        self._decoder_embedding_key = "decoder_embedding"
 
         encoder = get_encoder_model(
             arch=encoder_arch,
@@ -185,9 +185,9 @@ class LMEncoderDecoderModel(MegatronModule):
         )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModel(
-            encoder_input_embedder=encoder_input_embedder,
+            encoder_embedding=encoder_embedding,
             encoder=encoder,
-            decoder_input_embedder=decoder_input_embedder,
+            decoder_embedding=decoder_embedding,
             decoder=decoder,
         )
         self._enc_dec_model_key = "enc_dec_model"
@@ -201,37 +201,57 @@ class LMEncoderDecoderModel(MegatronModule):
 
     def forward(
         self,
-        encoder_input_ids,
-        decoder_input_ids,
-        encoder_attn_mask,
-        decoder_attn_mask,
-        encoder_decoder_attn_mask,
+        enc_input_ids,
+        dec_input_ids,
+        enc_attn_mask,
+        dec_attn_mask,
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
+        ret_dict = {}
 
-        # Converting the attention masks to proper parameter settings
-        encoder_attn_mask, decoder_attn_mask, encoder_decoder_attn_mask = enc_dec_extended_attention_mask(
-            [encoder_attn_mask, decoder_attn_mask, encoder_decoder_attn_mask]
-        )
+        # TODO: add soft prompt
+        # encoder embeddings
+        enc_position_ids = build_position_ids(enc_input_ids)
+        enc_input = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
-        encoder_position_ids = build_position_ids(encoder_input_ids)
+        if output_enc_hidden_only:
+            enc_output, enc_output_mask = self.enc_dec_model.encode(
+                enc_input=,
+                enc_attn_mask,
+                enc_layer_past=None,
+                enc_get_key_value=False,
+            )
+            ret_dict["enc_output"] = enc_output
+            ret_dict["enc_output_mask"] = enc_output_mask
 
-        # Handle case when decoder_input_ids is None to get just the encoder hidden states.
-        decoder_position_ids = build_position_ids(decoder_input_ids) if decoder_input_ids is not None else None
+        return ret_dict
+        # Handle case when dec_input_ids is None to get just the encoder hidden states.
+        dec_position_ids = build_position_ids(dec_input_ids) if dec_input_ids is not None else None
 
         # FIXME: add learnable positional encoding into embeddings
 
+        # enc_input,
+        # enc_attn_mask,
+        # dec_input,
+        # dec_attn_mask,
+        # enc_layer_past=None,
+        # enc_get_key_value=False,
+        # enc_output=None,
+        # enc_output_mask=None,
+        # dec_layer_past=None,
+        # dec_get_key_value=False,
+
         lm_output = self.enc_dec_model(
-            enc_input_ids=encoder_input_ids,
-            enc_position_ids=encoder_position_ids,
-            enc_attn_mask=encoder_attn_mask,
-            dec_input_ids=decoder_input_ids,
-            dec_position_ids=decoder_position_ids,
-            dec_attn_mask=decoder_attn_mask,
-            enc_dec_attn_mask=encoder_decoder_attn_mask,
+            enc_input_ids=enc_input_ids,
+            enc_position_ids=enc_position_ids,
+            enc_attn_mask=enc_attn_mask,
+            dec_input_ids=dec_input_ids,
+            dec_position_ids=dec_position_ids,
+            dec_attn_mask=dec_attn_mask,
+            enc_dec_attn_mask=enc_dec_attn_mask,
             tokentype_ids=tokentype_ids,
             enc_hidden_states=enc_hidden_states,
             output_enc_hidden_only=output_enc_hidden_only,
@@ -240,22 +260,22 @@ class LMEncoderDecoderModel(MegatronModule):
         if output_enc_hidden_only:
             return lm_output
 
-        encoder_output, encoder_output_mask, decoder_output = lm_output
+        enc_output, enc_output_mask, dec_output = lm_output
 
         # TODO: do we want to return dict instead of tuple? Will allow more flexibility in extending model
 
         # Output.
-        lm_logits = self.lm_head(decoder_output, self.enc_dec_model.decoder_input_embedder.word_embeddings.weight)
+        lm_logits = self.lm_head(dec_output, self.enc_dec_model.dec_embedding.word_embeddings.weight)
 
         if lm_labels is None:
-            return lm_logits, encoder_output, encoder_output_mask
+            return lm_logits, enc_output, enc_output_mask
         else:
             if self.fp16_lm_cross_entropy:
                 assert lm_logits.dtype == torch.half
                 lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
             else:
                 lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
-            return lm_loss, encoder_output, encoder_output_mask
+            return lm_loss, enc_output, enc_output_mask
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
@@ -263,8 +283,10 @@ class LMEncoderDecoderModel(MegatronModule):
 
         state_dict_ = {}
 
-        state_dict_[self._encoder_input_embedder_key] = self.encoder_input_embedder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-        state_dict_[self._decoder_input_embedder_key] = self.decoder_input_embedder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars)
+        state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars)
         state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
@@ -274,7 +296,7 @@ class LMEncoderDecoderModel(MegatronModule):
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.encoder_input_embedder.encoder_input_embedderload_state_dict(state_dict[self._encoder_input_embedder_key], strict=strict)
-        self.decoder_input_embedder.load_state_dict(state_dict[self._decoder_input_embedder_key], strict=strict)
+        self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
+        self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.lm_head.load_state_dict(state_dict[self._lm_head_key], strict=strict)
