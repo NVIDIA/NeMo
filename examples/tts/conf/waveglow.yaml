@@ -1,3 +1,5 @@
+# TODO(Oktai15): update this config in 1.8.0 version
+
 name: "WaveGlow"
 sample_rate: 22050
 n_fft: 1024

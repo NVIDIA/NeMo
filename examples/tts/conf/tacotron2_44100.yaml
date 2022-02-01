@@ -1,3 +1,5 @@
+# TODO(Oktai15): update this config in 1.8.0 version
+
 name: Tacotron2
 sample_rate: 44100
 # <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script

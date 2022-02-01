@@ -1,3 +1,5 @@
+# TODO(Oktai15): remove this config in 1.8.0 version
+
 name: "FastPitch_HiFiGAN_E2E"
 
 labels: [' ', '!', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'a', 'b', 'c', 'd', 'e', 'f', 'g',

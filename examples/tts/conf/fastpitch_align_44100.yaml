@@ -1,3 +1,5 @@
+# TODO(Oktai15): update this config in 1.8.0 version (see fastpitch_align_v1.05.yaml)
+
 name: "FastPitch"
 sample_rate: 44100
 train_dataset: ???
