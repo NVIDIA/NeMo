@@ -164,7 +164,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 class GPTDataset(MegatronDataset):
     def __init__(self, cfg, trainer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed):
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 

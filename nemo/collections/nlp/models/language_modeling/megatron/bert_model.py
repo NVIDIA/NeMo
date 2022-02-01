@@ -79,11 +79,6 @@ class BertLMHead(MegatronModule):
         self, mpu_vocab_size, hidden_size, init_method, layernorm_epsilon, parallel_output, use_openai_gelu, onnx_safe
     ):
 
-        if not HAVE_APEX:
-            logging.warning(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
-
         super(BertLMHead, self).__init__()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))

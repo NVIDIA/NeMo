@@ -44,12 +44,11 @@ class MegatronModule(torch.nn.Module):
     for pipelining."""
 
     def __init__(self, share_word_embeddings=True):
-        super(MegatronModule, self).__init__()
-
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        super(MegatronModule, self).__init__()
 
         self.share_word_embeddings = share_word_embeddings
 
@@ -156,11 +155,11 @@ def float16_to_fp32(val):
 
 class Float16Module(MegatronModule):
     def __init__(self, module, precision):
-        super().__init__()
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        super().__init__()
         self.precision = precision
 
         if precision == 16:

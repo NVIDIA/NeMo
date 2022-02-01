@@ -49,7 +49,7 @@ class MegatronT5Model(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer=trainer)

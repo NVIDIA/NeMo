@@ -97,10 +97,6 @@ class GPTModel(MegatronModule):
         prompt_tags=None,
     ):
 
-        if not HAVE_APEX:
-            logging.warning(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         super(GPTModel, self).__init__()
 
         self.parallel_output = parallel_output
