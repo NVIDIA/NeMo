@@ -32,7 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_d
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModel
 
 
-class TokenLMHead(MegatronModule):
+class MegatronLMHead(MegatronModule):
     """Masked LM head for token-based encoder-decoder models (e.g., T5)
 
     Arguments:
@@ -41,7 +41,7 @@ class TokenLMHead(MegatronModule):
     """
 
     def __init__(self, mpu_vocab_size, parallel_output):
-        super(TokenLMHead, self).__init__()
+        super(MegatronLMHead, self).__init__()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
         self.bias.model_parallel = True
@@ -54,7 +54,7 @@ class TokenLMHead(MegatronModule):
         return output
 
 
-class TokenEncoderDecoderModel(MegatronModule):
+class LMEncoderDecoderModel(MegatronModule):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
 
     def __init__(
@@ -87,7 +87,7 @@ class TokenEncoderDecoderModel(MegatronModule):
         hidden_steps=-1,
         hidden_blocks=1,
     ):
-        super(TokenEncoderDecoderModel, self).__init__()
+        super(LMEncoderDecoderModel, self).__init__()
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -190,7 +190,7 @@ class TokenEncoderDecoderModel(MegatronModule):
         )
         self._enc_dec_model_key = "enc_dec_model"
 
-        self.lm_head = TokenLMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
+        self.lm_head = MegatronLMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
         self._lm_head_key = 'lm_head'
 
     def set_input_tensor(self, input_tensor):
@@ -238,18 +238,20 @@ class TokenEncoderDecoderModel(MegatronModule):
 
         encoder_output, encoder_output_mask, decoder_output = lm_output
 
+        # TODO: do we want to return dict instead of tuple? Will allow more flexibility in extending model
+
         # Output.
         lm_logits = self.lm_head(decoder_output, self.enc_dec_model.decoder_input_embedder.word_embeddings.weight)
 
         if lm_labels is None:
-            return lm_logits, encoder_output
+            return lm_logits, encoder_output, encoder_output_mask
         else:
             if self.fp16_lm_cross_entropy:
                 assert lm_logits.dtype == torch.half
                 lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
             else:
                 lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
-            return lm_loss, encoder_output
+            return lm_loss, encoder_output, encoder_output_mask
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,

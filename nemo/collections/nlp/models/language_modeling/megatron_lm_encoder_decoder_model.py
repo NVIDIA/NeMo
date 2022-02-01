@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder_model import TokenEncoderDecoderModel
+from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder_model import LMEncoderDecoderModel
 from nemo.collections.nlp.models.language_modeling.megatron.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -43,7 +43,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.utils import AppState, logging
 
 
-class MegatronTokenEncoderDecoderModel(MegatronBaseModel):
+class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
     Megatron encoder-decoder base class
     """
@@ -52,7 +52,7 @@ class MegatronTokenEncoderDecoderModel(MegatronBaseModel):
         super().__init__(cfg, trainer=trainer)
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        self.model = TokenEncoderDecoderModel(
+        self.model = LMEncoderDecoderModel(
             vocab_size=padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -86,15 +86,10 @@ class MegatronTokenEncoderDecoderModel(MegatronBaseModel):
         )
 
         padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=vocab_size,
+            orig_vocab_size=self.tokenizer.vocab_size,
             make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
         )
-
-        # T5-related construction
-        self.num_sentinel_tokens = self.cfg.tokenizer.num_sentinel_tokens
-        self._add_special_tokens_to_tokenizer()
-        vocab_size = self.tokenizer.vocab_size
 
     def forward(
         self,
@@ -119,8 +114,9 @@ class MegatronTokenEncoderDecoderModel(MegatronBaseModel):
             enc_hidden_states=enc_hidden_states,
             output_enc_hidden_only=output_enc_hidden_only,
         )
+        # TODO: return a dict?
         if not output_enc_hidden_only:
-            return result[0], result[1]
+            return result[0], result[1], result[2]
         else:
             return result
 
@@ -172,6 +168,7 @@ class MegatronTokenEncoderDecoderModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
+    # # TODO: normalize by number of nodes?
     def loss_func(self, loss_mask, output_tensor):
         losses = output_tensor.float()
         loss_mask = loss_mask.view(-1).float()
@@ -431,17 +428,6 @@ class MegatronTokenEncoderDecoderModel(MegatronBaseModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
-
-    def _add_special_tokens_to_tokenizer(self):
-        if self.cfg.tokenizer.library == 'huggingface' or self.cfg.tokenizer.library == 'megatron':
-            additional_tokens = {
-                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-            }
-            self.tokenizer.add_special_tokens(additional_tokens)
-
-        if self.cfg.tokenizer.library == 'sentencepiece':
-            additional_tokens = [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-            self.tokenizer.add_special_tokens(additional_tokens)
 
     def list_available_models():
         pass
