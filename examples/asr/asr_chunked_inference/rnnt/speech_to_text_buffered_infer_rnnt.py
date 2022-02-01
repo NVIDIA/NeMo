@@ -26,6 +26,7 @@ python speech_to_text_buffered_infer_rnnt.py \
     --output_path="." \
     --total_buffer_in_secs=10.0 \
     --chunk_len_in_ms=8000 \
+    --device="cuda:0" \
     --batch_size=128
 
 """
@@ -130,6 +131,7 @@ def main():
         '--max_steps_per_timestep', type=int, default=5, help='Maximum number of tokens decoded per acoustic timestepB'
     )
     parser.add_argument('--stateful_decoding', action='store_true', help='Whether to perform stateful decoding')
+    parser.add_argument('--device', default=None, type=str, required=False)
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -150,10 +152,19 @@ def main():
     if cfg.preprocessor.normalize != "per_feature":
         logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
 
+    device = args.device
+    if device is None:
+        if torch.cuda.is_available():
+            device = 'cuda'
+        else:
+            device = 'cpu'
+
+    logging.info("Inference will be done on device :", device)
+
     # Disable config overwriting
     OmegaConf.set_struct(cfg.preprocessor, True)
     asr_model.freeze()
-    asr_model = asr_model.to(asr_model.device)
+    asr_model = asr_model.to(device)
 
     # Change Decoding Config
     decoding_cfg = asr_model.cfg.decoding
