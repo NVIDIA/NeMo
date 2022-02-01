@@ -87,7 +87,7 @@ class CardinalFst(GraphFst):
             )
 
         if not deterministic or lm:
-            self.range_graph = self.get_range_graph()
+            self.range_graph = self.get_range_graph(lm=lm)
 
         serial_graph = self.get_serial_graph()
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
@@ -124,7 +124,7 @@ class CardinalFst(GraphFst):
 
         self.fst = final_graph.optimize()
 
-    def get_range_graph(self):
+    def get_range_graph(self, lm=False):
         # use hundreds graph for 4 digit numbers
         graph = (
             get_hundreds_graph()
@@ -134,18 +134,17 @@ class CardinalFst(GraphFst):
             )
         ).optimize()
 
-        if not self.deterministic:
+        if not self.deterministic or lm:
             graph |= pynutil.add_weight(self.graph, 0.001)
             graph.optimize()
 
         range_graph = (
-            (pynutil.add_weight(pynini.accep("from "), -0.001) | pynutil.insert("from "))
+            (pynutil.add_weight(pynini.accep("from "), -0.001) | pynini.closure(pynutil.insert("from "), 0, 1))
             + graph
             + pynini.cross("-", " to ")
             + graph
         )
         range_graph |= graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + graph
-
         return range_graph.optimize()
 
     def get_serial_graph(self):

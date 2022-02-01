@@ -19,12 +19,12 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
+    NEMO_SIGMA,
     NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
     delete_space,
     generator_main,
-    NEMO_SIGMA
 )
 from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
@@ -100,7 +100,7 @@ class ClassifyFst(GraphFst):
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
-            self.whitelist_word = pynini.Far(far_file, mode='r')['whitelist_word']
+            # self.whitelist_word = pynini.Far(far_file, mode='r')['whitelist_word']
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
@@ -109,7 +109,9 @@ class ClassifyFst(GraphFst):
             # TAGGERS
             cardinal = CardinalFst(deterministic=True, lm=True)
             # don't use cardinals for 4 digit numbers -> use date format for that
-            cardinal_graph = pynini.compose(pynini.difference(NEMO_SIGMA, NEMO_DIGIT+NEMO_DIGIT+NEMO_DIGIT+NEMO_DIGIT), cardinal.fst)
+            cardinal_graph = pynini.compose(
+                pynini.difference(NEMO_SIGMA, NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT), cardinal.fst
+            )
 
             ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
             ordinal_graph = ordinal.fst
@@ -187,6 +189,7 @@ class ClassifyFst(GraphFst):
 
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
+            classify_and_verbalize |= pynutil.add_weight(whitelist_graph, 1.01)
 
             punct_only = pynutil.add_weight(punct_graph, weight=20.1)
             punct = pynini.closure(
@@ -225,16 +228,15 @@ class ClassifyFst(GraphFst):
                 graph = pynini.compose(graph.optimize(), remove_extra_spaces).optimize()
                 return graph
 
-
             self.fst = get_token_sem_graph(classify_and_verbalize)
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
 
             # whitelist graph will be used at the very end as a separate call
-            whitelist_word_graph = pynini.compose(pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.01), vWordFst(deterministic=deterministic).fst)
-            self.whitelist_word = get_token_sem_graph(whitelist_word_graph)
+            # whitelist_word_graph = pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.01)
+            # self.whitelist_word = get_token_sem_graph(whitelist_word_graph)
 
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
-                generator_main(f"{far_file.replace('.far', '_whitelist.fsr')}", {"whitelist_word": self.whitelist_word})
+                # generator_main(f"{far_file.replace('.far', '_whitelist.far')}", {"whitelist_word": self.whitelist_word})
                 logging.info(f'ClassifyFst grammars are saved to {far_file}.')
