@@ -725,12 +725,14 @@ All ASR scripts support easy fine-tuning by partially/fully loading the pretrain
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
 
+There are multiple ASR subtasks inside the ``examples/asr/`` directory, you can substitute the ``<subtask>`` tag below.
+
 Fine-tuning via a NeMo model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
@@ -745,7 +747,7 @@ Fine-tuning via a NeMo pretrained model name
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
@@ -759,7 +761,7 @@ Fine-tuning via a Pytorch Lightning checkpoint
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \

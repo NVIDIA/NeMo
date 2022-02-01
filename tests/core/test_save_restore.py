@@ -47,7 +47,7 @@ class MockModel(ModelPT):
         # mock temp file
         if 'temp_file' in self.cfg and self.cfg.temp_file is not None:
             self.temp_file = self.register_artifact('temp_file', self.cfg.temp_file)
-            with open(self.temp_file, 'r') as f:
+            with open(self.temp_file, 'r', encoding='utf-8') as f:
                 self.temp_data = f.readlines()
         else:
             self.temp_file = None

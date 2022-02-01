@@ -17,6 +17,7 @@ import itertools
 from typing import Dict, List, Optional, Union
 
 import librosa
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -41,13 +42,14 @@ __all__ = ['EncDecSpeakerLabelModel']
 
 
 class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
-    """Encoder decoder class for speaker label models.
+    """
+    Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
     performing model forward pass.
     Expects config dict for
-    * preprocessor
-    * Jasper/Quartznet Encoder
-    * Speaker Decoder
+        * preprocessor
+        * Jasper/Quartznet Encoder
+        * Speaker Decoder
     """
 
     @classmethod
@@ -326,11 +328,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         setup_finetune_model method sets up training data, validation data and test data with new
         provided config, this checks for the previous labels set up during training from scratch, if None,
         it sets up labels for provided finetune data from manifest files
+
         Args:
-        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and
-        mandatory encoder and decoder model params
-        make sure you set num_classes correctly for finetune data
-        Returns: None
+            model_config: cfg which has train_ds, optional validation_ds, optional test_ds, 
+            mandatory encoder and decoder model params. Make sure you set num_classes correctly for finetune data.
+
+        Returns: 
+            None
         """
         logging.info("Setting up data loaders with manifests provided from model_config")
 
@@ -376,12 +380,22 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
+        """
+        Returns the speaker embeddings for a provided audio file.
+
+        Args:
+            path2audio_file: path to audio wav file
+
+        Returns:
+            embs: speaker embeddings 
+        """
         audio, sr = librosa.load(path2audio_file, sr=None)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, sr, target_sr)
         audio_length = audio.shape[0]
         device = self.device
+        audio = np.array(audio)
         audio_signal, audio_signal_len = (
             torch.tensor([audio], device=device),
             torch.tensor([audio_length], device=device),
@@ -396,3 +410,32 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             self.unfreeze()
         del audio_signal, audio_signal_len
         return embs
+
+    @torch.no_grad()
+    def verify_speakers(self, path2audio_file1, path2audio_file2, threshold=0.7):
+        """
+        Verify if two audio files are from the same speaker or not.
+
+        Args:
+            path2audio_file1: path to audio wav file of speaker 1  
+            path2audio_file2: path to audio wav file of speaker 2 
+            threshold: cosine similarity score used as a threshold to distinguish two embeddings (default = 0.7)
+
+        Returns:  
+            True if both audio files are from same speaker, False otherwise
+        """
+        embs1 = self.get_embedding(path2audio_file1).squeeze()
+        embs2 = self.get_embedding(path2audio_file2).squeeze()
+        # Length Normalize
+        X = embs1 / torch.linalg.norm(embs1)
+        Y = embs1 / torch.linalg.norm(embs2)
+        # Score
+        similarity_score = torch.dot(X, Y) / ((torch.dot(X, X) * torch.dot(Y, Y)) ** 0.5)
+        similarity_score = (similarity_score + 1) / 2
+        # Decision
+        if similarity_score >= threshold:
+            logging.info(" two audio files are from same speaker")
+            return True
+        else:
+            logging.info(" two audio files are from different speakers")
+            return False
