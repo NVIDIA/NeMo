@@ -38,7 +38,7 @@
     ],
     "sort": "ASC",
     "template": "${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
-    "pr_template": "- ${{TITLE}} :: PR: #${{NUMBER}} \n ${{BODY}}",
+    "pr_template": "- ${{TITLE}} :: PR: #${{NUMBER}} \n'${{BODY}}'",
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
