@@ -16,6 +16,9 @@
 
 import amp_C
 import torch
+from torch._six import inf
+
+from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
 
 try:
     from apex.multi_tensor_apply import multi_tensor_applier
@@ -25,9 +28,6 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-from torch._six import inf
-
-from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
 
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):

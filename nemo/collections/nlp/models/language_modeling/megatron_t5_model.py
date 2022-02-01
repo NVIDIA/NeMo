@@ -18,13 +18,6 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-
-try:
-    from apex.transformer import parallel_state, tensor_parallel
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -40,6 +33,13 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 class MegatronT5Model(NLPModel):
