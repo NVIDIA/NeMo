@@ -117,7 +117,7 @@ def check_model_ranks(model: ExampleModel):
         filename = file_template.format(rank=rank)
         filepath = os.path.join(basedir, filename)
 
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             texts = f.readlines()
             texts = [t.replace("\n", "") for t in texts]
 
