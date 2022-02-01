@@ -215,7 +215,7 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str):
 
     normalized_texts = normalizer.normalize(
         text=line["text"],
-        n_tagged=-1,
+        n_tagged=100,
         punct_post_process=True,
     )
 
