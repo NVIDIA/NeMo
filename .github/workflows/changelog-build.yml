@@ -39,7 +39,7 @@ jobs:
           ignorePreReleases: "false"
           failOnError: "false"
           fromTag: v1.5.0 # ${{ steps.previous_tag.outputs.tag_name }}
-          toTag: ${{ github.ref_name }}
+          toTag: v1.6.0 # ${{ github.ref_name }}
 
       - name: Print Changelog
         run: |
