@@ -78,27 +78,18 @@ class ElectronicFst(GraphFst):
             + (domain | pynini.closure(accepted_username + delete_extra_space,) + accepted_username)
         )
 
+        protocol_default = (
+            (pynini.closure(delete_extra_space + accepted_username, 1) | server) + pynini.closure(ending, 1)
+        ).optimize()
         protocol = (
-            pynini.closure(protocol_start, 0, 1)
-            + protocol_end
-            + delete_extra_space
-            + process_dot
-            + pynini.closure(delete_extra_space + accepted_username, 1)
-            + pynini.closure(ending, 1)
-        )
-        protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
+            pynini.closure(protocol_start, 0, 1) + protocol_end + delete_extra_space + process_dot + protocol_default
+        ).optimize()
+
+        protocol |= pynini.closure(protocol_end + delete_extra_space + process_dot, 0, 1) + protocol_default
+
+        protocol = pynutil.insert("protocol: \"") + protocol.optimize() + pynutil.insert("\"")
         graph |= protocol
         ########
-
-        # ip
-        digit_to_str = pynini.invert(
-            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        ).optimize() | pynini.cross("0", pynini.union("o", "oh", "zero"))
-        digit_to_str_graph = pynini.compose(
-            NEMO_DIGIT ** (1, 3), digit_to_str + pynini.closure(pynutil.insert(" ") + digit_to_str)
-        ).optimize()
-        ip_graph = digit_to_str_graph + (pynini.cross(".", " dot ") + digit_to_str_graph) ** 3
-        graph |= pynutil.insert("protocol: \"") + pynini.invert(ip_graph).optimize() + pynutil.insert("\"")
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
