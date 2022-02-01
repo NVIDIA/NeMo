@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
 
 try:
     import pynini
@@ -78,15 +78,16 @@ class ElectronicFst(GraphFst):
             + (domain | pynini.closure(accepted_username + delete_extra_space,) + accepted_username)
         )
 
+        protocol_default = (
+            (pynini.closure(delete_extra_space + accepted_username, 1) | server) + pynini.closure(ending, 1)
+        ).optimize()
         protocol = (
-            pynini.closure(protocol_start, 0, 1)
-            + protocol_end
-            + delete_extra_space
-            + process_dot
-            + pynini.closure(delete_extra_space + accepted_username, 1)
-            + pynini.closure(ending, 1)
-        )
-        protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
+            pynini.closure(protocol_start, 0, 1) + protocol_end + delete_extra_space + process_dot + protocol_default
+        ).optimize()
+
+        protocol |= pynini.closure(protocol_end + delete_extra_space + process_dot, 0, 1) + protocol_default
+
+        protocol = pynutil.insert("protocol: \"") + protocol.optimize() + pynutil.insert("\"")
         graph |= protocol
         ########
 
