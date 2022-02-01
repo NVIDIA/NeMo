@@ -218,6 +218,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.cluster_type == "bcp":
+        joblog = os.path.join(log_dir, f"log-{task}.out")
         nnodes = os.environ.get("NGC_ARRAY_SIZE", 1)
         assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
         if download_the_pile:
@@ -254,33 +255,33 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             proc.wait()
             print(f"Finished extract script returncode: {proc.returncode}")
 
-    assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
-    if preprocess_data:
-        # Preprocess the dataset
-        code = os.path.join(bignlp_path, "data_preparation/preprocess.py")
-        megatron_dir = '/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron'
-        # Remove compiled helpers lib to avoid race condition
-        compiled_helpers_lib = os.path.join(
-            megatron_dir, 'compiled_helpers_lib')
-        clean = f'mpirun --allow-run-as-root -npernode 1 ' + \
-            f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
-            f'rm "{compiled_helpers_lib}" \''
-        os.system(clean)
-        preproc_npernode = data_cfg.bcp_preproc_npernode
-        cmd = f"mpirun --allow-run-as-root " + \
-              f"-npernode {preproc_npernode} " + \
-              f"python3 {code} {hydra_args}"
-        # print(f"Preprocess CMD:\n{cmd}")
-        proc = subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE,
-            universal_newlines=True)
-        print(f"\nSubmitted preprocess script with job pid: {proc.pid}")
-        with open(joblog, "a", encoding="utf-8") as jlog:
-            print(f"Preprocess CMD:\n{cmd}", file=jlog)
-            for line in proc.stdout:
-                print(line)
-                jlog.write(line)
+        assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
+        if preprocess_data:
+            # Preprocess the dataset
+            code = os.path.join(bignlp_path, "data_preparation/preprocess.py")
+            megatron_dir = '/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron'
+            # Remove compiled helpers lib to avoid race condition
+            compiled_helpers_lib = os.path.join(
+                megatron_dir, 'compiled_helpers_lib')
+            clean = f'mpirun --allow-run-as-root -npernode 1 ' + \
+                f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
+                f'rm "{compiled_helpers_lib}" \''
+            os.system(clean)
+            preproc_npernode = data_cfg.bcp_preproc_npernode
+            cmd = f"mpirun --allow-run-as-root " + \
+                  f"-npernode {preproc_npernode} " + \
+                  f"python3 {code} {hydra_args}"
+            # print(f"Preprocess CMD:\n{cmd}")
+            proc = subprocess.Popen(
+                cmd, shell=True, stdout=subprocess.PIPE,
+                universal_newlines=True)
+            print(f"\nSubmitted preprocess script with job pid: {proc.pid}")
+            with open(joblog, "a", encoding="utf-8") as jlog:
+                print(f"Preprocess CMD:\n{cmd}", file=jlog)
+                for line in proc.stdout:
+                    print(line)
+                    jlog.write(line)
 
-        proc.wait()
-        print(f"Finished preprocess script returncode: {proc.returncode}")
+            proc.wait()
+            print(f"Finished preprocess script returncode: {proc.returncode}")
     return None
