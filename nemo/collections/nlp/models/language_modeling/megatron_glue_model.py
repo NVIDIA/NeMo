@@ -143,7 +143,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
                 pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
                 label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
                 pred = self.model.tokenizer.ids_to_text(pred)
-                label = self.model.tokenizer.ids_to_text(label)                
+                label = self.model.tokenizer.ids_to_text(label)
                 all_preds.append(pred)
                 all_labels.append(label)
 
@@ -169,7 +169,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
 
     def test_epoch_end(self, outputs):
         test_loss, test_acc = self.inference_epoch_end(outputs)
-        self.log('test_loss',test_loss, prog_bar=True)
+        self.log('test_loss', test_loss, prog_bar=True)
         self.log('test_acc', test_acc, prog_bar=True)
         logging.info(f'Test loss: {test_loss}')
         logging.info(f'Test accuracy: {test_acc}')
@@ -222,7 +222,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        self.build_train_valid_test_datasets(test_only=stage=='test')
+        self.build_train_valid_test_datasets(test_only=stage == 'test')
         self.setup_test_data()
         if stage == 'test':
             return

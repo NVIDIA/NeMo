@@ -372,7 +372,9 @@ class MegatronT5Model(NLPModel):
             enc_hidden_states=None,
             output_enc_hidden_only=True,
         )
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
+        predicted_tokens_dec = (
+            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
+        )
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
