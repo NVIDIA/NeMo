@@ -1,3 +1,7 @@
+# What does this PR do ?
+
+Add a one line overview of what this PR aims to accomplish.
+
 **Collection**: [Note which collection this PR will affect]
 
 # Changelog 
@@ -19,6 +23,7 @@
   - [ ] Reviewer: Does the PR have correct import guards for all optional libraries?
   
 **PR Type**:
+- [ ] New Feature
 - [ ] Bugfix
 - [ ] Documentation
 
