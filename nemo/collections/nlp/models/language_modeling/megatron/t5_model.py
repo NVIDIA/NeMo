@@ -100,6 +100,7 @@ class T5Model(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         bias_gelu_fusion=True,
+        masked_softmax_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
     ):
@@ -142,6 +143,7 @@ class T5Model(MegatronModule):
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
             bias_gelu_fusion=bias_gelu_fusion,
+            masked_softmax_fusion=masked_softmax_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
         )

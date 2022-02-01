@@ -51,7 +51,7 @@ model:
 
     validation_ds:
       task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/dev.tsv'
+      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       batch_size: 32
       shuffle: False
       num_workers: 8
@@ -60,7 +60,7 @@ model:
 
     test_ds:
       task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/test.tsv'
+      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv' # We use dev as test data here because test data doesn't have labels we can evaluate against.
       batch_size: 32
       shuffle: False
       num_workers: 8

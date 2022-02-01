@@ -103,7 +103,8 @@ class MegatronT5Model(NLPModel):
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
-            bias_gelu_fusion=True,
+            bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
+            masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
             onnx_safe=cfg.get('onnx_safe', False),
         )
 

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
+from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
@@ -35,7 +35,13 @@ class MegatronT5FineTuneModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.model = MegatronT5Model.restore_from(cfg.restore_from_path, trainer=trainer)
+        # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
+        # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
+        t5_cfg = MegatronT5Model.restore_from(cfg.restore_from_path, trainer=trainer, return_config=True)
+        OmegaConf.set_struct(t5_cfg, True)
+        with open_dict(t5_cfg):
+            t5_cfg.masked_softmax_fusion = False
+        self.model = MegatronT5Model.restore_from(cfg.restore_from_path, trainer=trainer, override_config_path=t5_cfg)
 
     def training_step(self, batch, batch_idx):
         pass
