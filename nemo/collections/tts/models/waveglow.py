@@ -124,7 +124,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
             "denoise": NeuralType(optional=True),
             "denoiser_strength": NeuralType(optional=True),
         },
-        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+        output_types={"audio_pred": NeuralType(('B', 'T'), AudioSignal())},
     )
     def convert_spectrogram_to_audio(
         self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
@@ -247,6 +247,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
     def _prepare_for_export(self, **kwargs):
         self.update_bias_spect()
         self.waveglow._prepare_for_export(**kwargs)
+        self.mode = OperationMode.infer
 
     def forward_for_export(self, spec, z=None):
         return self.waveglow(spec, z)

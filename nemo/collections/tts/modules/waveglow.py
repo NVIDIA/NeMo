@@ -134,11 +134,17 @@ class WaveGlowModule(NeuralModule, Exportable):
 
     @property
     def input_types(self):
+        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
+            return {
+                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+                "run_inverse": NeuralType(elements_type=IntType(), optional=True),
+                "sigma": NeuralType(optional=True),
+            }
         return {
             "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
-            "run_inverse": NeuralType(elements_type=IntType(), optional=True),
             "sigma": NeuralType(optional=True),
         }
 
@@ -153,7 +159,7 @@ class WaveGlowModule(NeuralModule, Exportable):
             }
         else:
             return {
-                "audio": NeuralType(('B', 'T'), AudioSignal()),
+                "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
             }
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -169,7 +175,7 @@ class WaveGlowModule(NeuralModule, Exportable):
             device=par.device,
             dtype=par.dtype,
         )
-        return {"spec": mel, "z": z}
+        return ({"spec": mel, "z": z},)
 
     def audio_to_normal_dist(self, *, spec: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
         #  Upsample spectrogram to size of audio
