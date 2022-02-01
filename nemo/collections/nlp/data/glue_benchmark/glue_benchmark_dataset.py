@@ -36,6 +36,7 @@ from nemo.collections.nlp.data.glue_benchmark.data_processors import (
     Sst2Processor,
     StsbProcessor,
     WnliProcessor,
+    XNliProcessor,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
     make_attention_mask_3d,
@@ -58,6 +59,7 @@ processors = {
     "qnli": QnliProcessor,
     "rte": RteProcessor,
     "wnli": WnliProcessor,
+    "xnli": XNliProcessor,
 }
 output_modes = {
     "cola": "classification",
