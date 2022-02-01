@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, insert_space
 
 try:
     import pynini
@@ -29,9 +29,18 @@ class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers, e.g. 
         one two three one two three five six seven eight -> { number_part: "123-123-5678" }
+
+    This class also support card number and IP format.
+        "one two three dot one double three dot o dot four o" -> { number_part: "123.133.0.40"}
+
+        "three two double seven three two one four three two one four three double zero five" ->
+            { number_part: 3277 3214 3214 3005}
+
+    Args:
+        cardinal: CardinalFst
     """
 
-    def __init__(self):
+    def __init__(self, cardinal: GraphFst):
         super().__init__(name="telephone", kind="classify")
         # country code, number_part, extension
         digit_to_str = pynini.invert(
@@ -68,6 +77,42 @@ class TelephoneFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        graph = number_part
+        str_to_digit = pynini.invert(digit_to_str)
+        # to handle cases like "one twenty three"
+        two_digit_cardinal = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT ** 2)
+        cardinal_option = (
+            (str_to_digit + pynutil.delete(" ") + two_digit_cardinal)
+            | two_digit_cardinal
+            | (two_digit_cardinal + pynutil.delete(" ") + str_to_digit)
+        )
+
+        country_code = (
+            pynutil.insert("country_code: \"")
+            + pynini.closure(pynini.cross("plus ", "+"), 0, 1)
+            + ((pynini.closure(str_to_digit + pynutil.delete(" "), 0, 2) + str_to_digit) | cardinal_option)
+            + pynutil.insert("\"")
+        )
+        optional_country_code = pynini.closure(country_code + pynutil.delete(" ") + insert_space, 0, 1).optimize()
+        graph = optional_country_code + number_part
+
+        # card number
+        double_digit_to_digit = pynini.compose(double_digit, str_to_digit + pynutil.delete(" ") + str_to_digit)
+        card_graph = (double_digit_to_digit | str_to_digit).optimize()
+        card_graph = (card_graph + pynini.closure(pynutil.delete(" ") + card_graph)).optimize()
+        # reformat card number, group by four
+        space_four_digits = insert_space + NEMO_DIGIT ** 4
+        card_graph = pynini.compose(card_graph, NEMO_DIGIT ** 4 + space_four_digits ** 3).optimize()
+        graph |= pynutil.insert("number_part: \"") + card_graph.optimize() + pynutil.insert("\"")
+
+        # ip
+        digit_or_double = pynini.closure(str_to_digit + pynutil.delete(" "), 0, 1) + double_digit_to_digit
+        digit_or_double |= double_digit_to_digit + pynini.closure(pynutil.delete(" ") + str_to_digit, 0, 1)
+        digit_or_double |= str_to_digit + (pynutil.delete(" ") + str_to_digit) ** (0, 2)
+        digit_or_double |= cardinal_option
+        digit_or_double = digit_or_double.optimize()
+
+        ip_graph = digit_or_double + (pynini.cross(" dot ", ".") + digit_or_double) ** 3
+        graph |= pynutil.insert("number_part: \"") + ip_graph.optimize() + pynutil.insert("\"")
+
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
