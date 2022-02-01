@@ -106,7 +106,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
-        result = self.model(
+        ret_dict= self.model(
             encoder_input_ids=encoder_input_ids,
             decoder_input_ids=decoder_input_ids,
             encoder_attn_mask=encoder_attn_mask,
@@ -117,11 +117,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             enc_hidden_states=enc_hidden_states,
             output_enc_hidden_only=output_enc_hidden_only,
         )
-        # TODO: return a dict?
-        if not output_enc_hidden_only:
-            return result[0], result[1], result[2]
-        else:
-            return result
+
+        return ret_dict
 
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
