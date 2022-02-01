@@ -1,3 +1,5 @@
+# TODO(Oktai15): remove this config in 1.8.0 version
+
 name: "EncoderDecoderMelToSpec"
 sample_rate: 22050
 n_fft: 1024
