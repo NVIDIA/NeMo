@@ -32,6 +32,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
 @dataclass
@@ -45,6 +46,7 @@ class GlowTTSConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
+@deprecated(version="1.8", explanation="GlowTTSModel will be removed. Use FastPitchModel instead.")
 class GlowTTSModel(SpectrogramGenerator):
     """
     GlowTTS model used to generate spectrograms from text
