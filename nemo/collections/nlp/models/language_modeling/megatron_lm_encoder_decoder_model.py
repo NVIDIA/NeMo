@@ -297,6 +297,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
+        # TODO: move into a class inside LMEncoderDecoderModel
         encoder_hidden_states = self(
             encoder_input_ids=tokens_enc,
             decoder_input_ids=None,

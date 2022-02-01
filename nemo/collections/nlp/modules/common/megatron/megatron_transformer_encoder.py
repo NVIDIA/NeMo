@@ -84,7 +84,6 @@ class MegatronTransformerEncoderModel(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-
         # Transformer.
         self.model = ParallelTransformer(
             init_method=self.init_method,
@@ -125,8 +124,12 @@ class MegatronTransformerEncoderModel(MegatronModule):
     ):
         # transformer encoder
         encoder_output = self.model(
-            enc_input, enc_attn_mask, layer_past=layer_past, get_key_value=get_key_value
+            enc_input,
+            enc_attn_mask,
+            layer_past=layer_past,
+            get_key_value=get_key_value,
         )
+        # we copy input mask for transformer
         enc_output_mask = enc_attn_mask
 
         return enc_output, enc_output_mask

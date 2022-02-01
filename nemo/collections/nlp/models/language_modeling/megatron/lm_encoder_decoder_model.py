@@ -25,7 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
     build_position_ids,
-    enc_dec_extended_attention_mask
+    enc_dec_extended_attention_mask,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -189,6 +189,8 @@ class LMEncoderDecoderModel(MegatronModule):
             decoder=decoder,
         )
         self._enc_dec_model_key = "enc_dec_model"
+        self._encoder_input_embedder_key = "encoder_input_embedder"
+        self._decoder_input_embedder_key = "decoder_input_embedder"
 
         self.lm_head = MegatronLMHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
         self._lm_head_key = 'lm_head'
@@ -260,6 +262,9 @@ class LMEncoderDecoderModel(MegatronModule):
         add an extra key."""
 
         state_dict_ = {}
+
+        state_dict_[self._encoder_input_embedder_key] = self.encoder_input_embedder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._decoder_input_embedder_key] = self.decoder_input_embedder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
         state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
@@ -269,5 +274,7 @@ class LMEncoderDecoderModel(MegatronModule):
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
+        self.encoder_input_embedder.encoder_input_embedderload_state_dict(state_dict[self._encoder_input_embedder_key], strict=strict)
+        self.decoder_input_embedder.load_state_dict(state_dict[self._decoder_input_embedder_key], strict=strict)
         self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
         self.lm_head.load_state_dict(state_dict[self._lm_head_key], strict=strict)

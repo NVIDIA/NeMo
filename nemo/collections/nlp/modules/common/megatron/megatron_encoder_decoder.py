@@ -26,8 +26,13 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
-    enc_dec_extended_attention_mask
+    make_inference_attention_mask_3d,
 )
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    make_attention_mask_3d,
+)
+
 
 __all__ = []
 
@@ -40,42 +45,32 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
 
     def __init__(
         self,
-        encoder_input_embedder,
         encoder,
-        decoder_input_embedder,
         decoder,
     ):
         super(MegatronTransformerEncoderDecoderModel, self).__init__()
 
-        self.encoder_input_embedder = encoder_input_embedder
         self.encoder = encoder
-        self.decoder_input_embedder = decoder_input_embedder
         self.decoder = decoder
 
-        self._encoder_input_embedder_key = "encoder_input_embedder"
         self._encoder_key = "encoder"
-        self._decoder_input_embedder_key = "decoder_input_embedder"
         self._decoder_key = "decoder"
 
 
+    # FIXME: no need to set decoder too?
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
         self.encoder.set_input_tensor(input_tensor)
 
-    def embed_enc_input(self, enc_emb_input):
-        """Embeds encoder input (e.g., input tokens for text)"""
-        return self.encoder_input_embedder(enc_emb_input)
-
     def encode(self,
-               enc_emb_input,
+               enc_input,
                enc_attn_mask,
                enc_layer_past=None,
                enc_get_key_value=False,
                ):
         """Encodes embedder input using encoder"""
-        encoder_input = self.embed_enc_input(enc_emb_input)
         enc_output, enc_output_mask = self.encoder(
-            hidden_states=encoder_input,
+            hidden_states=enc_input,
             attention_mask=enc_attn_mask,
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
@@ -83,27 +78,29 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
 
         return enc_output, enc_output_mask
 
-    def embed_dec_input(self, dec_emb_input):
-        """Embeds decoder input (e.g., input tokens for text)"""
-        return self.decoder_input_embedder(dec_emb_input)
-
     def decode(self,
-               enc_output,
-               dec_emb_input,
+               dec_input,
                dec_attn_mask,
-               enc_dec_attn_mask
+               enc_output,
+               enc_output_mask,
                dec_layer_past=None,
                dec_get_key_value=False,
                ):
         """Decodes embedder input using decoder and encoder input"""
+        # FIXME: validate correct mask shape here
+        import pudb; pudb.set_trace()
 
-        dec_input = self.embed_dec_input(dec_emb_input)
+        enc_dec_attn_mask = make_attention_mask_3d(
+                dec_attn_mask, enc_output_mask,
+            )
+
+
         dec_output = self.decoder(
             dec_input,
             dec_attn_mask,
             layer_past=dec_layer_past,
             get_key_value=dec_get_key_value,
-            encoder_output=enc_output,
+            enc_output=enc_output,
             enc_dec_attn_mask=enc_dec_attn_mask,
         )
 
@@ -111,34 +108,36 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
 
     def forward(
         self,
-        enc_emb_input,
+        enc_input,
         enc_attn_mask,
-        dec_emb_input,
+        dec_input,
         dec_attn_mask,
-        enc_dec_attn_mask,
         enc_layer_past=None,
         enc_get_key_value=False,
         enc_output=None,
+        enc_output_mask=None,
         dec_layer_past=None,
         dec_get_key_value=False,
     ):
         # encoder
         if enc_output is None:
             enc_output, enc_output_mask = self.encode(
-                enc_emb_input=enc_emb_input,
+                enc_input=enc_input,
                 enc_attn_mask=enc_attn_mask,
-                enc_layer_past=enc_layer_past,
-                enc_get_key_value=enc_get_key_value,
+                layer_past=enc_layer_past,
+                get_key_value=enc_get_key_value,
             )
+        elif enc_output_mask is None:
+            raise ValueError("enc_output_mask cannot be None when enc_output is not None")
 
         # decoder
         dec_output = self.decode(
-            enc_output,
-            dec_emb_input,
-            dec_attn_mask,
-            enc_dec_attn_mask
-            dec_layer_past=None,
-            dec_get_key_value=False,
+            dec_input=dec_input,
+            dec_attn_mask=dec_attn_mask,
+            enc_output=enc_output,
+            enc_output_mask=enc_output_mask,
+            layer_past=dec_layer_past,
+            get_key_value=dec_get_key_value,
         )
 
         return enc_output, enc_output_mask, dec_output
@@ -149,9 +148,7 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
 
         state_dict_ = {}
 
-        state_dict_[self._encoder_input_embedder_key] = self.encoder_input_embedder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
         state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-        state_dict_[self._decoder_input_embedder_key] = self.decoder_input_embedder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
         state_dict_[self._decoder_key] = self.decoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
 
         return state_dict_
@@ -160,7 +157,5 @@ class MegatronTransformerEncoderDecoderModel(MegatronModule):
         """Customized load."""
 
 
-        self.encoder_input_embedder.encoder_input_embedderload_state_dict(state_dict[self._encoder_input_embedder_key], strict=strict)
         self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
-        self.decoder_input_embedder.load_state_dict(state_dict[self._decoder_input_embedder_key], strict=strict)
         self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)

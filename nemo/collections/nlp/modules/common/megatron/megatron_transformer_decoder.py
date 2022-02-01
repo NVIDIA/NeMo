@@ -120,18 +120,18 @@ class MegatronTransformerDecoderModel(MegatronModule):
         self,
         dec_input,
         dec_attn_mask,
-        encoder_output,
+        enc_output,
         enc_dec_attn_mask,
         layer_past=None,
         get_key_value=False,
     ):
         # transformer decoder
-        dec_output = self.decoder(
+        dec_output = self.model(
             dec_input,
             dec_attn_mask,
             layer_past=layer_past,
             get_key_value=get_key_value,
-            encoder_output=encoder_output,
+            encoder_output=enc_output,
             enc_dec_attn_mask=enc_dec_attn_mask,
         )
 
