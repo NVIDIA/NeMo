@@ -59,6 +59,13 @@ pipeline {
       }
     }
 
+    // TODO: remove this when PTL updates their torchtext import logic
+    stage('Remove torchtext from PTL Imports') {
+      steps {
+        sh 'sed -i "s/_module_available(\"torchtext\")/False/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py'
+      }
+    }
+
     stage('PyTorch Lightning version') {
       steps {
         sh 'python -c "import pytorch_lightning; print(pytorch_lightning.__version__)"'
