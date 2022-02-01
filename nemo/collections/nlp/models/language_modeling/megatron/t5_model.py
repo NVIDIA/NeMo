@@ -15,12 +15,19 @@
 """T5 model."""
 
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer.enums import AttnMaskType
+
+try:
+    from apex.transformer import tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
+from nemo.utils import logging
 
 
 def t5_attention_mask_func(attention_scores, attention_mask):
@@ -61,6 +68,10 @@ class T5LMHead(MegatronModule):
     """
 
     def __init__(self, mpu_vocab_size, parallel_output):
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super(T5LMHead, self).__init__()
 
         self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
@@ -103,6 +114,11 @@ class T5Model(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
     ):
+
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super(T5Model, self).__init__()
 
         self.parallel_output = parallel_output

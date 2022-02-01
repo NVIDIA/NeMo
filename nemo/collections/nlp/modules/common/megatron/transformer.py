@@ -18,10 +18,16 @@ import math
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType, AttnType, LayerType
-from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
-from apex.transformer.utils import divide as safe_divide
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType, AttnType, LayerType
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+    from apex.transformer.utils import divide as safe_divide
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,

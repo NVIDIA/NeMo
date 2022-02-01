@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ast import Mod
 import os
 import re
 from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
+
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -51,6 +59,10 @@ class MegatronGPTModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 

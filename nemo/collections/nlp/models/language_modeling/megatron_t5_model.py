@@ -18,7 +18,13 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-from apex.transformer import parallel_state, tensor_parallel
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -42,6 +48,10 @@ class MegatronT5Model(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 

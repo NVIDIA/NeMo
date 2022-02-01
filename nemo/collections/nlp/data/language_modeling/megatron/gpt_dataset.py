@@ -19,7 +19,16 @@ import time
 
 import numpy as np
 import torch
-from apex.transformer import parallel_state
+
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
@@ -155,6 +164,10 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 class GPTDataset(MegatronDataset):
     def __init__(self, cfg, trainer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed):
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
         super().__init__(cfg, trainer=trainer)
         self.name = name
