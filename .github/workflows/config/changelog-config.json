@@ -58,7 +58,7 @@
         "target": "nlp",
         "flags": "gimu",
         "on_property": ["title", "body"]
-      },,
+      },
       {
         "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
         "target": "nmt",
