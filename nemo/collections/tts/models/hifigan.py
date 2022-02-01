@@ -17,7 +17,7 @@ import itertools
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.data.datalayers import MelAudioDataset
@@ -96,7 +96,10 @@ class HifiGanModel(Vocoder, Exportable):
 
     def configure_optimizers(self):
         optim_config = self._cfg.optim.copy()
+
+        OmegaConf.set_struct(optim_config, False)
         sched_config = optim_config.pop("sched", None)
+        OmegaConf.set_struct(optim_config, True)
 
         optim_g = instantiate(optim_config, params=self.generator.parameters(),)
         optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
