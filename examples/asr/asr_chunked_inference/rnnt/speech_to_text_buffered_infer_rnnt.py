@@ -21,12 +21,12 @@ This script serves three goals:
 
 python speech_to_text_buffered_infer_rnnt.py \
     --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
-    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/subset/test_other_10.json" \
+    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/test_other.json" \
     --model_stride=4 \
     --output_path="." \
     --total_buffer_in_secs=10.0 \
     --chunk_len_in_ms=8000 \
-    --batch_size=1
+    --batch_size=128
 
 """
 
@@ -97,9 +97,9 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
 
                     batch.clear()
 
-    for hyp, ref in zip(hyps, refs):
-        print("hyp:", hyp)
-        print("ref:", ref)
+    # for hyp, ref in zip(hyps, refs):
+    #     print("hyp:", hyp)
+    #     print("ref:", ref)
 
     wer = word_error_rate(hypotheses=hyps, references=refs)
     return hyps, refs, wer
@@ -197,6 +197,9 @@ def main():
         args.batch_size,
     )
     logging.info(f"WER is {round(wer, 4)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
+
+    # Buffer = 5 sec
+    # middle 2 left, 1 sec, 2 right
 
     if args.output_path is not None:
 
