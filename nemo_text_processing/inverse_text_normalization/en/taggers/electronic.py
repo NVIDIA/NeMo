@@ -77,7 +77,11 @@ class ElectronicFst(GraphFst):
         )
 
         protocol_default = (
-            (pynini.closure(delete_extra_space + accepted_username, 1) | server) + pynini.closure(ending, 1)
+            (
+                (pynini.closure(delete_extra_space + accepted_username, 1) | server)
+                | pynutil.add_weight(pynini.closure(NEMO_ALPHA, 1), weight=0.0001)
+            )
+            + pynini.closure(ending, 1)
         ).optimize()
         protocol = (
             pynini.closure(protocol_start, 0, 1) + protocol_end + delete_extra_space + process_dot + protocol_default
