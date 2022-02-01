@@ -5,7 +5,7 @@ import subprocess
 import hydra
 import omegaconf
 
-from . import utils
+from .dataprep_scripts import utils
 
 
 def create_slurm_file(
@@ -107,6 +107,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
+    download_code_path = os.path.join(bignlp_path, "data_preparation/dataprep_scripts/download.py")
+    extract_code_path = os.path.join(bignlp_path, "data_preparation/dataprep_scripts/extract.py")
+    preprocess_code_path = os.path.join(bignlp_path, "data_preparation/dataprep_scripts/preprocess.py")
     
     # BCM config
     if cfg.cluster_type == "bcm":
@@ -133,7 +136,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             download_script_path = os.path.join(
                 bignlp_path, "data_preparation/download_script.sh"
             )
-            download_code_path = os.path.join(bignlp_path, "data_preparation/download.py")
             create_slurm_file(
                 new_script_path=download_script_path,
                 code_path=download_code_path,
@@ -161,7 +163,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             extract_script_path = os.path.join(
                 bignlp_path, "data_preparation/extract_script.sh"
             )
-            extract_code_path = os.path.join(bignlp_path, "data_preparation/extract.py")
             create_slurm_file(
                 new_script_path=extract_script_path,
                 code_path=extract_code_path,
@@ -190,9 +191,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             # Preprocess the dataset
             preprocess_script_path = os.path.join(
                 bignlp_path, "data_preparation/preprocess_script.sh"
-            )
-            preprocess_code_path = os.path.join(
-                bignlp_path, "data_preparation/preprocess.py"
             )
             create_slurm_file(
                 new_script_path=preprocess_script_path,
@@ -223,8 +221,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
         if download_the_pile:
             # Downloading the files
-            code = os.path.join(bignlp_path, "data_preparation/download.py")
-            cmd = f"mpirun --allow-run-as-root -npernode 1 python3 {code} {hydra_args}"
+            cmd = f"mpirun --allow-run-as-root -npernode 1 python3 {download_code_path} {hydra_args}"
             proc = subprocess.Popen(
                 cmd, shell=True, stdout=subprocess.PIPE,
                 universal_newlines=True)
@@ -238,9 +235,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             print(f"Finished Download script returncode: {proc.returncode}")
 
             # Extract The Pile dataset files
-            code = os.path.join(bignlp_path, "data_preparation/extract.py")
             cmd = f"mpirun --allow-run-as-root -npernode 1 " + \
-                  f"python3 {code} {hydra_args}"
+                  f"python3 {extract_code_path} {hydra_args}"
             # print(f"Extract CMD:\n{cmd}")
             proc = subprocess.Popen(
                 cmd, shell=True, stdout=subprocess.PIPE,
@@ -258,7 +254,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
         if preprocess_data:
             # Preprocess the dataset
-            code = os.path.join(bignlp_path, "data_preparation/preprocess.py")
             megatron_dir = '/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron'
             # Remove compiled helpers lib to avoid race condition
             compiled_helpers_lib = os.path.join(
@@ -270,7 +265,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             preproc_npernode = data_cfg.bcp_preproc_npernode
             cmd = f"mpirun --allow-run-as-root " + \
                   f"-npernode {preproc_npernode} " + \
-                  f"python3 {code} {hydra_args}"
+                  f"python3 {preprocess_code_path} {hydra_args}"
             # print(f"Preprocess CMD:\n{cmd}")
             proc = subprocess.Popen(
                 cmd, shell=True, stdout=subprocess.PIPE,
