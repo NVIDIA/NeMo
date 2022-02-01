@@ -46,7 +46,7 @@ class TelephoneFst(GraphFst):
         digit_to_str = pynini.invert(
             pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         ).optimize() | pynini.cross("0", pynini.union("o", "oh", "zero"))
-
+        str_to_digit = pynini.invert(digit_to_str)
         double_digit = pynini.union(
             *[
                 pynini.cross(
@@ -59,6 +59,11 @@ class TelephoneFst(GraphFst):
             ]
         )
         double_digit.invert()
+        
+        # to handle cases like "one twenty three"
+        two_digit_cardinal = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT ** 2)
+        double_digit_to_digit = pynini.compose(double_digit, str_to_digit + pynutil.delete(" ") + str_to_digit) | two_digit_cardinal
+        
         number_part = (
             pynini.closure(digit_to_str + insert_space, 2, 2)
             + digit_to_str
@@ -77,13 +82,11 @@ class TelephoneFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        str_to_digit = pynini.invert(digit_to_str)
-        # to handle cases like "one twenty three"
-        two_digit_cardinal = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT ** 2)
+
         cardinal_option = (
-            (str_to_digit + pynutil.delete(" ") + two_digit_cardinal)
-            | two_digit_cardinal
-            | (two_digit_cardinal + pynutil.delete(" ") + str_to_digit)
+            (str_to_digit + pynutil.delete(" ") + double_digit_to_digit)
+            | double_digit_to_digit
+            | (double_digit_to_digit + pynutil.delete(" ") + str_to_digit)
         )
 
         country_code = (
@@ -96,13 +99,19 @@ class TelephoneFst(GraphFst):
         graph = optional_country_code + number_part
 
         # card number
-        double_digit_to_digit = pynini.compose(double_digit, str_to_digit + pynutil.delete(" ") + str_to_digit)
+        
         card_graph = (double_digit_to_digit | str_to_digit).optimize()
         card_graph = (card_graph + pynini.closure(pynutil.delete(" ") + card_graph)).optimize()
         # reformat card number, group by four
         space_four_digits = insert_space + NEMO_DIGIT ** 4
-        card_graph = pynini.compose(card_graph, NEMO_DIGIT ** 4 + space_four_digits ** 3).optimize()
-        graph |= pynutil.insert("number_part: \"") + card_graph.optimize() + pynutil.insert("\"")
+        credit_card_graph = pynini.compose(card_graph, NEMO_DIGIT ** 4 + space_four_digits ** 3).optimize()
+        graph |= pynutil.insert("number_part: \"") + credit_card_graph.optimize() + pynutil.insert("\"")
+
+        
+
+        # SSN
+        ssn_graph = pynini.compose(card_graph, NEMO_DIGIT ** 3 + pynutil.insert("-") + NEMO_DIGIT ** 2 + pynutil.insert("-") + NEMO_DIGIT ** 4).optimize()
+        graph |= pynutil.insert("number_part: \"") + ssn_graph.optimize() + pynutil.insert("\"")
 
         # ip
         digit_or_double = pynini.closure(str_to_digit + pynutil.delete(" "), 0, 1) + double_digit_to_digit
