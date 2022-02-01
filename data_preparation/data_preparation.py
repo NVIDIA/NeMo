@@ -200,8 +200,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.cluster_type == "bcp":
-        joblog = os.path.join(
-            log_dir, data_cfg.get("bcp_joblog", "joblog.log"))
+        joblog = os.path.join(log_dir, "data_joblog.log")
         nnodes = int(os.environ.get("NGC_ARRAY_SIZE", 1))
         assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
         if download_the_pile:
