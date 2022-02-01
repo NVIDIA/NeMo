@@ -38,7 +38,7 @@
     ],
     "sort": "ASC",
     "template": "${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
-    "pr_template": "- ${{TITLE}} :: PR: #${{NUMBER}} \n'${{BODY}}'",
+    "pr_template": "- ${{TITLE}} by @${{AUTHOR}} :: PR: #${{NUMBER}}",
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
@@ -48,7 +48,7 @@
         "on_property": ["title", "body"]
       },
       {
-        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)|(.*k2.*)",
         "target": "asr",
         "flags": "gimu",
         "on_property": ["title", "body"]
@@ -58,7 +58,7 @@
         "target": "nlp",
         "flags": "gimu",
         "on_property": ["title", "body"]
-      },
+      },,
       {
         "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
         "target": "nmt",
