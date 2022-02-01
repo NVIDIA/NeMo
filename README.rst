@@ -164,7 +164,7 @@ Note that RNNT requires numba to be installed from conda.
 
   conda remove numba
   pip uninstall numba
-  conda install -c numba numba
+  conda install -c conda-forge numba
 
 Megatron GPT
 ~~~~~~~~~~~~

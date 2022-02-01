@@ -204,7 +204,8 @@ model:
   loss:
     loss_name: "default"
     warprnnt_numba_kwargs:
-      fastemit_lambda: 0.0
+      fastemit_lambda: 0.0  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
+      clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   optim:
     name: adam

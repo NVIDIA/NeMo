@@ -453,6 +453,7 @@ model:
     warprnnt_numba_kwargs:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       fastemit_lambda: 0.001  # Values can be in range [1e-4, 1e-2]. Generally, 0.001 is good start.
+      clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   optim:
     name: novograd
