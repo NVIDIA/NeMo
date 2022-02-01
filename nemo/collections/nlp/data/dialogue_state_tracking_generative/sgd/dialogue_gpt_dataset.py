@@ -20,6 +20,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 import copy
 import re
+from collections import defaultdict
 
 import torch
 
@@ -47,6 +48,7 @@ class DialogueGPTDataset(Dataset):
         self.tokenizer = tokenizer
         self.cfg = cfg
         self.max_candidates = 2
+        self.label_to_description = defaultdict(str)
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         for idx in range(len(self.features)):
             self.preprocess_feature(idx)
@@ -83,6 +85,9 @@ class DialogueGPTDataset(Dataset):
 
         self.features[idx].data["labels"][self.label_type] = label
         self.features[idx].data["possible_labels"][self.label_type] = candidates
+        description = ex["description"][self.label_type]
+        self.label_to_description[label] = description
+
         for candidate in candidates:
             self.all_possible_labels.add(candidate)
         self.max_candidates = max(self.max_candidates, len(candidates))
@@ -110,6 +115,7 @@ class DialogueGPTDataset(Dataset):
             e.g. <utterance> service: 
         '''
         ex = self.features[idx].data
+
         utterance = ex["utterance"]
         label = ex["labels"][self.label_type]
         candidates = ex["possible_labels"][self.label_type]
@@ -120,9 +126,13 @@ class DialogueGPTDataset(Dataset):
         utterance_length = self.get_n_tokens_in_sentence(utterance)
 
         sentence_without_answer = base_template
-        sentence = base_template + ' ' + label
 
-        candidate_sentences = [base_template + ' ' + candidate for candidate in candidates]
+        sentence = base_template + ' ' + label + ' (' + self.label_to_description[label] + ')'
+
+        candidate_sentences = [
+            base_template + ' ' + candidate + ' (' + self.label_to_description[candidate] + ')'
+            for candidate in candidates
+        ]
 
         self.tokenizer.tokenizer.padding_side = "right"
 
