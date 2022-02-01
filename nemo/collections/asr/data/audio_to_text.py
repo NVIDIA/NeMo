@@ -42,6 +42,8 @@ __all__ = [
     'TarredAudioToBPEDataset',
 ]
 
+from nemo.utils.decorators import deprecated
+
 
 def _speech_collate_fn(batch, pad_id):
     """collate batch of audio sig, audio len, tokens, tokens len
@@ -343,6 +345,7 @@ class AudioToCharDataset(_AudioTextDataset):
         )
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -570,6 +573,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         )
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithPriorDataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -674,6 +678,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         return audio, audio_len, text, text_len, attn_prior
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -746,6 +751,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class FastPitchDataset(_AudioTextDataset):
     """
     Dataset used for FastPitch that has both duration and pitch information per input char.
