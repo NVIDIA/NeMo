@@ -27,6 +27,9 @@ from nemo.core.neural_types import LengthsType, NeuralType
 from nemo.constants import monitor_time
 
 
+ENABLED = True
+
+
 def LCSubStrMerge(X, Y):
     # LCSuff is the table with zero
     # value initially in each cell
@@ -321,7 +324,6 @@ class AudioFeatureIterator(IterableDataset):
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
         self._features, self._features_len = preprocessor(input_signal=audio_signal, length=audio_signal_len,)
         self._features = self._features.squeeze()
-        print("features len", self._features_len)
 
     def __iter__(self):
         return self
@@ -723,12 +725,14 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
                 self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len:]
                 self.buffer[idx, :, -self.n_frame_len:] = frame
                 # self.buffered_len += frame.shape[1]
-                self.frame_buffers.append(np.copy(self.buffer[idx]))
+                # WRAP the buffer at index idx into a outer list
+                self.frame_buffers.append([np.copy(self.buffer[idx])])
             else:
                 self.buffer[idx, :, : -self.n_frame_len] *= 0.0
                 self.buffer[idx, :, -self.n_frame_len:] *= 0.0
                 # self.buffered_len += frame.shape[1]
-                self.frame_buffers.append(np.copy(self.buffer[idx]))
+                # WRAP the buffer at index idx into a outer list
+                self.frame_buffers.append([np.copy(self.buffer[idx])])
 
         return self.frame_buffers
 
@@ -746,29 +750,29 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
             # self.feature_buffer[idx, :, :] *= 0.0
 
     def get_norm_consts_per_frame(self, batch_frames):
-        norm_consts = []
         for idx, frame in enumerate(batch_frames):
             self._update_feature_buffer(frame, idx)
-            mean_from_buffer = np.mean(self.feature_buffer, axis=2)  # [B, self.n_feat]
-            stdev_from_buffer = np.std(self.feature_buffer, axis=2)  # [B, self.n_feat]
-            norm_consts.append((mean_from_buffer.reshape((self.batch_size, self.n_feat, 1)), stdev_from_buffer.reshape((self.batch_size, self.n_feat, 1))))
-        return norm_consts
+
+        mean_from_buffer = np.mean(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
+        stdev_from_buffer = np.std(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
+
+        return (mean_from_buffer, stdev_from_buffer)
 
     def normalize_frame_buffers(self, frame_buffers, norm_consts):
         CONSTANT = 1e-5
-        for i, frame_buffer in enumerate(frame_buffers):
-            frame_buffers[i] = (frame_buffer - norm_consts[i][0]) / (norm_consts[i][1] + CONSTANT)
+        for i in range(len(frame_buffers)):
+            frame_buffers[i] = (frame_buffers[i] - norm_consts[0][i]) / (norm_consts[1][i] + CONSTANT)
 
     def get_buffers_batch(self):
         batch_frames = self.get_batch_frames()
 
         while len(batch_frames) > 0:
         # while not all(self.signal_end):
-
             frame_buffers = self.get_frame_buffers(batch_frames)
             norm_consts = self.get_norm_consts_per_frame(batch_frames)
             # if len(frame_buffers) == 0:
             #     continue
+
             self.normalize_frame_buffers(frame_buffers, norm_consts)
             return frame_buffers
         return []
@@ -882,15 +886,14 @@ class BatchedFrameBatchASR(FrameBatchASR):
         feat_signal = torch.cat(feat_signals, 0)
         feat_signal_len = torch.cat(feat_signal_lens, 0)
 
-        with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})'):
+        del feat_signals, feat_signal_lens
+
+        with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})', enabled=ENABLED):
             encoded, encoded_len = self.asr_model(
                 processed_signal=feat_signal, processed_signal_length=feat_signal_len
             )
 
-            monitor_time.print_pad()
-            print("Encoded shape :", encoded.shape, "Len", encoded_len)
-
-        with monitor_time('rnnt autoregressive decoding'):
+        with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
             best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
                 encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
             )
@@ -925,7 +928,7 @@ class BatchedFrameBatchASR(FrameBatchASR):
             self, tokens_per_chunk: int, delay: int,
     ):
         print()
-        with monitor_time('infer logits'):
+        with monitor_time('infer logits', enabled=ENABLED):
             self.infer_logits()
 
         self.unmerged = [[] for _ in range(self.batch_size)]
@@ -1014,38 +1017,31 @@ class FrameBatchASRRNNT(BatchedFrameBatchASR):
 
     @torch.no_grad()
     def infer_logits(self):
-        with monitor_time('get buffered batch()'):
-            frame_buffers = self.frame_bufferer.get_buffers_batch()
+        frame_buffers = self.frame_bufferer.get_buffers_batch()
 
-        with monitor_time('outer loop : get batch preds'):
-            while len(frame_buffers) > 0:
-                monitor_time.print_pad()
-                print("num buffers", len(frame_buffers))
-                self.frame_buffers += frame_buffers[:]
-                self.data_layer.set_signal(frame_buffers[:])
-                self._get_batch_preds()
-                frame_buffers = self.frame_bufferer.get_buffers_batch()
+        while len(frame_buffers) > 0:
+            monitor_time.print_pad()
+            self.frame_buffers += frame_buffers[:]
+            self.data_layer.set_signal(frame_buffers[:])
+            self._get_batch_preds()
+            frame_buffers = self.frame_bufferer.get_buffers_batch()
 
     @torch.no_grad()
     def _get_batch_preds(self):
         device = self.asr_model.device
 
         monitor_time.print_pad()
-        print("len dataloader :", len(self.data_layer))
         for batch in iter(self.data_loader):
 
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
 
-            with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})'):
+            with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})', enabled=ENABLED):
                 encoded, encoded_len = self.asr_model(
                     processed_signal=feat_signal, processed_signal_length=feat_signal_len
                 )
 
-                monitor_time.print_pad()
-                print("Encoded shape :", encoded.shape, "Len", encoded_len)
-
-            with monitor_time('rnnt autoregressive decoding'):
+            with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
                 best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
                     encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
                 )
@@ -1078,7 +1074,7 @@ class FrameBatchASRRNNT(BatchedFrameBatchASR):
         self, tokens_per_chunk: int, delay: int,
     ):
         print()
-        with monitor_time('infer logits'):
+        with monitor_time('infer logits', enabled=ENABLED):
             self.infer_logits()
         self.unmerged = []
         for idx, alignment in enumerate(self.all_alignments):
