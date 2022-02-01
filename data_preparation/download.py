@@ -3,7 +3,7 @@ import multiprocessing
 
 import hydra
     
-import utils
+from . import utils
 
 
 @hydra.main(config_path="../conf", config_name="config")
