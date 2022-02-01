@@ -43,15 +43,6 @@ RUN git clone --depth 1 --branch release/0.10 https://github.com/pytorch/audio.g
     BUILD_SOX=1 python setup.py install && \
     cd .. && rm -r audio
 
-# TODO: remove when 21.04 container is released
-# build torchtext
-WORKDIR /tmp/torchtext_build
-RUN git clone --branch v0.11.0-rc3 https://github.com/pytorch/text.git && \
-    cd text && \
-    git submodule update --init --recursive && \
-    python setup.py clean install && \
-    cd .. && rm -r text
-
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
 RUN git clone https://github.com/NVIDIA/TensorRT.git && \
@@ -82,7 +73,9 @@ ARG NEMO_VERSION=1.7.0
 RUN /usr/bin/test -n "$NEMO_VERSION" && \
     /bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
     /bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
+# TODO: remove sed when PTL has updated their torchtext import check
 RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" && \
+    sed -i "s/_module_available(\"torchtext\")/False/g" /opt/conda/lib/python3.8/site-packages/pytorch_lightning/utilities/imports.py && \
     python -c "import nemo.collections.asr as nemo_asr" && \
     python -c "import nemo.collections.nlp as nemo_nlp" && \
     python -c "import nemo.collections.tts as nemo_tts" && \
