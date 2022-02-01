@@ -95,13 +95,14 @@ class HifiGanModel(Vocoder, Exportable):
         raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
 
     def configure_optimizers(self):
-        optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        optim_d = instantiate(self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
+        optim_config = self._cfg.optim.copy()
+        sched_config = optim_config.pop("sched", None)
 
-        sched_config = self._cfg.optim.get("sched", None)
+        optim_g = instantiate(optim_config, params=self.generator.parameters(),)
+        optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
 
         # backward compatibility
-        if 'sched' in self._cfg:
+        if sched_config is None and 'sched' in self._cfg:
             sched_config = self._cfg.sched
 
         if sched_config is not None:
