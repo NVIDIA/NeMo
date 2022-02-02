@@ -1,4 +1,3 @@
-# @package _group_
 dataset:
   _target_: "nemo.collections.tts.torch.data.VocoderDataset"
   manifest_filepath: ${validation_datasets}
