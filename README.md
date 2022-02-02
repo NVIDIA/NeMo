@@ -651,6 +651,7 @@ in conf/conversion/convert.yaml. The run_conversion parameter must be set to Tru
 run the conversion pipeline.
 
 #### 4.7.1. Common
+<a id="markdown-common" name="common"></a>
 To specify the input checkpoint to be used for conversion, use the `model` parameters:
 ```yaml
 model:
@@ -678,6 +679,7 @@ run:
 ```
 
 #### 4.7.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
 Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
 
 ```yaml
@@ -708,6 +710,7 @@ python3 main.py
 ```
 
 #### 4.7.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the conversion script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The conversion script must be launched in a single-node job.
@@ -744,6 +747,7 @@ parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For BCP, all these parameters should be overriden from the command line.
 
 #### 4.8.1. Common
+<a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
 And use all the `run` parameters to define the job specific config:
 ```yaml
@@ -806,6 +810,7 @@ python3 main.py
 ```
 
 #### 4.8.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The evaluation script must be launched in a single-node job.
