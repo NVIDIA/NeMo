@@ -428,7 +428,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         embs2 = self.get_embedding(path2audio_file2).squeeze()
         # Length Normalize
         X = embs1 / torch.linalg.norm(embs1)
-        Y = embs1 / torch.linalg.norm(embs2)
+        Y = embs2 / torch.linalg.norm(embs2)
         # Score
         similarity_score = torch.dot(X, Y) / ((torch.dot(X, X) * torch.dot(Y, Y)) ** 0.5)
         similarity_score = (similarity_score + 1) / 2
