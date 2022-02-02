@@ -404,9 +404,9 @@ class TextToTextGLUEDataset(GLUEDataset):
         dec_input = [item['text_dec'] for item in batch]
         labels = [item['labels'] for item in batch]
 
-        max_dec_input_length = max([len(item) for item in dec_input])
-        max_enc_query_length = max([len(item) for item in enc_query])
-        max_label_length = max([len(item) for item in labels])
+        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
+        max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
+        max_label_length = max([len(item) for item in labels]) if labels else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]

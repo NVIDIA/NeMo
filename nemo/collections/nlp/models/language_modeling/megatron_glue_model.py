@@ -208,12 +208,21 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         if dataset is None:
             return None
 
-        # Torch dataloader.
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=shuffle
+        )
+
+        # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
             batch_size=batch_size,
-            shuffle=shuffle,
+            sampler=sampler,
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=False,
