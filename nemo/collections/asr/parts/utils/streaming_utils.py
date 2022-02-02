@@ -211,6 +211,7 @@ def LCSubStrMerge(X, Y):
         torch.save({'alignment': LCSuff,
                     "is_complete_merge": is_complete_merge,
                     "X": X, "Y": Y,
+                    "slice_idx": result_idx,
                     }, ALIGNMENT_FILEPATH)
         print("Wrote alignemnt to :", ALIGNMENT_FILEPATH)
 
@@ -681,6 +682,8 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
 
         self.all_frame_reader = [None for _ in range(self.batch_size)]
         self.signal_end = [False for _ in range(self.batch_size)]
+        self.signal_end_index = [None for _ in range(self.batch_size)]
+        self.buffer_number = 0
 
         self.reset()
         del self.buffered_len
@@ -690,17 +693,15 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         '''
         Reset frame_history and decoder's state
         '''
-        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
-        self.prev_char = ''
-        self.unmerged = []
-        self.frame_buffers = []
-        # self.buffered_len = 0
+        super().reset()
         self.feature_buffer = (
                 np.ones([self.batch_size, self.n_feat, self.feature_buffer_len],
                         dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         )
         self.all_frame_reader = [None for _ in range(self.batch_size)]
         self.signal_end = [False for _ in range(self.batch_size)]
+        self.signal_end_index = [None for _ in range(self.batch_size)]
+        self.buffer_number = 0
 
     def get_batch_frames(self):
         if all(self.signal_end):
@@ -720,6 +721,10 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
                 batch_frames.append(None)
                 self.signal_end[idx] = True
 
+                if self.signal_end_index[idx] is None:
+                    self.signal_end_index[idx] = self.buffer_number
+
+        self.buffer_number += 1
         return batch_frames
 
     def get_frame_buffers(self, frames):
@@ -734,8 +739,7 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
                 # WRAP the buffer at index idx into a outer list
                 self.frame_buffers.append([np.copy(self.buffer[idx])])
             else:
-                self.buffer[idx, :, : -self.n_frame_len] *= 0.0
-                self.buffer[idx, :, -self.n_frame_len:] *= 0.0
+                self.buffer[idx, :, :] *= 0.0
                 # self.buffered_len += frame.shape[1]
                 # WRAP the buffer at index idx into a outer list
                 self.frame_buffers.append([np.copy(self.buffer[idx])])
@@ -745,6 +749,7 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
     def set_frame_reader(self, frame_reader, idx):
         self.all_frame_reader[idx] = frame_reader
         self.signal_end[idx] = False
+        self.signal_end_index[idx] = None
 
     def _update_feature_buffer(self, feat_frame, idx):
         if feat_frame is not None:
@@ -939,13 +944,18 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
-            for alignment in alignments:
+
+            signal_end_idx = self.frame_bufferer.signal_end_index[idx]
+            if signal_end_idx is None:
+                raise ValueError("Signal did not end")
+
+            for a_idx, alignment in enumerate(alignments):
                 # len(alignment) - 1 - delay + tokens_per_chunk
                 alignment = alignment[len(alignment) - 1 - delay: len(alignment) - 1 - delay + tokens_per_chunk]
 
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
-                if len(ids) > 0:
+                if len(ids) > 0 and a_idx < signal_end_idx:
                     self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,
                                                               max_steps_per_timestep=self.max_steps_per_timestep)
 
@@ -978,142 +988,6 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         return hypothesis
 
 
-# class for streaming frame-based ASR
-# 1) use reset() method to reset FrameASR's state
-# 2) call transcribe(frame) to do ASR on
-#    contiguous signal's frames
-# class FrameBatchASRRNNT(BatchedFrameBatchASR):
-#     """
-#     class for streaming frame-based ASR use reset() method to reset FrameASR's
-#     state call transcribe(frame) to do ASR on contiguous signal's frames
-#     """
-#
-#     def __init__(
-#         self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, max_steps_per_timestep: int = 5, stateful_decoding: bool = False
-#     ):
-#         '''
-#         Args:
-#           frame_len: frame's duration, seconds
-#           frame_overlap: duration of overlaps before and after current frame, seconds
-#           offset: number of symbols to drop for smooth streaming
-#         '''
-#         super().__init__(asr_model, frame_len, total_buffer, batch_size)
-#
-#         self.max_steps_per_timestep = max_steps_per_timestep
-#         self.stateful_decoding = stateful_decoding
-#
-#         self.all_alignments = []
-#         self.previous_hypotheses = None
-#
-#         try:
-#             self.eos_id = self.asr_model.tokenizer.eos_id
-#         except Exception:
-#             self.eos_id = -1
-#
-#         print("Performing Stateful decoding :", self.stateful_decoding)
-#
-#     def reset(self):
-#         """
-#         Reset frame_history and decoder's state
-#         """
-#         super().reset()
-#
-#         self.all_alignments = []
-#         self.previous_hypotheses = None
-#
-#     @torch.no_grad()
-#     def infer_logits(self):
-#         frame_buffers = self.frame_bufferer.get_buffers_batch()
-#
-#         while len(frame_buffers) > 0:
-#             monitor_time.print_pad()
-#             self.frame_buffers += frame_buffers[:]
-#             self.data_layer.set_signal(frame_buffers[:])
-#             self._get_batch_preds()
-#             frame_buffers = self.frame_bufferer.get_buffers_batch()
-#
-#     @torch.no_grad()
-#     def _get_batch_preds(self):
-#         device = self.asr_model.device
-#
-#         monitor_time.print_pad()
-#         for batch in iter(self.data_loader):
-#
-#             feat_signal, feat_signal_len = batch
-#             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-#
-#             with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})', enabled=ENABLED):
-#                 encoded, encoded_len = self.asr_model(
-#                     processed_signal=feat_signal, processed_signal_length=feat_signal_len
-#                 )
-#
-#             with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
-#                 best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-#                     encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
-#                 )
-#
-#             if self.stateful_decoding:
-#                 # preserve last state from hypothesis
-#                 self.previous_hypotheses = best_hyp
-#
-#             for hyp in best_hyp:
-#                 self.all_alignments.append(hyp.alignments)
-#
-#             preds = [hyp.y_sequence for hyp in best_hyp]
-#             for pred in preds:
-#                 self.all_preds.append(pred.cpu().numpy())
-#
-#             if self.stateful_decoding:
-#                 reset_states = self.asr_model.decoder.initialize_state(encoded)
-#
-#                 for idx, pred in enumerate(preds):
-#                     if len(pred) > 0 and pred[-1] == self.eos_id:
-#                         # reset states :
-#                         self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
-#                         self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
-#                             reset_states, idx)
-#
-#             del encoded, encoded_len
-#             del best_hyp, pred
-#
-#     def transcribe(
-#         self, tokens_per_chunk: int, delay: int,
-#     ):
-#         print()
-#         with monitor_time('infer logits', enabled=ENABLED):
-#             self.infer_logits()
-#         self.unmerged = []
-#         for idx, alignment in enumerate(self.all_alignments):
-#             alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
-#             ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
-#             if len(ids) > 0:
-#                 self.unmerged = inplace_buffer_merge(self.unmerged, ids, delay, model=self.asr_model,
-#                                                      max_steps_per_timestep=self.max_steps_per_timestep)
-#         return self.greedy_merge(self.unmerged)
-#
-#     def _alignment_decoder(self, alignments, tokenizer, blank_id):
-#         s = []
-#         ids = []
-#
-#         for t in range(len(alignments)):
-#             for u in range(len(alignments[t])):
-#                 token_id = int(alignments[t][u])
-#                 if token_id != blank_id:
-#                     token = tokenizer.ids_to_tokens([token_id])[0]
-#                     s.append(token)
-#                     ids.append(token_id)
-#
-#                 else:
-#                     # blank token
-#                     pass
-#
-#         return ids, s
-#
-#     def greedy_merge(self, preds):
-#         decoded_prediction = [p for p in preds]
-#         hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
-#         return hypothesis
-
 class FrameBatchASRRNNT(BatchedFrameASRRNNT):
     """
     class for streaming frame-based ASR use reset() method to reset FrameASR's
@@ -1145,12 +1019,17 @@ class FrameBatchASRRNNT(BatchedFrameASRRNNT):
 
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
+
+            signal_end_idx = self.frame_bufferer.signal_end_index[idx]
+            if signal_end_idx is None:
+                raise ValueError("Signal did not end")
+
             for a_idx, alignment in enumerate(alignments):
 
                 # Middle token first chunk
                 if a_idx == 0:
                     # len(alignment) - 1 - delay + tokens_per_chunk
-                    alignment = alignment[len(alignment) - 1 - delay: ]
+                    alignment = alignment[len(alignment) - 1 - delay:]
                     ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                     if len(ids) > 0:
@@ -1159,7 +1038,7 @@ class FrameBatchASRRNNT(BatchedFrameASRRNNT):
 
                 else:
                     ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
-                    if len(ids) > 0:
+                    if len(ids) > 0 and a_idx < signal_end_idx:
 
                         # global PRINT_ALIGNMENT
                         # if idx == 2:
