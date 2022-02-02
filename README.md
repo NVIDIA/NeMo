@@ -346,6 +346,9 @@ With Base Command Platform, the 700+ GB dataset can be downloaded once and then
 shared by multiple users in the same ACE by setting the permissions of a
 workspace.
 
+The data preparation scripts must be ran in multi-node mode, with at least 2 nodes (and a maximum 
+of 30 nodes).
+
 To run the data preparation pipeline, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False \
@@ -388,6 +391,9 @@ hyper-parameters, which should be used as a guideline for any custom model
 configurations. All these configurations are provided in the `conf/training/`
 directory. The desired configuration can be chosen by selecting the training
 and the `training_config` parameters in the `conf/config.yaml` file.
+
+On Base Command Platform, the training scripts must be ran in multi-node mode, 
+with at least 2 nodes.
 
 **126M configuration:**
 
@@ -690,6 +696,8 @@ In order to run the conversion script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The conversion script must be launched in a single-node job.
 
+The conversion scripts must be ran in multi-node mode, with 2 nodes.
+
 To run the conversion pipeline to conver a 126M checkpoint stored in 
 /mount/results/126m/checkpoints, run:
 ```
@@ -789,6 +797,8 @@ python3 main.py
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The evaluation script must be launched in a single-node job.
+
+The evaluation scripts must be ran in single-node mode.
 
 To run the evaluation pipeline to evaluate a 126M checkpoint stored in 
 /mount/results/126m/convert_nemo/megatron_gpt.nemo, run:
