@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder import LMEncoderDecoderModule
+from nemo.collections.nlp.models.language_modeling.megatron.tokens_encoder_decoder import TokensEncoderDecoderModule
 from nemo.collections.nlp.models.language_modeling.megatron.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -55,7 +55,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         super().__init__(cfg, trainer=trainer)
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        self.emc_dec_model = LMEncoderDecoderModule(
+        self.emc_dec_model = TokensEncoderDecoderModule(
             vocab_size=padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -69,7 +69,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             pre_process=cfg.get('pre_process', True),
             post_process=cfg.get('post_process', True),
             init_method_std=cfg.get('init_method_std', 0.02),
-            fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
+            fp16_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
@@ -114,7 +114,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             encoder_attn_mask=encoder_attn_mask,
             decoder_attn_mask=decoder_attn_mask,
             tokentype_ids=tokentype_ids,
-            lm_labels=lm_labels,
+            labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
             output_enc_hidden_only=output_enc_hidden_only,
         )
@@ -124,7 +124,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = itemgetter("dec_output", "enc_output")(self(
+        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(self(
             tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels
         ))
 
@@ -150,7 +150,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def validation_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = itemgetter("dec_output", "enc_output")(self(
+        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(self(
             tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels
         ))
         loss = self.loss_func(loss_mask, output_tensor)
@@ -294,7 +294,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
-        # TODO: move into a class inside LMEncoderDecoderModule
+        # TODO: move into a class inside TokensEncoderDecoderModule (?)
         encoder_hidden_states = itemgetter("enc_output")(self(
             encoder_input_ids=tokens_enc,
             decoder_input_ids=None,
@@ -331,6 +331,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
                 output_enc_hidden_only=False,
             ))
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            # FIXME: already log softmax?
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
             if token_ids[:, -1] == self.tokenizer.eos_id:
