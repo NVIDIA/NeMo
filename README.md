@@ -183,7 +183,7 @@ node(s) at the same path as on the compute nodes.
 
 The whole solution uses a set of Docker containers executed on a Slurm
 cluster (using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in) or
-a Base Command Platform (BCP) cluster. The training container also includes 
+a Base Command Platform cluster. The training container also includes 
 conversion scripts and NVIDIA Triton Model Navigator. The inference container
 comprises the NVIDIA Triton Inference Server with the FasterTransformer 
 backend installed.
@@ -215,11 +215,12 @@ install pip using use [get_pip.py](https://github.com/pypa/get-pip) with just `p
 
 The bignlp-scripts codebase is included as part of the training
 container. Before starting, set up the ngc cli and configuration as described 
-in the Base Command Platform (BCP) User Guide. In this guide, we will mainly 
-use two BCP workspaces, one for storing the training dataset, and another for
-storing the results, checkpoints and logs. Therefore, start by creating these 
-workspaces (e.g.`bignlp_data_ws` and `bignlp_results_ws`). See the BCP User 
-Guide for how to create and work with BCP workspaces.
+in the Base Command Platform User Guide. In this guide, we will mainly 
+use two Base Command Platform workspaces, one for storing the training dataset,
+and another for storing the results, checkpoints and logs. Therefore, start by 
+creating these workspaces (e.g.`bignlp_data_ws` and `bignlp_results_ws`). See 
+the Base Command Platform User Guide for how to create and work with Base 
+Command Platform workspaces.
 
 ##### 4.1.1.3. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
@@ -428,10 +429,9 @@ directories respectively, and that the $NGC_ARRAY_SIZE will use the number of no
 creating the job (number of replicas). 
 
 To train with fewer or a different number of nodes, the relevant parameters 
-(eg accumulate-gradient-steps) can be adjusted either in the yaml config file or 
-from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes).
-For BCP, multinode jobs are required to have at least two nodes so that is the 
-minimum number of nodes we can train with.
+(e.g. accumulate-grad-batches) can be adjusted either in the yaml config file or 
+from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). For Base Command Platform, multi-node jobs are required to have at least 
+two nodes so that is the minimum number of nodes we can train with.
 
 
 **5B configuration:**
@@ -509,8 +509,7 @@ Weights & Biases (W&B). The local files will be stored in the directory specifie
 
 However, W&B needs the API key to be specified to work properly. To upload the logs to W&B, 
 the user must first store the W&B API key to a file (on the first line of the file), and 
-select the path to the file that contains the key using the `wandb_api_key_file` parameter. 
-For BCP, this can be stored in the user's workspace.
+select the path to the file that contains the key using the `wandb_api_key_file` parameter. For Base Command Platform, this file can be stored in a dataset or workspace mounted to the job.
 
 The logs show the reduced_train_loss, val_loss, train_step_timing (which is the best way 
 to measure the time it takes to finish each micro step), and other relevant metrics.
