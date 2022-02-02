@@ -108,10 +108,7 @@ class ClassifyFst(GraphFst):
             logging.info(f'Creating ClassifyFst grammars. This might take some time...')
             # TAGGERS
             cardinal = CardinalFst(deterministic=True, lm=True)
-            # don't use cardinals for 4 digit numbers -> use date format for that
-            cardinal_graph = pynini.compose(
-                pynini.difference(NEMO_SIGMA, NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT), cardinal.fst
-            )
+            cardinal_graph = cardinal.fst
 
             ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
             ordinal_graph = ordinal.fst
@@ -124,7 +121,8 @@ class ClassifyFst(GraphFst):
             # use False deterministic for measure to add range graph to cardinal options
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
             measure_graph = measure.fst
-            date_graph = DateFst(cardinal=cardinal, deterministic=False, lm=True).fst
+            date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
+            date_graph =date.fst
             word_graph = WordFst(deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
             telephone_graph = TelephoneFst(deterministic=True).fst

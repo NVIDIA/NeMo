@@ -121,7 +121,6 @@ class CardinalFst(GraphFst):
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
-
         self.fst = final_graph.optimize()
 
     def get_range_graph(self, lm=False):

@@ -307,5 +307,6 @@ class DateFst(GraphFst):
 
             final_graph |= mdy_to_dmy_graph | md_to_dm_graph | ymd_to_mdy_graph | ymd_to_dmy_graph
 
+        self.year_graph_standalone = year_graph_standalone
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
