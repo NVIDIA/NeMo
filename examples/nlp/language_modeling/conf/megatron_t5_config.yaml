@@ -58,7 +58,9 @@ model:
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
-  
+  encoder_arch: 'transformer'
+  decoder_arch: 'transformer'
+
   tokenizer:
     library: 'megatron'
     type: 'BertWordPieceCase'

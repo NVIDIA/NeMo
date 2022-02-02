@@ -67,6 +67,8 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
         self.emc_dec_model = TokensEncoderDecoderModule(
+            encoder_arch=cfg.encoder_arch,
+            decoder_arch=cfg.decoder_arch,
             vocab_size=self.padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
