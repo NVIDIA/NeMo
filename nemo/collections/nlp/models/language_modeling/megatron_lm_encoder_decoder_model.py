@@ -53,7 +53,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         super().__init__(cfg, trainer=trainer)
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        self.model = LMEncoderDecoderModule(
+        self.emc_dec_model = LMEncoderDecoderModule(
             vocab_size=padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -106,7 +106,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
-        ret_dict= self.model(
+        ret_dict= self.emc_dec_model(
             encoder_input_ids=encoder_input_ids,
             decoder_input_ids=decoder_input_ids,
             encoder_attn_mask=encoder_attn_mask,
@@ -282,7 +282,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         if clip_val <= 0:
             return
 
-        parameters = self.model.parameters()
+        parameters = self.emc_dec_model.parameters()
         clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
