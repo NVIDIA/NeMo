@@ -57,7 +57,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
         self.num_sentinel_tokens = self.cfg.tokenizer.num_sentinel_tokens
         self._add_special_tokens_to_tokenizer()
 
-        super()._build_vocab
+        super()._build_vocab()
 
 
     def _add_special_tokens_to_tokenizer(self):
