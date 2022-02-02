@@ -14,6 +14,7 @@
 
 import re
 from typing import Any, Dict, Optional
+from operator import itemgetter
 
 import torch
 import torch.nn as nn
@@ -123,9 +124,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = self(
+        output_tensor, encoder_hidden_states = itemgetter("dec_output", "enc_output")(self(
             tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
-        )
+        ))
 
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
@@ -149,9 +150,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def validation_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = self(
+        output_tensor, encoder_hidden_states = itemgetter("dec_output", "enc_output")(self(
             tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
-        )
+        ))
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
         return reduced_loss
@@ -295,7 +296,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         # TODO: move into a class inside LMEncoderDecoderModel
-        encoder_hidden_states = self(
+        encoder_hidden_states = itemgetter("enc_output")(self(
             encoder_input_ids=tokens_enc,
             decoder_input_ids=None,
             encoder_attn_mask=enc_mask,
@@ -305,7 +306,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             lm_labels=None,
             enc_hidden_states=None,
             output_enc_hidden_only=True,
-        )
+        ))
         predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
 
         for _ in range(num_tokens_to_generate):
@@ -321,7 +322,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             enc_dec_mask = enc_dec_mask < 0.5
             dec_mask = dec_mask < 0.5
 
-            output_tensor, _ = self(
+            output_tensor = itemgetter("dec_output")(self(
                 encoder_input_ids=tokens_enc,
                 decoder_input_ids=predicted_tokens_dec,
                 encoder_attn_mask=enc_mask,
@@ -331,7 +332,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 lm_labels=None,
                 enc_hidden_states=encoder_hidden_states,
                 output_enc_hidden_only=False,
-            )
+            ))
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
