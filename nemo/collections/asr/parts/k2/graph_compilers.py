@@ -28,11 +28,17 @@
 
 from typing import Optional, Tuple
 
-import k2
 import torch
 
 from nemo.collections.asr.parts.k2.topologies import build_topo
 from nemo.collections.asr.parts.k2.utils import compose_with_self_loops, intersect_with_self_loops
+
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 class CtcTopologyCompiler(object):
@@ -49,6 +55,9 @@ class CtcTopologyCompiler(object):
         topo_with_selfloops: bool = True,
         device: torch.device = torch.device("cpu"),
     ):
+        # use k2 import guard
+        k2_import_guard()
+
         self.topo_type = topo_type
         self.device = device
         self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops)).to(

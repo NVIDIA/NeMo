@@ -28,7 +28,6 @@
 
 from typing import Optional, Union
 
-import k2
 import torch
 
 from nemo.collections.asr.parts.k2.autograd import sparse_abs
@@ -42,6 +41,13 @@ from nemo.collections.asr.parts.k2.utils import (
     shift_labels_inpl,
 )
 from nemo.utils import logging
+
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 class MAPLoss(torch.nn.Module):
@@ -66,6 +72,9 @@ class MAPLoss(torch.nn.Module):
         boost_coeff: float = 0.0,
         **kwargs,
     ):
+        # use k2 import guard
+        k2_import_guard()
+
         super().__init__()
         self.num_classes = num_classes
         self.blank = blank

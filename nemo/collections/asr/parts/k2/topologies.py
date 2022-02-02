@@ -14,7 +14,12 @@
 
 from typing import List
 
-import k2
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 def build_topo(name: str, tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:

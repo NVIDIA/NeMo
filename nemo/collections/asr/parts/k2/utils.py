@@ -32,10 +32,16 @@ import struct
 from pickle import UnpicklingError
 from typing import List, Optional, Tuple, Union
 
-import k2
 import torch
 
 from nemo.utils import logging
+
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 def create_supervision(input_lengths: torch.Tensor,) -> Tuple[torch.Tensor, torch.Tensor]:

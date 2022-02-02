@@ -23,7 +23,7 @@ try:
     from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
     from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
     from nemo.collections.asr.models.k2_sequence_models import EncDecK2SeqModel, EncDecK2SeqModelBPE
-except ModuleNotFoundError:
+except (ImportError, ModuleNotFoundError):
     from nemo.utils.exceptions import CheckInstall
 
     # fmt: off

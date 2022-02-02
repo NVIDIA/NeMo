@@ -14,7 +14,6 @@
 
 from typing import List, Optional, Tuple, Union
 
-import k2
 import torch
 
 import nemo.collections.asr.parts.k2.graph_compilers as graph_compilers
@@ -28,6 +27,13 @@ from nemo.collections.asr.parts.k2.utils import (
     shift_labels_inpl,
 )
 from nemo.utils import logging
+
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 class DecoderConf:
@@ -59,6 +65,9 @@ class BaseDecoder(object):
         device: torch.device = torch.device("cpu"),
         **kwargs,
     ):
+        # use k2 import guard
+        k2_import_guard()
+
         self.num_classes = num_classes
         self.blank = blank
         self.intersect_pruned = intersect_pruned

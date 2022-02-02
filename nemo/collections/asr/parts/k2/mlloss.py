@@ -28,7 +28,6 @@
 
 from typing import Optional, Union
 
-import k2
 import torch
 
 from nemo.collections.asr.parts.k2.grad_utils import GradExpNormalize
@@ -39,6 +38,13 @@ from nemo.collections.asr.parts.k2.utils import (
     make_blank_first,
     prep_padded_densefsavec,
 )
+
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 class MLLoss(torch.nn.Module):
@@ -61,6 +67,9 @@ class MLLoss(torch.nn.Module):
         aux_graph: Optional[Union[k2.Fsa, str]] = None,
         **kwargs,
     ):
+        # use k2 import guard
+        k2_import_guard()
+
         super().__init__()
         self.blank = blank
         self.num_classes = num_classes
