@@ -121,8 +121,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_output, enc_output_mask = self.encode(
                 enc_input=enc_input,
                 enc_attn_mask=enc_attn_mask,
-                layer_past=enc_layer_past,
-                get_key_value=enc_get_key_value,
+                enc_layer_past=enc_layer_past,
+                enc_get_key_value=enc_get_key_value,
             )
         elif enc_output_mask is None:
             raise ValueError("enc_output_mask cannot be None when enc_output is not None")
@@ -133,8 +133,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_attn_mask=dec_attn_mask,
             enc_output=enc_output,
             enc_output_mask=enc_output_mask,
-            layer_past=dec_layer_past,
-            get_key_value=dec_get_key_value,
+            dec_layer_past=dec_layer_past,
+            dec_get_key_value=dec_get_key_value,
         )
 
         ret_dict = {
