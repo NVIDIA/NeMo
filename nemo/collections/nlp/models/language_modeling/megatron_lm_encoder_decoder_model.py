@@ -56,7 +56,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
         self.emc_dec_model = TokensEncoderDecoderModule(
-            vocab_size=padded_vocab_size,
+            vocab_size=self.padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
             num_layers=cfg.num_layers,
@@ -91,7 +91,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         self._build_vocab()
 
     def _build_vocab(self):
-        padded_vocab_size = self._vocab_size_with_padding(
+        self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
             make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
