@@ -255,11 +255,6 @@ def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_tim
     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
     data = data[slice_idx:]
 
-    # If last segment, and no overlap is detected, potentially it is a padded buffer
-    # ignore all text.
-    if is_last and slice_idx == 0:
-        return buffer
-
     # Concat data to buffer
     buffer += data
     return buffer
@@ -821,9 +816,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         self.all_alignments = [[] for _ in range(self.batch_size)]
         self.all_preds = [[] for _ in range(self.batch_size)]
         self.previous_hypotheses = None
-
-        self._cached_feat_shape = None
-        self._cached_feat_len = None
+        self.batch_index_map = {idx: idx for idx in range(self.batch_size)}  # pointer from global batch id : local sub-batch id
 
         try:
             self.eos_id = self.asr_model.tokenizer.eos_id
@@ -848,9 +841,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         self.all_alignments = [[] for _ in range(self.batch_size)]
         self.all_preds = [[] for _ in range(self.batch_size)]
         self.previous_hypotheses = None
-
-        self._cached_feat_shape = None
-        self._cached_feat_len = None
+        self.batch_index_map = {idx: idx for idx in range(self.batch_size)}
 
         self.data_layer = [AudioBuffersDataLayer() for _ in range(self.batch_size)]
         self.data_loader = [DataLoader(self.data_layer[idx], batch_size=1, collate_fn=speech_collate_fn)
@@ -890,14 +881,24 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         feat_signals = []
         feat_signal_lens = []
 
+        new_batch_keys = []
         # while not all(self.frame_bufferer.signal_end):
         for idx in range(self.batch_size):
+            if self.frame_bufferer.signal_end[idx]:
+                continue
+
             batch = next(data_iters[idx])
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
 
             feat_signals.append(feat_signal)
             feat_signal_lens.append(feat_signal_len)
+
+            # preserve batch indeices
+            new_batch_keys.append(idx)
+
+        if len(feat_signals) == 0:
+            return
 
         feat_signal = torch.cat(feat_signals, 0)
         feat_signal_len = torch.cat(feat_signal_lens, 0)
@@ -909,25 +910,40 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 processed_signal=feat_signal, processed_signal_length=feat_signal_len
             )
 
+        # filter out partial hypotheses from older batch subset
+        if self.stateful_decoding and self.previous_hypotheses is not None:
+            new_prev_hypothesis = []
+            for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                old_pos = self.batch_index_map[global_index_key]
+                new_prev_hypothesis.append(self.previous_hypotheses[old_pos])
+            self.previous_hypotheses = new_prev_hypothesis
+
         with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
             best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
                 encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
             )
 
         if self.stateful_decoding:
-            # preserve last state from hypothesis
+            # preserve last state from hypothesis of new batch indices
             self.previous_hypotheses = best_hyp
 
         for idx, hyp in enumerate(best_hyp):
-            self.all_alignments[idx].append(hyp.alignments)
+            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+
+            has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
+            if not has_signal_ended:
+                self.all_alignments[global_index_key].append(hyp.alignments)
 
         preds = [hyp.y_sequence for hyp in best_hyp]
         for idx, pred in enumerate(preds):
-            has_signal_ended = self.frame_bufferer.signal_end[idx]
+            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+
+            has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
             if not has_signal_ended:
-                self.all_preds[idx].append(pred.cpu().numpy())
+                self.all_preds[global_index_key].append(pred.cpu().numpy())
 
         if self.stateful_decoding:
+            # State resetting is being done on sub-batch only, global index information is not being updated
             reset_states = self.asr_model.decoder.initialize_state(encoded)
 
             for idx, pred in enumerate(preds):
@@ -936,6 +952,11 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                     self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
                     self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
                         reset_states, idx)
+
+        # Position map update
+        if len(new_batch_keys) != len(self.batch_index_map):
+            for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                self.batch_index_map[global_index_key] = new_batch_idx  # let index point from global pos -> local pos
 
         del encoded, encoded_len
         del best_hyp, pred
