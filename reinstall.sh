@@ -32,12 +32,14 @@ fi
 echo 'Installing additional nemo_text_processing conda dependency'
 bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
 
-if [ -x "$(command -v conda)" ]; then
+# if [ -x "$(command -v conda)" ]; then
 
-  echo 'Installing numba=0.55.0'
-  conda install -y -c conda-forge numba==0.55
-  # echo 'Attempting update to numba installation via conda'
-  # conda update -c conda-forge numba -y >  /dev/null 2>&1 && echo "Numba updated!" || echo "Numba could not be updated!"
-fi
+#   NUMBA_VERSION=0.54.3
+#   echo 'Installing numba=='${NUMBA_VERSION}
+#   conda install -y -c conda-forge numba==${NUMBA_VERSION}
+#   # NUMPY_VERSION=1.22.0
+#   # echo 'Installing numpy=='${NUMPY_VERSION}
+#   # conda install -y -c conda-forge numpy==${NUMPY_VERSION}
+# fi
 
 echo 'All done!'
