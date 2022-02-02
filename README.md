@@ -309,8 +309,8 @@ files 0, 3, 5, 6, and 7.
 ##### 4.1.2.1. Slurm
 <a id="markdown-4121-slurm" name="4121-slurm"></a>
 
-First, ensure the cluster related configuration in the conf/cluster/bcm.yaml file is correct.
-The `cluster` and `cluster_type` parameters in conf/config.yaml must be set to bcm.
+First, ensure the cluster related configuration in the `conf/cluster/bcm.yaml` file is correct.
+The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to bcm.
 Then, modify the time_limit or any other parameter related to the job in the download_pile.yaml file.
 The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
 
@@ -344,8 +344,7 @@ must be launched in a multi-node job, and can be parallelized to use between 2 a
 for faster parallel preparation of the dataset.
 
 With Base Command Platform, the 700+ GB dataset can be downloaded once and then
-shared by multiple users in the same ACE by setting the permissions of the bignlp_data_ws
-workspace.
+shared by multiple users in the same ACE by setting the permissions of the `bignlp_data_ws` workspace.
 
 The data preparation scripts must be ran in multi-node mode, with at least 2 nodes (and a maximum 
 of 30 nodes).
@@ -358,8 +357,8 @@ base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_log.txt 2>&1
 ```
 The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
-workspace in /mount/data, and the results workspace in /mount/results. The stdout and stderr outputs will
-also be redirected to the /results/data_log.txt file, to be able to download the logs from NGC. 
+workspace in `/mount/data`, and the results workspace in `/mount/results`. The stdout and stderr outputs will
+also be redirected to the `/results/data_log.txt` file, to be able to download the logs from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
 ##### 4.1.2.3. Common
@@ -424,12 +423,12 @@ data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.n
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
-The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas). 
 
 To train with fewer or a different number of nodes, the relevant parameters 
-(e.g. accumulate_grad_batches) can be adjusted either in the yaml config file or 
+(e.g. `accumulate_grad_batches`) can be adjusted either in the yaml config file or 
 from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). For Base Command Platform, multi-node jobs are required to have at least 
 two nodes so that is the minimum number of nodes we can train with.
 
@@ -463,7 +462,7 @@ data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.n
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
-The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
 
@@ -497,7 +496,7 @@ data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.n
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
-The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
 
@@ -614,7 +613,7 @@ GBS = (MBS * num_gpus * accumulate_grad_batches) / tensor_parallelism
 
 Where MBS is the micro batch size. For instance, the default GBS for the 5B
 model is 1440; the MBS is 2; the number of GPUs is 20\*8 = 160; the
-accumulate\_grad\_batches is set to 9; and the\ tensor\_parallelism value is set to 2.
+`accumulate_grad_batches` is set to 9; and the `tensor_parallelism` value is set to 2.
 The GBS can be calculated like this:
 
 ```
