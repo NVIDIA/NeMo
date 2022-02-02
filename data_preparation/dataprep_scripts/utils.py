@@ -1,6 +1,7 @@
 import os
-
 import requests
+from shutil import which
+
 import tqdm
 import zstandard as zstd
 
@@ -91,3 +92,9 @@ def split_list(inlist, ngroups):
         idx_end = ((ii + 1) * nlen) // ngroups
         list_groups.append(inlist[idx_start:idx_end])
     return list_groups
+
+
+def is_tool(progname):
+    """Check whether `name` is on PATH and marked as executable."""
+    # https://stackoverflow.com/a/34177358/3457624
+    return which(progname) is not None
