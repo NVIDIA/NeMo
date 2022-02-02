@@ -71,10 +71,14 @@ Megatron-LM.
         - [4.5.2. Base Command Platform](#452-base-command-platform)
         - [4.5.3. Common](#453-common)
     - [4.6. Resuming Training from Fewer Nodes](#46-resuming-training-from-fewer-nodes)
-    - [4.7. Model Evaluation](#47-model-evaluation)
-        - [4.7.1. Slurm](#471-slurm)
-        - [4.7.2. Base Command Platform](#472-base-command-platform)
-        - [4.7.3. Common](#473-common)
+    - [4.7. Model Evaluation]()
+        - [4.7.1. Slurm]()
+        - [4.7.2. Base Command Platform]()
+        - [4.7.3. Common]()
+    - [4.8. Model Evaluation](#48-model-evaluation)
+        - [4.8.1. Slurm](#481-slurm)
+        - [4.8.2. Base Command Platform](#482-base-command-platform)
+        - [4.8.3. Common](#483-common)
 - [5. Deploying the BigNLP Model](#5-deploying-the-bignlp-model)
     - [5.1. Model Inference Deployment Process](#51-model-inference-deployment-process)
     - [5.2. Prepare Environment](#52-prepare-environment)
@@ -634,7 +638,96 @@ To modify the number of nodes to be used, the user should modify the value of
 nodes gets cut in half (20 → 10), then the `accumulate\_grad\_batches` should be
 doubled (9 → 18).
 
-### 4.7. Model Evaluation
+### 4.7. Checkpoint Conversion
+<a id="markdown-checkpoint-conversion" name="checkpoint-conversion"></a>
+
+We provide a simple tool to convert the checkpoints from .ckpt format to .nemo format, 
+which will later be used for evaluation and inference purposes. 
+
+The configuration used for the checkpoint conversion needs to be specified in the 
+conf/config.yaml file, specifying the conversion parameter, which specifies the file 
+to use for conversion purposes. The default value is set to convert, which can be found 
+in conf/conversion/convert.yaml. The run_conversion parameter must be set to True to 
+run the conversion pipeline.
+
+#### 4.7.1. Common
+To specify the input checkpoint to be used for conversion, use the `model` parameters:
+```yaml
+model:
+  checkpoint_folder: ${base_results_dir}/${conversion.run.model_train_name}/checkpoints
+  checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
+  tensor_model_parallel_size: 2 # 1 for 126m, 2 for 5b, and 8 for 20b
+  vocab_file: ${data_dir}/bpe/vocab.json
+  merge_file: ${data_dir}/bpe/merges.txt
+```
+
+
+To specify the output location and file name of the converted .nemo file, use the `run` parameters:
+```yaml
+run:
+  job_name: convert_${conversion.run.model_train_name}
+  nodes: 1
+  time_limit: "4:00:00"
+  ntasks_per_node: ${conversion.model.tensor_model_parallel_size}
+  gpus_per_task: 1
+  convert_name: convert_nemo
+  model_train_name: 5b
+  results_dir: ${base_results_dir}/${.model_train_name}/${.convert_name}
+  output_path: ${base_results_dir}/${.model_train_name}/${.convert_name}
+  nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
+```
+
+#### 4.7.2. Slurm
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the conversion pipeline and not the data preparation, training, 
+evaluation or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: True
+run_evaluation: False
+```
+
+then run:
+```
+python3 main.py
+```
+
+#### 4.7.3. Base Command Platform
+In order to run the conversion script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The conversion script must be launched in a single-node job.
+
+To run the conversion pipeline to conver a 126M checkpoint stored in 
+/mount/results/126m/checkpoints, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=True \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.json \
+conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/126m/convert_nemo \
+conversion.model.checkpoint_folder=/mount/results/126m/checkpoints
+>> /results/convert_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
+The stdout and stderr outputs will also be redirected to the /results/convert_log.txt file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+### 4.8. Model Evaluation
 <a id="markdown-model-evaluation" name="model-evaluation"></a>
 
 We also provide a simple tool to help evaluate the trained checkpoints. You can
@@ -650,7 +743,7 @@ to `True` to run the evaluation pipeline. The default value is set to
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For BCP, all these parameters should be overriden from the command line.
 
-#### 4.7.1. Common
+#### 4.8.1. Common
 To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
 And use all the `run` parameters to define the job specific config:
 ```yaml
@@ -680,7 +773,7 @@ model:
   merge_file: ${data_dir}/bpe/merges.txt
 ```
 
-#### 4.7.2. Slurm
+#### 4.8.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
@@ -712,7 +805,7 @@ then run:
 python3 main.py
 ```
 
-#### 4.7.3. Base Command Platform
+#### 4.8.3. Base Command Platform
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The evaluation script must be launched in a single-node job.
