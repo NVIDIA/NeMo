@@ -147,9 +147,10 @@ class TokensEncoderDecoderModule(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            use_soft_prompts=use_soft_prompts,
-            num_prompt_tokens=num_prompt_tokens,
-            prompt_tags=prompt_tags,
+            # TODO: add soft prompts
+            # use_soft_prompts=use_soft_prompts,
+            # num_prompt_tokens=num_prompt_tokens,
+            # prompt_tags=prompt_tags,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_steps,
         )
@@ -183,9 +184,10 @@ class TokensEncoderDecoderModule(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            use_soft_prompts=use_soft_prompts,
-            num_prompt_tokens=num_prompt_tokens,
-            prompt_tags=prompt_tags,
+            # TODO: add soft prompts
+            # use_soft_prompts=use_soft_prompts,
+            # num_prompt_tokens=num_prompt_tokens,
+            # prompt_tags=prompt_tags,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_steps,
         )
