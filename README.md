@@ -5,50 +5,6 @@ Megatron-LM.
 
 ## Table of contents
 
-<!-- OLD TOC
-  - [Model Overview](#model-overview)
-  - [Installation](#installation)
-  - [General Configuration](#general-configuration)
-  - [Data Preparation](#data-preparation)
-  - [GPT-3 Training](#gpt-3-training)
-  - [Model Evaluation](#model-evaluation)
-  - [Deploying the BigNLP model](#deploying-the-bignlp-model)
-    - [Model inference deployment process](#model-inference-deployment-process)
-    - [1. Prepare environment](#1-prepare-environment)
-      - [1.1 Slurm cluster](#21-slurm-cluster)
-      - [1.2 BCP cluster](#12-bcp-cluster)
-    - [2. Provide model and inference configuration](#2-provide-model-and-inference-configuration)
-      - [2.1 Predefined configuration for selected models](#21-predefined-configuration-for-selected-models)
-      - [2.2. Optimal configuration search](#22-optimal-configuration-search)
-        - [2.2.1 Random weights checkpoint benchmark](#221-random-weights-checkpoint-benchmark)
-        - [2.2.2. Trained checkpoint benchmark](#222-trained-checkpoint-benchmark)
-      - [2.3. Review deployment search results](#23-review-deployment-search-results)
-    - [3. Prepare NVIDIA Triton Model Repository and run accuracy / performance tests](#3-prepare-nvidia-triton-model-repository-and-run-accuracy-performance-tests)
-    - [4. Run NVIDIA Triton Server with selected Model Repository](#4-run-nvidia-triton-server-with-selected-model-repository)
-    - [5. Text generation scripts](#5-text-generation-scripts)
-  - [Performance](#performance)
-    - [Benchmarking](#benchmarking)
-    - [Results](#results)
-      - [Training Accuracy Results](#training-accuracy-results)
-      - [Training Performance Results](#training-performance-results)
-      - [Inference performance](#inference-performance)
-        - [5B model](#5b-model)
-          - [5B: Chatbot question for answering](#5b-chatbot-for-question-answering)
-          - [5B: Translation and style transfer](#5b-translation-and-style-transfer)
-          - [Summary for 5B results](#summary-for-5b-results)
-        - [20B model](#20b-model)
-          - [20B: Chatbot question for answering](#20b-chatbot-for-question-answering)
-          - [20B: Translation and style transfer](#20b-translation-and-style-transfer)
-          - [Summary for 20B results](#summary-for-20b-results)
-        - [Model size and performance](#model-size-and-performance)
-          - [Online scenario](#online-scenario)
-          - [Offline scenario](#offline-scenario)
-
--->
-
-<!-- # BigNLP-Scripts -->
-<!-- TOC -->
-
 - [1. Model Overview](#1-model-overview)
 - [2. Feature Matrix](#2-feature-matrix)
 - [3. Setup](#3-setup)
@@ -69,7 +25,6 @@ Megatron-LM.
     - [4.5. GPT-3 Training](#45-gpt-3-training)
         - [4.5.1. Slurm](#451-slurm)
         - [4.5.2. Base Command Platform](#452-base-command-platform)
-        - [4.5.3. Common](#453-common)
     - [4.6. Resuming Training from Fewer Nodes](#46-resuming-training-from-fewer-nodes)
     - [4.7. Checkpoint Conversion](#47-checkpoint-conversion)
         - [4.7.1. Common](#471-common)
@@ -82,16 +37,21 @@ Megatron-LM.
 - [5. Deploying the BigNLP Model](#5-deploying-the-bignlp-model)
     - [5.1. Model Inference Deployment Process](#51-model-inference-deployment-process)
     - [5.2. Prepare Environment](#52-prepare-environment)
-    - [5.3. Slurm](#53-slurm)
-        - [5.3.1. Base Command Platform](#531-base-command-platform)
-    - [5.4. Provide Model and Inference Configurationn](#54-provide-model-and-inference-configurationn)
-        - [5.4.1. Predefined Configuration for Selected Models](#541-predefined-configuration-for-selected-models)
-        - [5.4.2. Optimal Configuration Search](#542-optimal-configuration-search)
-            - [5.4.2.1. Random Weights Checkpoint Benchmark](#5421-random-weights-checkpoint-benchmark)
-            - [5.4.2.2. Trained Checkpoint Benchmark](#5422-trained-checkpoint-benchmark)
+        - [5.2.1. Slurm](#521-slurm)
+        - [5.2.2. Base Command Platform](#522-base-command-platform)
+    - [5.3. Provide Model and Inference Configurationn](#54-provide-model-and-inference-configurationn)
+        - [5.3.1. Predefined Configuration for Selected Models](#541-predefined-configuration-for-selected-models)
+        - [5.3.2. Optimal Configuration Search](#542-optimal-configuration-search)
+            - [5.3.2.1. Random Weights Checkpoint Benchmark](#5421-random-weights-checkpoint-benchmark)
+            - [5.3.2.2. Trained Checkpoint Benchmark](#5422-trained-checkpoint-benchmark)
         - [5.4.3. Review Deployment Search Results](#543-review-deployment-search-results)
     - [5.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests](#55-prepare-nvidia-triton-model-repository-and-run-accuracyperformance-tests)
     - [5.6. Run NVIDIA Triton Server with Selected Model Repository](#56-run-nvidia-triton-server-with-selected-model-repository)
+    - [5.7. Text generation](#57-text-generation)
+        - [5.7.1. Setup](#571-setup)
+        - [5.7.2. Basic text generation](#572-basic-text-generation)
+        - [5.7.3. Longer text generation](#573-longer-text-generation)
+        - [5.7.4. Longer text generation](#574-longer-text-generation)
 - [6. Performance](#6-performance)
     - [6.1. Results](#61-results)
         - [6.1.1. Training Accuracy Results](#611-training-accuracy-results)
@@ -830,7 +790,7 @@ The stdout and stderr outputs will also be redirected to the /results/eval_log.t
 Any other parameter can also be added to the command to modify its behavior.
 
 
-## Deploying the BigNLP model
+## 5. Deploying the BigNLP model
 
 This section describes the deployment of the BigNLP model on the NVIDIA Triton
 Inference Server with FasterTransformer Backend on both single and multiple
@@ -1409,11 +1369,10 @@ If you notice warning about missing files, you should double check your model:
 [WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
 ```
 
-## 6. Performance
-<a id="markdown-performance" name="performance"></a>
 
-### 6.1. Results
-<a id="markdown-results" name="results"></a>
+### 5.7. Text generation
+
+#### 5.7.1. Setup
 
 You must start BigNLP training container with interactive session at your cluster.
 You can do it with `srun` at slurm:
@@ -1434,7 +1393,7 @@ You need working instance of Triton Inference Server with loaded
 FasterTransformer model converted from real checkpoint. You can use
 `run_tritonserver.py` script described above to start an inference machine.
 
-#### 5.2 Basic text generation
+#### 5.7.2. Basic text generation
 
 The simple implementation of text input script was prepared
 as Python command line client script `infer_scripts/chatbot.py`.
@@ -1473,7 +1432,7 @@ $
 You can change `output-len` to generate longer sequences, but a quality of output
 from a small checkpoint degrades significantly when length is increased.
 
-#### 5.3 Longer text generation
+#### 5.7.3. Longer text generation
 
 The script `author.py` was created to generate longer texts. It passes
 an output from a previous inference to model again and asks FasterTransformer to generate more text.
@@ -1528,7 +1487,7 @@ The table below shows examples of input and output used for text generated above
 | 40 | b'to do is talk a little bit about what we mean by artificial intelligence (AI).\\n\\nWhat is Artificial Intelligence?\\n\\nArtificial intelligence is defined as \\u201cthe ability of machines to perform' | 40 | b' tasks that normally require human intelligence.\\u201d This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
 | 41 | b'tasks that normally require human intelligence.\\u201d This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | b', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
 
-#### 5.4 Dialogue text generation
+#### 5.7.4. Dialogue text generation
 
 The `dialogue.py` script was created to showcase text generation for a simple
 support chatbot dialogue scenario:
@@ -1623,10 +1582,13 @@ The table below shows examples of input and output used for text generated above
 
 
 
-## Performance
+## 6. Performance
+<a id="markdown-performance" name="performance"></a>
 
-### Results
-#### Training Accuracy Results
+### 6.1. Results
+<a id="markdown-results" name="results"></a>
+
+#### 6.1.1 Training Accuracy Results
 Training accuracy: NVIDIA SuperPOD (20 x 8 x A100 80GB for 5B model)
 We evaluated the 126M parameter and 5B parameter models on 8 different language
 tasks. The results can be found in the table below. All the tasks are provided
