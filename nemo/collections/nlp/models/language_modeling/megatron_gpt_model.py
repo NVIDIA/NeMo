@@ -378,21 +378,6 @@ class MegatronGPTModel(NLPModel):
 
         return fwd_output_and_loss_func
 
-    def get_forward_output_no_loss_func(self):
-        """ Used for generating text. No labels."""
-
-        def fwd_output_and_loss_func(batch, model):
-            tokens, position_ids, attention_mask = batch
-            attention_mask = attention_mask[0:1]
-            output_tensor = model(tokens, position_ids, attention_mask)
-
-            def loss_func(output_tensor):
-                return None, None
-
-            return output_tensor, loss_func
-
-        return fwd_output_and_loss_func
-
     def validation_step(self, batch, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -868,31 +853,9 @@ class MegatronGPTModel(NLPModel):
                     )
 
                 # get output tensor
-                # batch_for_pipeline = self.process_global_batch(batch)
-                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                    app_state = AppState()
-                    _reconfigure_microbatch_calculator(
-                        rank=self.trainer.global_rank,
-                        rampup_batch_size=None,
-                        global_batch_size=1,
-                        micro_batch_size=1,
-                        data_parallel_size=1,
-                    )
-                    batch = [tokens, position_ids, attention_mask]
-                    # tensor shape = [seq len, micro batch size, hidden size]
-                    tensor_shape = [len(tokens), 1, self.cfg.hidden_size]
-                    output_tensors = nemo_forward_backward_pipelining_without_interleaving(
-                        forward_step_func=self.get_forward_output_no_loss_func(),
-                        batch=batch,
-                        model=self.model,
-                        forward_only=True,
-                        tensor_shape=tensor_shape,
-                        dtype=self.autocast_dtype,
-                    )
-                else:
-                    # No labels during inference. Still need masks to not attend to the right
-                    output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
-                    output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                # No labels during inference. Still need masks to not attend to the right
+                output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
+                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
                 log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
                 reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
