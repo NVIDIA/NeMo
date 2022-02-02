@@ -56,6 +56,8 @@ class MegatronTokensHead(MegatronModule):
         output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
         return output
 
+# TODO: add soft prompts
+
 
 class TokensEncoderDecoderModule(MegatronModule):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
@@ -144,10 +146,6 @@ class TokensEncoderDecoderModule(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            # TODO: add soft prompts
-            # use_soft_prompts=use_soft_prompts,
-            # num_prompt_tokens=num_prompt_tokens,
-            # prompt_tags=prompt_tags,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_steps,
         )
@@ -178,10 +176,6 @@ class TokensEncoderDecoderModule(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            # TODO: add soft prompts
-            # use_soft_prompts=use_soft_prompts,
-            # num_prompt_tokens=num_prompt_tokens,
-            # prompt_tags=prompt_tags,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_steps,
         )

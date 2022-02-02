@@ -60,9 +60,6 @@ def get_decoder_model(
     persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
-    use_soft_prompts=False,
-    num_prompt_tokens=10,
-    prompt_tags=None,
     hidden_steps=-1,
     hidden_blocks=1,
 ):

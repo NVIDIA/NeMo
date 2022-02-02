@@ -59,9 +59,6 @@ def get_encoder_model(
     persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
-    use_soft_prompts=False,
-    num_prompt_tokens=10,
-    prompt_tags=None,
     hidden_steps=-1,
     hidden_blocks=1,
 ):
@@ -104,9 +101,6 @@ def get_encoder_model(
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            use_soft_prompts=use_soft_prompts,
-            num_prompt_tokens=num_prompt_tokens,
-            prompt_tags=prompt_tags,
         )
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")
