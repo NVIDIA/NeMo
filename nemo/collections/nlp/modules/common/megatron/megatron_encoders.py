@@ -39,8 +39,6 @@ def get_encoder_model(
     hidden_size,
     ffn_hidden_size,
     num_layers,
-    max_position_embeddings,
-    vocab_size,
     num_attention_heads,
     apply_query_key_layer_scaling=True,
     kv_channels=None,
@@ -86,8 +84,6 @@ def get_encoder_model(
         encoder = MegatronTransformerEncoderModule(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
-            vocab_size=vocab_size,
-            max_position_embeddings=max_position_embeddings,
             hidden_size=hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,

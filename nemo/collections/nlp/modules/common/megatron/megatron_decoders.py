@@ -39,8 +39,6 @@ def get_decoder_model(
     hidden_size,
     ffn_hidden_size,
     num_layers,
-    max_position_embeddings,
-    vocab_size,
     num_attention_heads,
     apply_query_key_layer_scaling=True,
     kv_channels=None,
@@ -87,8 +85,6 @@ def get_decoder_model(
         decoder = MegatronTransformerDecoderModule(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
-            vocab_size=vocab_size,
-            max_position_embeddings=max_position_embeddings,
             hidden_size=hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,
@@ -109,9 +105,6 @@ def get_decoder_model(
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            # use_soft_prompts=use_soft_prompts,
-            # num_prompt_tokens=num_prompt_tokens,
-            # prompt_tags=prompt_tags,
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")

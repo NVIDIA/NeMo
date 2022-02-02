@@ -42,7 +42,6 @@ class MegatronTransformerDecoderModule(MegatronModule):
         self,
         init_method,
         output_layer_init_method,
-        max_position_embeddings,
         hidden_size,
         ffn_hidden_size,
         num_layers,
@@ -70,7 +69,6 @@ class MegatronTransformerDecoderModule(MegatronModule):
         self.post_process = post_process
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.max_position_embeddings = max_position_embeddings
         self.init_method = init_method
         self.model_attn_mask_type = decoder_attn_mask_type
         self.hidden_dropout = hidden_dropout
