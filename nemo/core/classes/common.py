@@ -478,7 +478,6 @@ class Serialization(ABC):
             # target class resolution was unsuccessful, fall back to current `cls`
             if instance is None:
                 try:
-                    instance = cls(cfg=config, trainer=trainer)
                     accepts_trainer = Serialization._inspect_signature_for_trainer(cls)
                     if accepts_trainer:
                         instance = cls(cfg=config, trainer=trainer)
