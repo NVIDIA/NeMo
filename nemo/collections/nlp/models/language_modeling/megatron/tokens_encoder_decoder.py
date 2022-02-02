@@ -112,7 +112,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             embedding_dropout_prob=hidden_dropout,
         )
-        self.decoder_embedding = encoder_embedding
+        self.decoder_embedding = self.encoder_embedding
         self._encoder_embedding_key = "encoder_embedding"
         self._decoder_embedding_key = "decoder_embedding"
 
