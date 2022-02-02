@@ -58,8 +58,7 @@ Megatron-LM.
         - [4.1.1. Prepare Environment](#411-prepare-environment)
             - [4.1.1.1. Slurm](#4111-slurm)
             - [4.1.1.2. Base Command Platform](#4112-base-command-platform)
-            - [4.1.1.3. Common](#4113-common)
-            - [4.1.1.4. General Configuration](#4114-general-configuration)
+            - [4.1.1.3. General Configuration](#4114-general-configuration)
         - [4.1.2. Data Preparation](#412-data-preparation)
             - [4.1.2.1. Slurm](#4121-slurm)
             - [4.1.2.2. Base Command Platform](#4122-base-command-platform)
@@ -233,28 +232,8 @@ following command can be executed.
 srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /workspace/mount_dir/"
 ```
 
-##### 4.1.1.2. Base Command Platform
-<a id="markdown-base-command-platform" name="base-command-platform"></a>
-
-The bignlp-scripts-bcp codebase is included as part of the common training
-container for Base Command Platform and Base Command Manager. Before starting,
-set up the ngc cli and configuration as described in the Base Command Platform
-User Guide. Next, create a Base Command Platform workspace (eg
-`bignlp_ws_scripts_uname` where `uname` is your unique username, and copy the
-`/opt/bignlp/bignlp-scripts-bcp` directory from the container to bignlp-scripts
-directory in this workspace. See the Base Command Platform User Guide for how
-to create and work with Base Command Platform workspaces.
-
-Also mount this workspace to your local workstation at /workspace-scripts.
-
-```
-ngc workspace mount <bignlp_ws_scripts_uname> /workspace-scripts --mode RW
-```
-Verify that the `/workspace-scripts/bignlp-scripts` directory now exists.
-
-##### 4.1.1.3. Common
-<a id="markdown-common" name="common"></a>
-Install the BigNLP scripts dependencies on the head node of the cluster:
+Install the BigNLP scripts dependencies 
+on the head node of the cluster:
 
 ```
 pip install -r requirements.txt
@@ -263,43 +242,55 @@ You can use virtualenv to prevent polluting your head node environment for
 other Python projects. If your configuration lacks pip, then you can
 install pip using use [get_pip.py](https://github.com/pypa/get-pip) with just `python3`.
 
-##### 4.1.1.4. General Configuration
+##### 4.1.1.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+The bignlp-scripts-bcp codebase is included as part of the common training
+container for Base Command Platform and Base Command Manager. Before starting,
+set up the ngc cli and configuration as described in the Base Command Platform
+User Guide. In this guide, we will mainly use two Base Command Platform workspaces, 
+one for storing the training dataset, and another one for storing the results, 
+checkpoints and logs. Therefore, start by creating these workspaces (e.g.
+`bignlp_data_ws` and `bignlp_results_ws`). See the Base Command Platform User Guide for how
+to create and work with Base Command Platform workspaces.
+
+##### 4.1.1.3. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
 
 The first parameter that must be set is the `bignlp_path` parameter inside the
 `conf/config.yaml` file.  This parameter must point to the absolute path where
-the `bignlp-scripts` repository is stored in the file system.  Every other path
-or directory in all the config files can either be an absolute or a relative
-path. Every path starting with the “/” symbol will be considered an absolute
-path, and everything else will be treated as a relative path, and the path
-indicated in the `bignlp_path` parameter of the `conf/config.yaml` file will be
-appended to the beginning of each relative path.  Additionally, the config
-files in the subfolders of `conf/` (conversion, data_preparation, evaluation,
-and training) have a parameter `partition` under the parameter `slurm` which
-needs to be set to either a valid location if using slurm, or another string
-such as /dev/null if using Base Command Platform.
+the `bignlp-scripts` repository is stored in the file system.  
+Additionally, if using a Slurm based 
+cluster, the config file in the subfolder of `conf/cluster/bcm.yaml` has the 
+parameters to set the generic cluster related information, such as the 
+`partition` or `account` parameters.
 
 Slurm: The `bignlp_path` parameter will automatically be mounted to the
 container at the same path as in the local file system. Any additional
 directories that should be mounted must be specified using the
 `container_mounts` parameter. All the paths will be mounted to the same path
 inside and outside the container.  The `data_dir` parameter can also be
-modified to point to where the dataset will be loaded from or saved. Please
-note that if a directory outside of the `bignlp_path` parameter is used, the
-directory must also be mounted using the `container_mounts` parameter.
+modified to point to where the dataset will be loaded from or saved. The 
+`base_results_dir` can also be modified to point to where the results, 
+checkpoints and logs will be stored. These last two parameters will be 
+automatically mounted into the container.
 
-Base Command Platform: The `bignlp_path` can be set to
-/workspace-scripts/bignlp-scripts assuming your workspace
-`bignlp_ws_scripts_uname` will be mounted to /workspace-scripts directory of
-your job container. The `data_dir` parameter can also be modified to point to
-where the dataset will be loaded from or saved. Since the dat_dir needs RW
-access, this can be in a separate Base Command Platform workspace that can be
-shared with other users.  More about this in the data preparation section.
+Base Command Platform: The `bignlp_path` should be set to 
+/opt/bignlp/bignlp-scripts , which is the default location where the scripts 
+are located inside the container. The `data_dir` parameter can also be
+modified to point to where the dataset will be loaded from or saved. The 
+`base_results_dir` can also be modified to point to where the results, 
+checkpoints and logs will be stored. In the case of BCP, we recommend 
+that `data_dir` points to one of the workspaces, and `base_results_dir` 
+points to the other. They should both be mounted in read and write (RW) 
+mode.
 
-`Main.py` is the main file that needs to be executed to run both the data
-preparation, training, and evaluation pipelines. Each of these pipelines has a
-parameter in the `conf/config.yaml` file that decides whether to run that
-pipeline or not.
+`main.py` is the main file that needs to be executed to run both the data
+preparation, training, conversion and evaluation pipelines. Each of these 
+pipelines has a parameter in the `conf/config.yaml` file that decides whether 
+to run that pipeline or not. In slurm based clusters, all of them can be set 
+to True at the same time, and they will be executed in order. However, in BCP, 
+only one of them should be set to True at a time.
 
 Default settings in the `config/config.yaml` file are:
 
