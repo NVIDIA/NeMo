@@ -67,8 +67,6 @@ class NLPDDPPlugin(DDPPlugin):
         with FP32 gradient accumulation.
     """
 
-    accelerator = "ddp"
-
     def __init__(
         self,
         parallel_devices: Optional[List[torch.device]] = None,
@@ -79,12 +77,12 @@ class NLPDDPPlugin(DDPPlugin):
         no_ddp_communication_hook: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
+        if not HAVE_APEX:
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:

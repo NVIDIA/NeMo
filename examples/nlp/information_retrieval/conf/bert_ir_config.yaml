@@ -7,10 +7,11 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 0.05  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  checkpoint_callback: false  # provided by exp_manager
+  enable_checkpointing: False  # provided by exp_manager
   logger: false  # provided by exp_manager
 
 model:

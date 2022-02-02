@@ -91,15 +91,16 @@ def get_batch_size(train_dataloader):
 
 
 def get_num_workers(trainer):
-    if trainer.accelerator is None:
+    if trainer._distrib_type is None:
         return trainer.num_gpus or 1
-    elif trainer.accelerator == "ddp_cpu":
+    elif trainer._distrib_type.value == "ddp_cpu":
         return trainer.num_processes * trainer.num_nodes
-    elif trainer.accelerator == "ddp":
+    elif trainer._distrib_type.value == "ddp":
         return trainer.num_gpus * trainer.num_nodes
     else:
         logging.warning(
-            f"The lightning trainer received accelerator: {trainer.accelerator}. We " "recommend to use 'ddp' instead."
+            f"The lightning trainer received strategy: {trainer._distrib_type.value}. We "
+            "recommend to use 'ddp' instead."
         )
         return trainer.num_gpus * trainer.num_nodes
 

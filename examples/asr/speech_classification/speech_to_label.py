@@ -34,7 +34,8 @@ python speech_to_label.py \
     model.train_ds.manifest_filepath="<path to train manifest>" \
     model.validation_ds.manifest_filepath=["<path to val manifest>","<path to test manifest>"] \
     trainer.gpus=2 \
-    trainer.accelerator="ddp" \
+    trainer.accelerator="gpu" \
+    strategy="ddp" \
     trainer.max_epochs=200 \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="MatchboxNet-3x1x64-v1" \
@@ -67,7 +68,8 @@ python speech_to_label.py \
     model.train_ds.manifest_filepath="<path to train manifest>" \
     model.validation_ds.manifest_filepath=["<path to val manifest>","<path to test manifest>"] \
     trainer.gpus=2 \
-    trainer.accelerator="ddp" \
+    trainer.accelerator="gpu" \
+    strategy="ddp" \
     trainer.max_epochs=200 \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="MatchboxNet-3x1x64-vad" \
@@ -94,7 +96,8 @@ python speech_to_label.py \
     +model.train_ds.num_worker=<num_shards used generating tarred dataset> \
     model.validation_ds.manifest_filepath=<path to validation audio_manifest.json>\
     trainer.gpus=2 \
-    trainer.accelerator="ddp" \
+    trainer.accelerator="gpu" \
+    strategy="ddp" \ \
     trainer.max_epochs=200 \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="MatchboxNet-3x1x64-vad" \
