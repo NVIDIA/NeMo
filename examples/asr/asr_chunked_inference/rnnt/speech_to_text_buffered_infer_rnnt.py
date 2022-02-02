@@ -29,6 +29,20 @@ python speech_to_text_buffered_infer_rnnt.py \
     --device="cuda:0" \
     --batch_size=128
 
+
+# With LCS
+
+DEBUG=1 python speech_to_text_buffered_infer_rnnt.py \
+    --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
+    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/subset/test_other_10.json" \
+    --model_stride=4 \
+    --output_path="." \
+    --use_lcs_merge \
+    --total_buffer_in_secs=10.0 \
+    --chunk_len_in_ms=8000 \
+    --device="cuda:1" \
+    --batch_size=128
+
 """
 
 import tqdm
@@ -43,7 +57,7 @@ from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASRRNNT, BatchedFrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASRRNNT, BatchedFrameASRRNNT
 from nemo.utils import logging
 
 from nemo.constants import monitor_time
@@ -73,6 +87,7 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
         with torch.inference_mode():
             with torch.cuda.amp.autocast():
                 batch = []
+                asr.sample_offset = 0
                 for idx in tqdm.tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
                     batch.append((audio_filepaths[idx], refs[idx]))
 
@@ -85,6 +100,7 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
                         hyps.extend(hyp_list)
 
                         batch.clear()
+                        asr.sample_offset += batch_size
 
                 if len(batch) > 0:
                     asr.batch_size = len(batch)
@@ -97,10 +113,12 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
                     hyps.extend(hyp_list)
 
                     batch.clear()
+                    asr.sample_offset += len(batch)
 
-    # for hyp, ref in zip(hyps, refs):
-    #     print("hyp:", hyp)
-    #     print("ref:", ref)
+    if os.environ.get('DEBUG', 0) == '1':
+        for hyp, ref in zip(hyps, refs):
+            print("hyp:", hyp)
+            print("ref:", ref)
 
     wer = word_error_rate(hypotheses=hyps, references=refs)
     return hyps, refs, wer
@@ -131,6 +149,7 @@ def main():
         '--max_steps_per_timestep', type=int, default=5, help='Maximum number of tokens decoded per acoustic timestepB'
     )
     parser.add_argument('--stateful_decoding', action='store_true', help='Whether to perform stateful decoding')
+    parser.add_argument('--use_lcs_merge', action='store_true', help='Whether to use LCS merge algorithm or not')
     parser.add_argument('--device', default=None, type=str, required=False)
 
     args = parser.parse_args()
@@ -159,7 +178,7 @@ def main():
         else:
             device = 'cpu'
 
-    logging.info("Inference will be done on device :", device)
+    logging.info(f"Inference will be done on device : {device}")
 
     # Disable config overwriting
     OmegaConf.set_struct(cfg.preprocessor, True)
@@ -187,14 +206,25 @@ def main():
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
     print("Tokens per chunk :", tokens_per_chunk, "Min Delay :", mid_delay)
 
-    frame_asr = BatchedFrameBatchASR(
-        asr_model=asr_model,
-        frame_len=chunk_len,
-        total_buffer=args.total_buffer_in_secs,
-        batch_size=args.batch_size,
-        max_steps_per_timestep=args.max_steps_per_timestep,
-        stateful_decoding=args.stateful_decoding,
-    )
+    if not args.use_lcs_merge:
+        frame_asr = BatchedFrameASRRNNT(
+            asr_model=asr_model,
+            frame_len=chunk_len,
+            total_buffer=args.total_buffer_in_secs,
+            batch_size=args.batch_size,
+            max_steps_per_timestep=args.max_steps_per_timestep,
+            stateful_decoding=args.stateful_decoding,
+        )
+    else:
+        frame_asr = FrameBatchASRRNNT(
+            asr_model=asr_model,
+            frame_len=chunk_len,
+            total_buffer=args.total_buffer_in_secs,
+            batch_size=args.batch_size,
+            max_steps_per_timestep=args.max_steps_per_timestep,
+            stateful_decoding=args.stateful_decoding,
+        )
+        frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
 
     hyps, refs, wer = get_wer_feat(
         args.test_manifest,
@@ -224,6 +254,10 @@ def main():
             + str(int(total_buffer * 1000))
             + ".json"
         )
+
+        if args.use_lcs_merge:
+            fname = fname.replace(".json", "_LCS.json")
+
         hyp_json = os.path.join(args.output_path, fname)
         os.makedirs(args.output_path, exist_ok=True)
         with open(hyp_json, "w") as out_f:

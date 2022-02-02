@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import shutil
 
 import numpy as np
 import soundfile as sf
@@ -28,6 +29,9 @@ from nemo.constants import monitor_time
 
 
 ENABLED = True
+MIN_MERGE_SUBSEQUENCE_LEN = 1
+PRINT_ALIGNMENT = False
+ALIGNMENT_FILEPATH = None
 
 
 def LCSubStrMerge(X, Y):
@@ -202,13 +206,63 @@ def LCSubStrMerge(X, Y):
     result_idx[0] = i
     result_idx[1] = j
 
+    global ALIGNMENT_FILEPATH
+    if ALIGNMENT_FILEPATH is not None:
+        torch.save({'alignment': LCSuff,
+                    "is_complete_merge": is_complete_merge,
+                    "X": X, "Y": Y,
+                    }, ALIGNMENT_FILEPATH)
+        print("Wrote alignemnt to :", ALIGNMENT_FILEPATH)
+
+    # Uncomment this for LCS alignment
+    if PRINT_ALIGNMENT:
+        for i in range(m + 1):
+            for j in range(n + 1):
+                print(f"{LCSuff[i][j]}", end=" ")
+            print()
+
     return result_idx
 
 
-# def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=5):
+def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_timestep=5):
+    """
+    Merges the new text from the current frame with the previous text contained in the buffer.
+
+    The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
+    the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
+    will be incorrect (or at least obtain worse WER overall).
+    """
+    # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
+    if timesteps < 1:
+        buffer += data
+        return buffer
+
+    # If buffer is empty, simply concatenate the buffer and data.
+    if len(buffer) == 0:
+        buffer += data
+        return buffer
+
+    # Prepare a subset of the buffer that will be LCS Merged with new data
+    search_size = int(timesteps * max_steps_per_timestep)
+    buffer_slice = buffer[-search_size:]
+
+    # Perform LCS Merge
+    lcs_idx = LCSubStrMerge(buffer_slice, data)
+
+    # Slice off new data
+    i, j, slice_len = lcs_idx
+    slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
+    data = data[slice_idx:]
+
+    # Concat data to buffer
+    buffer += data
+    return buffer
+
+
+# def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_timestep=5):
 #     """
 #     Merges the new text from the current frame with the previous text contained in the buffer.
-
+#
 #     The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
 #     the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
 #     will be incorrect (or at least obtain worse WER overall).
@@ -217,60 +271,25 @@ def LCSubStrMerge(X, Y):
 #     if timesteps < 1:
 #         buffer += data
 #         return buffer
-
+#
 #     # If buffer is empty, simply concatenate the buffer and data.
 #     if len(buffer) == 0:
 #         buffer += data
 #         return buffer
-
-#     # Prepare a subset of the buffer that will be LCS Merged with new data
-#     search_size = int(timesteps * max_steps_per_timestep)
-#     buffer_slice = buffer[-search_size:]
-
-#     # Perform LCS Merge
-#     lcs_idx = LCSubStrMerge(buffer_slice, data)
-
-#     # Slice off new data
-#     i, j, slice_len = lcs_idx
-#     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
-#     data = data[slice_idx:]
-
-#     # Concat data to buffer
-#     buffer += data
-#     return buffer
-
-
-# def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=5):
-#     """
-#     Merges the new text from the current frame with the previous text contained in the buffer.
-
-#     The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
-#     the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
-#     will be incorrect (or at least obtain worse WER overall).
-#     """
-#     # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
-#     if timesteps < 1:
-#         buffer += data
-#         return buffer
-
-#     # If buffer is empty, simply concatenate the buffer and data.
-#     if len(buffer) == 0:
-#         buffer += data
-#         return buffer
-
+#
 #     # Prepare a subset of the buffer that will be LCS Merged with new data
 #     search_size = int(timesteps * max_steps_per_timestep)
 #     buffer_slice = buffer# [-search_size:]
-
+#
 #     # Perform LCS Merge
 # #     lcs_idx = LCSubStrMerge(buffer_slice, data)
-
+#
 # #     # Slice off new data
 # #     i, j, slice_len = lcs_idx
 # #     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
-
+#
 #     # data = data[slice_idx:]
-
+#
 #     # Concat data to buffer
 #     buffer += data
 #     return buffer
@@ -292,19 +311,6 @@ def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=
     if len(buffer) == 0:
         buffer += data
         return buffer
-
-    # Prepare a subset of the buffer that will be LCS Merged with new data
-    search_size = int(timesteps * max_steps_per_timestep)
-    buffer_slice = buffer  # [-search_size:]
-
-    # Perform LCS Merge
-    #     lcs_idx = LCSubStrMerge(buffer_slice, data)
-
-    #     # Slice off new data
-    #     i, j, slice_len = lcs_idx
-    #     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
-
-    #     data = data[slice_idx:]
 
     # Concat data to buffer
     buffer += data
@@ -782,7 +788,7 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
 # 1) use reset() method to reset FrameASR's state
 # 2) call transcribe(frame) to do ASR on
 #    contiguous signal's frames
-class BatchedFrameBatchASR(FrameBatchASR):
+class BatchedFrameASRRNNT(FrameBatchASR):
     """
     class for streaming frame-based ASR use reset() method to reset FrameASR's
     state call transcribe(frame) to do ASR on contiguous signal's frames
@@ -976,7 +982,139 @@ class BatchedFrameBatchASR(FrameBatchASR):
 # 1) use reset() method to reset FrameASR's state
 # 2) call transcribe(frame) to do ASR on
 #    contiguous signal's frames
-class FrameBatchASRRNNT(BatchedFrameBatchASR):
+# class FrameBatchASRRNNT(BatchedFrameBatchASR):
+#     """
+#     class for streaming frame-based ASR use reset() method to reset FrameASR's
+#     state call transcribe(frame) to do ASR on contiguous signal's frames
+#     """
+#
+#     def __init__(
+#         self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, max_steps_per_timestep: int = 5, stateful_decoding: bool = False
+#     ):
+#         '''
+#         Args:
+#           frame_len: frame's duration, seconds
+#           frame_overlap: duration of overlaps before and after current frame, seconds
+#           offset: number of symbols to drop for smooth streaming
+#         '''
+#         super().__init__(asr_model, frame_len, total_buffer, batch_size)
+#
+#         self.max_steps_per_timestep = max_steps_per_timestep
+#         self.stateful_decoding = stateful_decoding
+#
+#         self.all_alignments = []
+#         self.previous_hypotheses = None
+#
+#         try:
+#             self.eos_id = self.asr_model.tokenizer.eos_id
+#         except Exception:
+#             self.eos_id = -1
+#
+#         print("Performing Stateful decoding :", self.stateful_decoding)
+#
+#     def reset(self):
+#         """
+#         Reset frame_history and decoder's state
+#         """
+#         super().reset()
+#
+#         self.all_alignments = []
+#         self.previous_hypotheses = None
+#
+#     @torch.no_grad()
+#     def infer_logits(self):
+#         frame_buffers = self.frame_bufferer.get_buffers_batch()
+#
+#         while len(frame_buffers) > 0:
+#             monitor_time.print_pad()
+#             self.frame_buffers += frame_buffers[:]
+#             self.data_layer.set_signal(frame_buffers[:])
+#             self._get_batch_preds()
+#             frame_buffers = self.frame_bufferer.get_buffers_batch()
+#
+#     @torch.no_grad()
+#     def _get_batch_preds(self):
+#         device = self.asr_model.device
+#
+#         monitor_time.print_pad()
+#         for batch in iter(self.data_loader):
+#
+#             feat_signal, feat_signal_len = batch
+#             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+#
+#             with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})', enabled=ENABLED):
+#                 encoded, encoded_len = self.asr_model(
+#                     processed_signal=feat_signal, processed_signal_length=feat_signal_len
+#                 )
+#
+#             with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
+#                 best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+#                     encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+#                 )
+#
+#             if self.stateful_decoding:
+#                 # preserve last state from hypothesis
+#                 self.previous_hypotheses = best_hyp
+#
+#             for hyp in best_hyp:
+#                 self.all_alignments.append(hyp.alignments)
+#
+#             preds = [hyp.y_sequence for hyp in best_hyp]
+#             for pred in preds:
+#                 self.all_preds.append(pred.cpu().numpy())
+#
+#             if self.stateful_decoding:
+#                 reset_states = self.asr_model.decoder.initialize_state(encoded)
+#
+#                 for idx, pred in enumerate(preds):
+#                     if len(pred) > 0 and pred[-1] == self.eos_id:
+#                         # reset states :
+#                         self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
+#                         self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
+#                             reset_states, idx)
+#
+#             del encoded, encoded_len
+#             del best_hyp, pred
+#
+#     def transcribe(
+#         self, tokens_per_chunk: int, delay: int,
+#     ):
+#         print()
+#         with monitor_time('infer logits', enabled=ENABLED):
+#             self.infer_logits()
+#         self.unmerged = []
+#         for idx, alignment in enumerate(self.all_alignments):
+#             alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
+#             ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+#             if len(ids) > 0:
+#                 self.unmerged = inplace_buffer_merge(self.unmerged, ids, delay, model=self.asr_model,
+#                                                      max_steps_per_timestep=self.max_steps_per_timestep)
+#         return self.greedy_merge(self.unmerged)
+#
+#     def _alignment_decoder(self, alignments, tokenizer, blank_id):
+#         s = []
+#         ids = []
+#
+#         for t in range(len(alignments)):
+#             for u in range(len(alignments[t])):
+#                 token_id = int(alignments[t][u])
+#                 if token_id != blank_id:
+#                     token = tokenizer.ids_to_tokens([token_id])[0]
+#                     s.append(token)
+#                     ids.append(token_id)
+#
+#                 else:
+#                     # blank token
+#                     pass
+#
+#         return ids, s
+#
+#     def greedy_merge(self, preds):
+#         decoded_prediction = [p for p in preds]
+#         hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
+#         return hypothesis
+
+class FrameBatchASRRNNT(BatchedFrameASRRNNT):
     """
     class for streaming frame-based ASR use reset() method to reset FrameASR's
     state call transcribe(frame) to do ASR on contiguous signal's frames
@@ -991,119 +1129,63 @@ class FrameBatchASRRNNT(BatchedFrameBatchASR):
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
-        super().__init__(asr_model, frame_len, total_buffer, batch_size)
-
-        self.max_steps_per_timestep = max_steps_per_timestep
-        self.stateful_decoding = stateful_decoding
-
-        self.all_alignments = []
-        self.previous_hypotheses = None
-
-        try:
-            self.eos_id = self.asr_model.tokenizer.eos_id
-        except Exception:
-            self.eos_id = -1
-
-        print("Performing Stateful decoding :", self.stateful_decoding)
-
-    def reset(self):
-        """
-        Reset frame_history and decoder's state
-        """
-        super().reset()
-
-        self.all_alignments = []
-        self.previous_hypotheses = None
-
-    @torch.no_grad()
-    def infer_logits(self):
-        frame_buffers = self.frame_bufferer.get_buffers_batch()
-
-        while len(frame_buffers) > 0:
-            monitor_time.print_pad()
-            self.frame_buffers += frame_buffers[:]
-            self.data_layer.set_signal(frame_buffers[:])
-            self._get_batch_preds()
-            frame_buffers = self.frame_bufferer.get_buffers_batch()
-
-    @torch.no_grad()
-    def _get_batch_preds(self):
-        device = self.asr_model.device
-
-        monitor_time.print_pad()
-        for batch in iter(self.data_loader):
-
-            feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-
-            with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})', enabled=ENABLED):
-                encoded, encoded_len = self.asr_model(
-                    processed_signal=feat_signal, processed_signal_length=feat_signal_len
-                )
-
-            with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
-                best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-                    encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
-                )
-
-            if self.stateful_decoding:
-                # preserve last state from hypothesis
-                self.previous_hypotheses = best_hyp
-
-            for hyp in best_hyp:
-                self.all_alignments.append(hyp.alignments)
-
-            preds = [hyp.y_sequence for hyp in best_hyp]
-            for pred in preds:
-                self.all_preds.append(pred.cpu().numpy())
-
-            if self.stateful_decoding:
-                reset_states = self.asr_model.decoder.initialize_state(encoded)
-
-                for idx, pred in enumerate(preds):
-                    if len(pred) > 0 and pred[-1] == self.eos_id:
-                        # reset states :
-                        self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
-                        self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
-                            reset_states, idx)
-
-            del encoded, encoded_len
-            del best_hyp, pred
+        super().__init__(asr_model, frame_len, total_buffer, batch_size, max_steps_per_timestep, stateful_decoding)
+        self.sample_offset = 0
+        self.lcs_delay = -1
 
     def transcribe(
         self, tokens_per_chunk: int, delay: int,
     ):
         print()
+        if self.lcs_delay < 0:
+            raise ValueError("Please set LCS Delay valus as `(buffer_duration - chunk_duration) / model_stride_in_secs`")
+
         with monitor_time('infer logits', enabled=ENABLED):
             self.infer_logits()
-        self.unmerged = []
-        for idx, alignment in enumerate(self.all_alignments):
-            alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
-            ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
-            if len(ids) > 0:
-                self.unmerged = inplace_buffer_merge(self.unmerged, ids, delay, model=self.asr_model,
-                                                     max_steps_per_timestep=self.max_steps_per_timestep)
-        return self.greedy_merge(self.unmerged)
 
-    def _alignment_decoder(self, alignments, tokenizer, blank_id):
-        s = []
-        ids = []
+        self.unmerged = [[] for _ in range(self.batch_size)]
+        for idx, alignments in enumerate(self.all_alignments):
+            for a_idx, alignment in enumerate(alignments):
 
-        for t in range(len(alignments)):
-            for u in range(len(alignments[t])):
-                token_id = int(alignments[t][u])
-                if token_id != blank_id:
-                    token = tokenizer.ids_to_tokens([token_id])[0]
-                    s.append(token)
-                    ids.append(token_id)
+                # Middle token first chunk
+                if a_idx == 0:
+                    # len(alignment) - 1 - delay + tokens_per_chunk
+                    alignment = alignment[len(alignment) - 1 - delay: ]
+                    ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+
+                    if len(ids) > 0:
+                        self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,
+                                                                  max_steps_per_timestep=self.max_steps_per_timestep)
 
                 else:
-                    # blank token
-                    pass
+                    ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                    if len(ids) > 0:
 
-        return ids, s
+                        # global PRINT_ALIGNMENT
+                        # if idx == 2:
+                        #     PRINT_ALIGNMENT = True
+                        #     print()
+                        # else:
+                        #     PRINT_ALIGNMENT = False
 
-    def greedy_merge(self, preds):
-        decoded_prediction = [p for p in preds]
-        hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
-        return hypothesis
+                        global ALIGNMENT_FILEPATH
+                        import os
+                        basepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/asr_chunked_inference/rnnt/alignments"
+                        sample_offset = self.sample_offset + idx
+                        alignment_offset = a_idx
+                        path = os.path.join(basepath, str(sample_offset))
+
+                        os.makedirs(path, exist_ok=True)
+                        path = os.path.join(path, "alignment_" + str(alignment_offset) + '.pt')
+
+                        ALIGNMENT_FILEPATH = path
+
+                        self.unmerged[idx] = lcs_alignment_merge_buffer(self.unmerged[idx], ids, self.lcs_delay, model=self.asr_model,
+                                                                            max_steps_per_timestep=self.max_steps_per_timestep)
+
+        output = []
+        for idx in range(self.batch_size):
+            output.append(self.greedy_merge(self.unmerged[idx]))
+        return output
+
+
