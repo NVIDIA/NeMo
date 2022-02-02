@@ -48,7 +48,7 @@ def get_encoder_model(
     kv_channels=None,
     init_method=None,
     scaled_init_method=None,
-    enoder_attn_mask_type=AttnMaskType.padding,
+    encoder_attn_mask_type=AttnMaskType.padding,
     pre_process=True,
     post_process=True,
     init_method_std=0.02,
