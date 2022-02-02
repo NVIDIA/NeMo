@@ -181,11 +181,12 @@ you can use get_pip.py with just python3.
 **NOTE:** Ensure the high-speed filesystem is mounted on the job submission
 node(s) at the same path as on the compute nodes.
 
-The whole solution uses a set of Docker containers executed on at the Slurm
-cluster using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in. The
-training container also includes conversion scripts and NVIDIA Triton Model
-Navigator. The inference container comprises the NVIDIA Triton Inference Server
-with the FasterTransformer backend installed.
+The whole solution uses a set of Docker containers executed on a Slurm
+cluster (using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in) or
+a Base Command Platform (BCP) cluster. The training container also includes 
+conversion scripts and NVIDIA Triton Model Navigator. The inference container
+comprises the NVIDIA Triton Inference Server with the FasterTransformer 
+backend installed.
 
 ##### 4.1.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
@@ -200,8 +201,7 @@ verified on both Slurm-based DeepOps clusters as well as Base Command Manager.
 srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /workspace/mount_dir/"
 ```
 
-Install the BigNLP scripts dependencies 
-on the head node of the cluster:
+Install the BigNLP scripts dependencies on the head node of the cluster:
 
 ```
 pip install -r requirements.txt
@@ -213,14 +213,13 @@ install pip using use [get_pip.py](https://github.com/pypa/get-pip) with just `p
 ##### 4.1.1.2. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 
-The bignlp-scripts-bcp codebase is included as part of the common training
-container for Base Command Platform and Base Command Manager. Before starting,
-set up the ngc cli and configuration as described in the Base Command Platform
-User Guide. In this guide, we will mainly use two Base Command Platform workspaces, 
-one for storing the training dataset, and another one for storing the results, 
-checkpoints and logs. Therefore, start by creating these workspaces (e.g.
-`bignlp_data_ws` and `bignlp_results_ws`). See the Base Command Platform User Guide for how
-to create and work with Base Command Platform workspaces.
+The bignlp-scripts codebase is included as part of the training
+container. Before starting, set up the ngc cli and configuration as described 
+in the Base Command Platform (BCP) User Guide. In this guide, we will mainly 
+use two BCP workspaces, one for storing the training dataset, and another for
+storing the results, checkpoints and logs. Therefore, start by creating these 
+workspaces (e.g.`bignlp_data_ws` and `bignlp_results_ws`). See the BCP User 
+Guide for how to create and work with BCP workspaces.
 
 ##### 4.1.1.3. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
@@ -233,7 +232,7 @@ cluster, the config file in the subfolder of `conf/cluster/bcm.yaml` has the
 parameters to set the generic cluster related information, such as the 
 `partition` or `account` parameters.
 
-Slurm: The `bignlp_path` parameter will automatically be mounted to the
+**Slurm**: The `bignlp_path` parameter will automatically be mounted to the
 container at the same path as in the local file system. Any additional
 directories that should be mounted must be specified using the
 `container_mounts` parameter. All the paths will be mounted to the same path
@@ -243,7 +242,7 @@ modified to point to where the dataset will be loaded from or saved. The
 checkpoints and logs will be stored. These last two parameters will be 
 automatically mounted into the container.
 
-Base Command Platform: The `bignlp_path` should be set to 
+**Base Command Platform**: The `bignlp_path` should be set to 
 /opt/bignlp/bignlp-scripts , which is the default location where the scripts 
 are located inside the container. The `data_dir` parameter can also be
 modified to point to where the dataset will be loaded from or saved. The 
@@ -344,7 +343,7 @@ must be launched in a multi-node job, and can be parallelized to use between 2 a
 for faster parallel preparation of the dataset.
 
 With Base Command Platform, the 700+ GB dataset can be downloaded once and then
-shared by multiple users in the same ACE by setting the permissions of a
+shared by multiple users in the same ACE by setting the permissions of the bignlp_data_ws
 workspace.
 
 The data preparation scripts must be ran in multi-node mode, with at least 2 nodes (and a maximum 
@@ -359,7 +358,7 @@ data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir
 ```
 The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
 workspace in /mount/data, and the results workspace in /mount/results. The stdout and stderr outputs will
-also be redirected to the /results/data_log.txt file, to be able to download the logs from NGC.
+also be redirected to the /results/data_log.txt file, to be able to download the logs from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
 ##### 4.1.2.3. Common
@@ -426,7 +425,13 @@ training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
 The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
-creating the job (number of replicas).
+creating the job (number of replicas). 
+
+To train with fewer or a different number of nodes, the relevant parameters 
+(eg accumulate-gradient-steps) can be adjusted either in the yaml config file or 
+from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes).
+For BCP, multinode jobs are required to have at least two nodes so that is the 
+minimum number of nodes we can train with.
 
 
 **5B configuration:**
@@ -501,9 +506,11 @@ creating the job (number of replicas).
 The training code can log the model and system related metrics to both TensorBoard and 
 Weights & Biases (W&B). The local files will be stored in the directory specified in the 
 `training.exp_manager.explicit_log_dir` parameter. TensorBoard logs are saved by default.
+
 However, W&B needs the API key to be specified to work properly. To upload the logs to W&B, 
 the user must first store the W&B API key to a file (on the first line of the file), and 
-select the path to the file that contains the key using the `wandb_api_key_file` parameter.
+select the path to the file that contains the key using the `wandb_api_key_file` parameter. 
+For BCP, this can be stored in the user's workspace.
 
 The logs show the reduced_train_loss, val_loss, train_step_timing (which is the best way 
 to measure the time it takes to finish each micro step), and other relevant metrics.
