@@ -141,18 +141,6 @@ class HifiGanModel(Vocoder, Exportable):
         else:
             return [optim_g, optim_d]
 
-    @property
-    def input_types(self):
-        return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
-        }
-
     @typecheck()
     def forward(self, *, spec):
         """
@@ -414,8 +402,20 @@ class HifiGanModel(Vocoder, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=self.device, dtype=par.dtype)
         return {'spec': mel},
+
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
+        }
 
     def forward_for_export(self, spec):
         """

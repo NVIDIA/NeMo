@@ -28,6 +28,7 @@ from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
 from nemo.collections.tts.torch.data import VocoderDataset
+from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
@@ -41,7 +42,7 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
-class UnivNetModel(Vocoder):
+class UnivNetModel(Vocoder, Exportable):
     """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -102,18 +103,6 @@ class UnivNetModel(Vocoder):
         )
 
         return [optim_g, optim_d]
-
-    @property
-    def input_types(self):
-        return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
-        }
 
     @typecheck()
     def forward(self, *, spec):
@@ -331,12 +320,37 @@ class UnivNetModel(Vocoder):
 
         return list_of_models
 
-    def input_example(self):
+    def _prepare_for_export(self, **kwargs):
+        if self.generator is not None:
+            try:
+                self.generator.remove_weight_norm()
+            except ValueError:
+                return
+
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
         return {'spec': mel},
+
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
+        }
+
+    def forward_for_export(self, spec):
+        """
+        Runs the generator, for inputs and outputs see input_types, and output_types
+        """
+        return self.generator(x=spec)

@@ -701,19 +701,6 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         return list_of_models
 
-    @property
-    def input_types(self):
-        return {
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "lm_tokens": NeuralType(('B', 'T_lm_tokens'), TokenIndex(), optional=True),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-        }
-
     def input_example(self, max_text_len=10, max_lm_tokens_len=10):
         text = torch.randint(
             low=0, high=len(self.tokenizer.tokens), size=(1, max_text_len), device=self.device, dtype=torch.long,
@@ -730,7 +717,20 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 dtype=torch.long,
             )
 
-        return (inputs,)
+        return inputs,
+
+    @property
+    def input_types(self):
+        return {
+            "text": NeuralType(('B', 'T_text'), TokenIndex()),
+            "lm_tokens": NeuralType(('B', 'T_lm_tokens'), TokenIndex(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+        }
 
     def forward_for_export(self, text, lm_tokens=None):
         text_mask = (text != self.tokenizer_pad).unsqueeze(2)
