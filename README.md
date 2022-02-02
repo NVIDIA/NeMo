@@ -39,19 +39,19 @@ Megatron-LM.
     - [5.2. Prepare Environment](#52-prepare-environment)
         - [5.2.1. Slurm](#521-slurm)
         - [5.2.2. Base Command Platform](#522-base-command-platform)
-    - [5.3. Provide Model and Inference Configurationn](#54-provide-model-and-inference-configurationn)
-        - [5.3.1. Predefined Configuration for Selected Models](#541-predefined-configuration-for-selected-models)
-        - [5.3.2. Optimal Configuration Search](#542-optimal-configuration-search)
-            - [5.3.2.1. Random Weights Checkpoint Benchmark](#5421-random-weights-checkpoint-benchmark)
-            - [5.3.2.2. Trained Checkpoint Benchmark](#5422-trained-checkpoint-benchmark)
-        - [5.4.3. Review Deployment Search Results](#543-review-deployment-search-results)
+    - [5.3. Provide Model and Inference Configuration](#53-provide-model-and-inference-configuration)
+        - [5.3.1. Predefined Configuration for Selected Models](#531-predefined-configuration-for-selected-models)
+        - [5.3.2. Optimal Configuration Search](#532-optimal-configuration-search)
+            - [5.3.2.1. Random Weights Checkpoint Benchmark](#5321-random-weights-checkpoint-benchmark)
+            - [5.3.2.2. Trained Checkpoint Benchmark](#5322-trained-checkpoint-benchmark)
+    - [5.4. Review Deployment Search Results](#54-review-deployment-search-results)
     - [5.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests](#55-prepare-nvidia-triton-model-repository-and-run-accuracyperformance-tests)
     - [5.6. Run NVIDIA Triton Server with Selected Model Repository](#56-run-nvidia-triton-server-with-selected-model-repository)
     - [5.7. Text generation](#57-text-generation)
         - [5.7.1. Setup](#571-setup)
         - [5.7.2. Basic text generation](#572-basic-text-generation)
         - [5.7.3. Longer text generation](#573-longer-text-generation)
-        - [5.7.4. Longer text generation](#574-longer-text-generation)
+        - [5.7.4. Dialogue text generation](#574-dialogue-text-generation)
 - [6. Performance](#6-performance)
     - [6.1. Results](#61-results)
         - [6.1.1. Training Accuracy Results](#611-training-accuracy-results)
@@ -956,7 +956,7 @@ workspace.  Example Inference Script call:
     --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S) # name of the infer_workspace folder for this run
 ```
 
-### 5.3. Provide Model and Inference Configurationn
+### 5.3. Provide Model and Inference Configuration
 <a id="markdown-provide-model-and-inference-configurationn" name="provide-model-and-inference-configurationn"></a>
 
 #### 5.3.1. Predefined Configuration for Selected Models
@@ -1181,7 +1181,7 @@ generated configurations and prints N-best configurations taking into account a
 maximum latency constraint. If you request very small maximum latency, then the
 script won’t be able to find any valid configurations.
 
-#### 5.4.3. Review Deployment Search Results
+### 5.4 Review Deployment Search Results
 <a id="markdown-review-deployment-search-results" name="review-deployment-search-results"></a>
 
 The `profile_model_with_random_weights.py` and
