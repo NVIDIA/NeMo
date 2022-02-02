@@ -185,7 +185,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         )
         self._enc_dec_model_key = "enc_dec_model"
 
-        self.tokens_head = MegatronTokensHead(self.language_model.embedding.word_embeddings.weight.size(0), parallel_output)
+        self.tokens_head = MegatronTokensHead(self.decoder_embedding.word_embeddings.weight.size(0), parallel_output)
         self._tokens_head_key = 'tokens_head'
 
     def set_input_tensor(self, input_tensor):
@@ -208,7 +208,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         # TODO: add soft prompt
         # encoder embeddings
         enc_position_ids = build_position_ids(enc_input_ids)
-        enc_input = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
+        enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
         if output_enc_hidden_only:
             enc_output, enc_output_mask = self.enc_dec_model.encode(
@@ -221,7 +221,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             ret_dict["enc_output_mask"] = enc_output_mask
         else:
             dec_position_ids = build_position_ids(dec_input_ids)
-            dec_input = self.embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
+            dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
 
             ret_dict.update(
                 self.enc_dec_model.forward(
