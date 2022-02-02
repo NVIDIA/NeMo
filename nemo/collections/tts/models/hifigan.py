@@ -41,7 +41,7 @@ except ModuleNotFoundError:
 
 
 class HifiGanModel(Vocoder, Exportable):
-    """HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram"""
+    """HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -108,7 +108,7 @@ class HifiGanModel(Vocoder, Exportable):
         optim_g = instantiate(optim_config, params=self.generator.parameters(),)
         optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
 
-        # backward compatibility
+        # Backward compatibility
         if sched_config is None and 'sched' in self._cfg:
             sched_config = self._cfg.sched
 
@@ -388,22 +388,13 @@ class HifiGanModel(Vocoder, Exportable):
             new_state_dict[new_k] = v
         super().load_state_dict(new_state_dict, strict=strict)
 
+    # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
         if self.generator is not None:
             try:
                 self.generator.remove_weight_norm()
             except ValueError:
                 return
-
-    def input_example(self, max_batch=1, max_dim=256):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=self.device, dtype=par.dtype)
-        return {'spec': mel},
 
     @property
     def input_types(self):
@@ -416,6 +407,16 @@ class HifiGanModel(Vocoder, Exportable):
         return {
             "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
         }
+
+    def input_example(self, max_batch=1, max_dim=256):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=self.device, dtype=par.dtype)
+        return ({'spec': mel},)
 
     def forward_for_export(self, spec):
         """

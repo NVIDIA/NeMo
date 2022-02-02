@@ -43,7 +43,7 @@ except ModuleNotFoundError:
 
 
 class UnivNetModel(Vocoder, Exportable):
-    """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram"""
+    """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -64,7 +64,7 @@ class UnivNetModel(Vocoder, Exportable):
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
 
-        # reshape MRD resolutions hyperparameter and apply them to MRSTFT loss
+        # Reshape MRD resolutions hyperparameter and apply them to MRSTFT loss
         self.stft_resolutions = cfg.discriminator.mrd.resolutions
         self.fft_sizes = [res[0] for res in self.stft_resolutions]
         self.hop_sizes = [res[1] for res in self.stft_resolutions]
@@ -98,9 +98,7 @@ class UnivNetModel(Vocoder, Exportable):
 
     def configure_optimizers(self):
         optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        optim_d = instantiate(
-            self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),
-        )
+        optim_d = instantiate(self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),)
 
         return [optim_g, optim_d]
 
@@ -320,22 +318,13 @@ class UnivNetModel(Vocoder, Exportable):
 
         return list_of_models
 
+    # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
         if self.generator is not None:
             try:
                 self.generator.remove_weight_norm()
             except ValueError:
                 return
-
-    def input_example(self, max_batch=1, max_dim=256):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
-        return {'spec': mel},
 
     @property
     def input_types(self):
@@ -348,6 +337,16 @@ class UnivNetModel(Vocoder, Exportable):
         return {
             "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
         }
+
+    def input_example(self, max_batch=1, max_dim=256):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.parameters())
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
+        return ({'spec': mel},)
 
     def forward_for_export(self, spec):
         """

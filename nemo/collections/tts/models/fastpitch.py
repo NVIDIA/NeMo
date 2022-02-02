@@ -43,14 +43,14 @@ from nemo.utils import logging, model_utils
 
 
 class FastPitchModel(SpectrogramGenerator, Exportable):
-    """FastPitch Model that is used to generate mel spectrograms from text"""
+    """FastPitch model (https://arxiv.org/abs/2006.06873) that is used to generate mel spectrogram from text."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        # setup normalizer
+        # Setup normalizer
         self.normalizer = None
         self.text_normalizer_call = None
         self.text_normalizer_call_kwargs = {}
@@ -58,7 +58,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         self.learn_alignment = cfg.get("learn_alignment", False)
 
-        # setup vocabulary (=tokenizer) and input_fft_kwargs (supported only with self.learn_alignment=True)
+        # Setup vocabulary (=tokenizer) and input_fft_kwargs (supported only with self.learn_alignment=True)
         input_fft_kwargs = {}
         if self.learn_alignment:
             self.vocab = None
@@ -175,11 +175,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if self.learn_alignment:
             ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
+            # TODO(Oktai15): remove it in 1.8.0 version
             if ds_class_name == "AudioToCharWithPriorAndPitchDataset" or ds_class_name == "TTSDataset":
                 self._parser = self.vocab.encode
             else:
                 raise ValueError(f"Unknown dataset class: {ds_class_name}")
         else:
+            # TODO(Oktai15): remove it in 1.8.0 version
             # ds_class_name == "FastPitchDataset"
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
@@ -244,8 +246,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
-        # FIXME: return masks as well?
-        self.eval()
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
@@ -254,6 +254,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
+            # TODO(Oktai15): remove it in 1.8.0 version
             if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
             elif self.ds_class_name == "TTSDataset":
@@ -264,6 +265,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
+            # TODO(Oktai15): remove it in 1.8.0 version
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -331,6 +333,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
+            # TODO(Oktai15): remove it in 1.8.0 version
             if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
             elif self.ds_class_name == "TTSDataset":
@@ -341,6 +344,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
+            # TODO(Oktai15): remove it in 1.8.0 version
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -418,11 +422,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
+        # TODO(Oktai15): remove it in 1.8.0 version
         if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
-            logging.warning(
-                "FastPitchDataset will be deprecated in 1.8 version. "
-                "Please change your model to use config with Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
-            )
             dataset = instantiate(cfg.dataset, parser=self.parser)
         elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
             dataset = instantiate(
@@ -432,11 +433,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 text_tokenizer=self.vocab,
             )
         else:
-            if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.AudioToCharWithPriorAndPitchDataset":
-                logging.warning(
-                    "AudioToCharWithPriorAndPitchDataset will be deprecated in 1.8 version. "
-                    "Please change your model to use config with Torch TTS Collection instead (e.g. see nemo.collections.tts.torch.data.TTSDataset)."
-                )
+            # TODO(Oktai15): remove it in 1.8.0 version
             dataset = instantiate(cfg.dataset)
 
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
@@ -469,41 +466,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         return list_of_models
 
-    ### Export code
-    def input_example(self, max_batch=1, max_dim=256):
-        """
-        Generates input examples for tracing etc.
-        Returns:
-            A tuple of input examples.
-        """
-        par = next(self.fastpitch.parameters())
-        sz = (max_batch, max_dim)
-        inp = torch.randint(
-            0, self.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
-        )
-        pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
-        pace = torch.clamp((torch.randn(sz, device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
-
-        inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
-
-        if self.fastpitch.speaker_emb is not None:
-            inputs['speaker'] = torch.randint(
-                0, self.fastpitch.speaker_emb.num_embeddings, (max_batch,), device=par.device, dtype=torch.int64
-            )
-
-        return (inputs,)
-
-    def forward_for_export(self, text, pitch, pace, speaker=None):
-        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
-
-    @property
-    def input_types(self):
-        return self._input_types
-
-    @property
-    def output_types(self):
-        return self._output_types
-
+    # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
@@ -532,3 +495,37 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if self.fastpitch.speaker_emb is None:
             disabled_inputs.add("speaker")
         return disabled_inputs
+
+    @property
+    def input_types(self):
+        return self._input_types
+
+    @property
+    def output_types(self):
+        return self._output_types
+
+    def input_example(self, max_batch=1, max_dim=256):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        par = next(self.fastpitch.parameters())
+        sz = (max_batch, max_dim)
+        inp = torch.randint(
+            0, self.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
+        )
+        pitch = torch.randn(sz, device=par.device, dtype=torch.float32) * 0.5
+        pace = torch.clamp((torch.randn(sz, device=par.device, dtype=torch.float32) + 1) * 0.1, min=0.01)
+
+        inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+
+        if self.fastpitch.speaker_emb is not None:
+            inputs['speaker'] = torch.randint(
+                0, self.fastpitch.speaker_emb.num_embeddings, (max_batch,), device=par.device, dtype=torch.int64
+            )
+
+        return (inputs,)
+
+    def forward_for_export(self, text, pitch, pace, speaker=None):
+        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
