@@ -30,7 +30,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing, compute_max_steps
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
 try:
@@ -41,8 +41,10 @@ except ModuleNotFoundError:
 
 class HifiGanModel(Vocoder, Exportable):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
@@ -80,10 +82,7 @@ class HifiGanModel(Vocoder, Exportable):
             drop_last=self._train_dl.drop_last,
         )
 
-    def _get_warmup_steps(self, max_steps):
-        warmup_steps = self._cfg.sched.get("warmup_steps", None)
-        warmup_ratio = self._cfg.sched.get("warmup_ratio", None)
-
+    def _get_warmup_steps(self, max_steps, warmup_steps, warmup_ratio):
         if warmup_steps is not None and warmup_ratio is not None:
             raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
 
@@ -96,37 +95,47 @@ class HifiGanModel(Vocoder, Exportable):
         raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
 
     def configure_optimizers(self):
-        self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        self.optim_d = instantiate(
-            self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
-        )
+        optim_config = self._cfg.optim.copy()
 
-        if hasattr(self._cfg, 'sched'):
+        OmegaConf.set_struct(optim_config, False)
+        sched_config = optim_config.pop("sched", None)
+        OmegaConf.set_struct(optim_config, True)
+
+        optim_g = instantiate(optim_config, params=self.generator.parameters(),)
+        optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
+
+        # backward compatibility
+        if sched_config is None and 'sched' in self._cfg:
+            sched_config = self._cfg.sched
+
+        if sched_config is not None:
             max_steps = self._cfg.get("max_steps", None)
             if max_steps is None or max_steps < 0:
                 max_steps = self._get_max_steps()
 
-            warmup_steps = self._get_warmup_steps(max_steps)
+            warmup_steps = self._get_warmup_steps(
+                max_steps=max_steps,
+                warmup_steps=sched_config.get("warmup_steps", None),
+                warmup_ratio=sched_config.get("warmup_ratio", None),
+            )
 
-            self.scheduler_g = CosineAnnealing(
-                optimizer=self.optim_g, max_steps=max_steps, min_lr=self._cfg.sched.min_lr, warmup_steps=warmup_steps,
+            scheduler_g = CosineAnnealing(
+                optimizer=optim_g, max_steps=max_steps, min_lr=sched_config.min_lr, warmup_steps=warmup_steps,
             )  # Use warmup to delay start
             sch1_dict = {
-                'scheduler': self.scheduler_g,
+                'scheduler': scheduler_g,
                 'interval': 'step',
             }
 
-            self.scheduler_d = CosineAnnealing(
-                optimizer=self.optim_d, max_steps=max_steps, min_lr=self._cfg.sched.min_lr,
-            )
+            scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=sched_config.min_lr,)
             sch2_dict = {
-                'scheduler': self.scheduler_d,
+                'scheduler': scheduler_d,
                 'interval': 'step',
             }
 
-            return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
+            return [optim_g, optim_d], [sch1_dict, sch2_dict]
         else:
-            return [self.optim_g, self.optim_d]
+            return [optim_g, optim_d]
 
     @property
     def input_types(self):
@@ -172,8 +181,10 @@ class HifiGanModel(Vocoder, Exportable):
         audio_pred = self.generator(x=audio_mel)
         audio_pred_mel, _ = self.trg_melspec_fn(audio_pred.squeeze(1), audio_len)
 
+        optim_g, optim_d = self.optimizers()
+
         # train discriminator
-        self.optim_d.zero_grad()
+        optim_d.zero_grad()
         mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
         loss_disc_mpd, _, _ = self.discriminator_loss(
             disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
@@ -184,10 +195,10 @@ class HifiGanModel(Vocoder, Exportable):
         )
         loss_d = loss_disc_msd + loss_disc_mpd
         self.manual_backward(loss_d)
-        self.optim_d.step()
+        optim_d.step()
 
         # train generator
-        self.optim_g.zero_grad()
+        optim_g.zero_grad()
         loss_mel = F.l1_loss(audio_pred_mel, audio_trg_mel)
         _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
         _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
@@ -197,7 +208,7 @@ class HifiGanModel(Vocoder, Exportable):
         loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
         loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel * self.l1_factor
         self.manual_backward(loss_g)
-        self.optim_g.step()
+        optim_g.step()
 
         # run schedulers
         schedulers = self.lr_schedulers()
@@ -216,7 +227,7 @@ class HifiGanModel(Vocoder, Exportable):
             "d_loss_msd": loss_disc_msd,
             "d_loss": loss_d,
             "global_step": self.global_step,
-            "lr": self.optim_g.param_groups[0]['lr'],
+            "lr": optim_g.param_groups[0]['lr'],
         }
         self.log_dict(metrics, on_step=True, sync_dist=True)
         self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
