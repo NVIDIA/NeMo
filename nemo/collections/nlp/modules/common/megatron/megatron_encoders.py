@@ -105,7 +105,4 @@ def get_encoder_model(
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")
 
-    # key used for checkpoints.
-    encoder_key = arch
-
-    return encoder, encoder_key
+    return encoder

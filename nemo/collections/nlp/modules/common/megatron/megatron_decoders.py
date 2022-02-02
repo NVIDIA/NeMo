@@ -106,7 +106,4 @@ def get_decoder_model(
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")
 
-    # key used for checkpoints.
-    decoder_key = arch
-
-    return decoder, decoder_key
+    return decoder
