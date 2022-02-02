@@ -1,7 +1,7 @@
 run:
   name: 5b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "7-00:00:00"
+  time_limit: "4:00:00"
   dependency: "singleton"
 
 trainer:
@@ -29,7 +29,7 @@ exp_manager:
   name: megatron_gpt
   create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_gpt3_prod_tests
+    project: nemo_gpt3
     name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -70,7 +70,7 @@ model:
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 4
+  activations_checkpoint_num_layers: 0
 
   tokenizer:
     library: 'megatron'
@@ -121,63 +121,7 @@ model:
     reset_attention_mask: False # Reset attention mask after end-of-document token
     eod_mask_loss: False # Mask loss for the end of document tokens
     data_prefix: # Should be weight path weight path... for a blended dataset
-      - .0333
+      - .5
       - ${data_dir}/my-gpt3_00_text_document
-      - .0333
+      - .5
       - ${data_dir}/my-gpt3_01_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_02_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_03_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_04_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_05_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_06_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_07_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_08_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_09_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_10_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_11_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_12_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_13_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_14_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_15_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_16_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_17_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_18_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_19_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_20_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_21_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_22_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_23_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_24_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_25_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_26_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_27_text_document
-      - .0333
-      - ${data_dir}/my-gpt3_28_text_document
-      - .0334
-      - ${data_dir}/my-gpt3_29_text_document

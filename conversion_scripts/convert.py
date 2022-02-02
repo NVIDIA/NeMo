@@ -46,6 +46,20 @@ def create_slurm_file(
         f.writelines(f'srun {flags} --ntasks={ntasks_per_node} sh -c "{convert_cmd}"\n\n')
         f.writelines("set +x\n")
 
+
+def create_bcp_file(
+    cmd_str,
+    num_nodes,
+    ntasks_per_node,
+    log_file,
+    new_script_path
+):
+    with open(new_script_path, "w") as f:
+        f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str}" >> {log_file} 2>&1\n\n')
+        f.writelines("set +x\n")
+    os.chmod(new_script_path, 0o755)
+
+
         
 def convert_ckpt(cfg, hydra_args="", dependency=None):
     # Read config
@@ -122,7 +136,15 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         return dependency
 
     elif cfg.cluster_type == "bcp":
-        submit_cmd = f"NGC_TASKS_PER_NODE={ntasks_per_node} {cmd_str}"
+        create_bcp_file(
+            new_script_path=new_script_path,
+            cmd_str=cmd_str,
+            num_nodes=nodes,
+            ntasks_per_node=ntasks_per_node,
+            log_file=f"{base_results_dir}/{model_train_name}/{convert_name}/convert_log.txt",
+        )
+
+        submit_cmd = f"NGC_TASKS_PER_NODE={ntasks_per_node} {new_script_path}"
         job_id = subprocess.check_output([f"{submit_cmd}"], shell=True)
         print(f"Conversion job submitted with command: \n{submit_cmd}")
         return job_id

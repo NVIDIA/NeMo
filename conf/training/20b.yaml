@@ -31,8 +31,8 @@ exp_manager:
   name: megatron_gpt
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_gpt_pretraining
-    name: dev
+    project: nemo_gpt3_prod_tests
+    name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
@@ -73,7 +73,7 @@ model:
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 12
+  activations_checkpoint_num_layers: 2
 
   tokenizer:
     library: 'megatron'
