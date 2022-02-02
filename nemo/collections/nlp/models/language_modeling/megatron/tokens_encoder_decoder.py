@@ -80,6 +80,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         fp16_cross_entropy=False,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
@@ -96,6 +97,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_cross_entropy = fp16_cross_entropy
+        self.precision = precision
 
         if kv_channels is None:
             assert (
