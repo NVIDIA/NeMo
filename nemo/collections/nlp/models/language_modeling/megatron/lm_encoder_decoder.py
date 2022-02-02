@@ -32,6 +32,9 @@ from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_d
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModule
 
 
+__all__ = ["MegatronLMHead"]
+
+
 class MegatronLMHead(MegatronModule):
     """Masked LM head for token-based encoder-decoder models (e.g., T5)
 

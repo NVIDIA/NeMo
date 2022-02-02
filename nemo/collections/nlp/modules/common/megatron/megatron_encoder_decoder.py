@@ -34,9 +34,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 
-__all__ = []
-
-AVAILABLE_ENCODERS = ["MegatronTransformerEncoderDecoderModule"]
+__all__ = ["MegatronTransformerEncoderDecoderModule"]
 
 
 class MegatronTransformerEncoderDecoderModule(MegatronModule):

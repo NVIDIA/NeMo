@@ -41,6 +41,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
 
+__all__ = ["MegatronT5Model"]
+
 
 class MegatronT5Model(MegatronLMEncoderDecoderModule):
     """
