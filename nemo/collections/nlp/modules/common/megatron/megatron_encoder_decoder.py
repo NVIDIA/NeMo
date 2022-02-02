@@ -86,7 +86,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                ):
         """Decodes embedder input using decoder and encoder input"""
         # FIXME: validate correct mask shape here
-        import pudb; pudb.set_trace()
+        # import pudb; pudb.set_trace()
 
         enc_dec_attn_mask = make_attention_mask_3d(
                 dec_attn_mask, enc_output_mask,
