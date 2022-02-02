@@ -15,6 +15,7 @@
 from typing import Any, Optional
 
 import torch
+from apex.transformer import parallel_state
 from omegaconf.dictconfig import DictConfig
 from omegaconf import OmegaConf, open_dict
 from pytorch_lightning.trainer.trainer import Trainer
