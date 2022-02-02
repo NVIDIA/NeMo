@@ -116,10 +116,10 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         output_enc_hidden_only=False,
     ):
         ret_dict= self.emc_dec_model(
-            encoder_input_ids=encoder_input_ids,
-            decoder_input_ids=decoder_input_ids,
-            encoder_attn_mask=encoder_attn_mask,
-            decoder_attn_mask=decoder_attn_mask,
+            enc_input_ids=encoder_input_ids,
+            dec_input_ids=decoder_input_ids,
+            enc_attn_mask=encoder_attn_mask,
+            dec_attn_mask=decoder_attn_mask,
             tokentype_ids=tokentype_ids,
             labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
