@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder_model import LMEncoderDecoderModule
+from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder import LMEncoderDecoderModule
 from nemo.collections.nlp.models.language_modeling.megatron.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
