@@ -96,8 +96,8 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         # TODO: add config to allow to disable it?
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
-            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            make_vocab_size_divisible_by=self.cfg.get('make_vocab_size_divisible_by', 128),
+            tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
         )
 
     def forward(
