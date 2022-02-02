@@ -110,7 +110,7 @@ Main layers would be parallelized:
 | Multi-GPU                       | Yes                    | Yes                                                                                                                                                               |
 | Multi-Node                      | Yes                    | Yes                                                                                                                                                               |
 | Inference deployment            | N/A                    | [NVIDIA Triton supported](https://github.com/triton-inference-server/backend#where-can-i-find-all-the-backends-that-are-available-for-triton), Faster Transformer |
-| SW stack support                | SLURM/BCM/PCP          | SLURM/BCM/PCP                                                                                                                                                     |
+| SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
 | Distributed data pre processing | Yes (Piles only)       |                                                                                                                                                                   |
 | NVfuser                         | Yes (FP16)             |                                                                                                                                                                   |
 
@@ -139,6 +139,7 @@ Main layers would be parallelized:
 | GDRcopy           | 2.3                |
 | HPC-X             | 2.9.0              |
 | BCM               | 1.0.0              |
+| DeepOps           | 21.06              |
 
 
 ## 4. Quick Start Guide
@@ -190,7 +191,8 @@ with the FasterTransformer backend installed.
 The bignlp-scripts codebase is included as part of the training container. To
 copy it to a local directory in the cluster, it needs to be extracted from the
 container. To copy the code to a directory named /path/to/local/dir the
-following command can be executed.
+following command can be executed. The BigNLP repository for Slurm has been
+verified on both Slurm-based DeepOps clusters as well as Base Command Manager.
 
 ```
 srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /workspace/mount_dir/"
