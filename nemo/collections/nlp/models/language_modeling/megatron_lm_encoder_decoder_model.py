@@ -54,6 +54,14 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
+        self.tokenizer = get_nmt_tokenizer(
+            library=self.cfg.tokenizer.library,
+            model_name=self.cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
+            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+        )
+
         # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
         self._build_vocab()
 
@@ -81,14 +89,6 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             bias_gelu_fusion=True,
             onnx_safe=cfg.get('onnx_safe', False),
-        )
-
-        self.tokenizer = get_nmt_tokenizer(
-            library=self.cfg.tokenizer.library,
-            model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
         )
 
 
