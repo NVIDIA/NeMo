@@ -429,7 +429,7 @@ directories respectively, and that the $NGC_ARRAY_SIZE will use the number of no
 creating the job (number of replicas). 
 
 To train with fewer or a different number of nodes, the relevant parameters 
-(e.g. accumulate-grad-batches) can be adjusted either in the yaml config file or 
+(e.g. accumulate_grad_batches) can be adjusted either in the yaml config file or 
 from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). For Base Command Platform, multi-node jobs are required to have at least 
 two nodes so that is the minimum number of nodes we can train with.
 
@@ -622,8 +622,8 @@ The GBS can be calculated like this:
 ```
 
 To modify the number of nodes to be used, the user should modify the value of
-`accumulate\_grad\_batches` in the inverse way. For instance, if the number of
-nodes gets cut in half (20 → 10), then the `accumulate\_grad\_batches` should be
+`accumulate_grad_batches` in the inverse way. For instance, if the number of
+nodes gets cut in half (20 → 10), then the `accumulate_grad_batches` should be
 doubled (9 → 18).
 
 ### 4.7. Checkpoint Conversion
