@@ -18,7 +18,7 @@ import torch
 from apex.transformer import tensor_parallel
 from apex.transformer.enums import AttnMaskType
 
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model,
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
