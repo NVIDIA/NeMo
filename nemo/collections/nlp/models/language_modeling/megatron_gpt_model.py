@@ -40,7 +40,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.collections.nlp.parts.schedules import nemo_forward_backward_pipelining_without_interleaving
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.collections.nlp.parts.nlp_overrides import NLPDataConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, inject_model_parallel_rank
