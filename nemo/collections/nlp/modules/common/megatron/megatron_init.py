@@ -66,17 +66,3 @@ def _set_random_seed(seed_):
             tensor_parallel.model_parallel_cuda_manual_seed(seed)
     else:
         raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
-
-
-def set_jit_fusion_options():
-    """Set PyTorch JIT layer fusion options."""
-    # set flags if we are using the 21.10 container
-    if torch.__version__ == "1.10.0a0+0aef44c":
-        # nvfuser
-        torch._C._jit_set_profiling_executor(True)
-        torch._C._jit_set_profiling_mode(True)
-        torch._C._jit_override_can_fuse_on_cpu(False)
-        torch._C._jit_override_can_fuse_on_gpu(False)
-        torch._C._jit_set_texpr_fuser_enabled(False)
-        torch._C._jit_set_nvfuser_enabled(True)
-        torch._C._debug_set_autodiff_subgraph_inlining(False)

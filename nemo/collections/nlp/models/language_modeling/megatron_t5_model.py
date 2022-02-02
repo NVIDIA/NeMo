@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from typing import Any, Dict, Optional
 
@@ -29,10 +30,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import b
 from nemo.collections.nlp.models.language_modeling.megatron.t5_model import T5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_init import (
-    initialize_model_parallel_for_nemo,
-    set_jit_fusion_options,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
@@ -47,6 +45,9 @@ class MegatronT5Model(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
+        # used in NVIDIA NGC PyTorch containers
+        self._enable_nvidia_optimizations()
+
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
@@ -60,9 +61,6 @@ class MegatronT5Model(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
-
-        if not self.cfg.get('fused_bf16'):
-            set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
@@ -480,25 +478,64 @@ class MegatronT5Model(NLPModel):
 
             # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
             if not hasattr(self.tokenizer, 'pad_token'):
-                if hasattr(self.tokenizer.tokenizer, 'pad_id'):
+                if hasattr(self.tokenizer.tokenizer, 'pad_id') and self.tokenizer.tokenizer.pad_id() > 0:
                     self.tokenizer.pad_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.pad_id())
+                else:
+                    self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
             else:
                 self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
             if not hasattr(self.tokenizer, 'bos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'bos_id'):
+                if hasattr(self.tokenizer.tokenizer, 'bos_id') and self.tokenizer.tokenizer.bos_id() > 0:
                     self.tokenizer.bos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.bos_id())
+                else:
+                    self.tokenizer.add_special_tokens({'bos_token': '<bos>'})
             else:
                 self.tokenizer.add_special_tokens({'bos_token': '<s>'})
 
             if not hasattr(self.tokenizer, 'eos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'eos_id'):
+                if hasattr(self.tokenizer.tokenizer, 'eos_id') and self.tokenizer.tokenizer.eos_id() > 0:
                     self.tokenizer.eos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.eos_id())
+                else:
+                    self.tokenizer.add_special_tokens({'eos_token': '<eos>'})
             else:
                 self.tokenizer.add_special_tokens({'eos_token': '</s>'})
 
-            additional_tokens = [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-            self.tokenizer.add_special_tokens(additional_tokens)
+            # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
+            for i in range(self.num_sentinel_tokens):
+                if f'▁<extra_id_{i}>' in self.tokenizer.vocab:
+                    self.tokenizer.special_token_to_id[f'<extra_id_{i}>'] = self.tokenizer.text_to_ids(
+                        f'<extra_id_{i}>'
+                    )[0]
+                else:
+                    self.tokenizer.add_special_tokens([f'<extra_id_{i}>'])
 
     def list_available_models():
         pass
+
+    def _enable_nvidia_optimizations(self):
+        "These optimizations are present in NVIDIA NGC PyTorch Containers"
+
+        # Version check
+        nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+        if nvidia_torch_version is not None:
+            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+
+            # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
+            if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
+                self.cfg.persist_layer_norm = False
+
+            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
+                # NVFUSER
+                torch._C._jit_set_profiling_executor(True)
+                torch._C._jit_set_profiling_mode(True)
+                torch._C._jit_override_can_fuse_on_cpu(False)
+                torch._C._jit_override_can_fuse_on_gpu(False)
+                torch._C._jit_set_texpr_fuser_enabled(False)
+                torch._C._jit_set_nvfuser_enabled(True)
+                torch._C._debug_set_autodiff_subgraph_inlining(False)
+
+        else:
+            # Not a Nvidia container. Dependency check is on users
+            pass

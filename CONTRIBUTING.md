@@ -29,7 +29,7 @@ pytest --with_downloads
 1. For changes to NeMo's core: @ericharper, @titu1994, @blisc, or @okuchaiev  
 1. For changes to NeMo's ASR collection: @titu1994, @redoctopus, @jbalam-nv, or @okuchaiev
 1. For changes to NeMo's NLP collection: @MaximumEntropy, @ericharper, @ekmb, @yzhang123, @VahidooX, @vladgets, or @okuchaiev 
-1. For changes to NeMo's TTS collection: @blisc or @stasbel, or @okuchaiev
+1. For changes to NeMo's TTS collection: @blisc or @Oktai15, or @okuchaiev
 
 Note that some people may self-assign to review your PR - in which case, please wait for them to add a review.
 
