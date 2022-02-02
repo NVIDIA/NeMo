@@ -22,7 +22,7 @@ import k2 # isort:skip
 # fmt: on
 
 
-def build_topo(name: str, tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+def build_topo(name: str, tokens: List[int], with_selfloops: bool = True) -> 'k2.Fsa':
     """Helper function to build a topology.
     Args:
       name:
@@ -46,7 +46,7 @@ def build_topo(name: str, tokens: List[int], with_selfloops: bool = True) -> k2.
         raise ValueError(f"Unknown topo name: {name}")
 
 
-def build_default_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+def build_default_topo(tokens: List[int], with_selfloops: bool = True) -> 'k2.Fsa':
     """Build the default CTC topology.
     """
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
@@ -68,7 +68,7 @@ def build_default_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa
     return ans
 
 
-def build_compact_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+def build_compact_topo(tokens: List[int], with_selfloops: bool = True) -> 'k2.Fsa':
     """Build the compact CTC topology.
     See https://arxiv.org/abs/2110.03098
     """
@@ -92,7 +92,7 @@ def build_compact_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa
     return ans
 
 
-def build_shared_blank_topo(tokens: List[int], with_selfloops: bool = True) -> k2.Fsa:
+def build_shared_blank_topo(tokens: List[int], with_selfloops: bool = True) -> 'k2.Fsa':
     """Build the shared blank CTC topology.
     See https://github.com/k2-fsa/k2/issues/746#issuecomment-856421616
     """
@@ -123,7 +123,7 @@ def build_shared_blank_topo(tokens: List[int], with_selfloops: bool = True) -> k
     return ans
 
 
-def build_minimal_topo(tokens: List[int]) -> k2.Fsa:
+def build_minimal_topo(tokens: List[int]) -> 'k2.Fsa':
     """Build the minimal topology.
     See https://arxiv.org/abs/2110.03098
     """

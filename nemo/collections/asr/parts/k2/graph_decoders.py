@@ -88,7 +88,7 @@ class BaseDecoder(object):
             self.decoding_graph = self.decoding_graph.to(device)
         self.device = device
 
-    def update_graph(self, graph: k2.Fsa):
+    def update_graph(self, graph: 'k2.Fsa'):
         raise NotImplementedError
 
     def decode(
@@ -98,7 +98,7 @@ class BaseDecoder(object):
         return_lattices: bool = False,
         return_ilabels: bool = False,
         output_aligned: bool = True,
-    ) -> Union[k2.Fsa, Tuple[List[torch.Tensor], List[torch.Tensor]]]:
+    ) -> Union['k2.Fsa', Tuple[List[torch.Tensor], List[torch.Tensor]]]:
         if self.decoding_graph is None:
             self.decoding_graph = self.base_graph
 
@@ -201,7 +201,7 @@ class TokenLMDecoder(BaseDecoder):
         self,
         num_classes: int,
         blank: int,
-        token_lm: Optional[Union[k2.Fsa, str]] = None,
+        token_lm: Optional[Union['k2.Fsa', str]] = None,
         intersect_pruned: bool = False,
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
@@ -227,7 +227,7 @@ class TokenLMDecoder(BaseDecoder):
             )
             self.token_lm = None
 
-    def update_graph(self, graph: k2.Fsa):
+    def update_graph(self, graph: 'k2.Fsa'):
         self.token_lm = graph
         token_lm = self.token_lm.clone()
         if hasattr(token_lm, "aux_labels"):

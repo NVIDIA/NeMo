@@ -64,7 +64,7 @@ class MLLoss(torch.nn.Module):
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         graph_type: str = "topo",
-        aux_graph: Optional[Union[k2.Fsa, str]] = None,
+        aux_graph: Optional[Union['k2.Fsa', str]] = None,
         **kwargs,
     ):
         # use k2 import guard

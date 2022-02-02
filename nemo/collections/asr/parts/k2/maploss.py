@@ -67,7 +67,7 @@ class MAPLoss(torch.nn.Module):
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         loss_type: str = "mmi",
-        token_lm: Optional[Union[k2.Fsa, str]] = None,
+        token_lm: Optional[Union['k2.Fsa', str]] = None,
         intersect_pruned: bool = False,
         boost_coeff: float = 0.0,
         **kwargs,
@@ -101,7 +101,7 @@ class MAPLoss(torch.nn.Module):
             else:
                 self.update_graph(self.lm_graph)
 
-    def update_graph(self, graph: k2.Fsa):
+    def update_graph(self, graph: 'k2.Fsa'):
         self.lm_graph = graph
         lm_graph = self.lm_graph.clone()
         if hasattr(lm_graph, "aux_labels"):
@@ -112,10 +112,10 @@ class MAPLoss(torch.nn.Module):
             from nemo.collections.asr.parts.k2.graph_compilers import MmiGraphCompiler as compiler
         else:
             raise ValueError(f"Invalid value of `loss_type`: {self.loss_type}.")
-        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_selfloops, aux_graph=lm_graph,)
+        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_selfloops, aux_graph=lm_graph)
 
     def _intersect_calc_scores_mmi_exact(
-        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = True,
+        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
     ):
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -172,7 +172,7 @@ class MAPLoss(torch.nn.Module):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores_mmi_pruned(
-        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: k2.Fsa, den_graph: k2.Fsa, return_lats: bool = True,
+        self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
     ):
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device

@@ -44,7 +44,7 @@ import k2 # isort:skip
 # fmt: on
 
 
-def create_supervision(input_lengths: torch.Tensor,) -> Tuple[torch.Tensor, torch.Tensor]:
+def create_supervision(input_lengths: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """Creates a special supervisions tensor from input lengths.
     These supervisions are required for some k2 methods.
     """
@@ -79,7 +79,7 @@ def make_blank_first(
     return new_log_probs, None if targets is None else targets + 1
 
 
-def load_graph(graph_path: str) -> k2.Fsa:
+def load_graph(graph_path: str) -> 'k2.Fsa':
     """Fsa graph loading helper function. Loads graphs stored in different formats.
     """
     if os.path.exists(graph_path):
@@ -104,7 +104,7 @@ def load_graph(graph_path: str) -> k2.Fsa:
         return None
 
 
-def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
+def intersect_with_self_loops(base_graph: 'k2.Fsa', aux_graph: 'k2.Fsa') -> 'k2.Fsa':
     """Intersection helper function.
     """
     assert hasattr(base_graph, "aux_labels")
@@ -115,7 +115,7 @@ def intersect_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
     return result
 
 
-def compose_with_self_loops(base_graph: k2.Fsa, aux_graph: k2.Fsa) -> k2.Fsa:
+def compose_with_self_loops(base_graph: 'k2.Fsa', aux_graph: 'k2.Fsa') -> 'k2.Fsa':
     """Composition helper function.
     """
     aux_graph_with_self_loops = k2.arc_sort(k2.add_epsilon_self_loops(aux_graph)).to(base_graph.device)
@@ -157,7 +157,7 @@ def create_sparse_wrapped(
         raise ValueError(f"len(indices) = {len(indices)}")
 
 
-def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor) -> k2.DenseFsaVec:
+def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor) -> 'k2.DenseFsaVec':
     """Performs special epsilon-padding required for composition with some of the topologies.
     """
     log_softmax_shifted = torch.cat(
@@ -178,7 +178,7 @@ def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tenso
     return dense_log_softmax_padded
 
 
-def shift_labels_inpl(lattices: List[k2.Fsa], shift: int):
+def shift_labels_inpl(lattices: List['k2.Fsa'], shift: int):
     """Shifts lattice labels and aux_labels by a given number. This is an in-place operation.
     """
     for lattice in lattices:
@@ -190,7 +190,7 @@ def shift_labels_inpl(lattices: List[k2.Fsa], shift: int):
     return lattices
 
 
-def get_arc_weights(graph: k2.Fsa):
+def get_arc_weights(graph: 'k2.Fsa') -> torch.Tensor:
     """Returns 1d torch.Tensor with arc weights of a given graph.
     """
     weights_int = graph.arcs_as_tensor()[:, -1].tolist()

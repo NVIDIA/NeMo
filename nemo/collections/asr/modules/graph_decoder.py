@@ -64,6 +64,7 @@ class ViterbiDecoderWithGraph(NeuralModule):
         if backend == "k2":
             # use k2 import guard
             from nemo.core.utils.k2_utils import k2_import_guard
+
             k2_import_guard()
 
             if self.dec_type == "topo":

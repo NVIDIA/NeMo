@@ -71,7 +71,7 @@ class CtcTopologyCompiler(object):
             self.base_graph = self.base_graph.to(device)
         self.device = device
 
-    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> k2.Fsa:
+    def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> 'k2.Fsa':
         token_ids_list = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
         # see https://github.com/k2-fsa/k2/issues/835
         label_graph = k2.linear_fsa(token_ids_list).to(self.device)
@@ -95,7 +95,7 @@ class CtcNumGraphCompiler(CtcTopologyCompiler):
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         device: torch.device = torch.device("cpu"),
-        aux_graph: Optional[k2.Fsa] = None,
+        aux_graph: Optional['k2.Fsa'] = None,
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device)
         if aux_graph is None:
@@ -105,8 +105,8 @@ class CtcNumGraphCompiler(CtcTopologyCompiler):
             self.base_graph = k2.arc_sort(self.base_graph).to(self.device)
 
     def compile(
-        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None,
-    ) -> k2.Fsa:
+        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional['k2.Fsa'] = None,
+    ) -> 'k2.Fsa':
         if aux_graph is None and self.base_graph is None:
             raise ValueError(
                 f"At least one of aux_graph and self.base_graph must be set: {aux_graph}, {self.base_graph}"
@@ -129,7 +129,7 @@ class MmiGraphCompiler(CtcNumGraphCompiler):
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         device: torch.device = torch.device("cpu"),
-        aux_graph: Optional[k2.Fsa] = None,
+        aux_graph: Optional['k2.Fsa'] = None,
     ):
         super().__init__(num_classes, topo_type, topo_with_selfloops, device, aux_graph)
         if aux_graph is None:
@@ -143,8 +143,8 @@ class MmiGraphCompiler(CtcNumGraphCompiler):
         super().to(device)
 
     def compile(
-        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional[k2.Fsa] = None,
-    ) -> Tuple[k2.Fsa, k2.Fsa]:
+        self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional['k2.Fsa'] = None,
+    ) -> Tuple[k2.Fsa, 'k2.Fsa']:
         num_graphs = super().compile(targets, target_lengths, aux_graph)
         if aux_graph is None and self.den_graph is None:
             raise ValueError(

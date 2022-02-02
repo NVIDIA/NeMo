@@ -45,11 +45,11 @@ class LatticeLoss(Loss):
 
     def __init__(
         self,
-        num_classes,
-        reduction="mean_batch",
-        backend="k2",
-        criterion_type="ml",
-        split_batch_size=0,
+        num_classes: int,
+        reduction: str = "mean_batch",
+        backend: str = "k2",
+        criterion_type: str = "ml",
+        split_batch_size: int = 0,
         **loss_kwargs,
     ):
         super().__init__()
@@ -66,6 +66,7 @@ class LatticeLoss(Loss):
         if backend == "k2":
             # use k2 import guard
             from nemo.core.utils.k2_utils import k2_import_guard
+
             k2_import_guard()
 
             if criterion_type == "ml":
