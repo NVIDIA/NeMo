@@ -46,14 +46,14 @@ __version__ = package_info.__version__
 
 
 if os.path.exists('nemo/README.md'):
-    with open("nemo/README.md", "r") as fh:
+    with open("nemo/README.md", "r", encoding='utf-8') as fh:
         long_description = fh.read()
     long_description_content_type = "text/markdown"
 
 elif os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', encoding='utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
 
@@ -67,7 +67,7 @@ else:
 
 
 def req_file(filename, folder="requirements"):
-    with open(os.path.join(folder, filename)) as f:
+    with open(os.path.join(folder, filename), encoding='utf-8') as f:
         content = f.readlines()
     # you may also want to remove whitespace characters
     # Example: `\n` at the end of each line

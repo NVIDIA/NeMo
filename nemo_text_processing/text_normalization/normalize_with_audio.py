@@ -170,8 +170,6 @@ class NormalizerWithAudio(Normalizer):
                 normalized_texts = [
                     post_process_punct(input=original_text, normalized_text=t) for t in normalized_texts
                 ]
-            else:
-                print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
         normalized_texts = set(normalized_texts)
         return normalized_texts
