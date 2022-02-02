@@ -120,10 +120,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return ret_dict
 
     def training_step(self, batch, batch_idx):
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         output_tensor, encoder_hidden_states = itemgetter("dec_output", "enc_output")(self(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
+            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels
         ))
 
         loss = self.loss_func(loss_mask, output_tensor)
@@ -146,10 +146,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         output_tensor, encoder_hidden_states = itemgetter("dec_output", "enc_output")(self(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
+            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels
         ))
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
@@ -177,7 +177,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def process_batch(self, batch):
         """Build the batch."""
 
-        keys = ['text_enc', 'text_dec', 'labels', 'loss_mask', 'enc_mask', 'dec_mask', 'enc_dec_mask']
+        keys = ['text_enc', 'text_dec', 'labels', 'loss_mask', 'enc_mask', 'dec_mask']
         datatype = torch.int64
 
         data = batch
@@ -191,9 +191,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         enc_mask = data_b['enc_mask'] < 0.5
         dec_mask = data_b['dec_mask'] < 0.5
-        enc_dec_mask = data_b['enc_dec_mask'] < 0.5
 
-        return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask
+        return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
@@ -316,7 +315,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
             dec_mask = dec_mask * make_inference_history_mask_3d(predicted_tokens_dec)
 
-            enc_dec_mask = enc_dec_mask < 0.5
+            # enc_dec_mask = enc_dec_mask < 0.5
             dec_mask = dec_mask < 0.5
 
             output_tensor = itemgetter("dec_output")(self(
