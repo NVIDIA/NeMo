@@ -54,7 +54,7 @@ class MegatronTransformerDecoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        decoder_attn_mask_type=AttnMaskType.casual,
+        decoder_attn_mask_type=AttnMaskType.causal,
         hidden_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
