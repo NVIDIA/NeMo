@@ -14,7 +14,13 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALNUM,
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    GraphFst,
+    insert_space,
+)
 
 try:
     import pynini
@@ -23,6 +29,17 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+
+
+def get_serial_number(cardinal):
+    """
+    any alphanumerical character sequence with at least one number with length greater equal to 3
+    """
+    digit = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT)
+    character = digit | NEMO_ALPHA
+    sequence = character + pynini.closure(pynutil.delete(" ") + character, 2)
+    sequence = sequence @ (pynini.closure(NEMO_ALNUM) + NEMO_DIGIT + pynini.closure(NEMO_ALNUM))
+    return sequence.optimize()
 
 
 class TelephoneFst(GraphFst):
@@ -109,6 +126,11 @@ class TelephoneFst(GraphFst):
 
         ip_graph = digit_or_double + (pynini.cross(" dot ", ".") + digit_or_double) ** 3
         graph |= pynutil.insert("number_part: \"") + ip_graph.optimize() + pynutil.insert("\"")
+        graph |= (
+            pynutil.insert("number_part: \"")
+            + pynutil.add_weight(get_serial_number(cardinal=cardinal), weight=0.0001)
+            + pynutil.insert("\"")
+        )
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
