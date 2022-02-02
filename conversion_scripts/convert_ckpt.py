@@ -15,19 +15,6 @@ def main(cfg):
     run_cfg = convert_cfg.run
     model_cfg = convert_cfg.model
 
-    # Modify config
-    args = sys.argv[1:]
-    for index, arg in enumerate(args):
-        k, v = arg.split("=")
-        if arg.startswith("conversion."):
-            k.lstrip("conversion.")
-            if k.startswith("run."):
-                k.lstrip("run.")
-                run_cfg[k] = v
-            if k.startswith("model."):
-                k.lstrip("model.")
-                model_cfg[k] = v
-
     # Model parameters
     checkpoint_folder = model_cfg.checkpoint_folder
     checkpoint_name = model_cfg.checkpoint_name
