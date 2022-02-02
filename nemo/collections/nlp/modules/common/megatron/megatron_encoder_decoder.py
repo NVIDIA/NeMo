@@ -68,8 +68,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                ):
         """Encodes embedder input using encoder"""
         enc_output, enc_output_mask = self.encoder(
-            hidden_states=enc_input,
-            attention_mask=enc_attn_mask,
+            enc_input=enc_input,
+            enc_attn_mask=enc_attn_mask,
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
         )
@@ -93,8 +93,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             )
 
         dec_output = self.decoder(
-            dec_input,
-            dec_attn_mask,
+            dec_input=dec_input,
+            dec_attn_mask=dec_attn_mask,
             layer_past=dec_layer_past,
             get_key_value=dec_get_key_value,
             enc_output=enc_output,
