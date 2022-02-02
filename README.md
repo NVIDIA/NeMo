@@ -890,8 +890,6 @@ and use it in production.
 ### 5.2. Prepare Environment
 <a id="markdown-prepare-environment" name="prepare-environment"></a>
 
-### 1. Prepare environment
-
 The whole solution uses a set of Docker containers executed at Slurm or BCP cluster.
 The training container also includes conversion
 scripts and NVIDIA Triton Model Navigator. The inference container is just the
