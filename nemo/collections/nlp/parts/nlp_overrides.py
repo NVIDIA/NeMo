@@ -118,12 +118,10 @@ class NLPDDPPlugin(DDPPlugin):
             # and are non-trivial
             # TODO: for megatron-lm self.model is a list
             self.pre_configure_ddp()
-            device_ids = self.determine_ddp_device_ids()
+            # device_ids = self.determine_ddp_device_ids()
             self._model = DistributedDataParallel(
                 LightningDistributedModule(self.model),
-                device_ids=device_ids,
-                output_device=device_ids[0],
-                process_group=app_state.data_parallel_group,
+                process_group=parallel_state.get_data_parallel_group(),
                 **self._ddp_kwargs,
             )
             self._model.require_backward_grad_sync = False
