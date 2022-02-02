@@ -209,7 +209,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
 
     @property
     def output_module(self):
-        return self.waveglo
+        return self.waveglow
 
     def _prepare_for_export(self, **kwargs):
         self.update_bias_spect()
