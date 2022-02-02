@@ -33,10 +33,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 
 __all__ = []
 
-AVAILABLE_ENCODERS = ["MegatronTransformerEncoderModel"]
+AVAILABLE_ENCODERS = ["MegatronTransformerEncoderModule"]
 
 
-class MegatronTransformerEncoderModel(MegatronModule):
+class MegatronTransformerEncoderModule(MegatronModule):
     """Transformer encoder model.
     """
 
@@ -66,7 +66,7 @@ class MegatronTransformerEncoderModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
     ):
-        super(MegatronTransformerEncoderModel, self).__init__()
+        super(MegatronTransformerEncoderModule, self).__init__()
 
         self.pre_process = pre_process
         self.post_process = post_process

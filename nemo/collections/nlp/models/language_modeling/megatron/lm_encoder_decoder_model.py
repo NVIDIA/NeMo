@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModel
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModule
 
 
 class MegatronLMHead(MegatronModule):
@@ -54,7 +54,7 @@ class MegatronLMHead(MegatronModule):
         return output
 
 
-class LMEncoderDecoderModel(MegatronModule):
+class LMEncoderDecoderModule(MegatronModule):
     """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
 
     def __init__(
@@ -87,7 +87,7 @@ class LMEncoderDecoderModel(MegatronModule):
         hidden_steps=-1,
         hidden_blocks=1,
     ):
-        super(LMEncoderDecoderModel, self).__init__()
+        super(LMEncoderDecoderModule, self).__init__()
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -184,7 +184,7 @@ class LMEncoderDecoderModel(MegatronModule):
             hidden_blocks=hidden_steps,
         )
 
-        self.enc_dec_model = MegatronTransformerEncoderDecoderModel(
+        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
             encoder_embedding=encoder_embedding,
             encoder=encoder,
             decoder_embedding=decoder_embedding,

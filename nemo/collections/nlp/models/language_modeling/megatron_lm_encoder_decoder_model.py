@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder_model import LMEncoderDecoderModel
+from nemo.collections.nlp.models.language_modeling.megatron.token_encoder_decoder_model import LMEncoderDecoderModule
 from nemo.collections.nlp.models.language_modeling.megatron.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
@@ -44,7 +44,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.utils import AppState, logging
 
 
-class MegatronLMEncoderDecoderModel(MegatronBaseModel):
+class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     """
     Megatron encoder-decoder base class
     """
@@ -53,7 +53,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         super().__init__(cfg, trainer=trainer)
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        self.model = LMEncoderDecoderModel(
+        self.model = LMEncoderDecoderModule(
             vocab_size=padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
@@ -292,7 +292,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
-        # TODO: move into a class inside LMEncoderDecoderModel
+        # TODO: move into a class inside LMEncoderDecoderModule
         encoder_hidden_states = itemgetter("enc_output")(self(
             encoder_input_ids=tokens_enc,
             decoder_input_ids=None,

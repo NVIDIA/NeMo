@@ -23,7 +23,7 @@ from apex.transformer import parallel_state, tensor_parallel
 from apex.transformer.enums import AttnMaskType, LayerType
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModel
+from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     get_linear_layer,
     init_method_normal,
@@ -86,7 +86,7 @@ def get_decoder_model(
 
     if arch == "transformer":
         # Language model.
-        decoder = MegatronTransformerDecoderModel(
+        decoder = MegatronTransformerDecoderModule(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,
             num_tokentypes=num_tokentypes,
