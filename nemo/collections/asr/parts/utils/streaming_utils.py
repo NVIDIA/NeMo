@@ -255,6 +255,11 @@ def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_tim
     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
     data = data[slice_idx:]
 
+    # If last segment, and no overlap is detected, potentially it is a padded buffer
+    # ignore all text.
+    if is_last and slice_idx == 0:
+        return buffer
+
     # Concat data to buffer
     buffer += data
     return buffer
@@ -1060,7 +1065,7 @@ class FrameBatchASRRNNT(BatchedFrameASRRNNT):
                         ALIGNMENT_FILEPATH = path
 
                         self.unmerged[idx] = lcs_alignment_merge_buffer(self.unmerged[idx], ids, self.lcs_delay, model=self.asr_model,
-                                                                            max_steps_per_timestep=self.max_steps_per_timestep)
+                                                                        max_steps_per_timestep=self.max_steps_per_timestep)
 
         output = []
         for idx in range(self.batch_size):
