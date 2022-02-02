@@ -15,12 +15,19 @@
 """T5 model."""
 
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer.enums import AttnMaskType
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
+from nemo.utils import logging
+
+try:
+    from apex.transformer import tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def t5_attention_mask_func(attention_scores, attention_mask):
@@ -103,6 +110,7 @@ class T5Model(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
     ):
+
         super(T5Model, self).__init__()
 
         self.parallel_output = parallel_output
