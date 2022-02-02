@@ -113,9 +113,9 @@ def get_decoder_model(
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            use_soft_prompts=use_soft_prompts,
-            num_prompt_tokens=num_prompt_tokens,
-            prompt_tags=prompt_tags,
+            # use_soft_prompts=use_soft_prompts,
+            # num_prompt_tokens=num_prompt_tokens,
+            # prompt_tags=prompt_tags,
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")
