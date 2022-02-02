@@ -472,6 +472,75 @@ class TextToTextGLUEDataset(GLUEDataset):
 
         return features
 
+class TextToTextXNliDataset(TextToTextGLUEDataset):
+
+    def __getitem__(self, idx):
+        enc_query, dec_input, labels, lang = self.features[idx]
+        return {'text_enc': enc_query, 'text_dec': dec_input,
+                'labels': labels, 'lang': lang}
+
+    def collate_fn(self, batch):
+        enc_query = [item['text_enc'] for item in batch]
+        dec_input = [item['text_dec'] for item in batch]
+        labels = [item['labels'] for item in batch]
+        lang = [item['lang'] for item in batch]
+
+        max_dec_input_length = max([len(item) for item in dec_input])
+        max_enc_query_length = max([len(item) for item in enc_query])
+        max_label_length = max([len(item) for item in labels])
+
+        loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
+        enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
+        dec_input = [item + [self.tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
+        labels = [item + [self.tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
+
+        enc_query = torch.LongTensor(enc_query)
+        dec_input = torch.LongTensor(dec_input)
+        labels = torch.LongTensor(labels)
+        loss_mask = torch.LongTensor(loss_mask)
+
+        enc_mask = make_attention_mask_3d(enc_query, enc_query, self.tokenizer.pad_id).long()
+        dec_mask = make_attention_mask_3d(dec_input, dec_input, self.tokenizer.pad_id)
+        dec_mask = (dec_mask * make_history_mask_3d(dec_input)).long()
+        enc_dec_mask = make_attention_mask_3d(dec_input, enc_query, self.tokenizer.pad_id).long()
+
+        return {
+            'text_enc': enc_query,
+            'text_dec': dec_input,
+            'labels': labels,
+            'loss_mask': loss_mask,
+            'enc_mask': enc_mask,
+            'dec_mask': dec_mask,
+            'enc_dec_mask': enc_dec_mask,
+            "lang": lang,
+        }
+
+    def convert_examples_to_features(self):
+        """
+        Converts examples into Text-to-Text batches to be used with a model like T5.
+        Inputs are prefixed with a text prompt that indicates the task to perform.
+        """
+        features = []
+        for ex_index, example in enumerate(self.examples):
+            if ex_index % 10000 == 0:
+                logging.info(f"Writing example {ex_index} of {len(self.examples)}")
+
+            text_to_text_query = self.processor.get_t5_prompted_query(example.text_a, example.text_b)
+            enc_query = self.tokenizer.text_to_ids(text_to_text_query)
+            if len(enc_query) > self.max_seq_length:
+                enc_query = enc_query[: self.max_seq_length]
+            dec_query = (
+                [self.tokenizer.bos_id]
+                + self.tokenizer.text_to_ids(self.processor.label2string(example.label))
+                + [self.tokenizer.eos_id]
+            )
+
+            dec_input = dec_query[:-1]
+            labels = dec_query[1:]
+
+            features.append([enc_query, dec_input, labels, example.guid.split('-')[1]])
+        return features
+
 
 class InputFeatures(object):
     """A single set of features of data.
