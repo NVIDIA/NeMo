@@ -178,8 +178,7 @@ def make_attention_mask_3d(source_mask, target_mask):
     :param source_block: 2-D array
     :param target_block: 2-D array
     """
-    # FIXME: correct?
-    mask = torch.diagonal(target_mask, -2, -1)[:, None, :] * torch.diagonal(source_mask, -2, -1)[:, :, None]
+    mask = target_mask[:, None, :] * source_mask[:, :, None]
     return mask
 
 def make_inference_attention_mask_3d(source_block, target_block, pad_id):
