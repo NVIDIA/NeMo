@@ -180,9 +180,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
-            encoder_embedding=encoder_embedding,
             encoder=encoder,
-            decoder_embedding=decoder_embedding,
             decoder=decoder,
         )
         self._enc_dec_model_key = "enc_dec_model"
