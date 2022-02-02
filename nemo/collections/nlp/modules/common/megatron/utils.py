@@ -17,7 +17,13 @@
 import math
 
 import torch
-from apex.transformer import parallel_state
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def init_method_normal(sigma):

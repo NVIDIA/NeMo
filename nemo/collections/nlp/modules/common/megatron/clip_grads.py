@@ -16,12 +16,18 @@
 
 import amp_C
 import torch
-from apex.multi_tensor_apply import multi_tensor_applier
-from apex.transformer import parallel_state
-from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from torch._six import inf
 
 from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
+
+try:
+    from apex.multi_tensor_apply import multi_tensor_applier
+    from apex.transformer import parallel_state
+    from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
