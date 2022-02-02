@@ -121,7 +121,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
     ):
 
         # transformer encoder
-        encoder_output = self.model(
+        enc_output = self.model(
             enc_input,
             attn_mask_postprocess(enc_attn_mask),
             layer_past=layer_past,
