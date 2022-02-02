@@ -12,13 +12,122 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Callable, Dict, Optional, Type
+from enum import Enum
 
 import onnx
 import torch
 import torch.nn as nn
 
 from nemo.utils import logging
+from nemo.utils.neural_type_utils import to_onnxrt_input
+
+class ExportFormat(Enum):
+    """Which format to use when exporting a Neural Module for deployment"""
+    ONNX = (1,)
+    TORCHSCRIPT = (2,)
+
+
+_EXT_DICT = {
+    ".pt": ExportFormat.TORCHSCRIPT,
+    ".ts": ExportFormat.TORCHSCRIPT,
+    ".onnx": ExportFormat.ONNX,
+}
+
+
+class BatchNorm1dNoAutoCast(nn.BatchNorm1d):
+    def __init__(self, num_features, **kwargs):
+        nn.BatchNorm1d.__init__(self, num_features, **kwargs)
+
+    def forward(self, x):
+        if torch.onnx.is_in_onnx_export():
+            with torch.cuda.amp.autocast(enabled=False):
+                ret = nn.BatchNorm1d.forward(self, x.to(torch.float))
+        else:
+            ret = nn.BatchNorm1d.forward(self, x)
+        return ret
+
+class LayerNormExp(nn.LayerNorm):
+    def forward(self, input):
+        if True: # torch.onnx.is_in_onnx_export():
+            axes = tuple([-i for i in range(len(self.normalized_shape), 0, -1)])
+            input.sub_(input.mean(axes, keepdim=True))
+            with torch.cuda.amp.autocast(enabled=False):
+                # variance = e((x - e(x))^2), and (x - e(x)) is the numerator in the layer_norm formula
+                numerator=input.to(dtype=torch.float)
+                variance = numerator.mul(numerator).mean(axes, keepdim=True)
+                denominator = variance.add(self.eps).sqrt()
+                return numerator.div(denominator).mul(self.weight).add(self.bias).to(dtype=input.dtype)
+        else:    
+            return nn.LayerNorm.forward(input)
+
+def get_export_format(filename: str):
+    _, ext = os.path.splitext(filename)
+    try:
+        return _EXT_DICT[ext]
+    except KeyError:
+        raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
+
+def augment_filename(output: str, prepend: str):
+    path, filename = os.path.split(output)
+    filename = f"{prepend}-{filename}"
+    return os.path.join(path, filename)
+
+def forward_method(self):
+    if hasattr(self, "forward_for_export"):
+        return self.forward_for_export
+    else:
+        return self.forward
+    
+        
+def wrap_forward_method(self):
+    tp = type(self)
+    old_forward_method = None
+    if hasattr(tp, "forward_for_export"):
+        forward_method = tp.forward_for_export
+        old_forward_method = tp.forward
+        tp.forward = forward_method
+    else:
+        forward_method = None
+    return forward_method, old_forward_method
+
+def parse_input_example(input_example):
+    input_list = list(input_example)
+    input_dict = {}
+    # process possible kwargs
+    if isinstance(input_list[-1], dict):
+        input_dict = input_list[-1]
+        input_list = input_list[:-1]
+    return input_list, input_dict
+
+def verify_runtime(
+    output, input_list, input_dict, input_names, output_names, output_example, check_tolerance=0.01,
+):
+    # Verify the model can be read, and is valid
+    onnx_model = onnx.load(output)
+    try:
+        import onnxruntime
+    except (ImportError, ModuleNotFoundError):
+        logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
+        onnx.checker.check_model(onnx_model, full_check=True)
+        return
+
+    sess = onnxruntime.InferenceSession(onnx_model.SerializeToString(), providers=['CUDAExecutionProvider'])
+    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_list, input_dict))
+    all_good = True
+
+    for i, out in enumerate(ort_out[0]):
+        expected = output_example[i]
+        if torch.is_tensor(expected):
+            if not torch.allclose(
+                    torch.from_numpy(out), expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance
+            ):
+                all_good = False
+                logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{out}")
+    status = "SUCCESS" if all_good else "FAIL"
+    logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+
 
 apex_available = True
 
@@ -48,8 +157,7 @@ try:
 except Exception as e:
     default_Apex_replacements = {}
     apex_available = False
-
-
+    
 def expand_Conv1D(conv1d: nn.Module) -> Optional[nn.Conv2d]:
     """
     Expands a Conv1D into a Conv2D. This is required for many (closed source) commercial tools with poor support for 1D Convolutions in Onnx.
@@ -207,7 +315,6 @@ default_1D_2D_replacements = {
     "AdaptiveAvgPool1d": simple_replace(nn.AdaptiveAvgPool1d, nn.AdaptiveAvgPool2d),
     "AvgPool1d": simple_replace(nn.AvgPool1d, nn.AvgPool2d),
 }
-
 
 def replace_for_export(model: nn.Module, replace_1D_2D: bool = False) -> nn.Module:
     """

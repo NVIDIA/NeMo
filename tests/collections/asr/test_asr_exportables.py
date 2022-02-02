@@ -44,7 +44,7 @@ class TestExportable:
                 'decoder': DictConfig(self.decoder_dict),
             }
         )
-        model = EncDecCTCModel(cfg=model_config)
+        model = EncDecCTCModel(cfg=model_config).cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'qn.onnx')
             model.export(output=filename)
@@ -56,7 +56,7 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecClassificationModel_export_to_onnx(self, speech_classification_model):
-        model = speech_classification_model.train()
+        model = speech_classification_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'edc.onnx')
             model.export(output=filename)
@@ -68,7 +68,7 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecSpeakerLabelModel_export_to_onnx(self, speaker_label_model):
-        model = speaker_label_model.train()
+        model = speaker_label_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'sl.onnx')
             model.export(output=filename)
@@ -80,7 +80,7 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecCitrinetModel_export_to_onnx(self, citrinet_model):
-        model = citrinet_model.train()
+        model = citrinet_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'citri.onnx')
             model.export(output=filename)
@@ -93,8 +93,8 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_ConformerModel_export_to_onnx(self, conformer_model):
-        model = conformer_model.train()
-        with tempfile.TemporaryDirectory() as tmpdir:
+        model = conformer_model.cuda()
+        with tempfile.TemporaryDirectory() as tmpdir, torch.cuda.amp.autocast():
             filename = os.path.join(tmpdir, 'conf.onnx')
             device = next(model.parameters()).device
             input_example = torch.randn(4, model.encoder._feat_in, 777, device=device)
@@ -104,10 +104,10 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecCitrinetModel_limited_SE_export_to_onnx(self, citrinet_model):
-        model = citrinet_model.train()
+        model = citrinet_model.cuda()
         asr_module_utils.change_conv_asr_se_context_window(model, context_window=24, update_config=False)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir, torch.cuda.amp.autocast():
             filename = os.path.join(tmpdir, 'citri_se.onnx')
             model.export(output=filename, check_trace=True)
             onnx_model = onnx.load(filename)
@@ -119,8 +119,7 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
-        citrinet_rnnt_model.freeze()
-        model = citrinet_rnnt_model.train()
+        model = citrinet_rnnt_model.cuda()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'

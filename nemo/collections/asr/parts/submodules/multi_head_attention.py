@@ -58,6 +58,7 @@ class MultiHeadAttention(nn.Module):
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
+        self.s_d_k = math.sqrt(self.d_k)
         self.h = n_head
         self.linear_q = nn.Linear(n_feat, n_feat)
         self.linear_k = nn.Linear(n_feat, n_feat)
@@ -120,7 +121,7 @@ class MultiHeadAttention(nn.Module):
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
         q, k, v = self.forward_qkv(query, key, value)
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
         return self.forward_attention(v, scores, mask)
 
 
@@ -201,7 +202,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # drops extra elements in the matrix_bd if there are any left from rel_shift() to match the matrix_ac's size
         matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
-        scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
+        scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
 
         return self.forward_attention(v, scores, mask)
 

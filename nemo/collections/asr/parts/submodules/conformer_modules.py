@@ -21,6 +21,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.utils.export_utils import LayerNormExp, BatchNorm1dNoAutoCast
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
@@ -55,17 +56,18 @@ class ConformerLayer(torch.nn.Module):
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
         self.fc_factor = 0.5
+        self.d_model=d_model
 
         # first feed forward module
-        self.norm_feed_forward1 = LayerNorm(d_model)
+        self.norm_feed_forward1 = LayerNormExp(self.d_model)
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         # convolution module
-        self.norm_conv = LayerNorm(d_model)
+        self.norm_conv = LayerNormExp(self.d_model)
         self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type)
 
         # multi-headed self-attention module
-        self.norm_self_att = LayerNorm(d_model)
+        self.norm_self_att = LayerNormExp(self.d_model)
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
@@ -79,11 +81,11 @@ class ConformerLayer(torch.nn.Module):
             )
 
         # second feed forward module
-        self.norm_feed_forward2 = LayerNorm(d_model)
+        self.norm_feed_forward2 = LayerNormExp(self.d_model)
         self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         self.dropout = nn.Dropout(dropout)
-        self.norm_out = LayerNorm(d_model)
+        self.norm_out = LayerNormExp(self.d_model)
 
     def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None):
         """
@@ -95,33 +97,27 @@ class ConformerLayer(torch.nn.Module):
         Returns:
             x (torch.Tensor): (B, T, d_model)
         """
-        residual = x
-        x = self.norm_feed_forward1(x)
-        x = self.feed_forward1(x)
-        x = self.fc_factor * self.dropout(x) + residual
-
-        residual = x
-        x = self.norm_self_att(x)
+        dtype = x.dtype
+        y = x.add(self.dropout(self.feed_forward1(self.norm_feed_forward1(x)))*self.fc_factor)
+        x = self.norm_self_att(y)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
             x = None
-        x = self.dropout(x) + residual
+        y.add_(self.dropout(x))
 
-        residual = x
-        x = self.norm_conv(x)
+        x = self.norm_conv(y)
         x = self.conv(x, pad_mask)
-        x = self.dropout(x) + residual
+        y.add_(self.dropout(x))
 
-        residual = x
-        x = self.norm_feed_forward2(x)
+        x = self.norm_feed_forward2(y)
         x = self.feed_forward2(x)
-        x = self.fc_factor * self.dropout(x) + residual
+        y.add_(self.dropout(x)*self.fc_factor)
 
-        x = self.norm_out(x)
-        return x
+        x = self.norm_out(y)
+        return x.to(dtype=dtype)
 
 
 class ConformerConvolution(nn.Module):
@@ -149,9 +145,9 @@ class ConformerConvolution(nn.Module):
             bias=True,
         )
         if norm_type == 'batch_norm':
-            self.batch_norm = nn.BatchNorm1d(d_model)
+            self.batch_norm = BatchNorm1dNoAutoCast(d_model)
         elif norm_type == 'layer_norm':
-            self.batch_norm = nn.LayerNorm(d_model)
+            self.batch_norm = LayerNormExp(d_model)
         else:
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
@@ -160,33 +156,29 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    def fill_and_norm(self, x, pad_mask):
+    def do_conv_norm(self, x):
+        return self.batch_norm(self.depthwise_conv(x))
+        
+    def forward(self, x, pad_mask=None):
+        x = x.transpose(1, 2)
+        x = self.pointwise_conv1(x)
+        x = nn.functional.glu(x, dim=1)
+        
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
-        x = self.depthwise_conv(x)
+        
         if isinstance(self.batch_norm, nn.LayerNorm):
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
             x = x.transpose(1, 2)
         else:
-            x = self.batch_norm(x)
-        return x
-    
-    def forward(self, x, pad_mask=None):
-        x = x.transpose(1, 2)
-        x = self.pointwise_conv1(x)
-        x = nn.functional.glu(x, dim=1)
-
-        if torch.onnx.is_in_onnx_export():
-            with torch.cuda.amp.autocast(enabled=False):
-                x = self.fill_and_norm(x.to(dtype=torch.float), pad_mask).to(dtype=x.dtype)
-                # This is how Swish works internally and ONNX implements it as such
-                # However, it places it on CPU. 
-                x.mul_(x.sigmoid())
-        else:            
-            x = self.fill_and_norm(x, pad_mask)
-            x = self.activation(x)
-
+            if torch.onnx.is_in_onnx_export():
+                with torch.cuda.amp.autocast(enabled=False):
+                    x = self.do_conv_norm(x.to(dtype=torch.float)).to(dtype=x.dtype)
+            else:
+                x = self.do_conv_norm(x)
+        x = self.activation(x)
+                
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
         return x

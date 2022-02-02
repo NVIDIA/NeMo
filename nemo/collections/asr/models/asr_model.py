@@ -81,7 +81,7 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    def forward_for_export(self, input, length=None):
+    def forward_for_export(self, input, length):
         if hasattr(self.input_module, 'forward_for_export'):
             encoder_output = self.input_module.forward_for_export(input, length)
         else:

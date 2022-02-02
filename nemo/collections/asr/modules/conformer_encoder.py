@@ -233,7 +233,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         return self.forward_for_export(audio_signal=audio_signal, length=length)
 
     @typecheck()
-    def forward_for_export(self, audio_signal, length=None):
+    def forward_for_export(self, audio_signal, length):
         max_audio_length: int = audio_signal.size(-1)
 
         if max_audio_length > self.max_audio_length:
