@@ -18,6 +18,7 @@ import torch
 from apex.transformer import parallel_state
 from omegaconf.dictconfig import DictConfig
 from omegaconf import OmegaConf, open_dict
+from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
@@ -92,6 +93,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
+        self.acc_metric = ExactStringMatchMetric()
 
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
@@ -127,33 +129,26 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
         )
 
-        return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
+        preds = predicted_token_ids.cpu().numpy().tolist()
+        labels = labels.cpu().numpy().tolist()
+        for i, (pred, label) in enumerate(zip(preds, labels)):
+            if self.model.tokenizer.eos_id in pred:
+                idx = pred.index(self.model.tokenizer.eos_id)
+                pred = pred[:idx]
+            pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
+            label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
+            pred = self.model.tokenizer.ids_to_text(pred)
+            label = self.model.tokenizer.ids_to_text(label)
+            _ = self.acc_metric(pred, label)
+
+        return {'loss': loss}
 
     def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
         averaged_loss = average_losses_across_data_parallel_group(losses)
-        all_preds = []
-        all_labels = []
-        for item in outputs:
-            preds = item['predicted_token_ids'].cpu().numpy().tolist()
-            labels = item['labels'].cpu().numpy().tolist()
-            for i, (pred, label) in enumerate(zip(preds, labels)):
-                if self.model.tokenizer.eos_id in pred:
-                    idx = pred.index(self.model.tokenizer.eos_id)
-                    pred = pred[:idx]
-                pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
-                label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
-                pred = self.model.tokenizer.ids_to_text(pred)
-                label = self.model.tokenizer.ids_to_text(label)
-                all_preds.append(pred)
-                all_labels.append(label)
-
-        correct = 0
-        for pred, label in zip(all_preds, all_labels):
-            if pred == label:
-                correct += 1
-        acc = correct / len(all_preds)
-        return averaged_loss[0], acc
+        self.log('validation_loss', averaged_loss)
+        self.log('validation_acc', self.acc_metric)
+        return averaged_loss[0], self.acc_metric.compute()
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
