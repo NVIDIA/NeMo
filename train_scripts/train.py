@@ -142,7 +142,6 @@ def run_training(cfg, hydra_args="", dependency=None):
     # BCP parameters
     if cfg.cluster_type == "bcp":
         create_bcp_file(
-            bignlp_path=bignlp_path,
             new_script_path=new_script_path,
             train_cmd=train_cmd,
             num_nodes=nodes,

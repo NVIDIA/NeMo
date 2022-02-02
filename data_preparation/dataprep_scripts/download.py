@@ -12,7 +12,6 @@ def main(cfg):
     Arguments:
         cfg: main config file.
     """
-
     bignlp_path = cfg.bignlp_path
     data_cfg = cfg.data_preparation
     data_dir = cfg.data_dir
