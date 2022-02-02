@@ -156,7 +156,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             ffn_hidden_size=hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,
-            decoder_attn_mask_type=decoder_attn_mask_type,
+            decoder_attn_mask_type=AttnMaskType.causal,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
             kv_channels=kv_channels,
             init_method=init_method_normal(init_method_std),
