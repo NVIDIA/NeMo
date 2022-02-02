@@ -128,13 +128,13 @@ Main layers would be parallelized:
 | ----------------- | ------------------ |
 | NVIDIA Triton     | 2.15.0             |
 | FasterTransformer | V4                 |
-| PyTorch           | 1.10.0a0+0aef44c   |
-| NeMo              | 1.5.0              |
-| PyTorch Lightning | 1.5.0              |
+| PyTorch           | 1.11.0a0+b6df043   |
+| NeMo              | 1.6.1              |
+| PyTorch Lightning | 1.5.9              |
 | Hydra             | 1.1.1              |
-| CUDA              | NVIDIA CUDA 11.4.2 |
-| cuBLAS            | 11.6.5.2           |
-| cuDNN             | 8.2.4.15           |
+| CUDA              | NVIDIA CUDA 11.5   |
+| cuBLAS            | 11.7.3.1           |
+| cuDNN             | 8.3.1              |
 | NCCL              | 2.11.4             |
 | Container OS      | Ubuntu 20.04       |
 | rdma-core         | 36.0               |
