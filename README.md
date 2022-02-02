@@ -317,7 +317,8 @@ dataset ([mirror](https://mystic.the-eye.eu/public/AI/pile/train/)),
 which is formed by 22 smaller datasets. The dataset is already blended
 by using the mix described in their [paper](https://arxiv.org/pdf/2101.00027.pdf).
 It is recommended to store this repository and the datasets in a file system
-shared by all the nodes (gpfs).
+shared by all the nodes (gpfs) in the case of Slurm based clusters, and in a shared 
+workspace in the case of BCP based clusters.
 
 The configuration used for data preparation must be specified in the
 `conf/config.yaml` file and `run_data_preparation` must be set to `True` to run it.
@@ -329,58 +330,25 @@ datasets, vocab, and merge files.
 
 The Pile dataset consists of 30 shards, and downloading, extracting and
 preprocessing each file takes approximately 1 hour assuming a 30 MB/s download
-speed. The data preparation can be parallelized by using up to 30 nodes
-to download all 30 files in parallel. To download a reduced portion
-of the dataset to run tests, the `file_numbers` parameter can be updated
-to download only one of the shards by changing “0-29” to “0”.
+speed. The data preparation can be parallelized by using up to 30 nodes. 
+To download a reduced portion of the dataset to run tests, the 
+`file_numbers` parameter can be updated to download only one of the 
+shards by changing “0-29” to “0” (the syntax must be a combination of
+numbers separated by dashes "-" or commas ",") For example, 
+`file_numbers`="0,3,5-7" will download and prepare 
+files 0, 3, 5, 6, and 7.
 
 ##### 4.1.2.1. Slurm
 <a id="markdown-4121-slurm" name="4121-slurm"></a>
 
-Set configuration in the YAML file:
-
-```yaml
-slurm:                    # example config for enterprise cluster
-    account: null         # slurm account
-    partition: ???        # slurm partition
-    time_limit: “2:00:00” # slurm time parameter
-    Nodes: 30             # number of nodes to use per task
-```
+First, ensure the cluster related configuration in the conf/cluster/bcm.yaml file is correct.
+The `cluster` and `cluster_type` parameters in conf/config.yaml must be set to bcm.
+Then, modify the time_limit or any other parameter related to the job in the download_pile.yaml file.
 The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
-
-##### 4.1.2.2. Base Command Platform
-<a id="markdown-4122-base-command-platform" name="4122-base-command-platform"></a>
-
-In order to run the data preparation script on Base Command Platform, set the
-`cluster` parameter in `conf/data_preparation/download_pile.yaml` to `bcp`.
-Also, set the parameters under `bcp` to the valid values for your cluster.  By
-default, the data preparation script will download the data into the `/data/`
-in the data workspace, creating the necessary folders along the way.
-
-With Base Command Platform, the 700+ GB dataset can be downloaded once and then
-shared by multiple users in the same ACE by setting the permissions of a
-workspace.
-
-##### 4.1.2.3. Common
-<a id="markdown-4123-common" name="4123-common"></a>
-
-Set the configuration for the data preparation job in the YAML file:
-```yaml
-download_the_pile: True        # Whether to download the pile dataset from the internet.
-file_numbers: "0-29"           # The pile dataset consists of 30 files (0-29), choose which ones to download.
-preprocess_data: True          # True to preprocess the data using the megatron code, False otherwise.
-download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"    # URL to download the vocab from.
-download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"   # URL to download the merges from.
-vocab_save_dir: ${bignlp_path}/data_preparation/bpe       # Location to save the vocab file upon downloading
-merges_save_dir: ${bignlp_path}/data_preparation/bpe       # Location to save the merge file upon downloading
-data_dir: ${bignlp_path}/data_preparation/bpe/the_pile # Sets where to download the pile on Base Command Platform
-log_dir: ${bignlp_path}/data_preparation/logs  # Location to save the logs
-cluster: slurm # Sets the cluster type to run on, bcp or slurm
-```
 
 Example:
 
-To run only the data preparation pipeline and run the training, evaluation or
+To run only the data preparation pipeline and not the training, evaluation or
 inference pipelines, set the `conf/config.yaml` file to:
 ```yaml
 run_data_preparation: True
@@ -392,6 +360,56 @@ run_evaluation: False
 And then run:
 ```
 python3 main.py
+```
+
+##### 4.1.2.2. Base Command Platform
+<a id="markdown-4122-base-command-platform" name="4122-base-command-platform"></a>
+
+In order to run the data preparation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. 
+By default, the data preparation script will download the data into the `bignlp-scripts/data/` directory.
+We recommend that the `data_dir` parameter is set to a workspace, so that the data 
+is visible across multiple jobs later on. The vocab and merge files should also be 
+stored to the same workspace as the dataset, for later usage. The data preparation code 
+must be launched in a multi-node job, and can be parallelized to use between 2 and 30 nodes, 
+for faster parallel preparation of the dataset.
+
+With Base Command Platform, the 700+ GB dataset can be downloaded once and then
+shared by multiple users in the same ACE by setting the permissions of a
+workspace.
+
+To run the data preparation pipeline, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
+data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_log.txt 2>&1
+```
+The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
+workspace in /mount/data, and the results workspace in /mount/results. The stdout and stderr outputs will
+also be redirected to the /results/data_log.txt file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+##### 4.1.2.3. Common
+<a id="markdown-4123-common" name="4123-common"></a>
+
+Set the configuration for the data preparation job in the YAML file:
+```yaml
+download_the_pile: True  # Whether to download the pile dataset from the internet.
+the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
+file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
+download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
+download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
+vocab_save_dir: ${data_dir}/bpe
+merges_save_dir: ${data_dir}/bpe
+log_dir: ${base_results_dir}/data_preparation/logs  # Where to save the logs
+rm_downloaded: True # Extract script will remove downloaded zst after extraction
+rm_extracted: True # Preprocess script will remove extracted files after preproc.
+nodes: 30
+time_limit: "4:00:00"
+bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 ```
 
 ### 4.2 Training with Predefined Configurations
@@ -412,7 +430,7 @@ and 12 attention heads. The sequence length is 2048, and the optimizer is
 Adam. This model does not use any model parallelism.  For the details on
 all the parameters, see the `126m.yaml` config file.
 
-To train a 126M GPT-3 model, modify the `conf/config.yaml` file to set:
+To train a 126M GPT-3 model on a Slurm cluster, modify the `conf/config.yaml` file to set:
 ```yaml
 training: 126m
 training_config: 126m
@@ -423,6 +441,18 @@ And run:
 ```
 python3 main.py
 ```
+
+To train a 126M GPT-3 model on BCP cluster on 8 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=126m training_config=126m run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
 
 
 **5B configuration:**
@@ -446,6 +476,18 @@ And run:
 python3 main.py
 ```
 
+To train a 5B GPT-3 model on BCP cluster on 20 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=5b training_config=5b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
 
 **20B configuration:**
 
@@ -468,6 +510,18 @@ And run:
 python3 main.py
 ```
 
+To train a 20B GPT-3 model on BCP cluster on 80 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=20b training_config=20b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
 ### 4.3 Training with Custom Configurations
 <a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
 
@@ -488,8 +542,8 @@ The Pile by modifying the configuration in
 `conf/data_preparation/download_pile.yaml`. You should set `download_the_pile` to
 False, and keep `preprocess_data` as True. When running the data preparation
 pipeline, the jsonl files must be stored in the directory indicated in the
-`data_save_dir` parameter. The result will be a preprocessed dataset, stored in
-the same directory, and ready to be used for training. To train the dataset on
+`data_dir` parameter. The result will be a preprocessed dataset, stored in
+the same directory, and ready to be used for training. To train the model on
 your dataset, the training config file must be modified with the desired blend
 of training datasets, by changing the blend in the `model.data.data_prefix`
 parameter.
@@ -512,42 +566,27 @@ hyperparameters of the training runs.
 #### 4.5.1 Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
-Set configuration for a Slurm cluster in the YAML file:
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
 
 ```yaml
-Slurm:  # Refer to SLURM documentation for details on each sbatch parameter
-    partition: ???
-    account: null
-    time_limit: "7-00:00:00"
-    nodes: 20
-    exclusive: True
-    mem: 0
-    overcommit: True
-    ntasks_per_node: 8
-    gpus_per_task: 1
-    dependency: "singleton"
-    job_name: "bignlp-gpt3:5b"
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
 ```
 
-#### 4.5.2. Base Command Platform
-<a id="markdown-base-command-platform" name="base-command-platform"></a>
-
-Set configuration for a Base Command Platform cluster in the YAML file:
-
+And set the training job specific parameters in the conf/training/(model).yaml file, 
+using the run section:
 ```yaml
-bcp: # Refer to Base Command Platform documentation for details of each parameter
-  job_name: bignlp-${training.run.name}
-  nodes: 20
-  ntasks_per_node: 8
-  gpus_per_task: 1
-  time_limit: "7D"
-  instance: "dgxa100.80g.8.norm"
-  workspace_common: "bignlp_ws_common"
-  workspace_scripts: ???
+run:
+  name: 126m
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "1-12:00:00"
+  dependency: "singleton"
 ```
-
-#### 4.5.3. Common
-<a id="markdown-common" name="common"></a>
 
 To run only the training pipeline and not the data preparation, evaluation or
 inference pipelines, set the conf/config.yaml file to:
@@ -555,18 +594,19 @@ inference pipelines, set the conf/config.yaml file to:
 run_data_preparation: False
 run_training: True
 run_evaluation: False
+run_evaluation: False
 ```
 And then run:
 ```
 python3 main.py
 ```
 
-For Base Command Platform, this is a sample job command produced by "python3 main.py" when run
-with run_training set to True and others to False. This command can be submitted from
-your local node where ngc command line and config are set up.
-```
-ngc batch run --name "bignlp-126m-8f2" --image "nvcr.io/ea-bignlp/bignlp-training:21.10-py3-base"     --commandline "cd /workspace-scripts/bignlp-scripts; NGC_NTASKS_PER_NODE=8 /workspace-scripts/bignlp-scripts/train_scripts/126m-8f2.sh" --workspace bignlp_ws_common:/workspace-common     --workspace <bignlp_ws_scripts_uname>:/workspace-scripts --result /result     --preempt RUNONCE --instance dgxa100.80g.8.norm --replicas 8     --array-type PYTORCH --total-runtime 4D
-```
+#### 4.5.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+Select the cluster related configuration following the NGC documentation. 
+Then, use the python3 main.py command to launch the job and override the 
+desired parameters from the training job parameters.
 
 ### 4.6. Resuming Training from Fewer Nodes
 <a id="markdown-resuming-training-from-fewer-nodes" name="resuming-training-from-fewer-nodes"></a>
@@ -581,18 +621,18 @@ GBS = (MBS * num_gpus * accumulate_grad_batches) / tensor_parallelism
 ```
 
 Where MBS is the micro batch size. For instance, the default GBS for the 5B
-model is 1280; the MBS is 2; the number of GPUs is 20\*8 = 160; the
-accumulate\_grad\_batches is set to 8; and the\ tensor\_parallelism value is set to 2.
+model is 1440; the MBS is 2; the number of GPUs is 20\*8 = 160; the
+accumulate\_grad\_batches is set to 9; and the\ tensor\_parallelism value is set to 2.
 The GBS can be calculated like this:
 
 ```
-1280 = (2 * 160 * 8) / 2
+1440 = (2 * 160 * 9) / 2
 ```
 
 To modify the number of nodes to be used, the user should modify the value of
 `accumulate\_grad\_batches` in the inverse way. For instance, if the number of
 nodes gets cut in half (20 → 10), then the `accumulate\_grad\_batches` should be
-doubled (8 → 16).
+doubled (9 → 18).
 
 ### 4.7. Model Evaluation
 <a id="markdown-model-evaluation" name="model-evaluation"></a>
@@ -608,56 +648,62 @@ file to use for evaluation purposes. The `run_evaluation` parameter must be set
 to `True` to run the evaluation pipeline. The default value is set to
 `evaluate_all`, which can be found in `conf/evaluation/evaluate_all.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs.
+in evaluation runs. For BCP, all these parameters should be overriden from the command line.
 
-#### 4.7.1. Slurm
-<a id="markdown-slurm" name="slurm"></a>
-
-Set configuration for a Slurm cluster in the YAML file:
-
-```yaml
-Slurm:  # Refer to SLURM documentation for details on each sbatch parameter:
-    partition: ???
-    account: null
-    time_limit: "4:00:00"
-    nodes: 1
-    exclusive: True
-    mem: 0
-    overcommit: True
-    ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
-    gpus_per_task: null
-    dependency: "singleton"
-    job_name: "bignlp-gpt3:evaluation”
-```
-
-To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter:
+#### 4.7.1. Common
+To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
+And use all the `run` parameters to define the job specific config:
 ```yaml
 run:
-    name: eval_tasks
-    tasks: all_tasks  # lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
-    output_path: ${bignlp_path}/eval_scripts/logs
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "4:00:00"
+  nodes: 1
+  ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
+  gpus_per_task: 1
+  eval_name: eval_all
+  convert_name: convert_nemo
+  model_train_name: 5b
+  tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
+  results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
 ```
 
-To specify which model checkpoint to load and its definition, use the model parameter:
+To specify which model checkpoint to load and its definition, use the `model` parameter:
 
 ```yaml
 model:
-    type: nemo-gpt3
-    checkpoint_path: ${bignlp_path}/train_scripts/logs/5b/checkpoints/megatron_gpt.nemo # path to .nemo file
-    tensor_model_parallel_size: 2   # Same tensor parallelism as used for training
-    eval_batch_size: 1  # Batch size to use during evaluation
-    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
-    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
+  type: nemo-gpt3
+  # path of checkpoint; must be .nemo file
+  checkpoint_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_gpt.nemo 
+  tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
+  eval_batch_size: 16
+  vocab_file: ${data_dir}/bpe/vocab.json
+  merge_file: ${data_dir}/bpe/merges.txt
+```
+
+#### 4.7.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
 ```
 
 **Example:**
 
-To run only the evaluation pipeline and not the data preparation, training or
-inference pipelines set the `conf/config.yaml` file to:
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
 
 ```yaml
 run_data_preparation: False
 run_training: False
+run_conversion: False
 run_evaluation: True
 ```
 
@@ -666,9 +712,27 @@ then run:
 python3 main.py
 ```
 
+#### 4.7.3. Base Command Platform
+In order to run the evaluation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The evaluation script must be launched in a single-node job.
+
+To run the evaluation pipeline to evaluate a 126M checkpoint stored in 
+/mount/results/126m/convert_nemo/megatron_gpt.nemo, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False \
+run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/data/bpe/vocab.json \
+evaluation.model.merge_file=/mount/data/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/126m/evaluation \
+evaluation.model.checkpoint_path=/mount/results/126m/convert_nemo/megatron_gpt.nemo evaluation.model.eval_batch_size=16 \
+>> /results/eval_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
+The stdout and stderr outputs will also be redirected to the /results/eval_log.txt file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
 
 ## Deploying the BigNLP model
-
 
 This section describes the deployment of the BigNLP model on the NVIDIA Triton
 Inference Server with FasterTransformer Backend on both single and multiple
