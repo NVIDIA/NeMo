@@ -17,6 +17,14 @@ lowfreq: 0
 highfreq: 8000
 window: hann
 
+train_n_segments: 8192
+train_max_duration: null
+train_min_duration: 0.75
+
+val_n_segments: 66048
+val_max_duration: null
+val_min_duration: 3
+
 defaults:
   - model/generator: v1
   - model/train_ds: train_ds

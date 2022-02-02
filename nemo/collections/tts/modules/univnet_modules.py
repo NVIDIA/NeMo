@@ -259,7 +259,7 @@ class LVCBlock(torch.nn.Module):
         '''
         batch, _, in_length = x.shape
         batch, _, out_channels, kernel_size, kernel_length = kernel.shape
-        # in_length == (kernel_length * hop_size)
+        assert in_length == (kernel_length * hop_size), "length of (x, kernel) is not matched"
 
         padding = dilation * int((kernel_size - 1) / 2)
         x = F.pad(x, (padding, padding), 'constant', 0)  # (batch, in_channels, in_length + 2*padding)
