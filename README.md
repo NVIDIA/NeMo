@@ -488,6 +488,17 @@ The command above assumes that the data and results workspaces are mounted in th
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
 
+#### 4.2.1. Training Logs with TensorBoard and Weights & Biases
+The training code can log the model and system related metrics to both TensorBoard and 
+Weights & Biases (W&B). The local files will be stored in the directory specified in the 
+`training.exp_manager.explicit_log_dir parameter`. TensorBoard logs are saved by default.
+However, W&B needs the API key to be specified to work properly. To upload the logs to W&B, 
+the user must first store the W&B API key to a file (on the first line of the file), and 
+select the path to the file that contains the key using the `wandb_api_key_file` parameter.
+
+The logs show the reduced_train_loss, val_loss, train_step_timing (which is the best way 
+to measure the time it takes to finish each micro step), and other relevant metrics.
+
 ### 4.3 Training with Custom Configurations
 <a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
 
