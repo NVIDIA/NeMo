@@ -89,7 +89,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # import pudb; pudb.set_trace()
 
         enc_dec_attn_mask = make_attention_mask_3d(
-                dec_attn_mask, enc_output_mask,
+                enc_output_mask, dec_attn_mask
             )
 
         dec_output = self.decoder(
