@@ -85,7 +85,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
-        persist_layer_norm=persist_layer_norm,
+        persist_layer_norm=False,
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
