@@ -2,27 +2,11 @@
 
 This section of code can be used by installing the requirements inside our *requirements.txt* and *requirements_torch_tts.txt*.
 
-## Install
+Note: As of NeMo 1.8.0, we have removed the ability to install the `torch_tts` collection by itself. Please install
+NeMo using the TTS option:
 
-This collection can be installed in the following ways:
- - pip install from github
-    > ```bash
-    > pip install git+https://github.com/nvidia/NeMo.git#egg=nemo_toolkit[torch_tts]
-    > ```
-  - inside a requirements file
-    > `git+https://github.com/nvidia/NeMo.git#egg=nemo_toolkit[torch_tts]`
-  - cloning from github, and then installing
-    > ```bash
-    >  git clone https://github.com/nvidia/NeMo.git && cd NeMo && pip install ".[torch_tts]"
-    > ```
-
-## Usage
-
-We can check that lightning is not installed by checking pip:
-```bash
-pip list | grep lightning
-```
-Now even though lightning isn't installed, we can still use parts from the `torch_tts` collection.
+ - `pip install nemo_toolkit[tts]`
+ - `pip install git+https://github.com/nvidia/NeMo.git#egg=nemo_toolkit[tts]`
 
 ### TTS Dataset: example
 
