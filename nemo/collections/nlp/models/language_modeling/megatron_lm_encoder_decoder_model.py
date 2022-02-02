@@ -101,7 +101,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         decoder_input_ids,
         encoder_attn_mask,
         decoder_attn_mask,
-        encoder_decoder_attn_mask,
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
@@ -112,7 +111,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_input_ids=decoder_input_ids,
             encoder_attn_mask=encoder_attn_mask,
             decoder_attn_mask=decoder_attn_mask,
-            encoder_decoder_attn_mask=encoder_decoder_attn_mask,
             tokentype_ids=tokentype_ids,
             lm_labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
@@ -301,7 +299,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_input_ids=None,
             encoder_attn_mask=enc_mask,
             decoder_attn_mask=None,
-            encoder_decoder_attn_mask=None,
             tokentype_ids=None,
             lm_labels=None,
             enc_hidden_states=None,
@@ -311,9 +308,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         for _ in range(num_tokens_to_generate):
             # Overwrite the decoder token since we want to predict
-            enc_dec_mask = make_inference_attention_mask_3d(
-                predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
-            )
+            # enc_dec_mask = make_inference_attention_mask_3d(
+            #     predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
+            # )
             dec_mask = make_inference_attention_mask_3d(
                 predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id
             )
@@ -327,7 +324,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_input_ids=predicted_tokens_dec,
                 encoder_attn_mask=enc_mask,
                 decoder_attn_mask=dec_mask,
-                encoder_decoder_attn_mask=enc_dec_mask,
                 tokentype_ids=None,
                 lm_labels=None,
                 enc_hidden_states=encoder_hidden_states,
