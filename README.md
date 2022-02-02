@@ -421,7 +421,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py training=126m training_config=126m ru
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
-training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
@@ -711,7 +711,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_traini
 run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.json \
 conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/126m/convert_nemo \
-conversion.model.checkpoint_folder=/mount/results/126m/checkpoints
+conversion.model.checkpoint_folder=/mount/results/126m/checkpoints conversion.model.tensor_model_parallel_size=1 \
 >> /results/convert_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
@@ -814,6 +814,7 @@ run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data
 base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/data/bpe/vocab.json \
 evaluation.model.merge_file=/mount/data/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/126m/evaluation \
 evaluation.model.checkpoint_path=/mount/results/126m/convert_nemo/megatron_gpt.nemo evaluation.model.eval_batch_size=16 \
+conversion.model.tensor_model_parallel_size=1 \
 >> /results/eval_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
