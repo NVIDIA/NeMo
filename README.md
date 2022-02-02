@@ -85,6 +85,7 @@ Early access to NeMo Megatron is limited to enterprises that want to train and d
 GPT-3 architecture
 
 <img src="img/model_overview.png"/>
+
 Figure1: The model includes 24 transformer layers, a hidden size of 4096, and 32 attention heads. The sequence length is 2048, and the optimizer is Adam. This model uses tensor parallelism of 2.
 
 
@@ -112,7 +113,7 @@ Main layers would be parallelized:
 | Multi-Node                      | Yes                    | Yes                                                                                                                                                               |
 | Inference deployment            | N/A                    | [NVIDIA Triton supported](https://github.com/triton-inference-server/backend#where-can-i-find-all-the-backends-that-are-available-for-triton), Faster Transformer |
 | SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
-| Distributed data pre processing | Yes (Piles only)       |                                                                                                                                                                   |
+| Distributed data preprocessing | Yes (the Pile only)       |                                                                                                                                                                   |
 | NVfuser                         | Yes (FP16)             |                                                                                                                                                                   |
 
 
@@ -139,7 +140,7 @@ Main layers would be parallelized:
 | rdma-core         | 36.0               |
 | GDRcopy           | 2.3                |
 | HPC-X             | 2.9.0              |
-| BCM               | 1.0.0              |
+| Base Command Manager               | 1.0.0              |
 | DeepOps           | 21.06              |
 
 
@@ -247,7 +248,7 @@ Base Command Platform: The `bignlp_path` should be set to
 are located inside the container. The `data_dir` parameter can also be
 modified to point to where the dataset will be loaded from or saved. The 
 `base_results_dir` can also be modified to point to where the results, 
-checkpoints and logs will be stored. In the case of BCP, we recommend 
+checkpoints and logs will be stored. In the case of Base Command Platform, we recommend 
 that `data_dir` points to one of the workspaces, and `base_results_dir` 
 points to the other. They should both be mounted in read and write (RW) 
 mode.
@@ -256,7 +257,7 @@ mode.
 preparation, training, conversion and evaluation pipelines. Each of these 
 pipelines has a parameter in the `conf/config.yaml` file that decides whether 
 to run that pipeline or not. In slurm based clusters, all of them can be set 
-to True at the same time, and they will be executed in order. However, in BCP, 
+to True at the same time, and they will be executed in order. However, in Base Command Platform, 
 only one of them should be set to True at a time.
 
 Default settings in the `config/config.yaml` file are:
@@ -279,13 +280,13 @@ YAML files, so look at the documentation for those projects to learn more.
 
 #### 4.1.2. Data Preparation
 <a id="markdown-data-preparation" name="data-preparation"></a>
-We provide utilities to download and prepare [The Pile](https://pile.eleuther.ai/)
+We provide utilities to download and prepare [the Pile](https://pile.eleuther.ai/)
 dataset ([mirror](https://mystic.the-eye.eu/public/AI/pile/train/)),
 which is formed by 22 smaller datasets. The dataset is already blended
 by using the mix described in their [paper](https://arxiv.org/pdf/2101.00027.pdf).
 It is recommended to store this repository and the datasets in a file system
 shared by all the nodes (gpfs) in the case of Slurm based clusters, and in a shared 
-workspace in the case of BCP based clusters.
+workspace in the case of Base Command Platform based clusters.
 
 The configuration used for data preparation must be specified in the
 `conf/config.yaml` file and `run_data_preparation` must be set to `True` to run it.
@@ -363,9 +364,9 @@ Any other parameter can also be added to the command to modify its behavior.
 
 Set the configuration for the data preparation job in the YAML file:
 ```yaml
-download_the_pile: True  # Whether to download the pile dataset from the internet.
-the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
-file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+download_the_pile: True  # Whether to download the Pile dataset from the internet.
+the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download the Pile dataset from.
+file_numbers: "0-29"  # The Pile dataset consists of 30 files (0-29), choose which ones to download.
 preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
 download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
 download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
@@ -409,7 +410,7 @@ And run:
 python3 main.py
 ```
 
-To train a 126M GPT-3 model on BCP cluster on 8 nodes, use the command:
+To train a 126M GPT-3 model on Base Command Platform cluster on 8 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=126m training_config=126m run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
@@ -443,7 +444,7 @@ And run:
 python3 main.py
 ```
 
-To train a 5B GPT-3 model on BCP cluster on 20 nodes, use the command:
+To train a 5B GPT-3 model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=5b training_config=5b run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
@@ -477,7 +478,7 @@ And run:
 python3 main.py
 ```
 
-To train a 20B GPT-3 model on BCP cluster on 80 nodes, use the command:
+To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=20b training_config=20b run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
@@ -517,7 +518,7 @@ a data type.
 If you want to train the GPT-3 model on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
 Then, you can run the data preprocessing pipeline without needing to download
-The Pile by modifying the configuration in
+the Pile by modifying the configuration in
 `conf/data_preparation/download_pile.yaml`. You should set `download_the_pile` to
 False, and keep `preprocess_data` as True. When running the data preparation
 pipeline, the jsonl files must be stored in the directory indicated in the
@@ -719,7 +720,7 @@ file to use for evaluation purposes. The `run_evaluation` parameter must be set
 to `True` to run the evaluation pipeline. The default value is set to
 `evaluate_all`, which can be found in `conf/evaluation/evaluate_all.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs. For BCP, all these parameters should be overriden from the command line.
+in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
 #### 4.8.1. Common
 <a id="markdown-common" name="common"></a>
@@ -823,7 +824,7 @@ helps with conversion and setting up a deployment environment to do inference
 for models from BigNLP training scripts. Use scripts to convert models to a new
 format, then use NVIDIA Triton Inference Server to process inference requests.
 
-The inference scripts execute at a Slurm or BCP cluster in several steps:
+The inference scripts execute at a Slurm or Base Command Platform cluster in several steps:
 * Megatron/NeMo checkpoint conversion to FasterTransformer format.
 * Preparation of model repository for NVIDIA Triton Inference Server.
 * Profiling and selecting the best inference model and NVIDIA
@@ -862,10 +863,11 @@ and use it in production.
 <a id="markdown-model-inference-deployment-process" name="model-inference-deployment-process"></a>
 
 <img src="img/inference_deployment_flow.png"/>
+
 ### 5.2. Prepare Environment
 <a id="markdown-prepare-environment" name="prepare-environment"></a>
 
-The whole solution uses a set of Docker containers executed at Slurm or BCP cluster.
+The whole solution uses a set of Docker containers executed at Slurm or Base Command Platform cluster.
 The training container also includes conversion
 scripts and NVIDIA Triton Model Navigator. The inference container is just the
 NVIDIA Triton Inference Server with the FasterTransformer backend installed.
@@ -1497,10 +1499,10 @@ The table below shows examples of input and output used for text generated above
 
 | Input len | Input text | Output len | Output text |
 | --------- | ---------- | ---------- | ----------- |
-| 8 | b'AI is like a new steam engine.' | 40 | b' It\\u2019s not just about the technology, it\\u2019s also about how we can use AI to solve problems that are important for society and our economy.\\n\\nThe first thing I want' |
-| 40 | b'It\\u2019s not just about the technology, it\\u2019s also about how we can use AI to solve problems that are important for society and our economy.\\n\\nThe first thing I want' | 40 | b' to do is talk a little bit about what we mean by artificial intelligence (AI).\\n\\nWhat is Artificial Intelligence?\\n\\nArtificial intelligence is defined as \\u201cthe ability of machines to perform' |
-| 40 | b'to do is talk a little bit about what we mean by artificial intelligence (AI).\\n\\nWhat is Artificial Intelligence?\\n\\nArtificial intelligence is defined as \\u201cthe ability of machines to perform' | 40 | b' tasks that normally require human intelligence.\\u201d This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
-| 41 | b'tasks that normally require human intelligence.\\u201d This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | b', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
+| 8 | 'AI is like a new steam engine.' | 40 | 'It's not just about the technology, it's also about how we can use AI to solve problems that are important for society and our economy. The first thing I want' |
+| 40 | 'It's not just about the technology, it's also about how we can use AI to solve problems that are important for society and our economy. The first thing I want' | 40 | ' to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence?Artificial intelligence is defined as 'the ability of machines to perform' |
+| 40 | 'to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence? Artificial intelligence is defined as 'the ability of machines to perform' | 40 | ' tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
+| 41 | 'tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | ', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
 
 #### 5.7.4. Dialogue text generation
 
@@ -1589,11 +1591,11 @@ routines to use this solution.
 The table below shows examples of input and output used for text generated above.
 | Input len | Input text | Output len | Output text |
 | --------- | ---------- | ---------- | ----------- |
-| 15 | b'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | b'\\n"It\'s a way to make computers do things that they couldn\'t before."\\n\\n------\\njamesblonde\\nI\'m not sure what the point of this article was. It seems' |
-| 41 | b'NVIDIA machine learning expert: "It\'s a way to make computers do things that they couldn\'t before." NVIDIA customer: "What I need to start experiments with machine learning?" NVIDIA machine learning expert: ' | 40 | b'\\n"We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works."\\n\\nThe' |
-| 56 | b'NVIDIA machine learning expert: "We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works." NVIDIA customer: "Can AI recognize cats?" NVIDIA machine learning expert: ' | 40 | b'\\n"Sure! Let\'s try that!"\\n\\nA:\\n\\nI think the best way is to use a library like Googlec or tens.net has is is moreing with a a' |
-| 28 | b'NVIDIA machine learning expert: "Sure! Let\'s try that!" NVIDIA customer: "Can AI generate text?" NVIDIA machine learning expert: ' | 40 | b'\\n"Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Great! I\'ll wait here for you to finish training your model."\\n\\nA:' |
-| 36 | b'NVIDIA machine learning expert: "Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Is AI dangerous?" NVIDIA machine learning expert: ' | 40 | b'\\n"No, not at all! We\'re just trying to help you make better decisions."\\n\\nA:\\n\\nI think this is an interesting question and I\'m going to try my hand' |
+| 15 | 'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | '"It's a way to make computers do things that they couldn\'t before."------jamesblonde. I\'m not sure what the point of this article was. It seems' |
+| 41 | 'NVIDIA machine learning expert: "It's a way to make computers do things that they couldn\'t before." NVIDIA customer: "What I need to start experiments with machine learning?" NVIDIA machine learning expert: ' | 40 | '"We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we'll be happy to show you how it works."The' |
+| 56 | 'NVIDIA machine learning expert: "We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works." NVIDIA customer: "Can AI recognize cats?" NVIDIA machine learning expert: ' | 40 | '"Sure! Let's try that!"A: I think the best way is to use a library like Googlec or tens.net has is is moreing with a a' |
+| 28 | 'NVIDIA machine learning expert: "Sure! Let's try that!" NVIDIA customer: "Can AI generate text?" NVIDIA machine learning expert: ' | 40 | '"Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Great! I\'ll wait here for you to finish training your model."A:' |
+| 36 | 'NVIDIA machine learning expert: "Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Is AI dangerous?" NVIDIA machine learning expert: ' | 40 | '"No, not at all! We\'re just trying to help you make better decisions."A: I think this is an interesting question and I\'m going to try my hand' |
 
 
 
@@ -1604,7 +1606,7 @@ The table below shows examples of input and output used for text generated above
 <a id="markdown-results" name="results"></a>
 
 #### 6.1.1 Training Accuracy Results
-Training accuracy: NVIDIA SuperPOD (20 x 8 x A100 80GB for 5B model)
+Training accuracy: DGX SuperPOD (20 x 8 x A100 80GB for 5B model)
 We evaluated the 126M parameter and 5B parameter models on 8 different language
 tasks. The results can be found in the table below. All the tasks are provided
 as part of the evaluation harness, so the user can evaluate any .nemo
@@ -1632,6 +1634,7 @@ checkpoint file on all these tasks.
 Training the 5B GPT-3 model to convergence takes 6.5 days, and the loss curve can be seen in the figure below:
 
 <img src="img/5B_GPT_3_loss_final.svg"/>
+
 The table below shows the converged training loss, the throughput, and the
 total time to train for the 5B GPT-3 model, using a given number of GPUs and a
 given Global Batch Size (GBS).
@@ -1728,6 +1731,7 @@ latency and throughput change for different batch sizes used for computations.
 
 
 <img src="img/5B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
+
 A chatbot with a latency budget within 380 ms can work for batch size=64 and 1
 GPU used for computation.
 
@@ -1740,11 +1744,13 @@ output length 200.
 
 <img src="img/5B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
 <img src="img/5B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
+
 The graph for 1 GPU with many batch sizes shows what batch size can fit into a
 certain latency budget.
 
 
 <img src="img/5B_GPT_3_of_GPU_1_input_len_200_output_len_200.svg"/>
+
 The graph clearly shows that the translation or style transfer inference task
 with latency budget 2000 milliseconds can be deployed using 1 GPU and batch
 size = 16.
@@ -1786,12 +1792,14 @@ To improve accuracy a larger model can be used.
 <img src="img/20B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
 <img src="img/20B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
 <img src="img/20B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
+
 ##### 6.1.3.7. B: Translation and Style Transfer
 <a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
 
 <img src="img/20B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
 <img src="img/20B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
 <img src="img/20B_GPT_3_of_GPU_4_input_len_200_output_len_200.svg"/>
+
 ##### 6.1.3.8. Summary for 20B Results
 <a id="markdown-summary-for-20b-results" name="summary-for-20b-results"></a>
 
@@ -1830,6 +1838,7 @@ were generated with randomly initialized weights.
 <img src="img/Chatbot_Q_A_batch_size_1_input_len_60_output_len_20.svg"/>
 
 <img src="img/Translation_or_style_transfer_batch_size_1_input_len_200_output_len_200.svg"/>
+
 The performance measurements were obtained on DGX A100 80 GB nodes.
 
 <details>
@@ -1861,6 +1870,7 @@ answering and a second one is translation or style transfer.
 <img src="img/Chatbot_Q_A_batch_size_256_input_len_60_output_len_20.svg"/>
 
 <img src="img/Translation_or_Style_Transfer_batch_size_max_input_len_200_output_len_200.svg"/>
+
 The chatbot scenario can be executed with batch size equal to 256 for all model
 sizes so it is possible to utilize computing resources in GPUs.
 
