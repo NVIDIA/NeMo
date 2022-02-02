@@ -23,6 +23,7 @@ model:
     dataset:
       _target_: "nemo.collections.tts.torch.data.VocoderDataset"
       manifest_filepath: ${train_dataset}
+      sample_rate: ${sample_rate}
       max_duration: null
       min_duration: 0.1
       n_segments: 16000
@@ -36,6 +37,7 @@ model:
     dataset:
       _target_: "nemo.collections.tts.torch.data.VocoderDataset"
       manifest_filepath: ${validation_datasets}
+      sample_rate: ${sample_rate}
       max_duration: null
       min_duration: 0.1
     dataloader_params:
