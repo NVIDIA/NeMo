@@ -54,6 +54,9 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
+        # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
+        self._build_vocab()
+
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
         self.emc_dec_model = TokensEncoderDecoderModule(
             vocab_size=self.padded_vocab_size,
@@ -88,9 +91,9 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
         )
 
-        self._build_vocab()
 
     def _build_vocab(self):
+        # TODO: add config to allow to disable it?
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
             make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
