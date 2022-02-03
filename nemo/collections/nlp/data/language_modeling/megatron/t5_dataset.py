@@ -188,7 +188,8 @@ def build_training_sample(
     )
 
     # Padding.
-    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask = pad_and_convert_to_numpy(
+    # tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask = pad_and_convert_to_numpy(
+    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_to_numpy(
         tokens,
         masked_positions,
         masked_labels,
@@ -209,7 +210,7 @@ def build_training_sample(
         'truncated': int(truncated),
         'enc_mask': enc_mask,
         'dec_mask': dec_mask,
-        'enc_dec_mask': enc_dec_mask,
+        # 'enc_dec_mask': enc_dec_mask,
     }
     return train_sample
 
