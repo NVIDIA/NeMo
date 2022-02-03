@@ -19,6 +19,7 @@ import math
 import torch
 import torch.nn.functional as F
 from apex.transformer import parallel_state, tensor_parallel
+from apex.transformer.enums import AttnMaskType
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
     """LM logits using word embedding weights."""
@@ -198,3 +199,35 @@ def make_inference_history_mask_3d(block):
     ]
     history_mask = history_mask.expand(batch, length, length)
     return history_mask
+
+def build_attention_mask_3d_padding(source_mask, target_mask):
+    """
+    Returns a 3D joint attention mask for Megatron given two 2D masks
+    :param source_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, length]
+    """
+    return make_attention_mask_3d(source_mask, target_mask)
+
+def build_attention_mask_3d_casual(source_mask, target_mask):
+    """
+    Returns a 3D joint attention mask for Megatron given two 2D masks
+    :param source_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, length]
+    """
+
+    return make_attention_mask_3d(source_mask, target_mask)
+
+
+def build_attention_mask_3d(source_mask, target_mask, attn_mask_type):
+    """
+    Returns a 3D attention mask for Megatron given two 2D masks
+    :param source_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param attn_mask_type - AttnMaskType enum
+    """
+    if attn_mask_type == AttnMaskType.padding:
+        mask = build_attention_mask_3d_padding(source_mask, target_mask)
+    elif attn_mask_type == AttnMaskType.casual:
+        mask = build_attention_mask_3d_casual(source_mask, target_mask)
+    else:
+        raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")

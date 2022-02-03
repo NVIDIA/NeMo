@@ -115,6 +115,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
+        import pudb; pudb.set_trace()
         ret_dict= self.emc_dec_model(
             enc_input_ids=encoder_input_ids,
             dec_input_ids=decoder_input_ids,
