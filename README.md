@@ -75,6 +75,8 @@ Megatron-LM.
 Scripts and code to provide end-to-end data preparation and training for
 Megatron-LM.
 
+The most recent version of the README is at [https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training](https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training).
+
 ## 1. Model Overview
 <a id="markdown-model-overview" name="model-overview"></a>
 
@@ -82,7 +84,7 @@ NeMo Megatron is a new version in the NeMo framework that allows developers to e
 <!-- Should this line be removed/replaced -->
 Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 style models on DGX SuperPOD to perform zero-shot tasks such as answering deep domain questions, translating languages, comprehending and summarizing complex documents.
 
-GPT-3 architecture
+**GPT-3 architecture**
 
 <img src="img/model_overview.png"/>
 
