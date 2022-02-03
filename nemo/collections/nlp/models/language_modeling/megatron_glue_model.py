@@ -43,7 +43,11 @@ class MegatronT5FineTuneModel(NLPModel):
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
-        self.model = MegatronT5Model.restore_from(cfg.restore_from_path, trainer=trainer, override_config_path=t5_cfg)
+
+        self.model = MegatronT5Model.restore_from(
+            self.register_artifact('t5_base_model', cfg.restore_from_path),
+            trainer=trainer, override_config_path=t5_cfg
+        )
 
     def training_step(self, batch, batch_idx):
         pass
