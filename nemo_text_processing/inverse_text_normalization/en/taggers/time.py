@@ -85,7 +85,7 @@ class TimeFst(GraphFst):
         )
 
         # five o' clock
-        # two o eight, two thiry five (am/pm)
+        # two o eight, two thirty five (am/pm)
         # two pm/am
         graph_hm = (
             final_graph_hour + delete_extra_space + pynutil.insert("minutes: \"") + graph_minute + pynutil.insert("\"")
