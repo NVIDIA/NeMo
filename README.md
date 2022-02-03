@@ -75,7 +75,7 @@ Megatron-LM.
 Scripts and code to provide end-to-end data preparation and training for
 Megatron-LM.
 
-The most recent version of the README is at [https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training](https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training).
+The most recent version of the README can be found at [https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training](https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training).
 
 ## 1. Model Overview
 <a id="markdown-model-overview" name="model-overview"></a>
