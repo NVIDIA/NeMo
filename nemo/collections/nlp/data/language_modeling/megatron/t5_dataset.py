@@ -289,7 +289,6 @@ def pad_and_convert_to_numpy(
     loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
-    import pdb; pdb.set_trace()
     return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
 
 
