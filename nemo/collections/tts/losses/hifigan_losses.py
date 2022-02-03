@@ -35,7 +35,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 
-# The forward functions onf the following classes are based on code from https://github.com/jik876/hifi-gan:
+# The forward functions of the following classes are based on code from https://github.com/jik876/hifi-gan:
 # FeatureMatchingLoss, DiscriminatorLoss, GeneratorLoss
 
 import torch

@@ -1,3 +1,39 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# MIT License
+#
+# Copyright (c) 2021 Jaehyeon Kim
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import numpy as np
 import math
 
@@ -45,9 +81,7 @@ class ConvReluNorm(nn.Module):
         self.norm_layers = nn.ModuleList()
         self.conv_layers.append(nn.Conv1d(in_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
         self.norm_layers.append(LayerNorm(hidden_channels))
-        self.relu_drop = nn.Sequential(
-            nn.ReLU(),
-            nn.Dropout(p_dropout))
+        self.relu_drop = nn.Sequential(nn.ReLU(), nn.Dropout(p_dropout))
         for _ in range(n_layers - 1):
             self.conv_layers.append(nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
             self.norm_layers.append(LayerNorm(hidden_channels))
@@ -70,7 +104,7 @@ class DDSConv(nn.Module):
     Dialted and Depth-Separable Convolution
     """
 
-    def __init__(self, channels, kernel_size, n_layers, p_dropout=0.):
+    def __init__(self, channels, kernel_size, n_layers, p_dropout=0.0):
         super().__init__()
         self.channels = channels
         self.kernel_size = kernel_size
@@ -85,9 +119,9 @@ class DDSConv(nn.Module):
         for i in range(n_layers):
             dilation = kernel_size ** i
             padding = (kernel_size * dilation - dilation) // 2
-            self.convs_sep.append(nn.Conv1d(channels, channels, kernel_size,
-                                            groups=channels, dilation=dilation, padding=padding
-                                            ))
+            self.convs_sep.append(
+                nn.Conv1d(channels, channels, kernel_size, groups=channels, dilation=dilation, padding=padding)
+            )
             self.convs_1x1.append(nn.Conv1d(channels, channels, 1))
             self.norms_1.append(LayerNorm(channels))
             self.norms_2.append(LayerNorm(channels))
@@ -110,9 +144,9 @@ class DDSConv(nn.Module):
 class WN(torch.nn.Module):
     def __init__(self, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, p_dropout=0):
         super(WN, self).__init__()
-        assert (kernel_size % 2 == 1)
+        assert kernel_size % 2 == 1
         self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size,
+        self.kernel_size = (kernel_size,)
         self.dilation_rate = dilation_rate
         self.n_layers = n_layers
         self.gin_channels = gin_channels
@@ -129,8 +163,9 @@ class WN(torch.nn.Module):
         for i in range(n_layers):
             dilation = dilation_rate ** i
             padding = int((kernel_size * dilation - dilation) / 2)
-            in_layer = torch.nn.Conv1d(hidden_channels, 2 * hidden_channels, kernel_size,
-                                       dilation=dilation, padding=padding)
+            in_layer = torch.nn.Conv1d(
+                hidden_channels, 2 * hidden_channels, kernel_size, dilation=dilation, padding=padding
+            )
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
 
@@ -155,21 +190,18 @@ class WN(torch.nn.Module):
             x_in = self.in_layers[i](x)
             if g is not None:
                 cond_offset = i * 2 * self.hidden_channels
-                g_l = g[:, cond_offset:cond_offset + 2 * self.hidden_channels, :]
+                g_l = g[:, cond_offset : cond_offset + 2 * self.hidden_channels, :]
             else:
                 g_l = torch.zeros_like(x_in)
 
-            acts = fused_add_tanh_sigmoid_multiply(
-                x_in,
-                g_l,
-                n_channels_tensor)
+            acts = fused_add_tanh_sigmoid_multiply(x_in, g_l, n_channels_tensor)
             acts = self.drop(acts)
 
             res_skip_acts = self.res_skip_layers[i](acts)
             if i < self.n_layers - 1:
-                res_acts = res_skip_acts[:, :self.hidden_channels, :]
+                res_acts = res_skip_acts[:, : self.hidden_channels, :]
                 x = (x + res_acts) * x_mask
-                output = output + res_skip_acts[:, self.hidden_channels:, :]
+                output = output + res_skip_acts[:, self.hidden_channels :, :]
             else:
                 output = output + res_skip_acts
         return output * x_mask
@@ -186,24 +218,55 @@ class WN(torch.nn.Module):
 class ResBlock1(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlock1, self).__init__()
-        self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
+        self.convs1 = nn.ModuleList(
+            [
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[0],
+                        padding=get_padding(kernel_size, dilation[0]),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[1],
+                        padding=get_padding(kernel_size, dilation[1]),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[2],
+                        padding=get_padding(kernel_size, dilation[2]),
+                    )
+                ),
+            ]
+        )
         self.convs1.apply(init_weights)
 
-        self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
+        self.convs2 = nn.ModuleList(
+            [
+                weight_norm(
+                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
+                ),
+                weight_norm(
+                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
+                ),
+                weight_norm(
+                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
+                ),
+            ]
+        )
         self.convs2.apply(init_weights)
 
     def forward(self, x, x_mask=None):
@@ -231,12 +294,30 @@ class ResBlock1(torch.nn.Module):
 class ResBlock2(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super(ResBlock2, self).__init__()
-        self.convs = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1])))
-        ])
+        self.convs = nn.ModuleList(
+            [
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[0],
+                        padding=get_padding(kernel_size, dilation[0]),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[1],
+                        padding=get_padding(kernel_size, dilation[1]),
+                    )
+                ),
+            ]
+        )
         self.convs.apply(init_weights)
 
     def forward(self, x, x_mask=None):
@@ -295,15 +376,17 @@ class ElementwiseAffine(nn.Module):
 
 
 class ResidualCouplingLayer(nn.Module):
-    def __init__(self,
-                 channels,
-                 hidden_channels,
-                 kernel_size,
-                 dilation_rate,
-                 n_layers,
-                 p_dropout=0,
-                 gin_channels=0,
-                 mean_only=False):
+    def __init__(
+        self,
+        channels,
+        hidden_channels,
+        kernel_size,
+        dilation_rate,
+        n_layers,
+        p_dropout=0,
+        gin_channels=0,
+        mean_only=False,
+    ):
         assert channels % 2 == 0, "channels should be divisible by 2"
         super().__init__()
         self.channels = channels
@@ -315,8 +398,9 @@ class ResidualCouplingLayer(nn.Module):
         self.mean_only = mean_only
 
         self.pre = nn.Conv1d(self.half_channels, hidden_channels, 1)
-        self.enc = WN(hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=p_dropout,
-                      gin_channels=gin_channels)
+        self.enc = WN(
+            hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=p_dropout, gin_channels=gin_channels
+        )
         self.post = nn.Conv1d(hidden_channels, self.half_channels * (2 - mean_only), 1)
         self.post.weight.data.zero_()
         self.post.bias.data.zero_()
@@ -355,7 +439,7 @@ class ConvFlow(nn.Module):
         self.half_channels = in_channels // 2
 
         self.pre = nn.Conv1d(self.half_channels, filter_channels, 1)
-        self.convs = DDSConv(filter_channels, kernel_size, n_layers, p_dropout=0.)
+        self.convs = DDSConv(filter_channels, kernel_size, n_layers, p_dropout=0.0)
         self.proj = nn.Conv1d(filter_channels, self.half_channels * (num_bins * 3 - 1), 1)
         self.proj.weight.data.zero_()
         self.proj.bias.data.zero_()
@@ -369,18 +453,19 @@ class ConvFlow(nn.Module):
         b, c, t = x0.shape
         h = h.reshape(b, c, -1, t).permute(0, 1, 3, 2)  # [b, cx?, t] -> [b, c, t, ?]
 
-        unnormalized_widths = h[..., :self.num_bins] / math.sqrt(self.filter_channels)
-        unnormalized_heights = h[..., self.num_bins:2 * self.num_bins] / math.sqrt(self.filter_channels)
-        unnormalized_derivatives = h[..., 2 * self.num_bins:]
+        unnormalized_widths = h[..., : self.num_bins] / math.sqrt(self.filter_channels)
+        unnormalized_heights = h[..., self.num_bins : 2 * self.num_bins] / math.sqrt(self.filter_channels)
+        unnormalized_derivatives = h[..., 2 * self.num_bins :]
 
-        x1, logabsdet = piecewise_rational_quadratic_transform(x1,
-                                                               unnormalized_widths,
-                                                               unnormalized_heights,
-                                                               unnormalized_derivatives,
-                                                               inverse=reverse,
-                                                               tails='linear',
-                                                               tail_bound=self.tail_bound
-                                                               )
+        x1, logabsdet = piecewise_rational_quadratic_transform(
+            x1,
+            unnormalized_widths,
+            unnormalized_heights,
+            unnormalized_derivatives,
+            inverse=reverse,
+            tails='linear',
+            tail_bound=self.tail_bound,
+        )
 
         x = torch.cat([x0, x1], 1) * x_mask
         logdet = torch.sum(logabsdet * x_mask, [1, 2])
@@ -393,7 +478,7 @@ class ConvFlow(nn.Module):
 class StochasticDurationPredictor(nn.Module):
     def __init__(self, in_channels, filter_channels, kernel_size, p_dropout, n_flows=4, gin_channels=0):
         super().__init__()
-        filter_channels = in_channels # it needs to be removed from future version.
+        filter_channels = in_channels  # it needs to be removed from future version.
         self.in_channels = in_channels
         self.filter_channels = filter_channels
         self.kernel_size = kernel_size
@@ -448,8 +533,8 @@ class StochasticDurationPredictor(nn.Module):
             z_u, z1 = torch.split(z_q, [1, 1], 1)
             u = torch.sigmoid(z_u) * x_mask
             z0 = (w - u) * x_mask
-            logdet_tot_q += torch.sum((F.logsigmoid(z_u) + F.logsigmoid(-z_u)) * x_mask, [1,2])
-            logq = torch.sum(-0.5 * (math.log(2*math.pi) + (e_q**2)) * x_mask, [1,2]) - logdet_tot_q
+            logdet_tot_q += torch.sum((F.logsigmoid(z_u) + F.logsigmoid(-z_u)) * x_mask, [1, 2])
+            logq = torch.sum(-0.5 * (math.log(2 * math.pi) + (e_q ** 2)) * x_mask, [1, 2]) - logdet_tot_q
 
             logdet_tot = 0
             z0, logdet = self.log_flow(z0, x_mask)
@@ -458,11 +543,11 @@ class StochasticDurationPredictor(nn.Module):
             for flow in flows:
                 z, logdet = flow(z, x_mask, g=x, reverse=reverse)
                 logdet_tot = logdet_tot + logdet
-            nll = torch.sum(0.5 * (math.log(2*math.pi) + (z**2)) * x_mask, [1,2]) - logdet_tot
-            return nll + logq # [b]
+            nll = torch.sum(0.5 * (math.log(2 * math.pi) + (z ** 2)) * x_mask, [1, 2]) - logdet_tot
+            return nll + logq  # [b]
         else:
             flows = list(reversed(self.flows))
-            flows = flows[:-2] + [flows[-1]] # remove a useless vflow
+            flows = flows[:-2] + [flows[-1]]  # remove a useless vflow
             z = torch.randn(x.size(0), 2, x.size(2)).to(device=x.device, dtype=x.dtype) * noise_scale
             for flow in flows:
                 z = flow(z, x_mask, g=x, reverse=reverse)
@@ -482,9 +567,9 @@ class DurationPredictor(nn.Module):
         self.gin_channels = gin_channels
 
         self.drop = nn.Dropout(p_dropout)
-        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size//2)
+        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
         self.norm_1 = LayerNorm(filter_channels)
-        self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size//2)
+        self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size // 2)
         self.norm_2 = LayerNorm(filter_channels)
         self.proj = nn.Conv1d(filter_channels, 1, 1)
 
@@ -509,15 +594,9 @@ class DurationPredictor(nn.Module):
 
 
 class TextEncoder(nn.Module):
-    def __init__(self,
-                 n_vocab,
-                 out_channels,
-                 hidden_channels,
-                 filter_channels,
-                 n_heads,
-                 n_layers,
-                 kernel_size,
-                 p_dropout):
+    def __init__(
+        self, n_vocab, out_channels, hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout
+    ):
         super().__init__()
         self.n_vocab = n_vocab
         self.out_channels = out_channels
@@ -529,20 +608,14 @@ class TextEncoder(nn.Module):
         self.p_dropout = p_dropout
 
         self.emb = nn.Embedding(n_vocab, hidden_channels)
-        nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
+        nn.init.normal_(self.emb.weight, 0.0, hidden_channels ** -0.5)
 
-        self.encoder = Encoder(
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-            p_dropout)
-        self.proj= nn.Conv1d(hidden_channels, out_channels * 2, 1)
+        self.encoder = Encoder(hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout)
+        self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths):
-        x = self.emb(x) * math.sqrt(self.hidden_channels) # [b, t, h]
-        x = torch.transpose(x, 1, -1) # [b, h, t]
+        x = self.emb(x) * math.sqrt(self.hidden_channels)  # [b, t, h]
+        x = torch.transpose(x, 1, -1)  # [b, h, t]
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
 
         x = self.encoder(x * x_mask, x_mask)
@@ -553,14 +626,7 @@ class TextEncoder(nn.Module):
 
 
 class ResidualCouplingBlock(nn.Module):
-    def __init__(self,
-                 channels,
-                 hidden_channels,
-                 kernel_size,
-                 dilation_rate,
-                 n_layers,
-                 n_flows=4,
-                 gin_channels=0):
+    def __init__(self, channels, hidden_channels, kernel_size, dilation_rate, n_layers, n_flows=4, gin_channels=0):
         super().__init__()
         self.channels = channels
         self.hidden_channels = hidden_channels
@@ -572,7 +638,17 @@ class ResidualCouplingBlock(nn.Module):
 
         self.flows = nn.ModuleList()
         for i in range(n_flows):
-            self.flows.append(ResidualCouplingLayer(channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=gin_channels, mean_only=True))
+            self.flows.append(
+                ResidualCouplingLayer(
+                    channels,
+                    hidden_channels,
+                    kernel_size,
+                    dilation_rate,
+                    n_layers,
+                    gin_channels=gin_channels,
+                    mean_only=True,
+                )
+            )
             self.flows.append(Flip())
 
     def forward(self, x, x_mask, g=None, reverse=False):
@@ -586,14 +662,9 @@ class ResidualCouplingBlock(nn.Module):
 
 
 class PosteriorEncoder(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 hidden_channels,
-                 kernel_size,
-                 dilation_rate,
-                 n_layers,
-                 gin_channels=0):
+    def __init__(
+        self, in_channels, out_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -618,7 +689,17 @@ class PosteriorEncoder(nn.Module):
 
 
 class Generator(torch.nn.Module):
-    def __init__(self, initial_channel, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=0):
+    def __init__(
+        self,
+        initial_channel,
+        resblock,
+        resblock_kernel_sizes,
+        resblock_dilation_sizes,
+        upsample_rates,
+        upsample_initial_channel,
+        upsample_kernel_sizes,
+        gin_channels=0,
+    ):
         super(Generator, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
@@ -627,13 +708,21 @@ class Generator(torch.nn.Module):
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
-            self.ups.append(weight_norm(
-                ConvTranspose1d(upsample_initial_channel//(2**i), upsample_initial_channel//(2**(i+1)),
-                                k, u, padding=(k-u)//2)))
+            self.ups.append(
+                weight_norm(
+                    ConvTranspose1d(
+                        upsample_initial_channel // (2 ** i),
+                        upsample_initial_channel // (2 ** (i + 1)),
+                        k,
+                        u,
+                        padding=(k - u) // 2,
+                    )
+                )
+            )
 
         self.resblocks = nn.ModuleList()
         for i in range(len(self.ups)):
-            ch = upsample_initial_channel//(2**(i+1))
+            ch = upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
                 self.resblocks.append(resblock(ch, k, d))
 
@@ -654,9 +743,9 @@ class Generator(torch.nn.Module):
             xs = None
             for j in range(self.num_kernels):
                 if xs is None:
-                    xs = self.resblocks[i*self.num_kernels+j](x)
+                    xs = self.resblocks[i * self.num_kernels + j](x)
                 else:
-                    xs += self.resblocks[i*self.num_kernels+j](x)
+                    xs += self.resblocks[i * self.num_kernels + j](x)
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -678,13 +767,15 @@ class DiscriminatorP(torch.nn.Module):
         self.period = period
         self.use_spectral_norm = use_spectral_norm
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
-        self.convs = nn.ModuleList([
-            norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-            norm_f(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-            norm_f(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-            norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-            norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(get_padding(kernel_size, 1), 0))),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(get_padding(kernel_size, 1), 0))),
+            ]
+        )
         self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
 
     def forward(self, x):
@@ -692,7 +783,7 @@ class DiscriminatorP(torch.nn.Module):
 
         # 1d to 2d
         b, c, t = x.shape
-        if t % self.period != 0: # pad first
+        if t % self.period != 0:  # pad first
             n_pad = self.period - (t % self.period)
             x = F.pad(x, (0, n_pad), "reflect")
             t = t + n_pad
@@ -713,14 +804,16 @@ class DiscriminatorS(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(DiscriminatorS, self).__init__()
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
-        self.convs = nn.ModuleList([
-            norm_f(Conv1d(1, 16, 15, 1, padding=7)),
-            norm_f(Conv1d(16, 64, 41, 4, groups=4, padding=20)),
-            norm_f(Conv1d(64, 256, 41, 4, groups=16, padding=20)),
-            norm_f(Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
-            norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
-            norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                norm_f(Conv1d(1, 16, 15, 1, padding=7)),
+                norm_f(Conv1d(16, 64, 41, 4, groups=4, padding=20)),
+                norm_f(Conv1d(64, 256, 41, 4, groups=16, padding=20)),
+                norm_f(Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
+                norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
+                norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+            ]
+        )
         self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
 
     def forward(self, x):
@@ -740,7 +833,7 @@ class DiscriminatorS(torch.nn.Module):
 class MultiPeriodDiscriminator(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(MultiPeriodDiscriminator, self).__init__()
-        periods = [2,3,5,7,11]
+        periods = [2, 3, 5, 7, 11]
 
         discs = [DiscriminatorS(use_spectral_norm=use_spectral_norm)]
         discs = discs + [DiscriminatorP(i, use_spectral_norm=use_spectral_norm) for i in periods]
@@ -767,27 +860,29 @@ class SynthesizerTrn(nn.Module):
     Synthesizer for Training
     """
 
-    def __init__(self,
-                 n_vocab,
-                 spec_channels,
-                 segment_size,
-                 inter_channels,
-                 hidden_channels,
-                 filter_channels,
-                 n_heads,
-                 n_layers,
-                 kernel_size,
-                 p_dropout,
-                 resblock,
-                 resblock_kernel_sizes,
-                 resblock_dilation_sizes,
-                 upsample_rates,
-                 upsample_initial_channel,
-                 upsample_kernel_sizes,
-                 n_speakers=0,
-                 gin_channels=0,
-                 use_sdp=True,
-                 **kwargs):
+    def __init__(
+        self,
+        n_vocab,
+        spec_channels,
+        segment_size,
+        inter_channels,
+        hidden_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size,
+        p_dropout,
+        resblock,
+        resblock_kernel_sizes,
+        resblock_dilation_sizes,
+        upsample_rates,
+        upsample_initial_channel,
+        upsample_kernel_sizes,
+        n_speakers=0,
+        gin_channels=0,
+        use_sdp=True,
+        **kwargs
+    ):
 
         super().__init__()
         self.n_vocab = n_vocab
@@ -811,16 +906,22 @@ class SynthesizerTrn(nn.Module):
 
         self.use_sdp = use_sdp
 
-        self.enc_p = TextEncoder(n_vocab,
-                                 inter_channels,
-                                 hidden_channels,
-                                 filter_channels,
-                                 n_heads,
-                                 n_layers,
-                                 kernel_size,
-                                 p_dropout)
-        self.dec = Generator(inter_channels, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=gin_channels)
-        self.enc_q = PosteriorEncoder(spec_channels, inter_channels, hidden_channels, 5, 1, 16, gin_channels=gin_channels)
+        self.enc_p = TextEncoder(
+            n_vocab, inter_channels, hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout
+        )
+        self.dec = Generator(
+            inter_channels,
+            resblock,
+            resblock_kernel_sizes,
+            resblock_dilation_sizes,
+            upsample_rates,
+            upsample_initial_channel,
+            upsample_kernel_sizes,
+            gin_channels=gin_channels,
+        )
+        self.enc_q = PosteriorEncoder(
+            spec_channels, inter_channels, hidden_channels, 5, 1, 16, gin_channels=gin_channels
+        )
         self.flow = ResidualCouplingBlock(inter_channels, hidden_channels, 5, 1, 4, gin_channels=gin_channels)
 
         if use_sdp:
@@ -835,7 +936,7 @@ class SynthesizerTrn(nn.Module):
 
         x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths)
         if self.n_speakers > 0:
-            g = self.emb_g(sid).unsqueeze(-1) # [b, h, 1]
+            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
 
@@ -844,11 +945,15 @@ class SynthesizerTrn(nn.Module):
 
         with torch.no_grad():
             # negative cross-entropy
-            s_p_sq_r = torch.exp(-2 * logs_p) # [b, d, t]
-            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - logs_p, [1], keepdim=True) # [b, 1, t_s]
-            neg_cent2 = torch.matmul(-0.5 * (z_p ** 2).transpose(1, 2), s_p_sq_r) # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
-            neg_cent3 = torch.matmul(z_p.transpose(1, 2), (m_p * s_p_sq_r)) # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
-            neg_cent4 = torch.sum(-0.5 * (m_p ** 2) * s_p_sq_r, [1], keepdim=True) # [b, 1, t_s]
+            s_p_sq_r = torch.exp(-2 * logs_p)  # [b, d, t]
+            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - logs_p, [1], keepdim=True)  # [b, 1, t_s]
+            neg_cent2 = torch.matmul(
+                -0.5 * (z_p ** 2).transpose(1, 2), s_p_sq_r
+            )  # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
+            neg_cent3 = torch.matmul(
+                z_p.transpose(1, 2), (m_p * s_p_sq_r)
+            )  # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
+            neg_cent4 = torch.sum(-0.5 * (m_p ** 2) * s_p_sq_r, [1], keepdim=True)  # [b, 1, t_s]
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
             attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
@@ -861,7 +966,7 @@ class SynthesizerTrn(nn.Module):
         else:
             logw_ = torch.log(w + 1e-6) * x_mask
             logw = self.dp(x, x_mask, g=g)
-            l_length = torch.sum((logw - logw_)**2, [1,2]) / torch.sum(x_mask) # for averaging
+            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(x_mask)  # for averaging
 
         # expand prior
         m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2)
@@ -871,10 +976,10 @@ class SynthesizerTrn(nn.Module):
         o = self.dec(z_slice, g=g)
         return o, l_length, attn, ids_slice, x_mask, y_mask, (z, z_p, m_p, logs_p, m_q, logs_q)
 
-    def infer(self, x, x_lengths, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=None):
+    def infer(self, x, x_lengths, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=None):
         x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths)
         if self.n_speakers > 0:
-            g = self.emb_g(sid).unsqueeze(-1) # [b, h, 1]
+            g = self.emb_g(sid).unsqueeze(-1)  # [b, h, 1]
         else:
             g = None
 
@@ -889,12 +994,14 @@ class SynthesizerTrn(nn.Module):
         attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
         attn = generate_path(w_ceil, attn_mask)
 
-        m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
-        logs_p = torch.matmul(attn.squeeze(1), logs_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+        m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2)  # [b, t', t], [b, t, d] -> [b, d, t']
+        logs_p = torch.matmul(attn.squeeze(1), logs_p.transpose(1, 2)).transpose(
+            1, 2
+        )  # [b, t', t], [b, t, d] -> [b, d, t']
 
         z_p = m_p + torch.randn_like(m_p) * torch.exp(logs_p) * noise_scale
         z = self.flow(z_p, y_mask, g=g, reverse=True)
-        o = self.dec((z * y_mask)[:,:,:max_len], g=g)
+        o = self.dec((z * y_mask)[:, :, :max_len], g=g)
         return o, attn, y_mask, (z, z_p, m_p, logs_p)
 
     def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
@@ -907,12 +1014,14 @@ class SynthesizerTrn(nn.Module):
         o_hat = self.dec(z_hat * y_mask, g=g_tgt)
         return o_hat, y_mask, (z, z_p, z_hat)
 
+
 ##################
 # Mel_processing #
 ##################
 
 mel_basis = {}
 hann_window = {}
+
 
 def spec_to_mel_torch(spec, n_fft, num_mels, sampling_rate, fmin, fmax):
     global mel_basis
@@ -927,9 +1036,9 @@ def spec_to_mel_torch(spec, n_fft, num_mels, sampling_rate, fmin, fmax):
 
 
 def audio_to_mel_torch(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin, fmax, center=False):
-    if torch.min(y) < -1.:
+    if torch.min(y) < -1.0:
         print('min value is ', torch.min(y))
-    if torch.max(y) > 1.:
+    if torch.max(y) > 1.0:
         print('max value is ', torch.max(y))
 
     global mel_basis, hann_window
@@ -942,11 +1051,22 @@ def audio_to_mel_torch(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fm
     if wnsize_dtype_device not in hann_window:
         hann_window[wnsize_dtype_device] = torch.hann_window(win_size).to(dtype=y.dtype, device=y.device)
 
-    y = torch.nn.functional.pad(y.unsqueeze(1), (int((n_fft-hop_size)/2), int((n_fft-hop_size)/2)), mode='reflect')
+    y = torch.nn.functional.pad(
+        y.unsqueeze(1), (int((n_fft - hop_size) / 2), int((n_fft - hop_size) / 2)), mode='reflect'
+    )
     y = y.squeeze(1)
 
-    spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window[wnsize_dtype_device],
-                      center=center, pad_mode='reflect', normalized=False, onesided=True)
+    spec = torch.stft(
+        y,
+        n_fft,
+        hop_length=hop_size,
+        win_length=win_size,
+        window=hann_window[wnsize_dtype_device],
+        center=center,
+        pad_mode='reflect',
+        normalized=False,
+        onesided=True,
+    )
 
     spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-6)
 
@@ -960,6 +1080,7 @@ def audio_to_mel_torch(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fm
 # Commons #
 ###########
 
+
 def init_weights(m, mean=0.0, std=0.01):
     classname = m.__class__.__name__
     if classname.find("Conv") != -1:
@@ -967,7 +1088,7 @@ def init_weights(m, mean=0.0, std=0.01):
 
 
 def get_padding(kernel_size, dilation=1):
-    return int((kernel_size*dilation - dilation)/2)
+    return int((kernel_size * dilation - dilation) / 2)
 
 
 def convert_pad_shape(pad_shape):
@@ -985,7 +1106,7 @@ def intersperse(lst, item):
 def kl_divergence(m_p, logs_p, m_q, logs_q):
     """KL(P||Q)"""
     kl = (logs_q - logs_p) - 0.5
-    kl += 0.5 * (torch.exp(2. * logs_p) + ((m_p - m_q)**2)) * torch.exp(-2. * logs_q)
+    kl += 0.5 * (torch.exp(2.0 * logs_p) + ((m_p - m_q) ** 2)) * torch.exp(-2.0 * logs_q)
     return kl
 
 
@@ -1020,15 +1141,13 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
     return ret, ids_str
 
 
-def get_timing_signal_1d(
-        length, channels, min_timescale=1.0, max_timescale=1.0e4):
+def get_timing_signal_1d(length, channels, min_timescale=1.0, max_timescale=1.0e4):
     position = torch.arange(length, dtype=torch.float)
     num_timescales = channels // 2
-    log_timescale_increment = (
-            math.log(float(max_timescale) / float(min_timescale)) /
-            (num_timescales - 1))
+    log_timescale_increment = math.log(float(max_timescale) / float(min_timescale)) / (num_timescales - 1)
     inv_timescales = min_timescale * torch.exp(
-            torch.arange(num_timescales, dtype=torch.float) * -log_timescale_increment)
+        torch.arange(num_timescales, dtype=torch.float) * -log_timescale_increment
+    )
     scaled_time = position.unsqueeze(0) * inv_timescales.unsqueeze(1)
     signal = torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], 0)
     signal = F.pad(signal, [0, 0, 0, channels % 2])
@@ -1088,12 +1207,12 @@ def generate_path(duration, mask):
     """
     b, _, t_y, t_x = mask.shape
     cum_duration = torch.cumsum(duration, -1)
-    
+
     cum_duration_flat = cum_duration.view(b * t_x)
     path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
     path = path.view(b, t_x, t_y)
     path = path - F.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
-    path = path.unsqueeze(1).transpose(2,3) * mask
+    path = path.unsqueeze(1).transpose(2, 3) * mask
     return path
 
 
@@ -1111,7 +1230,7 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
         total_norm += param_norm.item() ** norm_type
         if clip_value is not None:
             p.grad.data.clamp_(min=-clip_value, max=clip_value)
-    total_norm = total_norm ** (1. / norm_type)
+    total_norm = total_norm ** (1.0 / norm_type)
     return total_norm
 
 
@@ -1119,7 +1238,17 @@ def clip_grad_value_(parameters, clip_value, norm_type=2):
 # Attentions #
 ##############
 class Encoder(nn.Module):
-    def __init__(self, hidden_channels, filter_channels, n_heads, n_layers, kernel_size=1, p_dropout=0., window_size=4, **kwargs):
+    def __init__(
+        self,
+        hidden_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size=1,
+        p_dropout=0.0,
+        window_size=4,
+        **kwargs
+    ):
         super().__init__()
         self.hidden_channels = hidden_channels
         self.filter_channels = filter_channels
@@ -1135,9 +1264,15 @@ class Encoder(nn.Module):
         self.ffn_layers = nn.ModuleList()
         self.norm_layers_2 = nn.ModuleList()
         for i in range(self.n_layers):
-            self.attn_layers.append(MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout, window_size=window_size))
+            self.attn_layers.append(
+                MultiHeadAttention(
+                    hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout, window_size=window_size
+                )
+            )
             self.norm_layers_1.append(LayerNorm(hidden_channels))
-            self.ffn_layers.append(FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout))
+            self.ffn_layers.append(
+                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout)
+            )
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
     def forward(self, x, x_mask):
@@ -1156,7 +1291,18 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_channels, filter_channels, n_heads, n_layers, kernel_size=1, p_dropout=0., proximal_bias=False, proximal_init=True, **kwargs):
+    def __init__(
+        self,
+        hidden_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size=1,
+        p_dropout=0.0,
+        proximal_bias=False,
+        proximal_init=True,
+        **kwargs
+    ):
         super().__init__()
         self.hidden_channels = hidden_channels
         self.filter_channels = filter_channels
@@ -1175,11 +1321,24 @@ class Decoder(nn.Module):
         self.ffn_layers = nn.ModuleList()
         self.norm_layers_2 = nn.ModuleList()
         for i in range(self.n_layers):
-            self.self_attn_layers.append(MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout, proximal_bias=proximal_bias, proximal_init=proximal_init))
+            self.self_attn_layers.append(
+                MultiHeadAttention(
+                    hidden_channels,
+                    hidden_channels,
+                    n_heads,
+                    p_dropout=p_dropout,
+                    proximal_bias=proximal_bias,
+                    proximal_init=proximal_init,
+                )
+            )
             self.norm_layers_0.append(LayerNorm(hidden_channels))
-            self.encdec_attn_layers.append(MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout))
+            self.encdec_attn_layers.append(
+                MultiHeadAttention(hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout)
+            )
             self.norm_layers_1.append(LayerNorm(hidden_channels))
-            self.ffn_layers.append(FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout, causal=True))
+            self.ffn_layers.append(
+                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout, causal=True)
+            )
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
     def forward(self, x, x_mask, h, h_mask):
@@ -1187,7 +1346,12 @@ class Decoder(nn.Module):
         x: decoder input
         h: encoder output
         """
-        self_attn_mask = torch.tril(torch.ones(x_mask.size(2), x_mask.size(2))).unsqueeze(0).unsqueeze(0).to(device=x.device, dtype=x.dtype)
+        self_attn_mask = (
+            torch.tril(torch.ones(x_mask.size(2), x_mask.size(2)))
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .to(device=x.device, dtype=x.dtype)
+        )
         encdec_attn_mask = h_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
         x = x * x_mask
         for i in range(self.n_layers):
@@ -1198,7 +1362,7 @@ class Decoder(nn.Module):
             y = self.encdec_attn_layers[i](x, h, encdec_attn_mask)
             y = self.drop(y)
             x = self.norm_layers_1[i](x + y)
-            
+
             y = self.ffn_layers[i](x, x_mask)
             y = self.drop(y)
             x = self.norm_layers_2[i](x + y)
@@ -1207,7 +1371,18 @@ class Decoder(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, channels, out_channels, n_heads, p_dropout=0., window_size=None, heads_share=True, block_length=None, proximal_bias=False, proximal_init=False):
+    def __init__(
+        self,
+        channels,
+        out_channels,
+        n_heads,
+        p_dropout=0.0,
+        window_size=None,
+        heads_share=True,
+        block_length=None,
+        proximal_bias=False,
+        proximal_init=False,
+    ):
         super().__init__()
         assert channels % n_heads == 0
 
@@ -1231,7 +1406,7 @@ class MultiHeadAttention(nn.Module):
 
         if window_size is not None:
             n_heads_rel = 1 if heads_share else n_heads
-            rel_stddev = self.k_channels**-0.5
+            rel_stddev = self.k_channels ** -0.5
             self.emb_rel_k = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
             self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
 
@@ -1242,12 +1417,12 @@ class MultiHeadAttention(nn.Module):
             with torch.no_grad():
                 self.conv_k.weight.copy_(self.conv_q.weight)
                 self.conv_k.bias.copy_(self.conv_q.bias)
-            
+
     def forward(self, x, c, attn_mask=None):
         q = self.conv_q(x)
         k = self.conv_k(c)
         v = self.conv_v(c)
-        
+
         x, self.attn = self.attention(q, k, v, mask=attn_mask)
 
         x = self.conv_o(x)
@@ -1264,7 +1439,7 @@ class MultiHeadAttention(nn.Module):
         if self.window_size is not None:
             assert t_s == t_t, "Relative attention is only available for self-attention."
             key_relative_embeddings = self._get_relative_embeddings(self.emb_rel_k, t_s)
-            rel_logits = self._matmul_with_relative_keys(query /math.sqrt(self.k_channels), key_relative_embeddings)
+            rel_logits = self._matmul_with_relative_keys(query / math.sqrt(self.k_channels), key_relative_embeddings)
             scores_local = self._relative_position_to_absolute_position(rel_logits)
             scores = scores + scores_local
         if self.proximal_bias:
@@ -1276,14 +1451,14 @@ class MultiHeadAttention(nn.Module):
                 assert t_s == t_t, "Local attention is only available for self-attention."
                 block_mask = torch.ones_like(scores).triu(-self.block_length).tril(self.block_length)
                 scores = scores.masked_fill(block_mask == 0, -1e4)
-        p_attn = F.softmax(scores, dim=-1) # [b, n_h, t_t, t_s]
+        p_attn = F.softmax(scores, dim=-1)  # [b, n_h, t_t, t_s]
         p_attn = self.drop(p_attn)
         output = torch.matmul(p_attn, value)
         if self.window_size is not None:
             relative_weights = self._absolute_position_to_relative_position(p_attn)
             value_relative_embeddings = self._get_relative_embeddings(self.emb_rel_v, t_s)
             output = output + self._matmul_with_relative_values(relative_weights, value_relative_embeddings)
-        output = output.transpose(2, 3).contiguous().view(b, d, t_t) # [b, n_h, t_t, d_k] -> [b, d, t_t]
+        output = output.transpose(2, 3).contiguous().view(b, d, t_t)  # [b, n_h, t_t, d_k] -> [b, d, t_t]
         return output, p_attn
 
     def _matmul_with_relative_values(self, x, y):
@@ -1311,11 +1486,11 @@ class MultiHeadAttention(nn.Module):
         slice_end_position = slice_start_position + 2 * length - 1
         if pad_length > 0:
             padded_relative_embeddings = F.pad(
-                    relative_embeddings,
-                    convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]))
+                relative_embeddings, convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]])
+            )
         else:
             padded_relative_embeddings = relative_embeddings
-        used_relative_embeddings = padded_relative_embeddings[:,slice_start_position:slice_end_position]
+        used_relative_embeddings = padded_relative_embeddings[:, slice_start_position:slice_end_position]
         return used_relative_embeddings
 
     def _relative_position_to_absolute_position(self, x):
@@ -1325,14 +1500,14 @@ class MultiHeadAttention(nn.Module):
         """
         batch, heads, length, _ = x.size()
         # Concat columns of pad to shift from relative to absolute indexing.
-        x = F.pad(x, convert_pad_shape([[0,0],[0,0],[0,0],[0,1]]))
+        x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, 1]]))
 
         # Concat extra elements so to add up to shape (len+1, 2*len-1).
         x_flat = x.view([batch, heads, length * 2 * length])
-        x_flat = F.pad(x_flat, convert_pad_shape([[0,0],[0,0],[0,length-1]]))
+        x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [0, length - 1]]))
 
         # Reshape and slice out the padded elements.
-        x_final = x_flat.view([batch, heads, length+1, 2*length-1])[:, :, :length, length-1:]
+        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1 :]
         return x_final
 
     def _absolute_position_to_relative_position(self, x):
@@ -1342,11 +1517,11 @@ class MultiHeadAttention(nn.Module):
         """
         batch, heads, length, _ = x.size()
         # padd along column
-        x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, length-1]]))
-        x_flat = x.view([batch, heads, length**2 + length*(length -1)])
+        x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, length - 1]]))
+        x_flat = x.view([batch, heads, length ** 2 + length * (length - 1)])
         # add 0's in the beginning that will skew the elements after reshape
         x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [length, 0]]))
-        x_final = x_flat.view([batch, heads, length, 2*length])[:,:,:,1:]
+        x_final = x_flat.view([batch, heads, length, 2 * length])[:, :, :, 1:]
         return x_final
 
     def _attention_bias_proximal(self, length):
@@ -1362,7 +1537,9 @@ class MultiHeadAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0., activation=None, causal=False):
+    def __init__(
+        self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0, activation=None, causal=False
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -1390,7 +1567,7 @@ class FFN(nn.Module):
         x = self.drop(x)
         x = self.conv_2(self.padding(x * x_mask))
         return x * x_mask
-    
+
     def _causal_padding(self, x):
         if self.kernel_size == 1:
             return x
@@ -1419,59 +1596,57 @@ DEFAULT_MIN_BIN_HEIGHT = 1e-3
 DEFAULT_MIN_DERIVATIVE = 1e-3
 
 
-def piecewise_rational_quadratic_transform(inputs, 
-                                           unnormalized_widths,
-                                           unnormalized_heights,
-                                           unnormalized_derivatives,
-                                           inverse=False,
-                                           tails=None, 
-                                           tail_bound=1.,
-                                           min_bin_width=DEFAULT_MIN_BIN_WIDTH,
-                                           min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
-                                           min_derivative=DEFAULT_MIN_DERIVATIVE):
+def piecewise_rational_quadratic_transform(
+    inputs,
+    unnormalized_widths,
+    unnormalized_heights,
+    unnormalized_derivatives,
+    inverse=False,
+    tails=None,
+    tail_bound=1.0,
+    min_bin_width=DEFAULT_MIN_BIN_WIDTH,
+    min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
+    min_derivative=DEFAULT_MIN_DERIVATIVE,
+):
 
     if tails is None:
         spline_fn = rational_quadratic_spline
         spline_kwargs = {}
     else:
         spline_fn = unconstrained_rational_quadratic_spline
-        spline_kwargs = {
-            'tails': tails,
-            'tail_bound': tail_bound
-        }
+        spline_kwargs = {'tails': tails, 'tail_bound': tail_bound}
 
     outputs, logabsdet = spline_fn(
-            inputs=inputs,
-            unnormalized_widths=unnormalized_widths,
-            unnormalized_heights=unnormalized_heights,
-            unnormalized_derivatives=unnormalized_derivatives,
-            inverse=inverse,
-            min_bin_width=min_bin_width,
-            min_bin_height=min_bin_height,
-            min_derivative=min_derivative,
-            **spline_kwargs
+        inputs=inputs,
+        unnormalized_widths=unnormalized_widths,
+        unnormalized_heights=unnormalized_heights,
+        unnormalized_derivatives=unnormalized_derivatives,
+        inverse=inverse,
+        min_bin_width=min_bin_width,
+        min_bin_height=min_bin_height,
+        min_derivative=min_derivative,
+        **spline_kwargs
     )
     return outputs, logabsdet
 
 
 def searchsorted(bin_locations, inputs, eps=1e-6):
     bin_locations[..., -1] += eps
-    return torch.sum(
-        inputs[..., None] >= bin_locations,
-        dim=-1
-    ) - 1
+    return torch.sum(inputs[..., None] >= bin_locations, dim=-1) - 1
 
 
-def unconstrained_rational_quadratic_spline(inputs,
-                                            unnormalized_widths,
-                                            unnormalized_heights,
-                                            unnormalized_derivatives,
-                                            inverse=False,
-                                            tails='linear',
-                                            tail_bound=1.,
-                                            min_bin_width=DEFAULT_MIN_BIN_WIDTH,
-                                            min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
-                                            min_derivative=DEFAULT_MIN_DERIVATIVE):
+def unconstrained_rational_quadratic_spline(
+    inputs,
+    unnormalized_widths,
+    unnormalized_heights,
+    unnormalized_derivatives,
+    inverse=False,
+    tails='linear',
+    tail_bound=1.0,
+    min_bin_width=DEFAULT_MIN_BIN_WIDTH,
+    min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
+    min_derivative=DEFAULT_MIN_DERIVATIVE,
+):
     inside_interval_mask = (inputs >= -tail_bound) & (inputs <= tail_bound)
     outside_interval_mask = ~inside_interval_mask
 
@@ -1495,23 +1670,32 @@ def unconstrained_rational_quadratic_spline(inputs,
         unnormalized_heights=unnormalized_heights[inside_interval_mask, :],
         unnormalized_derivatives=unnormalized_derivatives[inside_interval_mask, :],
         inverse=inverse,
-        left=-tail_bound, right=tail_bound, bottom=-tail_bound, top=tail_bound,
+        left=-tail_bound,
+        right=tail_bound,
+        bottom=-tail_bound,
+        top=tail_bound,
         min_bin_width=min_bin_width,
         min_bin_height=min_bin_height,
-        min_derivative=min_derivative
+        min_derivative=min_derivative,
     )
 
     return outputs, logabsdet
 
-def rational_quadratic_spline(inputs,
-                              unnormalized_widths,
-                              unnormalized_heights,
-                              unnormalized_derivatives,
-                              inverse=False,
-                              left=0., right=1., bottom=0., top=1.,
-                              min_bin_width=DEFAULT_MIN_BIN_WIDTH,
-                              min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
-                              min_derivative=DEFAULT_MIN_DERIVATIVE):
+
+def rational_quadratic_spline(
+    inputs,
+    unnormalized_widths,
+    unnormalized_heights,
+    unnormalized_derivatives,
+    inverse=False,
+    left=0.0,
+    right=1.0,
+    bottom=0.0,
+    top=1.0,
+    min_bin_width=DEFAULT_MIN_BIN_WIDTH,
+    min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
+    min_derivative=DEFAULT_MIN_DERIVATIVE,
+):
     if torch.min(inputs) < left or torch.max(inputs) > right:
         raise ValueError('Input to a transform is not within its domain')
 
@@ -1560,15 +1744,13 @@ def rational_quadratic_spline(inputs,
     input_heights = heights.gather(-1, bin_idx)[..., 0]
 
     if inverse:
-        a = (((inputs - input_cumheights) * (input_derivatives
-                                             + input_derivatives_plus_one
-                                             - 2 * input_delta)
-              + input_heights * (input_delta - input_derivatives)))
-        b = (input_heights * input_derivatives
-             - (inputs - input_cumheights) * (input_derivatives
-                                              + input_derivatives_plus_one
-                                              - 2 * input_delta))
-        c = - input_delta * (inputs - input_cumheights)
+        a = (inputs - input_cumheights) * (
+            input_derivatives + input_derivatives_plus_one - 2 * input_delta
+        ) + input_heights * (input_delta - input_derivatives)
+        b = input_heights * input_derivatives - (inputs - input_cumheights) * (
+            input_derivatives + input_derivatives_plus_one - 2 * input_delta
+        )
+        c = -input_delta * (inputs - input_cumheights)
 
         discriminant = b.pow(2) - 4 * a * c
         assert (discriminant >= 0).all()
@@ -1577,11 +1759,14 @@ def rational_quadratic_spline(inputs,
         outputs = root * input_bin_widths + input_cumwidths
 
         theta_one_minus_theta = root * (1 - root)
-        denominator = input_delta + ((input_derivatives + input_derivatives_plus_one - 2 * input_delta)
-                                     * theta_one_minus_theta)
-        derivative_numerator = input_delta.pow(2) * (input_derivatives_plus_one * root.pow(2)
-                                                     + 2 * input_delta * theta_one_minus_theta
-                                                     + input_derivatives * (1 - root).pow(2))
+        denominator = input_delta + (
+            (input_derivatives + input_derivatives_plus_one - 2 * input_delta) * theta_one_minus_theta
+        )
+        derivative_numerator = input_delta.pow(2) * (
+            input_derivatives_plus_one * root.pow(2)
+            + 2 * input_delta * theta_one_minus_theta
+            + input_derivatives * (1 - root).pow(2)
+        )
         logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
 
         return outputs, -logabsdet
@@ -1589,15 +1774,17 @@ def rational_quadratic_spline(inputs,
         theta = (inputs - input_cumwidths) / input_bin_widths
         theta_one_minus_theta = theta * (1 - theta)
 
-        numerator = input_heights * (input_delta * theta.pow(2)
-                                     + input_derivatives * theta_one_minus_theta)
-        denominator = input_delta + ((input_derivatives + input_derivatives_plus_one - 2 * input_delta)
-                                     * theta_one_minus_theta)
+        numerator = input_heights * (input_delta * theta.pow(2) + input_derivatives * theta_one_minus_theta)
+        denominator = input_delta + (
+            (input_derivatives + input_derivatives_plus_one - 2 * input_delta) * theta_one_minus_theta
+        )
         outputs = input_cumheights + numerator / denominator
 
-        derivative_numerator = input_delta.pow(2) * (input_derivatives_plus_one * theta.pow(2)
-                                                     + 2 * input_delta * theta_one_minus_theta
-                                                     + input_derivatives * (1 - theta).pow(2))
+        derivative_numerator = input_delta.pow(2) * (
+            input_derivatives_plus_one * theta.pow(2)
+            + 2 * input_delta * theta_one_minus_theta
+            + input_derivatives * (1 - theta).pow(2)
+        )
         logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
 
         return outputs, logabsdet
