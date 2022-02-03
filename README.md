@@ -1913,5 +1913,8 @@ Performance for different model sizes in offline scenario
 ## 7. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
-**January 2022**
-* Early access release
+**NeMo Megatron 22.01**
+* GPT-3 with tensor parallelism support on Base Command Platform
+* O2-style AMP (accelerated training of larger models)
+* Chatbot sample application using your trained GPT-3 model
+* Training metric monitoring and visualization with Weights & Biases
