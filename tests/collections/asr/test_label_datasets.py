@@ -40,9 +40,6 @@ class TestASRDatasets:
 
         assert len(ds_braceexpand) == 32
         count = 0
-        import pdb
-
-        pdb.set_trace()
         for _ in ds_braceexpand:
             count += 1
         assert count == 32
