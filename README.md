@@ -1901,3 +1901,4 @@ Performance for different model sizes in offline scenario
 * GPT-3 with tensor parallelism support on Base Command Platform
 * O2-style AMP (accelerated training of larger models)
 * Chatbot sample application using your trained GPT-3 model
+* Training metric monitoring and visualization with Weights & Biases
