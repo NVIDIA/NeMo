@@ -276,10 +276,13 @@ def pad_and_convert_to_numpy(
     tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
     # Create attention masks
-    enc_mask = make_attention_mask(tokens_enc, tokens_enc, pad_id)
-    enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc, pad_id)
-    dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
-    dec_mask = dec_mask * make_history_mask(tokens_dec_in)
+    # enc_mask = make_attention_mask(tokens_enc, tokens_enc, pad_id)
+    # enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc, pad_id)
+    # dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
+    # dec_mask = dec_mask * make_history_mask(tokens_dec_in)
+
+    enc_mask = tokens_enc != pad_id
+    dec_mask = tokens_dec != pad_id
 
     # Labels mask.
     labels = t5_decoder_out + ([-1] * padding_length_dec)
@@ -289,7 +292,8 @@ def pad_and_convert_to_numpy(
     loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
-    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
+    # return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
+    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
 
 
 def make_attention_mask(source_block, target_block, pad_id):
