@@ -16,10 +16,7 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
-    NEMO_CHAR,
-    NEMO_SIGMA,
     GraphFst,
-    insert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
@@ -56,7 +53,7 @@ class RomanFst(GraphFst):
             + names
             + pynutil.insert("\"")
             + pynini.accep(" ")
-            + pynini.compose(pynini.union("I", "II", "III", "IV"), default_graph)
+            + pynini.compose(pynini.union("I", "II", "III", "IV", "V", "VI", "VII"), default_graph)
         ).optimize()
         key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
 
