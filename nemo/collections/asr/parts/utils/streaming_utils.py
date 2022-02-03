@@ -976,7 +976,6 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 raise ValueError("Signal did not end")
 
             for a_idx, alignment in enumerate(alignments):
-                # len(alignment) - 1 - delay + tokens_per_chunk
                 alignment = alignment[len(alignment) - 1 - delay: len(alignment) - 1 - delay + tokens_per_chunk]
 
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
