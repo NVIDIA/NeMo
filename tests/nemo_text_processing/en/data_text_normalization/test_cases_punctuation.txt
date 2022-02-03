@@ -15,3 +15,4 @@ abbreviation USA,~abbreviation u s a,
 April 29th’s meeting~april twenty ninth’s meeting
 ?,~?,
 ?,no~?,no
+I've 20' and 14/ they're I'm 16c.~I've twenty' and fourteen/ they're I'm one six c.

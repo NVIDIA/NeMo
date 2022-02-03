@@ -111,7 +111,7 @@ def resolve_audio_filepaths(args):
     else:
         # get filenames from manifest
         filepaths = []
-        with open(args.dataset_manifest, 'r') as f:
+        with open(args.dataset_manifest, 'r', encoding='utf-8') as f:
             for line in f:
                 item = json.loads(line)
                 filepaths.append(item['audio_filepath'])
@@ -147,7 +147,7 @@ def main():
 
     # Evaluate ONNX model (on CPU)
     with tempfile.TemporaryDirectory() as tmpdir:
-        with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+        with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
             for audio_file in audio_filepath:
                 entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                 fp.write(json.dumps(entry) + '\n')

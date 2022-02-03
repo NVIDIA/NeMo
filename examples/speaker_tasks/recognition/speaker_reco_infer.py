@@ -119,7 +119,7 @@ def main():
 
     out_manifest = os.path.basename(args.test_manifest).split('.')[0] + '_infer.json'
     out_manifest = os.path.join(os.path.dirname(args.test_manifest), out_manifest)
-    with open(args.test_manifest, 'rb') as f1, open(out_manifest, 'w') as f2:
+    with open(args.test_manifest, 'rb') as f1, open(out_manifest, 'w', encoding='utf-8') as f2:
         lines = f1.readlines()
         for idx, line in enumerate(lines):
             line = line.strip()

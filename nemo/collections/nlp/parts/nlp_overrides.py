@@ -65,12 +65,12 @@ class NLPDDPPlugin(DDPPlugin):
         no_ddp_communication_hook: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
-        super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
-
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
+
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -147,12 +147,13 @@ class NLPDDPPlugin(DDPPlugin):
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
-        if isinstance(self.lightning_module.model, Float16Module):
-            new_state_dict = {}
-            for key in checkpoint['state_dict'].keys():
-                new_key = key.replace('model.', 'model.module.', 1)
-                new_state_dict[new_key] = checkpoint['state_dict'][key]
-            checkpoint['state_dict'] = new_state_dict
+        if hasattr(self.lightning_module, 'model'):
+            if isinstance(self.lightning_module.model, Float16Module):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
 
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
@@ -202,11 +203,11 @@ class NLPDDPPlugin(DDPPlugin):
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
-        super().__init__()
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
+        super().__init__()
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
