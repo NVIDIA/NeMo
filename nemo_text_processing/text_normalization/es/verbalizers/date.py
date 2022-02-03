@@ -56,6 +56,7 @@ class DateFst(GraphFst):
         month = pynutil.delete("month: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
         year = pynutil.delete("year: \"") + articles + NEMO_SPACE + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        year = pynutil.add_weight(year, -0.001)
 
         # Insert preposition if wasn't originally with the year. This would mean a space was present
         year |= pynutil.delete("year: \"") + pynutil.insert("de ") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")

@@ -73,9 +73,8 @@ class FractionFst(GraphFst):
 			 ])
 			+ pynutil.delete("\" morphosyntactic_features: \"add_root\""))
 
-		# The denominator must be a single word, with the conjunction "y" replaced by i
-		merge = delete_space | pynini.cross(" y ", "i")
-		merge = pynini.cdrewrite(merge, "", pynini.difference(NEMO_CHAR, "p"), NEMO_SIGMA) # The "p" will only show up for "parte"
+		merge = pynini.cdrewrite(pynini.cross(" y ", "i"), "", "", NEMO_SIGMA) # The denominator must be a single word, with the conjunction "y" replaced by i
+		merge = merge @ pynini.cdrewrite(delete_space, "", pynini.difference(NEMO_CHAR, "p"), NEMO_SIGMA) # The "p" will only show up for "parte"
 		# The merger can produce duplicate vowels. This is not allowed in orthography
 		delete_duplicates = pynini.string_map([ # Removes vowels
 			("aa", "a"),
