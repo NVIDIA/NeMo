@@ -108,5 +108,6 @@ class MoneyFst(GraphFst):
         graph_decimal = graph_decimal_final + delete_extra_space + graph_unit_plural
         graph_decimal |= pynutil.insert("currency: \"$\" integer_part: \"0\" ") + cents_standalone
         final_graph = graph_integer | graph_decimal
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

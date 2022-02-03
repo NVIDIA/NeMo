@@ -135,6 +135,7 @@ class TestASRDatasets:
 
         logging._logger.propagate = False
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_tarred_bpe_dataset(self, test_data_dir):
         manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
@@ -174,7 +175,7 @@ class TestASRDatasets:
         texts = []
 
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r') as m:
+            with open(manifest_path, 'r', encoding='utf-8') as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break
@@ -262,7 +263,7 @@ class TestASRDatasets:
         tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
 
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r') as m:
+            with open(manifest_path, 'r', encoding='utf-8') as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break

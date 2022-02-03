@@ -35,7 +35,14 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish, "silu": nn.SiLU}
+jasper_activations = {
+    "hardtanh": nn.Hardtanh,
+    "relu": nn.ReLU,
+    "selu": nn.SELU,
+    "swish": Swish,
+    "silu": nn.SiLU,
+    "gelu": nn.GELU,
+}
 
 
 def tds_uniform_(tensor, mode='fan_in'):
@@ -180,12 +187,14 @@ def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch
     if timesteps < context_window:
         y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
     else:
-        x = x[:, :, :context_window]  # [B, C, context_window]
-        mask = mask[:, :, :context_window]  # [B, 1, context_window]
-
-        mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
-        y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
-        y = y / (mask + 1e-8)  # [B, C, 1]
+        # << During inference prefer to use entire context >>
+        # x = x[:, :, :context_window]  # [B, C, context_window]
+        # mask = mask[:, :, :context_window]  # [B, 1, context_window]
+        #
+        # mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
+        # y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
+        # y = y / (mask + 1e-8)  # [B, C, 1]
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
 
     return y
 
@@ -342,9 +351,13 @@ class MaskedConv1d(nn.Module):
 
     def forward(self, x, lens):
         if self.use_mask:
-            x, lens = self.update_masked_length(x, lens)
-        else:
-            lens = self.get_seq_len(lens)
+            # Generally will be called by ConvASREncoder, but kept as single gpu backup.
+            if x.size(2) > self.max_len:
+                self.update_masked_length(x.size(2), device=lens.device)
+            x = self.mask_input(x, lens)
+
+        # Update lengths
+        lens = self.get_seq_len(lens)
 
         # asymmtric pad if necessary
         if self.pad_layer is not None:
@@ -361,14 +374,15 @@ class MaskedConv1d(nn.Module):
 
         return out, lens
 
-    def update_masked_length(self, x, lens):
-        max_len = x.size(2)
+    def update_masked_length(self, max_len, device):
         self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
-        self.lens = self.lens.to(lens.device)
-        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+        self.lens = self.lens.to(device)
+
+    def mask_input(self, x, lens):
+        max_len = x.size(2)
+        mask = self.lens[:max_len].unsqueeze(0).to(lens.device) < lens.unsqueeze(1)
         x = x * mask.unsqueeze(1).to(device=x.device)
-        lens = self.get_seq_len(lens)
-        return x, lens
+        return x
 
 
 class GroupShuffle(nn.Module):
@@ -451,10 +465,6 @@ class SqueezeExcite(nn.Module):
         self.set_max_len(1)
 
     def forward(self, x, lengths):
-        max_audio_length: int = x.size(-1)
-        if max_audio_length > self.max_len:
-            self.set_max_len(max_audio_length)
-
         return self.forward_for_export(x, lengths)
 
     def forward_for_export(self, x, lengths):

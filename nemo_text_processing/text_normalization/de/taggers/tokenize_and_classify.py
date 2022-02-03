@@ -16,7 +16,7 @@ import os
 
 from nemo_text_processing.text_normalization.de.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.de.taggers.date import DateFst
-from nemo_text_processing.text_normalization.de.taggers.decimals import DecimalFst
+from nemo_text_processing.text_normalization.de.taggers.decimal import DecimalFst
 from nemo_text_processing.text_normalization.de.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.de.taggers.fraction import FractionFst
 from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
@@ -25,6 +25,7 @@ from nemo_text_processing.text_normalization.de.taggers.ordinal import OrdinalFs
 from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.de.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.de.taggers.whitelist import WhiteListFst
+from nemo_text_processing.text_normalization.de.taggers.word import WordFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -32,7 +33,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     generator_main,
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 
 from nemo.utils import logging
 
@@ -69,10 +69,6 @@ class ClassifyFst(GraphFst):
         whitelist: str = None,
     ):
         super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
-        if deterministic:
-            raise ValueError(
-                'German TN only supports non-deterministic cases and produces multiple normalization options.'
-            )
         far_file = None
         if cache_dir is not None and cache_dir != "None":
             os.makedirs(cache_dir, exist_ok=True)

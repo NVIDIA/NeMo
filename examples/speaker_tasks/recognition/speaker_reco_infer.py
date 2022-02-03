@@ -54,7 +54,7 @@ can_gpu = torch.cuda.is_available()
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--spkr_model", type=str, default="ecapa_tdnn", required=True, help="Pass your trained .nemo model",
+        "--spkr_model", type=str, default="titanet_large", required=True, help="Pass your trained .nemo model",
     )
     parser.add_argument(
         "--train_manifest", type=str, required=True, help="path to train manifest file to match labels"
@@ -119,7 +119,7 @@ def main():
 
     out_manifest = os.path.basename(args.test_manifest).split('.')[0] + '_infer.json'
     out_manifest = os.path.join(os.path.dirname(args.test_manifest), out_manifest)
-    with open(args.test_manifest, 'rb') as f1, open(out_manifest, 'w') as f2:
+    with open(args.test_manifest, 'rb') as f1, open(out_manifest, 'w', encoding='utf-8') as f2:
         lines = f1.readlines()
         for idx, line in enumerate(lines):
             line = line.strip()

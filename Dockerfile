@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.11-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:21.12-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -75,7 +75,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.6.0
+ARG NEMO_VERSION=1.7.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
@@ -90,7 +90,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
 
 # TODO: Try to remove once 21.07 container is the base container
 # install pinned numba version
-RUN conda install -c numba numba=0.54.1
+RUN conda install -c conda-forge numba=0.54.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
@@ -102,4 +102,3 @@ COPY tutorials /workspace/nemo/tutorials
 
 RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
     chmod +x start-jupyter.sh
-

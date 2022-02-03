@@ -14,6 +14,7 @@
 
 import pytest
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
 from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
@@ -23,6 +24,11 @@ class TestMath:
     normalizer_en = (
         Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE
+        else None
+    )
+    normalizer_with_audio_en = (
+        NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
+        if PYNINI_AVAILABLE and CACHE_DIR
         else None
     )
 
@@ -36,3 +42,9 @@ class TestMath:
     def test_norm(self, test_input, expected):
         pred = self.normalizer_en.normalize(test_input, verbose=False)
         assert pred == expected
+
+        if self.normalizer_with_audio_en:
+            pred_non_deterministic = self.normalizer_with_audio_en.normalize(
+                test_input, n_tagged=30, punct_post_process=False,
+            )
+            assert expected in pred_non_deterministic

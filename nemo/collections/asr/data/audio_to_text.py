@@ -15,7 +15,7 @@ import io
 import math
 import os
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, Iterable, List, Optional, Union
 
 import braceexpand
 import librosa
@@ -24,6 +24,7 @@ import torch
 import webdataset as wd
 from scipy.stats import betabinom
 from torch.nn import functional as F
+from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.common.parts.preprocessing import collections, parsers
@@ -31,6 +32,7 @@ from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 __all__ = [
     'AudioToCharDataset',
@@ -165,7 +167,7 @@ class _AudioTextDataset(Dataset):
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
     Args:
         manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
-        labels: String containing all the possible characters to map to
+        parser: Str for a language specific preprocessor or a callable.
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
         augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded
@@ -173,11 +175,10 @@ class _AudioTextDataset(Dataset):
         max_duration: If audio exceeds this length, do not include in dataset
         min_duration: If audio is less than this length, do not include in dataset
         max_utts: Limit number of utterances
-        blank_index: blank character index, default = -1
-        unk_index: unk_character index, default = -1
-        normalize: whether to normalize transcript text (default): True
+        trim: whether or not to trim silence. Defaults to False
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
+        pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
@@ -343,6 +344,7 @@ class AudioToCharDataset(_AudioTextDataset):
         )
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -570,6 +572,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         )
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithPriorDataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -674,6 +677,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         return audio, audio_len, text, text_len, attn_prior
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -746,6 +750,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class FastPitchDataset(_AudioTextDataset):
     """
     Dataset used for FastPitch that has both duration and pitch information per input char.
@@ -1072,7 +1077,6 @@ class _TarredAudioToTextDataset(IterableDataset):
 
             elif shard_strategy == 'replicate':
                 logging.info("All tarred dataset shards will be replicated across all nodes.")
-
             else:
                 raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
@@ -1444,3 +1448,65 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
             world_size=world_size,
             return_sample_id=return_sample_id,
         )
+
+
+class BucketingDataset(IterableDataset):
+    """
+    A Dataset which wraps another IterableDataset and adopts it for bucketing
+    Args:
+        dataset (IterableDataset): The IterableDataset to get wrapped
+        bucketing_batch_size (int): Number of samples to build a batch
+    """
+
+    def __init__(
+        self, dataset: IterableDataset, bucketing_batch_size: int,
+    ):
+        self.wrapped_dataset = dataset
+        self.bucketing_batch_size = bucketing_batch_size
+        super().__init__()
+
+    def _collate_fn(self, batch):
+        return _speech_collate_fn(batch[0], self.wrapped_dataset.pad_id)
+
+    def __iter__(self):
+        return BucketingIterator(
+            wrapped_iter=self.wrapped_dataset._dataset.__iter__(), bucketing_batch_size=self.bucketing_batch_size
+        ).__iter__()
+
+    def __len__(self):
+        return int(math.ceil(len(self.wrapped_dataset.collection) / float(self.bucketing_batch_size)))
+
+
+class BucketingIterator:
+    def __init__(self, wrapped_iter, bucketing_batch_size):
+        self.wrapped_iter = wrapped_iter
+        self.bucketing_batch_size = bucketing_batch_size
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        batches = []
+        for idx in range(self.bucketing_batch_size):
+            try:
+                sample = next(self.wrapped_iter)
+            except StopIteration:
+                break
+            batches.append(sample)
+        if len(batches) == 0:
+            raise StopIteration
+        return batches
+
+
+class RandomizedChainDataset(ChainDataset):
+    def __init__(self, datasets: Iterable[Dataset], rnd_seed=0) -> None:
+        super(RandomizedChainDataset, self).__init__(list(datasets))
+        self.rnd_gen = np.random.RandomState(rnd_seed)
+
+    def __iter__(self):
+        shuffled_order = self.rnd_gen.permutation(len(self.datasets))
+        for dataset_idx in shuffled_order:
+            d = self.datasets[dataset_idx]
+            assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
+            for x in d:
+                yield x

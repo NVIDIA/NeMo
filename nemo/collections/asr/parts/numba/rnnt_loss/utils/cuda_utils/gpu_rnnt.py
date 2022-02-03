@@ -46,7 +46,8 @@ class GPURNNT:
         alphabet_size: int,
         workspace,
         blank: int,
-        fastemit_lambda,
+        fastemit_lambda: float,
+        clamp: float,
         num_threads: int,
         stream,
     ):
@@ -63,6 +64,7 @@ class GPURNNT:
             blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
             fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
                 FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+            clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
             num_threads: Number of OMP threads to launch.
             stream: Numba Cuda Stream.
         """
@@ -75,6 +77,7 @@ class GPURNNT:
         )  # a flat vector of floatX numbers that represents allocated memory slices
         self.blank_ = blank
         self.fastemit_lambda_ = fastemit_lambda
+        self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
         self.stream_ = stream  # type: cuda.cudadrv.driver.Stream
 
@@ -220,6 +223,7 @@ class GPURNNT:
                 self.alphabet_size_,
                 self.blank_,
                 self.fastemit_lambda_,
+                self.clamp_,
             )
 
         # // cost
