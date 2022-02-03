@@ -1,13 +1,13 @@
 run:
   name: 20b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "8-00:00:00"
+  time_limit: "4:00:00"
   dependency: "singleton"
 
 
 trainer:
-  gpus: ${training.slurm.ntasks_per_node}
-  num_nodes: ${training.slurm.nodes}
+  gpus: 8
+  num_nodes: 80
   accelerator: ddp
   precision: bf16
   amp_backend: native
@@ -29,9 +29,9 @@ exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
   name: megatron_gpt
-  create_wandb_logger: False
+  create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_gpt3_prod_tests
+    project: nemo_gpt3
     name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -110,7 +110,7 @@ model:
     sched:
       name: CosineAnnealing
       warmup_steps: 190
-      constant_steps: 10000
+      constant_steps: 20000
       min_lr: 1e-5
 
   data:
