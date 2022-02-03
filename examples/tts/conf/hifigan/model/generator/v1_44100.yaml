@@ -1,4 +1,3 @@
-# @package _group_
 _target_: nemo.collections.tts.modules.hifigan_modules.Generator
 resblock: 1
 upsample_rates: [8,8,4,2]
