@@ -49,46 +49,6 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def create_bcp_submit_cmd(
-    job_name,
-    container,
-    workspace_common,
-    workspace_scripts,
-    bignlp_path,
-    bcp_script,
-    instance,
-    num_nodes,
-    array_type="PYTORCH",
-    total_runtime="10H"
-):
-    base_cmd = f"cd {bignlp_path}; {bcp_script}"
-    if (num_nodes == 1):
-        num_nodes = 2  # bcprun needs at least 2 nodes
-    submit_cmd = f"ngc batch run --name \"{job_name}\" --image \"{container}\" \
-    --commandline \"{base_cmd}\" --workspace {workspace_common}:/workspace-common \
-    --workspace {workspace_scripts}:/workspace-scripts --result /result \
-    --preempt RUNONCE --instance {instance} --replicas {num_nodes} \
-    --array-type {array_type} --total-runtime {total_runtime}"
-    
-    return submit_cmd        
-
-def create_bcp_file(
-    bignlp_path,
-    new_script_path,
-    eval_cmd1,
-    eval_cmd2,
-    num_nodes,
-    ntasks_per_node,
-    log_file,
-    err_file
-):        
-    with open(new_script_path, "w") as f:
-        # Replace {bignlp_path}/bcprun2 below by bcprun once new bcprun is deployed
-        f.writelines(f'{bignlp_path}/bcprun2 -n {num_nodes} --npernode 1 -c "{eval_cmd1}" >> {log_file} 2>>{err_file} \n\n')
-        f.writelines(f'{bignlp_path}/bcprun2 -n {num_nodes} --npernode {ntasks_per_node} -c "{eval_cmd2}" >> {log_file} 2>>{err_file} \n\n')
-        f.writelines("set +x\n") 
-    os.chmod(new_script_path, 0o755)
-    
 def run_evaluation(cfg, dependency=None):
     # Read config
     bignlp_path = cfg.bignlp_path
