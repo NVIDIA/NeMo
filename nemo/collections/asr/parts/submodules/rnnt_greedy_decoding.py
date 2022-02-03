@@ -636,6 +636,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Initialize list of Hypothesis
             batchsize = x.shape[0]
+            global_batch_size = batchsize
             print("Batch size :::", batchsize)
             hypotheses = [
                 rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
@@ -693,19 +694,23 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
 
                     sub_batch_size = len(sub_batch_index)
-                    prev_sub_batch_indices = batch_index_map[sub_batch_index, 1]
-
                     if sub_batch_size != batchsize:
-                        pass
-                        print("t", time_idx, "u", symbols_added, "prev sub indx", sub_batch_index, "prev batch", prev_sub_batch_indices)
+                        print("sub batch index", sub_batch_index)
+
+                    prev_sub_batch_indices = batch_index_map[sub_batch_index, 1]  # read past info
+
+                    # if sub_batch_size != batchsize:
+                    #     pass
+                    #     print("t", time_idx, "u", symbols_added, "prev sub indx", sub_batch_index, "prev batch", prev_sub_batch_indices)
 
                     sub_f = f[sub_batch_index]
 
                     # Update hidden matrices from previous sub-batch to current sub-batch.
                     # Recover prior state for all samples which predicted blank now/past
-                    if hidden is not None and sub_batch_size != batchsize:
+                    if sub_batch_size != batchsize and hidden is not None:
                         # # LSTM has 2 states
                         new_states = []
+                        print("prev sub batch indices", prev_sub_batch_indices)
                         for state_idx in range(len(hidden)):
                             new_states.append(hidden[state_idx][:, prev_sub_batch_indices, :])
                         new_states = tuple(new_states)
@@ -760,16 +765,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                         # Update sub-batch keys
                         if sub_batch_size != batchsize:
-                            print("Updating map all blank")
                             # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
                             batchsize = sub_batch_size
-                            print("SUB BRATCH", sub_batch_index, "PREV ", prev_sub_batch_indices)
-                            # batch_index_map[sub_batch_index, 1] = torch.arange(0, sub_batch_size, dtype=torch.int64,
-                            #                                                    device=device)  # let index point from global pos -> local pos
-
-                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64, device=device)  # let index point from global pos -> local pos
+                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64)  # let index point from global pos -> local pos
+                            print("Original map", batch_index_map)
                             batch_index_map[new_indices, 1] = sub_batch_index
-                            batch_index_map[sub_batch_size:, 1] = -1
+                            batch_index_map[sub_batch_size:, 1] = global_batch_size + 1
                             print("Updating map all blank", batch_index_map)
 
                         # If preserving alignments, convert the current Uj alignments into a torch.Tensor
@@ -790,13 +791,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     else:
                         # Collect batch indices where blanks occurred now/past
                         blank_indices = (blank_mask[sub_batch_index] == 1).nonzero(as_tuple=False)
-                        sub_batch_blank_indices = sub_batch_index[blank_indices]  # [sub_batch_index]
-                        # print("blank indices", blank_indices, "sub blank indices", sub_batch_blank_indices)
-
-                        # print("blank_indices", blank_indices, "sub indices", sub_batch_blank_indices)
 
                         # Recover prior state for all samples which predicted blank now/past
-                        if hidden is not None:
+                        if hidden is not None and len(blank_indices) > 0:
                             # LSTM has 2 states
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
 
@@ -813,31 +810,36 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         last_label = k.clone().view(-1, 1)
                         hidden = hidden_prime
 
+                        # Finish state updates above
+                        # To determine text tokens, we need to have an updated index map
+                        # in order to index the updated `blank_mask` in order to mask out tokens
+                        # that may have been generated spuriously.
+                        # Update sub-batch keys
+                        if sub_batch_size != batchsize:
+                            # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                            batchsize = sub_batch_size
+                            new_indices = torch.arange(0, batchsize, dtype=torch.int64)  # let index point from global pos -> local pos
+                            print("Original map", batch_index_map)
+                            batch_index_map[new_indices, 1] = sub_batch_index
+                            batch_index_map[sub_batch_size:, 1] = global_batch_size + 1
+                            print("Updated map after tokens !", batch_index_map)
+
                         # Update predicted labels, accounting for time mask
                         # If blank was predicted even once, now or in the past,
                         # Force the current predicted label to also be blank
                         # This ensures that blanks propogate across all timesteps
                         # once they have occured (normally stopping condition of sample level loop).
                         for kidx, ki in enumerate(k):
+                            # Since we updated the index map above, we have the updated pointer
+                            # that points from the current sub-batch ids to the actual index
+                            # that we need to query from the `blank_mask`.
                             hidx = batch_index_map[kidx, 1]
-                            # print(">>> label kidx", kidx, hidx, blank_mask[kidx], blank_mask[hidx])
-                            # print(">>> full blank", blank_mask)
                             if blank_mask[hidx] == 0:
                                 hypotheses[hidx].y_sequence.append(ki)
                                 hypotheses[hidx].timestep.append(time_idx)
                                 hypotheses[hidx].score += float(v[kidx])
 
                         symbols_added += 1
-
-                        # Update sub-batch keys
-                        if sub_batch_size != batchsize:
-                            # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
-                            batchsize = sub_batch_size
-                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64,
-                                                       device=device)  # let index point from global pos -> local pos
-                            batch_index_map[new_indices, 1] = sub_batch_index
-                            batch_index_map[sub_batch_size:, 1] = -1
-                            print("Updated map after tokens !", batch_index_map)
 
             # Remove trailing empty list of alignments at T_{am-len} x Uj
             if self.preserve_alignments:
