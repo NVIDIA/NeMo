@@ -454,7 +454,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
         return (packed_result,)
 
-    def _greedy_decode_blank_as_pad(
+    def _greedy_decode_blank_as_pad_old(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
@@ -512,9 +512,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
+
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
-
                     # Batch prediction and joint network steps
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
@@ -616,6 +616,238 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         # Preserve states
         for batch_idx in range(batchsize):
             hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
+
+        return hypotheses
+
+    def _greedy_decode_blank_as_pad(
+        self,
+        x: torch.Tensor,
+        out_len: torch.Tensor,
+        device: torch.device,
+        partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
+    ):
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
+
+        with torch.inference_mode():
+            # x: [B, T, D]
+            # out_len: [B]
+            # device: torch.device
+
+            # Initialize list of Hypothesis
+            batchsize = x.shape[0]
+            print("Batch size :::", batchsize)
+            hypotheses = [
+                rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
+            ]
+
+            # Map of the global index of a sample to current sub-batch index.
+            # As initialization, global batchsize == sub-batchsize, so 1:1 mapping.
+            # index_map[0] always represents the index of the original global batch size of that sample
+            # index_map[1] always represents the index of the sample at the current sub-batch
+            batch_index_map = torch.arange(0, x.shape[0], step=1, dtype=torch.int64, device=device).view(-1, 1)
+            batch_index_map = batch_index_map.repeat(1, 2)  # [batchsize, 2] map
+
+            # Initialize Hidden state matrix (shared by entire batch)
+            hidden = None
+
+            # If alignments need to be preserved, register a danling list to hold the values
+            if self.preserve_alignments:
+                # alignments is a 3-dimensional dangling list representing B x T x U
+                for hyp in hypotheses:
+                    hyp.alignments = [[]]
+                # alignments = []
+                # for _ in range(batchsize):
+                #     alignments.append([[]])
+            else:
+                alignments = None
+
+            # Last Label buffer + Last Label without blank buffer
+            # batch level equivalent of the last_label
+            last_label = torch.full([batchsize, 1], fill_value=self._blank_index, dtype=torch.long, device=device)
+
+            # Mask buffers
+            blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
+
+            # Get max sequence length
+            max_out_len = out_len.max()
+            for time_idx in range(max_out_len):
+                f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
+
+                # Prepare t timestamp batch variables
+                not_blank = True
+                symbols_added = 0
+
+                # Reset blank mask
+                blank_mask.mul_(False)
+
+                # Update blank mask with time mask
+                # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
+                # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
+                blank_mask = time_idx >= out_len
+
+                # Update sub_batch_index with samples who exceed timesteps
+                sub_batch_index = (blank_mask == 0).nonzero(as_tuple=False).view(-1)
+
+                # Start inner loop
+                while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
+
+                    sub_batch_size = len(sub_batch_index)
+                    prev_sub_batch_indices = batch_index_map[sub_batch_index, 1]
+
+                    if sub_batch_size != batchsize:
+                        pass
+                        print("t", time_idx, "u", symbols_added, "prev sub indx", sub_batch_index, "prev batch", prev_sub_batch_indices)
+
+                    sub_f = f[sub_batch_index]
+
+                    # Update hidden matrices from previous sub-batch to current sub-batch.
+                    # Recover prior state for all samples which predicted blank now/past
+                    if hidden is not None and sub_batch_size != batchsize:
+                        # # LSTM has 2 states
+                        new_states = []
+                        for state_idx in range(len(hidden)):
+                            new_states.append(hidden[state_idx][:, prev_sub_batch_indices, :])
+                        new_states = tuple(new_states)
+                        hidden = new_states
+                        del new_states
+
+                    # Update last label with sub batch info
+                    if sub_batch_size != batchsize:
+                        # print("prev label", last_label[prev_sub_batch_indices])
+                        last_label = last_label[prev_sub_batch_indices, :]
+
+                    # Batch prediction and joint network steps
+                    # If very first prediction step, submit SOS tag (blank) to pred_step.
+                    # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
+                    if time_idx == 0 and symbols_added == 0 and hidden is None:
+                        sub_g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=sub_batch_size)
+                    else:
+                        # Perform batch step prediction of decoder, getting new states and scores ("g")
+                        sub_g, hidden_prime = self._pred_step(last_label, hidden, batch_size=sub_batch_size)
+
+                    # Batched joint step - Output = [B, V + 1]
+                    logp = self._joint_step(sub_f, sub_g, log_normalize=None)[:, 0, 0, :]
+
+                    if logp.dtype != torch.float32:
+                        logp = logp.float()
+
+                    # Get index k, of max prob for batch
+                    v, k = logp.max(1)
+                    del sub_g
+
+                    # Update blank mask with current predicted blanks
+                    # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
+                    k_is_blank = k == self._blank_index
+                    blank_mask[sub_batch_index] = blank_mask[sub_batch_index].bitwise_or(k_is_blank)
+                    del k_is_blank
+
+                    # If preserving alignments, check if sequence length of sample has been reached
+                    # before adding alignment
+                    if self.preserve_alignments:
+                        # Insert ids into last timestep per sample
+                        logp_vals = logp.to('cpu').max(1)[1]
+                        for batch_idx in range(batchsize):
+                            if time_idx < out_len[batch_idx]:
+                                hypotheses[batch_idx].alignments[-1].append(logp_vals[batch_idx])
+                        del logp_vals
+                    del logp
+
+                    # If all samples predict / have predicted prior blanks, exit loop early
+                    # This is equivalent to if single sample predicted k
+                    if blank_mask.all():
+                        not_blank = False
+
+                        # Update sub-batch keys
+                        if sub_batch_size != batchsize:
+                            print("Updating map all blank")
+                            # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                            batchsize = sub_batch_size
+                            print("SUB BRATCH", sub_batch_index, "PREV ", prev_sub_batch_indices)
+                            # batch_index_map[sub_batch_index, 1] = torch.arange(0, sub_batch_size, dtype=torch.int64,
+                            #                                                    device=device)  # let index point from global pos -> local pos
+
+                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64, device=device)  # let index point from global pos -> local pos
+                            batch_index_map[new_indices, 1] = sub_batch_index
+                            batch_index_map[sub_batch_size:, 1] = -1
+                            print("Updating map all blank", batch_index_map)
+
+                        # If preserving alignments, convert the current Uj alignments into a torch.Tensor
+                        # Then preserve U at current timestep Ti
+                        # Finally, forward the timestep history to Ti+1 for that sample
+                        # All of this should only be done iff the current time index <= sample-level AM length.
+                        # Otherwise ignore and move to next sample / next timestep.
+                        if self.preserve_alignments:
+
+                            # convert Ti-th logits into a torch array
+                            for batch_idx in range(batchsize):
+
+                                # this checks if current timestep <= sample-level AM length
+                                # If current timestep > sample-level AM length, no alignments will be added
+                                # Therefore the list of Uj alignments is empty here.
+                                if len(hypotheses[batch_idx].alignments[-1]) > 0:
+                                    hypotheses[batch_idx].alignments.append([])  # blank buffer for next timestep
+                    else:
+                        # Collect batch indices where blanks occurred now/past
+                        blank_indices = (blank_mask[sub_batch_index] == 1).nonzero(as_tuple=False)
+                        sub_batch_blank_indices = sub_batch_index[blank_indices]  # [sub_batch_index]
+                        # print("blank indices", blank_indices, "sub blank indices", sub_batch_blank_indices)
+
+                        # print("blank_indices", blank_indices, "sub indices", sub_batch_blank_indices)
+
+                        # Recover prior state for all samples which predicted blank now/past
+                        if hidden is not None:
+                            # LSTM has 2 states
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, hidden, blank_indices)
+
+                        elif len(blank_indices) > 0 and hidden is None:
+                            # Reset state if there were some blank and other non-blank predictions in batch
+                            # Original state is filled with zeros so we just multiply
+                            # LSTM has 2 states
+                            hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
+
+                        # Recover prior predicted label for all samples which predicted blank now/past
+                        k[blank_indices] = last_label[blank_indices, 0]
+
+                        # Update new label and hidden state for next iteration
+                        last_label = k.clone().view(-1, 1)
+                        hidden = hidden_prime
+
+                        # Update predicted labels, accounting for time mask
+                        # If blank was predicted even once, now or in the past,
+                        # Force the current predicted label to also be blank
+                        # This ensures that blanks propogate across all timesteps
+                        # once they have occured (normally stopping condition of sample level loop).
+                        for kidx, ki in enumerate(k):
+                            hidx = batch_index_map[kidx, 1]
+                            # print(">>> label kidx", kidx, hidx, blank_mask[kidx], blank_mask[hidx])
+                            # print(">>> full blank", blank_mask)
+                            if blank_mask[hidx] == 0:
+                                hypotheses[hidx].y_sequence.append(ki)
+                                hypotheses[hidx].timestep.append(time_idx)
+                                hypotheses[hidx].score += float(v[kidx])
+
+                        symbols_added += 1
+
+                        # Update sub-batch keys
+                        if sub_batch_size != batchsize:
+                            # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                            batchsize = sub_batch_size
+                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64,
+                                                       device=device)  # let index point from global pos -> local pos
+                            batch_index_map[new_indices, 1] = sub_batch_index
+                            batch_index_map[sub_batch_size:, 1] = -1
+                            print("Updated map after tokens !", batch_index_map)
+
+            # Remove trailing empty list of alignments at T_{am-len} x Uj
+            if self.preserve_alignments:
+                for batch_idx in range(batchsize):
+                    if len(hypotheses[batch_idx].alignments[-1]) == 0:
+                        del hypotheses[batch_idx].alignments[-1]
+
+        # Preserve states
+        # for batch_idx in range(batchsize):
+        #     hypotheses[batch_idx].dec_state = self.decoder.batch_select_state(hidden, batch_idx)
 
         return hypotheses
 
