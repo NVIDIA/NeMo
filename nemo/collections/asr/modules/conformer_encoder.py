@@ -240,14 +240,17 @@ class ConformerEncoder(NeuralModule, Exportable):
     @typecheck()
     def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        return self.forward_for_export(audio_signal=audio_signal, length=length)
+        return self.forward_for_export(audio_signal=audio_signal, length=length,
+                                       cache_last_channel=cache_last_channel,
+                                       cache_last_time=cache_last_time,
+                                       cache_pre_encode=cache_pre_encode)
 
     @typecheck()
     def forward_for_export(
         self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
     ):
         max_audio_length: int = audio_signal.size(-1)
-
+        length = length.to(audio_signal.device)
         if max_audio_length > self.max_audio_length:
             self.set_max_audio_length(max_audio_length)
 

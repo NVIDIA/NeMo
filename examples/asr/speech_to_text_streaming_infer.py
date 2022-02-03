@@ -69,7 +69,7 @@ def set_streaming_mode(asr_model):
     last_channel_num = 0
     last_time_num = 0
     for m in asr_model.encoder.layers.modules():
-        if hasattr(m, "_max_cache_len") and m._max_cache_len > 0:
+        if hasattr(m, "_max_cache_len"): # and m._max_cache_len > 0:
             if type(m) == RelPositionMultiHeadAttention:
                 m._cache_id = last_channel_num
                 last_channel_num += 1
@@ -113,6 +113,20 @@ def model_process(
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         best_hyp = None
     return greedy_predictions, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp
+
+
+def greedy_merge(asr_model, preds):
+    blank_id = len(asr_model.decoder.vocabulary)
+    model_tokenizer = asr_model.tokenizer
+
+    decoded_prediction = []
+    previous = blank_id
+    for p in preds:
+        if (p != previous or previous == blank_id) and p != blank_id:
+            decoded_prediction.append(int(p))
+        previous = p
+    hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
+    return hypothesis
 
 
 def main():
@@ -191,6 +205,7 @@ def main():
     )
 
     print(asr_out_whole)
+    print(greedy_merge(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
 
@@ -226,7 +241,7 @@ def main():
 
     step_num = 1
     previous_hypotheses = best_hyp
-    for i in range(1, processed_signal.size(-1), buffer_size):
+    for i in range(init_buffer, processed_signal.size(-1), buffer_size):
         (
             asr_out_stream,
             cache_last_channel_next,
@@ -236,7 +251,7 @@ def main():
         ) = model_process(
             asr_model=asr_model,
             audio_signal=processed_signal[:, :, i : i + buffer_size],
-            length=torch.tensor([buffer_size]),
+            length=torch.tensor([buffer_size], device=asr_model.device),
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
             cache_pre_encode=cache_pre_encode_next,
@@ -249,6 +264,8 @@ def main():
         step_num += 1
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
+    print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
+
     print(torch.sum(asr_out_stream_total != asr_out_whole))
     print(step_num)
     # with open(args.test_manifest, "r") as mfst_f:

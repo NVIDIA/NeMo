@@ -216,7 +216,7 @@ class ConvSubsampling(torch.nn.Module):
                 cache_next = cache_next[self._cache_id]
 
             cache_length = cache.size()[-2]
-            cache_next_length = cache.size()[-2]
+            cache_next_length = cache_next.size()[-2]
 
             if x_length != 1:
                 # needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
