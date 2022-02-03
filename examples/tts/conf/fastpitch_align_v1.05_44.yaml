@@ -108,7 +108,7 @@ model:
       drop_last: false
       shuffle: true
       batch_size: 32
-      num_workers: 12
+      num_workers: 0
 
   validation_ds:
     dataset:
@@ -138,7 +138,7 @@ model:
       drop_last: false
       shuffle: false
       batch_size: 32
-      num_workers: 8
+      num_workers: 0
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
