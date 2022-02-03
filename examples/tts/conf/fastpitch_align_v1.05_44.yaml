@@ -102,7 +102,7 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
-      use_beta_binomial_interpolator: False
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
@@ -210,7 +210,7 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-1
+    lr: 3e-2
     betas: [0.9, 0.98]
     weight_decay: 1e-6
 
