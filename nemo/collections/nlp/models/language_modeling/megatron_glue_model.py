@@ -39,7 +39,11 @@ class MegatronT5FineTuneModel(NLPModel):
         super().__init__(cfg, trainer)
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(cfg.restore_from_path, trainer=trainer, return_config=True)
+        t5_cfg = MegatronT5Model.restore_from(
+            self.register_artifact('t5_base_model', cfg.restore_from_path),
+            trainer=trainer,
+            return_config=True
+        )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
