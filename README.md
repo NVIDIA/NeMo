@@ -3,6 +3,8 @@
 Scripts and code to provide end-to-end data preparation and training for
 Megatron-LM.
 
+The most recent version of the README can be found at [https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training](https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training).
+
 ## Table of contents
 
 - [1. Model Overview](#1-model-overview)
@@ -72,10 +74,6 @@ Megatron-LM.
 - [7. Changelog](#7-changelog)
 
 <!-- /TOC -->
-Scripts and code to provide end-to-end data preparation and training for
-Megatron-LM.
-
-The most recent version of the README can be found at [https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training](https://ngc.nvidia.com/containers/ea-bignlp:bignlp-training).
 
 ## 1. Model Overview
 <a id="markdown-model-overview" name="model-overview"></a>
