@@ -637,7 +637,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # Initialize list of Hypothesis
             batchsize = x.shape[0]
             global_batch_size = batchsize
-            print("Batch size :::", batchsize)
+            # print("Batch size :::", batchsize)
             hypotheses = [
                 rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestep=[], dec_state=None) for _ in range(batchsize)
             ]
@@ -695,9 +695,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     sub_batch_size = len(sub_batch_index)
                     if sub_batch_size != batchsize:
-                        print("sub batch index", sub_batch_index)
+                        pass
+                        # print("sub batch index", sub_batch_index)
 
-                    prev_sub_batch_indices = batch_index_map[sub_batch_index, 1]  # read past info
+                    prev_sub_batch_indices = batch_index_map[sub_batch_index, 0]  # read past info
 
                     # if sub_batch_size != batchsize:
                     #     pass
@@ -710,7 +711,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if sub_batch_size != batchsize and hidden is not None:
                         # # LSTM has 2 states
                         new_states = []
-                        print("prev sub batch indices", prev_sub_batch_indices)
+                        # print("prev sub batch indices", prev_sub_batch_indices)
                         for state_idx in range(len(hidden)):
                             new_states.append(hidden[state_idx][:, prev_sub_batch_indices, :])
                         new_states = tuple(new_states)
@@ -767,11 +768,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         if sub_batch_size != batchsize:
                             # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
                             batchsize = sub_batch_size
-                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64)  # let index point from global pos -> local pos
-                            print("Original map", batch_index_map)
+                            new_indices = torch.arange(0, sub_batch_size, dtype=torch.int64, device=device)  # let index point from global pos -> local pos
+                            # print("Original map", batch_index_map)
+                            batch_index_map[sub_batch_index, 0] = new_indices
                             batch_index_map[new_indices, 1] = sub_batch_index
-                            batch_index_map[sub_batch_size:, 1] = global_batch_size + 1
-                            print("Updating map all blank", batch_index_map)
+                            # batch_index_map[sub_batch_size:, 1] = global_batch_size + 1
+                            # print("Updating map all blank", batch_index_map)
 
                         # If preserving alignments, convert the current Uj alignments into a torch.Tensor
                         # Then preserve U at current timestep Ti
@@ -818,11 +820,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         if sub_batch_size != batchsize:
                             # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
                             batchsize = sub_batch_size
-                            new_indices = torch.arange(0, batchsize, dtype=torch.int64)  # let index point from global pos -> local pos
-                            print("Original map", batch_index_map)
+                            new_indices = torch.arange(0, batchsize, dtype=torch.int64, device=device)  # let index point from global pos -> local pos
+                            # print("Original map", batch_index_map)
+                            batch_index_map[sub_batch_index, 0] = new_indices
                             batch_index_map[new_indices, 1] = sub_batch_index
-                            batch_index_map[sub_batch_size:, 1] = global_batch_size + 1
-                            print("Updated map after tokens !", batch_index_map)
+                            # batch_index_map[sub_batch_size:, 1] = global_batch_size + 1
+                            # print("Updated map after tokens !", batch_index_map)
 
                         # Update predicted labels, accounting for time mask
                         # If blank was predicted even once, now or in the past,
