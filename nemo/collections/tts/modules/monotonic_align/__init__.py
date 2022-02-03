@@ -36,6 +36,7 @@
 
 import numpy as np
 import torch
+
 from .core import maximum_path_c
 
 

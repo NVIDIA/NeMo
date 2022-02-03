@@ -12,26 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from typing import Any, Dict
+
 import omegaconf
 import torch
-from dataclasses import dataclass
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
-from typing import Any, Dict
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.hifigan_losses import FeatureMatchingLoss, DiscriminatorLoss, GeneratorLoss
+from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.vits_losses import KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import (
-    SynthesizerTrn,
     MultiPeriodDiscriminator,
-    spec_to_mel_torch,
-    slice_segments,
+    SynthesizerTrn,
     clip_grad_value_,
+    slice_segments,
+    spec_to_mel_torch,
 )
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -340,4 +341,3 @@ class VitsModel(TextToWaveform):
     def convert_text_to_waveform(self, *, tokens):
         #  TODO: Convert text to waveforms
         pass
-

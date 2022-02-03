@@ -113,11 +113,11 @@ tests_requirements = extras_require["test"]
 #                              Monotonic Align                                #
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
 
-setup(
-  name = 'monotonic_align',
-  ext_modules = cythonize("nemo/collections/tts/modules/monotonic_align/core.pyx"),
-  include_dirs=[numpy.get_include()]
-)
+# setup(
+#   name = 'monotonic_align',
+#   ext_modules = cythonize("nemo/collections/tts/modules/monotonic_align/core.pyx"),
+#   include_dirs=[numpy.get_include()]
+# )
 
 ###############################################################################
 #                            Code style checkers                              #
