@@ -102,7 +102,7 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                self._ddp_kwargs,
+                **self._ddp_kwargs,
             )
 
             if self.no_ddp_communication_hook:
