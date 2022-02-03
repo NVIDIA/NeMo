@@ -219,6 +219,8 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler,
             )
 
         # only the last stages of the pipeline return losses
@@ -403,6 +405,7 @@ class MegatronGPTModel(NLPModel):
                 model=self.model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
             )
 
         if losses_reduced_per_micro_batch:
