@@ -289,8 +289,8 @@ def pad_and_convert_to_numpy(
     loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
-    AAA
-    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
+    import pdb; pdb.set_trace()
+    return  , tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
 
 
 def make_attention_mask(source_block, target_block, pad_id):
