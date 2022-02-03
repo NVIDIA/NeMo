@@ -200,19 +200,31 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.cluster_type == "bcp":
+        def get_launcher(nnodes, npernode, cmd):
+            if utils.is_tool('bcprun'):
+                launcher = "NGC_ARRAY_TYPE=MPIJob " + \
+                    f"bcprun --nnodes {nnodes} --npernode {npernode} " + \
+                    f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
+            else:
+                launcher = \
+                    f"mpirun --allow-run-as-root " + \
+                    f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
+            return launcher
+
         joblog = os.path.join(log_dir, "data_joblog.log")
         nnodes = int(os.environ.get("NGC_ARRAY_SIZE", 1))
+
         assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
         if download_the_pile:
             # Downloading the files
-            cmd = f"mpirun --allow-run-as-root " + \
-                  f"-np {nnodes} -npernode 1 " + \
-                  f"python3 {download_code_path} {hydra_args}"
+            cmd = f"python3 {download_code_path} {hydra_args}"
+            launchcmd = get_launcher(nnodes, 1, cmd)
             proc = subprocess.Popen(
-                cmd, shell=True, stdout=subprocess.PIPE,
+                launchcmd, shell=True, stdout=subprocess.PIPE,
                 universal_newlines=True)
             print(f"\nSubmitted Download script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
+                print(f"Download CMD:\n{launchcmd}", file=jlog)
                 for line in proc.stdout:
                     print(line)
                     jlog.write(line)
@@ -221,16 +233,14 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             print(f"Finished Download script returncode: {proc.returncode}")
 
             # Extract The Pile dataset files
-            cmd = f"mpirun --allow-run-as-root " + \
-                  f"-np {nnodes} -npernode 1 " + \
-                  f"python3 {extract_code_path} {hydra_args}"
-            # print(f"Extract CMD:\n{cmd}")
+            cmd = f"python3 {extract_code_path} {hydra_args}"
+            launchcmd = get_launcher(nnodes, 1, cmd)
             proc = subprocess.Popen(
-                cmd, shell=True, stdout=subprocess.PIPE,
+                launchcmd, shell=True, stdout=subprocess.PIPE,
                 universal_newlines=True)
             print(f"\nSubmitted extract script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
-                print(f"Extract CMD:\n{cmd}", file=jlog)
+                print(f"Extract CMD:\n{launchcmd}", file=jlog)
                 for line in proc.stdout:
                     print(line)
                     jlog.write(line)
@@ -245,24 +255,20 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             # Remove compiled helpers lib to avoid race condition
             compiled_helpers_lib = os.path.join(
                 megatron_dir, 'compiled_helpers_lib')
-            clean = f'mpirun --allow-run-as-root ' + \
-                    f'-np {nnodes} -npernode 1 ' + \
-                    f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
+            clean = f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
                     f'rm "{compiled_helpers_lib}" \''
-            os.system(clean)
+            cleancmd = get_launcher(nnodes, 1, clean)
+            os.system(cleancmd)
 
             preproc_npernode = int(data_cfg.bcp_preproc_npernode)
-            cmd = f"mpirun --allow-run-as-root " + \
-                  f"-np {nnodes * preproc_npernode} " + \
-                  f"-npernode {preproc_npernode} " + \
-                  f"python3 {preprocess_code_path} {hydra_args}"
-            # print(f"Preprocess CMD:\n{cmd}")
+            cmd = f"python3 {preprocess_code_path} {hydra_args}"
+            launchcmd = get_launcher(nnodes, preproc_npernode, cmd)
             proc = subprocess.Popen(
-                cmd, shell=True, stdout=subprocess.PIPE,
+                launchcmd, shell=True, stdout=subprocess.PIPE,
                 universal_newlines=True)
             print(f"\nSubmitted preprocess script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
-                print(f"Preprocess CMD:\n{cmd}", file=jlog)
+                print(f"Preprocess CMD:\n{launchcmd}", file=jlog)
                 for line in proc.stdout:
                     print(line)
                     jlog.write(line)

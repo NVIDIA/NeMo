@@ -20,6 +20,7 @@ Megatron-LM.
             - [4.1.2.2. Base Command Platform](#4122-base-command-platform)
             - [4.1.2.3. Common](#4123-common)
     - [4.2. Training with Predefined Configurations](#42-training-with-predefined-configurations)
+        - [4.2.1. Training Logs with TensorBoard and Weights & Biases ](#421-training-with-tb-wandb)
     - [4.3. Training with Custom Configurations](#43-training-with-custom-configurations)
     - [4.4. Bring Your Own Dataset](#44-bring-your-own-dataset)
     - [4.5. GPT-3 Training](#45-gpt-3-training)
@@ -84,6 +85,7 @@ Early access to NeMo Megatron is limited to enterprises that want to train and d
 GPT-3 architecture
 
 <img src="img/model_overview.png"/>
+
 Figure1: The model includes 24 transformer layers, a hidden size of 4096, and 32 attention heads. The sequence length is 2048, and the optimizer is Adam. This model uses tensor parallelism of 2.
 
 
@@ -110,8 +112,8 @@ Main layers would be parallelized:
 | Multi-GPU                       | Yes                    | Yes                                                                                                                                                               |
 | Multi-Node                      | Yes                    | Yes                                                                                                                                                               |
 | Inference deployment            | N/A                    | [NVIDIA Triton supported](https://github.com/triton-inference-server/backend#where-can-i-find-all-the-backends-that-are-available-for-triton), Faster Transformer |
-| SW stack support                | SLURM/BCM/PCP          | SLURM/BCM/PCP                                                                                                                                                     |
-| Distributed data pre processing | Yes (Piles only)       |                                                                                                                                                                   |
+| SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
+| Distributed data preprocessing | Yes (the Pile only)       |                                                                                                                                                                   |
 | NVfuser                         | Yes (FP16)             |                                                                                                                                                                   |
 
 
@@ -126,19 +128,20 @@ Main layers would be parallelized:
 | ----------------- | ------------------ |
 | NVIDIA Triton     | 2.15.0             |
 | FasterTransformer | V4                 |
-| PyTorch           | 1.10.0a0+0aef44c   |
-| NeMo              | 1.5.0              |
-| PyTorch Lightning | 1.5.0              |
+| PyTorch           | 1.11.0a0+b6df043   |
+| NeMo              | 1.6.1              |
+| PyTorch Lightning | 1.5.9              |
 | Hydra             | 1.1.1              |
-| CUDA              | NVIDIA CUDA 11.4.2 |
-| cuBLAS            | 11.6.5.2           |
-| cuDNN             | 8.2.4.15           |
+| CUDA              | NVIDIA CUDA 11.5   |
+| cuBLAS            | 11.7.3.1           |
+| cuDNN             | 8.3.1              |
 | NCCL              | 2.11.4             |
 | Container OS      | Ubuntu 20.04       |
 | rdma-core         | 36.0               |
 | GDRcopy           | 2.3                |
 | HPC-X             | 2.9.0              |
-| BCM               | 1.0.0              |
+| Base Command Manager               | 1.0.0              |
+| DeepOps           | 21.06              |
 
 
 ## 4. Quick Start Guide
@@ -178,11 +181,12 @@ you can use get_pip.py with just python3.
 **NOTE:** Ensure the high-speed filesystem is mounted on the job submission
 node(s) at the same path as on the compute nodes.
 
-The whole solution uses a set of Docker containers executed on at the Slurm
-cluster using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in. The
-training container also includes conversion scripts and NVIDIA Triton Model
-Navigator. The inference container comprises the NVIDIA Triton Inference Server
-with the FasterTransformer backend installed.
+The whole solution uses a set of Docker containers executed on a Slurm
+cluster (using the [pyxis](https://github.com/NVIDIA/pyxis) plug-in) or
+a Base Command Platform cluster. The training container also includes 
+conversion scripts and NVIDIA Triton Model Navigator. The inference container
+comprises the NVIDIA Triton Inference Server with the FasterTransformer 
+backend installed.
 
 ##### 4.1.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
@@ -190,14 +194,14 @@ with the FasterTransformer backend installed.
 The bignlp-scripts codebase is included as part of the training container. To
 copy it to a local directory in the cluster, it needs to be extracted from the
 container. To copy the code to a directory named /path/to/local/dir the
-following command can be executed.
+following command can be executed. The BigNLP repository for Slurm has been
+verified on both Slurm-based DeepOps clusters as well as Base Command Manager.
 
 ```
 srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /workspace/mount_dir/"
 ```
 
-Install the BigNLP scripts dependencies 
-on the head node of the cluster:
+Install the BigNLP scripts dependencies on the head node of the cluster:
 
 ```
 pip install -r requirements.txt
@@ -209,14 +213,14 @@ install pip using use [get_pip.py](https://github.com/pypa/get-pip) with just `p
 ##### 4.1.1.2. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 
-The bignlp-scripts-bcp codebase is included as part of the common training
-container for Base Command Platform and Base Command Manager. Before starting,
-set up the ngc cli and configuration as described in the Base Command Platform
-User Guide. In this guide, we will mainly use two Base Command Platform workspaces, 
-one for storing the training dataset, and another one for storing the results, 
-checkpoints and logs. Therefore, start by creating these workspaces (e.g.
-`bignlp_data_ws` and `bignlp_results_ws`). See the Base Command Platform User Guide for how
-to create and work with Base Command Platform workspaces.
+The bignlp-scripts codebase is included as part of the training
+container. Before starting, set up the ngc cli and configuration as described 
+in the Base Command Platform User Guide. In this guide, we will mainly 
+use two Base Command Platform workspaces, one for storing the training dataset,
+and another for storing the results, checkpoints and logs. Therefore, start by 
+creating these workspaces (e.g.`bignlp_data_ws` and `bignlp_results_ws`). See 
+the Base Command Platform User Guide for how to create and work with Base 
+Command Platform workspaces.
 
 ##### 4.1.1.3. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
@@ -229,7 +233,7 @@ cluster, the config file in the subfolder of `conf/cluster/bcm.yaml` has the
 parameters to set the generic cluster related information, such as the 
 `partition` or `account` parameters.
 
-Slurm: The `bignlp_path` parameter will automatically be mounted to the
+**Slurm**: The `bignlp_path` parameter will automatically be mounted to the
 container at the same path as in the local file system. Any additional
 directories that should be mounted must be specified using the
 `container_mounts` parameter. All the paths will be mounted to the same path
@@ -239,12 +243,12 @@ modified to point to where the dataset will be loaded from or saved. The
 checkpoints and logs will be stored. These last two parameters will be 
 automatically mounted into the container.
 
-Base Command Platform: The `bignlp_path` should be set to 
+**Base Command Platform**: The `bignlp_path` should be set to 
 /opt/bignlp/bignlp-scripts , which is the default location where the scripts 
 are located inside the container. The `data_dir` parameter can also be
 modified to point to where the dataset will be loaded from or saved. The 
 `base_results_dir` can also be modified to point to where the results, 
-checkpoints and logs will be stored. In the case of BCP, we recommend 
+checkpoints and logs will be stored. In the case of Base Command Platform, we recommend 
 that `data_dir` points to one of the workspaces, and `base_results_dir` 
 points to the other. They should both be mounted in read and write (RW) 
 mode.
@@ -253,7 +257,7 @@ mode.
 preparation, training, conversion and evaluation pipelines. Each of these 
 pipelines has a parameter in the `conf/config.yaml` file that decides whether 
 to run that pipeline or not. In slurm based clusters, all of them can be set 
-to True at the same time, and they will be executed in order. However, in BCP, 
+to True at the same time, and they will be executed in order. However, in Base Command Platform, 
 only one of them should be set to True at a time.
 
 Default settings in the `config/config.yaml` file are:
@@ -276,13 +280,13 @@ YAML files, so look at the documentation for those projects to learn more.
 
 #### 4.1.2. Data Preparation
 <a id="markdown-data-preparation" name="data-preparation"></a>
-We provide utilities to download and prepare [The Pile](https://pile.eleuther.ai/)
+We provide utilities to download and prepare [the Pile](https://pile.eleuther.ai/)
 dataset ([mirror](https://mystic.the-eye.eu/public/AI/pile/train/)),
 which is formed by 22 smaller datasets. The dataset is already blended
 by using the mix described in their [paper](https://arxiv.org/pdf/2101.00027.pdf).
 It is recommended to store this repository and the datasets in a file system
 shared by all the nodes (gpfs) in the case of Slurm based clusters, and in a shared 
-workspace in the case of BCP based clusters.
+workspace in the case of Base Command Platform based clusters.
 
 The configuration used for data preparation must be specified in the
 `conf/config.yaml` file and `run_data_preparation` must be set to `True` to run it.
@@ -305,8 +309,8 @@ files 0, 3, 5, 6, and 7.
 ##### 4.1.2.1. Slurm
 <a id="markdown-4121-slurm" name="4121-slurm"></a>
 
-First, ensure the cluster related configuration in the conf/cluster/bcm.yaml file is correct.
-The `cluster` and `cluster_type` parameters in conf/config.yaml must be set to bcm.
+First, ensure the cluster related configuration in the `conf/cluster/bcm.yaml` file is correct.
+The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to bcm.
 Then, modify the time_limit or any other parameter related to the job in the download_pile.yaml file.
 The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
 
@@ -340,8 +344,10 @@ must be launched in a multi-node job, and can be parallelized to use between 2 a
 for faster parallel preparation of the dataset.
 
 With Base Command Platform, the 700+ GB dataset can be downloaded once and then
-shared by multiple users in the same ACE by setting the permissions of a
-workspace.
+shared by multiple users in the same ACE by setting the permissions of the `bignlp_data_ws` workspace.
+
+The data preparation scripts must be ran in multi-node mode, with at least 2 nodes (and a maximum 
+of 30 nodes).
 
 To run the data preparation pipeline, run:
 ```
@@ -351,8 +357,8 @@ base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_log.txt 2>&1
 ```
 The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
-workspace in /mount/data, and the results workspace in /mount/results. The stdout and stderr outputs will
-also be redirected to the /results/data_log.txt file, to be able to download the logs from NGC.
+workspace in `/mount/data`, and the results workspace in `/mount/results`. The stdout and stderr outputs will
+also be redirected to the `/results/data_log.txt` file, to be able to download the logs from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
 ##### 4.1.2.3. Common
@@ -360,9 +366,9 @@ Any other parameter can also be added to the command to modify its behavior.
 
 Set the configuration for the data preparation job in the YAML file:
 ```yaml
-download_the_pile: True  # Whether to download the pile dataset from the internet.
-the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
-file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
+download_the_pile: True  # Whether to download the Pile dataset from the internet.
+the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download the Pile dataset from.
+file_numbers: "0-29"  # The Pile dataset consists of 30 files (0-29), choose which ones to download.
 preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
 download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"  # URL to download the vocab from.
 download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # URL to download the merges from.
@@ -386,6 +392,9 @@ configurations. All these configurations are provided in the `conf/training/`
 directory. The desired configuration can be chosen by selecting the training
 and the `training_config` parameters in the `conf/config.yaml` file.
 
+On Base Command Platform, the training scripts must be ran in multi-node mode, 
+with at least 2 nodes.
+
 **126M configuration:**
 
 The 126M model uses 8 nodes with 8 GPUs per node by default, and fp16 data type
@@ -406,17 +415,22 @@ And run:
 python3 main.py
 ```
 
-To train a 126M GPT-3 model on BCP cluster on 8 nodes, use the command:
+To train a 126M GPT-3 model on Base Command Platform cluster on 8 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=126m training_config=126m run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
-training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
-The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
-creating the job (number of replicas).
+creating the job (number of replicas). 
+
+To train with fewer or a different number of nodes, the relevant parameters 
+(e.g. `accumulate_grad_batches`) can be adjusted either in the yaml config file or 
+from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). For Base Command Platform, multi-node jobs are required to have at least 
+two nodes so that is the minimum number of nodes we can train with.
 
 
 **5B configuration:**
@@ -440,7 +454,7 @@ And run:
 python3 main.py
 ```
 
-To train a 5B GPT-3 model on BCP cluster on 20 nodes, use the command:
+To train a 5B GPT-3 model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=5b training_config=5b run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
@@ -448,7 +462,7 @@ data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.n
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
-The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
 
@@ -474,7 +488,7 @@ And run:
 python3 main.py
 ```
 
-To train a 20B GPT-3 model on BCP cluster on 80 nodes, use the command:
+To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=20b training_config=20b run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
@@ -482,9 +496,22 @@ data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.n
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
-The command above assumes that the data and results workspaces are mounted in the /mount/data and /mount/results 
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
+
+#### 4.2.1. Training Logs with TensorBoard and Weights & Biases
+<a id="markdown-training-with-tb-wandb" name="training-with-tb-wandb"></a>
+The training code can log the model and system related metrics to both TensorBoard and 
+Weights & Biases (W&B). The local files will be stored in the directory specified in the 
+`training.exp_manager.explicit_log_dir` parameter. TensorBoard logs are saved by default.
+
+However, W&B needs the API key to be specified to work properly. To upload the logs to W&B, 
+the user must first store the W&B API key to a file (on the first line of the file), and 
+select the path to the file that contains the key using the `wandb_api_key_file` parameter. For Base Command Platform, this file can be stored in a dataset or workspace mounted to the job.
+
+The logs show the reduced_train_loss, val_loss, train_step_timing (which is the best way 
+to measure the time it takes to finish each micro step), and other relevant metrics.
 
 ### 4.3 Training with Custom Configurations
 <a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
@@ -502,7 +529,7 @@ a data type.
 If you want to train the GPT-3 model on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
 Then, you can run the data preprocessing pipeline without needing to download
-The Pile by modifying the configuration in
+the Pile by modifying the configuration in
 `conf/data_preparation/download_pile.yaml`. You should set `download_the_pile` to
 False, and keep `preprocess_data` as True. When running the data preparation
 pipeline, the jsonl files must be stored in the directory indicated in the
@@ -586,7 +613,7 @@ GBS = (MBS * num_gpus * accumulate_grad_batches) / tensor_parallelism
 
 Where MBS is the micro batch size. For instance, the default GBS for the 5B
 model is 1440; the MBS is 2; the number of GPUs is 20\*8 = 160; the
-accumulate\_grad\_batches is set to 9; and the\ tensor\_parallelism value is set to 2.
+`accumulate_grad_batches` is set to 9; and the `tensor_parallelism` value is set to 2.
 The GBS can be calculated like this:
 
 ```
@@ -594,8 +621,8 @@ The GBS can be calculated like this:
 ```
 
 To modify the number of nodes to be used, the user should modify the value of
-`accumulate\_grad\_batches` in the inverse way. For instance, if the number of
-nodes gets cut in half (20 → 10), then the `accumulate\_grad\_batches` should be
+`accumulate_grad_batches` in the inverse way. For instance, if the number of
+nodes gets cut in half (20 → 10), then the `accumulate_grad_batches` should be
 doubled (9 → 18).
 
 ### 4.7. Checkpoint Conversion
@@ -675,6 +702,8 @@ In order to run the conversion script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The conversion script must be launched in a single-node job.
 
+The conversion scripts must be ran in multi-node mode, with 2 nodes.
+
 To run the conversion pipeline to conver a 126M checkpoint stored in 
 /mount/results/126m/checkpoints, run:
 ```
@@ -682,7 +711,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_traini
 run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.json \
 conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/126m/convert_nemo \
-conversion.model.checkpoint_folder=/mount/results/126m/checkpoints
+conversion.model.checkpoint_folder=/mount/results/126m/checkpoints conversion.model.tensor_model_parallel_size=1 \
 >> /results/convert_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
@@ -704,7 +733,7 @@ file to use for evaluation purposes. The `run_evaluation` parameter must be set
 to `True` to run the evaluation pipeline. The default value is set to
 `evaluate_all`, which can be found in `conf/evaluation/evaluate_all.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs. For BCP, all these parameters should be overriden from the command line.
+in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
 #### 4.8.1. Common
 <a id="markdown-common" name="common"></a>
@@ -775,6 +804,8 @@ In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The evaluation script must be launched in a single-node job.
 
+The evaluation scripts must be ran in single-node mode.
+
 To run the evaluation pipeline to evaluate a 126M checkpoint stored in 
 /mount/results/126m/convert_nemo/megatron_gpt.nemo, run:
 ```
@@ -783,6 +814,7 @@ run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data
 base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/data/bpe/vocab.json \
 evaluation.model.merge_file=/mount/data/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/126m/evaluation \
 evaluation.model.checkpoint_path=/mount/results/126m/convert_nemo/megatron_gpt.nemo evaluation.model.eval_batch_size=16 \
+conversion.model.tensor_model_parallel_size=1 \
 >> /results/eval_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
@@ -808,7 +840,7 @@ helps with conversion and setting up a deployment environment to do inference
 for models from BigNLP training scripts. Use scripts to convert models to a new
 format, then use NVIDIA Triton Inference Server to process inference requests.
 
-The inference scripts execute at a Slurm or BCP cluster in several steps:
+The inference scripts execute at a Slurm or Base Command Platform cluster in several steps:
 * Megatron/NeMo checkpoint conversion to FasterTransformer format.
 * Preparation of model repository for NVIDIA Triton Inference Server.
 * Profiling and selecting the best inference model and NVIDIA
@@ -847,10 +879,11 @@ and use it in production.
 <a id="markdown-model-inference-deployment-process" name="model-inference-deployment-process"></a>
 
 <img src="img/inference_deployment_flow.png"/>
+
 ### 5.2. Prepare Environment
 <a id="markdown-prepare-environment" name="prepare-environment"></a>
 
-The whole solution uses a set of Docker containers executed at Slurm or BCP cluster.
+The whole solution uses a set of Docker containers executed at Slurm or Base Command Platform cluster.
 The training container also includes conversion
 scripts and NVIDIA Triton Model Navigator. The inference container is just the
 NVIDIA Triton Inference Server with the FasterTransformer backend installed.
@@ -1482,10 +1515,10 @@ The table below shows examples of input and output used for text generated above
 
 | Input len | Input text | Output len | Output text |
 | --------- | ---------- | ---------- | ----------- |
-| 8 | b'AI is like a new steam engine.' | 40 | b' It\\u2019s not just about the technology, it\\u2019s also about how we can use AI to solve problems that are important for society and our economy.\\n\\nThe first thing I want' |
-| 40 | b'It\\u2019s not just about the technology, it\\u2019s also about how we can use AI to solve problems that are important for society and our economy.\\n\\nThe first thing I want' | 40 | b' to do is talk a little bit about what we mean by artificial intelligence (AI).\\n\\nWhat is Artificial Intelligence?\\n\\nArtificial intelligence is defined as \\u201cthe ability of machines to perform' |
-| 40 | b'to do is talk a little bit about what we mean by artificial intelligence (AI).\\n\\nWhat is Artificial Intelligence?\\n\\nArtificial intelligence is defined as \\u201cthe ability of machines to perform' | 40 | b' tasks that normally require human intelligence.\\u201d This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
-| 41 | b'tasks that normally require human intelligence.\\u201d This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | b', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
+| 8 | 'AI is like a new steam engine.' | 40 | 'It's not just about the technology, it's also about how we can use AI to solve problems that are important for society and our economy. The first thing I want' |
+| 40 | 'It's not just about the technology, it's also about how we can use AI to solve problems that are important for society and our economy. The first thing I want' | 40 | ' to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence?Artificial intelligence is defined as 'the ability of machines to perform' |
+| 40 | 'to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence? Artificial intelligence is defined as 'the ability of machines to perform' | 40 | ' tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
+| 41 | 'tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | ', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
 
 #### 5.7.4. Dialogue text generation
 
@@ -1574,11 +1607,11 @@ routines to use this solution.
 The table below shows examples of input and output used for text generated above.
 | Input len | Input text | Output len | Output text |
 | --------- | ---------- | ---------- | ----------- |
-| 15 | b'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | b'\\n"It\'s a way to make computers do things that they couldn\'t before."\\n\\n------\\njamesblonde\\nI\'m not sure what the point of this article was. It seems' |
-| 41 | b'NVIDIA machine learning expert: "It\'s a way to make computers do things that they couldn\'t before." NVIDIA customer: "What I need to start experiments with machine learning?" NVIDIA machine learning expert: ' | 40 | b'\\n"We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works."\\n\\nThe' |
-| 56 | b'NVIDIA machine learning expert: "We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works." NVIDIA customer: "Can AI recognize cats?" NVIDIA machine learning expert: ' | 40 | b'\\n"Sure! Let\'s try that!"\\n\\nA:\\n\\nI think the best way is to use a library like Googlec or tens.net has is is moreing with a a' |
-| 28 | b'NVIDIA machine learning expert: "Sure! Let\'s try that!" NVIDIA customer: "Can AI generate text?" NVIDIA machine learning expert: ' | 40 | b'\\n"Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Great! I\'ll wait here for you to finish training your model."\\n\\nA:' |
-| 36 | b'NVIDIA machine learning expert: "Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Is AI dangerous?" NVIDIA machine learning expert: ' | 40 | b'\\n"No, not at all! We\'re just trying to help you make better decisions."\\n\\nA:\\n\\nI think this is an interesting question and I\'m going to try my hand' |
+| 15 | 'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | '"It's a way to make computers do things that they couldn\'t before."------jamesblonde. I\'m not sure what the point of this article was. It seems' |
+| 41 | 'NVIDIA machine learning expert: "It's a way to make computers do things that they couldn\'t before." NVIDIA customer: "What I need to start experiments with machine learning?" NVIDIA machine learning expert: ' | 40 | '"We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we'll be happy to show you how it works."The' |
+| 56 | 'NVIDIA machine learning expert: "We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works." NVIDIA customer: "Can AI recognize cats?" NVIDIA machine learning expert: ' | 40 | '"Sure! Let's try that!"A: I think the best way is to use a library like Googlec or tens.net has is is moreing with a a' |
+| 28 | 'NVIDIA machine learning expert: "Sure! Let's try that!" NVIDIA customer: "Can AI generate text?" NVIDIA machine learning expert: ' | 40 | '"Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Great! I\'ll wait here for you to finish training your model."A:' |
+| 36 | 'NVIDIA machine learning expert: "Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Is AI dangerous?" NVIDIA machine learning expert: ' | 40 | '"No, not at all! We\'re just trying to help you make better decisions."A: I think this is an interesting question and I\'m going to try my hand' |
 
 
 
@@ -1589,7 +1622,7 @@ The table below shows examples of input and output used for text generated above
 <a id="markdown-results" name="results"></a>
 
 #### 6.1.1 Training Accuracy Results
-Training accuracy: NVIDIA SuperPOD (20 x 8 x A100 80GB for 5B model)
+Training accuracy: DGX SuperPOD (20 x 8 x A100 80GB for 5B model)
 We evaluated the 126M parameter and 5B parameter models on 8 different language
 tasks. The results can be found in the table below. All the tasks are provided
 as part of the evaluation harness, so the user can evaluate any .nemo
@@ -1617,6 +1650,7 @@ checkpoint file on all these tasks.
 Training the 5B GPT-3 model to convergence takes 6.5 days, and the loss curve can be seen in the figure below:
 
 <img src="img/5B_GPT_3_loss_final.svg"/>
+
 The table below shows the converged training loss, the throughput, and the
 total time to train for the 5B GPT-3 model, using a given number of GPUs and a
 given Global Batch Size (GBS).
@@ -1713,6 +1747,7 @@ latency and throughput change for different batch sizes used for computations.
 
 
 <img src="img/5B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
+
 A chatbot with a latency budget within 380 ms can work for batch size=64 and 1
 GPU used for computation.
 
@@ -1725,11 +1760,13 @@ output length 200.
 
 <img src="img/5B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
 <img src="img/5B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
+
 The graph for 1 GPU with many batch sizes shows what batch size can fit into a
 certain latency budget.
 
 
 <img src="img/5B_GPT_3_of_GPU_1_input_len_200_output_len_200.svg"/>
+
 The graph clearly shows that the translation or style transfer inference task
 with latency budget 2000 milliseconds can be deployed using 1 GPU and batch
 size = 16.
@@ -1771,12 +1808,14 @@ To improve accuracy a larger model can be used.
 <img src="img/20B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
 <img src="img/20B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
 <img src="img/20B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
+
 ##### 6.1.3.7. B: Translation and Style Transfer
 <a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
 
 <img src="img/20B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
 <img src="img/20B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
 <img src="img/20B_GPT_3_of_GPU_4_input_len_200_output_len_200.svg"/>
+
 ##### 6.1.3.8. Summary for 20B Results
 <a id="markdown-summary-for-20b-results" name="summary-for-20b-results"></a>
 
@@ -1815,6 +1854,7 @@ were generated with randomly initialized weights.
 <img src="img/Chatbot_Q_A_batch_size_1_input_len_60_output_len_20.svg"/>
 
 <img src="img/Translation_or_style_transfer_batch_size_1_input_len_200_output_len_200.svg"/>
+
 The performance measurements were obtained on DGX A100 80 GB nodes.
 
 <details>
@@ -1846,6 +1886,7 @@ answering and a second one is translation or style transfer.
 <img src="img/Chatbot_Q_A_batch_size_256_input_len_60_output_len_20.svg"/>
 
 <img src="img/Translation_or_Style_Transfer_batch_size_max_input_len_200_output_len_200.svg"/>
+
 The chatbot scenario can be executed with batch size equal to 256 for all model
 sizes so it is possible to utilize computing resources in GPUs.
 

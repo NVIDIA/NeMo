@@ -4,5 +4,5 @@ cluster:
   instance_without_gpu: dgxa100.80g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:main-py3-base
-  inference_container_image: gitlab-master.nvidia.com:5005/dl/dgx/bignlp/infer:main-py3-base
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.01-py3
