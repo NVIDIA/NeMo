@@ -282,8 +282,8 @@ def pad_and_convert_to_numpy(
     # dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
     # dec_mask = dec_mask * make_history_mask(tokens_dec_in)
 
-    enc_mask = tokens_enc != pad_id
-    dec_mask = tokens_dec_in != pad_id
+    enc_mask = (tokens_enc != pad_id).astype(np.int64)
+    dec_mask = (tokens_dec_in != pad_id).astype(np.int64)
 
     # Labels mask.
     labels = t5_decoder_out + ([-1] * padding_length_dec)
