@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
+
+from torch.cuda.amp import GradScaler
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models.vits import VitsModel
@@ -22,12 +25,15 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="vits")
 def main(cfg):
-    trainer = pl.Trainer(**cfg.trainer)
+    plugins = []
+    if cfg.trainer.precision in [16, 'bf16']:
+        scaler = GradScaler(enabled=True)
+        plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+
+    trainer = pl.Trainer(plugins=plugins, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)
-    lr_logger = pl.callbacks.LearningRateMonitor()
-    epoch_time_logger = LogEpochTimeCallback()
-    trainer.callbacks.extend([lr_logger, epoch_time_logger])
+    trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])
     trainer.fit(model)
 
 
