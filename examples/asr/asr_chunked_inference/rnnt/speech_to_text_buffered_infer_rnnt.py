@@ -13,15 +13,13 @@
 # limitations under the License.
 
 """
-This script serves three goals:
-    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
-    (2) Shows example of batch ASR inference
-    (3) Serves as CI test for pre-trained checkpoint
+Script to perform buffered inference using RNNT models.
 
+# Middle Token merge algorithm
 
 python speech_to_text_buffered_infer_rnnt.py \
-    --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
-    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/test_other.json" \
+    --asr_model="<Path to a nemo model>" \
+    --test_manifest="<Path to a JSON manifest>" \
     --model_stride=4 \
     --output_path="." \
     --total_buffer_in_secs=10.0 \
@@ -30,22 +28,27 @@ python speech_to_text_buffered_infer_rnnt.py \
     --batch_size=128
 
 
-# With LCS
+# Longer Common Subsequence (LCS) Merge algorithm
 
-DEBUG=1 python speech_to_text_buffered_infer_rnnt.py \
-    --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
-    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/subset/test_other_10.json" \
+python speech_to_text_buffered_infer_rnnt.py \
+    --asr_model="<Path to a nemo model>" \
+    --test_manifest="<Path to a JSON manifest>" \
     --model_stride=4 \
     --output_path="." \
     --use_lcs_merge \
+    --lcs_alignment_dir=<OPTIONAL: Some path to store the LCS alignments> \
     --total_buffer_in_secs=10.0 \
     --chunk_len_in_ms=8000 \
-    --device="cuda:1" \
+    --device="cuda:0" \
     --batch_size=128
+
+# NOTE:
+
+    You can use `DEBUG=1 python speech_to_text_buffered_infer_rnnt.py ...` to print out the
+    ground truth text and predictions of the model.
 
 """
 
-import tqdm
 import copy
 import json
 import math
@@ -53,24 +56,28 @@ import os
 from argparse import ArgumentParser
 
 import torch
+import tqdm
 from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASRRNNT, BatchedFrameASRRNNT
+from nemo.collections.asr.parts.utils.streaming_utils import (
+    BatchedFrameASRRNNT,
+    LongestCommonSubsequenceBatchedFrameASRRNNT,
+)
 from nemo.utils import logging
-
-from nemo.constants import monitor_time
 
 can_gpu = torch.cuda.is_available()
 
 
-def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device, batch_size):
+def get_wer_feat(
+    mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device, batch_size
+):
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
     # Do not normalize whatever the model's preprocessor setting is
     preprocessor_cfg.normalize = "None"
-    preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(preprocessor_cfg)
+    preprocessor = nemo_asr.models.EncDecRNNTBPEModel.from_config_dict(preprocessor_cfg)
     preprocessor.to(device)
     hyps = []
     refs = []
@@ -78,44 +85,43 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
 
     with open(mfst, "r") as mfst_f:
         print("Parsing manifest files...")
-        for l in (mfst_f):
+        for l in mfst_f:
             row = json.loads(l.strip())
             audio_filepaths.append(row['audio_filepath'])
             refs.append(row['text'])
 
-    with monitor_time("TOTAL TIME"):
-        with torch.inference_mode():
-            with torch.cuda.amp.autocast():
-                batch = []
-                asr.sample_offset = 0
-                for idx in tqdm.tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
-                    batch.append((audio_filepaths[idx], refs[idx]))
+    with torch.inference_mode():
+        with torch.cuda.amp.autocast():
+            batch = []
+            asr.sample_offset = 0
+            for idx in tqdm.tqdm(range(len(audio_filepaths)), desc='Sample:', total=len(audio_filepaths)):
+                batch.append((audio_filepaths[idx], refs[idx]))
 
-                    if len(batch) == batch_size:
-                        audio_files = [sample[0] for sample in batch]
-
-                        asr.reset()
-                        asr.read_audio_file(audio_files, delay, model_stride_in_secs)
-                        hyp_list = asr.transcribe(tokens_per_chunk, delay)
-                        hyps.extend(hyp_list)
-
-                        batch.clear()
-                        asr.sample_offset += batch_size
-
-                if len(batch) > 0:
-                    asr.batch_size = len(batch)
-                    asr.frame_bufferer.batch_size = len(batch)
-                    asr.reset()
-
+                if len(batch) == batch_size:
                     audio_files = [sample[0] for sample in batch]
+
+                    asr.reset()
                     asr.read_audio_file(audio_files, delay, model_stride_in_secs)
                     hyp_list = asr.transcribe(tokens_per_chunk, delay)
                     hyps.extend(hyp_list)
 
                     batch.clear()
-                    asr.sample_offset += len(batch)
+                    asr.sample_offset += batch_size
 
-    if os.environ.get('DEBUG', 0) == '1':
+            if len(batch) > 0:
+                asr.batch_size = len(batch)
+                asr.frame_bufferer.batch_size = len(batch)
+                asr.reset()
+
+                audio_files = [sample[0] for sample in batch]
+                asr.read_audio_file(audio_files, delay, model_stride_in_secs)
+                hyp_list = asr.transcribe(tokens_per_chunk, delay)
+                hyps.extend(hyp_list)
+
+                batch.clear()
+                asr.sample_offset += len(batch)
+
+    if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
         for hyp, ref in zip(hyps, refs):
             print("hyp:", hyp)
             print("ref:", ref)
@@ -125,6 +131,7 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
 
 
 def main():
+    # Common Arguments
     parser = ArgumentParser()
     parser.add_argument(
         "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
@@ -149,8 +156,13 @@ def main():
         '--max_steps_per_timestep', type=int, default=5, help='Maximum number of tokens decoded per acoustic timestepB'
     )
     parser.add_argument('--stateful_decoding', action='store_true', help='Whether to perform stateful decoding')
-    parser.add_argument('--use_lcs_merge', action='store_true', help='Whether to use LCS merge algorithm or not')
     parser.add_argument('--device', default=None, type=str, required=False)
+
+    # LCS Merge Algorithm
+    parser.add_argument('--use_lcs_merge', action='store_true', help='Whether to use LCS merge algorithm or not')
+    parser.add_argument(
+        '--lcs_alignment_dir', type=str, default=None, help='Path to a directory to store LCS algo alignments'
+    )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -169,7 +181,7 @@ def main():
     cfg.preprocessor.pad_to = 0
 
     if cfg.preprocessor.normalize != "per_feature":
-        logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
+        logging.error("Only EncDecRNNTBPEModel models trained with per_feature normalization are supported currently")
 
     device = args.device
     if device is None:
@@ -216,14 +228,16 @@ def main():
             stateful_decoding=args.stateful_decoding,
         )
     else:
-        frame_asr = FrameBatchASRRNNT(
+        frame_asr = LongestCommonSubsequenceBatchedFrameASRRNNT(
             asr_model=asr_model,
             frame_len=chunk_len,
             total_buffer=args.total_buffer_in_secs,
             batch_size=args.batch_size,
             max_steps_per_timestep=args.max_steps_per_timestep,
             stateful_decoding=args.stateful_decoding,
+            alignment_basepath=args.lcs_alignment_dir,
         )
+        # Set the LCS algorithm delay.
         frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
 
     hyps, refs, wer = get_wer_feat(

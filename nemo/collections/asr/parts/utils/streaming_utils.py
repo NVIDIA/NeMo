@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import os
 import shutil
 
 import numpy as np
@@ -25,16 +26,80 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
-from nemo.constants import monitor_time
-
-
-ENABLED = True
+# Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
+# select all i-1 and ith buffer tokens to merge.
 MIN_MERGE_SUBSEQUENCE_LEN = 1
-PRINT_ALIGNMENT = False
-ALIGNMENT_FILEPATH = None
 
 
-def LCSubStrMerge(X, Y):
+def print_alignment(alignment):
+    """
+    Print an alignment matrix of the shape (m + 1, n + 1)
+
+    Args:
+        alignment: An integer alignment matrix of shape (m + 1, n + 1)
+    """
+    m = len(alignment)
+    if m > 0:
+        n = len(alignment[0])
+        for i in range(m):
+            for j in range(n):
+                if j == 0:
+                    print(f"{i:4d} |", end=" ")
+                print(f"{alignment[i][j]}", end=" ")
+            print()
+
+
+def write_lcs_alignment_to_pickle(alignment, filepath, extras=None):
+    """
+    Writes out the LCS alignment to a file, along with any extras provided.
+
+    Args:
+        alignment: An alignment matrix of shape [m + 1, n + 1]
+        filepath: str filepath
+        extras: Optional dictionary of items to preserve.
+    """
+    if extras is None:
+        extras = {}
+
+    extras['alignment'] = alignment
+    torch.save(alignment, filepath)
+
+
+def longest_common_substring_merge(X, Y, filepath=None):
+    """
+    Longest Common Subsequence merge algorithm for aligning two consecutive buffers.
+
+    Base alignment construction algorithm is Longest Common Subsequence (reffered to as LCS hear after)
+
+    LCS Merge algorithm looks at two chunks i-1 and i, determins the aligned overlap at the
+    end of i-1 and beginning of ith chunk, and then clips the subsegment of the ith chunk.
+
+    Assumption is that the two chunks are consecutive chunks, and there exists at least small overlap acoustically.
+
+    It is a sub-word token merge algorithm, operating on the abstract notion of integer ids representing the subword ids.
+    It is independent of text or character encoding.
+
+    Since the algorithm is merge based, and depends on consecutive buffers, the very first buffer is processes using
+    the "middle tokens" algorithm.
+
+    It requires a delay of some number of tokens such that:
+        lcs_delay = math.floor(((total_buffer_in_secs - chunk_len_in_sec)) / model_stride_in_secs)
+
+    Total cost of the model is O(m_{i-1} * n_{i}) where (m, n) represents the number of subword ids of the buffer.
+
+    Args:
+        X: The subset of the previous chunk i-1, sliced such X = X[-(lcs_delay * max_steps_per_timestep):]
+            Therefore there can be at most lcs_delay * max_steps_per_timestep symbols for X, preserving computation.
+        Y: The entire current chunk i.
+        filepath: Optional filepath to save the LCS alignment matrix for later introspection.
+
+    Returns:
+        A tuple containing -
+            - i: Start index of alignment along the i-1 chunk.
+            - j: Start index of alignment along the ith chunk.
+            - slice_len: number of tokens to slice off from the ith chunk.
+        The LCS alignment matrix itself (shape m + 1, n + 1)
+    """
     # LCSuff is the table with zero
     # value initially in each cell
     m = len(X)
@@ -50,9 +115,9 @@ def LCSubStrMerge(X, Y):
     # LCSuff[m+1][n+1] in bottom up fashion
     for i in range(m + 1):
         for j in range(n + 1):
-            if (i == 0 or j == 0):
+            if i == 0 or j == 0:
                 LCSuff[i][j] = 0
-            elif (X[i - 1] == Y[j - 1]):
+            elif X[i - 1] == Y[j - 1]:
                 LCSuff[i][j] = LCSuff[i - 1][j - 1] + 1
 
                 if result <= LCSuff[i][j]:
@@ -67,7 +132,7 @@ def LCSubStrMerge(X, Y):
     # Longest common subsequence extends to the final row of of the old buffer
     # This means that there exists a diagonal LCS backtracking to the beginning of the new buffer
     i, j = result_idx[0:2]
-    is_complete_merge = (i == m)
+    is_complete_merge = i == m
 
     # Perfect alignment was found, slice eagerly
     if is_complete_merge:
@@ -206,26 +271,20 @@ def LCSubStrMerge(X, Y):
     result_idx[0] = i
     result_idx[1] = j
 
-    global ALIGNMENT_FILEPATH
-    if ALIGNMENT_FILEPATH is not None:
-        torch.save({'alignment': LCSuff,
-                    "is_complete_merge": is_complete_merge,
-                    "X": X, "Y": Y,
-                    "slice_idx": result_idx,
-                    }, ALIGNMENT_FILEPATH)
-        print("Wrote alignemnt to :", ALIGNMENT_FILEPATH)
+    if filepath is not None:
+        extras = {
+            "is_complete_merge": is_complete_merge,
+            "X": X,
+            "Y": Y,
+            "slice_idx": result_idx,
+        }
+        write_lcs_alignment_to_pickle(LCSuff, filepath=filepath, extras=extras)
+        print("Wrote alignemnt to :", filepath)
 
-    # Uncomment this for LCS alignment
-    if PRINT_ALIGNMENT:
-        for i in range(m + 1):
-            for j in range(n + 1):
-                print(f"{LCSuff[i][j]}", end=" ")
-            print()
-
-    return result_idx
+    return result_idx, LCSuff
 
 
-def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_timestep=5):
+def lcs_alignment_merge_buffer(buffer, data, delay, model, max_steps_per_timestep: int = 5, filepath: str = None):
     """
     Merges the new text from the current frame with the previous text contained in the buffer.
 
@@ -234,7 +293,7 @@ def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_tim
     will be incorrect (or at least obtain worse WER overall).
     """
     # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
-    if timesteps < 1:
+    if delay < 1:
         buffer += data
         return buffer
 
@@ -244,14 +303,14 @@ def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_tim
         return buffer
 
     # Prepare a subset of the buffer that will be LCS Merged with new data
-    search_size = int(timesteps * max_steps_per_timestep)
+    search_size = int(delay * max_steps_per_timestep)
     buffer_slice = buffer[-search_size:]
 
     # Perform LCS Merge
-    lcs_idx = LCSubStrMerge(buffer_slice, data)
+    lcs_idx, lcs_alignment = longest_common_substring_merge(buffer_slice, data, filepath=filepath)
 
     # Slice off new data
-    i, j, slice_len = lcs_idx
+    # i, j, slice_len = lcs_idx
     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
     data = data[slice_idx:]
 
@@ -260,42 +319,7 @@ def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_tim
     return buffer
 
 
-# def lcs_alignment_merge_buffer(buffer, data, timesteps, model, max_steps_per_timestep=5):
-#     """
-#     Merges the new text from the current frame with the previous text contained in the buffer.
-#
-#     The alignment is based on a Longest Common Subsequence algorithm, with some additional heuristics leveraging
-#     the notion that the chunk size is >= the context window. In case this assumptio is violated, the results of the merge
-#     will be incorrect (or at least obtain worse WER overall).
-#     """
-#     # If delay timesteps is 0, that means no future context was used. Simply concatenate the buffer with new data.
-#     if timesteps < 1:
-#         buffer += data
-#         return buffer
-#
-#     # If buffer is empty, simply concatenate the buffer and data.
-#     if len(buffer) == 0:
-#         buffer += data
-#         return buffer
-#
-#     # Prepare a subset of the buffer that will be LCS Merged with new data
-#     search_size = int(timesteps * max_steps_per_timestep)
-#     buffer_slice = buffer# [-search_size:]
-#
-#     # Perform LCS Merge
-# #     lcs_idx = LCSubStrMerge(buffer_slice, data)
-#
-# #     # Slice off new data
-# #     i, j, slice_len = lcs_idx
-# #     slice_idx = lcs_idx[1] + lcs_idx[-1]  # slice = j + slice_len
-#
-#     # data = data[slice_idx:]
-#
-#     # Concat data to buffer
-#     buffer += data
-#     return buffer
-
-def inplace_buffer_merge(buffer, data, timesteps, model, max_steps_per_timestep=5):
+def inplace_buffer_merge(buffer, data, timesteps, model):
     """
     Merges the new text from the current frame with the previous text contained in the buffer.
 
@@ -661,8 +685,7 @@ class FrameBatchASR:
 
 class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
     """
-    Class to append each feature frame to a buffer and return
-    an array of buffers.
+    Batched variant of FeatureFrameBufferer where batch dimension is the independent audio samples.
     """
 
     def __init__(self, asr_model, frame_len=1.6, batch_size=4, total_buffer=4.0):
@@ -674,16 +697,18 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         '''
         super().__init__(asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer)
 
-        # OVERRIDES
+        # OVERRIDES OF BASE CLASS
         timestep_duration = asr_model._cfg.preprocessor.window_stride
         total_buffer_len = int(total_buffer / timestep_duration)
-        self.buffer = np.ones([batch_size, self.n_feat, total_buffer_len],
-                              dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.buffer = (
+            np.ones([batch_size, self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
 
+        # Preserve list of buffers and indices, one for every sample
         self.all_frame_reader = [None for _ in range(self.batch_size)]
         self.signal_end = [False for _ in range(self.batch_size)]
         self.signal_end_index = [None for _ in range(self.batch_size)]
-        self.buffer_number = 0
+        self.buffer_number = 0  # preserve number of buffers returned since reset.
 
         self.reset()
         del self.buffered_len
@@ -695,8 +720,8 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         '''
         super().reset()
         self.feature_buffer = (
-                np.ones([self.batch_size, self.n_feat, self.feature_buffer_len],
-                        dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+            np.ones([self.batch_size, self.n_feat, self.feature_buffer_len], dtype=np.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
         )
         self.all_frame_reader = [None for _ in range(self.batch_size)]
         self.signal_end = [False for _ in range(self.batch_size)]
@@ -704,13 +729,12 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         self.buffer_number = 0
 
     def get_batch_frames(self):
+        # Exit if all buffers of all samples have been processed
         if all(self.signal_end):
             return []
+
+        # Otherwise sequentially process frames of each sample one by one.
         batch_frames = []
-        # for frame in self.frame_reader:
-        #     batch_frames.append(np.copy(frame))
-        #     if len(batch_frames) == self.batch_size:
-        #         return batch_frames
         for idx, frame_reader in enumerate(self.all_frame_reader):
             try:
                 frame = next(frame_reader)
@@ -718,6 +742,11 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
 
                 batch_frames.append(frame)
             except StopIteration:
+                # If this sample has finished all of its buffers
+                # Set its signal_end flag, and assign it the id of which buffer index
+                # did it finish the sample (if not previously set)
+                # This will let the alignment module know which sample in the batch finished
+                # at which index.
                 batch_frames.append(None)
                 self.signal_end[idx] = True
 
@@ -730,18 +759,20 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
     def get_frame_buffers(self, frames):
         # Build buffers for each frame
         self.frame_buffers = []
+        # Loop over all buffers of all samples
         for idx in range(self.batch_size):
             frame = frames[idx]
+            # If the sample has a buffer, then process it as usual
             if frame is not None:
-                self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len:]
-                self.buffer[idx, :, -self.n_frame_len:] = frame
+                self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len :]
+                self.buffer[idx, :, -self.n_frame_len :] = frame
                 # self.buffered_len += frame.shape[1]
                 # WRAP the buffer at index idx into a outer list
                 self.frame_buffers.append([np.copy(self.buffer[idx])])
             else:
+                # If the buffer does not exist, the sample has finished processing
+                # set the entire buffer for that sample to 0
                 self.buffer[idx, :, :] *= 0.0
-                # self.buffered_len += frame.shape[1]
-                # WRAP the buffer at index idx into a outer list
                 self.frame_buffers.append([np.copy(self.buffer[idx])])
 
         return self.frame_buffers
@@ -752,13 +783,13 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         self.signal_end_index[idx] = None
 
     def _update_feature_buffer(self, feat_frame, idx):
+        # Update the feature buffer for given sample, or reset if the sample has finished processing
         if feat_frame is not None:
-            self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[idx, :, feat_frame.shape[1]:]
-            self.feature_buffer[idx, :, -feat_frame.shape[1]:] = feat_frame
+            self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[idx, :, feat_frame.shape[1] :]
+            self.feature_buffer[idx, :, -feat_frame.shape[1] :] = feat_frame
             # self.buffered_features_size += feat_frame.shape[1]
         else:
             self.feature_buffer[idx, :, :] *= 0.0
-            # self.feature_buffer[idx, :, :] *= 0.0
 
     def get_norm_consts_per_frame(self, batch_frames):
         for idx, frame in enumerate(batch_frames):
@@ -770,7 +801,7 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         return (mean_from_buffer, stdev_from_buffer)
 
     def normalize_frame_buffers(self, frame_buffers, norm_consts):
-        CONSTANT = 1e-5
+        CONSTANT = 1e-8
         for i in range(len(frame_buffers)):
             frame_buffers[i] = (frame_buffers[i] - norm_consts[0][i]) / (norm_consts[1][i] + CONSTANT)
 
@@ -778,45 +809,50 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         batch_frames = self.get_batch_frames()
 
         while len(batch_frames) > 0:
-        # while not all(self.signal_end):
+            # while there exists at least one sample that has not been processed yet
             frame_buffers = self.get_frame_buffers(batch_frames)
             norm_consts = self.get_norm_consts_per_frame(batch_frames)
-            # if len(frame_buffers) == 0:
-            #     continue
 
             self.normalize_frame_buffers(frame_buffers, norm_consts)
             return frame_buffers
         return []
 
 
-# class for streaming frame-based ASR
-# 1) use reset() method to reset FrameASR's state
-# 2) call transcribe(frame) to do ASR on
-#    contiguous signal's frames
 class BatchedFrameASRRNNT(FrameBatchASR):
     """
-    class for streaming frame-based ASR use reset() method to reset FrameASR's
-    state call transcribe(frame) to do ASR on contiguous signal's frames
+    Batched implementation of FrameBatchASR for RNNT models, where the batch dimension is independent audio samples.
     """
 
     def __init__(
-        self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, max_steps_per_timestep: int = 5, stateful_decoding: bool = False
+        self,
+        asr_model,
+        frame_len=1.6,
+        total_buffer=4.0,
+        batch_size=32,
+        max_steps_per_timestep: int = 5,
+        stateful_decoding: bool = False,
     ):
         '''
         Args:
-          frame_len: frame's duration, seconds
-          frame_overlap: duration of overlaps before and after current frame, seconds
-          offset: number of symbols to drop for smooth streaming
+            asr_model: An RNNT model.
+            frame_len: frame's duration, seconds.
+            total_buffer: duration of total audio chunk size, in seconds.
+            batch_size: Number of independent audio samples to process at each step.
+            max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
+            stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
         '''
         super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
 
+        # OVERRIDES OF THE BASE CLASS
         self.max_steps_per_timestep = max_steps_per_timestep
         self.stateful_decoding = stateful_decoding
 
         self.all_alignments = [[] for _ in range(self.batch_size)]
         self.all_preds = [[] for _ in range(self.batch_size)]
         self.previous_hypotheses = None
-        self.batch_index_map = {idx: idx for idx in range(self.batch_size)}  # pointer from global batch id : local sub-batch id
+        self.batch_index_map = {
+            idx: idx for idx in range(self.batch_size)
+        }  # pointer from global batch id : local sub-batch id
 
         try:
             self.eos_id = self.asr_model.tokenizer.eos_id
@@ -844,12 +880,15 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         self.batch_index_map = {idx: idx for idx in range(self.batch_size)}
 
         self.data_layer = [AudioBuffersDataLayer() for _ in range(self.batch_size)]
-        self.data_loader = [DataLoader(self.data_layer[idx], batch_size=1, collate_fn=speech_collate_fn)
-                            for idx in range(self.batch_size)]
+        self.data_loader = [
+            DataLoader(self.data_layer[idx], batch_size=1, collate_fn=speech_collate_fn)
+            for idx in range(self.batch_size)
+        ]
 
     def read_audio_file(self, audio_filepath: list, delay, model_stride_in_secs):
         assert len(audio_filepath) == self.batch_size
 
+        # Read in a batch of audio files, one by one
         for idx in range(self.batch_size):
             samples = get_samples(audio_filepath[idx])
             samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
@@ -864,6 +903,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         frame_buffers = self.frame_bufferer.get_buffers_batch()
 
         while len(frame_buffers) > 0:
+            # While at least 1 sample has a buffer left to process
             self.frame_buffers += frame_buffers[:]
 
             for idx, buffer in enumerate(frame_buffers):
@@ -874,6 +914,24 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
     @torch.no_grad()
     def _get_batch_preds(self):
+        """
+        Perform dynamic batch size decoding of frame buffers of all samples.
+
+        Steps:
+            -   Load all data loaders of every sample
+            -   For all samples, determine if signal has finished.
+                -   If so, skip calculation of mel-specs.
+                -   If not, compute mel spec and length
+            -   Perform Encoder forward over this sub-batch of samples. Maintain the indices of samples that were processed.
+            -   If performing stateful decoding, prior to decoder forward, remove the states of samples that were not processed.
+            -   Perform Decoder + Joint forward for samples that were processed.
+            -   For all output RNNT alignment matrix of the joint do:
+                -   If signal has ended previously (this was last buffer of padding), skip alignment
+                -   Otherwise, recalculate global index of this sample from the sub-batch index, and preserve alignment.
+            -   Same for preds
+            -   Update indices of sub-batch with global index map.
+            - Redo steps until all samples were processed (sub-batch size == 0).
+        """
         device = self.asr_model.device
 
         data_iters = [iter(data_loader) for data_loader in self.data_loader]
@@ -905,10 +963,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         del feat_signals, feat_signal_lens
 
-        with monitor_time(f'encoder forward (feat_signal={feat_signal.shape})', enabled=ENABLED):
-            encoded, encoded_len = self.asr_model(
-                processed_signal=feat_signal, processed_signal_length=feat_signal_len
-            )
+        encoded, encoded_len = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
 
         # filter out partial hypotheses from older batch subset
         if self.stateful_decoding and self.previous_hypotheses is not None:
@@ -918,10 +973,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 new_prev_hypothesis.append(self.previous_hypotheses[old_pos])
             self.previous_hypotheses = new_prev_hypothesis
 
-        with monitor_time('rnnt autoregressive decoding', enabled=ENABLED):
-            best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
-            )
+        best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+            encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+        )
 
         if self.stateful_decoding:
             # preserve last state from hypothesis of new batch indices
@@ -951,7 +1005,8 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                     # reset states :
                     self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
                     self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
-                        reset_states, idx)
+                        reset_states, idx
+                    )
 
         # Position map update
         if len(new_batch_keys) != len(self.batch_index_map):
@@ -962,11 +1017,12 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         del best_hyp, pred
 
     def transcribe(
-            self, tokens_per_chunk: int, delay: int,
+        self, tokens_per_chunk: int, delay: int,
     ):
-        print()
-        with monitor_time('infer logits', enabled=ENABLED):
-            self.infer_logits()
+        """
+        Performs "middle token" alignment prediction using the buffered audio chunk.
+        """
+        self.infer_logits()
 
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
@@ -976,13 +1032,12 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 raise ValueError("Signal did not end")
 
             for a_idx, alignment in enumerate(alignments):
-                alignment = alignment[len(alignment) - 1 - delay: len(alignment) - 1 - delay + tokens_per_chunk]
+                alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
 
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                 if len(ids) > 0 and a_idx < signal_end_idx:
-                    self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,
-                                                              max_steps_per_timestep=self.max_steps_per_timestep)
+                    self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,)
 
         output = []
         for idx in range(self.batch_size):
@@ -1013,34 +1068,48 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         return hypothesis
 
 
-class FrameBatchASRRNNT(BatchedFrameASRRNNT):
+class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
     """
-    class for streaming frame-based ASR use reset() method to reset FrameASR's
-    state call transcribe(frame) to do ASR on contiguous signal's frames
+    Implements a token alignment algorithm for text alignment instead of middle token alignment.
+
+    For more detail, read the docstring of longest_common_substring_merge().
     """
 
     def __init__(
-        self, asr_model, frame_len=1.6, total_buffer=4.0, batch_size=4, max_steps_per_timestep: int = 5, stateful_decoding: bool = False
+        self,
+        asr_model,
+        frame_len=1.6,
+        total_buffer=4.0,
+        batch_size=4,
+        max_steps_per_timestep: int = 5,
+        stateful_decoding: bool = False,
+        alignment_basepath: str = None,
     ):
         '''
         Args:
-          frame_len: frame's duration, seconds
-          frame_overlap: duration of overlaps before and after current frame, seconds
-          offset: number of symbols to drop for smooth streaming
+            asr_model: An RNNT model.
+            frame_len: frame's duration, seconds.
+            total_buffer: duration of total audio chunk size, in seconds.
+            batch_size: Number of independent audio samples to process at each step.
+            max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
+            stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
+            alignment_basepath: Str path to a directory where alignments from LCS will be preserved for later analysis.
         '''
         super().__init__(asr_model, frame_len, total_buffer, batch_size, max_steps_per_timestep, stateful_decoding)
         self.sample_offset = 0
         self.lcs_delay = -1
 
+        self.alignment_basepath = alignment_basepath
+
     def transcribe(
         self, tokens_per_chunk: int, delay: int,
     ):
-        print()
         if self.lcs_delay < 0:
-            raise ValueError("Please set LCS Delay valus as `(buffer_duration - chunk_duration) / model_stride_in_secs`")
+            raise ValueError(
+                "Please set LCS Delay valus as `(buffer_duration - chunk_duration) / model_stride_in_secs`"
+            )
 
-        with monitor_time('infer logits', enabled=ENABLED):
-            self.infer_logits()
+        self.infer_logits()
 
         self.unmerged = [[] for _ in range(self.batch_size)]
         for idx, alignments in enumerate(self.all_alignments):
@@ -1054,42 +1123,41 @@ class FrameBatchASRRNNT(BatchedFrameASRRNNT):
                 # Middle token first chunk
                 if a_idx == 0:
                     # len(alignment) - 1 - delay + tokens_per_chunk
-                    alignment = alignment[len(alignment) - 1 - delay:]
+                    alignment = alignment[len(alignment) - 1 - delay :]
                     ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                     if len(ids) > 0:
-                        self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,
-                                                                  max_steps_per_timestep=self.max_steps_per_timestep)
+                        self.unmerged[idx] = inplace_buffer_merge(
+                            self.unmerged[idx], ids, delay, model=self.asr_model,
+                        )
 
                 else:
                     ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
                     if len(ids) > 0 and a_idx < signal_end_idx:
 
-                        # global PRINT_ALIGNMENT
-                        # if idx == 2:
-                        #     PRINT_ALIGNMENT = True
-                        #     print()
-                        # else:
-                        #     PRINT_ALIGNMENT = False
+                        if self.alignment_basepath is not None:
+                            basepath = self.alignment_basepath
+                            sample_offset = self.sample_offset + idx
+                            alignment_offset = a_idx
+                            path = os.path.join(basepath, str(sample_offset))
 
-                        global ALIGNMENT_FILEPATH
-                        import os
-                        basepath = "/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/asr_chunked_inference/rnnt/alignments"
-                        sample_offset = self.sample_offset + idx
-                        alignment_offset = a_idx
-                        path = os.path.join(basepath, str(sample_offset))
+                            os.makedirs(path, exist_ok=True)
+                            path = os.path.join(path, "alignment_" + str(alignment_offset) + '.pt')
 
-                        os.makedirs(path, exist_ok=True)
-                        path = os.path.join(path, "alignment_" + str(alignment_offset) + '.pt')
+                            filepath = path
+                        else:
+                            filepath = None
 
-                        ALIGNMENT_FILEPATH = path
-
-                        self.unmerged[idx] = lcs_alignment_merge_buffer(self.unmerged[idx], ids, self.lcs_delay, model=self.asr_model,
-                                                                        max_steps_per_timestep=self.max_steps_per_timestep)
+                        self.unmerged[idx] = lcs_alignment_merge_buffer(
+                            self.unmerged[idx],
+                            ids,
+                            self.lcs_delay,
+                            model=self.asr_model,
+                            max_steps_per_timestep=self.max_steps_per_timestep,
+                            filepath=filepath,
+                        )
 
         output = []
         for idx in range(self.batch_size):
             output.append(self.greedy_merge(self.unmerged[idx]))
         return output
-
-
