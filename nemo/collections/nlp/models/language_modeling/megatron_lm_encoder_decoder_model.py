@@ -37,8 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
-    make_inference_attention_mask_3d,
-    make_inference_history_mask_3d,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
@@ -316,18 +314,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
 
         for _ in range(num_tokens_to_generate):
-            # Overwrite the decoder token since we want to predict
-            # enc_dec_mask = make_inference_attention_mask_3d(
-            #     predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
-            # )
-            dec_mask = make_inference_attention_mask_3d(
-                predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id
-            )
-            dec_mask = dec_mask * make_inference_history_mask_3d(predicted_tokens_dec)
-
-            # enc_dec_mask = enc_dec_mask < 0.5
-            dec_mask = dec_mask < 0.5
-
+            dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
             output_tensor = itemgetter("dec_output")(self(
                 encoder_input_ids=tokens_enc,
                 decoder_input_ids=predicted_tokens_dec,
@@ -373,7 +360,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         tokens_enc = request['masked_sample']
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
-        enc_mask = make_inference_attention_mask_3d(tokens_enc, tokens_enc, self.tokenizer.pad_id)
+        enc_mask = tokens_enc != self.tokenizer.pad_id
         enc_mask = enc_mask < 0.5
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))

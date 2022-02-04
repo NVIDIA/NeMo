@@ -25,7 +25,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
     build_position_ids,
-    enc_dec_extended_attention_mask,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
