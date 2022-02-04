@@ -114,8 +114,6 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         lm_labels=None,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
-        # FIXME: REMOVE ME
-        batch=None,
     ):
         ret_dict= self.emc_dec_model(
             enc_input_ids=encoder_input_ids,
@@ -126,7 +124,6 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
             output_enc_hidden_only=output_enc_hidden_only,
-            batch=batch,
         )
 
         return ret_dict
