@@ -84,7 +84,8 @@ class VitsModel(TextToWaveform):
         self.win_length = cfg.train_ds.dataset.win_length
 
         # TODO: need to add SynthesizerTrn in config
-        # TODO: how model knows padding idx? num tokens?
+        # TODO: how model knows padding idx? Need to use self.tokenizer_pad
+        # TODO: n_vocab != cfg.symbols_embedding_dim. Need replace cfg.symbols_embedding_dim with num_tokens
         self.net_g = SynthesizerTrn(
             n_vocab=cfg.symbols_embedding_dim,
             spec_channels=cfg.train_ds.dataset.n_fft // 2 + 1,
@@ -176,7 +177,7 @@ class VitsModel(TextToWaveform):
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
     def forward(self, batch, batch_idx):
-        # TODO: Check if this is correct
+        # TODO: Check if this is correct forward
         with torch.no_grad():
             (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
@@ -263,6 +264,7 @@ class VitsModel(TextToWaveform):
         optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
         optim_g.step()
+        # TODO: maybe change it to PTL-based function
         norm_g = clip_grad_value_(self.net_g.parameters(), None)
 
         schedulers = self.lr_schedulers()
