@@ -206,7 +206,6 @@ class TokensEncoderDecoderModule(MegatronModule):
     ):
         ret_dict = {}
 
-        AAA
         # encoder embeddings
         enc_position_ids = build_position_ids(enc_input_ids)
         enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
@@ -236,6 +235,7 @@ class TokensEncoderDecoderModule(MegatronModule):
                     enc_output_mask=None,
                     dec_layer_past=None,
                     dec_get_key_value=False,
+                    batch=batch,
                 )
             )
 
