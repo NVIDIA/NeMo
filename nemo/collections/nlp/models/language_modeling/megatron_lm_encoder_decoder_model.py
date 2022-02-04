@@ -15,7 +15,6 @@
 import re
 from operator import itemgetter
 from typing import Any, Dict, Optional
-import os
 
 import torch
 import torch.nn as nn
