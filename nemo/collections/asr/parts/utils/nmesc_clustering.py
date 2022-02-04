@@ -45,7 +45,7 @@ from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 from functools import partial
 import torch
-
+from typing import Dict, List
 scaler = MinMaxScaler(feature_range=(0, 1))
 DEVICE = 0
 try:
@@ -61,6 +61,7 @@ except ImportError:
 
 
 def cos_similarity(a, b, eps=0.00035):
+    torch.manual_seed(0)
     a_norm = a / (a.norm(dim=1)[:, None] + eps)
     b_norm = b / (b.norm(dim=1)[:, None] + eps)
     res = torch.mm(a_norm, b_norm.transpose(0,1))
@@ -164,8 +165,9 @@ def kmeans_torch(
 
     # transfer to device
     X = X.to(device)
-
+    
     init_state = kmeans_plusplus_torch(X, n_clusters=num_clusters, random_state=0, device=device)
+    print("init_state:", init_state)
     initial_state = init_state[0]
     
     iter_count = 0
@@ -198,6 +200,8 @@ def kmeans_torch(
     return selected_cluster_index.cpu(), initial_state.cpu()
 
 def getEuclideanDistance(data1, data2, device=torch.device('cpu'), tqdm_flag=True):
+    if tqdm_flag:
+        print(f'device is :{device}')
     data1, data2 = data1.to(device), data2.to(device)
     A = data1.unsqueeze(dim=1)
     B = data2.unsqueeze(dim=0)
@@ -285,6 +289,18 @@ def getRepeatedList(mapping_argmat, score_mat_size):
     repeat_list[idxs] = counts.int()
     return repeat_list
 
+def _getRepeatedList(mapping_argmat, score_mat_size):
+    """
+    Count the numbers in the mapping dictionary and create lists that contain
+    repeated indices to be used for creating the repeated affinity matrix for
+    fusing the affinity values.
+    """
+    count_dict = dict(Counter(mapping_argmat))
+    repeat_list = torch.zeros((score_mat_size,), dtype=torch.int32)
+    idxs, counts = mapping_argmat.unique(return_counts=True)
+    repeat_list[idxs] = counts.int()
+    return repeat_list
+
 def get_argmin_mat(uniq_scale_dict):
     """
     Calculate the mapping between the base scale and other scales. A segment from a longer scale is
@@ -302,8 +318,7 @@ def get_argmin_mat(uniq_scale_dict):
     segment_anchor_dict = {}
     for scale_idx in scale_list:
         time_stamp_list = uniq_scale_dict[scale_idx]['time_stamps']
-        time_stamps_float = np.array([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
-        time_stamps_float = torch.from_numpy(time_stamps_float)
+        time_stamps_float = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list], dtype=torch.double)
         segment_anchor_dict[scale_idx] = torch.mean(time_stamps_float, dim=1)
 
     base_scale_idx = max(scale_list)
@@ -318,7 +333,7 @@ def get_argmin_mat(uniq_scale_dict):
 
     return session_scale_mapping_dict
 
-def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
+def _getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
     apply multiscale weights to calculate the fused similarity matrix.
@@ -339,25 +354,63 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     base_scale_idx = max(uniq_scale_dict.keys())
     base_scale_emb = torch.from_numpy(np.array(uniq_scale_dict[base_scale_idx]['embeddings']))
-    # base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
     multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
-    _multiscale_weights = torch.tensor(multiscale_weights).unsqueeze(0).half()
+    _multiscale_weights = torch.tensor(multiscale_weights).unsqueeze(0)
 
     score_mat_list, repeated_tensor_list = [], []
     repeated_mat_list = [] 
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
     for scale_idx in sorted(uniq_scale_dict.keys()):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
-        emb = torch.from_numpy(np.array(uniq_scale_dict[scale_idx]['embeddings']))
-        # emb = uniq_scale_dict[scale_idx]['embeddings']
+        emb_t = uniq_scale_dict[scale_idx]['embeddings']
+        score_mat_torch = _getCosAffinityMatrix(emb_t)
+        repeat_list = _getRepeatedList(mapping_argmat, score_mat_torch.shape[0])
+        repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
+        repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
+        repeated_tensor_list.append(repeated_tensor_1)
+    repp = torch.stack(repeated_tensor_list).float()
+    _multiscale_weights = _multiscale_weights.squeeze(0).float()
+    _fused_sim_d = torch.matmul(repp.permute(2,1,0), _multiscale_weights.t()).squeeze(2).t()
+    return _fused_sim_d, base_scale_emb
+
+def getMultiScaleCosAffinityMatrix(
+        uniq_embs_and_timestamps: Dict[str, Dict[int, Dict[str, torch.Tensor]]]=None,
+        ):
+    """
+    Calculate cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Args:
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization 
+            is performed.
+
+    Returns:
+        fused_sim_d (np.array):
+            This function generates an ffinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+        base_scale_emb (np.array):
+            The base scale embedding (the embeddings from the finest scale)
+    """
+    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+    base_scale_idx = max(uniq_scale_dict.keys())
+    base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
+    _multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
+
+    score_mat_list, repeated_tensor_list = [], []
+    repeated_mat_list = [] 
+    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
+    for scale_idx in sorted(uniq_scale_dict.keys()):
+        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        emb = uniq_scale_dict[scale_idx]['embeddings']
         score_mat_torch = getCosAffinityMatrix(emb)
         score_mat = score_mat_torch
         repeat_list = getRepeatedList(mapping_argmat, score_mat.shape[0])
         repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
         repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
         repeated_tensor_list.append(repeated_tensor_1)
-    repp = torch.stack(repeated_tensor_list)
-    
+    repp = torch.stack(repeated_tensor_list).half()
     _fused_sim_d = torch.matmul(repp.permute(2,1,0), _multiscale_weights.t()).squeeze(2).t()
     return _fused_sim_d, base_scale_emb
 
@@ -398,8 +451,6 @@ def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
     new_emb_np = torch.vstack(new_emb_list)
     return new_emb_np
 
-
-
 def getEnhancedSpeakerCount(emb, cuda, random_test_count=5, anchor_spk_n=3, anchor_sample_n=10, sigma=50):
     """
     Calculate the number of speakers using NME analysis with anchor embeddings.
@@ -408,7 +459,7 @@ def getEnhancedSpeakerCount(emb, cuda, random_test_count=5, anchor_spk_n=3, anch
     for idx in range(random_test_count):
         np.random.seed(idx)
         emb_aug = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
-        mat = getCosAffinityMatrix(emb_aug)
+        mat = _getCosAffinityMatrix(emb_aug)
         nmesc = NMESC(
             mat,
             max_num_speaker=8,
@@ -418,9 +469,9 @@ def getEnhancedSpeakerCount(emb, cuda, random_test_count=5, anchor_spk_n=3, anch
             fixed_thres=None,
             NME_mat_size=300,
             cuda=cuda,
+            device=device,
         )
         est_num_of_spk, _ = nmesc.NMEanalysis()
-        # est_num_of_spk_list.append(est_num_of_spk)
         est_num_of_spk_list[idx] = est_num_of_spk
 
     oracle_num_speakers = torch.mode(est_num_of_spk_list, -1)[0]
@@ -431,7 +482,29 @@ def getCosAffinityMatrix(emb):
     """
     Calculate cosine similarity values among speaker embeddings.
     """
-    sim_d = cos_similarity(emb, emb)
+    if type(emb) == list:
+        _emb = torch.from_numpy(np.array(emb))
+    elif type(emb) == np.ndarray:
+        _emb = torch.from_numpy(emb).to(DEVICE)
+    else:
+        _emb = emb
+    sim_d = cos_similarity(_emb, _emb)
+    sim_d = ScalerMinMax(sim_d)
+    return sim_d
+
+def _getCosAffinityMatrix(emb):
+    """
+    Calculate cosine similarity values among speaker embeddings.
+    """
+    if type(emb) == list:
+        _emb = torch.from_numpy(np.array(emb))
+    elif type(emb) == np.ndarray:
+        _emb = torch.from_numpy(emb).to(DEVICE)
+    else:
+        _emb = emb
+
+    _emb = _emb.half()
+    sim_d = cos_similarity(_emb, _emb)
     sim_d = ScalerMinMax(sim_d)
     return sim_d
 
@@ -441,11 +514,7 @@ def getLaplacian(X):
     """
     X.fill_diagonal = 0
     D = torch.sum(torch.abs(X), dim=1)
-    try:
-        # D = torch.diagonal(D, 0)
-        D = torch.diag_embed(D)
-    except:
-        import ipdb; ipdb.set_trace()
+    D = torch.diag_embed(D)
     L = D - X
     return L
 
@@ -484,27 +553,25 @@ def estimateNumofSpeakers(affinity_mat, max_num_speaker, is_cuda=False):
     num_of_spk = torch.argmax(lambda_gap_tensor[: min(max_num_speaker, lambda_gap_tensor.shape[0])]) + 1
     return num_of_spk, lambdas, lambda_gap_tensor
 
-
-
-
 class SpectralClustering:
-    def __init__(self, n_clusters=8, random_state=0, n_init=10, p_value=10, n_jobs=None, cuda=False):
+    def __init__(self, n_clusters=8, random_state=0, n_init=10, p_value=10, n_jobs=None, cuda=False, device='cpu'):
         self.n_clusters = n_clusters
         self.random_state = random_state
         self.n_init = n_init
         self.p_value = p_value
         self.affinity_matrix_ = None
         self.cuda = cuda
+        self.device = device
 
     def predict(self, X):
         if X.shape[0] != X.shape[1]:
             raise ValueError("The affinity matrix is not a square matrix.")
 
         self.affinity_matrix_ = X
-        labels = self.clusterSpectralEmbeddings(self.affinity_matrix_, n_init=self.n_init, cuda=self.cuda)
+        labels = self.clusterSpectralEmbeddings(self.affinity_matrix_, n_init=self.n_init, cuda=self.cuda, device=self.device)
         return labels
 
-    def clusterSpectralEmbeddings(self, affinity, n_init=10, cuda=False):
+    def clusterSpectralEmbeddings(self, affinity, n_init=10, cuda=False, device='cpu'):
         spectral_emb = self.getSpectralEmbeddings(affinity, n_spks=self.n_clusters, drop_first=False, cuda=cuda)
         labels, _ = kmeans_torch(
                     X=spectral_emb, num_clusters=self.n_clusters, distance='euclidean', device=torch.device('cuda:0')
@@ -574,6 +641,7 @@ class NMESC:
         fixed_thres=None,
         cuda=False,
         NME_mat_size=512,
+        device='cpu'
     ):
         """
         Parameters:
@@ -627,6 +695,7 @@ class NMESC:
         self.max_N = None
         self.mat = mat
         self.p_value_list = []
+        self.device = device
 
     def NMEanalysis(self):
         """
@@ -731,9 +800,9 @@ class NMESC:
 
     # emb,
 
-
+# @torch.jit.script
 def COSclustering(
-    uniq_embs_and_timestamps=None,
+    uniq_embs_and_timestamps: Dict[str, Dict[int, Dict[str, torch.Tensor]]]=None,
     oracle_num_speakers=None,
     max_num_speaker=8,
     min_samples_for_NMESC=6,
@@ -742,6 +811,7 @@ def COSclustering(
     sparse_search_volume=30,
     fixed_thres=None,
     cuda=False,
+    device='cpu',
 ):
     """
     Clustering method for speaker diarization based on cosine similarity.
@@ -791,10 +861,10 @@ def COSclustering(
     """
     # Get base-scale embedding from uniq_embs_and_timestamps.
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    # emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
-    emb = torch.from_numpy(np.array(uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']))
+    emb = uniq_scale_dict[0]['embeddings']
+    device = torch.device('cpu')
+    cuda = True
     
-    # oracle_num_speakers = None
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32)
     elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
@@ -805,8 +875,9 @@ def COSclustering(
     if oracle_num_speakers:
         max_num_speaker = oracle_num_speakers
 
-    mat, emb = getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps)
-
+    mat, emb = _getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps)
+    emb = emb.to(device)
+    
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,
@@ -816,6 +887,7 @@ def COSclustering(
         fixed_thres=fixed_thres,
         NME_mat_size=300,
         cuda=cuda,
+        device=device,
     )
 
     if emb.shape[0] > min_samples_for_NMESC:
@@ -829,6 +901,6 @@ def COSclustering(
     elif est_num_of_spk_enhanced:
         est_num_of_spk = est_num_of_spk_enhanced
 
-    spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda)
+    spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
     Y = spectral_model.predict(affinity_mat)
     return Y
