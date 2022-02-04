@@ -34,7 +34,7 @@ Introduction
 ------------
 
 NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), natural language processing (NLP), and text-to-speech synthesis (TTS).
-The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
+The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
 `Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
 
