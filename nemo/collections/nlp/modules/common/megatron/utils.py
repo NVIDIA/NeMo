@@ -203,38 +203,38 @@ def make_inference_history_mask_3d(block):
 def build_attention_mask_3d_padding(source_mask, target_mask):
     """
     Returns a 3D joint attention mask for Megatron given two 2D masks
-    :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
-    :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
+    :param source_mask - True for non-masked, else masked [batch, src length]
+    :param target_mask - True for non-masked, else masked [batch, tgt length]
     """
     mask = make_attention_mask_3d(source_mask, target_mask)
+    # invert mask for Megatron
     return mask < 0.5
 
 def build_attention_mask_3d_causal(source_mask, target_mask):
     """
     Returns a 3D joint attention mask for Megatron given two 2D masks
-    :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
-    :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
+    :param source_mask - True for non-masked, else masked [batch, src length]
+    :param target_mask - True for non-masked, else masked [batch, tgt length]
     """
     casual_mask = make_inference_history_mask_3d(target_mask)
     mask = make_attention_mask_3d(source_mask, target_mask)
     mask = mask * casual_mask
+    # invert mask for Megatron
     return mask < 0.5
 
 
-def build_attention_mask_3d(source_mask, target_mask, attn_mask_type, mask=None):
+def build_attention_mask_3d(source_mask, target_mask, attn_mask_type):
     """
     Returns a 3D attention mask for Megatron given two 2D masks
     :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
     :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     :param attn_mask_type - AttnMaskType enum
     """
-    # do not build a mask if it is already 3D
-    if (mask is None) or (len(mask.shape) == 2):
-        if attn_mask_type == AttnMaskType.padding:
-            mask = build_attention_mask_3d_padding(source_mask, target_mask)
-        elif attn_mask_type == AttnMaskType.causal:
-            mask = build_attention_mask_3d_causal(source_mask, target_mask)
-        else:
-            raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
+    if attn_mask_type == AttnMaskType.padding:
+        mask = build_attention_mask_3d_padding(source_mask, target_mask)
+    elif attn_mask_type == AttnMaskType.causal:
+        mask = build_attention_mask_3d_causal(source_mask, target_mask)
+    else:
+        raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
 
     return mask

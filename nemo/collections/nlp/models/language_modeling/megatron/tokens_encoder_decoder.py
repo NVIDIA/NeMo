@@ -202,7 +202,6 @@ class TokensEncoderDecoderModule(MegatronModule):
         labels=None,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
-        batch=None,
     ):
         ret_dict = {}
 
@@ -235,7 +234,6 @@ class TokensEncoderDecoderModule(MegatronModule):
                     enc_output_mask=None,
                     dec_layer_past=None,
                     dec_get_key_value=False,
-                    batch=batch,
                 )
             )
 

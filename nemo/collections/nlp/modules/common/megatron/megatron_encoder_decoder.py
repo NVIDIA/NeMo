@@ -145,7 +145,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_output_mask=None,
         dec_layer_past=None,
         dec_get_key_value=False,
-        batch=None,
     ):
         AAA
         # encoder
