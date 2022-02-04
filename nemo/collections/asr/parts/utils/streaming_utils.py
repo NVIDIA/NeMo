@@ -65,7 +65,7 @@ def write_lcs_alignment_to_pickle(alignment, filepath, extras=None):
     torch.save(alignment, filepath)
 
 
-def longest_common_substring_merge(X, Y, filepath=None):
+def longest_common_subsequence_merge(X, Y, filepath=None):
     """
     Longest Common Subsequence merge algorithm for aligning two consecutive buffers.
 
@@ -307,7 +307,7 @@ def lcs_alignment_merge_buffer(buffer, data, delay, model, max_steps_per_timeste
     buffer_slice = buffer[-search_size:]
 
     # Perform LCS Merge
-    lcs_idx, lcs_alignment = longest_common_substring_merge(buffer_slice, data, filepath=filepath)
+    lcs_idx, lcs_alignment = longest_common_subsequence_merge(buffer_slice, data, filepath=filepath)
 
     # Slice off new data
     # i, j, slice_len = lcs_idx
@@ -1072,7 +1072,7 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
     """
     Implements a token alignment algorithm for text alignment instead of middle token alignment.
 
-    For more detail, read the docstring of longest_common_substring_merge().
+    For more detail, read the docstring of longest_common_subsequence_merge().
     """
 
     def __init__(
