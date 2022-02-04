@@ -21,7 +21,6 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
-from nemo.utils.export_utils import BatchNorm1dNoAutoCast, LayerNormExp
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
@@ -56,18 +55,17 @@ class ConformerLayer(torch.nn.Module):
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
         self.fc_factor = 0.5
-        self.d_model = d_model
 
         # first feed forward module
-        self.norm_feed_forward1 = LayerNormExp(self.d_model)
+        self.norm_feed_forward1 = LayerNorm(d_model)
         self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         # convolution module
-        self.norm_conv = LayerNormExp(self.d_model)
+        self.norm_conv = LayerNorm(d_model)
         self.conv = ConformerConvolution(d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type)
 
         # multi-headed self-attention module
-        self.norm_self_att = LayerNormExp(self.d_model)
+        self.norm_self_att = LayerNorm(d_model)
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
                 n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
@@ -81,11 +79,11 @@ class ConformerLayer(torch.nn.Module):
             )
 
         # second feed forward module
-        self.norm_feed_forward2 = LayerNormExp(self.d_model)
+        self.norm_feed_forward2 = LayerNorm(d_model)
         self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
         self.dropout = nn.Dropout(dropout)
-        self.norm_out = LayerNormExp(self.d_model)
+        self.norm_out = LayerNorm(d_model)
 
     def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None):
         """
@@ -98,25 +96,29 @@ class ConformerLayer(torch.nn.Module):
             x (torch.Tensor): (B, T, d_model)
         """
         dtype = x.dtype
-        y = x.add(self.dropout(self.feed_forward1(self.norm_feed_forward1(x))) * self.fc_factor)
-        x = self.norm_self_att(y)
+        residual = x
+        x = self.norm_feed_forward1(x)
+        x = self.feed_forward1(x)
+        residual = residual + self.dropout(x) * self.fc_factor
+
+        x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
             x = None
-        y.add_(self.dropout(x))
+        residual = residual + self.dropout(x)
 
-        x = self.norm_conv(y)
+        x = self.norm_conv(residual)
         x = self.conv(x, pad_mask)
-        y.add_(self.dropout(x))
+        residual = residual + self.dropout(x)
 
-        x = self.norm_feed_forward2(y)
+        x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)
-        y.add_(self.dropout(x) * self.fc_factor)
+        residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_out(y)
+        x = self.norm_out(residual)
         return x.to(dtype=dtype)
 
 
@@ -145,9 +147,9 @@ class ConformerConvolution(nn.Module):
             bias=True,
         )
         if norm_type == 'batch_norm':
-            self.batch_norm = BatchNorm1dNoAutoCast(d_model)
+            self.batch_norm = nn.BatchNorm1d(d_model)
         elif norm_type == 'layer_norm':
-            self.batch_norm = LayerNormExp(d_model)
+            self.batch_norm = nn.LayerNorm(d_model)
         else:
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
@@ -157,7 +159,14 @@ class ConformerConvolution(nn.Module):
         )
 
     def do_conv_norm(self, x):
-        return self.batch_norm(self.depthwise_conv(x))
+        x = self.depthwise_conv(x)
+        if isinstance(self.batch_norm, nn.LayerNorm):
+            x = x.transpose(1, 2)
+            x = self.batch_norm(x)
+            x = x.transpose(1, 2)
+        else:
+            x = self.batch_norm(x)
+        return x
 
     def forward(self, x, pad_mask=None):
         x = x.transpose(1, 2)
@@ -167,11 +176,6 @@ class ConformerConvolution(nn.Module):
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
 
-        if isinstance(self.batch_norm, nn.LayerNorm):
-            x = x.transpose(1, 2)
-            x = self.batch_norm(x)
-            x = x.transpose(1, 2)
-        else:
             if torch.onnx.is_in_onnx_export():
                 with torch.cuda.amp.autocast(enabled=False):
                     x = self.do_conv_norm(x.to(dtype=torch.float)).to(dtype=x.dtype)

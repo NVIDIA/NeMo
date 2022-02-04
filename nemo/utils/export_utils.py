@@ -51,21 +51,6 @@ class BatchNorm1dNoAutoCast(nn.BatchNorm1d):
         return ret
 
 
-class LayerNormExp(nn.LayerNorm):
-    def forward(self, input):
-        if False:  # torch.onnx.is_in_onnx_export():
-            axes = tuple([-i for i in range(len(self.normalized_shape), 0, -1)])
-            input.sub_(input.mean(axes, keepdim=True))
-            with torch.cuda.amp.autocast(enabled=False):
-                # variance = e((x - e(x))^2), and (x - e(x)) is the numerator in the layer_norm formula
-                numerator = input.to(dtype=torch.float)
-                variance = numerator.mul(numerator).mean(axes, keepdim=True)
-                denominator = variance.add(self.eps).sqrt()
-                return numerator.div(denominator).mul(self.weight).add(self.bias).to(dtype=input.dtype)
-        else:
-            return nn.LayerNorm.forward(self, input)
-
-
 def get_export_format(filename: str):
     _, ext = os.path.splitext(filename)
     try:
