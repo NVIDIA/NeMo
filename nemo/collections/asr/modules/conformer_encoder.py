@@ -337,12 +337,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             if self.att_context_size[1] >= 0:
                 att_mask = att_mask.tril(diagonal=self.att_context_size[1])
         else:
-            chunk_j_idx = torch.range(0, max_audio_length - 1, dtype=torch.int, device=att_mask.device)
-            chunk_i_idx = torch.range(0, max_audio_length - 1, dtype=torch.int, device=att_mask.device)
-
-            chunk_j_idx = torch.div(chunk_j_idx, self.chunk_size, rounding_mode="trunc").unsqueeze(0)
-            chunk_i_idx = torch.div(chunk_i_idx, self.chunk_size, rounding_mode="trunc").unsqueeze(1)
-            diff_chunks = chunk_i_idx - chunk_j_idx
+            chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+            chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
+            diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
             chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0))
             att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
