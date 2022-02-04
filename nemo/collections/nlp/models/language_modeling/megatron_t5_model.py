@@ -34,19 +34,19 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
 
     def _build_vocab(self):
         # T5-related construction
-        self.num_sentinel_tokens = self.cfg.tokenizer.num_sentinel_tokens
+        self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
         self._add_special_tokens_to_tokenizer()
 
         super()._build_vocab()
 
     def _add_special_tokens_to_tokenizer(self):
-        if self.cfg.tokenizer.library == 'huggingface' or self.cfg.tokenizer.library == 'megatron':
+        if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
             additional_tokens = {
                 'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
             }
             self.tokenizer.add_special_tokens(additional_tokens)
 
-        if self.cfg.tokenizer.library == 'sentencepiece':
+        if self._cfg.tokenizer.library == 'sentencepiece':
             # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.
             # If cls, sep and mask are not attributes of the tokenizer, add it.
             if not hasattr(self.tokenizer, 'cls_token'):
@@ -92,11 +92,11 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building T5 datasets.')
-        if self.cfg.data.seq_length_dec < self.cfg.data.seq_length * self.cfg.data.masked_lm_prob:
+        if self._cfg.data.seq_length_dec < self._cfg.data.seq_length * self._cfg.data.masked_lm_prob:
             raise ValueError(
-                f"Cannot have decoder max sequence length ({self.cfg.data.seq_length_dec}) less than encoder sequence length ({self.cfg.data.seq_length}) * masked_lm_prob ({self.cfg.data.masked_lm_prob})"
+                f"Cannot have decoder max sequence length ({self._cfg.data.seq_length_dec}) less than encoder sequence length ({self._cfg.data.seq_length}) * masked_lm_prob ({self._cfg.data.masked_lm_prob})"
             )
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
+        global_batch_size = self.trainer.world_size * self._cfg.micro_batch_size / self._cfg.tensor_model_parallel_size
         eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
         train_valid_test_num_samples = [
@@ -105,19 +105,19 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
             test_iters * global_batch_size,
         ]
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self.cfg,
+            cfg=self._cfg,
             trainer=self.trainer,
             tokenizer=self.tokenizer,
-            data_prefix=self.cfg.data.data_prefix,
-            data_impl=self.cfg.data.data_impl,
-            splits_string=self.cfg.data.splits_string,
+            data_prefix=self._cfg.data.data_prefix,
+            data_impl=self._cfg.data.data_impl,
+            splits_string=self._cfg.data.splits_string,
             train_valid_test_num_samples=train_valid_test_num_samples,
-            max_seq_length=self.cfg.data.seq_length,
-            max_seq_length_dec=self.cfg.data.seq_length_dec,
-            masked_lm_prob=self.cfg.data.masked_lm_prob,
-            short_seq_prob=self.cfg.data.short_seq_prob,
-            seed=self.cfg.seed,
-            skip_warmup=self.cfg.data.skip_warmup,
+            max_seq_length=self._cfg.data.seq_length,
+            max_seq_length_dec=self._cfg.data.seq_length_dec,
+            masked_lm_prob=self._cfg.data.masked_lm_prob,
+            short_seq_prob=self._cfg.data.short_seq_prob,
+            seed=self._cfg.seed,
+            skip_warmup=self._cfg.data.skip_warmup,
             dataset_type='t5',
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')

@@ -42,12 +42,11 @@ class MegatronBaseModel(NLPModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer=trainer)
-        self.cfg = cfg
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
-        if self.cfg.get('use_cpu_initialization', False) is False:
+        if self._cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
         # buffer used during train_step for logging average loss over gradient accumulation steps
@@ -58,5 +57,5 @@ class MegatronBaseModel(NLPModel):
             global_rank=trainer.global_rank,
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            seed=self.cfg.get('seed', 1234),
+            seed=self._cfg.get('seed', 1234),
         )

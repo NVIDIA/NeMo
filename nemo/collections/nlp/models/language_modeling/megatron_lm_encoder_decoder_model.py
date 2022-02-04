@@ -53,11 +53,11 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         super().__init__(cfg, trainer=trainer)
 
         self.tokenizer = get_nmt_tokenizer(
-            library=self.cfg.tokenizer.library,
-            model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+            library=self._cfg.tokenizer.library,
+            model_name=self._cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
+            vocab_file=self.register_artifact("vocab_file", self._cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("merges_file", self._cfg.tokenizer.merge_file),
         )
 
         # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
@@ -97,8 +97,8 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         # TODO: add config to allow to disable it?
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
-            make_vocab_size_divisible_by=self.cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=self.cfg.get('tensor_model_parallel_size', 1),
+            make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
+            tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
 
     def forward(
@@ -210,28 +210,28 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             return None
 
         # Megatron sampler
-        if self.cfg.data.dataloader_type == 'single':
+        if self._cfg.data.dataloader_type == 'single':
             batch_sampler = MegatronPretrainingSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
-                micro_batch_size=self.cfg.micro_batch_size,
+                micro_batch_size=self._cfg.micro_batch_size,
                 data_parallel_rank=parallel_state.get_data_parallel_rank(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-        elif self.cfg.data.dataloader_type == 'cyclic':
+        elif self._cfg.data.dataloader_type == 'cyclic':
             batch_sampler = MegatronPretrainingRandomSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
-                micro_batch_size=self.cfg.micro_batch_size,
+                micro_batch_size=self._cfg.micro_batch_size,
                 data_parallel_rank=parallel_state.get_data_parallel_rank(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
         else:
-            raise Exception('{} dataloader type is not supported.'.format(self.cfg.dataloader_type))
+            raise Exception('{} dataloader type is not supported.'.format(self._cfg.dataloader_type))
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
+            dataset, batch_sampler=batch_sampler, num_workers=self._cfg.data.num_workers, pin_memory=True,
         )
 
     def setup(self, stage=None):
@@ -241,9 +241,9 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         if self._train_dl is not None and self._validation_dl is not None:
             return
         self.build_train_valid_test_datasets()
-        self.setup_training_data(self.cfg.data)
-        self.setup_validation_data(self.cfg.data)
-        self.setup_test_data(self.cfg.data)
+        self.setup_training_data(self._cfg.data)
+        self.setup_validation_data(self._cfg.data)
+        self.setup_test_data(self._cfg.data)
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -271,7 +271,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         consumed_samples = (
             global_step
             * app_state.data_parallel_size
-            * self.cfg.micro_batch_size
+            * self._cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
         )
         return int(consumed_samples)
@@ -403,7 +403,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
 
             # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
             if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
-                self.cfg.persist_layer_norm = False
+                self._cfg.persist_layer_norm = False
 
             if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
                 # NVFUSER
