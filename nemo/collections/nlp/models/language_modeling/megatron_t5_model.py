@@ -12,36 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import re
-from typing import Any, Dict, Optional
-
-import torch
-import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModule,
 )
-from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
-try:
-    from apex.transformer import parallel_state, tensor_parallel
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 __all__ = ["MegatronT5Model"]
 
@@ -52,10 +31,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
         super().__init__(cfg, trainer=trainer)
 
     def _build_vocab(self):
