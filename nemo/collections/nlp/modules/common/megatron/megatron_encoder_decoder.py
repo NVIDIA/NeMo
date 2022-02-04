@@ -107,7 +107,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             layer_past=dec_layer_past,
             get_key_value=dec_get_key_value,
             enc_output=enc_output,
-            enc_dec_attn_mask=enc_dec_attn_mask,
+            enc_output_mask=enc_output_mask,
         )
 
         return dec_output
