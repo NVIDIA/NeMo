@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import random
-from apex.transformer.utils import ensure_divisibility
 
 import numpy as np
 import torch
+from apex.transformer.utils import ensure_divisibility
 
 from nemo.utils import AppState, logging
 

@@ -29,9 +29,8 @@ import os
 from argparse import ArgumentParser
 
 import torch
-from pytorch_lightning.trainer.trainer import Trainer
-
 from apex.transformer import parallel_state
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel

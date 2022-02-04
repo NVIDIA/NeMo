@@ -34,8 +34,6 @@ _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
 _BF16_TYPES = (torch.BFloat16Tensor, torch.cuda.BFloat16Tensor)
 
-from nemo.utils import logging
-
 
 def param_is_not_shared(param):
     return not hasattr(param, 'shared') or not param.shared

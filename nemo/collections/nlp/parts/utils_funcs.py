@@ -24,7 +24,7 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
 
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 
 
 def list2str(l: List[int]) -> str:
