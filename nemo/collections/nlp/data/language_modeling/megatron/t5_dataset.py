@@ -189,7 +189,7 @@ def build_training_sample(
 
     # Padding.
     # tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask = pad_and_convert_to_numpy(
-    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_to_numpy(
+    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask, enc_mask_new, dec_mask_new = pad_and_convert_to_numpy(
         tokens,
         masked_positions,
         masked_labels,
@@ -210,7 +210,9 @@ def build_training_sample(
         'truncated': int(truncated),
         'enc_mask': enc_mask,
         'dec_mask': dec_mask,
-        # 'enc_dec_mask': enc_dec_mask,
+        'enc_dec_mask': enc_dec_mask,
+        'enc_mask_new': enc_mask_new,
+        'dec_mask_new': dec_mask_new,
     }
     return train_sample
 
@@ -277,13 +279,13 @@ def pad_and_convert_to_numpy(
     tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
     # Create attention masks
-    # enc_mask = make_attention_mask(tokens_enc, tokens_enc, pad_id)
-    # enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc, pad_id)
-    # dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
-    # dec_mask = dec_mask * make_history_mask(tokens_dec_in)
+    enc_mask = make_attention_mask(tokens_enc, tokens_enc, pad_id)
+    enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc, pad_id)
+    dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
+    dec_mask = dec_mask * make_history_mask(tokens_dec_in)
 
-    enc_mask = (tokens_enc != pad_id).astype(np.int64)
-    dec_mask = (tokens_dec_in != pad_id).astype(np.int64)
+    enc_mask_new = (tokens_enc != pad_id).astype(np.int64)
+    dec_mask_new = (tokens_dec_in != pad_id).astype(np.int64)
 
     # Labels mask.
     labels = t5_decoder_out + ([-1] * padding_length_dec)
@@ -294,7 +296,7 @@ def pad_and_convert_to_numpy(
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
     # return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
-    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
+    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask, enc_mask_new, dec_mask_new
 
 
 def make_attention_mask(source_block, target_block, pad_id):

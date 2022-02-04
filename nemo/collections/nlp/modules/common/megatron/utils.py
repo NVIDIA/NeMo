@@ -203,31 +203,35 @@ def make_inference_history_mask_3d(block):
 def build_attention_mask_3d_padding(source_mask, target_mask):
     """
     Returns a 3D joint attention mask for Megatron given two 2D masks
-    :param source_mask - < 0.5 for non-masked, else masked [batch, length]
-    :param target_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     """
     return make_attention_mask_3d(source_mask, target_mask)
 
 def build_attention_mask_3d_casual(source_mask, target_mask):
     """
     Returns a 3D joint attention mask for Megatron given two 2D masks
-    :param source_mask - < 0.5 for non-masked, else masked [batch, length]
-    :param target_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     """
 
     return make_attention_mask_3d(source_mask, target_mask)
 
 
-def build_attention_mask_3d(source_mask, target_mask, attn_mask_type):
+def build_attention_mask_3d(source_mask, target_mask, attn_mask_type, mask=None):
     """
     Returns a 3D attention mask for Megatron given two 2D masks
-    :param source_mask - < 0.5 for non-masked, else masked [batch, length]
-    :param target_mask - < 0.5 for non-masked, else masked [batch, length]
+    :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     :param attn_mask_type - AttnMaskType enum
     """
-    if attn_mask_type == AttnMaskType.padding:
-        mask = build_attention_mask_3d_padding(source_mask, target_mask)
-    elif attn_mask_type == AttnMaskType.casual:
-        mask = build_attention_mask_3d_casual(source_mask, target_mask)
-    else:
-        raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
+    # do not build a mask if it is already 3D
+    if (mask is None) or (len(mask.shape) == 2):
+        if attn_mask_type == AttnMaskType.padding:
+            mask = build_attention_mask_3d_padding(source_mask, target_mask)
+        elif attn_mask_type == AttnMaskType.casual:
+            mask = build_attention_mask_3d_casual(source_mask, target_mask)
+        else:
+            raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
+
+    return mask

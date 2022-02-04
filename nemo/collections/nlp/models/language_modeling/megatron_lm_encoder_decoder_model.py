@@ -114,8 +114,9 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         lm_labels=None,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
+        # FIXME: REMOVE ME
+        batch=None,
     ):
-        AAA
         ret_dict= self.emc_dec_model(
             enc_input_ids=encoder_input_ids,
             dec_input_ids=decoder_input_ids,
@@ -125,6 +126,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
             output_enc_hidden_only=output_enc_hidden_only,
+            batch=batch,
         )
 
         return ret_dict
@@ -133,7 +135,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(self(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels
+            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels, batch=batch,
         ))
 
         loss = self.loss_func(loss_mask, output_tensor)

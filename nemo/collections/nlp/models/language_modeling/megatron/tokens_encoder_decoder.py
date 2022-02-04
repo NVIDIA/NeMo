@@ -202,10 +202,11 @@ class TokensEncoderDecoderModule(MegatronModule):
         labels=None,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
+        batchj=None
     ):
         ret_dict = {}
 
-        # TODO: add soft prompt
+        AAA
         # encoder embeddings
         enc_position_ids = build_position_ids(enc_input_ids)
         enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)

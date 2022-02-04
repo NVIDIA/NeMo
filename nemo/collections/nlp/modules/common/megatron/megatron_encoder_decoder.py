@@ -31,6 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     make_attention_mask_3d,
+    build_attention_mask_3d,
 )
 
 
@@ -45,17 +46,34 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         self,
         encoder,
         decoder,
+        # AttnMaskType enum mask type (e.g., padding, casual)
+        encoder_attn_mask_type=None,
+        decoder_attn_mask_type=None,
     ):
         super(MegatronTransformerEncoderDecoderModule, self).__init__()
 
         self.encoder = encoder
         self.decoder = decoder
+        # try to infer mask_type if not given
+        if encoder_attn_mask_type is None:
+            try:
+                encoder_attn_mask_type = encoder.model.self_attn_mask_type
+            except Exception as e:
+                raise ValueError("Failed inferring encoder_attn_mask_type, please provide AttnMaskType value")
+        if decoder_attn_mask_type is None:
+            try:
+                decoder_attn_mask_type = decoder.model.self_attn_mask_type
+            except Exception as e:
+                raise ValueError("Failed inferring decoder_attn_mask_type, please provide AttnMaskType value")
+
+        self.encoder_attn_mask_type = encoder_attn_mask_type
+        self.decoder_attn_mask_type = decoder_attn_mask_type
 
         self._encoder_key = "encoder"
         self._decoder_key = "decoder"
 
-
     # FIXME: no need to set decoder too?
+
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
         self.encoder.set_input_tensor(input_tensor)
@@ -67,6 +85,12 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                enc_get_key_value=False,
                ):
         """Encodes embedder input using encoder"""
+        enc_attn_mask = build_attention_mask_3d(
+            source_mask=enc_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=self.encoder_attn_mask_type,
+            mask=enc_attn_mask,
+        )
         enc_output, enc_output_mask = self.encoder(
             enc_input=enc_input,
             enc_attn_mask=enc_attn_mask,
@@ -88,9 +112,15 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # FIXME: validate correct mask shape here
         # import pudb; pudb.set_trace()
 
+        enc_attn_mask = build_attention_mask_3d(
+            source_mask=enc_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=self.encoder_attn_mask_type,
+            mask=enc_attn_mask,
+        )
         enc_dec_attn_mask = make_attention_mask_3d(
-                torch.diagonal(dec_attn_mask, -2, -1), torch.diagonal(enc_output_mask, -2, -1)
-            )
+            torch.diagonal(dec_attn_mask, -2, -1), torch.diagonal(enc_output_mask, -2, -1)
+        )
 
         dec_output = self.decoder(
             dec_input=dec_input,
@@ -145,7 +175,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         return ret_dict
 
-
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load."""
 
@@ -158,7 +187,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
-
 
         self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
         self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
