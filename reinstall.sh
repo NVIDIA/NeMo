@@ -24,7 +24,8 @@ if [[ "$INSTALL_OPTION" == "dev" ]]; then
     ${PIP} install --editable ".[all]"
 else
     rm -rf dist/
-    python setup.py bdist_wheel
+    ${PIP} install build
+    python -m build --no-isolation
     DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
     ${PIP} install "${DIST_FILE}[all]"
 fi
