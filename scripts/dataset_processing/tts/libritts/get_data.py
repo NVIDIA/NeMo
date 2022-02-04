@@ -358,6 +358,7 @@ def main():
 
         __process_data(
             data_folder=str(data_root / "LibriTTS" / data_set.replace("_", "-")),
+            # manifest_file=str(data_root / "LibriTTS" / f"{data_set}_google.json"),
             manifest_file=str(data_root / "LibriTTS" / f"{data_set}.json"),
             num_workers=num_workers,
             num_workers_for_normalizer=num_workers_for_normalizer,
