@@ -209,14 +209,15 @@ def build_attention_mask_3d_padding(source_mask, target_mask):
     mask = make_attention_mask_3d(source_mask, target_mask)
     return mask < 0.5
 
-def build_attention_mask_3d_casual(source_mask, target_mask):
+def build_attention_mask_3d_causal(source_mask, target_mask):
     """
     Returns a 3D joint attention mask for Megatron given two 2D masks
     :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
     :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     """
+    casual_mask = make_inference_history_mask_3d(target_mask)
     mask = make_attention_mask_3d(source_mask, target_mask)
-    mask = mask * make_inference_history_mask_3d(mask)
+    mask = mask * casual_mask
     return mask < 0.5
 
 
@@ -232,7 +233,7 @@ def build_attention_mask_3d(source_mask, target_mask, attn_mask_type, mask=None)
         if attn_mask_type == AttnMaskType.padding:
             mask = build_attention_mask_3d_padding(source_mask, target_mask)
         elif attn_mask_type == AttnMaskType.causal:
-            mask = build_attention_mask_3d_casual(source_mask, target_mask)
+            mask = build_attention_mask_3d_causal(source_mask, target_mask)
         else:
             raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
 
