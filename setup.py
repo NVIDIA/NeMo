@@ -25,9 +25,10 @@ from distutils import log as distutils_log
 from itertools import chain
 import importlib.util
 
-from distutils.core import setup
-from Cython.Build import cythonize
-import numpy
+# TODO: need to discuss how to do it correctly
+# from distutils.core import setup
+# from Cython.Build import cythonize
+# import numpy
 
 import setuptools
 
@@ -113,11 +114,12 @@ tests_requirements = extras_require["test"]
 #                              Monotonic Align                                #
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
 
-setup(
-    name='monotonic_align',
-    ext_modules=cythonize("nemo/collections/tts/modules/monotonic_align/core.pyx"),
-    include_dirs=[numpy.get_include()],
-)
+# TODO: need to discuss how to do it correctly
+# setup(
+#     name='monotonic_align',
+#     ext_modules=cythonize("nemo/collections/tts/modules/monotonic_align/core.pyx"),
+#     include_dirs=[numpy.get_include()],
+# )
 
 ###############################################################################
 #                            Code style checkers                              #

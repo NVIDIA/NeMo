@@ -14,25 +14,25 @@
 
 import omegaconf
 import torch
+import wandb
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
-import wandb
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.losses.vits_losses import KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import (
-    SynthesizerTrn,
     MultiPeriodDiscriminator,
+    SynthesizerTrn,
     audio_to_mel_torch,
-    spec_to_mel_torch,
-    slice_segments,
     clip_grad_value_,
+    slice_segments,
+    spec_to_mel_torch,
 )
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils

@@ -14,7 +14,6 @@
 
 import pytorch_lightning as pl
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-
 from torch.cuda.amp import GradScaler
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
