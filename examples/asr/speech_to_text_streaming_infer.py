@@ -69,7 +69,7 @@ def set_streaming_mode(asr_model):
     last_channel_num = 0
     last_time_num = 0
     for m in asr_model.encoder.layers.modules():
-        if hasattr(m, "_max_cache_len"): # and m._max_cache_len > 0:
+        if hasattr(m, "_max_cache_len"):  # and m._max_cache_len > 0:
             if type(m) == RelPositionMultiHeadAttention:
                 m._cache_id = last_channel_num
                 last_channel_num += 1

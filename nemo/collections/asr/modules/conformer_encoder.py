@@ -145,7 +145,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.d_model = d_model
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
-        #self.att_context_style = att_context_style
+        # self.att_context_style = att_context_style
 
         if att_context_size:
             self.att_context_size = att_context_size
@@ -153,10 +153,12 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.att_context_size = [-1, -1]
 
         if conv_context_size is not None:
+            if not is_causal:
+                raise ValueError("is_causal needs to be True when conv_context_size is set.")
             self.conv_context_size = conv_context_size
             if self.conv_context_size[0] == -1 and self.conv_context_size[0] == -1:
-                self.conv_context_size[0] = conv_kernel_size//2
-                self.conv_context_size[1] = conv_kernel_size//2
+                self.conv_context_size[0] = conv_kernel_size - 1
+                self.conv_context_size[1] = 0
             if self.conv_context_size[0] == -1:
                 self.conv_context_size[0] = conv_kernel_size - self.conv_context_size[1] - 1
             if self.conv_context_size[1] == -1:
@@ -193,7 +195,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
             if subsampling == 'stacking':
-                self.pre_encode = StackingSubsampling(subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=d_model)
+                self.pre_encode = StackingSubsampling(
+                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=d_model
+                )
             else:
                 self.pre_encode = ConvSubsampling(
                     subsampling=subsampling,
@@ -252,7 +256,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 is_causal=is_causal,
-                att_context_size=self.att_context_size
+                att_context_size=self.att_context_size,
             )
             self.layers.append(layer)
 
@@ -280,10 +284,13 @@ class ConformerEncoder(NeuralModule, Exportable):
     @typecheck()
     def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        return self.forward_for_export(audio_signal=audio_signal, length=length,
-                                       cache_last_channel=cache_last_channel,
-                                       cache_last_time=cache_last_time,
-                                       cache_pre_encode=cache_pre_encode)
+        return self.forward_for_export(
+            audio_signal=audio_signal,
+            length=length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+            cache_pre_encode=cache_pre_encode,
+        )
 
     @typecheck()
     def forward_for_export(
@@ -347,7 +354,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
             chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
             diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
-            chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0))
+            chunked_limited_mask = torch.logical_and(
+                torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
+            )
             att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
         att_mask = ~att_mask

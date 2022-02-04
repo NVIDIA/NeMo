@@ -69,7 +69,11 @@ class ConformerLayer(torch.nn.Module):
         # convolution module
         self.norm_conv = LayerNorm(d_model)
         self.conv = ConformerConvolution(
-            d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type, is_causal=is_causal, conv_context_size=conv_context_size
+            d_model=d_model,
+            kernel_size=conv_kernel_size,
+            norm_type=conv_norm_type,
+            is_causal=is_causal,
+            conv_context_size=conv_context_size,
         )
 
         # multi-headed self-attention module
