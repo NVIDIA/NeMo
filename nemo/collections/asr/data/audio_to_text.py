@@ -199,7 +199,7 @@ def expand_audio_filepaths(audio_tar_filepaths, shard_strategy: str, world_size:
                 )
 
             begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
-            end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
+            end_idx = begin_idx + len(audio_tar_filepaths) // world_size
             audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx

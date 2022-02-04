@@ -55,7 +55,9 @@ def process_index_path(tar_paths, index_dir):
     """
     index_paths = []
     for path in tar_paths:
-        path = path.replace('.tar', '.index')
+        basepath, filename = os.path.split(path)
+        path = filename.replace('.tar', '.index')
+        path = os.path.join(basepath, path)
         base, name = os.path.split(path)
         index_path = os.path.join(index_dir, name)
         index_paths.append(index_path)

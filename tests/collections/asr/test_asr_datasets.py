@@ -249,6 +249,9 @@ class TestASRDatasets:
                     samples_changed += 1
             assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
 
+            for og_transcript, shuffled_transcript in zip(sorted(original_transcripts), sorted(shuffled_transcripts)):
+                assert og_transcript == shuffled_transcript
+
     @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
     def test_dali_bpe_dataset(self, test_data_dir):
@@ -334,6 +337,9 @@ class TestASRDatasets:
                 if orig != shuffled:
                     samples_changed += 1
             assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
+
+            for og_transcript, shuffled_transcript in zip(sorted(original_transcripts), sorted(shuffled_transcripts)):
+                assert og_transcript == shuffled_transcript
 
     @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
@@ -426,11 +432,10 @@ class TestASRDatasets:
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             num_samples = 0
             with open(manifest_path, 'r') as m:
-                for line in m:
-                    num_samples += 1
+                num_samples = m.count('\n')
 
             dataset = AudioToCharDALIDataset(
-                manifest_filepath=manifest_path,  # f.name,
+                manifest_filepath=manifest_path,
                 audio_tar_filepaths=audio_tar_filepaths,
                 audio_tar_index_filepaths=audio_tar_index_filepaths,
                 device=device,
@@ -491,6 +496,9 @@ class TestASRDatasets:
                     samples_changed += 1
             assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
 
+            for og_transcript, shuffled_transcript in zip(sorted(original_transcripts), sorted(shuffled_transcripts)):
+                assert og_transcript == shuffled_transcript
+
     @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
     def test_dali_tarred_char_vs_ref_dataset(self, test_data_dir):
@@ -510,14 +518,9 @@ class TestASRDatasets:
             num_samples = 0
             with open(manifest_path, 'r') as m:
                 for ix, line in enumerate(m):
-                    # line = line.replace("tests/data/", "tests/.data/").replace("\n", "")
-                    # f.write(f"{line}\n")
-
                     data = json.loads(line)
                     texts.append(data['text'])
-                    num_samples += 1
-
-            # f.seek(0)
+                    num_samples = ix
 
             preprocessor = {
                 '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',

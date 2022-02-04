@@ -373,9 +373,9 @@ class _AudioTextDALIDataset(Iterator):
                     num_shards=self.num_shards,
                     pad_last_batch=True,
                 )
-                audio = dali.fn.decoders.audio(
+                audio, _ = dali.fn.decoders.audio(
                     tar_file, dtype=dali.types.FLOAT, downmix=True, sample_rate=float(self.sample_rate),
-                )[0]
+                )
                 indices = dali.fn.get_property(tar_file, key="source_info")
                 indices = dali.fn.pad(indices)
 
