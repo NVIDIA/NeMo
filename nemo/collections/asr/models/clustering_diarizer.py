@@ -32,7 +32,7 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    get_embs_and_timestamps,
+    get_embs_and_timestamps_list,
     get_uniqname_from_filepath,
     parse_scale_configs,
     perform_clustering,
@@ -419,7 +419,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
             self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
 
-        embs_and_timestamps = get_embs_and_timestamps(
+        embs_and_timestamps = get_embs_and_timestamps_list(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
 

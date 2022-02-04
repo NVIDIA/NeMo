@@ -154,8 +154,38 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
     else:
         return None
 
+def get_embs_and_timestamps_list(multiscale_embeddings_and_timestamps, multiscale_args_dict):
+    """
+    The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
+    indexed by scale index. This function rearranges the extracted speaker embedding and
+    timestamps by unique ID to make the further processing more convenient.
 
-def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
+    Args:
+        multiscale_embeddings_and_timestamps (dict):
+            Dictionary of embeddings and timestamps for each scale.
+        multiscale_args_dict (dict):
+            Dictionary of scale information: window, shift and multiscale weights.
+
+    Returns:
+        embs_and_timestamps (dict)
+            A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
+    """
+    N_scale = len(multiscale_args_dict['scale_dict'].keys())
+    embs_and_timestamps = {
+        uniq_id: [ None, [None]*N_scale ]
+        for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
+    }
+    for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
+        embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
+        for uniq_id in embeddings.keys():
+            embs_and_timestamps[uniq_id][0] = torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+            assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
+            time_stamps_tensor = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]], dtype=torch.double)
+            embs_and_timestamps[uniq_id][1][scale_idx] = [embeddings[uniq_id], time_stamps_tensor]
+    return embs_and_timestamps
+
+
+def get_embs_and_timestamps_dict(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
     The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
     indexed by scale index. This function rearranges the extracted speaker embedding and
@@ -289,21 +319,7 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
-    """
-
-    Write cluster labels that are generated from clustering into a file.
-    Args:
-        base_scale_idx (int): The base scale index which is the highest scale index.
-        lines_cluster_labels (list): The start and end time-stamps of each segment with the predicted cluster label.
-        out_rttm_dir (str): The path where output rttm files are saved.
-    """
-    out_label_name = os.path.join(
-        out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label'
-    )
-    with open(out_label_name, 'w') as f:
-        for clus_label_line in lines_cluster_labels:
-            f.write(clus_label_line)
+# embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
 
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
@@ -328,7 +344,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     all_reference = []
     no_references = False
     max_num_speakers = clustering_params['max_num_speakers']
-    lines_cluster_labels = []
 
     cuda = True
     if not torch.cuda.is_available():
@@ -353,8 +368,11 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             cuda=cuda,
         )
 
-        base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
-        lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
+        N_scale = len(embs_and_timestamps[uniq_id][1])
+        base_scale_idx = N_scale - 1
+        lines = embs_and_timestamps[uniq_id][1][base_scale_idx][1] # 'time_stamps'
+        lines = lines.cpu().numpy()
+        lines = [ f"{lines[i][0]} {lines[i][1]} " for i in range(lines.shape[0]) ]
         assert len(cluster_labels) == len(lines)
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
@@ -364,7 +382,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         labels = merge_stamps(a)
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
-            lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 
@@ -376,9 +393,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             no_references = True
             all_reference = []
-
-    if out_rttm_dir:
-        write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
 
     return all_reference, all_hypothesis
 
