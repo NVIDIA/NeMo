@@ -30,7 +30,6 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
-    set_jit_fusion_options,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
@@ -44,8 +43,16 @@ class MegatronBaseModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        # FIXME: switch to self._cfg
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
+
+        # used in NVIDIA NGC PyTorch containers
+        self._enable_nvidia_optimizations()
 
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
@@ -60,6 +67,3 @@ class MegatronBaseModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
-
-        if not self.cfg.get('fused_bf16'):
-            set_jit_fusion_options()
