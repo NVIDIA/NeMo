@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
     attn_mask_postprocess,
+    build_attention_mask_3d,
 )
 
 __all__ = ["MegatronTransformerEncoderModule"]
@@ -119,11 +120,17 @@ class MegatronTransformerEncoderModule(MegatronModule):
         layer_past=None,
         get_key_value=False,
     ):
+        # convert to Megatron mask
+        enc_attn_mask_3d = build_attention_mask_3d(
+            source_mask=enc_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=self.model_attn_mask_type,
+        )
 
         # transformer encoder
         enc_output = self.model(
             enc_input,
-            attn_mask_postprocess(enc_attn_mask),
+            attn_mask_postprocess(enc_attn_mask_3d),
             layer_past=layer_past,
             get_key_value=get_key_value,
         )
