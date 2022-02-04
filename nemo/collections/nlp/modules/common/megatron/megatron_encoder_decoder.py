@@ -13,22 +13,8 @@
 # limitations under the License.
 
 """Transformer based language model."""
-import math
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.nn.init as init
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType, LayerType
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    build_position_ids,
-    make_inference_attention_mask_3d,
-)
 
 __all__ = ["MegatronTransformerEncoderDecoderModule"]
 

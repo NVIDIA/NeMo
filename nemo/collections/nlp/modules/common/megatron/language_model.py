@@ -17,7 +17,6 @@ import math
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.nn.init as init
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -25,7 +24,6 @@ from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTra
 from nemo.collections.nlp.modules.common.megatron.utils import (
     get_linear_layer,
     init_method_normal,
-    parallel_lm_logits,
     scaled_init_method_normal,
 )
 
