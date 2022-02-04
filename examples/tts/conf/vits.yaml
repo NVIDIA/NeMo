@@ -69,7 +69,6 @@ model:
   warmup_epochs: 0
   c_mel: 45
   c_kl: 1.
-
   inter_channels: 192
   hidden_channels: 192
   filter_channels: ${filter_channels}

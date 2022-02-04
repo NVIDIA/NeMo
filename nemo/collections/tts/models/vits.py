@@ -1,3 +1,17 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import omegaconf
 import torch
 from hydra.utils import instantiate
@@ -9,9 +23,17 @@ from torch.nn import functional as F
 import wandb
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.vits_losses import DiscriminatorLoss, FeatureLoss, GeneratorLoss, KlLoss
+from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
+from nemo.collections.tts.losses.vits_losses import KlLoss
 from nemo.collections.tts.models.base import TextToWaveform
-from nemo.collections.tts.modules.vits_modules import SynthesizerTrn, MultiPeriodDiscriminator, audio_to_mel_torch, spec_to_mel_torch, slice_segments, clip_grad_value_
+from nemo.collections.tts.modules.vits_modules import (
+    SynthesizerTrn,
+    MultiPeriodDiscriminator,
+    audio_to_mel_torch,
+    spec_to_mel_torch,
+    slice_segments,
+    clip_grad_value_,
+)
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
@@ -41,13 +63,13 @@ class VitsModel(TextToWaveform):
         num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
-        
+
         super().__init__(cfg=cfg, trainer=trainer)
-        
+
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
 
         self.multiperioddisc = MultiPeriodDiscriminator()
-        self.feat_matching_loss = FeatureLoss()
+        self.feat_matching_loss = FeatureMatchingLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
         self.kl_loss = KlLoss()
@@ -64,23 +86,23 @@ class VitsModel(TextToWaveform):
         # TODO: need to add SynthesizerTrn in config
         # TODO: how model knows padding idx? num tokens?
         self.net_g = SynthesizerTrn(
-            n_vocab = cfg.symbols_embedding_dim,
-            spec_channels = cfg.train_ds.dataset.n_fft // 2 + 1,
-            segment_size = cfg.segment_size // cfg.train_ds.dataset.hop_length,
-            inter_channels = cfg.inter_channels,
-            hidden_channels = cfg.hidden_channels,
-            filter_channels = cfg.filter_channels,
-            n_heads = cfg.n_heads,
-            n_layers = cfg.n_layers,
-            kernel_size = cfg.pitch_embedding_kernel_size,
-            p_dropout = cfg.p_dropout,
-            resblock = cfg.generator.resblock,
-            resblock_kernel_sizes = cfg.generator.resblock_kernel_sizes,
-            resblock_dilation_sizes = cfg.generator.resblock_dilation_sizes,
-            upsample_rates = cfg.generator.upsample_rates,
-            upsample_initial_channel = cfg.generator.upsample_initial_channel,
-            upsample_kernel_sizes = cfg.generator.upsample_kernel_sizes,
-            )
+            n_vocab=cfg.symbols_embedding_dim,
+            spec_channels=cfg.train_ds.dataset.n_fft // 2 + 1,
+            segment_size=cfg.segment_size // cfg.train_ds.dataset.hop_length,
+            inter_channels=cfg.inter_channels,
+            hidden_channels=cfg.hidden_channels,
+            filter_channels=cfg.filter_channels,
+            n_heads=cfg.n_heads,
+            n_layers=cfg.n_layers,
+            kernel_size=cfg.pitch_embedding_kernel_size,
+            p_dropout=cfg.p_dropout,
+            resblock=cfg.generator.resblock,
+            resblock_kernel_sizes=cfg.generator.resblock_kernel_sizes,
+            resblock_dilation_sizes=cfg.generator.resblock_dilation_sizes,
+            upsample_rates=cfg.generator.upsample_rates,
+            upsample_initial_channel=cfg.generator.upsample_initial_channel,
+            upsample_kernel_sizes=cfg.generator.upsample_kernel_sizes,
+        )
         self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
         self.automatic_optimization = False
 
@@ -141,16 +163,8 @@ class VitsModel(TextToWaveform):
         pass
 
     def configure_optimizers(self):
-        optim_g = torch.optim.AdamW(
-            self.net_g.parameters(),
-            self._cfg.lr,
-            betas=self._cfg.betas,
-            eps=self._cfg.eps)
-        optim_d = torch.optim.AdamW(
-            self.net_d.parameters(),
-            self._cfg.lr,
-            betas=self._cfg.betas,
-            eps=self._cfg.eps)
+        optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
+        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
 
         scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.lr_decay)
         scheduler_g_dict = {
@@ -158,10 +172,7 @@ class VitsModel(TextToWaveform):
             'interval': 'step',
         }
         scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.lr_decay)
-        scheduler_d_dict = {
-            'scheduler': scheduler_d,
-            'interval': 'step'
-        }
+        scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
     def forward(self, batch, batch_idx):
@@ -175,7 +186,6 @@ class VitsModel(TextToWaveform):
 
             y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
             y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.hop_size
-        
         return y_hat, y_hat_lengths
 
     def get_spec(self, audio):
@@ -194,9 +204,10 @@ class VitsModel(TextToWaveform):
         spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
 
         with autocast(enabled=True):
-            y_hat, l_length, attn, ids_slice, x_mask, z_mask, \
-            (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(x, x_lengths, spec, spec_lengths)
-        
+            y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
+                x, x_lengths, spec, spec_lengths
+            )
+
             mel = spec_to_mel_torch(
                 spec,
                 self._cfg.filter_length,
@@ -206,7 +217,7 @@ class VitsModel(TextToWaveform):
                 self._cfg.mel_fmax,
             )
             y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
-        
+
         y_hat = y_hat.float()
         y_hat_mel = audio_to_mel_torch(
             y_hat.squeeze(1),
@@ -221,7 +232,7 @@ class VitsModel(TextToWaveform):
 
         y = torch.unsqueeze(y, 1)
         y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-        
+
         y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
         with autocast(enabled=False):
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
@@ -244,7 +255,7 @@ class VitsModel(TextToWaveform):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
             loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
-            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
+            loss_fm = self.feat_matching_loss(fmap_r=fmap_r.detach(), fmap_g=fmap_g)
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
@@ -268,8 +279,8 @@ class VitsModel(TextToWaveform):
             "loss_kl * c_kl": loss_kl,
             "loss_gen_all": loss_gen_all,
             "loss_disc_all": loss_disc_all,
-            "grad_gen" : norm_g,
-            "grad_disc" : norm_d,
+            "grad_gen": norm_g,
+            "grad_disc": norm_d,
         }
 
         for i, v in enumerate(losses_gen):
@@ -301,8 +312,7 @@ class VitsModel(TextToWaveform):
 
             specs += [
                 wandb.Image(
-                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()),
-                    caption=f"val_mel_target",
+                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()), caption=f"val_mel_target",
                 ),
                 wandb.Image(
                     plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
@@ -312,9 +322,7 @@ class VitsModel(TextToWaveform):
 
             audios += [
                 wandb.Audio(
-                    y[0, : y_lengths[0]].data.cpu().numpy(),
-                    caption=f"val_wav_target",
-                    sample_rate=self.sample_rate,
+                    y[0, : y_lengths[0]].data.cpu().numpy(), caption=f"val_wav_target", sample_rate=self.sample_rate,
                 ),
                 wandb.Audio(
                     y_hat[0, : y_hat_lengths[0]].data.cpu().numpy(),
@@ -337,12 +345,12 @@ class VitsModel(TextToWaveform):
             cfg.dataset,
             text_normalizer=self.normalizer,
             text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
-            text_tokenizer=self.tokenizer
-            )
+            text_tokenizer=self.tokenizer,
+        )
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
-        
+
     def setup_training_data(self, cfg):
         self._train_dl = self._loader(cfg)
 
@@ -362,4 +370,3 @@ class VitsModel(TextToWaveform):
     def convert_text_to_waveform(self, *, tokens):
         #  TODO: Convert text to waveforms
         pass
-

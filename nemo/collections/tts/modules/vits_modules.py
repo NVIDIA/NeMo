@@ -1,3 +1,39 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# MIT License
+#
+# Copyright (c) 2021 Jaehyeon Kim
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import math
 
 import numpy as np
@@ -1094,7 +1130,7 @@ def generate_path(duration, mask):
     """
     b, _, t_y, t_x = mask.shape
     cum_duration = torch.cumsum(duration, -1)
-    
+
     cum_duration_flat = cum_duration.view(b * t_x)
     path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
     path = path.view(b, t_x, t_y)
@@ -1204,7 +1240,7 @@ class Decoder(nn.Module):
             y = self.encdec_attn_layers[i](x, h, encdec_attn_mask)
             y = self.drop(y)
             x = self.norm_layers_1[i](x + y)
-            
+
             y = self.ffn_layers[i](x, x_mask)
             y = self.drop(y)
             x = self.norm_layers_2[i](x + y)
@@ -1248,12 +1284,12 @@ class MultiHeadAttention(nn.Module):
             with torch.no_grad():
                 self.conv_k.weight.copy_(self.conv_q.weight)
                 self.conv_k.bias.copy_(self.conv_q.bias)
-            
+
     def forward(self, x, c, attn_mask=None):
         q = self.conv_q(x)
         k = self.conv_k(c)
         v = self.conv_v(c)
-        
+
         x, self.attn = self.attention(q, k, v, mask=attn_mask)
 
         x = self.conv_o(x)
@@ -1396,7 +1432,7 @@ class FFN(nn.Module):
         x = self.drop(x)
         x = self.conv_2(self.padding(x * x_mask))
         return x * x_mask
-    
+
     def _causal_padding(self, x):
         if self.kernel_size == 1:
             return x
@@ -1425,12 +1461,12 @@ DEFAULT_MIN_BIN_HEIGHT = 1e-3
 DEFAULT_MIN_DERIVATIVE = 1e-3
 
 
-def piecewise_rational_quadratic_transform(inputs, 
+def piecewise_rational_quadratic_transform(inputs,
                                            unnormalized_widths,
                                            unnormalized_heights,
                                            unnormalized_derivatives,
                                            inverse=False,
-                                           tails=None, 
+                                           tails=None,
                                            tail_bound=1.,
                                            min_bin_width=DEFAULT_MIN_BIN_WIDTH,
                                            min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
