@@ -189,19 +189,30 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         return torch.tensor(returned_label).to(self.device)
 
     def get_prediction(self, batch_size, label_position, logits):
-        pred_ids = torch.argsort(logits, dim=2, descending=True)
         top10 = []
         returned_pred = []
         for i in range(batch_size):
-            top10.append([])
-            pred_seq = pred_ids[i, label_position[i, 0]].tolist()
-            for pred in pred_seq:
-                if pred in self.allowed_vocab_ids:
-                    top10[-1].append(pred)
-                    if len(top10[-1]) >= 10:
-                        break
-            pred = top10[-1][0]
+            array = []
+            for allowed_id in self.allowed_vocab_ids:
+                pred_p = torch.exp(logits[i, label_position[i, 0], allowed_id]).item()
+                array.append((pred_p, allowed_id))
+            sorted_array = sorted(array, key=lambda x: x[0], reverse=True)
+            pred = sorted_array[0][1]
             returned_pred.append(self.allowed_vocab[pred])
+        # logits 
+        # pred_ids = torch.argsort(logits, dim=2, descending=True)
+        # top10 = []
+        # returned_pred = []
+        # for i in range(batch_size):
+        #     top10.append([])
+        #     pred_seq = pred_ids[i, label_position[i, 0]].tolist()
+        #     for pred in pred_seq:
+        #         if pred in self.allowed_vocab_ids:
+        #             top10[-1].append(pred)
+        #             if len(top10[-1]) >= 10:
+        #                 break
+        #     pred = top10[-1][0]
+        #     returned_pred.append(self.allowed_vocab[pred])
         return top10, torch.tensor(returned_pred).to(self.device)
 
     def get_encoder_input(self, sentences):
