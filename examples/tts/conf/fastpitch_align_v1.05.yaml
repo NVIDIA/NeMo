@@ -77,7 +77,7 @@ model:
       _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
-      # phoneme_probability: 0.5
+      phoneme_probability: 0.5
 
   train_ds:
     dataset:
@@ -102,12 +102,13 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 32
-      num_workers: 12
+      num_workers: 0
 
   validation_ds:
     dataset:
@@ -132,12 +133,13 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
       shuffle: false
       batch_size: 32
-      num_workers: 8
+      num_workers: 0
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -224,7 +226,7 @@ trainer:
   devices: 1
   accelerator: gpu
   strategy: ddp
-  precision: 32
+  precision: 16
   max_epochs: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1000.0
