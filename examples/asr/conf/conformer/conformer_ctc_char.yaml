@@ -101,7 +101,7 @@ model:
     # Convolution module's params
     conv_kernel_size: 31
     conv_norm_type: 'batch_norm' # batch_norm or layer_norm
-    conv_context_size: [-1, -1] # conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size, -1 means context sizes get calculated automatically
+    conv_context_size: null # conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size, -1 means context sizes get calculated automatically
 
     ### regularization
     dropout: 0.1 # The dropout used in most of the Conformer Modules

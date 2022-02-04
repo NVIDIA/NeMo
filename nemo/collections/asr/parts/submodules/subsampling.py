@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class StackingSubsampling(torch.nn.Module):
     def __init__(self, subsampling_factor, feat_in, feat_out):
         super(StackingSubsampling, self).__init__()

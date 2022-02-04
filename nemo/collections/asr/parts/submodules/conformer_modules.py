@@ -317,7 +317,7 @@ class CausalConv1D(nn.Conv1d):
                 cache = cache[self._cache_id]
                 cache_next = cache_next[self._cache_id]
             cache_length = cache.size()[-1]
-            cache_next_length = cache.size()[-1]
+            cache_next_length = cache_next.size()[-1]
             needed_cache = cache[:, :, -self._max_cache_len :]
             x = torch.cat((needed_cache, x), dim=-1)
         x = super().forward(x)
