@@ -27,6 +27,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
     """LM logits using word embedding weights."""
     # Parallel logits.
@@ -166,6 +167,7 @@ def attn_mask_postprocess(attn_mask):
     extended_attention_mask = attn_mask.unsqueeze(1)
     return extended_attention_mask
 
+
 def enc_dec_extended_attention_mask(attention_mask_list):
 
     return [attn_mask_postprocess(attn_mask) for attn_mask in attention_mask_list]
@@ -179,6 +181,7 @@ def build_position_ids(token_ids):
 
     return position_ids
 
+
 def make_attention_mask_3d(source_mask, target_mask):
     """
     Returns a 3-dimensional (3-D) attention mask
@@ -187,6 +190,7 @@ def make_attention_mask_3d(source_mask, target_mask):
     """
     mask = target_mask[:, None, :] * source_mask[:, :, None]
     return mask
+
 
 def make_inference_attention_mask_3d(source_block, target_block, pad_id):
     """
@@ -197,6 +201,7 @@ def make_inference_attention_mask_3d(source_block, target_block, pad_id):
     # mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
     return make_attention_mask_3d(source_block != pad_id, target_block != pad_id)
 
+
 def make_inference_history_mask_3d(block):
     batch, length = block.shape
     arange = torch.arange(length, device=block.device)
@@ -205,6 +210,7 @@ def make_inference_history_mask_3d(block):
     ]
     history_mask = history_mask.expand(batch, length, length)
     return history_mask
+
 
 def build_attention_mask_3d_padding(source_mask, target_mask):
     """
@@ -215,6 +221,7 @@ def build_attention_mask_3d_padding(source_mask, target_mask):
     mask = make_attention_mask_3d(source_mask, target_mask)
     # invert mask for Megatron
     return mask < 0.5
+
 
 def build_attention_mask_3d_causal(source_mask, target_mask):
     """

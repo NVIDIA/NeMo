@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import re
-from typing import Any, Dict, Optional
 from operator import itemgetter
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -34,12 +34,9 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import (
     initialize_model_parallel_for_nemo,
     set_jit_fusion_options,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
-
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -101,7 +98,6 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             onnx_safe=cfg.get('onnx_safe', False),
         )
 
-
     def _build_vocab(self):
         # TODO: add config to allow to disable it?
         self.padded_vocab_size = self._vocab_size_with_padding(
@@ -121,7 +117,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
-        ret_dict= self.emc_dec_model(
+        ret_dict = self.emc_dec_model(
             enc_input_ids=encoder_input_ids,
             dec_input_ids=decoder_input_ids,
             enc_attn_mask=encoder_attn_mask,
@@ -137,9 +133,9 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(self(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,
-        ))
+        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(
+            self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+        )
 
         loss = self.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
@@ -163,9 +159,9 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def validation_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(self(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,
-        ))
+        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(
+            self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+        )
         loss = self.loss_func(loss_mask, output_tensor)
         reduced_loss = average_losses_across_data_parallel_group([loss])
         return reduced_loss
@@ -206,7 +202,6 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
 
         enc_mask = data_b['enc_mask']
         dec_mask = data_b['dec_mask']
-
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
@@ -309,30 +304,34 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         # TODO: move into a class inside TokensEncoderDecoderModule (?)
-        encoder_hidden_states = itemgetter("enc_output")(self(
-            encoder_input_ids=tokens_enc,
-            decoder_input_ids=None,
-            encoder_attn_mask=enc_mask,
-            decoder_attn_mask=None,
-            tokentype_ids=None,
-            lm_labels=None,
-            enc_hidden_states=None,
-            output_enc_hidden_only=True,
-        ))
+        encoder_hidden_states = itemgetter("enc_output")(
+            self(
+                encoder_input_ids=tokens_enc,
+                decoder_input_ids=None,
+                encoder_attn_mask=enc_mask,
+                decoder_attn_mask=None,
+                tokentype_ids=None,
+                lm_labels=None,
+                enc_hidden_states=None,
+                output_enc_hidden_only=True,
+            )
+        )
         predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
 
         for _ in range(num_tokens_to_generate):
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
-            output_tensor = itemgetter("dec_output")(self(
-                encoder_input_ids=tokens_enc,
-                decoder_input_ids=predicted_tokens_dec,
-                encoder_attn_mask=enc_mask,
-                decoder_attn_mask=dec_mask,
-                tokentype_ids=None,
-                lm_labels=None,
-                enc_hidden_states=encoder_hidden_states,
-                output_enc_hidden_only=False,
-            ))
+            output_tensor = itemgetter("dec_output")(
+                self(
+                    encoder_input_ids=tokens_enc,
+                    decoder_input_ids=predicted_tokens_dec,
+                    encoder_attn_mask=enc_mask,
+                    decoder_attn_mask=dec_mask,
+                    tokentype_ids=None,
+                    lm_labels=None,
+                    enc_hidden_states=encoder_hidden_states,
+                    output_enc_hidden_only=False,
+                )
+            )
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             # FIXME: already log softmax?
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)

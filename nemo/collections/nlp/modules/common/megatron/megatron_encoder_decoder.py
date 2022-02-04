@@ -25,13 +25,10 @@ from apex.transformer.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
     build_position_ids,
     make_inference_attention_mask_3d,
 )
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-)
-
 
 __all__ = ["MegatronTransformerEncoderDecoderModule"]
 
@@ -76,12 +73,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         """ See megatron.model.transformer.set_input_tensor()"""
         self.encoder.set_input_tensor(input_tensor)
 
-    def encode(self,
-               enc_input,
-               enc_attn_mask,
-               enc_layer_past=None,
-               enc_get_key_value=False,
-               ):
+    def encode(
+        self, enc_input, enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
+    ):
         """Encodes embedder input using encoder"""
         enc_output, enc_output_mask = self.encoder(
             enc_input=enc_input,
@@ -92,14 +86,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         return enc_output, enc_output_mask
 
-    def decode(self,
-               dec_input,
-               dec_attn_mask,
-               enc_output,
-               enc_output_mask,
-               dec_layer_past=None,
-               dec_get_key_value=False,
-               ):
+    def decode(
+        self, dec_input, dec_attn_mask, enc_output, enc_output_mask, dec_layer_past=None, dec_get_key_value=False,
+    ):
         """Decodes embedder input using decoder and encoder input"""
         dec_output = self.decoder(
             dec_input=dec_input,

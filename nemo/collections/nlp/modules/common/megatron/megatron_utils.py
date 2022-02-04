@@ -95,6 +95,7 @@ MEGATRON_CONFIG_MAP = {
     },
 }
 
+
 def compute_model_parallel_rank(local_rank, model_parallel_size):
     return local_rank % model_parallel_size
 

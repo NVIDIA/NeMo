@@ -25,11 +25,11 @@ from apex.transformer.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    attn_mask_postprocess,
+    build_attention_mask_3d,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
-    attn_mask_postprocess,
-    build_attention_mask_3d,
 )
 
 __all__ = ["MegatronTransformerEncoderModule"]
@@ -114,25 +114,16 @@ class MegatronTransformerEncoderModule(MegatronModule):
         self.model.set_input_tensor(input_tensor)
 
     def forward(
-        self,
-        enc_input,
-        enc_attn_mask,
-        layer_past=None,
-        get_key_value=False,
+        self, enc_input, enc_attn_mask, layer_past=None, get_key_value=False,
     ):
         # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask,
-            target_mask=enc_attn_mask,
-            attn_mask_type=self.model_attn_mask_type,
+            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
         )
 
         # transformer encoder
         enc_output = self.model(
-            enc_input,
-            attn_mask_postprocess(enc_attn_mask_3d),
-            layer_past=layer_past,
-            get_key_value=get_key_value,
+            enc_input, attn_mask_postprocess(enc_attn_mask_3d), layer_past=layer_past, get_key_value=get_key_value,
         )
         # we copy input mask for transformer
         enc_output_mask = enc_attn_mask

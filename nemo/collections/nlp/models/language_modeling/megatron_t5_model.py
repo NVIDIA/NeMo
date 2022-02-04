@@ -26,7 +26,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import MegatronLMEncoderDecoderModule
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
+    MegatronLMEncoderDecoderModule,
+)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
@@ -42,6 +44,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 __all__ = ["MegatronT5Model"]
+
 
 class MegatronT5Model(MegatronLMEncoderDecoderModule):
     """
@@ -61,7 +64,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
         self._add_special_tokens_to_tokenizer()
 
         super()._build_vocab()
-
 
     def _add_special_tokens_to_tokenizer(self):
         if self.cfg.tokenizer.library == 'huggingface' or self.cfg.tokenizer.library == 'megatron':
@@ -113,7 +115,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
                     )[0]
                 else:
                     self.tokenizer.add_special_tokens([f'<extra_id_{i}>'])
-
 
     def build_train_valid_test_datasets(self):
         logging.info('Building T5 datasets.')

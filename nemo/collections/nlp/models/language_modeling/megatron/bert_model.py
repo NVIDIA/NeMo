@@ -20,13 +20,13 @@ from nemo.collections.nlp.modules.common.megatron.language_model import get_lang
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    parallel_lm_logits,
+    build_position_ids,
     erf_gelu,
     get_linear_layer,
     init_method_normal,
     openai_gelu,
+    parallel_lm_logits,
     scaled_init_method_normal,
-    build_position_ids,
 )
 from nemo.utils import logging
 

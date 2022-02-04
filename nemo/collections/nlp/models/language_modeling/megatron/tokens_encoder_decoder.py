@@ -17,16 +17,18 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    parallel_lm_logits,
-    init_method_normal,
-    scaled_init_method_normal,
-    build_position_ids,
+from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
+    MegatronTransformerEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
-from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModule
+from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    build_position_ids,
+    init_method_normal,
+    parallel_lm_logits,
+    scaled_init_method_normal,
+)
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -60,6 +62,7 @@ class MegatronTokensHead(MegatronModule):
     def forward(self, hidden_states, word_embeddings_weight):
         output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
         return output
+
 
 # TODO: add soft prompts
 
@@ -184,10 +187,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             hidden_blocks=hidden_steps,
         )
 
-        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
-            encoder=encoder,
-            decoder=decoder,
-        )
+        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)
         self._enc_dec_model_key = "enc_dec_model"
 
         self.tokens_head = MegatronTokensHead(self.decoder_embedding.word_embeddings.weight.size(0), parallel_output)
@@ -216,10 +216,7 @@ class TokensEncoderDecoderModule(MegatronModule):
 
         if output_enc_hidden_only:
             enc_output, enc_output_mask = self.enc_dec_model.encode(
-                enc_input=enc_input,
-                enc_attn_mask=enc_attn_mask,
-                enc_layer_past=None,
-                enc_get_key_value=False,
+                enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
             )
             ret_dict["enc_output"] = enc_output
             ret_dict["enc_output_mask"] = enc_output_mask
@@ -263,13 +260,17 @@ class TokensEncoderDecoderModule(MegatronModule):
         state_dict_ = {}
 
         state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)
+            destination, prefix, keep_vars
+        )
         state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)
+            destination, prefix, keep_vars
+        )
         state_dict_[self._enc_dec_model_key] = self.enc_dec_model.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
-        state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):

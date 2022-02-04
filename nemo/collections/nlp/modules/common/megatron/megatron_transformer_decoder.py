@@ -25,11 +25,11 @@ from apex.transformer.enums import AttnMaskType, LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    attn_mask_postprocess,
+    build_attention_mask_3d,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
-    attn_mask_postprocess,
-    build_attention_mask_3d,
 )
 
 __all__ = ["MegatronTransformerDecoderModule"]
@@ -115,24 +115,14 @@ class MegatronTransformerDecoderModule(MegatronModule):
         self.model.set_input_tensor(input_tensor)
 
     def forward(
-        self,
-        dec_input,
-        dec_attn_mask,
-        enc_output,
-        enc_output_mask,
-        layer_past=None,
-        get_key_value=False,
+        self, dec_input, dec_attn_mask, enc_output, enc_output_mask, layer_past=None, get_key_value=False,
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask,
-            target_mask=dec_attn_mask,
-            attn_mask_type=self.model_attn_mask_type,
+            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
         )
         enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask,
-            target_mask=enc_output_mask,
-            attn_mask_type=AttnMaskType.padding,
+            source_mask=dec_attn_mask, target_mask=enc_output_mask, attn_mask_type=AttnMaskType.padding,
         )
 
         # transformer decoder
