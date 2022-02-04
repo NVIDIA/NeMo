@@ -491,7 +491,6 @@ class Serialization(ABC):
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
                     )
-                instance = cls(cfg=config, trainer=trainer)
                 try:
                     accepts_trainer = Serialization._inspect_signature_for_trainer(cls)
                     if accepts_trainer:
@@ -586,7 +585,7 @@ class FileIO(ABC):
         """
         if hasattr(self, '_cfg'):
             self._cfg = maybe_update_config_version(self._cfg)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
             raise NotImplementedError()

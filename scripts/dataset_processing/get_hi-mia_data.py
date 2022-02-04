@@ -104,7 +104,7 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
 
 def extract_file(filepath: str, data_dir: str):
     try:
-        tar = tarfile.open(filepath)
+        tar = tarfile.open(filepath, encoding='utf-8')
         tar.extractall(data_dir)
         tar.close()
     except Exception:

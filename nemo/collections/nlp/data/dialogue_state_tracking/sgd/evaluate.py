@@ -64,7 +64,7 @@ def get_service_set(schema_path: str) -> set:
         service_set: set of services in file
     """
     service_set = set()
-    with open(schema_path) as f:
+    with open(schema_path, encoding='utf-8') as f:
         schema = json.load(f)
         for service in schema:
             service_set.add(service["service_name"])
@@ -100,7 +100,7 @@ def get_dataset_as_dict(file_path_patterns) -> dict:
         if PER_FRAME_OUTPUT_FILENAME in fp:
             continue
         logging.debug("Loading file: %s", fp)
-        with open(fp) as f:
+        with open(fp, encoding='utf-8') as f:
             data = json.load(f)
             if isinstance(data, list):
                 for dial in data:
@@ -266,7 +266,7 @@ def evaluate(
         for various metrics for all dialogues and all services
     """
 
-    with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:
+    with open(os.path.join(data_dir, eval_dataset, "schema.json"), encoding='utf-8') as f:
         eval_services = {}
         list_services = json.load(f)
         for service in list_services:
@@ -288,7 +288,7 @@ def evaluate(
         logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
 
     # Write the per-frame metrics values with the corrresponding dialogue frames.
-    with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
+    with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w", encoding='utf-8') as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
         f.close()
     return all_metric_aggregate[ALL_SERVICES]
