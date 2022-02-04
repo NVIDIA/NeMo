@@ -41,9 +41,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.collections.nlp.parts.nlp_overrides import NLPDataConnector
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank, inject_model_parallel_rank
-from nemo.utils import AppState, app_state, logging
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -55,7 +54,7 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
