@@ -12,8 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any, Optional
+
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
+
+from nemo.collections.asr.losses.lattice_losses import LatticeLoss
+from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
+from nemo.collections.asr.parts.k2.utils import load_graph
+from nemo.core.classes.common import typecheck
+from nemo.utils import logging
+
+# use k2 import guard
+# fmt: off
+from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
+k2_import_guard()
+import k2 # isort:skip
+# fmt: on
 
 
 @dataclass
@@ -37,7 +54,158 @@ class GraphModuleConfig:
     topo_with_selfloops: bool = True
     graph_type: str = "topo"
     loss_type: str = "mmi"
-    token_lm: Optional[Union[Any, str]] = None
+    token_lm: Optional[Any] = None
     intersect_pruned: bool = False
     intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig()
     boost_coeff: float = 0.0
+
+
+class ASRK2Mixin(metaclass=ABCMeta):
+    @abstractmethod
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # use k2 import guard
+        k2_import_guard()
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.graph_module_cfg = self._cfg.graph_module_cfg
+
+        # collecting prior knowledge for MAPLoss
+        self.use_graph_lm = self.graph_module_cfg.get("criterion_type", "ml") == "map"
+        if self.use_graph_lm:
+            self.token_lm = None
+            self.token_lm_cache_dict = None
+            self.token_lm_path = self.graph_module_cfg.background_cfg.get("token_lm", None)
+            token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
+            if token_lm_overwrite:
+                logging.info(
+                    f"""Overwriting token_lm with `{self.token_lm_path}`. 
+                             Previously saved token_lm, if it exists, will be ignored."""
+                )
+                self.token_lm = load_graph(self.token_lm_path)
+                self.graph_module_cfg.background_cfg["token_lm"] = self.token_lm
+
+        self._update_k2_modules(self.graph_module_cfg)
+
+    def _update_k2_modules(self, input_cfg):
+        """
+        Helper function to initialize or update k2 loss and transcribe_decoder.
+        """
+        del self.loss
+        if hasattr(self, "transcribe_decoder"):
+            del self.transcribe_decoder
+
+        self.loss = LatticeLoss(
+            num_classes=self.decoder.num_classes_with_blank - 1,
+            reduction=self._cfg.get("ctc_reduction", "mean_batch"),
+            backend="k2",
+            criterion_type=input_cfg.get("criterion_type", "ml"),
+            split_batch_size=input_cfg.get("split_batch_size", 0),
+            graph_module_cfg=input_cfg.background_cfg,
+        )
+        remove_consecutive = input_cfg.background_cfg.get("topo_with_selfloops", True) and input_cfg.background_cfg.get(
+            "topo_type", "default"
+        ) not in ["forced_blank", "identity",]
+        self._wer.remove_consecutive = remove_consecutive
+
+        criterion_type = self.loss.criterion_type
+        transcribe_training = input_cfg.get("transcribe_training", False)
+        if transcribe_training and criterion_type == "ml":
+            logging.warning(
+                f"""You do not need to use transcribe_training=`{transcribe_training}` 
+                            with criterion_type=`{criterion_type}`. transcribe_training will be set to False."""
+            )
+            transcribe_training = False
+        self.transcribe_training = transcribe_training
+        if self.use_graph_lm:
+            self.transcribe_decoder = ViterbiDecoderWithGraph(
+                num_classes=self.decoder.num_classes_with_blank - 1,
+                backend="k2",
+                dec_type="tokenlm",
+                return_type="1best",
+                return_ilabels=True,
+                output_aligned=True,
+                split_batch_size=input_cfg.get("split_batch_size", 0),
+                graph_module_cfg=input_cfg.background_cfg,
+            )
+
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
+        """
+        Custom state_dict method to save token_lm graph.
+        """
+        state_dict = super().state_dict(destination, prefix, keep_vars)
+        # fail if k2.Fsa ever supports .state_dict()
+        assert "token_lm" not in state_dict
+        if hasattr(self, "token_lm") and self.token_lm is not None:
+            state_dict["wfst_graph.token_lm"] = self.token_lm.as_dict()
+        return state_dict
+
+    def load_state_dict(self, state_dict, strict=True):
+        """
+        Custom load_state_dict method to load token_lm dict.
+        The graph itself will be initialized at the first .forward() call.
+        """
+        if "wfst_graph.token_lm" in state_dict:
+            # loading only if self.token_lm is not initialized in __init__
+            if self.token_lm is None:
+                # we cannot load self.token_lm directly here
+                # because of a weird error at runtime
+                # TypeError: _broadcast_coalesced(): incompatible function arguments.
+                self.token_lm_cache_dict = state_dict.pop("wfst_graph.token_lm")
+        super().load_state_dict(state_dict, strict=strict)
+
+    @typecheck()
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+    ):
+        """
+        Forward pass of the model.
+
+        Args:
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+                sequences.
+            processed_signal: Tensor that represents a batch of processed audio signals,
+                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+            processed_signal_length: Vector of length B, that contains the individual lengths of the
+                processed audio sequences.
+
+        Returns:
+            A tuple of 3 elements -
+            1) The log probabilities tensor of shape [B, T, D].
+            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+            3) The greedy token predictions of the model of shape [B, T] (via argmax)
+        """
+        # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
+        if self.use_graph_lm and self.token_lm is None:
+            if self.token_lm_cache_dict is not None:
+                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
+                self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
+                self.token_lm_cache_dict = None
+            elif self.token_lm_path is not None:
+                logging.warning(f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call.""")
+                self.token_lm = load_graph(self.token_lm_path)
+                if self.token_lm is None:
+                    raise ValueError(f"""Failed to load token_lm""")
+            else:
+                raise ValueError(f"""Failed to load token_lm""")
+            self.loss.update_graph(self.token_lm)
+            if self.use_graph_lm:
+                self.transcribe_decoder.update_graph(self.token_lm)
+
+        log_probs, encoded_len, greedy_predictions = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
+
+        # greedy_predictions from .forward() are incorrect for criterion_type=`map`
+        # getting correct greedy_predictions, if needed
+        if self.use_graph_lm and (not self.training or self.transcribe_training):
+            greedy_predictions, encoded_len, _ = self.transcribe_decoder.forward(
+                log_probs=log_probs, log_probs_length=encoded_len
+            )
+        return log_probs, encoded_len, greedy_predictions

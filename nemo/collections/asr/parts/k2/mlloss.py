@@ -111,6 +111,7 @@ class MLLoss(torch.nn.Module):
             # and shift targets to emulate blank = 0
             log_probs, targets = make_blank_first(self.blank, log_probs, targets)
         supervisions, order = create_supervision(input_lengths)
+        order = order.long()
         targets = targets[order]
         target_lengths = target_lengths[order]
         # PyTorch is doing the log-softmax normalization as part of the CTC computation.

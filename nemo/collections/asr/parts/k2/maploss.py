@@ -121,6 +121,9 @@ class MAPLoss(torch.nn.Module):
         lm_graph = self.lm_graph.clone()
         if hasattr(lm_graph, "aux_labels"):
             delattr(lm_graph, "aux_labels")
+        labels = lm_graph.labels
+        if labels.max() != self.num_classes - 1:
+            raise ValueError(f"lm_graph is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
         if self.pad_fsavec:
             shift_labels_inpl([lm_graph], 1)
         if self.loss_type == "mmi":
@@ -235,6 +238,7 @@ class MAPLoss(torch.nn.Module):
             # and shift targets to emulate blank = 0
             log_probs, targets = make_blank_first(self.blank, log_probs, targets)
         supervisions, order = create_supervision(input_lengths)
+        order = order.long()
         targets = targets[order]
         target_lengths = target_lengths[order]
 

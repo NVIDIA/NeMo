@@ -71,16 +71,21 @@ class BaseDecoder(object):
         self.intersect_pruned = intersect_pruned
         self.device = device
         self.topo_type = topo_type
+        self.topo_with_selfloops = topo_with_selfloops
         self.pad_fsavec = self.topo_type == "ctc_compact"
         self.intersect_conf = intersect_conf
         if not hasattr(self, "graph_compiler") or self.graph_compiler is None:
-            self.graph_compiler = CtcTopologyCompiler(self.num_classes, self.topo_type, topo_with_selfloops, device)
+            self.graph_compiler = CtcTopologyCompiler(self.num_classes, self.topo_type, self.topo_with_selfloops, self.device)
         if not hasattr(self, "base_graph") or self.base_graph is None:
-            self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(device)
+            self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(self.device)
         self.decoding_graph = None
 
     def to(self, device: torch.device):
-        if self.decoding_graph is not None:
+        if self.graph_compiler.device != device:
+            self.graph_compiler.to(device)
+        if self.base_graph.device != device:
+            self.base_graph = self.base_graph.to(device)
+        if self.decoding_graph is not None and self.decoding_graph.device != device:
             self.decoding_graph = self.decoding_graph.to(device)
         self.device = device
 
@@ -232,12 +237,12 @@ class TokenLMDecoder(BaseDecoder):
         token_lm = self.token_lm.clone()
         if hasattr(token_lm, "aux_labels"):
             delattr(token_lm, "aux_labels")
+        labels = token_lm.labels
+        if labels.max() != self.num_classes - 1:
+            raise ValueError(f"token_lm is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
         if self.pad_fsavec:
             shift_labels_inpl([token_lm], 1)
-        labels = token_lm.labels if isinstance(token_lm.labels, torch.Tensor) else token_lm.labels.values()
-        if labels.max() != self.num_classes:
-            raise ValueError(f"token_lm is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
         self.graph_compiler = CtcNumGraphCompiler(
-            self.num_classes, self.topo_type, topo_with_selfloops, device, token_lm
+            self.num_classes, self.topo_type, self.topo_with_selfloops, self.device, token_lm
         )
-        self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(device)
+        self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(self.device)
