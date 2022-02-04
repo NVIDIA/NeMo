@@ -231,7 +231,7 @@ def build_attention_mask_3d(source_mask, target_mask, attn_mask_type, mask=None)
     if (mask is None) or (len(mask.shape) == 2):
         if attn_mask_type == AttnMaskType.padding:
             mask = build_attention_mask_3d_padding(source_mask, target_mask)
-        elif attn_mask_type == AttnMaskType.casual:
+        elif attn_mask_type == AttnMaskType.causal:
             mask = build_attention_mask_3d_casual(source_mask, target_mask)
         else:
             raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
