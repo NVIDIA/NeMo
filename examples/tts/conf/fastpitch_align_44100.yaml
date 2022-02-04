@@ -1,3 +1,5 @@
+# TODO(Oktai15): update this config in 1.8.0 version (see fastpitch_align_v1.05.yaml)
+
 name: "FastPitch"
 sample_rate: 44100
 train_dataset: ???
@@ -14,10 +16,10 @@ model:
   n_window_size: 2048
   n_window_stride: 512
   fmax: null
-  pitch_fmin: 90
-  pitch_fmax: 800
-  pitch_avg: 202.6578730232835 # for a female speaker (8051 HiFiGAN)
-  pitch_std: 53.33124161823325 # for a female speaker (8051 HiFiGAN)
+  pitch_fmin: 80
+  pitch_fmax: 640
+  pitch_avg: 211.27540199742586 # for a female speaker (8051 HiFiGAN)
+  pitch_std: 52.1851002822779 # for a female speaker (8051 HiFiGAN)
   dur_loss_scale: 0.1
   pitch_loss_scale: 0.1
 
@@ -155,7 +157,7 @@ model:
     n_layers: 2
 
   optim:
-    name: adamw
+    name: adam
     lr: 1e-1
     betas: [0.9, 0.98]
     weight_decay: 1e-6
