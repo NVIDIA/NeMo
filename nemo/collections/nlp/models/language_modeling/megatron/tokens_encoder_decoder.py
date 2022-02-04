@@ -202,7 +202,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         labels=None,
         enc_hidden_states=None,
         output_enc_hidden_only=False,
-        batchj=None
+        batch=None,
     ):
         ret_dict = {}
 
