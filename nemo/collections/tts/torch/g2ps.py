@@ -17,6 +17,7 @@ import pathlib
 import random
 import re
 import time
+from typing import Optional
 
 import nltk
 import torch
@@ -54,7 +55,7 @@ class EnglishG2p(BaseG2p):
         ignore_ambiguous_words=True,
         heteronyms=None,
         encoding='latin-1',
-        phoneme_probability=None,
+        phoneme_probability: Optional[float] = None,
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
@@ -69,7 +70,7 @@ class EnglishG2p(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
-            phoneme_probability != 1.0: TODO
+            phoneme_probability (Optional[float]): The probability (0<var<1) that each word is phonemized. Defaults to None which is the same as 100%.
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)

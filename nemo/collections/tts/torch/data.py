@@ -184,7 +184,7 @@ class TTSDataset(Dataset):
                     if "normalized_text" not in item:
                         text = item["text"]
                         if self.text_normalizer is not None:
-                            text = self.text_normalizer_call(item["text"], **self.text_normalizer_call_kwargs)
+                            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
                     else:
                         file_info["normalized_text"] = item["normalized_text"]
@@ -245,7 +245,7 @@ class TTSDataset(Dataset):
             hop_length=self.hop_len,
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
-            return_complex=False,
+            return_complex=True,
         )
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
@@ -437,11 +437,7 @@ class TTSDataset(Dataset):
 
                 if prior_path.exists():
                     align_prior_matrix = torch.load(prior_path)
-                    # if align_prior_matrix.shape[1] != mel_len or align_prior_matrix.shape[0] != text_length:
-                    #     align_prior_matrix = None
-                    #     logging.info(f"Regenerating {prior_path}")
-
-                if align_prior_matrix is None:
+                else:
                     align_prior_matrix = beta_binomial_prior_distribution(text_length, mel_len)
                     align_prior_matrix = torch.from_numpy(align_prior_matrix)
                     torch.save(align_prior_matrix, prior_path)
