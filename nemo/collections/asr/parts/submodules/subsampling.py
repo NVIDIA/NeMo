@@ -19,6 +19,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class StackingSubsampling(torch.nn.Module):
+    def __init__(self, subsampling_factor, feat_in, feat_out):
+        super(StackingSubsampling, self).__init__()
+        self.subsampling_factor = subsampling_factor
+        self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
+
+    def forward(self, x, lengths):
+        b, t, h = x.size()
+        pad_size = self.subsampling_factor - (t % self.subsampling_factor)
+        x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
+        _, t, _ = x.size()
+        x = torch.reshape(x, (b, t//self.subsampling_factor, h*self.subsampling_factor))
+        x = self.proj_out(x)
+        lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
+        return x, lengths
+
 
 class CausalConv2D(nn.Conv2d):
     def __init__(

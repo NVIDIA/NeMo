@@ -21,7 +21,7 @@ import torch.nn as nn
 
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -189,15 +189,18 @@ class ConformerEncoder(NeuralModule, Exportable):
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
-            self.pre_encode = ConvSubsampling(
-                subsampling=subsampling,
-                subsampling_factor=subsampling_factor,
-                feat_in=feat_in,
-                feat_out=d_model,
-                conv_channels=subsampling_conv_channels,
-                activation=nn.ReLU(),
-                is_causal=is_causal,
-            )
+            if subsampling == 'stacking':
+                self.pre_encode = StackingSubsampling(subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=d_model)
+            else:
+                self.pre_encode = ConvSubsampling(
+                    subsampling=subsampling,
+                    subsampling_factor=subsampling_factor,
+                    feat_in=feat_in,
+                    feat_out=d_model,
+                    conv_channels=subsampling_conv_channels,
+                    activation=nn.ReLU(),
+                    is_causal=is_causal,
+                )
             self._feat_out = d_model
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
@@ -300,7 +303,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             cache_last_time_next = None
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if isinstance(self.pre_encode, ConvSubsampling):
+        if isinstance(self.pre_encode, ConvSubsampling) or isinstance(self.pre_encode, StackingSubsampling):
             audio_signal, length = self.pre_encode(
                 x=audio_signal, lengths=length, cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
