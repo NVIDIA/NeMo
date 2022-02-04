@@ -198,8 +198,8 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         labels = data_b['labels'].long()
         loss_mask = data_b['loss_mask'].float()
 
-        enc_mask = data_b['enc_mask'].bool()
-        dec_mask = data_b['dec_mask'].bool()
+        enc_mask = data_b['enc_mask']
+        dec_mask = data_b['dec_mask']
 
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
