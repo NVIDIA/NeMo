@@ -29,6 +29,7 @@
 from typing import Optional, Union
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.k2.grad_utils import GradExpNormalize
 from nemo.collections.asr.parts.k2.utils import (
@@ -54,23 +55,31 @@ class MLLoss(torch.nn.Module):
     but can be extended to support other loss functions (ASG, HMM, ...).
     
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/ctc.py
+    
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
         self,
         num_classes: int,
         blank: int,
-        reduction: str = "mean",
+        reduction: str,
+        cfg: Optional[DictConfig] = None,
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         graph_type: str = "topo",
-        aux_graph: Optional[Union['k2.Fsa', str]] = None,
-        **kwargs,
+        token_lm: Optional[Union['k2.Fsa', str]] = None,
     ):
         # use k2 import guard
         k2_import_guard()
 
         super().__init__()
+        if cfg is not None:
+            topo_type = cfg.get("topo_type", topo_type)
+            topo_with_selfloops = cfg.get("topo_with_selfloops", topo_with_selfloops)
+            graph_type = cfg.get("graph_type", graph_type)
+            token_lm = cfg.get("token_lm", token_lm)
         self.blank = blank
         self.num_classes = num_classes
         self.reduction = reduction
@@ -79,12 +88,12 @@ class MLLoss(torch.nn.Module):
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler as compiler
 
             self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops)
-        elif graph_type == "graph":
+        elif graph_type == "token_lm":
             from nemo.collections.asr.parts.k2.graph_compilers import CtcNumGraphCompiler as compiler
 
-            if isinstance(aux_graph, str):
-                aux_graph = load_graph(aux_graph)
-            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=aux_graph)
+            if isinstance(token_lm, str):
+                token_lm = load_graph(token_lm)
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=token_lm)
 
             raise NotImplementedError("Not tested yet")
         else:

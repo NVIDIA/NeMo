@@ -29,8 +29,10 @@
 from typing import Optional, Union
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.k2.autograd import sparse_abs
+from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.utils import (
     create_sparse_wrapped,
     create_supervision,
@@ -57,25 +59,37 @@ class MAPLoss(torch.nn.Module):
     and LF-boosted-MMI (LF-bMMI) losses.
     
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
+    
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
         self,
         num_classes: int,
         blank: int,
-        reduction: str = "mean",
+        reduction: str,
+        cfg: Optional[DictConfig] = None,
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         loss_type: str = "mmi",
         token_lm: Optional[Union['k2.Fsa', str]] = None,
         intersect_pruned: bool = False,
+        intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         boost_coeff: float = 0.0,
-        **kwargs,
     ):
         # use k2 import guard
         k2_import_guard()
 
         super().__init__()
+        if cfg is not None:
+            topo_type = cfg.get("topo_type", topo_type)
+            topo_with_selfloops = cfg.get("topo_with_selfloops", topo_with_selfloops)
+            loss_type = cfg.get("loss_type", loss_type)
+            token_lm = cfg.get("token_lm", token_lm)
+            intersect_pruned = cfg.get("intersect_pruned", intersect_pruned)
+            intersect_conf = cfg.get("intersect_conf", intersect_conf)
+            boost_coeff = cfg.get("boost_coeff", boost_coeff)
         self.num_classes = num_classes
         self.blank = blank
         self.reduction = reduction
@@ -84,6 +98,7 @@ class MAPLoss(torch.nn.Module):
         self.intersect_calc_scores = (
             self._intersect_calc_scores_mmi_pruned if intersect_pruned else self._intersect_calc_scores_mmi_exact
         )
+        self.intersect_conf = intersect_conf
         self.topo_type = topo_type
         self.topo_with_selfloops = topo_with_selfloops
         self.pad_fsavec = topo_type == "compact"
@@ -151,7 +166,7 @@ class MAPLoss(torch.nn.Module):
         num_den_lats = k2.intersect_dense(
             a_fsas=num_den_reordered_graphs,
             b_fsas=dense_fsa_vec,
-            output_beam=10.0,
+            output_beam=self.intersect_conf.output_beam,
             a_to_b_map=a_to_b_map,
             seqframe_idx_name="seqframe_idx" if return_lats else None,
         )
@@ -183,16 +198,16 @@ class MAPLoss(torch.nn.Module):
         num_lats = k2.intersect_dense(
             a_fsas=num_graphs,
             b_fsas=dense_fsa_vec,
-            output_beam=torch.finfo(torch.float32).max,
+            output_beam=self.intersect_conf.output_beam,
             seqframe_idx_name="seqframe_idx" if return_lats else None,
         )
         den_lats = k2.intersect_dense_pruned(
             a_fsas=den_graph,
             b_fsas=dense_fsa_vec,
-            search_beam=20.0,
-            output_beam=7.0,
-            min_active_states=30,
-            max_active_states=10000,
+            search_beam=self.intersect_conf.search_beam,
+            output_beam=self.intersect_conf.output_beam,
+            min_active_states=self.intersect_conf.min_active_states,
+            max_active_states=self.intersect_conf.max_active_states,
             seqframe_idx_name="seqframe_idx" if return_lats else None,
         )
 

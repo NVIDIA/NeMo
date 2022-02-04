@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.k2.grad_utils import PartialGrad
 from nemo.core.classes import Loss, typecheck
@@ -50,7 +51,7 @@ class LatticeLoss(Loss):
         backend: str = "k2",
         criterion_type: str = "ml",
         split_batch_size: int = 0,
-        **loss_kwargs,
+        graph_module_cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
         self._blank = num_classes
@@ -77,7 +78,7 @@ class LatticeLoss(Loss):
                 raise ValueError(f"Invalid value of `criterion_type`: {criterion_type}.")
 
             self._loss = K2Loss(
-                num_classes=self._blank + 1, blank=self._blank, reduction=ctc_reduction, **loss_kwargs,
+                num_classes=self._blank + 1, blank=self._blank, reduction=ctc_reduction, cfg=graph_module_cfg,
             )
         elif backend == "gtn":
             raise NotImplementedError(f"Backend {backend} is not supported.")

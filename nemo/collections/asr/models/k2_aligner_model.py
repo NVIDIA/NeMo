@@ -30,26 +30,20 @@ class AlignerWrapperModel(ASRModel):
     """ASR model wrapper to perform alignment building.
     Functionality is limited to the components needed to build an alignment."""
 
-    def __init__(
-        self,
-        model: ASRModel,
-        alignment_type: str = "forced",
-        word_output: bool = True,
-        cpu_decoding: bool = False,
-        decode_batch_size: int = 0,
-        prob_suppress_index: int = -1,
-        prob_suppress_value: float = 1.0,
-    ):
-        cfg = model.cfg
+    def __init__(self, model: ASRModel, cfg: DictConfig):
+        model_cfg = model.cfg
         for ds in ("train_ds", "validation_ds", "test_ds"):
-            if ds in cfg:
-                cfg[ds] = None
-        super().__init__(cfg=cfg, trainer=model.trainer)
+            if ds in model_cfg:
+                model_cfg[ds] = None
+        super().__init__(cfg=model_cfg, trainer=model.trainer)
         self._model = model
-        self.alignment_type = alignment_type
-        self.word_output = word_output
-        self.cpu_decoding = cpu_decoding
+        self.alignment_type = cfg.get("alignment_type", "forced")
+        self.word_output = cfg.get("word_output", True)
+        self.cpu_decoding = cfg.get("cpu_decoding", False)
         self.blank_id = self._model.decoder.num_classes_with_blank - 1
+        decode_batch_size = cfg.get("decode_batch_size", 0)
+        prob_suppress_index = cfg.get("prob_suppress_index", -1)
+        prob_suppress_value = cfg.get("prob_suppress_value", 1.0)
         if prob_suppress_value > 1 or prob_suppress_value <= 0:
             raise ValueError(f"Suppression value has to be in (0,1]: {prob_suppress_value}")
         if prob_suppress_index < -(self.blank_id + 1) or prob_suppress_index > self.blank_id:
@@ -69,9 +63,9 @@ class AlignerWrapperModel(ASRModel):
         elif self.alignment_type == "argmax":
             pass
         elif self.alignment_type == "loose":
-            raise NotImplementedError("Only alignment_type=forced is supported at the moment.")
-        elif self.alignment_type == "rnnt_decoding":
-            raise NotImplementedError("Only alignment_type=forced is supported at the moment.")
+            raise NotImplementedError("alignment_type=`{self.alignment_type}` is not supported at the moment.")
+        elif self.alignment_type == "rnnt_decoding_aux":
+            raise NotImplementedError("alignment_type=`{self.alignment_type}` is not supported at the moment.")
         else:
             raise RuntimeError(f"Unsupported alignment type: {self.alignment_type}")
 
@@ -83,11 +77,10 @@ class AlignerWrapperModel(ASRModel):
                         self.graph_decoder = self._model.transcribe_decoder
                         self._model.use_graph_lm = False
                     else:
-                        loss_kwargs = self._model._cfg.get("loss", {})
                         self.graph_decoder = ViterbiDecoderWithGraph(
-                            num_classes=self.blank_id, dec_type="topo", return_type="1best", **loss_kwargs,
+                            num_classes=self.blank_id, backend="k2", dec_type="topo", return_type="1best"
                         )
-                    # override split_batch_size if it was in loss_kwargs
+                    # override split_batch_size
                     self.graph_decoder.split_batch_size = decode_batch_size
                 else:
                     self.graph_decoder = ViterbiDecoderWithGraph(
@@ -96,9 +89,8 @@ class AlignerWrapperModel(ASRModel):
             elif self.alignment_type == "argmax":
                 if hasattr(self._model, "use_graph_lm"):
                     if not self._model.use_graph_lm:
-                        loss_kwargs = self._model._cfg.get("loss", {})
                         self._model.transcribe_decoder = ViterbiDecoderWithGraph(
-                            num_classes=self.blank_id, dec_type="topo", return_type="1best", **loss_kwargs,
+                            num_classes=self.blank_id, backend="k2", dec_type="topo", return_type="1best"
                         )
                     # override decoder args
                     self._model.transcribe_decoder.return_ilabels = False

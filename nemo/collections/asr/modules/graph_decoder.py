@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+from omegaconf import DictConfig
 
 from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
@@ -37,13 +38,13 @@ class ViterbiDecoderWithGraph(NeuralModule):
     def __init__(
         self,
         num_classes,
-        backend="k2",
-        dec_type="topo",
-        return_type="1best",
-        return_ilabels=True,
-        output_aligned=True,
-        split_batch_size=0,
-        **decode_kwargs,
+        backend: str = "k2",
+        dec_type: str = "topo",
+        return_type: str = "1best",
+        return_ilabels: bool = True,
+        output_aligned: bool = True,
+        split_batch_size: int = 0,
+        graph_module_cfg: Optional[DictConfig] = None,
     ):
         self._blank = num_classes
         self.return_ilabels = return_ilabels
@@ -78,7 +79,7 @@ class ViterbiDecoderWithGraph(NeuralModule):
             else:
                 raise ValueError(f"Unsupported dec_type: {dec_type}")
 
-            self._decoder = Decoder(num_classes=self._blank + 1, blank=self._blank, **decode_kwargs)
+            self._decoder = Decoder(num_classes=self._blank + 1, blank=self._blank, cfg=graph_module_cfg)
         elif backend == "gtn":
             raise NotImplementedError("gtn-backed decoding is not implemented")
 

@@ -56,6 +56,7 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models.k2_sequence_models import EncDecK2SeqModelBPE
+from nemo.collections.asr.models.configs.k2_sequence_models_config import EncDecK2SeqModelConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -63,15 +64,28 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
-    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
-    print(OmegaConf.to_yaml(cfg))
-    trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    # Generate default asr model config
+    asr_model_config = EncDecK2SeqModelConfig()
 
-    with open_dict(cfg):
-        restore_path = cfg.pop("init_from_nemo", None)
+    # Merge hydra updates with model config
+    # `drop_missing_subconfig=True` is necessary here. Without it, while the data class will instantiate and be added
+    # to the config, it contains test_ds.sample_rate = MISSING and test_ds.labels = MISSING.
+    # This will raise a OmegaConf MissingMandatoryValue error when processing the dataloaders inside
+    # model_utils.resolve_test_dataloaders(model=self) (used for multi data loader support).
+    # In general, any operation that tries to use a DictConfig with MISSING in it will fail,
+    # other than explicit update operations to change MISSING to some actual value.
+    asr_model_config = update_model_config(asr_model_config, cfg, drop_missing_subconfigs=True)
+    
+    # From here on out, its a general OmegaConf DictConfig, directly usable by our code.
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(asr_model_config)}")
+    print(OmegaConf.to_yaml(asr_model_config))
+    trainer = pl.Trainer(**asr_model_config.trainer)
+    exp_manager(trainer, asr_model_config.get("exp_manager", None))
 
-    asr_model = EncDecK2SeqModelBPE(cfg=cfg.model, trainer=trainer)
+    with open_dict(asr_model_config):
+        restore_path = asr_model_config.pop("init_from_nemo", None)
+
+    asr_model = EncDecK2SeqModelBPE(asr_model_config=asr_model_config.model, trainer=trainer)
 
     if restore_path is not None:
         checkpoint = EncDecK2SeqModelBPE.restore_from(restore_path, map_location=torch.device("cpu"))
@@ -92,13 +106,13 @@ def main(cfg):
 
     trainer.fit(asr_model)
 
-    if hasattr(cfg.model, "test_ds") and cfg.model.test_ds.manifest_filepath is not None:
-        gpu = 1 if cfg.trainer.gpus != 0 else 0
+    if hasattr(asr_model_config.model, "test_ds") and asr_model_config.model.test_ds.manifest_filepath is not None:
+        gpu = 1 if asr_model_config.trainer.gpus != 0 else 0
         test_trainer = pl.Trainer(
             gpus=gpu,
             precision=trainer.precision,
             amp_level=trainer.accelerator_connector.amp_level,
-            amp_backend=cfg.trainer.get("amp_backend", "native"),
+            amp_backend=asr_model_config.trainer.get("amp_backend", "native"),
         )
         if asr_model.prepare_test(test_trainer):
             test_trainer.test(asr_model)

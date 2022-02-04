@@ -52,14 +52,14 @@ class EncDecK2SeqModel(EncDecCTCModel):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        loss_kwargs = self._cfg.get("loss", {})
+        self.graph_module_cfg = self._cfg.graph_module_cfg
 
         # collecting prior knowledge for MAPLoss
-        self.use_graph_lm = loss_kwargs.get("criterion_type", "ml") == "map"
+        self.use_graph_lm = self.graph_module_cfg.get("criterion_type", "ml") == "map"
         if self.use_graph_lm:
             self.token_lm = None
             self.token_lm_cache_dict = None
-            self.token_lm_path = self._cfg.get("token_lm", None)
+            self.token_lm_path = self.graph_module_cfg.background_cfg.get("token_lm", None)
             token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
             if token_lm_overwrite:
                 logging.info(
@@ -67,11 +67,11 @@ class EncDecK2SeqModel(EncDecCTCModel):
                              Previously saved token_lm, if it exists, will be ignored."""
                 )
                 self.token_lm = load_graph(self.token_lm_path)
-                loss_kwargs["token_lm"] = self.token_lm
+                self.graph_module_cfg.background_cfg["token_lm"] = self.token_lm
 
-        self._update_k2_modules(loss_kwargs)
+        self._update_k2_modules(self.graph_module_cfg)
 
-    def _update_k2_modules(self, loss_kwargs):
+    def _update_k2_modules(self, input_cfg):
         """
         Helper function to initialize or update k2 loss and transcribe_decoder.
         """
@@ -82,15 +82,18 @@ class EncDecK2SeqModel(EncDecCTCModel):
         self.loss = LatticeLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            **loss_kwargs,
+            backend="k2",
+            criterion_type=input_cfg.get("criterion_type", "ml"),
+            split_batch_size=input_cfg.get("split_batch_size", 0),
+            graph_module_cfg=input_cfg.background_cfg,
         )
-        remove_consecutive = loss_kwargs.get("topo_with_selfloops", True) and loss_kwargs.get(
+        remove_consecutive = input_cfg.background_cfg.get("topo_with_selfloops", True) and input_cfg.background_cfg.get(
             "topo_type", "default"
         ) not in ["forced_blank", "identity",]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
-        transcribe_training = self._cfg.get("transcribe_training", False)
+        transcribe_training = input_cfg.get("transcribe_training", False)
         if transcribe_training and criterion_type == "ml":
             logging.warning(
                 f"""You do not need to use transcribe_training=`{transcribe_training}` 
@@ -101,9 +104,13 @@ class EncDecK2SeqModel(EncDecCTCModel):
         if self.use_graph_lm:
             self.transcribe_decoder = ViterbiDecoderWithGraph(
                 num_classes=self.decoder.num_classes_with_blank - 1,
+                backend="k2",
                 dec_type="tokenlm",
                 return_type="1best",
-                **loss_kwargs,
+                return_ilabels: bool = True,
+                output_aligned: bool = True,
+                split_batch_size=input_cfg.get("split_batch_size", 0),
+                graph_module_cfg=input_cfg.background_cfg,
             )
 
     def state_dict(self, destination=None, prefix="", keep_vars=False):
@@ -238,14 +245,14 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        loss_kwargs = self._cfg.get("loss", {})
+        self.graph_module_cfg = self._cfg.graph_module_cfg
 
         # collecting prior knowledge for MAPLoss
-        self.use_graph_lm = loss_kwargs.get("criterion_type", "ml") == "map"
+        self.use_graph_lm = self.graph_module_cfg.get("criterion_type", "ml") == "map"
         if self.use_graph_lm:
             self.token_lm = None
             self.token_lm_cache_dict = None
-            self.token_lm_path = self._cfg.get("token_lm", None)
+            self.token_lm_path = self.graph_module_cfg.background_cfg.get("token_lm", None)
             token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
             if token_lm_overwrite:
                 logging.info(
@@ -253,11 +260,11 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
                              Previously saved token_lm, if it exists, will be ignored."""
                 )
                 self.token_lm = load_graph(self.token_lm_path)
-                loss_kwargs["token_lm"] = self.token_lm
+                self.graph_module_cfg.background_cfg["token_lm"] = self.token_lm
 
-        self._update_k2_modules(loss_kwargs)
+        self._update_k2_modules(self.graph_module_cfg)
 
-    def _update_k2_modules(self, loss_kwargs):
+    def _update_k2_modules(self, input_cfg):
         """
         Helper function to initialize or update k2 loss and transcribe_decoder.
         """
@@ -268,15 +275,18 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         self.loss = LatticeLoss(
             num_classes=self.decoder.num_classes_with_blank - 1,
             reduction=self._cfg.get("ctc_reduction", "mean_batch"),
-            **loss_kwargs,
+            backend="k2",
+            criterion_type=input_cfg.get("criterion_type", "ml"),
+            split_batch_size=input_cfg.get("split_batch_size", 0),
+            graph_module_cfg=input_cfg.background_cfg,
         )
-        remove_consecutive = loss_kwargs.get("topo_with_selfloops", True) and loss_kwargs.get(
+        remove_consecutive = input_cfg.background_cfg.get("topo_with_selfloops", True) and input_cfg.background_cfg.get(
             "topo_type", "default"
         ) not in ["forced_blank", "identity",]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
-        transcribe_training = self._cfg.get("transcribe_training", False)
+        transcribe_training = input_cfg.get("transcribe_training", False)
         if transcribe_training and criterion_type == "ml":
             logging.warning(
                 f"""You do not need to use transcribe_training=`{transcribe_training}` 
@@ -287,9 +297,14 @@ class EncDecK2SeqModelBPE(EncDecCTCModelBPE):
         if self.use_graph_lm:
             self.transcribe_decoder = ViterbiDecoderWithGraph(
                 num_classes=self.decoder.num_classes_with_blank - 1,
+                backend="k2",
                 dec_type="tokenlm",
                 return_type="1best",
-                **loss_kwargs,
+                return_ilabels: bool = True,
+                output_aligned: bool = True,
+                split_batch_size=input_cfg.get("split_batch_size", 0),
+                graph_module_cfg=input_cfg.background_cfg,
+            )
             )
 
     def state_dict(self, destination=None, prefix="", keep_vars=False):

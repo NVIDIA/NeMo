@@ -15,8 +15,10 @@
 from typing import List, Optional, Tuple, Union
 
 import torch
+from omegaconf import DictConfig
 
-import nemo.collections.asr.parts.k2.graph_compilers as graph_compilers
+from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
+from nemo.collections.asr.parts.k2.graph_compilers import CtcNumGraphCompiler, CtcTopologyCompiler
 from nemo.collections.asr.parts.k2.utils import (
     create_supervision,
     get_arc_weights,
@@ -36,37 +38,33 @@ import k2 # isort:skip
 # fmt: on
 
 
-class DecoderConf:
-    """Graph decoder config.
-    Typically contains the pruned intersection parameters.
-    """
-
-    def __init__(
-        self, search_beam=20.0, output_beam=10.0, min_active_states=30, max_active_states=10000, **kwargs,
-    ):
-        self.search_beam = search_beam
-        self.output_beam = output_beam
-        self.min_active_states = min_active_states
-        self.max_active_states = max_active_states
-
-
 class BaseDecoder(object):
     """Base graph decoder with topology for decoding graph.
     Typically uses the same parameters as for the corresponding loss function.
+    
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
         self,
         num_classes: int,
         blank: int,
+        cfg: Optional[DictConfig] = None,
         intersect_pruned: bool = False,
+        intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         device: torch.device = torch.device("cpu"),
-        **kwargs,
     ):
         # use k2 import guard
         k2_import_guard()
+
+        if cfg is not None:
+            intersect_pruned = cfg.get("intersect_pruned", intersect_pruned)
+            intersect_conf = cfg.get("intersect_conf", intersect_conf)
+            topo_type = cfg.get("topo_type", topo_type)
+            topo_with_selfloops = cfg.get("topo_with_selfloops", topo_with_selfloops)
 
         self.num_classes = num_classes
         self.blank = blank
@@ -74,11 +72,9 @@ class BaseDecoder(object):
         self.device = device
         self.topo_type = topo_type
         self.pad_fsavec = self.topo_type == "ctc_compact"
-        self.conf = DecoderConf(**kwargs)
+        self.intersect_conf = intersect_conf
         if not hasattr(self, "graph_compiler") or self.graph_compiler is None:
-            self.graph_compiler = graph_compilers.CtcTopologyCompiler(
-                self.num_classes, self.topo_type, topo_with_selfloops, device
-            )
+            self.graph_compiler = CtcTopologyCompiler(self.num_classes, self.topo_type, topo_with_selfloops, device)
         if not hasattr(self, "base_graph") or self.base_graph is None:
             self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(device)
         self.decoding_graph = None
@@ -122,10 +118,10 @@ class BaseDecoder(object):
             lats = k2.intersect_dense_pruned(
                 a_fsas=self.decoding_graph,
                 b_fsas=dense_fsa_vec,
-                search_beam=self.conf.search_beam,
-                output_beam=self.conf.output_beam,
-                min_active_states=self.conf.min_active_states,
-                max_active_states=self.conf.max_active_states,
+                search_beam=self.intersect_conf.search_beam,
+                output_beam=self.intersect_conf.output_beam,
+                min_active_states=self.intersect_conf.min_active_states,
+                max_active_states=self.intersect_conf.max_active_states,
             )
         else:
             indices = torch.zeros(dense_fsa_vec.dim0(), dtype=torch.int32, device=self.device)
@@ -134,7 +130,7 @@ class BaseDecoder(object):
                 if self.decoding_graph.shape[0] == 1
                 else self.decoding_graph
             )
-            lats = k2.intersect_dense(dec_graphs, dense_fsa_vec, self.conf.output_beam)
+            lats = k2.intersect_dense(dec_graphs, dense_fsa_vec, self.intersect_conf.output_beam)
         if self.pad_fsavec:
             shift_labels_inpl([lats], -1)
         self.decoding_graph = None
@@ -195,22 +191,26 @@ class BaseDecoder(object):
 
 class TokenLMDecoder(BaseDecoder):
     """Graph decoder with token_lm-based decoding graph.
+    
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
         self,
         num_classes: int,
         blank: int,
+        cfg: Optional[DictConfig] = None,
         token_lm: Optional[Union['k2.Fsa', str]] = None,
         intersect_pruned: bool = False,
+        intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         topo_type: str = "default",
         topo_with_selfloops: bool = True,
         device: torch.device = torch.device("cpu"),
-        **kwargs,
     ):
-        super().__init__(
-            num_classes, blank, intersect_pruned, topo_type, topo_with_selfloops, device, **kwargs,
-        )
+        super().__init__(num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_selfloops, device)
+        if cfg is not None:
+            token_lm = cfg.get("token_lm", token_lm)
         if token_lm is not None:
             self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
             if self.token_lm is not None:
@@ -237,7 +237,7 @@ class TokenLMDecoder(BaseDecoder):
         labels = token_lm.labels if isinstance(token_lm.labels, torch.Tensor) else token_lm.labels.values()
         if labels.max() != self.num_classes:
             raise ValueError(f"token_lm is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
-        self.graph_compiler = graph_compilers.CtcNumGraphCompiler(
+        self.graph_compiler = CtcNumGraphCompiler(
             self.num_classes, self.topo_type, topo_with_selfloops, device, token_lm
         )
         self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(device)

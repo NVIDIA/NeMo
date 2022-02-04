@@ -170,7 +170,7 @@ def main(cfg: ParallelAlignmentConfig):
     )
     trainer.callbacks.extend([predictor_writer])
 
-    ali_wrapper = AlignerWrapperModel(model=model, **cfg.ali_args)
+    ali_wrapper = AlignerWrapperModel(model=model, cfg.ali_args)
     trainer.predict(model=ali_wrapper, dataloaders=data_loader, return_predictions=cfg.return_predictions)
     samples_num = predictor_writer.close_output_file()
 
