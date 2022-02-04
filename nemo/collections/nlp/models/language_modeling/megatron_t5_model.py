@@ -21,7 +21,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 )
 from nemo.utils import logging
 
-
 __all__ = ["MegatronT5Model"]
 
 

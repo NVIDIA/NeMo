@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import initializ
 
 try:
     import apex
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False

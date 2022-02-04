@@ -16,10 +16,7 @@
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    attn_mask_postprocess,
-    build_attention_mask_3d,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import attn_mask_postprocess, build_attention_mask_3d
 
 try:
     from apex.transformer.enums import AttnMaskType
