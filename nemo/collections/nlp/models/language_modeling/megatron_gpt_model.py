@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -44,6 +43,13 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.core.optim import MasterOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 
 class MegatronGPTModel(NLPModel):
     """
@@ -51,6 +57,10 @@ class MegatronGPTModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 

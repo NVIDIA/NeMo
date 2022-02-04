@@ -99,7 +99,7 @@ model:
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
-      pitch_avg: ${model.pitch_mean}
+      pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
 
     dataloader_params:

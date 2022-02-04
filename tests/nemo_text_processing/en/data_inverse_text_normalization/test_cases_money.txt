@@ -45,4 +45,5 @@ eighteen thousand one hundred twenty eight dollars~$18128
 eighteen thousand one hundred twenty five dollars~$18125
 eighteen thousand one hundred twenty four dollars~$18124
 eighteen thousand one hundred twenty nine dollars~$18129
-eighteen thousand pounds~£18000
+one thousand fifty five dollars~$1055
+one fifty five dollars~$155
