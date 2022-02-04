@@ -36,22 +36,24 @@ pipeline {
       }
     }
 
-    stage('Torch TTS unit tests') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'pip install ".[torch_tts]"'
-        sh 'pip list'
-        sh 'test $(pip list | grep -c lightning) -eq 0'
-        sh 'test $(pip list | grep -c omegaconf) -eq 0'
-        sh 'test $(pip list | grep -c hydra) -eq 0'
-        sh 'pytest -m "torch_tts" --cpu tests/collections/tts/test_torch_tts.py --relax_numba_compat'
-      }
-    }
+    // Removed `torch_tts` install option from NeMo>=1.7.0
+    // Will add test back if/when we decide to support it again
+    // stage('Torch TTS unit tests') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   steps {
+    //     sh 'pip install ".[torch_tts]"'
+    //     sh 'pip list'
+    //     sh 'test $(pip list | grep -c lightning) -eq 0'
+    //     sh 'test $(pip list | grep -c omegaconf) -eq 0'
+    //     sh 'test $(pip list | grep -c hydra) -eq 0'
+    //     sh 'pytest -m "torch_tts" --cpu tests/collections/tts/test_torch_tts.py --relax_numba_compat'
+    //   }
+    // }
 
     stage('NeMo Installation') {
       steps {
@@ -87,9 +89,6 @@ pipeline {
       }
     }
 
-
-
-
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
@@ -104,7 +103,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --cpu --with_downloads --relax_numba_compat'
+        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
 
@@ -2017,7 +2016,7 @@ pipeline {
       }
     }
 
-           
+
     stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
       when {
         anyOf {
