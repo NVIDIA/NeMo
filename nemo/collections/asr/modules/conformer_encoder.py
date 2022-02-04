@@ -154,11 +154,21 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         if conv_context_size is not None:
             self.conv_context_size = conv_context_size
+
             if self.conv_context_size[0] >= conv_kernel_size//2:
                 self.conv_context_size[0] = conv_kernel_size//2
             if self.conv_context_size[1] >= conv_kernel_size//2:
                 self.conv_context_size[1] = conv_kernel_size//2
-            if self.conv_context_size[0] + self.conv_context_size[1] + 1 != self.conv_kernel_size:
+
+            if self.conv_context_size[0] == -1 and self.conv_context_size[0] == -1:
+                self.conv_context_size[0] = conv_kernel_size//2
+                self.conv_context_size[1] = conv_kernel_size//2
+            if self.conv_context_size[0] == -1:
+                self.conv_context_size[0] = conv_kernel_size - self.conv_context_size[1] - 1
+            if self.conv_context_size[1] == -1:
+                self.conv_context_size[1] = conv_kernel_size - self.conv_context_size[0] - 1
+
+            if self.conv_context_size[0] + self.conv_context_size[1] + 1 != conv_kernel_size:
                 raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
         else:
             self.conv_context_size = None
