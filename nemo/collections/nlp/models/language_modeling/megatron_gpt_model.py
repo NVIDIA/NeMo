@@ -172,6 +172,7 @@ class MegatronGPTModel(NLPModel):
             use_soft_prompts=self.cfg.get('use_soft_prompts', False),
             num_prompt_tokens=self.cfg.get('num_prompt_tokens', 10),
             prompt_tags=self.cfg.get('existing_prompt_tags', None),
+            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
         )
 
         return model
