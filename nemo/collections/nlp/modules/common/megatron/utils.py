@@ -206,7 +206,8 @@ def build_attention_mask_3d_padding(source_mask, target_mask):
     :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
     :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     """
-    return make_attention_mask_3d(source_mask, target_mask)
+    mask = make_attention_mask_3d(source_mask, target_mask)
+    return mask < 0.5
 
 def build_attention_mask_3d_casual(source_mask, target_mask):
     """
@@ -214,8 +215,9 @@ def build_attention_mask_3d_casual(source_mask, target_mask):
     :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
     :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
     """
-
-    return make_attention_mask_3d(source_mask, target_mask)
+    mask = make_attention_mask_3d(source_mask, target_mask)
+    mask = mask * make_inference_history_mask_3d(mask)
+    return mask < 0.5
 
 
 def build_attention_mask_3d(source_mask, target_mask, attn_mask_type, mask=None):

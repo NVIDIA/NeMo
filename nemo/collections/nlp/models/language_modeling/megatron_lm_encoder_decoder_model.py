@@ -135,7 +135,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(self(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels, batch=batch,
+            tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,
         ))
 
         loss = self.loss_func(loss_mask, output_tensor)
