@@ -128,6 +128,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         self_attention_model='rel_pos',
         n_heads=4,
         att_context_size=None,
+        att_context_style='regular',
         xscaling=True,
         untie_biases=True,
         pos_emb_max_len=5000,
@@ -143,10 +144,42 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.d_model = d_model
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
+        #self.att_context_style = att_context_style
+
         if att_context_size:
             self.att_context_size = att_context_size
         else:
             self.att_context_size = [-1, -1]
+
+        if att_context_style == "chunked_limited":
+            # import numpy as np
+            # left_chunks_num = (self.att_context_size[0] + 1) / (self.att_context_size[1] + 1) - 1
+            # chunked_limited_mask = np.zeros((1024, 1024))
+            # for i in range(len(chunked_limited_mask)):
+            #     i_chunk_idx = i // (self.att_context_size[1] + 1)
+            #     for j in range(len(chunked_limited_mask)):
+            #         j_chunk_idx = j // (self.att_context_size[1] + 1)
+            #         if i - j > 0 and i - j < self.att_context_size[0] and i_chunk_idx - j_chunk_idx <= left_chunks_num:
+            #             chunked_limited_mask = 1
+            #         else:
+            #             chunked_limited_mask = 0
+            if (self.att_context_size[0] + 1) % (self.att_context_size[1] + 1) > 0:
+                raise ValueError("Left context should be a multiplier of the right context!")
+            if self.att_context_size[1] < 0:
+                raise ValueError("Right context can not be unlimited for chunked_limited style!")
+            self.chunk_size = self.att_context_size[1] + 1
+
+            if self.att_context_size[0] >= 0:
+                self.left_chunks_num = ((self.att_context_size[0] + 1) / (self.att_context_size[1] + 1)) - 1
+            else:
+                self.left_chunks_num = 100000
+
+            #chunked_limited_mask = torch.zeros(dtype=torch.int)
+            #self.chunked_limited_mask = chunked_limited_mask
+        elif att_context_style == "regular":
+            self.chunk_size = None
+        else:
+            raise ValueError("Invalid att_context_style!")
 
         if xscaling:
             self.xscale = math.sqrt(d_model)
@@ -212,7 +245,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
                 is_causal=is_causal,
-                att_context_size=self.att_context_size,
+                att_context_size=self.att_context_size
             )
             self.layers.append(layer)
 
@@ -295,16 +328,29 @@ class ConformerEncoder(NeuralModule, Exportable):
         pad_mask = self.make_pad_mask(max_audio_length=max_audio_length, seq_lens=padding_length)
         att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
-        if self.att_context_size[0] >= 0:
-            att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
-        if self.att_context_size[1] >= 0:
-            att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+
+        pad_mask = ~pad_mask
+
+        if self.chunk_size is None:
+            if self.att_context_size[0] >= 0:
+                att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
+            if self.att_context_size[1] >= 0:
+                att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+        else:
+            chunk_j_idx = torch.range(0, max_audio_length - 1, dtype=torch.int, device=att_mask.device)
+            chunk_i_idx = torch.range(0, max_audio_length - 1, dtype=torch.int, device=att_mask.device)
+
+            chunk_j_idx = torch.div(chunk_j_idx, self.chunk_size, rounding_mode="trunc").unsqueeze(0)
+            chunk_i_idx = torch.div(chunk_i_idx, self.chunk_size, rounding_mode="trunc").unsqueeze(1)
+            diff_chunks = chunk_i_idx - chunk_j_idx
+            chunked_limited_mask = torch.logical_and(torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0))
+            att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
+
+        att_mask = ~att_mask
 
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
             att_mask = att_mask[:, cache_len:]
-        att_mask = ~att_mask
-        pad_mask = ~pad_mask
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
