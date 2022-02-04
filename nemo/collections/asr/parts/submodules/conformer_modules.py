@@ -48,6 +48,7 @@ class ConformerLayer(torch.nn.Module):
         n_heads=4,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
+        conv_context_size=None,
         dropout=0.1,
         dropout_att=0.1,
         pos_bias_u=None,
@@ -68,7 +69,7 @@ class ConformerLayer(torch.nn.Module):
         # convolution module
         self.norm_conv = LayerNorm(d_model)
         self.conv = ConformerConvolution(
-            d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type, is_causal=is_causal
+            d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type, is_causal=is_causal, conv_context_size=conv_context_size
         )
 
         # multi-headed self-attention module
@@ -170,7 +171,7 @@ class ConformerConvolution(nn.Module):
         kernel_size (int): kernel size for depthwise convolution
     """
 
-    def __init__(self, d_model, kernel_size, norm_type="batch_norm", is_causal=False):
+    def __init__(self, d_model, kernel_size, norm_type="batch_norm", is_causal=False, conv_context_size=None):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
@@ -183,13 +184,13 @@ class ConformerConvolution(nn.Module):
         #     conv_padding = kernel_size - 1
         # else:
         #     conv_padding = (kernel_size - 1) // 2
-        if is_causal:
+        if is_causal or conv_context_size is not None:
             self.depthwise_conv = CausalConv1D(
                 in_channels=d_model,
                 out_channels=d_model,
                 kernel_size=kernel_size,
                 stride=1,
-                padding=-1,  # kernel_size - 1,
+                padding=conv_context_size,  # kernel_size - 1,
                 groups=d_model,
                 bias=True,
             )
@@ -276,12 +277,18 @@ class CausalConv1D(nn.Conv1d):
         device=None,
         dtype=None,
     ) -> None:
-        if padding == -1:
+        if padding is None:
             self._left_padding = kernel_size - 1
             self._right_padding = stride - 1
         else:
-            self._left_padding = padding
-            self._right_padding = padding
+            if stride != 1:
+                raise ValueError("No striding for non-symmetric convolutions!")
+            if len(padding) == 1:
+                self._left_padding = padding
+                self._right_padding = padding
+            else:
+                self._left_padding = padding[0]
+                self._right_padding = padding[1]
 
         padding = 0
         self._max_cache_len = kernel_size - 1

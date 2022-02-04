@@ -134,6 +134,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         pos_emb_max_len=5000,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
+        conv_context_size=[-1, -1],
         dropout=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
@@ -151,18 +152,18 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.att_context_size = [-1, -1]
 
+        if conv_context_size is not None:
+            self.conv_context_size = conv_context_size
+            if self.conv_context_size[0] >= conv_kernel_size//2:
+                self.conv_context_size[0] = conv_kernel_size//2
+            if self.conv_context_size[1] >= conv_kernel_size//2:
+                self.conv_context_size[1] = conv_kernel_size//2
+            if self.conv_context_size[0] + self.conv_context_size[1] + 1 != self.conv_kernel_size:
+                raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
+        else:
+            self.conv_context_size = None
+
         if att_context_style == "chunked_limited":
-            # import numpy as np
-            # left_chunks_num = (self.att_context_size[0] + 1) / (self.att_context_size[1] + 1) - 1
-            # chunked_limited_mask = np.zeros((1024, 1024))
-            # for i in range(len(chunked_limited_mask)):
-            #     i_chunk_idx = i // (self.att_context_size[1] + 1)
-            #     for j in range(len(chunked_limited_mask)):
-            #         j_chunk_idx = j // (self.att_context_size[1] + 1)
-            #         if i - j > 0 and i - j < self.att_context_size[0] and i_chunk_idx - j_chunk_idx <= left_chunks_num:
-            #             chunked_limited_mask = 1
-            #         else:
-            #             chunked_limited_mask = 0
             if (self.att_context_size[0] + 1) % (self.att_context_size[1] + 1) > 0:
                 raise ValueError("Left context should be a multiplier of the right context!")
             if self.att_context_size[1] < 0:
@@ -174,8 +175,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             else:
                 self.left_chunks_num = 100000
 
-            #chunked_limited_mask = torch.zeros(dtype=torch.int)
-            #self.chunked_limited_mask = chunked_limited_mask
         elif att_context_style == "regular":
             self.chunk_size = None
         else:
@@ -243,6 +242,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 n_heads=n_heads,
                 conv_kernel_size=conv_kernel_size,
                 conv_norm_type=conv_norm_type,
+                conv_context_size=self.conv_context_size,
                 dropout=dropout,
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
