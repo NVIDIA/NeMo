@@ -194,7 +194,7 @@ class ConformerConvolution(nn.Module):
                 out_channels=d_model,
                 kernel_size=kernel_size,
                 stride=1,
-                padding=conv_context_size,  # kernel_size - 1,
+                padding=conv_context_size,
                 groups=d_model,
                 bias=True,
             )
@@ -281,7 +281,7 @@ class CausalConv1D(nn.Conv1d):
         device=None,
         dtype=None,
     ) -> None:
-        if padding is None:
+        if padding is None or padding == -1:
             self._left_padding = kernel_size - 1
             self._right_padding = stride - 1
         else:
