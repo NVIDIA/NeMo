@@ -2,7 +2,7 @@ name: megatron_gpt
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  gpus: 1
+  devices: 1
   num_nodes: 1
   accelerator: gpu
   strategy: ddp

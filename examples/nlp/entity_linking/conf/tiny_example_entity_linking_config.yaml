@@ -1,7 +1,7 @@
 project_dir: null
 name: SelfAlignmentPretrainingForMedicalEntityLinking
 trainer:
-  gpus: 1
+  devices: 1
   num_nodes: 1
   max_epochs: 2
   max_steps: null

@@ -1,7 +1,7 @@
 # BERT Pretraining from Preprocessed (tokenized) data
 name: &name PretrainingBERTFromPreprocessed
 trainer:
-  gpus: 8 # the number of gpus, 0 for CPU, or list with gpu indices
+  devices: 8 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
   max_steps: 2285714 # precedence over max_epochs
   num_sanity_val_steps: 0 # needed for bert pretraining from preproc

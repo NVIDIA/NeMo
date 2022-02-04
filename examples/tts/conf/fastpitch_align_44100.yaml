@@ -169,7 +169,7 @@ model:
       d_model: 1  # Disable scaling based on model dim
 
 trainer:
-  gpus: -1 # number of gpus
+  devices: -1 # number of gpus
   max_epochs: 1500
   num_nodes: 1
   accelerator: gpu

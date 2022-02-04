@@ -2,7 +2,7 @@ name: megatron_bert
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  gpus: 2
+  devices: 2
   num_nodes: 1
   accelerator: gpu
   strategy: ddp

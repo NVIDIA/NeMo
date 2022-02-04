@@ -117,7 +117,7 @@ model:
       warmup_ratio: null
 
 trainer:
-  gpus: -1 # number of gpus
+  devices: -1 # number of gpus
   num_nodes: 1
   accelerator: gpu
   strategy: ddp

@@ -85,7 +85,7 @@ model:
     lr: 4e-4
 
 trainer:
-  gpus: 1 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 10000
   max_steps: 600000
   num_nodes: 1

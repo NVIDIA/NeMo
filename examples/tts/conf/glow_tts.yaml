@@ -126,7 +126,7 @@ model:
       last_epoch: -1
 
 trainer:
-  gpus: -1 # number of gpus
+  devices: -1 # number of gpus
   max_epochs: 350
   num_nodes: 1
   accelerator: gpu

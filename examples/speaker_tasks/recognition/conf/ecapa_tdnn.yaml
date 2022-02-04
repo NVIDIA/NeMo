@@ -85,7 +85,7 @@ model:
       min_lr: 0.0001
 
 trainer:
-  gpus: 1 # number of gpus (trained on four nodes - each node has 8 gpus)
+  devices: 1 # number of gpus (trained on four nodes - each node has 8 gpus)
   max_epochs: 250
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1

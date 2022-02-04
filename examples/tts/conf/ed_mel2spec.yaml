@@ -85,7 +85,7 @@ model:
     validate_scores: True # Slow!
 
 trainer:
-  gpus: 1 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 200
   num_nodes: 1
   accelerator: gpu

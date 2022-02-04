@@ -89,7 +89,7 @@ model:
     sampling_rate: ${sample_rate}
 
 trainer:
-  gpus: 1 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 200
   num_nodes: 1
   accelerator: gpu

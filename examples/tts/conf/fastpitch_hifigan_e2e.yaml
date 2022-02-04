@@ -120,7 +120,7 @@ model:
     initial_input_size: 384
 
 trainer:
-  gpus: -1 # number of gpus
+  devices: -1 # number of gpus
   max_epochs: 1500
   num_nodes: 1
   accelerator: gpu

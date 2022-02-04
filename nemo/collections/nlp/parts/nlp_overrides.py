@@ -67,6 +67,8 @@ class NLPDDPPlugin(DDPPlugin):
         with FP32 gradient accumulation.
     """
 
+    accelerator = "ddp"
+
     def __init__(
         self,
         parallel_devices: Optional[List[torch.device]] = None,

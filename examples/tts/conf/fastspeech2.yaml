@@ -128,7 +128,7 @@ model:
       d_model: ${model.d_model}
 
 trainer:
-  gpus: 1 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: ???
   num_nodes: 1
   accelerator: gpu
