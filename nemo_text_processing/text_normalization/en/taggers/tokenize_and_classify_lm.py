@@ -110,26 +110,26 @@ class ClassifyFst(GraphFst):
             cardinal = CardinalFst(deterministic=True, lm=True)
             cardinal_graph = cardinal.fst
 
-            ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
-            ordinal_graph = ordinal.fst
-
-            decimal = DecimalFst(cardinal=cardinal, deterministic=True)
-            decimal_graph = decimal.fst
+            # ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
+            # ordinal_graph = ordinal.fst
+            #
+            # decimal = DecimalFst(cardinal=cardinal, deterministic=True)
+            # decimal_graph = decimal.fst
             fraction = FractionFst(deterministic=True, cardinal=cardinal)
             fraction_graph = fraction.fst
 
             # use False deterministic for measure to add range graph to cardinal options
-            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
-            measure_graph = measure.fst
-            date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
-            date_graph =date.fst
+            # measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
+            # measure_graph = measure.fst
+            # date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
+            # date_graph =date.fst
             word_graph = WordFst(deterministic=deterministic).graph
-            time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
-            telephone_graph = TelephoneFst(deterministic=True).fst
-            electronic_graph = ElectronicFst(deterministic=True).fst
-            money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
-            whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
-            whitelist_graph = whitelist.graph
+            # time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
+            # telephone_graph = TelephoneFst(deterministic=True).fst
+            # electronic_graph = ElectronicFst(deterministic=True).fst
+            # money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
+            # whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
+            # whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=True).graph
 
             # VERBALIZERS
@@ -151,16 +151,17 @@ class ClassifyFst(GraphFst):
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
 
             classify_and_verbalize = (
-                pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
+                # pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
+                # | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
+                # | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
+                pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
+                # | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
+                # | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
+                # | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
+                # | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
+                # | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
+                # | pynutil.add_weight(whitelist_graph, 1.01)
             ).optimize()
 
             # classify = (
@@ -187,7 +188,6 @@ class ClassifyFst(GraphFst):
 
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
-            classify_and_verbalize |= pynutil.add_weight(whitelist_graph, 1.01)
 
             punct_only = pynutil.add_weight(punct_graph, weight=20.1)
             punct = pynini.closure(
@@ -229,6 +229,11 @@ class ClassifyFst(GraphFst):
             self.fst = get_token_sem_graph(classify_and_verbalize)
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
+
+
+            from pynini.lib import rewrite
+            from pynini.lib.rewrite import top_rewrites
+            import pdb; pdb.set_trace()
 
             # whitelist graph will be used at the very end as a separate call
             # whitelist_word_graph = pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.01)
