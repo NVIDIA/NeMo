@@ -15,8 +15,6 @@
 """T5 model."""
 
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer.enums import AttnMaskType
 
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -29,6 +27,14 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import MegatronTransformerEncoderDecoderModule
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 __all__ = ["MegatronTokensHead", "TokensEncoderDecoderModule"]

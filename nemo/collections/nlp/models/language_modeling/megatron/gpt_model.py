@@ -15,8 +15,6 @@
 """GPT-2 model."""
 
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer.enums import AttnMaskType
 
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -26,6 +24,13 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     scaled_init_method_normal,
 )
 
+try:
+    from apex.transformer import tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 def post_language_model_processing(
     lm_output,
@@ -97,6 +102,7 @@ class GPTModel(MegatronModule):
         num_prompt_tokens=10,
         prompt_tags=None,
     ):
+
         super(GPTModel, self).__init__()
 
         self.parallel_output = parallel_output

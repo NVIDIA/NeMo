@@ -9,3 +9,4 @@
 123-123-5678-1~one two three, one two three, five six seven eight, one
 1-800-GO-U-HAUL~one, eight hundred, GO U HAUL
 1-800-GO-2-HAUL~one, eight hundred, GO two, HAUL
+123.123.0.40~one two three dot one two three dot o dot four o

@@ -87,8 +87,8 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             trainer=trainer,
         )
 
-        for param in self.model.parameters():
-            param.requires_grad = cfg.use_lm_finetune
+        if not cfg.use_lm_finetune:
+            self.model.freeze()
 
         hidden_size = self.model.cfg.hidden_size
 

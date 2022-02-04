@@ -18,8 +18,14 @@ import math
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
     """LM logits using word embedding weights."""

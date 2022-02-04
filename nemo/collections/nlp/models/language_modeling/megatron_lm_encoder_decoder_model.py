@@ -18,7 +18,6 @@ from operator import itemgetter
 
 import torch
 import torch.nn as nn
-from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -40,6 +39,15 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
+
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 
 __all__ = ["MegatronLMEncoderDecoderModule"]
 

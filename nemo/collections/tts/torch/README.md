@@ -42,7 +42,7 @@ dataloader = torch.utils.data.DataLoader(dataset, 1, collate_fn=dataset._collate
 
 pitch_list = []
 for batch in tqdm(dataloader, total=len(dataloader)):
-    tokens, tokens_lengths, audios, audio_lengths, pitches, pitches_lengths = batch
+    audios, audio_lengths, tokens, tokens_lengths, pitches, pitches_lengths = batch
     pitch = pitches.squeeze(0)
     pitch_list.append(pitch[pitch != 0])
 
