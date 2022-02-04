@@ -30,7 +30,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
-    make_attention_mask_3d,
     build_attention_mask_3d,
 )
 
@@ -85,15 +84,15 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                enc_get_key_value=False,
                ):
         """Encodes embedder input using encoder"""
-        enc_attn_mask = build_attention_mask_3d(
+        # convert to Megatron mask
+        enc_attn_mask_3d = build_attention_mask_3d(
             source_mask=enc_attn_mask,
             target_mask=enc_attn_mask,
             attn_mask_type=self.encoder_attn_mask_type,
-            mask=enc_attn_mask,
         )
         enc_output, enc_output_mask = self.encoder(
             enc_input=enc_input,
-            enc_attn_mask=enc_attn_mask,
+            enc_attn_mask=enc_attn_mask_3d,
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
         )
@@ -109,26 +108,25 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                dec_get_key_value=False,
                ):
         """Decodes embedder input using decoder and encoder input"""
-        # FIXME: validate correct mask shape here
-        # import pudb; pudb.set_trace()
-
-        enc_attn_mask = build_attention_mask_3d(
-            source_mask=enc_attn_mask,
-            target_mask=enc_attn_mask,
-            attn_mask_type=self.encoder_attn_mask_type,
-            mask=enc_attn_mask,
+        # convert to Megatron mask
+        dec_attn_mask_3d = build_attention_mask_3d(
+            source_mask=dec_attn_mask,
+            target_mask=dec_attn_mask,
+            attn_mask_type=self.decoder_attn_mask_type,
         )
-        enc_dec_attn_mask = make_attention_mask_3d(
-            torch.diagonal(dec_attn_mask, -2, -1), torch.diagonal(enc_output_mask, -2, -1)
+        enc_dec_attn_mask_3d = build_attention_mask_3d(
+            source_mask=dec_attn_mask,
+            target_mask=enc_output_mask,
+            attn_mask_type=self.encoder_attn_mask_type,
         )
 
         dec_output = self.decoder(
             dec_input=dec_input,
-            dec_attn_mask=dec_attn_mask,
+            dec_attn_mask=dec_attn_mask_3d,
             layer_past=dec_layer_past,
             get_key_value=dec_get_key_value,
             enc_output=enc_output,
-            enc_dec_attn_mask=enc_dec_attn_mask,
+            enc_dec_attn_mask=enc_dec_attn_mask_3d,
         )
 
         return dec_output
@@ -146,7 +144,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         dec_layer_past=None,
         dec_get_key_value=False,
     ):
-        AAA
         # encoder
         if enc_output is None:
             enc_output, enc_output_mask = self.encode(
