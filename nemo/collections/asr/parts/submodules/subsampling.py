@@ -25,7 +25,7 @@ class StackingSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
 
-    def forward(self, x, lengths):
+    def forward(self, x, lengths, cache=None, cache_next=None):
         b, t, h = x.size()
         pad_size = self.subsampling_factor - (t % self.subsampling_factor)
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
