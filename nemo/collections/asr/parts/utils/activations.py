@@ -22,5 +22,6 @@ class Swish(nn.Module):
     Swish activation function introduced in 'https://arxiv.org/abs/1710.05941'
     Mathematically identical to SiLU. See note in nn.SiLU for references.
     """
+
     def forward(self, x):
         return x.mul_(x.sigmoid())

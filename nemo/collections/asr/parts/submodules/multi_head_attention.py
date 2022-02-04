@@ -158,9 +158,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
         b, h, qlen, pos_len = x.size()  # (b, h, t1, t2)
-
-        # need to add a column of zeros on the left side of last two dimensions to perform the relative shifting
-        x = torch.nn.functional.pad(x, pad=(1, 0, 0, 0))  # (b, h, t1, t2+1)
+        # need to add a column of zeros on the left side of last dimension to perform the relative shifting
+        x = torch.nn.functional.pad(x, pad=(1, 0))  # (b, h, t1, t2+1)
         x = x.view(b, h, -1, qlen)  # (b, h, t2+1, t1)
         # need to drop the first row
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
@@ -199,7 +198,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # (batch, head, time1, time2)
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
-        # drops extra elements in the matrix_bd if there are any left from rel_shift() to match the matrix_ac's size
+        # drops extra elements in the matrix_bd to match the matrix_ac's size
         matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
         scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)

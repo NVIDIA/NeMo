@@ -40,7 +40,7 @@ import torch
 
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable, typecheck
-from nemo.utils.export_utils import verify_runtime, forward_method, parse_input_example
+from nemo.utils.export_utils import forward_method, parse_input_example, verify_runtime
 
 try:
     from contextlib import nullcontext
@@ -131,14 +131,13 @@ def nemo_export(argv):
             output_example = forward_method(model)(*input_list, **input_dict)
             input_names = model.input_names
             output_names = model.output_names
-            
+
             _, descriptions = model.export(
                 out,
                 check_trace=args.runtime_check,
                 input_example=input_example,
                 onnx_opset_version=args.onnx_opset,
                 verbose=args.verbose,
-                
             )
 
     except Exception as e:
@@ -150,12 +149,12 @@ def nemo_export(argv):
         raise e
 
     logging.info("Successfully exported to {}".format(out))
-    
+
     del model
-    
-    if (args.runtime_check):
-        verify_runtime(
-            out, input_list, input_dict, input_names, output_names, output_example)
-        
+
+    if args.runtime_check:
+        verify_runtime(out, input_list, input_dict, input_names, output_names, output_example)
+
+
 if __name__ == '__main__':
     nemo_export(sys.argv[1:])

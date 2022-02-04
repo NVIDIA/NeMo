@@ -16,13 +16,20 @@ from abc import ABC
 
 import onnx
 import torch
+from torch.onnx import ExportTypes, TrainingMode
 
 from nemo.core.classes import typecheck
 from nemo.utils import logging
-from nemo.utils.export_utils import ExportFormat, augment_filename, replace_for_export, get_export_format, wrap_forward_method, parse_input_example
-from nemo.utils.neural_type_utils import get_io_names, get_dynamic_axes
+from nemo.utils.export_utils import (
+    ExportFormat,
+    augment_filename,
+    get_export_format,
+    parse_input_example,
+    replace_for_export,
+    wrap_forward_method,
+)
+from nemo.utils.neural_type_utils import get_dynamic_axes, get_io_names
 
-from torch.onnx import TrainingMode, ExportTypes
 __all__ = ['ExportFormat', 'Exportable']
 
 
@@ -39,7 +46,7 @@ class Exportable(ABC):
     @property
     def output_module(self):
         return self
-    
+
     def export(
         self,
         output: str,
@@ -49,7 +56,7 @@ class Exportable(ABC):
         do_constant_folding=True,
         onnx_opset_version=None,
         try_script: bool = False,
-        training = TrainingMode.EVAL,
+        training=TrainingMode.EVAL,
         check_trace: bool = False,
         use_dynamic_axes: bool = True,
         dynamic_axes=None,
@@ -87,17 +94,17 @@ class Exportable(ABC):
                 # Remove i/o examples from args we propagate to enclosed Exportables
                 my_args.pop('output')
                 my_args.pop('input_example')
-                
+
                 # Run (posibly overridden) prepare methods before calling forward()
                 for ex in exportables:
                     ex._prepare_for_export(**my_args)
                 self._prepare_for_export(output=output, input_example=input_example, **my_args)
-                
+
                 input_list, input_dict = parse_input_example(input_example)
                 input_names = self.input_names
                 output_names = self.output_names
                 output_example = tuple(self.forward(*input_list, **input_dict))
-            
+
                 jitted_model = None
                 if try_script:
                     try:
@@ -149,7 +156,7 @@ class Exportable(ABC):
                 type(self).forward = old_forward_method
             self._export_teardown()
         return ([output], [output_descr])
-    
+
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
@@ -170,11 +177,7 @@ class Exportable(ABC):
         Override this method to prepare module for export. This is in-place operation.
         Base version does common necessary module replacements (Apex etc)
         """
-        for layer in self.children():
-            for parameter in layer.parameters():
-                parameter.requires_grad = False
-        replace_1D_2D = kwargs.get('replace_1D_2D', False)
-        replace_for_export(self, replace_1D_2D)
+        replace_for_export(self)
 
     def _export_teardown(self):
         """
@@ -185,11 +188,7 @@ class Exportable(ABC):
     @property
     def input_names(self):
         return get_io_names(self.input_module.input_types, self.disabled_deployment_input_names)
-    
+
     @property
     def output_names(self):
         return get_io_names(self.output_module.output_types, self.disabled_deployment_output_names)
-
-
-
-

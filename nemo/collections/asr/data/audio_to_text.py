@@ -32,6 +32,7 @@ from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 __all__ = [
     'AudioToCharDataset',
@@ -166,7 +167,7 @@ class _AudioTextDataset(Dataset):
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
     Args:
         manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
-        labels: String containing all the possible characters to map to
+        parser: Str for a language specific preprocessor or a callable.
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
         augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded
@@ -174,11 +175,10 @@ class _AudioTextDataset(Dataset):
         max_duration: If audio exceeds this length, do not include in dataset
         min_duration: If audio is less than this length, do not include in dataset
         max_utts: Limit number of utterances
-        blank_index: blank character index, default = -1
-        unk_index: unk_character index, default = -1
-        normalize: whether to normalize transcript text (default): True
+        trim: whether or not to trim silence. Defaults to False
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
+        pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
     """
 
@@ -344,6 +344,7 @@ class AudioToCharDataset(_AudioTextDataset):
         )
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -571,6 +572,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         )
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithPriorDataset(AudioToCharDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
@@ -675,6 +677,7 @@ class AudioToCharWithPriorDataset(AudioToCharDataset):
         return audio, audio_len, text, text_len, attn_prior
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -747,6 +750,7 @@ class AudioToCharWithPriorAndPitchDataset(AudioToCharWithPriorDataset):
         return audio, audio_len, text, text_len, attn_prior, pitch, speakers
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class FastPitchDataset(_AudioTextDataset):
     """
     Dataset used for FastPitch that has both duration and pitch information per input char.

@@ -21,7 +21,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
-from nemo.utils.export_utils import LayerNormExp, BatchNorm1dNoAutoCast
+from nemo.utils.export_utils import BatchNorm1dNoAutoCast, LayerNormExp
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
@@ -56,7 +56,7 @@ class ConformerLayer(torch.nn.Module):
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
         self.fc_factor = 0.5
-        self.d_model=d_model
+        self.d_model = d_model
 
         # first feed forward module
         self.norm_feed_forward1 = LayerNormExp(self.d_model)
@@ -98,7 +98,7 @@ class ConformerLayer(torch.nn.Module):
             x (torch.Tensor): (B, T, d_model)
         """
         dtype = x.dtype
-        y = x.add(self.dropout(self.feed_forward1(self.norm_feed_forward1(x)))*self.fc_factor)
+        y = x.add(self.dropout(self.feed_forward1(self.norm_feed_forward1(x))) * self.fc_factor)
         x = self.norm_self_att(y)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
@@ -114,7 +114,7 @@ class ConformerLayer(torch.nn.Module):
 
         x = self.norm_feed_forward2(y)
         x = self.feed_forward2(x)
-        y.add_(self.dropout(x)*self.fc_factor)
+        y.add_(self.dropout(x) * self.fc_factor)
 
         x = self.norm_out(y)
         return x.to(dtype=dtype)
@@ -158,15 +158,15 @@ class ConformerConvolution(nn.Module):
 
     def do_conv_norm(self, x):
         return self.batch_norm(self.depthwise_conv(x))
-        
+
     def forward(self, x, pad_mask=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
         x = nn.functional.glu(x, dim=1)
-        
+
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
-        
+
         if isinstance(self.batch_norm, nn.LayerNorm):
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
@@ -178,7 +178,7 @@ class ConformerConvolution(nn.Module):
             else:
                 x = self.do_conv_norm(x)
         x = self.activation(x)
-                
+
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
         return x

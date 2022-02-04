@@ -230,6 +230,7 @@ def convert(rank, world_size, args):
         ## this dictionary is used to rename the model parameters
         name_translate = {}
         name_translate['transformer'] = 'encoder'
+        name_translate['.attention.'] = '.self_attention.'
         model = load_from_checkpoint(
             MegatronGPTModel,
             checkpoint_path,
@@ -242,7 +243,7 @@ def convert(rank, world_size, args):
         ## this dictionary is used to rename the model parameters
         name_translate = {}
         name_translate['transformer'] = 'encoder'
-        name_translate['attention.'] = 'self_attention.'
+        name_translate['.attention.'] = '.self_attention.'
         model = load_from_checkpoint(
             MegatronBertModel,
             checkpoint_path,

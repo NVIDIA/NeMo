@@ -1,6 +1,7 @@
-
-from nemo.core.neural_types import AxisKind, NeuralType    
 from collections import defaultdict
+
+from nemo.core.neural_types import AxisKind, NeuralType
+
 
 def get_io_names(types, disabled_names):
     names = list(types.keys())
@@ -8,6 +9,7 @@ def get_io_names(types, disabled_names):
         if name in names:
             names.remove(name)
     return names
+
 
 def extract_dynamic_axes(name: str, ntype: NeuralType):
     """
@@ -24,6 +26,7 @@ def extract_dynamic_axes(name: str, ntype: NeuralType):
         Returns:
 
         """
+
     def unpack_nested_neural_type(neural_type):
         if type(neural_type) in (list, tuple):
             return unpack_nested_neural_type(neural_type[0])
@@ -39,12 +42,14 @@ def extract_dynamic_axes(name: str, ntype: NeuralType):
                 dynamic_axes[name].append(ind)
     return dynamic_axes
 
+
 def get_dynamic_axes(types, names):
     dynamic_axes = defaultdict(list)
     for name in names:
         if name in types:
             dynamic_axes.update(extract_dynamic_axes(name, types[name]))
     return dynamic_axes
+
 
 def to_onnxrt_input(input_names, input_list, input_dict):
     odict = {}
@@ -56,4 +61,3 @@ def to_onnxrt_input(input_names, input_list, input_dict):
         else:
             odict[input_names[i]] = input.cpu().numpy()
     return odict
-
