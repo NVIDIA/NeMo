@@ -25,32 +25,22 @@ from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import hydra
 import wrapt
+from omegaconf import DictConfig, OmegaConf
 
 import nemo
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging, model_utils
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
-# TODO @blisc: Perhaps refactor instead of import guarding
-_HAS_HYDRA = True
-try:
-    import hydra
-    from omegaconf import DictConfig, OmegaConf
-    from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-except ModuleNotFoundError:
-    _HAS_HYDRA = False
-    from nemo.utils.exceptions import CheckInstall
-
-    class SaveRestoreConnector(CheckInstall):
-        pass
-
-
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
-
 _TYPECHECK_ENABLED = True
+# TODO @blisc: Remove _HAS_HYDRA
+_HAS_HYDRA = True
 
 
 def is_typecheck_enabled():
