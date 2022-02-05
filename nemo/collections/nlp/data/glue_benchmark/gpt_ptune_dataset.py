@@ -106,7 +106,7 @@ class DataProcessor(object):
 
 
 class BoolQProcessor(DataProcessor):
-    """Processor for the MultiNLI data set (GLUE version)."""
+    """Processor for the BoolQ data set (GLUE version)."""
 
     def __init__(self, data_type: str, task_type: str):
         super().__init__(data_type, task_type)
@@ -157,8 +157,58 @@ class BoolQProcessor(DataProcessor):
         return ' '+label
 
 
+class SentimentProcessor(DataProcessor):
+    """Processor for the sentiment analysis data set."""
+
+    def __init__(self, data_type: str, task_type: str):
+        super().__init__(data_type, task_type)
+
+    def get_examples(self, data_path):
+        """See base class."""
+        return self._create_examples(self._read_jsonl(data_path), self.data_type)
+
+    def get_labels(self):
+        """See base class."""
+        return ["positive", "neutral", "negative"]
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            if i == 0:
+                continue
+            guid = line['prompt_tag']
+            text_a = line['sentence']
+            text_b = None
+            label = line['label']
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+        return examples
+
+    def get_ptune_query(self,
+                        text_a: str,
+                        text_b: str,
+                        prompt_token_id: int,
+                        max_seq_len: int,
+                        templates: List[int],
+                        tokenizer: TokenizerSpec):
+        sentence_a = f" Sentence: {text_a}"
+        sentence_b = f" Sentiment: {text_b}?"
+        a_input_token_ids = tokenizer.text_to_ids(sentence_a)
+        b_input_token_ids = tokenizer.text_to_ids(sentence_b)
+        cut = 0
+        total_num_ids = len(a_input_token_ids) + len(b_input_token_ids) + sum(templates) 
+        if total_num_ids > max_seq_len:
+            logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
+            cut = total_num_ids - max_seq_len
+        return [prompt_token_id] * templates[0] + a_input_token_ids[cut:] + \
+               [prompt_token_id] * templates[1] + b_input_token_ids 
+
+    def label2string(self, label):
+        return ' '+label
+
 processors = {
-    "boolq": BoolQProcessor
+    "boolq": BoolQProcessor,
+    "sentiment": SentimentProcessor
 }
 
 
@@ -277,6 +327,9 @@ class GPTPTuneDataset(TaskDataset):
         enc_input = torch.LongTensor(enc_input)
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
+        label_position = loss_mask.sum(axis=1)
+        label_start = (labels == SMALL_NUM).sum(axis=1)
+        label_position = torch.cat([label_start.unsqueeze(1), label_position.unsqueeze(1)], 1)
         loss_mask[labels == SMALL_NUM] = 0
 
         input_attn_mask = make_attention_mask_3d(enc_input, enc_input, self.pad_id)
@@ -288,6 +341,7 @@ class GPTPTuneDataset(TaskDataset):
             'loss_mask': loss_mask,
             'enc_query': enc_query,
             'input_attn_mask': input_attn_mask,
+            'label_position': label_position,
         }
 
     def convert_examples_to_features(self):

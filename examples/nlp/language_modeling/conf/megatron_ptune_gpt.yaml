@@ -29,7 +29,7 @@ exp_manager:
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_acc
-    save_top_k: 10
+    save_top_k: 2
     mode: max
     always_save_nemo: False # TODO: add support
     filename: 'megatron_gpt--{val_acc:.3f}-{step}'

@@ -189,14 +189,16 @@ class MegatronGPTPTuneModel(NLPModel):
         return loss
 
     def inference_step(self, batch, batch_ix):
+        loss = self.get_loss(batch)
         enc_query = batch['enc_query']
         labels = batch['labels']
+        label_position = batch['label_position']
         # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
         predicted_token_ids, log_probs = self.decode(
             enc_query=enc_query, num_tokens_to_generate=NUM_TOKEN_TO_GEN
         )
 
-        return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
+        return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels, 'label_position': label_position}
 
     def decode(self, enc_query, num_tokens_to_generate):
         predicted_tokens_dec = enc_query
@@ -247,15 +249,24 @@ class MegatronGPTPTuneModel(NLPModel):
         averaged_loss = average_losses_across_data_parallel_group(losses)
         all_preds = []
         all_labels = []
+        special_tokens = set([self.tokenizer.eos_id, 
+                              self.tokenizer.pad_id, 
+                              self.tokenizer.sep_id, 
+                              self.tokenizer.unk_id,
+                              self.tokenizer.bos_id,
+                              self.tokenizer.cls_id])
         for item in outputs:
             preds = item['predicted_token_ids'].cpu().numpy().tolist()
             labels = item['labels'].cpu().numpy().tolist()
-            for i, (pred, label) in enumerate(zip(preds, labels)):
+            label_positions = item['label_position'].cpu().numpy().tolist()
+            for i, (pred, label, label_position) in enumerate(zip(preds, labels, label_positions)):
+                start_position = len(pred) - NUM_TOKEN_TO_GEN
+                pred = pred[start_position:]
                 if self.tokenizer.eos_id in pred:
                     idx = pred.index(self.tokenizer.eos_id)
                     pred = pred[:idx]
-                pred = [id for id in pred if id not in self.tokenizer.special_token_to_id.values()]
-                label = [id for id in label if id not in self.tokenizer.special_token_to_id.values()]
+                pred = [id for id in pred if id not in special_tokens]
+                label = [id for id in label[label_position[0]:label_position[1]] if id not in special_tokens]
                 pred = self.tokenizer.ids_to_text(pred)
                 label = self.tokenizer.ids_to_text(label)                
                 all_preds.append(pred)
