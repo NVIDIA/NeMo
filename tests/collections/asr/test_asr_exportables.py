@@ -99,7 +99,7 @@ class TestExportable:
             device = next(model.parameters()).device
             input_example = torch.randn(4, model.encoder._feat_in, 777, device=device)
             input_example_length = torch.full(size=(input_example.shape[0],), fill_value=777, device=device)
-            model.export(output=filename, input_example=tuple([input_example, input_example_length]), check_trace=True)
+            model.export(output=filename, input_example=tuple([input_example, input_example_length]))
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -109,7 +109,7 @@ class TestExportable:
 
         with tempfile.TemporaryDirectory() as tmpdir, torch.cuda.amp.autocast():
             filename = os.path.join(tmpdir, 'citri_se.onnx')
-            model.export(output=filename, check_trace=True)
+            model.export(output=filename)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
@@ -124,7 +124,7 @@ class TestExportable:
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            model.export(output=filename, verbose=False, check_trace=True)
+            model.export(output=filename, verbose=False)
 
             encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
             assert os.path.exists(encoder_filename)
