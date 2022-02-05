@@ -132,7 +132,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         encoder = get_encoder_model(
             arch=encoder_arch,
             hidden_size=hidden_size,
-            ffn_hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
@@ -161,7 +161,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         decoder = get_decoder_model(
             arch=decoder_arch,
             hidden_size=hidden_size,
-            ffn_hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
