@@ -25,6 +25,7 @@ trainer:
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: gpu
   strategy: ddp
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
