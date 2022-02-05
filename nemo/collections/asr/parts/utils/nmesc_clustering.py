@@ -37,7 +37,6 @@ from tqdm import tqdm
 
 from sklearn.cluster._kmeans import k_means, kmeans_plusplus
 from sklearn.utils.extmath import row_norms, stable_cumsum
-# from kmeans_pytorch import kmeans
 from sklearn.metrics.pairwise import cosine_similarity, _euclidean_distances
 from sklearn.preprocessing import MinMaxScaler
 
@@ -62,10 +61,6 @@ except ImportError:
 
 @torch.jit.script
 def cos_similarity(a, b):
-    # , eps=0.00035):
-    torch.manual_seed(0)
-    # a_norm = a / (a.norm(dim=1)[:, None] + eps)
-    # b_norm = b / (b.norm(dim=1)[:, None] + eps)
     eps = torch.tensor(0.00035)
     a_norm = a / (torch.norm(a, dim=1).unsqueeze(1) + eps)
     b_norm = b / (torch.norm(a, dim=1).unsqueeze(1) + eps)
@@ -76,13 +71,9 @@ def cos_similarity(a, b):
 # def ScalerMinMax(X, new_min=0.0, new_max=1.0):
 @torch.jit.script
 def ScalerMinMax(X):
-        # , new_min=0.0, new_max=1.0):
-    # new_min: torch.Tensor =torch.tensor(0.0)
-    # new_max: torch.Tensor =torch.tensor(1.0)
     v_min, v_max = X.min(dim=0)[0], X.max(dim=0)[0]
     v_min, v_max = v_min.expand(X.shape[0], -1), v_max.expand(X.shape[0], -1)
     v_std = (X - v_min)/(v_max - v_min)
-    # v_p = v_std*(new_max - new_min) + new_min
     v_p = v_std + 1.0
     return v_p
 
@@ -155,22 +146,11 @@ def kmeans_torch(
         device=torch.device('cpu'),
         gamma_for_soft_dtw=0.001
 ):
-    """
-    perform kmeans
-    :param X: (torch.tensor) matrix
-    :param num_clusters: (int) number of clusters
-    :param distance: (str) distance [options: 'euclidean', 'cosine'] [default: 'euclidean']
-    :param tol: (float) threshold [default: 0.0001]
-    :param device: (torch.device) device [default: cpu]
-    :param tqdm_flag: Allows to turn logs on and off
-    :param iter_limit: hard limit for max number of iterations
-    :param gamma_for_soft_dtw: approaches to (hard) DTW as gamma -> 0
-    :return: (torch.tensor, torch.tensor) cluster ids, cluster centers
-    """
     if tqdm_flag:
         print(f'running k-means on {device}..')
 
     pairwise_distance_function = partial(getEuclideanDistance, device=device, tqdm_flag=tqdm_flag)
+    
     # convert to float
     X = X.float()
 
@@ -178,7 +158,6 @@ def kmeans_torch(
     X = X.to(device)
     
     init_state = kmeans_plusplus_torch(X, n_clusters=num_clusters, random_state=0, device=device)
-    print("init_state:", init_state)
     initial_state = init_state[0]
     
     iter_count = 0
@@ -306,17 +285,13 @@ def _getRepeatedList(mapping_argmat, score_mat_size):
     repeated indices to be used for creating the repeated affinity matrix for
     fusing the affinity values.
     """
-    # count_dict = dict(Counter(mapping_argmat))
-    # repeat_list = torch.zeros((score_mat_size,), dtype=torch.int32)
     repeat_list = torch.zeros(score_mat_size, dtype=torch.int32)
-    # idxs, counts = mapping_argmat.unique(return_counts=True)
     idxs, counts = torch.unique(mapping_argmat, return_counts=True)
     repeat_list[idxs] = counts.int()
     return repeat_list
 
 @torch.jit.script
 def get_argmin_mat(uniq_scale_list: List[List[torch.Tensor]]):
-# def get_argmin_mat(uniq_scale_list):
     """
     Calculate the mapping between the base scale and other scales. A segment from a longer scale is
     repeatedly mapped to a segment from a shorter scale or the base scale.
@@ -329,33 +304,21 @@ def get_argmin_mat(uniq_scale_list: List[List[torch.Tensor]]):
         session_scale_mapping_dict (dict) :
             Dictionary containing argmin arrays indexed by scale index.
     """
-    # scale_list = sorted(list(uniq_scale_dict.keys()))
-    # uniq_scale_list = uniq_embs_and_timestamps[1]
     N_scale = len(uniq_scale_list)
-    # segment_anchor_dict = [torch.tensor(0)] * N_scale
     segment_anchor_dict = [torch.tensor(0)] * N_scale
-    # for scale_idx in scale_list:
     for scale_idx in range(N_scale):
-        # time_stamp_list = uniq_scale_dict[scale_idx]['time_stamps']
         time_stamps_float = uniq_scale_list[scale_idx][1]
-        # time_stamps_float = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list], dtype=torch.double)
         segment_anchor_dict[scale_idx] = torch.mean(time_stamps_float, dim=1)
-        # segment_anchor_dict.append(torch.mean(time_stamps_float, dim=1))
 
-    # base_scale_idx = max(scale_list)
     base_scale_idx = N_scale - 1
     base_scale_anchor = segment_anchor_dict[base_scale_idx]
-    # session_scale_mapping_dict = {}
     session_scale_mapping_dict = [torch.tensor(0)] * N_scale
-    # for scale_idx in scale_list:
     for scale_idx in range(N_scale):
         curr_scale_anchor = segment_anchor_dict[scale_idx]
         curr_mat = torch.tile(curr_scale_anchor, (base_scale_anchor.shape[0], 1))
         base_mat = torch.tile(base_scale_anchor, (curr_scale_anchor.shape[0], 1)).t()
         argmin_mat = torch.argmin(torch.abs(curr_mat - base_mat), dim=1)
         session_scale_mapping_dict[scale_idx] = argmin_mat
-        # session_scale_mapping_dict.append(argmin_mat)
-
     return session_scale_mapping_dict
 
 @torch.jit.script
@@ -377,16 +340,9 @@ def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale
         base_scale_emb (np.array):
             The base scale embedding (the embeddings from the finest scale)
     """
-    # uniq_scale_list = uniq_embs_and_timestamps['scale_dict']
-    # uniq_scale_list = uniq_embs_and_timestamps[1]
     N_scale = len(uniq_scale_list)
     base_scale_idx = N_scale - 1
-    # base_scale_emb = torch.from_numpy(np.array(uniq_scale_list[base_scale_idx]['embeddings']))
-    # base_scale_emb = torch.from_numpy(np.array(uniq_scale_list[base_scale_idx][0]))
     base_scale_emb = uniq_scale_list[base_scale_idx][0]
-    # multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
-    # multiscale_weights = uniq_embs_and_timestamps[0]
-    # _multiscale_weights = torch.tensor(multiscale_weights).unsqueeze(0)
     _multiscale_weights = multiscale_weights.unsqueeze(0)
 
     score_mat_list, repeated_tensor_list = [], []
@@ -394,9 +350,7 @@ def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_list)
     for scale_idx in range(N_scale):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
-        # emb_t = uniq_scale_list[scale_idx]['embeddings']
         emb_t = uniq_scale_list[scale_idx][0]
-        # score_mat_torch = getCosAffinityMatrix(emb_t)
         _emb = emb_t.half()
         sim_d = cos_similarity(_emb, _emb)
         score_mat_torch = ScalerMinMax(sim_d)
@@ -429,23 +383,17 @@ def getMultiScaleCosAffinityMatrix(
         base_scale_emb (np.array):
             The base scale embedding (the embeddings from the finest scale)
     """
-    # uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     uniq_scale_dict = uniq_embs_and_timestamps[1]
     N_scale = len(uniq_scale_dict[1])
-    # base_scale_idx = max(uniq_scale_dict.keys())
     base_scale_idx = N_scale - 1
-    # base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
     base_scale_emb = uniq_scale_dict[base_scale_idx][0]
-    # _multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
     _multiscale_weights = uniq_embs_and_timestamps[0]
 
     score_mat_list, repeated_tensor_list = [], []
     repeated_mat_list = [] 
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
-    # for scale_idx in sorted(uniq_scale_dict.keys()):
     for scale_idx in range(N_scale):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
-        # emb = uniq_scale_dict[scale_idx]['embeddings']
         emb = uniq_scale_dict[scale_idx][0]
         score_mat_torch = getCosAffinityMatrix(emb)
         score_mat = score_mat_torch
@@ -457,71 +405,6 @@ def getMultiScaleCosAffinityMatrix(
     _fused_sim_d = torch.matmul(repp.permute(2,1,0), _multiscale_weights.t()).squeeze(2).t()
     return _fused_sim_d, base_scale_emb
 
-def addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma):
-    """
-    Add randomly generated synthetic embeddings to make eigen analysis more stable.
-    We refer to these embeddings as anchor embeddings.
-
-    emb (np.array):
-        The input embedding from the emebedding extractor.
-
-    anchor_sample_n (int):
-        The number of embedding samples per speaker.
-        anchor_sample_n = 10 is recommended.
-
-    anchor_spk_n (int):
-        The number of speakers for synthetic embedding.
-        anchor_spk_n = 3 is recommended.
-
-    sigma (int):
-        The amplitude of synthetic noise for each embedding vector.
-        If sigma value is too small, under-counting could happen.
-        If sigma value is too large, over-counting could happen.
-        sigma = 50 is recommended.
-
-    """
-    emb_dim = emb.shape[1]
-    std_org = torch.std(emb, dim=0)
-    new_emb_list = []
-    for _ in range(anchor_spk_n):
-        emb_m = torch.tile(torch.randn(1, emb_dim), (anchor_sample_n, 1))
-        emb_noise = torch.randn(anchor_sample_n, emb_dim).t().half()
-        emb_noise = torch.matmul(torch.diag_embed(std_org), emb_noise / torch.max(torch.abs(emb_noise))).t()
-        emb_gen = emb_m + sigma * emb_noise
-        new_emb_list.append(emb_gen)
-
-    new_emb_list.append(emb)
-    new_emb_np = torch.vstack(new_emb_list)
-    return new_emb_np
-
-# def getEnhancedSpeakerCount(emb, cuda, random_test_count=5, anchor_spk_n=3, anchor_sample_n=10, sigma=50):
-    # """
-    # Calculate the number of speakers using NME analysis with anchor embeddings.
-    # """
-    # est_num_of_spk_list = torch.zeros(random_test_count, dtype=int)
-    # for idx in range(random_test_count):
-        # np.random.seed(idx)
-        # emb_aug = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
-        # mat = getCosAffinityMatrix(emb_aug)
-        # nmesc = NMESC(
-            # mat,
-            # max_num_speaker=8,
-            # max_rp_threshold=0.25,
-            # sparse_search=True,
-            # sparse_search_volume=30,
-            # fixed_thres=None,
-            # NME_mat_size=300,
-            # cuda=cuda,
-            # device=device,
-        # )
-        # est_num_of_spk, _ = nmesc.NMEanalysis()
-        # est_num_of_spk_list[idx] = est_num_of_spk
-
-    # oracle_num_speakers = torch.mode(est_num_of_spk_list, -1)[0]
-    # return oracle_num_speakers
-
-
-
 @torch.jit.script
 def getCosAffinityMatrix(_emb):
     """
@@ -532,13 +415,12 @@ def getCosAffinityMatrix(_emb):
     sim_d = ScalerMinMax(sim_d)
     return sim_d
 
+@torch.jit.script
 def getLaplacian(X: torch.Tensor):
     """
     Calculate a laplacian matrix from an affinity matrix X.
     """
-    # X.fill_diagonal = 0
-    for i in range(X.shape[0]):
-        X[i, i] = 0
+    X.fill_diagonal_(0)
     D = torch.sum(torch.abs(X), dim=1)
     D = torch.diag_embed(D)
     L = D - X
@@ -554,6 +436,7 @@ def eigDecompose(laplacian, cuda: bool, device: int=0):
     lambdas, diffusion_map = eigh(laplacian)
     return lambdas, diffusion_map
 
+@torch.jit.script
 def getLamdaGaplist(lambdas):
     if torch.is_complex(lambdas):
         lambdas = torch.real(lambdas)
@@ -735,7 +618,6 @@ class NMESC:
         eig_ratio_list = []
         est_spk_n_dict: Dict[int, torch.Tensor] = {}
         self.p_value_list = self.getPvalueList()
-        # import ipdb; ipdb.set_trace()
         for p_value in self.p_value_list:
             est_num_of_spk, g_p = self.getEigRatio(p_value)
             est_spk_n_dict[p_value.item()] = est_num_of_spk
@@ -776,7 +658,6 @@ class NMESC:
                 The ratio between NME_mat_size and the original matrix size
 
         """
-        # subsample_ratio = int(max(1, self.mat.shape[0] / NME_mat_size))
         subsample_ratio = torch.max(torch.tensor(1), torch.tensor(self.mat.shape[0] / NME_mat_size)).type(torch.int)
         self.mat = self.mat[::subsample_ratio.item(), ::subsample_ratio.item()]
         return subsample_ratio
@@ -825,8 +706,6 @@ class NMESC:
                 p_value_list = torch.arange(1, self.max_N)
 
         return p_value_list
-
-    # emb,
 
 # @torch.jit.script
 def COSclustering(
@@ -891,14 +770,9 @@ def COSclustering(
     # uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     uniq_scale_dict = uniq_embs_and_timestamps[1]
     emb = uniq_scale_dict[0][0]
-    # import ipdb; ipdb.set_trace()
-    device = torch.device('cpu')
-    cuda = True
-    
+    cuda = True 
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32)
-    # elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
-        # est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb, cuda)
     else:
         est_num_of_spk_enhanced = None
 
