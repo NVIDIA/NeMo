@@ -21,12 +21,24 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset
 from nemo.collections.nlp.models.language_modeling.megatron.t5_model import t5_position_ids
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
+    make_attention_mask_3d,
+    make_history_mask_3d,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
 from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+import torch.nn as nn
+try:
+    from apex.transformer import tensor_parallel
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 
 __all__ = ['MegatronGPTPTuneModel']
@@ -177,47 +189,57 @@ class MegatronGPTPTuneModel(NLPModel):
         return loss
 
     def inference_step(self, batch, batch_ix):
-        loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
-
-        predicted_token_ids, log_probs = self.model.decode(
-            tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=NUM_TOKEN_TO_GEN, encoder_input=encoder_input
+        enc_query = batch['enc_query']
+        labels = batch['labels']
+        # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
+        predicted_token_ids, log_probs = self.decode(
+            enc_query=enc_query, num_tokens_to_generate=NUM_TOKEN_TO_GEN
         )
 
         return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
+    def decode(self, enc_query, num_tokens_to_generate):
+        predicted_tokens_dec = enc_query
 
         for _ in range(num_tokens_to_generate):
-            # Overwrite the decoder token since we want to predict
-            enc_dec_mask = self.make_inference_attention_mask_3d(
-                predicted_tokens_dec, tokens_enc, self.tokenizer.pad_id
+            attn_mask = make_attention_mask_3d(
+                predicted_tokens_dec, predicted_tokens_dec, self.pad_token_id
             )
-            dec_mask = self.make_inference_attention_mask_3d(
-                predicted_tokens_dec, predicted_tokens_dec, self.tokenizer.pad_id
-            )
-            dec_mask = dec_mask * self.make_inference_history_mask_3d(predicted_tokens_dec)
+            attn_mask = attn_mask * make_history_mask_3d(predicted_tokens_dec)
 
-            enc_dec_mask = enc_dec_mask < 0.5
-            dec_mask = dec_mask < 0.5
+            attn_mask = attn_mask < 0.5
 
-            output_tensor, _ = self(
-                encoder_input_ids=tokens_enc,
-                decoder_input_ids=predicted_tokens_dec,
-                encoder_attn_mask=enc_mask,
-                decoder_attn_mask=dec_mask,
-                encoder_decoder_attn_mask=enc_dec_mask,
-                tokentype_ids=None,
-                lm_labels=None,
-                enc_hidden_states=encoder_hidden_states,
-                output_enc_hidden_only=False,
-            )
+            attn_mask = attn_mask.unsqueeze(1)
+
+            input_embeds = self.embed_input(predicted_tokens_dec)
+
+            encoder_position_ids = t5_position_ids(predicted_tokens_dec)
+            position_embeddings = self.model.model.language_model.embedding.position_embeddings(encoder_position_ids)
+
+            encoder_input = input_embeds + position_embeddings
+
+            dtype = self.model.model.language_model.encoder.layers[0].dtype
+
+            if dtype == torch.float32:
+                output = self.model.model(
+                    None,
+                    None,
+                    encoder_input=encoder_input,
+                    attention_mask=attn_mask,
+                )
+            else:
+                with torch.autocast(device_type="cuda", dtype=dtype):
+                    output = self.model.model(
+                        None,
+                        None,
+                        encoder_input=encoder_input,
+                        attention_mask=attn_mask,
+                    )
+            output_tensor = output
+
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
-            if token_ids[:, -1] == self.tokenizer.eos_id:
-                break
-
         return predicted_tokens_dec, log_probs
 
     def inference_epoch_end(self, outputs):
