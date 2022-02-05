@@ -73,12 +73,6 @@ can_gpu = torch.cuda.is_available()
 def get_wer_feat(
     mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device, batch_size
 ):
-    # Create a preprocessor to convert audio samples into raw features,
-    # Normalization will be done per buffer in frame_bufferer
-    # Do not normalize whatever the model's preprocessor setting is
-    preprocessor_cfg.normalize = "None"
-    preprocessor = nemo_asr.models.EncDecRNNTBPEModel.from_config_dict(preprocessor_cfg)
-    preprocessor.to(device)
     hyps = []
     refs = []
     audio_filepaths = []
