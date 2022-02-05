@@ -419,5 +419,5 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             # Not a Nvidia container. Dependency check is on users
             pass
 
-    def list_available_models():
+    def list_available_models(self):
         pass
