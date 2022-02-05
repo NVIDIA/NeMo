@@ -25,32 +25,22 @@ from functools import total_ordering
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import hydra
 import wrapt
+from omegaconf import DictConfig, OmegaConf
 
 import nemo
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging, model_utils
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.model_utils import import_class_by_path, maybe_update_config_version
 
-# TODO @blisc: Perhaps refactor instead of import guarding
-_HAS_HYDRA = True
-try:
-    import hydra
-    from omegaconf import DictConfig, OmegaConf
-    from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-except ModuleNotFoundError:
-    _HAS_HYDRA = False
-    from nemo.utils.exceptions import CheckInstall
-
-    class SaveRestoreConnector(CheckInstall):
-        pass
-
-
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
-
 _TYPECHECK_ENABLED = True
+# TODO @blisc: Remove _HAS_HYDRA
+_HAS_HYDRA = True
 
 
 def is_typecheck_enabled():
@@ -491,7 +481,6 @@ class Serialization(ABC):
                         f"Falling back to `cls`.\n"
                         f"{imported_cls_tb}"
                     )
-                instance = cls(cfg=config, trainer=trainer)
                 try:
                     accepts_trainer = Serialization._inspect_signature_for_trainer(cls)
                     if accepts_trainer:
@@ -586,7 +575,7 @@ class FileIO(ABC):
         """
         if hasattr(self, '_cfg'):
             self._cfg = maybe_update_config_version(self._cfg)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
             raise NotImplementedError()

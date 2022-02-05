@@ -46,9 +46,12 @@ try:
     from apex.optimizers import FusedLAMB
     from apex.optimizers import FusedAdam
 
+    HAVE_APEX = True
+
     AVAILABLE_OPTIMIZERS['lamb'] = FusedLAMB
     AVAILABLE_OPTIMIZERS['fused_adam'] = FusedAdam
 except ModuleNotFoundError:
+    HAVE_APEX = False
     logging.warning("Apex was not found. Using the lamb or fused_adam optimizer will error out.")
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
