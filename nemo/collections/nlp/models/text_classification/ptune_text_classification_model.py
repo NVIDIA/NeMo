@@ -114,7 +114,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             self.allowed_vocab[self.vocab[token_wrapper(k)]] = i
             self.label_ids[k] = i
             self.id_to_label[i] = k
-        # self.allowed_vocab_ids = set(self.tokenizer.convert_tokens_to_ids(' '+k)+[self.tokenizer.eos_id] for k in cfg.dataset.classes)
+
         self.template = cfg.prompt_encoder.template
 
         self.prompt_encoder = PromptEncoder(
@@ -199,20 +199,6 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             sorted_array = sorted(array, key=lambda x: x[0], reverse=True)
             pred = sorted_array[0][1]
             returned_pred.append(self.allowed_vocab[pred])
-        # logits 
-        # pred_ids = torch.argsort(logits, dim=2, descending=True)
-        # top10 = []
-        # returned_pred = []
-        # for i in range(batch_size):
-        #     top10.append([])
-        #     pred_seq = pred_ids[i, label_position[i, 0]].tolist()
-        #     for pred in pred_seq:
-        #         if pred in self.allowed_vocab_ids:
-        #             top10[-1].append(pred)
-        #             if len(top10[-1]) >= 10:
-        #                 break
-        #     pred = top10[-1][0]
-        #     returned_pred.append(self.allowed_vocab[pred])
         return top10, torch.tensor(returned_pred).to(self.device)
 
     def get_encoder_input(self, sentences):
