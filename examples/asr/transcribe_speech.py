@@ -41,7 +41,6 @@ Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate 
   output_filename: Output filename where the transcriptions will be written
   batch_size: batch size during inference
   
-  cuda: Optional int to enable or disable execution of model on certain CUDA device.
   amp: Bool to decide if Automatic Mixed Precision should be used during inference
   audio_type: Str filetype of the audio. Supported = wav, flac, mp3
   
@@ -61,7 +60,6 @@ python transcribe_speech.py \
     dataset_manifest="" \
     output_filename="" \
     batch_size=32 \
-    cuda=0 \
     amp=True
 """
 
@@ -79,10 +77,6 @@ class TranscriptionConfig:
     batch_size: int = 32
     num_workers: int = 0
 
-    # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
-    # device anyway, and do inference on CPU only if CUDA device is not found.
-    # If `cuda` is a negative number, inference will be on CPU only.
-    cuda: Optional[int] = None
     amp: bool = False
     audio_type: str = "wav"
 
@@ -106,13 +100,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
 
     # setup GPU
-    if cfg.cuda is None:
-        if torch.cuda.is_available():
-            cfg.cuda = 0  # use 0th CUDA device
-        else:
-            cfg.cuda = -1  # use CPU
+    if torch.cuda.is_available():
+        accelerator = 'gpu'
+        device = torch.device('cuda:0')
+    else:
+        accelerator = 'cpu'
+        device = torch.device('cpu')
 
-    device = torch.device(f'cuda:{cfg.cuda}' if cfg.cuda >= 0 else 'cpu')
+    devices = 1
 
     # setup model
     if cfg.model_path is not None:
@@ -128,7 +123,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         asr_model = ASRModel.from_pretrained(model_name=cfg.pretrained_name, map_location=device)  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    trainer = pl.Trainer(gpus=[cfg.cuda] if cfg.cuda >= 0 else 0)
+    trainer = pl.Trainer(devices=devices, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 

@@ -38,7 +38,7 @@ python speech_to_text_rnnt_bpe.py \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.type=<either bpe or wpe> \
-    trainer.gpus=-1 \
+    trainer.devices=-1 \
     trainer.accelerator="gpu" \
     strategy="ddp" \
     trainer.max_epochs=100 \

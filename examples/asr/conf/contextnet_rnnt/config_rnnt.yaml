@@ -227,7 +227,7 @@ model:
       last_epoch: -1
 
 trainer:
-  devices: 0 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 5
   max_steps: null # computed at runtime if not set
   num_nodes: 1

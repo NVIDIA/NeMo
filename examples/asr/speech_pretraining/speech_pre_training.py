@@ -29,7 +29,7 @@ python speech_pre_training.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
-    trainer.gpus=-1 \
+    trainer.devices=-1 \
     trainer.accelerator="gpu" \
     strategy="ddp"  \
     trainer.max_epochs=100 \

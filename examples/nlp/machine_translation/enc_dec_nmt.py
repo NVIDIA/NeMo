@@ -52,7 +52,7 @@ Usage:
  python enc_dec_nmt.py \
       --config-path=conf \
       --config-name=aayn_base \
-      trainer.gpus=[0,1] \
+      trainer.devices=[0,1] \
       ~trainer.max_epochs \
       +trainer.max_steps=150000 \
       model.beam_size=4 \
