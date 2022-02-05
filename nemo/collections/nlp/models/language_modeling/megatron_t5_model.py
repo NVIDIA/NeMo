@@ -126,5 +126,5 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
         logging.info(f'Finished building T5 datasets.')
         return self._train_ds, self._validation_ds, self._test_ds
 
-    def list_available_models():
+    def list_available_models(self):
         pass
