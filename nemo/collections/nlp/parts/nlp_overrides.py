@@ -204,9 +204,13 @@ class NLPDDPPlugin(DDPPlugin):
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/apex\n"
+                "Megatron-based models require Apex to function correctly."
             )
+            # raise ImportError(
+            #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            # )
         super().__init__()
 
     def save_to(self, model, save_path: str):
