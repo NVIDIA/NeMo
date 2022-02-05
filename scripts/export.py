@@ -134,7 +134,7 @@ def nemo_export(argv):
 
             _, descriptions = model.export(
                 out,
-                check_trace=args.runtime_check,
+                check_trace=False,
                 input_example=input_example,
                 onnx_opset_version=args.onnx_opset,
                 verbose=args.verbose,

@@ -19,6 +19,7 @@ import torch
 from torch.onnx import ExportTypes, TrainingMode
 
 from nemo.core.classes import typecheck
+from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
 from nemo.utils import logging
 from nemo.utils.export_utils import (
     ExportFormat,
@@ -26,9 +27,9 @@ from nemo.utils.export_utils import (
     get_export_format,
     parse_input_example,
     replace_for_export,
+    verify_runtime,
     wrap_forward_method,
 )
-from nemo.utils.neural_type_utils import get_dynamic_axes, get_io_names
 
 __all__ = ['ExportFormat', 'Exportable']
 
@@ -148,6 +149,10 @@ class Exportable(ABC):
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
                     )
+
+                    if check_trace:
+                        verify_runtime(output, input_list, input_dict, input_names, output_names, output_example)
+
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:

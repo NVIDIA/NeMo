@@ -21,7 +21,6 @@ import torch
 import torch.nn as nn
 
 from nemo.utils import logging
-from nemo.utils.neural_type_utils import to_onnxrt_input
 
 
 class ExportFormat(Enum):
@@ -92,6 +91,18 @@ def parse_input_example(input_example):
         input_dict = input_list[-1]
         input_list = input_list[:-1]
     return input_list, input_dict
+
+
+def to_onnxrt_input(input_names, input_list, input_dict):
+    odict = {}
+    for k, v in input_dict.items():
+        odict[k] = v.cpu().numpy()
+    for i, input in enumerate(input_list):
+        if type(input) in (list, tuple):
+            odict[input_names[i]] = tuple([ip.cpu().numpy() for ip in input])
+        else:
+            odict[input_names[i]] = input.cpu().numpy()
+    return odict
 
 
 def verify_runtime(

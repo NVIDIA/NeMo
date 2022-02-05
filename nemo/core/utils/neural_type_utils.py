@@ -49,15 +49,3 @@ def get_dynamic_axes(types, names):
         if name in types:
             dynamic_axes.update(extract_dynamic_axes(name, types[name]))
     return dynamic_axes
-
-
-def to_onnxrt_input(input_names, input_list, input_dict):
-    odict = {}
-    for k, v in input_dict.items():
-        odict[k] = v.cpu().numpy()
-    for i, input in enumerate(input_list):
-        if type(input) in (list, tuple):
-            odict[input_names[i]] = tuple([ip.cpu().numpy() for ip in input])
-        else:
-            odict[input_names[i]] = input.cpu().numpy()
-    return odict
