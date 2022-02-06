@@ -859,7 +859,7 @@ pipeline {
             decoder_trainer.accelerator="gpu" \
             data.train_ds.use_tarred_dataset=true \
             +decoder_trainer.fast_dev_run=true \
-            decoder_exp_manager.create_enable_checkpointing=false \
+            decoder_exp_manager.create_checkpoint_callback=false \
             data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
             data.test_ds.use_cache=false \
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
@@ -1349,7 +1349,7 @@ pipeline {
               model.optim.weight_decay=0.01 \
               model.optim.sched.warmup_ratio=0.01 \
               exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
-              exp_manager.create_enable_checkpointing=False \
+              exp_manager.create_checkpoint_callback=False \
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed'
               sh 'ls -lha examples/nlp/language_modeling'
@@ -1420,7 +1420,7 @@ pipeline {
               +trainer.max_steps=2 \
               trainer.precision=16 \
               +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
-              +exp_manager.create_enable_checkpointing=true \
+              +exp_manager.create_checkpoint_callback=true \
               '
               sh 'python examples/nlp/machine_translation/enc_dec_nmt.py \
               --config-path=conf \
@@ -1447,7 +1447,7 @@ pipeline {
               +trainer.limit_test_batches=1 \
               +trainer.max_steps=4 \
               +exp_manager.explicit_log_dir=examples/nlp/machine_translation/nmt_results \
-              +exp_manager.create_enable_checkpointing=true \
+              +exp_manager.create_checkpoint_callback=true \
               +exp_manager.resume_if_exists=True \
               '
             }
