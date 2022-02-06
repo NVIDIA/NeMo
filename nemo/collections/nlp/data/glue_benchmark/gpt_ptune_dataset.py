@@ -17,6 +17,8 @@
 # Some code of this file was adapted from the HuggingFace library available at
 # https://github.com/huggingface/transformers
 
+import csv
+import json
 from typing import Dict, List, Optional, Union
 
 import numpy as np
@@ -30,12 +32,11 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
-import csv
-import json
 
 __all__ = ['GPTPTuneDataset']
 
 SMALL_NUM = -100
+
 
 class InputExample(object):
     """A single training/test example for simple sequence classification.
@@ -80,9 +81,17 @@ class DataProcessor(object):
     def get_task_type(self):
         return self.task_type
 
-    def get_ptune_query(self, text_a: str, text_b: str, prompt_token_id: int, max_seq_len: int ,templates: List[int], tokenizer: TokenizerSpec):
+    def get_ptune_query(
+        self,
+        text_a: str,
+        text_b: str,
+        prompt_token_id: int,
+        max_seq_len: int,
+        templates: List[int],
+        tokenizer: TokenizerSpec,
+    ):
         raise NotImplemented()
- 
+
     @classmethod
     def _read_tsv(cls, input_file, quotechar=None):
         """Reads a tab separated value file."""
@@ -132,29 +141,36 @@ class BoolQProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
-    def get_ptune_query(self,
-                        text_a: str,
-                        text_b: str,
-                        prompt_token_id: int,
-                        max_seq_len: int,
-                        templates: List[int],
-                        tokenizer: TokenizerSpec):
+    def get_ptune_query(
+        self,
+        text_a: str,
+        text_b: str,
+        prompt_token_id: int,
+        max_seq_len: int,
+        templates: List[int],
+        tokenizer: TokenizerSpec,
+    ):
         sentence_a = f" Paragraph: {text_a}"
         sentence_b = f" Question: {text_b}?"
         a_input_token_ids = tokenizer.text_to_ids(sentence_a)
         b_input_token_ids = tokenizer.text_to_ids(sentence_b)
         c_input_token_ids = tokenizer.text_to_ids(" Answer:")
         cut = 0
-        total_num_ids = len(a_input_token_ids) + len(b_input_token_ids) + len(c_input_token_ids) + sum(templates) 
+        total_num_ids = len(a_input_token_ids) + len(b_input_token_ids) + len(c_input_token_ids) + sum(templates)
         if total_num_ids > max_seq_len:
             logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
             cut = total_num_ids - max_seq_len
-        return [prompt_token_id] * templates[0] + a_input_token_ids[cut:] + \
-               [prompt_token_id] * templates[1] + b_input_token_ids +  \
-               [prompt_token_id] * templates[2] + c_input_token_ids
+        return (
+            [prompt_token_id] * templates[0]
+            + a_input_token_ids[cut:]
+            + [prompt_token_id] * templates[1]
+            + b_input_token_ids
+            + [prompt_token_id] * templates[2]
+            + c_input_token_ids
+        )
 
     def label2string(self, label):
-        return ' '+label
+        return ' ' + label
 
 
 class SentimentProcessor(DataProcessor):
@@ -184,32 +200,36 @@ class SentimentProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
-    def get_ptune_query(self,
-                        text_a: str,
-                        text_b: str,
-                        prompt_token_id: int,
-                        max_seq_len: int,
-                        templates: List[int],
-                        tokenizer: TokenizerSpec):
+    def get_ptune_query(
+        self,
+        text_a: str,
+        text_b: str,
+        prompt_token_id: int,
+        max_seq_len: int,
+        templates: List[int],
+        tokenizer: TokenizerSpec,
+    ):
         sentence_a = f" Sentence: {text_a}"
         sentence_b = f" Sentiment: {text_b}?"
         a_input_token_ids = tokenizer.text_to_ids(sentence_a)
         b_input_token_ids = tokenizer.text_to_ids(sentence_b)
         cut = 0
-        total_num_ids = len(a_input_token_ids) + len(b_input_token_ids) + sum(templates) 
+        total_num_ids = len(a_input_token_ids) + len(b_input_token_ids) + sum(templates)
         if total_num_ids > max_seq_len:
             logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
             cut = total_num_ids - max_seq_len
-        return [prompt_token_id] * templates[0] + a_input_token_ids[cut:] + \
-               [prompt_token_id] * templates[1] + b_input_token_ids 
+        return (
+            [prompt_token_id] * templates[0]
+            + a_input_token_ids[cut:]
+            + [prompt_token_id] * templates[1]
+            + b_input_token_ids
+        )
 
     def label2string(self, label):
-        return ' '+label
+        return ' ' + label
 
-processors = {
-    "boolq": BoolQProcessor,
-    "sentiment": SentimentProcessor
-}
+
+processors = {"boolq": BoolQProcessor, "sentiment": SentimentProcessor}
 
 
 class TaskDataset(Dataset):
@@ -227,11 +247,7 @@ class TaskDataset(Dataset):
         }
 
     def __init__(
-        self,
-        file_name: str,
-        task_name: str,
-        data_type: str,
-        tokenizer: TokenizerSpec,
+        self, file_name: str, task_name: str, data_type: str, tokenizer: TokenizerSpec,
     ):
         """
         Processes Task datasets
@@ -306,7 +322,7 @@ class GPTPTuneDataset(TaskDataset):
         return len(self.examples)
 
     def __getitem__(self, idx):
-        input_ids, labels, query  = self.features[idx]
+        input_ids, labels, query = self.features[idx]
         return {'input_enc': input_ids, 'labels': labels, 'query_enc': query}
 
     def collate_fn(self, batch):
@@ -354,8 +370,17 @@ class GPTPTuneDataset(TaskDataset):
             if ex_index % 10000 == 0:
                 logging.info(f"Writing example {ex_index} of {len(self.examples)}")
 
-            label_ids = self.tokenizer.text_to_ids(self.processor.label2string(example.label)) + [self.tokenizer.eos_id]
-            enc_query = self.processor.get_ptune_query(example.text_a, example.text_b, self.pseudo_token_id, self.max_seq_length - len(label_ids) + 1, self.templates, self.tokenizer)
+            label_ids = self.tokenizer.text_to_ids(self.processor.label2string(example.label)) + [
+                self.tokenizer.eos_id
+            ]
+            enc_query = self.processor.get_ptune_query(
+                example.text_a,
+                example.text_b,
+                self.pseudo_token_id,
+                self.max_seq_length - len(label_ids) + 1,
+                self.templates,
+                self.tokenizer,
+            )
             input_ids = enc_query + label_ids[:-1]
             labels = [SMALL_NUM for i in range(len(enc_query) - 1)] + label_ids
             features.append([input_ids, labels, enc_query])
