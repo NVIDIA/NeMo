@@ -42,6 +42,7 @@ model:
   nemo_path: ptune_gpt_model.nemo # filename to save the model and associated artifacts to .nemo file
   use_lm_finetune: False # whether fine tune the language model
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
+  max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
 
   language_model:
     nemo_file: null

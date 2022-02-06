@@ -45,8 +45,6 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronGPTPTuneModel']
 
-NUM_TOKEN_TO_GEN = 10
-
 
 class MegatronGPTPTuneModel(NLPModel):
     """
@@ -187,7 +185,7 @@ class MegatronGPTPTuneModel(NLPModel):
         label_position = batch['label_position']
         # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
         predicted_token_ids, log_probs = self.decode(
-            enc_query=enc_query, label_position=label_position, num_tokens_to_generate=NUM_TOKEN_TO_GEN
+            enc_query=enc_query, label_position=label_position, num_tokens_to_generate=self.num_tokens_to_gen
         )
 
         return {
@@ -308,7 +306,7 @@ class MegatronGPTPTuneModel(NLPModel):
         logging.info(f'Test accuracy: {test_acc}')
 
     def build_train_valid_test_datasets(self, test_only=False):
-        logging.info('Building GLUE datasets.')
+        logging.info('Building P-Tune datasets.')
         self._test_ds = GPTPTuneDataset(
             self.cfg.data.test_ds.file_path,
             task_name=self.cfg.data.test_ds.task_name,
@@ -318,7 +316,10 @@ class MegatronGPTPTuneModel(NLPModel):
             pseudo_token_id=self.pseudo_token_id,
             pad_id=self.pad_token_id,
             max_seq_length=self.model.cfg.encoder_seq_length,
+            max_seq_length_decoder=self.cfg.max_decode_length,
         )
+        # update the num_tokens_to_gen from dataset
+        self.num_tokens_to_gen = self._test_ds.max_seq_length_decoder
         if test_only:
             return None, None, self._test_ds
         self._train_ds = GPTPTuneDataset(
@@ -330,7 +331,10 @@ class MegatronGPTPTuneModel(NLPModel):
             pseudo_token_id=self.pseudo_token_id,
             pad_id=self.pad_token_id,
             max_seq_length=self.model.cfg.encoder_seq_length,
+            max_seq_length_decoder=self.cfg.max_decode_length,
         )
+        # update the num_tokens_to_gen from dataset
+        self.num_tokens_to_gen = self._train_ds.max_seq_length_decoder
         self._validation_ds = GPTPTuneDataset(
             self.cfg.data.validation_ds.file_path,
             task_name=self.cfg.data.validation_ds.task_name,
@@ -340,6 +344,7 @@ class MegatronGPTPTuneModel(NLPModel):
             pseudo_token_id=self.pseudo_token_id,
             pad_id=self.pad_token_id,
             max_seq_length=self.model.cfg.encoder_seq_length,
+            max_seq_length_decoder=self.cfg.max_decode_length,
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')

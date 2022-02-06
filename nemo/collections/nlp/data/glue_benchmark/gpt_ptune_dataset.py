@@ -297,7 +297,7 @@ class GPTPTuneDataset(TaskDataset):
         pseudo_token_id: int,
         pad_id: int,
         max_seq_length: int,
-        max_seq_length_decoder: int = 128,
+        max_seq_length_decoder: int = None,
     ):
         """
         Processes TextToText PTuning Dataset
@@ -366,18 +366,30 @@ class GPTPTuneDataset(TaskDataset):
         Inputs are prefixed with a text prompt that indicates the task to perform.
         """
         features = []
+        max_label_len = 0
+        # find ou the max label length
+        labels_list = []
         for ex_index, example in enumerate(self.examples):
-            if ex_index % 10000 == 0:
-                logging.info(f"Writing example {ex_index} of {len(self.examples)}")
-
             label_ids = self.tokenizer.text_to_ids(self.processor.label2string(example.label)) + [
                 self.tokenizer.eos_id
             ]
+            max_label_len = max(len(label_ids), max_label_len)
+            labels_list.append(label_ids)
+        if self.max_seq_length_decoder is None:
+            self.max_seq_length_decoder = max_label_len
+        else:
+            self.max_seq_length_decoder = max(
+                self.max_seq_length, max_label_len
+            )  # take the max of the two to be conservative
+        for ex_index, example in enumerate(self.examples):
+            if ex_index % 10000 == 0:
+                logging.info(f"Writing example {ex_index} of {len(self.examples)}")
+            label_ids = labels_list[ex_index]
             enc_query = self.processor.get_ptune_query(
                 example.text_a,
                 example.text_b,
                 self.pseudo_token_id,
-                self.max_seq_length - len(label_ids) + 1,
+                self.max_seq_length - self.max_seq_length_decoder + 1,
                 self.templates,
                 self.tokenizer,
             )
