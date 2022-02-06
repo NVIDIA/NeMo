@@ -19,7 +19,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecoding
+from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
@@ -255,5 +255,5 @@ class RNNTBPEWER(Metric):
 
 
 @dataclass
-class RNNTBPEDecodingConfig(RNNTDecoding):
+class RNNTBPEDecodingConfig(RNNTDecodingConfig):
     pass
