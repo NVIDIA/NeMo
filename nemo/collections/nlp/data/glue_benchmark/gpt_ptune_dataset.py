@@ -430,7 +430,7 @@ class GPTPTuneInferenceDataset(TaskDataset):
     def collate_fn(self, batch):
         enc_query = [item['query_enc'] for item in batch]
 
-        label_start = [len(item) for item in enc_query]
+        label_start = [len(item) - 1 for item in enc_query]
         max_query_length = max(label_start)
 
         enc_query = [item + [self.pad_id] * (max_query_length - len(item)) for item in enc_query]

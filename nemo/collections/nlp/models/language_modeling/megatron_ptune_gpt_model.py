@@ -98,6 +98,16 @@ class MegatronGPTPTuneModel(NLPModel):
         self.pseudo_token_id = self.tokenizer.token_to_id(cfg.pseudo_token)
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.spell_length = sum(self.template)
+        self.special_tokens = set(
+            [
+                self.tokenizer.eos_id,
+                self.tokenizer.pad_id,
+                self.tokenizer.sep_id,
+                self.tokenizer.unk_id,
+                self.tokenizer.bos_id,
+                self.tokenizer.cls_id,
+            ]
+        )
 
     def embed_input(self, queries):
         bz = queries.shape[0]
@@ -251,16 +261,6 @@ class MegatronGPTPTuneModel(NLPModel):
         averaged_loss = average_losses_across_data_parallel_group(losses)
         all_preds = []
         all_labels = []
-        special_tokens = set(
-            [
-                self.tokenizer.eos_id,
-                self.tokenizer.pad_id,
-                self.tokenizer.sep_id,
-                self.tokenizer.unk_id,
-                self.tokenizer.bos_id,
-                self.tokenizer.cls_id,
-            ]
-        )
         for item in outputs:
             preds = item['predicted_token_ids'].cpu().numpy().tolist()
             labels = item['labels'].cpu().numpy().tolist()
@@ -271,8 +271,8 @@ class MegatronGPTPTuneModel(NLPModel):
                 if self.tokenizer.eos_id in pred:
                     idx = pred.index(self.tokenizer.eos_id)
                     pred = pred[:idx]
-                pred = [id for id in pred if id not in special_tokens]
-                label = [id for id in label[label_position[0] : label_position[1]] if id not in special_tokens]
+                pred = [id for id in pred if id not in self.special_tokens]
+                label = [id for id in label[label_position[0] : label_position[1]] if id not in self.special_tokens]
                 pred = self.tokenizer.ids_to_text(pred)
                 label = self.tokenizer.ids_to_text(label)
                 all_preds.append(pred)
@@ -428,9 +428,23 @@ class MegatronGPTPTuneModel(NLPModel):
             dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
             infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, decode_token_len)
             for i, batch in enumerate(infer_datalayer):
-                sentences, _ = batch
-                preds = self.forward_eval(sentences)
-                all_preds.extend([self.id_to_label[i.item()] for i in preds])
+                enc_query = batch['enc_query'].to(self.device)
+                label_position = batch['label_position'].to(self.device)
+                # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
+                predicted_token_ids, _ = self.decode(
+                    enc_query=enc_query, label_position=label_position, num_tokens_to_generate=self.num_tokens_to_gen
+                )
+                preds = predicted_token_ids.cpu().numpy().tolist()
+                label_positions = label_position.cpu().numpy().tolist()
+                for i, (pred, label_position) in enumerate(zip(preds, label_positions)):
+                    start_position = label_position[0] + 1
+                    pred = pred[start_position:]
+                    if self.tokenizer.eos_id in pred:
+                        idx = pred.index(self.tokenizer.eos_id)
+                        pred = pred[:idx]
+                    pred = [id for id in pred if id not in self.special_tokens]
+                    pred = self.tokenizer.ids_to_text(pred)
+                    all_preds.append(pred)
         finally:
             # set mode back to its original value
             self.train(mode=mode)
