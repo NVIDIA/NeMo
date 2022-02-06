@@ -855,8 +855,8 @@ pipeline {
             data.test_ds.batch_size=2 \
             data.train_ds.decoder_data_augmentation=false \
             data.train_ds.num_workers=2 \
-            trainer.devices=[0,1] \
-            trainer.accelerator="gpu" \
+            decoder_trainer.devices=[0,1] \
+            decoder_trainer.accelerator="gpu" \
             data.train_ds.use_tarred_dataset=true \
             +decoder_trainer.fast_dev_run=true \
             decoder_exp_manager.create_enable_checkpointing=false \
