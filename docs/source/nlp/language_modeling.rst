@@ -185,7 +185,7 @@ The following script trains 6-layer Transformer LM:
       trainer.devices=2 \
       trainer.accelerator='gpu' \
       +exp_manager.exp_dir=/path/to/store/results \
-      +exp_manager.create_checkpoint_callback=True \
+      +exp_manager.create_enable_checkpointing=True \
       +exp_manager.checkpoint_callback_params.monitor=val_PPL \
       +exp_manager.checkpoint_callback_params.mode=min \
       +exp_manager.checkpoint_callback_params.save_top_k=5 \

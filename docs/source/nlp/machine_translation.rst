@@ -421,7 +421,7 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
       +trainer.max_steps=100000 \
       +trainer.val_check_interval=1000 \
       +exp_manager.exp_dir=/path/to/store/results \
-      +exp_manager.create_checkpoint_callback=True \
+      +exp_manager.create_enable_checkpointing=True \
       +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
       +exp_manager.checkpoint_callback_params.mode=max \
       +exp_manager.checkpoint_callback_params.save_top_k=5 \

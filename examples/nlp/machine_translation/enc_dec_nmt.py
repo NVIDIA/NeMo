@@ -83,7 +83,7 @@ Usage:
       +exp_manager.create_wandb_logger=True \
       +exp_manager.wandb_logger_kwargs.name=TEST-nmt-base \
       +exp_manager.wandb_logger_kwargs.project=nmt-de-en \
-      +exp_manager.create_checkpoint_callback=True \
+      +exp_manager.create_enable_checkpointing=True \
       +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
       +exp_manager.exp_dir=nmt_base \
       +exp_manager.checkpoint_callback_params.mode=max 
