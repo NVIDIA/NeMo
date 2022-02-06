@@ -80,9 +80,11 @@ model:
       max_seq_length: 512
 
   optim:
-    name: fused_adam
+    name: adam
     lr: 1e-5
-    weight_decay: 0.0
+    # optimizer arguments
+    betas: [0.9, 0.999]
+    weight_decay: 0.0005
     # scheduler setup
     sched:
       name: WarmupAnnealing

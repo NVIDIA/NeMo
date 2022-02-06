@@ -321,7 +321,7 @@ class GPTPTuneDataset(TaskDataset):
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         enc_input = [item + [self.pad_id] * (max_input_length - len(item)) for item in enc_input]
         labels = [item + [self.pad_id] * (max_label_length - len(item)) for item in labels]
-        enc_query = [[self.pad_id] * (max_query_length - len(item)) + item for item in enc_query]
+        enc_query = [item + [self.pad_id] * (max_query_length - len(item)) for item in enc_query]
 
         enc_query = torch.LongTensor(enc_query)
         enc_input = torch.LongTensor(enc_input)

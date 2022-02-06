@@ -195,13 +195,15 @@ class MegatronGPTPTuneModel(NLPModel):
         label_position = batch['label_position']
         # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
         predicted_token_ids, log_probs = self.decode(
-            enc_query=enc_query, num_tokens_to_generate=NUM_TOKEN_TO_GEN
+            enc_query=enc_query, label_position=label_position, num_tokens_to_generate=NUM_TOKEN_TO_GEN
         )
 
         return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels, 'label_position': label_position}
 
-    def decode(self, enc_query, num_tokens_to_generate):
+    def decode(self, enc_query, label_position, num_tokens_to_generate):
         predicted_tokens_dec = enc_query
+
+        label_start = label_position[:, 0].clone()
 
         for _ in range(num_tokens_to_generate):
             attn_mask = make_attention_mask_3d(
@@ -240,8 +242,23 @@ class MegatronGPTPTuneModel(NLPModel):
             output_tensor = output
 
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+
+
+            # only use the allowed vocab if it is defined 
             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-            predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
+
+            # append empty array in the end
+            # predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
+            # new_pred = torch.zeros_like(token_ids[:, 0:1])
+            new_pred = torch.full_like(token_ids[:, 0:1], self.pad_token_id)
+            predicted_tokens_dec = torch.cat([predicted_tokens_dec, new_pred], 1)
+
+            predicted = torch.gather(token_ids, 1, label_start.view(-1, 1))
+
+            # need to scatter the token id at the right position
+            label_start += 1
+            predicted_tokens_dec.scatter_(1, label_start.view(-1, 1), predicted)
+
         return predicted_tokens_dec, log_probs
 
     def inference_epoch_end(self, outputs):
@@ -260,7 +277,7 @@ class MegatronGPTPTuneModel(NLPModel):
             labels = item['labels'].cpu().numpy().tolist()
             label_positions = item['label_position'].cpu().numpy().tolist()
             for i, (pred, label, label_position) in enumerate(zip(preds, labels, label_positions)):
-                start_position = len(pred) - NUM_TOKEN_TO_GEN
+                start_position = label_position[0]+1
                 pred = pred[start_position:]
                 if self.tokenizer.eos_id in pred:
                     idx = pred.index(self.tokenizer.eos_id)
