@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import os
-from typing import Any, Dict, Optional, Union
+from typing import List, Any, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset
+from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset, GPTPTuneInferenceDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
     make_attention_mask_3d,
     make_history_mask_3d,
@@ -309,7 +309,6 @@ class MegatronGPTPTuneModel(NLPModel):
         logging.info('Building P-Tune datasets.')
         self._test_ds = GPTPTuneDataset(
             self.cfg.data.test_ds.file_path,
-            task_name=self.cfg.data.test_ds.task_name,
             data_type="test",
             tokenizer=self.tokenizer,
             templates=self.template,
@@ -324,7 +323,6 @@ class MegatronGPTPTuneModel(NLPModel):
             return None, None, self._test_ds
         self._train_ds = GPTPTuneDataset(
             self.cfg.data.train_ds.file_path,
-            task_name=self.cfg.data.train_ds.task_name,
             data_type="train",
             tokenizer=self.tokenizer,
             templates=self.template,
@@ -337,7 +335,6 @@ class MegatronGPTPTuneModel(NLPModel):
         self.num_tokens_to_gen = self._train_ds.max_seq_length_decoder
         self._validation_ds = GPTPTuneDataset(
             self.cfg.data.validation_ds.file_path,
-            task_name=self.cfg.data.validation_ds.task_name,
             data_type="validation",
             tokenizer=self.tokenizer,
             templates=self.template,
@@ -408,3 +405,68 @@ class MegatronGPTPTuneModel(NLPModel):
 
     def list_available_models():
         pass
+
+    @torch.no_grad()
+    def ptune_inference(self, queries: List[Dict], batch_size: int = 1, decode_token_len: int = 5) -> List[str]:
+        """
+        Get prediction for the queries
+        Args:
+            queries: List of data samples without labels
+            batch_size: batch size to use during inference
+            decode_token_len: max number of tokens to generate during inference
+        Returns:
+            all_preds: model predictions
+        """
+        # store predictions for all queries in a single list
+        all_preds = []
+        mode = self.training
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, decode_token_len)
+            for i, batch in enumerate(infer_datalayer):
+                sentences, _ = batch
+                preds = self.forward_eval(sentences)
+                all_preds.extend([self.id_to_label[i.item()] for i in preds])
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            logging.set_verbosity(logging_level)
+        return all_preds
+
+    def _setup_infer_dataloader(self, cfg: Dict, queries: List[str], decode_token_len: int) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a infer data loader.
+
+        Args:
+            cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
+            queries: queries object
+        Returns:
+            A pytorch DataLoader.
+        """
+        # dataset = PTuneTextClassificationDataset(None, queries, prompt)
+        dataset = GPTPTuneInferenceDataset(
+            queries=queries,
+            data_type="test",
+            tokenizer=self.tokenizer,
+            templates=self.template,
+            pseudo_token_id=self.pseudo_token_id,
+            pad_id=self.pad_token_id,
+            max_seq_length=self.model.cfg.encoder_seq_length,
+            max_seq_length_decoder=decode_token_len,
+        )
+
+        # Torch dataloader.
+        return torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=cfg["batch_size"],
+            shuffle=False,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=False,
+        )
+

@@ -111,6 +111,27 @@ def main(cfg) -> None:
         logging.info("Beset EVAL Testing finished!")
         logging.info("===========================================================================================")
 
+    if cfg.model.nemo_path:
+        # '.nemo' file contains the last checkpoint and the params to initialize the model
+        best_eval_model.save_to(cfg.model.nemo_path)
+        logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
+
+    # perform inference on a list of queries.
+    if "infer_samples" in cfg.model and cfg.model.infer_samples:
+        logging.info("===========================================================================================")
+        logging.info("Starting the inference on some sample queries...")
+
+        # max_seq_length=512 is the maximum length BERT supports.
+        results = best_eval_model.cuda().ptune_inference(
+            queries=cfg.model.infer_samples, batch_size=1, decode_token_len=5
+        )
+        logging.info('The prediction results of some sample queries with the trained model:')
+        for query, result in zip(cfg.model.infer_samples, results):
+            logging.info(f'Query : {query}')
+            logging.info(f'Predicted label: {result}')
+
+        logging.info("Inference finished!")
+        logging.info("===========================================================================================")
 
 
 if __name__ == '__main__':

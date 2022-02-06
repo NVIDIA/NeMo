@@ -33,49 +33,21 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 
-__all__ = ['GPTPTuneDataset']
+__all__ = ['GPTPTuneDataset','register_taskdata_processor', 'GPTPTuneInferenceDataset']
 
 SMALL_NUM = -100
+TASK_KEY = 'prompt_tag'
 
-
-class InputExample(object):
-    """A single training/test example for simple sequence classification.
-    Args:
-        guid: Unique id for the example.
-        text_a: The untokenized text of the first sequence.
-        For single sequence tasks, only this sequence must be specified.
-        text_b: The untokenized text of the second
-        sequence. Only must be specified for sequence pair tasks.
-        label:The label of the example. This should be
-        specified for train and dev examples, but not for test examples.
-    """
-
-    def __init__(self, guid: int, text_a: str, text_b: str = None, label: str = None):
-        """Constructs a InputExample."""
-        self.guid = guid
-        self.text_a = text_a
-        self.text_b = text_b
-        self.label = label
-
-    def __repr__(self):
-        return (
-            f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"
-        )
 
 
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""
 
-    def __init__(self, data_type: str, task_type: str):
-        self.data_type = data_type
-        self.task_type = task_type
+    def __init__(self):
+        pass
 
-    def get_examples(self, data_path):
-        """Gets a collection of `InputExample`s for the train set."""
-        raise NotImplementedError()
-
-    def get_labels(self):
-        """Gets the list of labels for this data set."""
+    def create_example(self, object, set_type):
+        """Creates example for the training and dev sets."""
         raise NotImplementedError()
 
     def get_task_type(self):
@@ -92,54 +64,47 @@ class DataProcessor(object):
     ):
         raise NotImplemented()
 
-    @classmethod
-    def _read_tsv(cls, input_file, quotechar=None):
-        """Reads a tab separated value file."""
-        with open(input_file, "r", encoding="utf-8-sig") as f:
-            reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
-            lines = []
-            for line in reader:
-                # if sys.version_info[0] == 2:
-                #     line = list(unicode(cell, 'utf-8') for cell in line)
-                lines.append(line)
-            return lines
 
-    @classmethod
-    def _read_jsonl(cls, input_file):
-        """Reads a tab separated value file."""
-        with open(input_file, "r", encoding="utf-8-sig") as f:
-            lines = []
-            for line in f:
-                lines.append(json.loads(line))
-            return lines
+class InputExample(object):
+    """A single training/test example for simple sequence classification.
+    Args:
+        guid: Unique id for the example.
+        text_a: The untokenized text of the first sequence.
+        For single sequence tasks, only this sequence must be specified.
+        text_b: The untokenized text of the second
+        sequence. Only must be specified for sequence pair tasks.
+        processor: the data processor for a particular task.
+        label:The label of the example. This should be
+        specified for train and dev examples, but not for test examples.
+    """
+
+    def __init__(self, guid: int, text_a: str, text_b: str = None, processor: DataProcessor = None, label: str = None):
+        """Constructs a InputExample."""
+        self.guid = guid
+        self.text_a = text_a
+        self.text_b = text_b
+        self.label = label
+        self.processor = processor
+
+    def __repr__(self):
+        return (
+            f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"
+        )
 
 
 class BoolQProcessor(DataProcessor):
     """Processor for the BoolQ data set (GLUE version)."""
 
-    def __init__(self, data_type: str, task_type: str):
-        super().__init__(data_type, task_type)
+    def __init__(self):
+        super().__init__()
 
-    def get_examples(self, data_path):
-        """See base class."""
-        return self._create_examples(self._read_jsonl(data_path), self.data_type)
-
-    def get_labels(self):
-        """See base class."""
-        return ["yes", "no"]
-
-    def _create_examples(self, lines, set_type):
+    def create_example(self, line, set_type):
         """Creates examples for the training and dev sets."""
-        examples = []
-        for (i, line) in enumerate(lines):
-            if i == 0:
-                continue
-            guid = line['prompt_tag']
-            text_a = line['sentence']
-            text_b = line['question']
-            label = line['label']
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
-        return examples
+        guid = line[TASK_KEY]
+        text_a = line['sentence']
+        text_b = line['question']
+        label = line.get('label', None)
+        return InputExample(guid=guid, text_a=text_a, text_b=text_b, processor=self, label=label)
 
     def get_ptune_query(
         self,
@@ -176,29 +141,16 @@ class BoolQProcessor(DataProcessor):
 class SentimentProcessor(DataProcessor):
     """Processor for the sentiment analysis data set."""
 
-    def __init__(self, data_type: str, task_type: str):
-        super().__init__(data_type, task_type)
+    def __init__(self):
+        super().__init__()
 
-    def get_examples(self, data_path):
-        """See base class."""
-        return self._create_examples(self._read_jsonl(data_path), self.data_type)
-
-    def get_labels(self):
-        """See base class."""
-        return ["positive", "neutral", "negative"]
-
-    def _create_examples(self, lines, set_type):
+    def create_example(self, line, set_type):
         """Creates examples for the training and dev sets."""
-        examples = []
-        for (i, line) in enumerate(lines):
-            if i == 0:
-                continue
-            guid = line['prompt_tag']
-            text_a = line['sentence']
-            text_b = None
-            label = line['label']
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
-        return examples
+        guid = line[TASK_KEY]
+        text_a = line['sentence']
+        text_b = None
+        label = line.get('label', None)
+        return InputExample(guid=guid, text_a=text_a, text_b=text_b, processor=self, label=label)
 
     def get_ptune_query(
         self,
@@ -229,10 +181,37 @@ class SentimentProcessor(DataProcessor):
         return ' ' + label
 
 
-processors = {"boolq": BoolQProcessor, "sentiment": SentimentProcessor}
+processors = {"boolq-full-text": BoolQProcessor(), "sentiment-bankp": SentimentProcessor()}
+
+
+def register_taskdata_processor(taskname: str, processor: DataProcessor):
+    processors[taskname] = processor
 
 
 class TaskDataset(Dataset):
+
+    @classmethod
+    def _read_jsonl(cls, input_file):
+        """Reads a tab separated value file."""
+        with open(input_file, "r", encoding="utf-8-sig") as f:
+            lines = []
+            for line in f:
+                lines.append(json.loads(line))
+            return lines
+
+    @classmethod
+    def _read_tsv(cls, input_file, quotechar=None):
+        """Reads a tab separated value file."""
+        with open(input_file, "r", encoding="utf-8-sig") as f:
+            reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
+            lines = []
+            for line in reader:
+                # if sys.version_info[0] == 2:
+                #     line = list(unicode(cell, 'utf-8') for cell in line)
+                lines.append(line)
+            return lines
+
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -242,30 +221,29 @@ class TaskDataset(Dataset):
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(
-                tuple('B'), RegressionValuesType() if self.task_name == 'sts-b' else CategoricalValuesType()
+                tuple('B'), CategoricalValuesType()
             ),
         }
 
     def __init__(
-        self, file_name: str, task_name: str, data_type: str, tokenizer: TokenizerSpec,
+        self, file_name: str, data_type: str, tokenizer: TokenizerSpec,
     ):
         """
         Processes Task datasets
         Args:
             file_name: path to file
-            task_name: task name
             tokenizer: such as AutoTokenizer
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             use_cache: whether to use data cache
         """
         logging.info(f'Processing {file_name}')
         self.tokenizer = tokenizer
-        if task_name not in processors:
-            raise ValueError(f'{task_name} not supported. Choose from {processors.keys()}')
-
-        self.processor = processors[task_name](data_type, task_name)
-        self.label_list = self.processor.get_labels()
-        self.examples = self.processor.get_examples(file_name)
+        file_contents = self._read_jsonl(file_name)
+        self.examples = []
+        for content in file_contents:
+            task_name = content[TASK_KEY]
+            processor = processors[task_name]
+            self.examples.append(processor.create_example(content, data_type))
 
     def __len__(self):
         return len(self.features)
@@ -281,7 +259,7 @@ class TaskDataset(Dataset):
 
 
 class GPTPTuneDataset(TaskDataset):
-    """Multiple Task Dataset in a text-to-text format."""
+    """Multiple Task Dataset used in P-Tuning models."""
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -290,7 +268,6 @@ class GPTPTuneDataset(TaskDataset):
     def __init__(
         self,
         file_name: str,
-        task_name: str,
         data_type: str,
         tokenizer: TokenizerSpec,
         templates: List[int],
@@ -303,14 +280,13 @@ class GPTPTuneDataset(TaskDataset):
         Processes TextToText PTuning Dataset
         Args:
             file_name: path to file
-            task_name: nlp task name
             data_type: train/dev/test
             tokenizer: such as AutoTokenizer
             templates: virtual token template, list of integers
             max_seq_length: max sequence length for encoder
             max_seq_length_decoder: max seq length for decoder
         """
-        super().__init__(file_name, task_name, data_type, tokenizer)
+        super().__init__(file_name, data_type, tokenizer)
         self.max_seq_length = max_seq_length
         self.max_seq_length_decoder = max_seq_length_decoder
         self.templates = templates
@@ -370,7 +346,8 @@ class GPTPTuneDataset(TaskDataset):
         # find ou the max label length
         labels_list = []
         for ex_index, example in enumerate(self.examples):
-            label_ids = self.tokenizer.text_to_ids(self.processor.label2string(example.label)) + [
+            processor = example.processor
+            label_ids = self.tokenizer.text_to_ids(processor.label2string(example.label)) + [
                 self.tokenizer.eos_id
             ]
             max_label_len = max(len(label_ids), max_label_len)
@@ -382,10 +359,11 @@ class GPTPTuneDataset(TaskDataset):
                 self.max_seq_length, max_label_len
             )  # take the max of the two to be conservative
         for ex_index, example in enumerate(self.examples):
+            processor = example.processor
             if ex_index % 10000 == 0:
                 logging.info(f"Writing example {ex_index} of {len(self.examples)}")
             label_ids = labels_list[ex_index]
-            enc_query = self.processor.get_ptune_query(
+            enc_query = processor.get_ptune_query(
                 example.text_a,
                 example.text_b,
                 self.pseudo_token_id,
@@ -396,4 +374,93 @@ class GPTPTuneDataset(TaskDataset):
             input_ids = enc_query + label_ids[:-1]
             labels = [SMALL_NUM for i in range(len(enc_query) - 1)] + label_ids
             features.append([input_ids, labels, enc_query])
+        return features
+
+class GPTPTuneInferenceDataset(TaskDataset):
+    """Multiple Task Dataset used in P-Tuning inference."""
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return
+
+    def __init__(
+        self,
+        queries: List[Dict],
+        data_type: str,
+        tokenizer: TokenizerSpec,
+        templates: List[int],
+        pseudo_token_id: int,
+        pad_id: int,
+        max_seq_length: int,
+        max_seq_length_decoder: int = None,
+    ):
+        """
+        Processes TextToText PTuning Dataset
+        Args:
+            queries: query content
+            data_type: train/dev/test
+            tokenizer: such as AutoTokenizer
+            templates: virtual token template, list of integers
+            max_seq_length: max sequence length for encoder
+            max_seq_length_decoder: max seq length for decoder
+        """
+        logging.info(f'Processing...')
+        self.tokenizer = tokenizer
+        file_contents = queries
+        self.examples = []
+        for content in file_contents:
+            task_name = content[TASK_KEY]
+            processor = processors[task_name]
+            self.examples.append(processor.create_example(content, data_type))
+
+        self.max_seq_length = max_seq_length
+        self.max_seq_length_decoder = max_seq_length_decoder
+        self.templates = templates
+        self.pseudo_token_id = pseudo_token_id
+        self.pad_id = pad_id
+        self.features = self.convert_examples_to_features()
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx):
+        query = self.features[idx]
+        return {'query_enc': query}
+
+    def collate_fn(self, batch):
+        enc_query = [item['query_enc'] for item in batch]
+
+        label_start = [len(item) for item in enc_query]
+        max_query_length = max(label_start)
+
+        enc_query = [item + [self.pad_id] * (max_query_length - len(item)) for item in enc_query]
+
+        enc_query = torch.LongTensor(enc_query)
+        label_start = torch.LongTensor(label_start)
+
+        label_position = torch.cat([label_start.unsqueeze(1), label_start.unsqueeze(1)], 1)
+        return {
+            'enc_query': enc_query,
+            'label_position': label_position,
+        }
+
+    def convert_examples_to_features(self):
+        """
+        Converts examples into Text-to-Text batches to be used with a model like T5.
+        Inputs are prefixed with a text prompt that indicates the task to perform.
+        """
+        features = []
+        for ex_index, example in enumerate(self.examples):
+            processor = example.processor
+            if ex_index % 10000 == 0:
+                logging.info(f"Writing example {ex_index} of {len(self.examples)}")
+            enc_query = processor.get_ptune_query(
+                example.text_a,
+                example.text_b,
+                self.pseudo_token_id,
+                self.max_seq_length - self.max_seq_length_decoder + 1,
+                self.templates,
+                self.tokenizer,
+            )
+            features.append(enc_query)
         return features

@@ -39,7 +39,7 @@ exp_manager:
 model:
   tensor_model_parallel_size: 1
   seed: 1234
-  nemo_path: ptune_gpt_model.nemo # filename to save the model and associated artifacts to .nemo file
+  nemo_path: null # filename to save the model and associated artifacts to .nemo file
   use_lm_finetune: False # whether fine tune the language model
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
   max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
@@ -54,31 +54,25 @@ model:
 
   data:
     train_ds:
-      task_name: 'mnli'
       file_path: ???
       batch_size: 32
       shuffle: True
       num_workers: 8
       pin_memory: True
-      max_seq_length: 512
 
     validation_ds:
-      task_name: 'mnli'
       file_path: ???
       batch_size: 32
       shuffle: False
       num_workers: 8
       pin_memory: True
-      max_seq_length: 512
 
     test_ds:
-      task_name: 'mnli'
       file_path: ???
       batch_size: 32
       shuffle: False
       num_workers: 8
       pin_memory: True
-      max_seq_length: 512
 
   optim:
     name: adam
