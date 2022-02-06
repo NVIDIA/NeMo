@@ -116,14 +116,14 @@ class MegatronGPTPTuneModel(NLPModel):
         queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
         raw_embeds = self.embeddings(queries_for_embedding).clone()
 
-        blocked_indices = (
-            (queries == self.pseudo_token_id).nonzero().reshape((bz, self.spell_length, 2))[:, :, 1]
-        )  # bz
+        blocked_indices = (queries == self.pseudo_token_id)
         enc_taskname = self.embeddings(enc_taskname)
         replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
         for bidx in range(bz):
-            for i in range(self.prompt_encoder.spell_length):
-                raw_embeds[bidx, blocked_indices[bidx, i], :] = replace_embeds[bidx, i, :]
+            position = blocked_indices[bidx].nonzero()[:, 0]
+            for i in range(len(position)):
+                raw_embeds[bidx, position[i], :] = replace_embeds[bidx, i, :]
+        # self[i][index[i][j][k]][k] = src[i][j][k]
         return raw_embeds
 
     def get_loss(self, batch):
