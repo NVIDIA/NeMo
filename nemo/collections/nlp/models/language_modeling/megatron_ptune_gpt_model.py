@@ -316,7 +316,7 @@ class MegatronGPTPTuneModel(NLPModel):
             pseudo_token_id=self.pseudo_token_id,
             pad_id=self.pad_token_id,
             max_seq_length=self.model.cfg.encoder_seq_length,
-            max_seq_length_decoder=self.cfg.max_decode_length,
+            max_seq_length_decoder=self.cfg.get('max_decode_length', None),
         )
         # update the num_tokens_to_gen from dataset
         self.num_tokens_to_gen = self._test_ds.max_seq_length_decoder
@@ -331,7 +331,7 @@ class MegatronGPTPTuneModel(NLPModel):
             pseudo_token_id=self.pseudo_token_id,
             pad_id=self.pad_token_id,
             max_seq_length=self.model.cfg.encoder_seq_length,
-            max_seq_length_decoder=self.cfg.max_decode_length,
+            max_seq_length_decoder=self.cfg.get('max_decode_length', None),
         )
         # update the num_tokens_to_gen from dataset
         self.num_tokens_to_gen = self._train_ds.max_seq_length_decoder
@@ -344,7 +344,7 @@ class MegatronGPTPTuneModel(NLPModel):
             pseudo_token_id=self.pseudo_token_id,
             pad_id=self.pad_token_id,
             max_seq_length=self.model.cfg.encoder_seq_length,
-            max_seq_length_decoder=self.cfg.max_decode_length,
+            max_seq_length_decoder=self.cfg.get('max_decode_length', None),
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')

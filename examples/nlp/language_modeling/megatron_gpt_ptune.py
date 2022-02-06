@@ -27,6 +27,9 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
+import pathlib
+import torch
+import os
 
 
 @hydra_runner(config_path="conf", config_name="megatron_ptune_gpt")
@@ -73,7 +76,41 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
     model = MegatronGPTPTuneModel(cfg.model, trainer)
     trainer.fit(model)
-    trainer.test(model)
+
+    if cfg.model.data.test_ds.file_path:
+        logging.info("===========================================================================================")
+        logging.info("Starting the testing of the trained model on test set...")
+        trainer.test(model)
+        logging.info("Testing finished!")
+        logging.info("===========================================================================================")
+        # extract the path of the best checkpoint from the training, you may update it to any checkpoint
+        checkpoint_path = trainer.checkpoint_callback.best_model_path
+        tensor_parallel_size = cfg.model.tensor_model_parallel_size
+        pathobj = pathlib.Path(checkpoint_path)
+        checkpoint_folder = str(pathobj.parent)
+        checkpoint_name = str(pathobj.name)
+
+        rank = trainer.accelerator.training_type_plugin.local_rank
+        if tensor_parallel_size > 1:
+            # inject model parallel rank
+            checkpoint_path = os.path.join(checkpoint_folder, f'mp_rank_{rank:02d}', checkpoint_name)
+        else:
+            checkpoint_path = os.path.join(checkpoint_folder, checkpoint_name)
+
+        # Load the checkpoint
+        best_eval_model = MegatronGPTPTuneModel.load_from_checkpoint(
+            checkpoint_path=checkpoint_path, strict=False, trainer=trainer
+        )
+        logging.info(f'Best checkpoint path: {checkpoint_path}')
+        logging.info("Running Test with best EVAL checkpoint!")
+        # setup the test dataset
+        #  best_eval_model.setup_test_data(test_data_config=cfg.model.data.test_ds)
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        trainer.test(model=best_eval_model, ckpt_path=None, verbose=False)
+        logging.info("Beset EVAL Testing finished!")
+        logging.info("===========================================================================================")
+
 
 
 if __name__ == '__main__':
