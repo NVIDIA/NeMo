@@ -109,7 +109,7 @@ class MegatronGPTPTuneModel(NLPModel):
             ]
         )
 
-    def embed_input(self, queries):
+    def embed_input(self, queries, enc_taskname):
         bz = queries.shape[0]
         queries_for_embedding = queries.clone()
 
@@ -119,14 +119,16 @@ class MegatronGPTPTuneModel(NLPModel):
         blocked_indices = (
             (queries == self.pseudo_token_id).nonzero().reshape((bz, self.spell_length, 2))[:, :, 1]
         )  # bz
-        replace_embeds = self.prompt_encoder()
+        enc_taskname = self.embeddings(enc_taskname)
+        replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
         for bidx in range(bz):
             for i in range(self.prompt_encoder.spell_length):
-                raw_embeds[bidx, blocked_indices[bidx, i], :] = replace_embeds[i, :]
+                raw_embeds[bidx, blocked_indices[bidx, i], :] = replace_embeds[bidx, i, :]
         return raw_embeds
 
     def get_loss(self, batch):
         enc_input = batch['enc_input']
+        enc_taskname = batch['enc_taskname']
         labels = batch['labels']
         loss_mask = batch['loss_mask']
         enc_query = batch['enc_query']
@@ -134,7 +136,7 @@ class MegatronGPTPTuneModel(NLPModel):
 
         input_attn_mask = input_attn_mask.unsqueeze(1) < 0.5
 
-        input_embeds = self.embed_input(enc_input)
+        input_embeds = self.embed_input(enc_input, enc_taskname)
 
         encoder_position_ids = t5_position_ids(enc_input)
 
@@ -191,11 +193,15 @@ class MegatronGPTPTuneModel(NLPModel):
     def inference_step(self, batch, batch_ix):
         loss = self.get_loss(batch)
         enc_query = batch['enc_query']
+        enc_taskname = batch['enc_taskname']
         labels = batch['labels']
         label_position = batch['label_position']
         # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
         predicted_token_ids, log_probs = self.decode(
-            enc_query=enc_query, label_position=label_position, num_tokens_to_generate=self.num_tokens_to_gen
+            enc_query=enc_query,
+            enc_taskname=enc_taskname,
+            label_position=label_position,
+            num_tokens_to_generate=self.num_tokens_to_gen,
         )
 
         return {
@@ -205,7 +211,7 @@ class MegatronGPTPTuneModel(NLPModel):
             'label_position': label_position,
         }
 
-    def decode(self, enc_query, label_position, num_tokens_to_generate):
+    def decode(self, enc_query, enc_taskname, label_position, num_tokens_to_generate):
         with torch.no_grad():
             predicted_tokens_dec = enc_query
 
@@ -219,7 +225,7 @@ class MegatronGPTPTuneModel(NLPModel):
 
                 attn_mask = attn_mask.unsqueeze(1)
 
-                input_embeds = self.embed_input(predicted_tokens_dec)
+                input_embeds = self.embed_input(predicted_tokens_dec, enc_taskname)
 
                 encoder_position_ids = t5_position_ids(predicted_tokens_dec)
                 position_embeddings = self.model.model.language_model.embedding.position_embeddings(
@@ -430,9 +436,13 @@ class MegatronGPTPTuneModel(NLPModel):
             for i, batch in enumerate(infer_datalayer):
                 enc_query = batch['enc_query'].to(self.device)
                 label_position = batch['label_position'].to(self.device)
+                enc_taskname = batch['enc_taskname'].to(self.device)
                 # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
                 predicted_token_ids, _ = self.decode(
-                    enc_query=enc_query, label_position=label_position, num_tokens_to_generate=self.num_tokens_to_gen
+                    enc_query=enc_query,
+                    enc_taskname=enc_taskname,
+                    label_position=label_position,
+                    num_tokens_to_generate=self.num_tokens_to_gen,
                 )
                 preds = predicted_token_ids.cpu().numpy().tolist()
                 label_positions = label_position.cpu().numpy().tolist()

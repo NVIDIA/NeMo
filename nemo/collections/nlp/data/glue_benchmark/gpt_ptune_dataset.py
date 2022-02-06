@@ -37,6 +37,7 @@ __all__ = ['GPTPTuneDataset', 'register_taskdata_processor', 'GPTPTuneInferenceD
 
 SMALL_NUM = -100
 TASK_KEY = 'prompt_tag'
+LABEL_KEY = 'label'
 
 
 class DataProcessor(object):
@@ -72,7 +73,11 @@ class InputExample(object):
 
     @property
     def label(self):
-        return self.content.get('label', None)
+        return self.content.get(LABEL_KEY, None)
+
+    @property
+    def taskname(self):
+        return ' ' + self.content.get(TASK_KEY, None)
 
     def __repr__(self):
         return f"InputExample(content='{self.content}')"
@@ -255,26 +260,30 @@ class GPTPTuneDataset(TaskDataset):
         return len(self.examples)
 
     def __getitem__(self, idx):
-        input_ids, labels, query = self.features[idx]
-        return {'input_enc': input_ids, 'labels': labels, 'query_enc': query}
+        input_ids, labels, query, taskname = self.features[idx]
+        return {'input_enc': input_ids, 'labels': labels, 'query_enc': query, 'taskname_enc': taskname}
 
     def collate_fn(self, batch):
         enc_input = [item['input_enc'] for item in batch]
         labels = [item['labels'] for item in batch]
         enc_query = [item['query_enc'] for item in batch]
+        enc_taskname = [item['taskname_enc'] for item in batch]
 
         max_input_length = max([len(item) for item in enc_input])
         max_label_length = max([len(item) for item in labels])
         max_query_length = max([len(item) for item in enc_query])
+        max_taskname_length = max([len(item) for item in enc_taskname])
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         enc_input = [item + [self.pad_id] * (max_input_length - len(item)) for item in enc_input]
         labels = [item + [self.pad_id] * (max_label_length - len(item)) for item in labels]
         enc_query = [item + [self.pad_id] * (max_query_length - len(item)) for item in enc_query]
+        enc_taskname = [item + [self.pad_id] * (max_taskname_length - len(item)) for item in enc_taskname]
 
         enc_query = torch.LongTensor(enc_query)
         enc_input = torch.LongTensor(enc_input)
         labels = torch.LongTensor(labels)
+        enc_taskname = torch.LongTensor(enc_taskname)
         loss_mask = torch.LongTensor(loss_mask)
         label_position = loss_mask.sum(axis=1)
         label_start = (labels == SMALL_NUM).sum(axis=1)
@@ -291,11 +300,12 @@ class GPTPTuneDataset(TaskDataset):
             'enc_query': enc_query,
             'input_attn_mask': input_attn_mask,
             'label_position': label_position,
+            'enc_taskname': enc_taskname,
         }
 
     def convert_examples_to_features(self):
         """
-        Converts examples into Text-to-Text batches to be used with a model like T5.
+        Converts examples into Text-to-Text batches to be used in GPT
         Inputs are prefixed with a text prompt that indicates the task to perform.
         """
         features = []
@@ -314,6 +324,8 @@ class GPTPTuneDataset(TaskDataset):
                 self.max_seq_length, max_label_len
             )  # take the max of the two to be conservative
         for ex_index, example in enumerate(self.examples):
+            taskname = example.taskname
+            taskname_ids = self.tokenizer.text_to_ids(taskname)
             processor = example.processor
             if ex_index % 10000 == 0:
                 logging.info(f"Writing example {ex_index} of {len(self.examples)}")
@@ -327,12 +339,12 @@ class GPTPTuneDataset(TaskDataset):
             )
             input_ids = enc_query + label_ids[:-1]
             labels = [SMALL_NUM for i in range(len(enc_query) - 1)] + label_ids
-            features.append([input_ids, labels, enc_query])
+            features.append([input_ids, labels, enc_query, taskname_ids])
         return features
 
 
 class GPTPTuneInferenceDataset(TaskDataset):
-    """Multiple Task Dataset used in P-Tuning inference."""
+    """Multiple Task Dataset used in P-Tuning inference. Assumes no label in the data"""
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -379,24 +391,29 @@ class GPTPTuneInferenceDataset(TaskDataset):
         return len(self.examples)
 
     def __getitem__(self, idx):
-        query = self.features[idx]
-        return {'query_enc': query}
+        query, taskname = self.features[idx]
+        return {'query_enc': query, 'taskname_enc': taskname}
 
     def collate_fn(self, batch):
         enc_query = [item['query_enc'] for item in batch]
+        enc_taskname = [item['taskname_enc'] for item in batch]
 
         label_start = [len(item) - 1 for item in enc_query]
         max_query_length = max(label_start)
+        max_taskname_length = max([len(item) for item in enc_taskname])
 
         enc_query = [item + [self.pad_id] * (max_query_length - len(item)) for item in enc_query]
+        enc_taskname = [item + [self.pad_id] * (max_taskname_length - len(item)) for item in enc_taskname]
 
         enc_query = torch.LongTensor(enc_query)
         label_start = torch.LongTensor(label_start)
+        enc_taskname = torch.LongTensor(enc_taskname)
 
         label_position = torch.cat([label_start.unsqueeze(1), label_start.unsqueeze(1)], 1)
         return {
             'enc_query': enc_query,
             'label_position': label_position,
+            'enc_taskname': enc_taskname,
         }
 
     def convert_examples_to_features(self):
@@ -406,6 +423,8 @@ class GPTPTuneInferenceDataset(TaskDataset):
         """
         features = []
         for ex_index, example in enumerate(self.examples):
+            taskname = example.taskname
+            taskname_ids = self.tokenizer.text_to_ids(taskname)
             processor = example.processor
             if ex_index % 10000 == 0:
                 logging.info(f"Writing example {ex_index} of {len(self.examples)}")
@@ -416,5 +435,5 @@ class GPTPTuneInferenceDataset(TaskDataset):
                 self.templates,
                 self.tokenizer,
             )
-            features.append(enc_query)
+            features.append([enc_query, taskname_ids])
         return features
