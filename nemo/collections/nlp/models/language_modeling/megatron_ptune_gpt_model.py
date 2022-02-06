@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import List, Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -451,7 +451,9 @@ class MegatronGPTPTuneModel(NLPModel):
             logging.set_verbosity(logging_level)
         return all_preds
 
-    def _setup_infer_dataloader(self, cfg: Dict, queries: List[str], decode_token_len: int) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(
+        self, cfg: Dict, queries: List[str], decode_token_len: int
+    ) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a infer data loader.
 
@@ -483,4 +485,3 @@ class MegatronGPTPTuneModel(NLPModel):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=False,
         )
-

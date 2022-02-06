@@ -33,11 +33,10 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 
-__all__ = ['GPTPTuneDataset','register_taskdata_processor', 'GPTPTuneInferenceDataset']
+__all__ = ['GPTPTuneDataset', 'register_taskdata_processor', 'GPTPTuneInferenceDataset']
 
 SMALL_NUM = -100
 TASK_KEY = 'prompt_tag'
-
 
 
 class DataProcessor(object):
@@ -46,50 +45,37 @@ class DataProcessor(object):
     def __init__(self):
         pass
 
-    def create_example(self, object, set_type):
-        """Creates example for the training and dev sets."""
+    def create_example(self, content, set_type):
+        """Creates examples for the training and dev sets."""
+        return InputExample(content=content, processor=self)
+
+    def label2string(self, label):
         raise NotImplementedError()
 
-    def get_task_type(self):
-        return self.task_type
-
     def get_ptune_query(
-        self,
-        text_a: str,
-        text_b: str,
-        prompt_token_id: int,
-        max_seq_len: int,
-        templates: List[int],
-        tokenizer: TokenizerSpec,
+        self, content: Dict, prompt_token_id: int, max_seq_len: int, templates: List[int], tokenizer: TokenizerSpec,
     ):
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class InputExample(object):
-    """A single training/test example for simple sequence classification.
+    """A single training/test example, The default key for label is `label`
     Args:
-        guid: Unique id for the example.
-        text_a: The untokenized text of the first sequence.
-        For single sequence tasks, only this sequence must be specified.
-        text_b: The untokenized text of the second
-        sequence. Only must be specified for sequence pair tasks.
+        content: data content in Python Dict
         processor: the data processor for a particular task.
-        label:The label of the example. This should be
-        specified for train and dev examples, but not for test examples.
     """
 
-    def __init__(self, guid: int, text_a: str, text_b: str = None, processor: DataProcessor = None, label: str = None):
+    def __init__(self, content: Dict, processor: DataProcessor = None):
         """Constructs a InputExample."""
-        self.guid = guid
-        self.text_a = text_a
-        self.text_b = text_b
-        self.label = label
+        self.content = content
         self.processor = processor
 
+    @property
+    def label(self):
+        return self.content.get('label', None)
+
     def __repr__(self):
-        return (
-            f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"
-        )
+        return f"InputExample(content='{self.content}')"
 
 
 class BoolQProcessor(DataProcessor):
@@ -98,23 +84,11 @@ class BoolQProcessor(DataProcessor):
     def __init__(self):
         super().__init__()
 
-    def create_example(self, line, set_type):
-        """Creates examples for the training and dev sets."""
-        guid = line[TASK_KEY]
-        text_a = line['sentence']
-        text_b = line['question']
-        label = line.get('label', None)
-        return InputExample(guid=guid, text_a=text_a, text_b=text_b, processor=self, label=label)
-
     def get_ptune_query(
-        self,
-        text_a: str,
-        text_b: str,
-        prompt_token_id: int,
-        max_seq_len: int,
-        templates: List[int],
-        tokenizer: TokenizerSpec,
+        self, content: Dict, prompt_token_id: int, max_seq_len: int, templates: List[int], tokenizer: TokenizerSpec,
     ):
+        text_a = content['sentence']
+        text_b = content['question']
         sentence_a = f" Paragraph: {text_a}"
         sentence_b = f" Question: {text_b}?"
         a_input_token_ids = tokenizer.text_to_ids(sentence_a)
@@ -144,25 +118,12 @@ class SentimentProcessor(DataProcessor):
     def __init__(self):
         super().__init__()
 
-    def create_example(self, line, set_type):
-        """Creates examples for the training and dev sets."""
-        guid = line[TASK_KEY]
-        text_a = line['sentence']
-        text_b = None
-        label = line.get('label', None)
-        return InputExample(guid=guid, text_a=text_a, text_b=text_b, processor=self, label=label)
-
     def get_ptune_query(
-        self,
-        text_a: str,
-        text_b: str,
-        prompt_token_id: int,
-        max_seq_len: int,
-        templates: List[int],
-        tokenizer: TokenizerSpec,
+        self, content: Dict, prompt_token_id: int, max_seq_len: int, templates: List[int], tokenizer: TokenizerSpec,
     ):
+        text_a = content['sentence']
         sentence_a = f" Sentence: {text_a}"
-        sentence_b = f" Sentiment: {text_b}?"
+        sentence_b = f" Sentiment:"
         a_input_token_ids = tokenizer.text_to_ids(sentence_a)
         b_input_token_ids = tokenizer.text_to_ids(sentence_b)
         cut = 0
@@ -189,7 +150,6 @@ def register_taskdata_processor(taskname: str, processor: DataProcessor):
 
 
 class TaskDataset(Dataset):
-
     @classmethod
     def _read_jsonl(cls, input_file):
         """Reads a tab separated value file."""
@@ -211,7 +171,6 @@ class TaskDataset(Dataset):
                 lines.append(line)
             return lines
 
-
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -220,9 +179,7 @@ class TaskDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            "labels": NeuralType(
-                tuple('B'), CategoricalValuesType()
-            ),
+            "labels": NeuralType(tuple('B'), CategoricalValuesType()),
         }
 
     def __init__(
@@ -347,9 +304,7 @@ class GPTPTuneDataset(TaskDataset):
         labels_list = []
         for ex_index, example in enumerate(self.examples):
             processor = example.processor
-            label_ids = self.tokenizer.text_to_ids(processor.label2string(example.label)) + [
-                self.tokenizer.eos_id
-            ]
+            label_ids = self.tokenizer.text_to_ids(processor.label2string(example.label)) + [self.tokenizer.eos_id]
             max_label_len = max(len(label_ids), max_label_len)
             labels_list.append(label_ids)
         if self.max_seq_length_decoder is None:
@@ -364,8 +319,7 @@ class GPTPTuneDataset(TaskDataset):
                 logging.info(f"Writing example {ex_index} of {len(self.examples)}")
             label_ids = labels_list[ex_index]
             enc_query = processor.get_ptune_query(
-                example.text_a,
-                example.text_b,
+                example.content,
                 self.pseudo_token_id,
                 self.max_seq_length - self.max_seq_length_decoder + 1,
                 self.templates,
@@ -375,6 +329,7 @@ class GPTPTuneDataset(TaskDataset):
             labels = [SMALL_NUM for i in range(len(enc_query) - 1)] + label_ids
             features.append([input_ids, labels, enc_query])
         return features
+
 
 class GPTPTuneInferenceDataset(TaskDataset):
     """Multiple Task Dataset used in P-Tuning inference."""
@@ -455,8 +410,7 @@ class GPTPTuneInferenceDataset(TaskDataset):
             if ex_index % 10000 == 0:
                 logging.info(f"Writing example {ex_index} of {len(self.examples)}")
             enc_query = processor.get_ptune_query(
-                example.text_a,
-                example.text_b,
+                example.content,
                 self.pseudo_token_id,
                 self.max_seq_length - self.max_seq_length_decoder + 1,
                 self.templates,
