@@ -89,9 +89,7 @@ from nemo.utils import logging
 can_gpu = torch.cuda.is_available()
 
 
-def get_wer_feat(
-    mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch_size
-):
+def get_wer_feat(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch_size):
     hyps = []
     refs = []
     audio_filepaths = []
@@ -172,9 +170,14 @@ def main():
     parser.add_argument('--device', default=None, type=str, required=False)
 
     # Merge algorithm for transducers
-    parser.add_argument('--merge_algo', default='middle', type=str, required=False,
-                        choices=['middle', 'lcs'],
-                        help='Choice of algorithm to apply during inference.')
+    parser.add_argument(
+        '--merge_algo',
+        default='middle',
+        type=str,
+        required=False,
+        choices=['middle', 'lcs'],
+        help='Choice of algorithm to apply during inference.',
+    )
 
     # LCS Merge Algorithm
     parser.add_argument(
