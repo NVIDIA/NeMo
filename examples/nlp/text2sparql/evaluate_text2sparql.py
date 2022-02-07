@@ -55,7 +55,7 @@ def main(cfg: DictConfig) -> None:
     nmt_model.setup_test_data(cfg.model.test_ds)
     results = trainer.test(nmt_model)
 
-    with open(cfg.model.test_ds.filepath, "r") as f:
+    with open(cfg.model.test_ds.filepath, "r", encoding='utf-8') as f:
         lines = f.readlines()
 
     lines[0] = lines[0].strip() + f"\tpredictions\n"
@@ -63,7 +63,7 @@ def main(cfg: DictConfig) -> None:
         lines[i + 1] = lines[i + 1].strip() + f"\t{res}\n"
 
     savepath = os.path.join(cfg.exp_manager.exp_dir, os.path.basename(cfg.model.test_ds.filepath))
-    with open(savepath, "w") as f:
+    with open(savepath, "w", encoding='utf-8') as f:
         f.writelines(lines)
         logging.info(f"Predictions saved to {savepath}")
 

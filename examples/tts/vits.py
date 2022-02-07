@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 
 import pytorch_lightning as pl
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
-
 from torch.cuda.amp import GradScaler
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
@@ -28,14 +27,7 @@ def main(cfg):
     plugins = []
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = GradScaler(enabled=True)
-        # if cfg.trainer.precision == 16:
-        #     scaler = GradScaler(
-        #         init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-        #         growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-        #     )
-
         plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-
 
     trainer = pl.Trainer(plugins=plugins, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

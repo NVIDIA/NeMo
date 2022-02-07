@@ -182,7 +182,7 @@ class Exportable(ABC):
                 jitted_model = None
                 if try_script:
                     try:
-                        jitted_model = torch.jit.script(module)
+                        jitted_model = torch.jit.script(self)
                     except Exception as e:
                         logging.error(f"jit.script() failed!\{e}")
 
@@ -192,7 +192,6 @@ class Exportable(ABC):
                             self,
                             {"forward": tuple(input_list) + tuple(input_dict.values())},
                             strict=False,
-                            optimize=True,
                             check_trace=check_trace,
                             check_tolerance=check_tolerance,
                         )

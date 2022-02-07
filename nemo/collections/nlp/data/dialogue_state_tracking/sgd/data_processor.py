@@ -654,7 +654,7 @@ class SGDDataProcessor(object):
         """
         dialogs = []
         for dialog_json_filepath in sorted(dialog_json_filepaths):
-            with open(dialog_json_filepath, 'r') as f:
+            with open(dialog_json_filepath, 'r', encoding='utf-8') as f:
                 dialogs.extend(json.load(f))
                 f.close()
         return dialogs

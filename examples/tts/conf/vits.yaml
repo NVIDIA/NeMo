@@ -1,6 +1,8 @@
-# This config contains the default values for training Mixer-TTS model on LJSpeech dataset.
+# This config contains the default values for training VITS model on LJSpeech dataset.
 # If you want to train model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
+
+# TODO: remove unnecessary arguments, refactoring
 
 name: VITS
 
@@ -51,7 +53,6 @@ model:
   highfreq: ${highfreq}
   window: ${window}
 
-
   splice_length: 64
   lr: 2e-4
   n_speakers: 1
@@ -68,7 +69,6 @@ model:
   warmup_epochs: 0
   c_mel: 45
   c_kl: 1.
-
   inter_channels: 192
   hidden_channels: 192
   filter_channels: ${filter_channels}
@@ -162,17 +162,15 @@ model:
       num_workers: 1
       pin_memory: false
 
-
   preprocessor:
-    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures #change to STFT
-    
+    # TODO: change to STFT
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     nfilt: ${model.n_mel_channels}
     highfreq: ${model.highfreq}
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
     lowfreq: ${model.lowfreq}
-    
     n_fft: ${model.n_fft}
     n_window_size: ${model.n_window_size}
     n_window_stride: ${model.n_window_stride}
@@ -187,52 +185,8 @@ model:
     stft_conv: false
     nb_augmentation_prob : 0
     mag_power: 1.0
-
     exact_pad: true
     use_grads: false
-
-  input_fft:
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerEncoder
-    n_layer: 6
-    n_head: 1
-    d_model: ${model.symbols_embedding_dim}
-    d_head: 64
-    d_inner: 1536
-    kernel_size: 3
-    dropout: 0.1
-    dropatt: 0.1
-    dropemb: 0.0
-    n_embed: 148  # NOTE Should match # of tokens in `symbol_set`
-    d_embed: ${model.symbols_embedding_dim}
-    padding_idx: 0
-
-  output_fft:
-    _target_: nemo.collections.tts.modules.transformer.FFTransformerDecoder
-    n_layer: 6
-    n_head: 1
-    d_model: ${model.symbols_embedding_dim}
-    d_head: 64
-    d_inner: 1536
-    kernel_size: 3
-    dropout: 0.1
-    dropatt: 0.1
-    dropemb: 0.0
-
-  duration_predictor:
-    _target_: nemo.collections.tts.modules.vits_modules.StochasticDurationPredictor
-    in_channels: ${model.symbols_embedding_dim} # input_size: ${model.symbols_embedding_dim}
-    kernel_size: 3
-    filter_channels: ${filter_length} # filter_size: 256
-    p_dropout: 0.1 # dropout: 0.1
-    # n_layers: 6
-
-  pitch_predictor:
-    _target_: nemo.collections.tts.modules.fastpitch.TemporalPredictor
-    input_size: ${model.symbols_embedding_dim}
-    kernel_size: 3
-    filter_size: ${filter_length}
-    dropout: 0.1
-    n_layers: ${model.n_layers}
 
   generator:
     _target_: nemo.collections.tts.modules.vits_modules.Generator

@@ -1,4 +1,39 @@
-import numpy as np
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# MIT License
+#
+# Copyright (c) 2021 Jaehyeon Kim
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import math
 
 import numpy as np
@@ -6,13 +41,24 @@ import torch
 from torch import nn
 from torch.nn import Conv1d, ConvTranspose1d, Conv2d
 from torch.nn import functional as F
+from librosa.filters import mel as librosa_mel_fn
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
 
 from nemo.collections.tts.modules.monotonic_align import maximum_path
-from nemo.collections.tts.modules.vits_mel_processing import librosa_mel_fn, spectral_normalize_torch
+
+# TODO: need to do LARGE refactoring
 
 
 LRELU_SLOPE = 0.1
+
+
+def dynamic_range_compression_torch(x, C=1, clip_val=1e-5):
+    return torch.log(torch.clamp(x, min=clip_val) * C)
+
+
+def spectral_normalize_torch(magnitudes):
+    output = dynamic_range_compression_torch(magnitudes)
+    return output
 
 
 class LayerNorm(nn.Module):
@@ -182,7 +228,7 @@ class WN(torch.nn.Module):
         for l in self.res_skip_layers:
             torch.nn.utils.remove_weight_norm(l)
 
-
+# TODO: reuse from hifigan if it is possible?
 class ResBlock1(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlock1, self).__init__()
@@ -227,7 +273,7 @@ class ResBlock1(torch.nn.Module):
         for l in self.convs2:
             remove_weight_norm(l)
 
-
+# TODO: reuse from hifigan if it is possible?
 class ResBlock2(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3)):
         super(ResBlock2, self).__init__()
@@ -528,6 +574,7 @@ class TextEncoder(nn.Module):
         self.kernel_size = kernel_size
         self.p_dropout = p_dropout
 
+        # TODO: add padding idx in __init__, specify padding idx in self.emb
         self.emb = nn.Embedding(n_vocab, hidden_channels)
         nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
 
@@ -616,7 +663,7 @@ class PosteriorEncoder(nn.Module):
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
 
-
+# TODO: reuse from hifigan if it is possible?
 class Generator(torch.nn.Module):
     def __init__(self, initial_channel, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=0):
         super(Generator, self).__init__()
@@ -671,7 +718,7 @@ class Generator(torch.nn.Module):
         for l in self.resblocks:
             l.remove_weight_norm()
 
-
+# TODO: reuse from hifigan if it is possible?
 class DiscriminatorP(torch.nn.Module):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
         super(DiscriminatorP, self).__init__()
@@ -708,7 +755,7 @@ class DiscriminatorP(torch.nn.Module):
 
         return x, fmap
 
-
+# TODO: reuse from hifigan if it is possible?
 class DiscriminatorS(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(DiscriminatorS, self).__init__()
@@ -736,7 +783,7 @@ class DiscriminatorS(torch.nn.Module):
 
         return x, fmap
 
-
+# TODO: reuse from hifigan if it is possible?
 class MultiPeriodDiscriminator(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(MultiPeriodDiscriminator, self).__init__()
@@ -897,6 +944,7 @@ class SynthesizerTrn(nn.Module):
         o = self.dec((z * y_mask)[:,:,:max_len], g=g)
         return o, attn, y_mask, (z, z_p, m_p, logs_p)
 
+    # TODO: do we really need it?
     def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
         assert self.n_speakers > 0, "n_speakers have to be larger than 0."
         g_src = self.emb_g(sid_src).unsqueeze(-1)
@@ -968,12 +1016,6 @@ def init_weights(m, mean=0.0, std=0.01):
 
 def get_padding(kernel_size, dilation=1):
     return int((kernel_size*dilation - dilation)/2)
-
-
-def convert_pad_shape(pad_shape):
-    l = pad_shape[::-1]
-    pad_shape = [item for sublist in l for item in sublist]
-    return pad_shape
 
 
 def intersperse(lst, item):
@@ -1073,7 +1115,7 @@ def shift_1d(x):
     x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [1, 0]]))[:, :, :-1]
     return x
 
-
+# TODO: reuse from helpers get_mask_from_lengths?
 def sequence_mask(length, max_length=None):
     if max_length is None:
         max_length = length.max()
@@ -1088,7 +1130,7 @@ def generate_path(duration, mask):
     """
     b, _, t_y, t_x = mask.shape
     cum_duration = torch.cumsum(duration, -1)
-    
+
     cum_duration_flat = cum_duration.view(b * t_x)
     path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
     path = path.view(b, t_x, t_y)
@@ -1198,7 +1240,7 @@ class Decoder(nn.Module):
             y = self.encdec_attn_layers[i](x, h, encdec_attn_mask)
             y = self.drop(y)
             x = self.norm_layers_1[i](x + y)
-            
+
             y = self.ffn_layers[i](x, x_mask)
             y = self.drop(y)
             x = self.norm_layers_2[i](x + y)
@@ -1242,12 +1284,12 @@ class MultiHeadAttention(nn.Module):
             with torch.no_grad():
                 self.conv_k.weight.copy_(self.conv_q.weight)
                 self.conv_k.bias.copy_(self.conv_q.bias)
-            
+
     def forward(self, x, c, attn_mask=None):
         q = self.conv_q(x)
         k = self.conv_k(c)
         v = self.conv_v(c)
-        
+
         x, self.attn = self.attention(q, k, v, mask=attn_mask)
 
         x = self.conv_o(x)
@@ -1390,7 +1432,7 @@ class FFN(nn.Module):
         x = self.drop(x)
         x = self.conv_2(self.padding(x * x_mask))
         return x * x_mask
-    
+
     def _causal_padding(self, x):
         if self.kernel_size == 1:
             return x
@@ -1419,12 +1461,12 @@ DEFAULT_MIN_BIN_HEIGHT = 1e-3
 DEFAULT_MIN_DERIVATIVE = 1e-3
 
 
-def piecewise_rational_quadratic_transform(inputs, 
+def piecewise_rational_quadratic_transform(inputs,
                                            unnormalized_widths,
                                            unnormalized_heights,
                                            unnormalized_derivatives,
                                            inverse=False,
-                                           tails=None, 
+                                           tails=None,
                                            tail_bound=1.,
                                            min_bin_width=DEFAULT_MIN_BIN_WIDTH,
                                            min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
