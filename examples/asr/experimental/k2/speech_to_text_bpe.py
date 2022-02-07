@@ -63,7 +63,7 @@ from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
-def main(cfg):
+def main(cfg: EncDecK2SeqModelConfig):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
     print(OmegaConf.to_yaml(cfg))
     trainer = pl.Trainer(**cfg.trainer)

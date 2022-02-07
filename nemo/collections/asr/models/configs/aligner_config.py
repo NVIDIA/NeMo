@@ -14,6 +14,8 @@
 
 from dataclasses import dataclass
 
+from nemo.collections.asr.parts.k2.classes import GraphModuleConfig
+
 
 @dataclass
 class AlignerWrapperModelConfig:
@@ -23,3 +25,8 @@ class AlignerWrapperModelConfig:
     decode_batch_size: int = 0
     prob_suppress_index: int = -1
     prob_suppress_value: float = 1.0
+
+
+@dataclass
+class K2AlignerWrapperModelConfig(AlignerWrapperModelConfig):
+    decoder_module_cfg: GraphModuleConfig = GraphModuleConfig()

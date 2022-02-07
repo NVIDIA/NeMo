@@ -66,6 +66,8 @@ You may control the aligner's config by setting the ali_args:
     ali_args.prob_suppress_index=-1 \
     ali_args.prob_suppress_value=0.5 \
     ali_args.post_process_n_jobs=4 \
+    ali_args.decoder_module_cfg.intersect_pruned=true \
+    ali_args.decoder_module_cfg.intersect_conf.search_beam=40 \
     ...
 
 """
@@ -82,7 +84,7 @@ from omegaconf import MISSING, OmegaConf
 from nemo.collections.asr.data.audio_to_ctm_dataset import ASRCTMPredictionWriter
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.configs.aligner_config import AlignerWrapperModelConfig
+from nemo.collections.asr.models.configs.aligner_config import K2AlignerWrapperModelConfig
 from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
 from nemo.collections.asr.models.k2_aligner_model import AlignerWrapperModel
 from nemo.core.config import TrainerConfig, hydra_runner
@@ -94,7 +96,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 class ParallelAlignmentConfig:
     model: Optional[str] = None  # name
     predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
-    ali_args: AlignerWrapperModelConfig = AlignerWrapperModelConfig()
+    ali_args: K2AlignerWrapperModelConfig = K2AlignerWrapperModelConfig()
     output_path: str = MISSING
     time_per_frame: float = MISSING
 
@@ -170,7 +172,7 @@ def main(cfg: ParallelAlignmentConfig):
     )
     trainer.callbacks.extend([predictor_writer])
 
-    ali_wrapper = AlignerWrapperModel(model=model, cfg.ali_args)
+    ali_wrapper = AlignerWrapperModel(model=model, cfg=cfg.ali_args)
     trainer.predict(model=ali_wrapper, dataloaders=data_loader, return_predictions=cfg.return_predictions)
     samples_num = predictor_writer.close_output_file()
 

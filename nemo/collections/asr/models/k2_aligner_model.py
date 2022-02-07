@@ -86,6 +86,11 @@ class AlignerWrapperModel(ASRModel):
                     self.graph_decoder = ViterbiDecoderWithGraph(
                         num_classes=self.blank_id, split_batch_size=decode_batch_size,
                     )
+                # override decoder args if a config is provided
+                decoder_module_cfg = cfg.get("decoder_module_cfg", None)
+                if decoder_module_cfg is not None:
+                    self.graph_decoder._decoder.intersect_pruned = decoder_module_cfg.get("intersect_pruned")
+                    self.graph_decoder._decoder.intersect_conf = decoder_module_cfg.get("intersect_conf")
             elif self.alignment_type == "argmax":
                 if hasattr(self._model, "use_graph_lm"):
                     if not self._model.use_graph_lm:

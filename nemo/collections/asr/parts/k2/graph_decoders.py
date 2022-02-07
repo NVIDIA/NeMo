@@ -75,7 +75,9 @@ class BaseDecoder(object):
         self.pad_fsavec = self.topo_type == "ctc_compact"
         self.intersect_conf = intersect_conf
         if not hasattr(self, "graph_compiler") or self.graph_compiler is None:
-            self.graph_compiler = CtcTopologyCompiler(self.num_classes, self.topo_type, self.topo_with_selfloops, self.device)
+            self.graph_compiler = CtcTopologyCompiler(
+                self.num_classes, self.topo_type, self.topo_with_selfloops, self.device
+            )
         if not hasattr(self, "base_graph") or self.base_graph is None:
             self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(self.device)
         self.decoding_graph = None
@@ -213,7 +215,9 @@ class TokenLMDecoder(BaseDecoder):
         topo_with_selfloops: bool = True,
         device: torch.device = torch.device("cpu"),
     ):
-        super().__init__(num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_selfloops, device)
+        super().__init__(
+            num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_selfloops, device
+        )
         if cfg is not None:
             token_lm = cfg.get("token_lm", token_lm)
         if token_lm is not None:

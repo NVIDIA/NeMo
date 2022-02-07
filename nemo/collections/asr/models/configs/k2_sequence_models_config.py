@@ -27,10 +27,12 @@ class GraphModuleConfig:
     transcribe_training: bool = True
     background_cfg: BackgroundConfig = BackgroundConfig()
 
+
 @dataclass
 class EncDecK2SeqConfig(EncDecCTCConfig):
     token_lm_overwrite: bool = False
     graph_module_cfg: GraphModuleConfig = GraphModuleConfig()
+
 
 @dataclass
 class EncDecK2SeqModelConfig(NemoConfig):

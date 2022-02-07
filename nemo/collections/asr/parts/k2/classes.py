@@ -21,7 +21,6 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.losses.lattice_losses import LatticeLoss
 from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
-from nemo.collections.asr.parts.k2.utils import load_graph
 from nemo.core.classes.common import typecheck
 from nemo.utils import logging
 
@@ -70,24 +69,21 @@ class ASRK2Mixin(metaclass=ABCMeta):
 
         self.graph_module_cfg = self._cfg.graph_module_cfg
 
-        # collecting prior knowledge for MAPLoss
-        self.use_graph_lm = self.graph_module_cfg.get("criterion_type", "ml") == "map"
+        # register token_lm for MAPLoss
+        criterion_type = self.graph_module_cfg.get("criterion_type", "ml")
+        self.use_graph_lm = criterion_type == "map"
         if self.use_graph_lm:
-            self.token_lm = None
-            self.token_lm_cache_dict = None
-            self.token_lm_path = self.graph_module_cfg.background_cfg.get("token_lm", None)
-            token_lm_overwrite = self._cfg.get("token_lm_overwrite", False)
-            if token_lm_overwrite:
-                logging.info(
-                    f"""Overwriting token_lm with `{self.token_lm_path}`. 
-                             Previously saved token_lm, if it exists, will be ignored."""
+            token_lm_path = self.graph_module_cfg.background_cfg.get("token_lm", None)
+            if token_lm_path == None:
+                raise ValueError(
+                    f"graph_module_cfg.background_cfg.token_lm is empty. It must be set for criterion_type == `{criterion_type}`"
                 )
-                self.token_lm = load_graph(self.token_lm_path)
-                self.graph_module_cfg.background_cfg["token_lm"] = self.token_lm
+            token_lm_path = self.register_artifact('graph_module_cfg.background_cfg.token_lm', token_lm_path)
+            self.graph_module_cfg.background_cfg["token_lm"] = token_lm_path
 
-        self._update_k2_modules(self.graph_module_cfg)
+        self.update_k2_modules(self.graph_module_cfg)
 
-    def _update_k2_modules(self, input_cfg):
+    def update_k2_modules(self, input_cfg):
         """
         Helper function to initialize or update k2 loss and transcribe_decoder.
         """
@@ -103,12 +99,13 @@ class ASRK2Mixin(metaclass=ABCMeta):
             split_batch_size=input_cfg.get("split_batch_size", 0),
             graph_module_cfg=input_cfg.background_cfg,
         )
-        remove_consecutive = input_cfg.background_cfg.get("topo_with_selfloops", True) and input_cfg.background_cfg.get(
-            "topo_type", "default"
-        ) not in ["forced_blank", "identity",]
+        remove_consecutive = input_cfg.background_cfg.get(
+            "topo_with_selfloops", True
+        ) and input_cfg.background_cfg.get("topo_type", "default") not in ["forced_blank", "identity",]
         self._wer.remove_consecutive = remove_consecutive
 
         criterion_type = self.loss.criterion_type
+        self.use_graph_lm = criterion_type == "map"
         transcribe_training = input_cfg.get("transcribe_training", False)
         if transcribe_training and criterion_type == "ml":
             logging.warning(
@@ -128,31 +125,6 @@ class ASRK2Mixin(metaclass=ABCMeta):
                 split_batch_size=input_cfg.get("split_batch_size", 0),
                 graph_module_cfg=input_cfg.background_cfg,
             )
-
-    def state_dict(self, destination=None, prefix="", keep_vars=False):
-        """
-        Custom state_dict method to save token_lm graph.
-        """
-        state_dict = super().state_dict(destination, prefix, keep_vars)
-        # fail if k2.Fsa ever supports .state_dict()
-        assert "token_lm" not in state_dict
-        if hasattr(self, "token_lm") and self.token_lm is not None:
-            state_dict["wfst_graph.token_lm"] = self.token_lm.as_dict()
-        return state_dict
-
-    def load_state_dict(self, state_dict, strict=True):
-        """
-        Custom load_state_dict method to load token_lm dict.
-        The graph itself will be initialized at the first .forward() call.
-        """
-        if "wfst_graph.token_lm" in state_dict:
-            # loading only if self.token_lm is not initialized in __init__
-            if self.token_lm is None:
-                # we cannot load self.token_lm directly here
-                # because of a weird error at runtime
-                # TypeError: _broadcast_coalesced(): incompatible function arguments.
-                self.token_lm_cache_dict = state_dict.pop("wfst_graph.token_lm")
-        super().load_state_dict(state_dict, strict=strict)
 
     @typecheck()
     def forward(
@@ -178,23 +150,6 @@ class ASRK2Mixin(metaclass=ABCMeta):
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
             3) The greedy token predictions of the model of shape [B, T] (via argmax)
         """
-        # trying to load token_lm from token_lm_cache_dict or token_lm_path if it hasn't been loaded yet
-        if self.use_graph_lm and self.token_lm is None:
-            if self.token_lm_cache_dict is not None:
-                logging.info(f"""Loading token_lm from the dict cache at the first .forward() call.""")
-                self.token_lm = k2.Fsa.from_dict(self.token_lm_cache_dict)
-                self.token_lm_cache_dict = None
-            elif self.token_lm_path is not None:
-                logging.warning(f"""Loading token_lm from `{self.token_lm_path}` at the first .forward() call.""")
-                self.token_lm = load_graph(self.token_lm_path)
-                if self.token_lm is None:
-                    raise ValueError(f"""Failed to load token_lm""")
-            else:
-                raise ValueError(f"""Failed to load token_lm""")
-            self.loss.update_graph(self.token_lm)
-            if self.use_graph_lm:
-                self.transcribe_decoder.update_graph(self.token_lm)
-
         log_probs, encoded_len, greedy_predictions = super().forward(
             input_signal=input_signal,
             input_signal_length=input_signal_length,

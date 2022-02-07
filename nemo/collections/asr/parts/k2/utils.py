@@ -26,7 +26,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import os
 import struct
 from pickle import UnpicklingError
@@ -92,7 +91,8 @@ def load_graph(graph_path: str) -> 'k2.Fsa':
             errors.append(e)
             with open(graph_path, "rt", encoding="utf-8") as f:
                 graph_txt = f.read()
-            for func, acceptor in itertools.product([k2.Fsa.from_str, k2.Fsa.from_openfst], [True, False]):
+            # order from the most frequent case to the least
+            for func, acceptor in [(k2.Fsa.from_openfst, False), (k2.Fsa.from_str, True), (k2.Fsa.from_str, False)]:
                 try:
                     graph = func(graph_txt, acceptor=acceptor)
                     return graph
@@ -193,6 +193,8 @@ def shift_labels_inpl(lattices: List['k2.Fsa'], shift: int):
 def get_arc_weights(graph: 'k2.Fsa') -> torch.Tensor:
     """Returns 1d torch.Tensor with arc weights of a given graph.
     """
+    if len(graph.shape) > 2:
+        raise NotImplementedError("FsaVec is not supported at the moment.")
     weights_int = graph.arcs_as_tensor()[:, -1].tolist()
     weights_float = struct.unpack('%sf' % len(weights_int), struct.pack('%si' % len(weights_int), *weights_int))
     return torch.Tensor(weights_float)
