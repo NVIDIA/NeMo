@@ -32,7 +32,7 @@ class PromptEncoder(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "enc_taskname": NeuralType(('B', 'T', 'C'), ChannelType()),
+            "enc_taskname": NeuralType(('B', 'T', 'C'), ChannelType(), optional=True),
         }
 
     @property
@@ -74,11 +74,12 @@ class PromptEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, enc_taskname) -> torch.Tensor:
-        bz, task_seq, _ = enc_taskname.shape
         input_embeds = self.embedding(self.seq_indices).unsqueeze(0)
-        _, seq, emb = input_embeds.shape
-        input_embeds = input_embeds.expand(bz, seq, emb).clone()
-        length = min(task_seq, seq)
-        input_embeds[:, 0:length, :] = enc_taskname[:, 0:length, :]
+        if enc_taskname is not None:
+            bz, task_seq, _ = enc_taskname.shape
+            _, seq, emb = input_embeds.shape
+            input_embeds = input_embeds.expand(bz, seq, emb).clone()
+            length = min(task_seq, seq)
+            input_embeds[:, 0:length, :] = enc_taskname[:, 0:length, :]
         output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         return output_embeds

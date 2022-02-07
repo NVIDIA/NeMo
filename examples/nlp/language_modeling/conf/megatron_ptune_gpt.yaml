@@ -48,9 +48,10 @@ model:
     nemo_file: null
 
   prompt_encoder:
-    template: [3, 3, 0]
+    template: [3, 3, 3]
     dropout: 0.0
     num_layers: 2
+    task_dependent: true # whether the prompt encoder conditions on the task name or not, useful for multiple tasks
 
   data:
     train_ds:

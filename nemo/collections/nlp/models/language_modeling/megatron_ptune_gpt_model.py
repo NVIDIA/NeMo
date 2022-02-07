@@ -117,7 +117,10 @@ class MegatronGPTPTuneModel(NLPModel):
         queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
 
         raw_embeds = self.embeddings(queries_for_embedding).clone()
-        enc_taskname = self.embeddings(enc_taskname)
+        if self.cfg.prompt_encoder.task_dependent:
+            enc_taskname = self.embeddings(enc_taskname)
+        else:
+            enc_taskname = None
 
         if self.float_type == torch.float32:
             replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
