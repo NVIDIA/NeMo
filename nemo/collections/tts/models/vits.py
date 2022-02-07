@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.core import typecheck
+
+# typecheck.set_typecheck_enabled(False) 
+
 import omegaconf
 import torch
 import wandb
@@ -36,12 +40,6 @@ from nemo.collections.tts.modules.vits_modules import (
 )
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
-
-# TODO: remove if not needed
-# to call optimizer_step
-# def closure():
-#     return
-
 
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -85,9 +83,8 @@ class VitsModel(TextToWaveform):
 
         # TODO: need to add SynthesizerTrn in config
         # TODO: how model knows padding idx? Need to use self.tokenizer_pad
-        # TODO: n_vocab != cfg.symbols_embedding_dim. Need replace cfg.symbols_embedding_dim with num_tokens
         self.net_g = SynthesizerTrn(
-            n_vocab=cfg.symbols_embedding_dim,
+            n_vocab=num_tokens,
             spec_channels=cfg.train_ds.dataset.n_fft // 2 + 1,
             segment_size=cfg.segment_size // cfg.train_ds.dataset.hop_length,
             inter_channels=cfg.inter_channels,
@@ -122,9 +119,6 @@ class VitsModel(TextToWaveform):
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
         )
-
-        # TODO: remove if not needed
-        # self.precision_plugin = self.trainer.accelerator.precision_plugin # to call optimizer_step
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -167,17 +161,18 @@ class VitsModel(TextToWaveform):
         optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
         optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
 
-        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(self.optim_g, gamma=self._cfg.lr_decay)
+        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
         scheduler_g_dict = {
             'scheduler': scheduler_g,
             'interval': 'step',
         }
-        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(self.optim_d, gamma=self._cfg.lr_decay)
+        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
         scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
     def forward(self, batch, batch_idx):
         # TODO: Check if this is correct forward
+        # only for inference
         with torch.no_grad():
             (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
@@ -236,7 +231,8 @@ class VitsModel(TextToWaveform):
 
         y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
         with autocast(enabled=False):
-            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(y_d_hat_r, y_d_hat_g)
+            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
+            disc_generated_outputs=y_d_hat_g)
             loss_disc_all = loss_disc
 
         # get optimizers
@@ -252,11 +248,12 @@ class VitsModel(TextToWaveform):
         with autocast(enabled=True):
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
+
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
             loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
-            loss_fm = self.feat_matching_loss(fmap_r=fmap_r.detach(), fmap_g=fmap_g)
+            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
@@ -308,8 +305,7 @@ class VitsModel(TextToWaveform):
         y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
 
         # plot audio once per epoch
-        if batch_idx == 0 and self.logger is not None:# and isinstance(self.logger, WandbLogger):
-            print('logging media')
+        if batch_idx == 0 and self.logger is not None and isinstance(self.logger, WandbLogger):
             specs = []
             audios = []
 
@@ -325,13 +321,9 @@ class VitsModel(TextToWaveform):
 
             audios += [
                 wandb.Audio(
-<<<<<<< HEAD
                     y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
                     caption=f"val_wav_target",
                     sample_rate=self.sample_rate,
-=======
-                    y[0, : y_lengths[0]].data.cpu().numpy(), caption=f"val_wav_target", sample_rate=self.sample_rate,
->>>>>>> 70252704aeae95c07c13f40b21d5046867b64b59
                 ),
                 wandb.Audio(
                     y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),

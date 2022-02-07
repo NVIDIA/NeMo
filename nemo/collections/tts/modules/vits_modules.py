@@ -944,7 +944,7 @@ class SynthesizerTrn(nn.Module):
         o = self.dec((z * y_mask)[:,:,:max_len], g=g)
         return o, attn, y_mask, (z, z_p, m_p, logs_p)
 
-    # TODO: do we really need it?
+    # TODO: do we really need it? Can be used for emotions conversion
     def voice_conversion(self, y, y_lengths, sid_src, sid_tgt):
         assert self.n_speakers > 0, "n_speakers have to be larger than 0."
         g_src = self.emb_g(sid_src).unsqueeze(-1)

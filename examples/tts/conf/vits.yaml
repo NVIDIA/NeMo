@@ -157,13 +157,12 @@ model:
 
     dataloader_params:
       drop_last: false
-      shuffle: true
+      shuffle: false
       batch_size: 16
-      num_workers: 1
+      num_workers: 4
       pin_memory: false
 
   preprocessor:
-    # TODO: change to STFT
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     nfilt: ${model.n_mel_channels}
     highfreq: ${model.highfreq}
