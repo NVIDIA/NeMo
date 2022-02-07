@@ -12,9 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+    delete_space,
+    roman_to_int,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import strip_accent
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, NEMO_NOT_SPACE, roman_to_int, NEMO_SIGMA, GraphFst, delete_space, NEMO_SPACE, insert_space, NEMO_CHAR
-from nemo_text_processing.text_normalization.es.graph_utils import strip_accents
 
 try:
     import pynini
@@ -31,8 +38,8 @@ class OrdinalFst(GraphFst):
         	"21.º" -> ordinal { integer: "vigésimo primero" morphosyntactic_features: "gender_masc" }
     This class converts ordinal up to "millesímo" (one thousandth) exclusive.
 
-    Cardinals below ten are not converted (in order to avoid 
-    e.g. "1.º hice..." -> "primero hice ...", "2.ª guerra mundial" -> "segunda guerra mundial" 
+    Cardinals below ten are not converted (in order to avoid
+    e.g. "1.º hice..." -> "primero hice ...", "2.ª guerra mundial" -> "segunda guerra mundial"
     and any other odd conversions.)
 
     This FST also records the ending of the ordinal (called "morphosyntactic_features"):
@@ -42,28 +49,31 @@ class OrdinalFst(GraphFst):
         cardinal: CardinalFst
     """
 
-    def __init__(self, cardinal: GraphFst,  deterministic: bool = True):
+    def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="ordinal", kind="classify")
-        self.cardinal = cardinal # Storing since we'll use again for fractions
-        cardinal_graph = cardinal.graph 
+        cardinal_graph = cardinal.graph
 
         graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
         graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
         graph_twenties = pynini.string_file(get_abs_path("data/ordinals/twenties.tsv")).invert()
         graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv")).invert()
         graph_hundreds = pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv")).invert()
-        graph_roman = roman_to_int()
 
+        delete_period = pynutil.delete(".")  # Sometimes the period is omitted for abbreviations
 
         if not deterministic:
-			# Some alternative derivations
-           graph_teens |= pynini.cross("once", "décimo primero")
-           graph_teens |= pynini.cross("doce", "décimo segundo")
-           graph_ties |= pynini.cross("sesenta", "setuagésimo")
-           graph_digit |= pynini.cross("nueve", "nono")
-           graph_digit |= pynini.cross("siete", "sétimo")
+            # Some alternative derivations
+            graph_teens |= pynini.cross("once", "décimo primero")
+            graph_teens |= pynini.cross("doce", "décimo segundo")
+            graph_ties |= pynini.cross("sesenta", "setuagésimo")
+            graph_digit |= pynini.cross("nueve", "nono")
+            graph_digit |= pynini.cross("siete", "sétimo")
 
-        tens = graph_teens | (graph_ties + pynini.closure(pynini.cross(" y ", NEMO_SPACE) + graph_digit, 0, 1)) | graph_twenties
+        tens = (
+            graph_teens
+            | (graph_ties + pynini.closure(pynini.cross(" y ", NEMO_SPACE) + graph_digit, 0, 1))
+            | graph_twenties
+        )
 
         hundreds = graph_hundreds + pynini.closure(NEMO_SPACE + pynini.union(tens, graph_digit), 0, 1)
 
@@ -71,68 +81,75 @@ class OrdinalFst(GraphFst):
 
         # Need to go up to thousands for fractions.
         thousands = pynini.cross("mil", "milésimo")
-        graph_thousands =  (cardinal.numbers_one_to_one_thousand @ pynini.cdrewrite(strip_accents, "", "", NEMO_SIGMA)) + NEMO_SPACE + thousands # We accept all cardinals as is. since accent on the powers of ten we drop leading words
-        graph_thousands @= pynini.cdrewrite(delete_space, "", "", NEMO_SIGMA) # merge as a prefix
+        graph_thousands = (
+            strip_accent(cardinal.numbers_one_to_one_thousand) + NEMO_SPACE + thousands
+        )  # We accept all cardinals as is. since accent on the powers of ten we drop leading words
+        graph_thousands @= pynini.cdrewrite(delete_space, "", "", NEMO_SIGMA)  # merge as a prefix
         graph_thousands |= thousands
 
         self.multiples_of_thousand = (cardinal_graph @ graph_thousands).optimize()
 
-        if not deterministic: # Formally the words preceding the power of ten should be a prefix, but seems to vary   
-           graph_thousands |=  (cardinal.numbers_one_to_one_thousand @ pynini.cdrewrite(strip_accents, "", "", NEMO_SIGMA)) + NEMO_SPACE + thousands
+        if not deterministic:  # Formally the words preceding the power of ten should be a prefix, but seems to vary
+            graph_thousands |= cardinal.numbers_one_to_one_thousand + NEMO_SPACE + thousands
 
-        graph_thousands += (NEMO_SPACE + graph_hundred_component).ques
+        graph_thousands += pynini.closure(NEMO_SPACE + graph_hundred_component, 0, 1)
 
         ordinal_graph = graph_thousands | graph_hundred_component
         ordinal_graph = cardinal_graph @ ordinal_graph
 
         if not deterministic:
-           # The 10's and 20's series can also be two words
-           split_words = pynini.cross("decimo", "décimo ") | pynini.cross("vigesimo", "vigésimo ") 
-           split_words = pynini.cdrewrite(split_words, "", NEMO_CHAR, NEMO_SIGMA)
-           ordinal_graph |= (ordinal_graph @ split_words)
-		   
-        # If "octavo" is preceeded by the "o" within string, it needs deletion
-        octavo_rewrite = pynini.cdrewrite(pynutil.delete("o"), "", "octavo", NEMO_SIGMA)
+            # The 10's and 20's series can also be two words
+            split_words = pynini.cross("decimo", "décimo ") | pynini.cross("vigesimo", "vigésimo ")
+            split_words = pynini.cdrewrite(split_words, "", NEMO_CHAR, NEMO_SIGMA)
+            ordinal_graph |= ordinal_graph @ split_words
 
-        ordinal_graph @= octavo_rewrite
+        # If "octavo" is preceeded by the "o" within string, it needs deletion
+        ordinal_graph @= pynini.cdrewrite(pynutil.delete("o"), "", "octavo", NEMO_SIGMA)
+
         self.graph = ordinal_graph.optimize()
-        
-        # Managing romanization
-        delete_period = pynutil.delete(".") # Sometimes the period is omitted for abbreviations
 
         masc = pynini.accep("gender_masc")
         fem = pynini.accep("gender_fem")
         apocope = pynini.accep("apocope")
 
-        accept_masc = delete_period + pynini.cross(pynini.closure(NEMO_CHAR, 0, 2) + "º", masc) # Supposed to be only last letter but conventions vary
+        accept_masc = delete_period + pynini.cross(
+            pynini.closure(NEMO_CHAR, 0, 2) + "º", masc
+        )  # Supposed to be only last letter but conventions vary
         accep_fem = delete_period + pynini.cross(pynini.closure(NEMO_CHAR, 0, 2) + "ª", fem)
         accep_apocope = delete_period + pynini.cross("ᵉʳ", apocope)
 
-		# for romans
-        graph_roman = pynutil.insert("integer: \"") + (graph_roman @ ordinal_graph) + pynutil.insert("\"") 
-        if not deterministic:  # no morphology marker, so give all
-           plural = pynutil.insert("/plural").ques 
-           insert_morphology = pynutil.insert(pynini.union(masc, fem)) + plural
-           insert_morphology |= pynutil.insert(apocope)
-           insert_morphology = pynutil.insert(" morphosyntactic_features: \"") + insert_morphology
+        # Managing Romanization
+        graph_roman = pynutil.insert("integer: \"") + roman_to_int(ordinal_graph) + pynutil.insert("\"")
+        if not deterministic:
+            # Introduce plural
+            plural = pynini.closure(pynutil.insert("/plural"), 0, 1)
+            accept_masc += plural
+            accep_fem += plural
 
-           graph_roman += insert_morphology
+            # Romanizations have no morphology marker, so give all
+            insert_morphology = pynutil.insert(pynini.union(masc, fem)) + plural
+            insert_morphology |= pynutil.insert(apocope)
+            insert_morphology = (
+                pynutil.insert(" morphosyntactic_features: \"") + insert_morphology + pynutil.insert("\"")
+            )
 
-		# Introduce plural
-           accept_masc += plural
-           accep_fem += plural
+            graph_roman += insert_morphology
 
         else:
-		# Since ordinals are adjectival and masculine gender is default, we assume masculine gender
-           graph_roman += pynutil.insert(" morphosyntactic_features: \"gender_masc") 
+            # We assume masculine gender as default
+            graph_roman += pynutil.insert(" morphosyntactic_features: \"gender_masc\"")
 
-		# Rest of graph
-        convert_abbreviation = accept_masc | accep_fem | accep_apocope
+        # Rest of graph
+        convert_abbreviation = accept_masc | accep_fem | accep_apocope + pynutil.insert("\"")
 
-        graph = pynutil.insert("integer: \"") + ordinal_graph + pynutil.insert("\"") + pynutil.insert(" morphosyntactic_features: \"") + convert_abbreviation
-        graph = pynini.union(graph, graph_roman) + pynutil.insert("\"")
+        graph = (
+            pynutil.insert("integer: \"")
+            + ordinal_graph
+            + pynutil.insert("\"")
+            + pynutil.insert(" morphosyntactic_features: \"")
+            + convert_abbreviation
+        )
+        graph = pynini.union(graph, graph_roman)
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
-
-

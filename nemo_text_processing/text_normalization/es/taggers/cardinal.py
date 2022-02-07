@@ -13,16 +13,16 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_SIGMA,
-	NEMO_SPACE,
-    GraphFst,
+    NEMO_SPACE,
     NEMO_WHITE_SPACE,
+    GraphFst,
     delete_space,
     insert_space,
-	NEMO_ALPHA
 )
-from nemo_text_processing.text_normalization.es.graph_utils import cardinal_seperator
+from nemo_text_processing.text_normalization.es.graph_utils import cardinal_separator
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
@@ -30,58 +30,56 @@ try:
     from pynini.lib import pynutil
 
     PYNINI_AVAILABLE = True
+
+    graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
+    graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+    graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
+    graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
+    graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).invert()
+    graph_hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).invert()
+
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
+    graph_zero = None
+    graph_digit = None
+    graph_teen = None
+    graph_ties = None
+    graph_twenties = None
+    graph_hundreds = None
+
+
 def get_one_to_one_thousand(cardinal):
-	numbers = [str(_) for _ in range(1,1000)]
-	graph = pynini.string_map(numbers) @ cardinal
-	graph = pynini.project(graph, "output")
-	return graph.optimize()
+    numbers = [str(_) for _ in range(1, 1000)]
+    graph = pynini.string_map(numbers) @ cardinal
+    graph = pynini.project(graph, "output")
+    return graph.optimize()
+
 
 def filter_punctuation(fst):
-	exactly_three_digits = NEMO_DIGIT ** 3  # for blocks of three
-	up_to_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)  # for start of string
+    exactly_three_digits = NEMO_DIGIT ** 3  # for blocks of three
+    up_to_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)  # for start of string
 
-	cardinal_string = pynini.closure(NEMO_DIGIT, 1) # For string w/o punctuation (used for page numbers, multiples of thousand)
+    cardinal_string = pynini.closure(
+        NEMO_DIGIT, 1
+    )  # For string w/o punctuation (used for page numbers, multiples of thousand)
 
-	cardinal_string |= (
-		up_to_three_digits
-		+ pynutil.delete(cardinal_seperator)
-		+ pynini.closure(exactly_three_digits + pynutil.delete(cardinal_seperator))
-		+ exactly_three_digits
-	)
+    cardinal_string |= (
+        up_to_three_digits
+        + pynutil.delete(cardinal_separator)
+        + pynini.closure(exactly_three_digits + pynutil.delete(cardinal_separator))
+        + exactly_three_digits
+    )
 
-	return cardinal_string @ fst
-
-
-class GenderAlignment:
-    def __init__(self):
-        fem_hundreds = pynini.cross("ientos", "ientas")
-
-        fem_ones = pynini.cross("un", "una") | pynini.cross("ún", "una")
-        masc_ones = pynini.string_map([("un", "uno"), ("ún", "uno"), "un", "ún",])
-
-        fem_align = pynini.cdrewrite(fem_hundreds, "", "", NEMO_SIGMA)
-        fem_align @= pynini.cdrewrite(fem_ones, "", "[EOS]", NEMO_SIGMA)
-
-        masc_split_ones = pynini.cdrewrite(masc_ones, "", "[EOS]", NEMO_SIGMA)
-
-        self.fst = (fem_align | masc_split_ones).optimize()
+    return cardinal_string @ fst
 
 
 class CardinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
-        graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-        graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
-        graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
-        graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).invert()
-        graph_hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).invert()
 
         # Any single digit
-        digits =  graph_digit
+        digits = graph_digit
         digits_no_one = (NEMO_DIGIT - "1") @ digits
 
         # Any double digit
@@ -90,6 +88,8 @@ class CardinalFst(GraphFst):
         tens |= graph_twenties
 
         self.tens = tens.optimize()
+
+        self.two_digit_non_zero = pynini.union(digits, tens, (pynini.cross("0", NEMO_SPACE) + digits)).optimize()
 
         # Three digit strings
         hundreds = graph_hundreds
@@ -102,8 +102,12 @@ class CardinalFst(GraphFst):
         # For all three digit strings with leading zeroes (we insert them in our graph prior)
         graph_hundreds_component = pynini.union(hundreds, pynutil.delete("0") + tens)
 
-        graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component | (pynutil.delete("00") + digits)
-        graph_hundreds_component_at_least_one_none_zero_digit_no_one = graph_hundreds_component | (pynutil.delete("00") + digits_no_one)        
+        graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component | (
+            pynutil.delete("00") + digits
+        )
+        graph_hundreds_component_at_least_one_none_zero_digit_no_one = graph_hundreds_component | (
+            pynutil.delete("00") + digits_no_one
+        )
 
         # Larger numbers (manage spaces here)
         graph_thousands = pynini.cross("001", "mil")
@@ -159,13 +163,15 @@ class CardinalFst(GraphFst):
         )
 
         self.graph = (
-            (NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0))
+            ((NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0))
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
             @ NEMO_DIGIT ** 24
-            @ graph 
+            @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
-            @ pynini.cdrewrite(pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA)
+            @ pynini.cdrewrite(
+                pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
+            )
         )
         self.graph |= graph_zero
 
@@ -177,8 +183,8 @@ class CardinalFst(GraphFst):
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
         if not deterministic:
-           derivations = pynutil.insert(" morphosyntactic_features: ")  # Allows verbalizer to apply gender allignment
-           derivations += pynutil.insert("\"gender_fem\"") | pynutil.insert("\"no_apocope\"")
-           final_graph += derivations.ques
+            derivations = pynutil.insert(" morphosyntactic_features: ")  # Allows verbalizer to apply gender allignment
+            derivations += pynutil.insert("\"gender_fem\"") | pynutil.insert("\"no_apocope\"")
+            final_graph += derivations.ques
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
