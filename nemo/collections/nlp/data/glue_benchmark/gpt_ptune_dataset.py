@@ -137,9 +137,9 @@ class SentimentProcessor(DataProcessor):
             logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
             cut = total_num_ids - max_seq_len
         return (
-            [prompt_token_id] * templates[0]
+            [prompt_token_id] * (templates[0] + templates[1])
             + a_input_token_ids[cut:]
-            + [prompt_token_id] * templates[1]
+            + [prompt_token_id] * templates[2]
             + b_input_token_ids
         )
 

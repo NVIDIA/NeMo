@@ -71,6 +71,7 @@ class MegatronGPTPTuneModel(NLPModel):
         )
 
         self.tokenizer = self.model.tokenizer
+        self.float_type = self.model.model.language_model.encoder.layers[0].dtype
 
         if not cfg.use_lm_finetune:
             self.model.freeze()
@@ -114,16 +115,33 @@ class MegatronGPTPTuneModel(NLPModel):
         queries_for_embedding = queries.clone()
 
         queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
-        raw_embeds = self.embeddings(queries_for_embedding).clone()
 
-        blocked_indices = (queries == self.pseudo_token_id)
+        raw_embeds = self.embeddings(queries_for_embedding).clone()
         enc_taskname = self.embeddings(enc_taskname)
-        replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
-        for bidx in range(bz):
-            position = blocked_indices[bidx].nonzero()[:, 0]
-            for i in range(len(position)):
-                raw_embeds[bidx, position[i], :] = replace_embeds[bidx, i, :]
-        # self[i][index[i][j][k]][k] = src[i][j][k]
+
+        if self.float_type == torch.float32:
+            replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
+        else:
+            with torch.autocast(device_type="cuda", dtype=self.float_type):
+                replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
+
+        blocked_indices = queries == self.pseudo_token_id
+        raw_embeds = raw_embeds.clone().type(self.float_type)
+        # find the index to the psedo-tokens
+        index = blocked_indices.nonzero().reshape((bz, -1, 2))[:, :, 1][:, :, None]
+
+        _, seq, _ = index.shape
+        _, _, emb = raw_embeds.shape
+        index = index.expand(bz, seq, emb)
+
+        # scatter the psedo-token embeddings to the raw embeddings
+        raw_embeds.scatter_(1, index, replace_embeds)
+        # slow version of above scatter logics
+        # for bidx in range(bz):
+        #     position = blocked_indices[bidx].nonzero()[:, 0]
+        #     for i in range(len(position)):
+        #         raw_embeds[bidx, position[i], :] = replace_embeds[bidx, i, :]
+
         return raw_embeds
 
     def get_loss(self, batch):
@@ -144,14 +162,12 @@ class MegatronGPTPTuneModel(NLPModel):
 
         encoder_input = input_embeds + position_embeddings
 
-        dtype = self.model.model.language_model.encoder.layers[0].dtype
-
-        if dtype == torch.float32:
+        if self.float_type == torch.float32:
             output = self.model.model(
                 None, None, encoder_input=encoder_input, attention_mask=input_attn_mask, labels=labels,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=dtype):
+            with torch.autocast(device_type="cuda", dtype=self.float_type):
                 output = self.model.model(
                     None, None, encoder_input=encoder_input, attention_mask=input_attn_mask, labels=labels,
                 )
@@ -234,12 +250,10 @@ class MegatronGPTPTuneModel(NLPModel):
 
                 encoder_input = input_embeds + position_embeddings
 
-                dtype = self.model.model.language_model.encoder.layers[0].dtype
-
-                if dtype == torch.float32:
+                if self.float_type == torch.float32:
                     output = self.model.model(None, None, encoder_input=encoder_input, attention_mask=attn_mask,)
                 else:
-                    with torch.autocast(device_type="cuda", dtype=dtype):
+                    with torch.autocast(device_type="cuda", dtype=self.float_type):
                         output = self.model.model(None, None, encoder_input=encoder_input, attention_mask=attn_mask,)
                 output_tensor = output
 
