@@ -354,7 +354,8 @@ class VitsModel(TextToWaveform):
         y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
 
         # plot audio once per epoch
-        if batch_idx == 0 and self.logger is not None and isinstance(self.logger, WandbLogger):
+        if batch_idx == 0 and self.logger is not None:# and isinstance(self.logger, WandbLogger):
+            print('logging media')
             specs = []
             audios = []
 
@@ -371,12 +372,12 @@ class VitsModel(TextToWaveform):
 
             audios += [
                 wandb.Audio(
-                    y[0, : y_lengths[0]].data.cpu().numpy(),
+                    y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
                     caption=f"val_wav_target",
                     sample_rate=self.sample_rate,
                 ),
                 wandb.Audio(
-                    y_hat[0, : y_hat_lengths[0]].data.cpu().numpy(),
+                    y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),
                     caption=f"val_wav_predicted",
                     sample_rate=self.sample_rate,
                 ),
