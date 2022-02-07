@@ -188,7 +188,6 @@ class TTSDataset(Dataset):
                         file_info["normalized_text"] = text
                     else:
                         file_info["normalized_text"] = item["normalized_text"]
-                        file_info["raw_text"] = item["text"]
 
                     if self.cache_text:
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
