@@ -52,13 +52,8 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
-        self.tokenizer = get_nmt_tokenizer(
-            library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self._cfg.tokenizer.merge_file),
-        )
+        # build tokenizer (defaults to nemo supported tokenizers)
+        self._build_tokenizer()
 
         # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
         self._build_vocab()
@@ -93,7 +88,24 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             onnx_safe=cfg.get('onnx_safe', False),
         )
 
+    def _build_tokenizer(self):
+        """
+        Default tokenizer is based on available nemo tokenizers.
+        Override this method to use an external tokenizer.
+        All tokenizers are expected to provide compatible interface.
+        """
+        self.tokenizer = get_nmt_tokenizer(
+            library=self._cfg.tokenizer.library,
+            model_name=self._cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
+            vocab_file=self.register_artifact("vocab_file", self._cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("merges_file", self._cfg.tokenizer.merge_file),
+        )
+
     def _build_vocab(self):
+        """
+        Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
+        """
         # TODO: add config to allow to disable it?
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
