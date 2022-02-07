@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       image 'nvcr.io/nvidia/pytorch:22.01-py3'
-      args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
+      args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
   options {
@@ -10,6 +10,12 @@ pipeline {
     disableConcurrentBuilds()
   }
   stages {
+
+    stage('Transformers Offline') {
+      steps{
+        sh 'echo "TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE}'
+      }
+    }
 
     stage('PyTorch version') {
       steps {
@@ -36,22 +42,24 @@ pipeline {
       }
     }
 
-    stage('Torch TTS unit tests') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      steps {
-        sh 'pip install ".[torch_tts]"'
-        sh 'pip list'
-        sh 'test $(pip list | grep -c lightning) -eq 0'
-        sh 'test $(pip list | grep -c omegaconf) -eq 0'
-        sh 'test $(pip list | grep -c hydra) -eq 0'
-        sh 'pytest -m "torch_tts" --cpu tests/collections/tts/test_torch_tts.py --relax_numba_compat'
-      }
-    }
+    // Removed `torch_tts` install option from NeMo>=1.7.0
+    // Will add test back if/when we decide to support it again
+    // stage('Torch TTS unit tests') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   steps {
+    //     sh 'pip install ".[torch_tts]"'
+    //     sh 'pip list'
+    //     sh 'test $(pip list | grep -c lightning) -eq 0'
+    //     sh 'test $(pip list | grep -c omegaconf) -eq 0'
+    //     sh 'test $(pip list | grep -c hydra) -eq 0'
+    //     sh 'pytest -m "torch_tts" --cpu tests/collections/tts/test_torch_tts.py --relax_numba_compat'
+    //   }
+    // }
 
     stage('NeMo Installation') {
       steps {
@@ -87,9 +95,6 @@ pipeline {
       }
     }
 
-
-
-
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
@@ -104,7 +109,7 @@ pipeline {
         }
       }
       steps {
-        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --cpu --with_downloads --relax_numba_compat'
+        sh 'CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme" --cpu --with_downloads --relax_numba_compat'
       }
     }
 

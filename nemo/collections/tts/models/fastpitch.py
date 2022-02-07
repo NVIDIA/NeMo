@@ -246,6 +246,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
+        # FIXME: return masks as well?
+        self.eval()
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
