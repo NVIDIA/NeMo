@@ -424,7 +424,7 @@ class MultiScaleDiscriminator(NeuralModule):
         self.meanpools = nn.ModuleList([AvgPool1d(4, 2, padding=2), AvgPool1d(4, 2, padding=2)])
 
     @property
-    def output_types(self):
+    def input_types(self):
         return {
             "y": NeuralType(('B', 'S', 'T'), AudioSignal()),
             "y_hat": NeuralType(('B', 'S', 'T'), AudioSignal()),

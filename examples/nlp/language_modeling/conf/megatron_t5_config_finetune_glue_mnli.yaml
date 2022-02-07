@@ -36,9 +36,7 @@ exp_manager:
     save_best_model: True
 
 model:
-  # restore_from_path: /raid/Data/NMT/Models/t5_220m/megatron_t5--val_loss=1.54-step=415999-consumed_samples=851965952.0.nemo
-  restore_from_path: /raid/Data/NMT/Models/t5_730m/megatron_t5--val_loss=1.33-step=193999-consumed_samples=794619904.0.nemo
-  # restore_from_path: /raid/Data/NMT/Models/t5_1b/megatron_t5--val_loss=1.28-step=495249-consumed_samples=1014269952.0.nemo
+  restore_from_path: ??? # Path to a trained T5 .nemo file
   tensor_model_parallel_size: 1
 
   data:
@@ -53,7 +51,7 @@ model:
 
     validation_ds:
       task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/dev.tsv'
+      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       batch_size: 32
       shuffle: False
       num_workers: 8
@@ -62,7 +60,7 @@ model:
 
     test_ds:
       task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/test.tsv'
+      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv' # We use dev as test data here because test data doesn't have labels we can evaluate against.
       batch_size: 32
       shuffle: False
       num_workers: 8

@@ -404,9 +404,9 @@ class TextToTextGLUEDataset(GLUEDataset):
         dec_input = [item['text_dec'] for item in batch]
         labels = [item['labels'] for item in batch]
 
-        max_dec_input_length = max([len(item) for item in dec_input])
-        max_enc_query_length = max([len(item) for item in enc_query])
-        max_label_length = max([len(item) for item in labels])
+        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
+        max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
+        max_label_length = max([len(item) for item in labels]) if labels else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
@@ -457,31 +457,13 @@ class TextToTextGLUEDataset(GLUEDataset):
             if len(enc_query) > self.max_seq_length:
                 enc_query = enc_query[: self.max_seq_length]
             dec_query = (
-                [self.tokenizer.cls_id]
+                [self.tokenizer.bos_id]
                 + self.tokenizer.text_to_ids(self.processor.label2string(example.label))
                 + [self.tokenizer.eos_id]
             )
 
-            # dec_query_length = len(dec_query)
-            # enc_padding_length = self.max_seq_length - len(enc_query)
-            # enc_query = enc_query + ([self.tokenizer.pad_id] * enc_padding_length)
-
-            # dec_padding_length = self.max_seq_length_decoder - len(dec_query)
-            # dec_query = dec_query + ([self.tokenizer.pad_id] * dec_padding_length)
-
             dec_input = dec_query[:-1]
             labels = dec_query[1:]
-
-            # enc_query = np.array(enc_query, dtype=np.int64)
-            # dec_input = np.array(dec_input, dtype=np.int64)
-            # labels = np.array(labels, dtype=np.int64)
-
-            # enc_mask = make_attention_mask(enc_query, enc_query, self.tokenizer.pad_id)
-            # dec_mask = make_attention_mask(dec_input, dec_input, self.tokenizer.pad_id) * make_history_mask(dec_input)
-            # enc_dec_mask = make_attention_mask(dec_input, enc_query, self.tokenizer.pad_id)
-
-            # loss_mask = ([1] * (dec_query_length - 1)) + ([0] * (dec_padding_length))
-            # loss_mask = np.array(loss_mask, dtype=np.int64)
 
             features.append([enc_query, dec_input, labels])
 

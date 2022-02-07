@@ -520,7 +520,7 @@ def _build_train_valid_test_datasets(
     binary_head,
     max_seq_length_dec,
     dataset_type='standard_bert',
-    tokenizer=None
+    tokenizer=None,
 ):
 
     if dataset_type not in DSET_TYPES:

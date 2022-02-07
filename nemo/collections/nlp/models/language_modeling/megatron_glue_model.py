@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional
 
 import torch
+from apex.transformer import parallel_state
 from omegaconf.dictconfig import DictConfig
+from omegaconf import OmegaConf, open_dict
+from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
@@ -35,7 +37,21 @@ class MegatronT5FineTuneModel(NLPModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.model = MegatronT5Model.restore_from(cfg.restore_from_path, trainer=trainer)
+        # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
+        # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
+        t5_cfg = MegatronT5Model.restore_from(
+            self.register_artifact('t5_base_model', cfg.restore_from_path),
+            trainer=trainer,
+            return_config=True
+        )
+        OmegaConf.set_struct(t5_cfg, True)
+        with open_dict(t5_cfg):
+            t5_cfg.masked_softmax_fusion = False
+
+        self.model = MegatronT5Model.restore_from(
+            self.register_artifact('t5_base_model', cfg.restore_from_path),
+            trainer=trainer, override_config_path=t5_cfg
+        )
 
     def training_step(self, batch, batch_idx):
         pass
@@ -85,6 +101,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
+        self.acc_metric = ExactStringMatchMetric()
 
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
@@ -120,31 +137,26 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
         )
 
-        return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
+        preds = predicted_token_ids.cpu().numpy().tolist()
+        labels = labels.cpu().numpy().tolist()
+        for i, (pred, label) in enumerate(zip(preds, labels)):
+            if self.model.tokenizer.eos_id in pred:
+                idx = pred.index(self.model.tokenizer.eos_id)
+                pred = pred[:idx]
+            pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
+            label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
+            pred = self.model.tokenizer.ids_to_text(pred)
+            label = self.model.tokenizer.ids_to_text(label)
+            _ = self.acc_metric(pred, label)
+
+        return {'loss': loss}
 
     def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
         averaged_loss = average_losses_across_data_parallel_group(losses)
-        all_preds = []
-        all_labels = []
-        for item in outputs:
-            preds = item['predicted_token_ids'].cpu().numpy().tolist()
-            labels = item['labels'].cpu().numpy().tolist()
-            for i, (pred, label) in enumerate(zip(preds, labels)):
-                if self.model.tokenizer.eos_id in pred:
-                    idx = pred.index(self.model.tokenizer.eos_id)
-                    pred = pred[:idx]
-                pred = self.model.tokenizer.ids_to_text(pred)
-                label = self.model.tokenizer.ids_to_text(label)
-                all_preds.append(pred)
-                all_labels.append(label)
-
-        correct = 0
-        for pred, label in zip(all_preds, all_labels):
-            if pred == label:
-                correct += 1
-        acc = correct / len(all_preds)
-        return averaged_loss[0], acc
+        self.log('validation_loss', averaged_loss)
+        self.log('validation_acc', self.acc_metric)
+        return averaged_loss[0], self.acc_metric.compute()
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
@@ -161,7 +173,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
 
     def test_epoch_end(self, outputs):
         test_loss, test_acc = self.inference_epoch_end(outputs)
-        self.log('test_loss',test_loss, prog_bar=True)
+        self.log('test_loss', test_loss, prog_bar=True)
         self.log('test_acc', test_acc, prog_bar=True)
         logging.info(f'Test loss: {test_loss}')
         logging.info(f'Test accuracy: {test_acc}')
@@ -200,12 +212,21 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         if dataset is None:
             return None
 
-        # Torch dataloader.
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=shuffle
+        )
+
+        # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
             batch_size=batch_size,
-            shuffle=shuffle,
+            sampler=sampler,
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=False,
@@ -214,7 +235,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        self.build_train_valid_test_datasets(test_only=stage=='test')
+        self.build_train_valid_test_datasets(test_only=stage == 'test')
         self.setup_test_data()
         if stage == 'test':
             return
