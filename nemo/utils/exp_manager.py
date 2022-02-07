@@ -435,7 +435,7 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        if 'mp_rank' or 'tp_rank' in str(last_checkpoints[0]):
+        if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
             checkpoint = last_checkpoints[0]
             checkpoint = uninject_model_parallel_rank(checkpoint)
         else:
