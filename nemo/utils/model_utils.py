@@ -23,7 +23,7 @@ import wrapt
 
 import nemo
 from nemo import constants
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 
