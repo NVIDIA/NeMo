@@ -132,7 +132,7 @@ class TokensEncoderDecoderModule(MegatronModule):
         encoder = get_encoder_model(
             arch=encoder_arch,
             hidden_size=hidden_size,
-            ffn_hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
@@ -143,7 +143,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             pre_process=pre_process,
             post_process=post_process,
             init_method_std=init_method_std,
-            use_cpu_initialization=init_method_std,
+            use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
@@ -155,13 +155,13 @@ class TokensEncoderDecoderModule(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             hidden_steps=hidden_steps,
-            hidden_blocks=hidden_steps,
+            hidden_blocks=hidden_blocks,
         )
 
         decoder = get_decoder_model(
             arch=decoder_arch,
             hidden_size=hidden_size,
-            ffn_hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
             num_layers=num_layers,
             num_attention_heads=num_attention_heads,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
@@ -172,7 +172,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             pre_process=pre_process,
             post_process=post_process,
             init_method_std=init_method_std,
-            use_cpu_initialization=init_method_std,
+            use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
@@ -184,7 +184,7 @@ class TokensEncoderDecoderModule(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             hidden_steps=hidden_steps,
-            hidden_blocks=hidden_steps,
+            hidden_blocks=hidden_blocks,
         )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)
