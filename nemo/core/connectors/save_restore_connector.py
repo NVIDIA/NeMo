@@ -25,7 +25,7 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.parts.utils_funcs import inject_model_parallel_rank
+from nemo.utils.model_utils import inject_model_parallel_rank
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero

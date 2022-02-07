@@ -36,7 +36,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_bert_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.nlp.parts.utils_funcs import inject_model_parallel_rank
+from nemo.utils.model_utils import inject_model_parallel_rank
 from nemo.utils import AppState, logging
 
 

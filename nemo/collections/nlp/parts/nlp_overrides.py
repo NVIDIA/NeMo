@@ -42,7 +42,7 @@ from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hoo
 from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.parts.utils_funcs import inject_model_parallel_rank
+from nemo.utils.model_utils import inject_model_parallel_rank
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
