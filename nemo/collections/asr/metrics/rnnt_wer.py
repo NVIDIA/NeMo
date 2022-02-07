@@ -126,11 +126,12 @@ class AbstractRNNTDecoding(ABC):
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
         # Update preserve alignments
-        if self.preserve_alignments is None and self.cfg.strategy in ['greedy', 'greedy_batch']:
-            self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
+        if self.preserve_alignments is None:
+            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+                self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
 
-        elif self.preserve_alignments is None and self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
-            self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
+            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
+                self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
         if self.cfg.strategy == 'greedy':
 
