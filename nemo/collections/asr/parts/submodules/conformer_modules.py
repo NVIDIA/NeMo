@@ -21,6 +21,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.utils.export_utils import BatchNorm1dNoAutoCast
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
@@ -147,7 +148,7 @@ class ConformerConvolution(nn.Module):
             bias=True,
         )
         if norm_type == 'batch_norm':
-            self.batch_norm = nn.BatchNorm1d(d_model)
+            self.batch_norm = BatchNorm1dNoAutoCast(d_model)
         elif norm_type == 'layer_norm':
             self.batch_norm = nn.LayerNorm(d_model)
         else:
@@ -158,16 +159,6 @@ class ConformerConvolution(nn.Module):
             in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
-    def do_conv_norm(self, x):
-        x = self.depthwise_conv(x)
-        if isinstance(self.batch_norm, nn.LayerNorm):
-            x = x.transpose(1, 2)
-            x = self.batch_norm(x)
-            x = x.transpose(1, 2)
-        else:
-            x = self.batch_norm(x)
-        return x
-
     def forward(self, x, pad_mask=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
@@ -176,13 +167,16 @@ class ConformerConvolution(nn.Module):
         if pad_mask is not None:
             x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
 
-            if torch.onnx.is_in_onnx_export():
-                with torch.cuda.amp.autocast(enabled=False):
-                    x = self.do_conv_norm(x.to(dtype=torch.float)).to(dtype=x.dtype)
-            else:
-                x = self.do_conv_norm(x)
-        x = self.activation(x)
+        x = self.depthwise_conv(x)
 
+        if isinstance(self.batch_norm, nn.LayerNorm):
+            x = x.transpose(1, 2)
+            x = self.batch_norm(x)
+            x = x.transpose(1, 2)
+        else:
+            x = self.batch_norm(x)
+
+        x = self.activation(x)
         x = self.pointwise_conv2(x)
         x = x.transpose(1, 2)
         return x

@@ -44,7 +44,7 @@ class BatchNorm1dNoAutoCast(nn.BatchNorm1d):
     def forward(self, x):
         if torch.onnx.is_in_onnx_export():
             with torch.cuda.amp.autocast(enabled=False):
-                ret = nn.BatchNorm1d.forward(self, x.to(torch.float))
+                ret = nn.BatchNorm1d.forward(self, x.to(torch.float)).to(x.dtype)
         else:
             ret = nn.BatchNorm1d.forward(self, x)
         return ret

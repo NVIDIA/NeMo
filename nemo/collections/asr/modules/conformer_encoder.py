@@ -296,3 +296,9 @@ class ConformerEncoder(NeuralModule, Exportable):
         """Make masking for padding."""
         mask = self.seq_range[:max_audio_length].repeat(seq_lens.size(0), 1) < seq_lens.unsqueeze(-1)
         return mask
+
+    def enable_pad_mask(self, on=True):
+        # On inference, user may chose to disable pad mask
+        mask = self.use_pad_mask
+        self.use_pad_mask = on
+        return mask
