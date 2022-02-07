@@ -28,7 +28,6 @@ try:
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
-
 class RomanFst(GraphFst):
     """
     Finite state transducer for classifying roman numbers:
@@ -44,8 +43,12 @@ class RomanFst(GraphFst):
 
         default_graph = pynini.string_file(get_abs_path("data/roman/roman_to_spoken.tsv")).optimize()
         default_graph = pynutil.insert("integer: \"") + default_graph + pynutil.insert("\"")
-        names = pynini.string_map(load_labels(get_abs_path("data/roman/male.tsv"))).optimize()
-        names |= pynini.string_map(load_labels(get_abs_path("data/roman/female.tsv"))).optimize()
+        male_labels = load_labels(get_abs_path("data/roman/male.tsv"))
+        female_labels = load_labels(get_abs_path("data/roman/female.tsv"))
+        male_labels.extend([[x[0].upper()] for x in male_labels])
+        female_labels.extend([[x[0].upper()] for x in female_labels])
+        names = pynini.string_map(male_labels).optimize()
+        names |= pynini.string_map(female_labels).optimize()
 
         # roman numerals from I to IV with a preceding name are converted to ordinal form
         graph = (
@@ -53,7 +56,7 @@ class RomanFst(GraphFst):
             + names
             + pynutil.insert("\"")
             + pynini.accep(" ")
-            + pynini.compose(pynini.union("I", "II", "III", "IV", "V", "VI", "VII"), default_graph)
+            + pynini.compose(pynini.closure(NEMO_ALPHA, 1, 5), default_graph)
         ).optimize()
         key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
 
