@@ -611,7 +611,7 @@ class ModelPT(LightningModule, Model):
     """
         param_groups = None
         if hasattr(self, 'parameters'):
-            param_groups = self.parameters()
+            param_groups = [{'params': self.parameters()}]
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
