@@ -19,6 +19,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import b
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModule,
 )
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
 __all__ = ["MegatronT5Model"]
@@ -38,6 +39,19 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
         self._add_special_tokens_to_tokenizer()
 
         super()._build_vocab()
+
+    def _build_tokenizer(self):
+        """
+        Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
+        """
+        self.tokenizer = get_nmt_tokenizer(
+            library=self._cfg.tokenizer.library,
+            model_name=self._cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
+            vocab_file=self.register_artifact("vocab_file", self._cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("merges_file", self._cfg.tokenizer.merge_file),
+            legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False
+        )
 
     def _add_special_tokens_to_tokenizer(self):
         if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
