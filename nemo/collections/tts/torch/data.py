@@ -336,6 +336,11 @@ class TTSDataset(Dataset):
 
         self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
         if not self.cache_text:
+            if 'use_beta_binomial_interpolator' in kwargs and not self.use_beta_binomial_interpolator:
+                logging(
+                    "phoneme_probability is not None, but use_beta_binomial_interpolator=False, we"
+                    " set use_beta_binomial_interpolator=True manually to use phoneme_probability."
+                )
             self.use_beta_binomial_interpolator = True
 
         if self.use_beta_binomial_interpolator:
@@ -427,16 +432,17 @@ class TTSDataset(Dataset):
         # Load alignment prior matrix if needed
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
-            mel_len = self.get_log_mel(audio).shape[2]
             align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
+                mel_len = self.get_log_mel(audio).shape[2]
             else:
                 prior_path = self.align_prior_matrix_folder / f"{rel_audio_path_as_text_id}.pt"
 
                 if prior_path.exists():
                     align_prior_matrix = torch.load(prior_path)
                 else:
+                    mel_len = self.get_log_mel(audio).shape[2]
                     align_prior_matrix = beta_binomial_prior_distribution(text_length, mel_len)
                     align_prior_matrix = torch.from_numpy(align_prior_matrix)
                     torch.save(align_prior_matrix, prior_path)

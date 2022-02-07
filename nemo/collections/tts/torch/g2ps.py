@@ -70,7 +70,7 @@ class EnglishG2p(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
-            phoneme_probability (Optional[float]): The probability (0<var<1) that each word is phonemized. Defaults to None which is the same as 100%.
+            phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
@@ -170,7 +170,7 @@ class EnglishG2p(BaseG2p):
         """
 
         if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
-            return word, False
+            return word, True
 
         # punctuation
         if re.search("[a-zA-Z]", word) is None:

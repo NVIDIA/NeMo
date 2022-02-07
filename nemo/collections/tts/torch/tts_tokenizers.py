@@ -299,6 +299,11 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         tokens.extend(vowels)
 
         if chars or self.phoneme_probability is not None:
+            if not chars:
+                logging.warning(
+                    "phoneme_probability was not None, characters will be enabled even though "
+                    "chars was set to False."
+                )
             tokens.extend(string.ascii_lowercase)
 
         if apostrophe:
@@ -324,7 +329,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
         text = self.text_preprocessing_func(text)
-        g2p_text = self.g2p(text)
+        g2p_text = self.g2p(text)  # TODO: handle infer
 
         for p in g2p_text:  # noqa
             # Remove stress

@@ -10,8 +10,8 @@ sup_data_path: ???
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
-pitch_fmin: 80
-pitch_fmax: 640
+pitch_fmin: 65.40639132514966
+pitch_fmax: 2093.004522404789
 
 # LJSpeech stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
 pitch_mean: 212.35873413085938
