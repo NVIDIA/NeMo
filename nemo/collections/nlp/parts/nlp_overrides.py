@@ -12,15 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-
-    HAVE_APEX = False
-
 import os
 import shutil
 import tempfile
@@ -43,6 +34,15 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MasterOptimizerWrapper
 from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
 
 
 class NLPDDPPlugin(DDPPlugin):
@@ -102,7 +102,6 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
 
@@ -204,9 +203,13 @@ class NLPDDPPlugin(DDPPlugin):
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
         if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/apex\n"
+                "Megatron-based models require Apex to function correctly."
             )
+            # raise ImportError(
+            #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            # )
         super().__init__()
 
     def save_to(self, model, save_path: str):
