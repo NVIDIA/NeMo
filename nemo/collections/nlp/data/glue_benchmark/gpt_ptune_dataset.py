@@ -33,7 +33,7 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 
-__all__ = ['GPTPTuneDataset', 'register_taskdata_processor', 'GPTPTuneInferenceDataset']
+__all__ = ['DataProcessor', 'GPTPTuneDataset', 'register_taskdata_processor', 'GPTPTuneInferenceDataset']
 
 SMALL_NUM = -100
 TASK_KEY = 'prompt_tag'
