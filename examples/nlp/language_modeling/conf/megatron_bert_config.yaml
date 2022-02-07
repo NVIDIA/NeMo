@@ -5,7 +5,6 @@ trainer:
   devices: 2
   num_nodes: 1
   accelerator: gpu
-  strategy: ddp
   precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
