@@ -160,7 +160,8 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
+                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.1)
+                | pynutil.add_weight(whitelist_graph, 1.01)
             ).optimize()
 
             # classify = (
@@ -187,9 +188,8 @@ class ClassifyFst(GraphFst):
 
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
-            classify_and_verbalize |= pynutil.add_weight(whitelist_graph, 1.01)
 
-            punct_only = pynutil.add_weight(punct_graph, weight=20.1)
+            punct_only = pynutil.add_weight(punct_graph, weight=0.1)
             punct = pynini.closure(
                 pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
                 | (pynutil.insert(" ") + punct_only),
