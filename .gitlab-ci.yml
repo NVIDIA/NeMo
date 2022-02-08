@@ -28,6 +28,9 @@ stages:
 
 test:bignlp_scripts_temp:
   <<: *only-default
+  image: nvcr.io/nvidia/pytorch:${CONTAINER_VERSION}-py3
+  before_script:
+    - python -V
   stage: test
   script:
     - pip install -r requirements.txt
