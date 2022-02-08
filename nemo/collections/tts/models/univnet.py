@@ -310,7 +310,7 @@ class UnivNetModel(Vocoder, Exportable):
 
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_libritts_univnet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_univnet/versions/1.7.0/files/tts_en_libritts_univnet.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_libritts_univnet/versions/1.7.0/files/tts_en_libritts_multispeaker_univnet.nemo",
             description="This model is trained on all LibriTTS training data (train-clean-100, train-clean-360, and train-other-500) sampled at 22050Hz, and has been tested on generating English voices.",
             class_=cls,
         )
