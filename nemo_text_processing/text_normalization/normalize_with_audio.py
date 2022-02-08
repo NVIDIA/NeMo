@@ -141,6 +141,7 @@ class NormalizerWithAudio(Normalizer):
         if self.lm:
             if self.lang != "en":
                 raise ValueError(f"{self.lang} is not supported in LM mode")
+
             lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
             lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
             tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
