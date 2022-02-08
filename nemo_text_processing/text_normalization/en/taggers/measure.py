@@ -239,7 +239,7 @@ class MeasureFst(GraphFst):
         )
 
         address_num = NEMO_DIGIT ** (1, 2) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        address_num += insert_space + NEMO_DIGIT ** 2 @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        address_num += insert_space + NEMO_DIGIT ** 2 @ (pynini.closure(pynini.cross("0", "zero "), 0, 1) +  cardinal.graph_hundred_component_at_least_one_none_zero_digit)
 
         direction = (
             pynini.cross("E", "East")
