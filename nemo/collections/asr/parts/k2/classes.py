@@ -50,7 +50,7 @@ class GraphModuleConfig:
     """
 
     topo_type: str = "default"
-    topo_with_selfloops: bool = True
+    topo_with_self_loops: bool = True
     graph_type: str = "topo"
     loss_type: str = "mmi"
     token_lm: Optional[Any] = None
@@ -100,7 +100,7 @@ class ASRK2Mixin(metaclass=ABCMeta):
             graph_module_cfg=input_cfg.background_cfg,
         )
         remove_consecutive = input_cfg.background_cfg.get(
-            "topo_with_selfloops", True
+            "topo_with_self_loops", True
         ) and input_cfg.background_cfg.get("topo_type", "default") not in ["forced_blank", "identity",]
         self._wer.remove_consecutive = remove_consecutive
 

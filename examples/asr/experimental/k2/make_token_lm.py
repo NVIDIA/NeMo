@@ -39,6 +39,7 @@ def main():
     )
     parser.add_argument(
         "--tokenizer_type",
+        required=True,
         type=str,
         choices=["bpe", "wpe"],
         help="The type of the tokenizer. Currently supports `bpe` and `wpe`",
@@ -47,7 +48,10 @@ def main():
         "--lm_builder",
         default="chain-est-phone-lm",
         type=str,
-        help="The path or name of an LM builder. Supported builders: chain-est-phone-lm and make_phone_lm.py",
+        help=(
+            "The path or name of an LM builder. Supported builders: chain-est-phone-lm "
+            "and scripts/asr_language_modeling/ngram_lm/make_phone_lm.py"
+        ),
     )
     parser.add_argument(
         "--ngram_order", type=int, default=2, choices=[2, 3, 4, 5], help="Order of n-gram to use",

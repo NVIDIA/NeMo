@@ -54,7 +54,7 @@ class BaseDecoder(object):
         intersect_pruned: bool = False,
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
     ):
         # use k2 import guard
@@ -64,19 +64,19 @@ class BaseDecoder(object):
             intersect_pruned = cfg.get("intersect_pruned", intersect_pruned)
             intersect_conf = cfg.get("intersect_conf", intersect_conf)
             topo_type = cfg.get("topo_type", topo_type)
-            topo_with_selfloops = cfg.get("topo_with_selfloops", topo_with_selfloops)
+            topo_with_self_loops = cfg.get("topo_with_self_loops", topo_with_self_loops)
 
         self.num_classes = num_classes
         self.blank = blank
         self.intersect_pruned = intersect_pruned
         self.device = device
         self.topo_type = topo_type
-        self.topo_with_selfloops = topo_with_selfloops
+        self.topo_with_self_loops = topo_with_self_loops
         self.pad_fsavec = self.topo_type == "ctc_compact"
         self.intersect_conf = intersect_conf
         if not hasattr(self, "graph_compiler") or self.graph_compiler is None:
             self.graph_compiler = CtcTopologyCompiler(
-                self.num_classes, self.topo_type, self.topo_with_selfloops, self.device
+                self.num_classes, self.topo_type, self.topo_with_self_loops, self.device
             )
         if not hasattr(self, "base_graph") or self.base_graph is None:
             self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(self.device)
@@ -212,11 +212,11 @@ class TokenLMDecoder(BaseDecoder):
         intersect_pruned: bool = False,
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
     ):
         super().__init__(
-            num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_selfloops, device
+            num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_self_loops, device
         )
         if cfg is not None:
             token_lm = cfg.get("token_lm", token_lm)
@@ -247,6 +247,6 @@ class TokenLMDecoder(BaseDecoder):
         if self.pad_fsavec:
             shift_labels_inpl([token_lm], 1)
         self.graph_compiler = CtcNumGraphCompiler(
-            self.num_classes, self.topo_type, self.topo_with_selfloops, self.device, token_lm
+            self.num_classes, self.topo_type, self.topo_with_self_loops, self.device, token_lm
         )
         self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(self.device)

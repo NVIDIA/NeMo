@@ -11,7 +11,7 @@
 # for larger models from 10x time masking to 5x or 2x time masking.
 # For further details regarding Citrinet, visit - https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#citrinet
 
-name: &name "Citrinet-1024-8x-Stride"
+name: &name "Citrinet-MMI-1024-8x-Stride"
 
 model:
   sample_rate: &sample_rate 16000
@@ -433,17 +433,17 @@ model:
       min_lr: 1e-5
       last_epoch: -1
 
-  loss:
-    backend: k2 # Only k2 is supported
-    criterion_type: map # Choices: mle for a CTC-like criterion, map for using a propri linluistic information
-    loss_type: mmi # Only mmi is supported for criterion_type=map
-    topo_type: default # Choices: default, compact, shared_blank, minimal
-    topo_with_selfloops: true # Whether to add token-to-epsilon self-loops to a topology
-    boost_coeff: 0.0 # Boosting for boosted-mmi. Disabled if set to 0
-    intersect_pruned: false # Whether to use pruned intersection with denominator graph
-  transcribe_training: false # Whether to run token_lm decoding for training data
-  token_lm: ??? # Path to tokel-level LM. Usid for criterion_type=map
-  token_lm_overwrite: false # Whether to owerwrite existing token_lm with the new one
+  graph_module_cfg:
+    criterion_type: map
+    transcribe_training: false
+    split_batch_size: 0
+    background_cfg:
+      token_lm: ???
+      loss_type: mmi
+      topo_type: default
+      topo_with_self_loops: true
+      intersect_pruned: false
+      boost_coeff: 0.0
 
 trainer:
   gpus: 0 # number of gpus

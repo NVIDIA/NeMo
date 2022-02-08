@@ -71,7 +71,7 @@ class MAPLoss(torch.nn.Module):
         reduction: str,
         cfg: Optional[DictConfig] = None,
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         loss_type: str = "mmi",
         token_lm: Optional[Union['k2.Fsa', str]] = None,
         intersect_pruned: bool = False,
@@ -84,7 +84,7 @@ class MAPLoss(torch.nn.Module):
         super().__init__()
         if cfg is not None:
             topo_type = cfg.get("topo_type", topo_type)
-            topo_with_selfloops = cfg.get("topo_with_selfloops", topo_with_selfloops)
+            topo_with_self_loops = cfg.get("topo_with_self_loops", topo_with_self_loops)
             loss_type = cfg.get("loss_type", loss_type)
             token_lm = cfg.get("token_lm", token_lm)
             intersect_pruned = cfg.get("intersect_pruned", intersect_pruned)
@@ -100,7 +100,7 @@ class MAPLoss(torch.nn.Module):
         )
         self.intersect_conf = intersect_conf
         self.topo_type = topo_type
-        self.topo_with_selfloops = topo_with_selfloops
+        self.topo_with_self_loops = topo_with_self_loops
         self.pad_fsavec = topo_type == "compact"
         self.graph_compiler = None
         if token_lm is None:
@@ -130,7 +130,7 @@ class MAPLoss(torch.nn.Module):
             from nemo.collections.asr.parts.k2.graph_compilers import MmiGraphCompiler as compiler
         else:
             raise ValueError(f"Invalid value of `loss_type`: {self.loss_type}.")
-        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_selfloops, aux_graph=lm_graph)
+        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph)
 
     def _intersect_calc_scores_mmi_exact(
         self, dense_fsa_vec: k2.DenseFsaVec, num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,

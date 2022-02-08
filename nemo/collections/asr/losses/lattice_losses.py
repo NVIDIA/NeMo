@@ -73,9 +73,9 @@ class LatticeLoss(Loss):
             k2_import_guard()
 
             if criterion_type == "ml":
-                from nemo.collections.asr.parts.k2.mlloss import MLLoss as K2Loss
+                from nemo.collections.asr.parts.k2.ml_loss import MLLoss as K2Loss
             elif criterion_type == "map":
-                from nemo.collections.asr.parts.k2.maploss import MAPLoss as K2Loss
+                from nemo.collections.asr.parts.k2.map_loss import MAPLoss as K2Loss
             else:
                 raise ValueError(f"Invalid value of `criterion_type`: {criterion_type}.")
 

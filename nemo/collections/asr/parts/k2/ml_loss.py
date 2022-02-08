@@ -67,7 +67,7 @@ class MLLoss(torch.nn.Module):
         reduction: str,
         cfg: Optional[DictConfig] = None,
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         graph_type: str = "topo",
         token_lm: Optional[Union['k2.Fsa', str]] = None,
     ):
@@ -77,7 +77,7 @@ class MLLoss(torch.nn.Module):
         super().__init__()
         if cfg is not None:
             topo_type = cfg.get("topo_type", topo_type)
-            topo_with_selfloops = cfg.get("topo_with_selfloops", topo_with_selfloops)
+            topo_with_self_loops = cfg.get("topo_with_self_loops", topo_with_self_loops)
             graph_type = cfg.get("graph_type", graph_type)
             token_lm = cfg.get("token_lm", token_lm)
         self.blank = blank
@@ -87,13 +87,13 @@ class MLLoss(torch.nn.Module):
         if graph_type == "topo":
             from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler as compiler
 
-            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops)
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_self_loops)
         elif graph_type == "token_lm":
             from nemo.collections.asr.parts.k2.graph_compilers import CtcNumGraphCompiler as compiler
 
             if isinstance(token_lm, str):
                 token_lm = load_graph(token_lm)
-            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_selfloops, aux_graph=token_lm)
+            self.graph_compiler = compiler(self.num_classes, topo_type, topo_with_self_loops, aux_graph=token_lm)
 
             raise NotImplementedError("Not tested yet")
         else:

@@ -53,7 +53,4 @@ if [ -x "$(command -v conda)" ]; then
   # conda update -c numba numba -y >  /dev/null 2>&1 && echo "Numba updated!" || echo "Numba could not be updated!"
 fi
 
-echo 'Installing k2 FSA framework'
-bash scripts/speech_recognition/k2/setup.sh && echo "k2 installed!" || echo "k2 could not be installed!"
-
 echo 'All done!'

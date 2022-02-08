@@ -52,7 +52,7 @@ class CtcTopologyCompiler(object):
         self,
         num_classes: int,
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
     ):
         # use k2 import guard
@@ -60,7 +60,7 @@ class CtcTopologyCompiler(object):
 
         self.topo_type = topo_type
         self.device = device
-        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_selfloops)).to(
+        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_self_loops)).to(
             self.device
         )
         self.ctc_topo_inv = k2.arc_sort(self.base_graph.invert())
@@ -93,11 +93,11 @@ class CtcNumGraphCompiler(CtcTopologyCompiler):
         self,
         num_classes: int,
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
         aux_graph: Optional['k2.Fsa'] = None,
     ):
-        super().__init__(num_classes, topo_type, topo_with_selfloops, device)
+        super().__init__(num_classes, topo_type, topo_with_self_loops, device)
         if aux_graph is None:
             self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
@@ -127,11 +127,11 @@ class MmiGraphCompiler(CtcNumGraphCompiler):
         self,
         num_classes: int,
         topo_type: str = "default",
-        topo_with_selfloops: bool = True,
+        topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
         aux_graph: Optional['k2.Fsa'] = None,
     ):
-        super().__init__(num_classes, topo_type, topo_with_selfloops, device, aux_graph)
+        super().__init__(num_classes, topo_type, topo_with_self_loops, device, aux_graph)
         if aux_graph is None:
             self.den_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:

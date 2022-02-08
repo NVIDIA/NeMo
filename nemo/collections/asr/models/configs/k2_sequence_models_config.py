@@ -30,7 +30,6 @@ class GraphModuleConfig:
 
 @dataclass
 class EncDecK2SeqConfig(EncDecCTCConfig):
-    token_lm_overwrite: bool = False
     graph_module_cfg: GraphModuleConfig = GraphModuleConfig()
 
 
