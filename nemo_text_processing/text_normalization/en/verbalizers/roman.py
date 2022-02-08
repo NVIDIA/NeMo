@@ -59,6 +59,10 @@ class RomanFst(GraphFst):
             ).optimize()
 
             graph |= (
+                pynutil.delete("default_ordinal: \"default\" integer: \"") + ordinal + pynutil.delete("\"")
+            ).optimize()
+
+            graph |= (
                 pynutil.delete("key_the_ordinal: \"")
                 + pynini.closure(NEMO_NOT_QUOTE, 1)
                 + pynutil.delete("\"")

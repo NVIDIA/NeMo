@@ -61,10 +61,18 @@ class WhiteListFst(GraphFst):
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
             # e.g. "IN", "OH", "OK"
             # TODO or only exclude above?
+            states = load_labels(get_abs_path("data/address/states.tsv"))
+            if input_case == "lower_cased":
+                states_map = [(x.lower(), y) for x, y in states]
+                states_map.extend([(x.lower(), y[0].upper() + y[1:].lower()) for x, y in states])
+            else:
+                states_map = [(x, y) for x, y in states] 
+                states_map.extend([(x, y[0].upper() + y[1:].lower()) for x, y in states])
+            state_graph = pynini.string_map(states_map)
             graph |= (
                 pynini.closure(NEMO_NOT_SPACE, 1)
                 + pynini.union(", ", ",")
-                + pynini.invert(_get_whitelist_graph(input_case, get_abs_path("data/address/states.tsv"))).optimize()
+                + pynini.invert(state_graph).optimize()
             )
 
         if input_file:
