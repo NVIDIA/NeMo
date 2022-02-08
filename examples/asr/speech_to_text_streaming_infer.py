@@ -257,7 +257,8 @@ def main():
             cache_pre_encode=cache_pre_encode_next,
             previous_hypotheses=previous_hypotheses,
         )
-        cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_buffer_size:, :]
+        if last_channel_buffer_size >= 0:
+            cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_buffer_size:, :]
         # print(asr_out_stream)
         print(asr_out_stream.size())
         asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
