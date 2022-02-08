@@ -24,7 +24,7 @@
 stages:
   - test
 
-test:bignlp_scripts_temp:
+test:bignlp_scripts:
   <<: *only-default
   stage: test
   script:
