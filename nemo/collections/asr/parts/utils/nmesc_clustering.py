@@ -149,6 +149,7 @@ def kmeans_torch(
         iter_limit: int=15,
         device: torch.device=torch.device('cpu'),
 ):
+    print(f'running k-means on {device}..')   
     # convert to float
     X = X.float().to(device)
 
@@ -187,15 +188,15 @@ def kmeans_torch(
 
 
 @torch.jit.script
-def getTheLargestComponent(affinity_mat, seg_index: int):
+def getTheLargestComponent(affinity_mat, seg_index: int, device: torch.device):
     """
     Find the largest affinity_mat connected components for each given node.
     This is for checking whether the affinity_mat is fully connected.
     """
     num_of_segments = affinity_mat.shape[0]
 
-    connected_nodes = torch.zeros(num_of_segments, dtype=torch.bool)
-    nodes_to_explore = torch.zeros(num_of_segments, dtype=torch.bool)
+    connected_nodes = torch.zeros(num_of_segments, dtype=torch.bool).to(device)
+    nodes_to_explore = torch.zeros(num_of_segments, dtype=torch.bool).to(device)
 
     nodes_to_explore[seg_index] = True
     for k in range(num_of_segments):
@@ -213,8 +214,8 @@ def getTheLargestComponent(affinity_mat, seg_index: int):
     return connected_nodes
 
 @torch.jit.script
-def isGraphFullyConnected(affinity_mat):
-    return getTheLargestComponent(affinity_mat, 0).sum() == affinity_mat.shape[0]
+def isGraphFullyConnected(affinity_mat, device: torch.device):
+    return getTheLargestComponent(affinity_mat, 0, device).sum() == affinity_mat.shape[0]
 
 
 
@@ -244,7 +245,7 @@ def getAffinityGraphMat(affinity_mat_raw, p_value: int):
 
 
 @torch.jit.script
-def getMinimumConnection(mat, max_N, n_list):
+def getMinimumConnection(mat, max_N, n_list, device: torch.device):
     """
     Generate connections until fully connect all the nodes in the graph.
     If graph is not fully connected, it might generate an inaccurate results.
@@ -252,7 +253,7 @@ def getMinimumConnection(mat, max_N, n_list):
     p_value  = torch.tensor(1)
     affinity_mat = getAffinityGraphMat(mat, p_value)
     for i, p_value in enumerate(n_list):
-        fully_connected = isGraphFullyConnected(affinity_mat)
+        fully_connected = isGraphFullyConnected(affinity_mat, device)
         affinity_mat = getAffinityGraphMat(mat, p_value)
         if fully_connected or p_value > max_N:
             break
@@ -303,7 +304,7 @@ def get_argmin_mat(uniq_scale_list: List[List[torch.Tensor]]):
     return session_scale_mapping_dict
 
 @torch.jit.script
-def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale_list: List[List[torch.Tensor]]):
+def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale_list: List[List[torch.Tensor]], device: torch.device=torch.device('cpu')):
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
     apply multiscale weights to calculate the fused similarity matrix.
@@ -324,22 +325,22 @@ def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale
     N_scale = len(uniq_scale_list)
     base_scale_idx = N_scale - 1
     base_scale_emb = uniq_scale_list[base_scale_idx][0]
-    multiscale_weights = multiscale_weights.unsqueeze(0)
+    multiscale_weights = multiscale_weights.unsqueeze(0).to(device)
 
     score_mat_list, repeated_tensor_list = [], []
     repeated_mat_list = [] 
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_list)
     for scale_idx in range(N_scale):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
-        emb_t = uniq_scale_list[scale_idx][0]
+        emb_t = uniq_scale_list[scale_idx][0].to(device)
         _emb = emb_t.half()
         sim_d = cos_similarity(_emb, _emb)
-        score_mat_torch = ScalerMinMax(sim_d)
-        repeat_list = _getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0]))
+        score_mat_torch = ScalerMinMax(sim_d).to(device)
+        repeat_list = _getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0])).to(device)
         repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
         repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
         repeated_tensor_list.append(repeated_tensor_1)
-    repp = torch.stack(repeated_tensor_list).float()
+    repp = torch.stack(repeated_tensor_list).float().to(device)
     multiscale_weights = multiscale_weights.squeeze(0).float()
     fused_sim_d = torch.matmul(repp.permute(2,1,0), multiscale_weights.t()).squeeze(2).t()
     return fused_sim_d, base_scale_emb
@@ -543,6 +544,7 @@ class NMESC:
         self.mat = mat
         self.p_value_list: torch.Tensor = torch.tensor(0)
         self.device = device
+        print(f'running NMESC on {self.device}..')   
     
     def NMEanalysis(self):
         """
@@ -569,8 +571,8 @@ class NMESC:
 
         # Checks whether affinity graph is fully connected.
         # If not, it adds minimum number of connections to make it fully connected.
-        if not isGraphFullyConnected(affinity_mat):
-            affinity_mat, rp_p_value = getMinimumConnection(self.mat, self.max_N, self.p_value_list)
+        if not isGraphFullyConnected(affinity_mat, device=self.device):
+            affinity_mat, rp_p_value = getMinimumConnection(self.mat, self.max_N, self.p_value_list, device=self.device)
 
         p_hat_value = (subsample_ratio * rp_p_value).type(torch.int)
         est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
@@ -710,6 +712,7 @@ def COSclustering(
     uniq_scale_list = uniq_embs_and_timestamps[1]
     emb = uniq_scale_list[0][0]
     cuda, device= True, torch.device("cuda:0")
+    # cuda, device= False, torch.device("cpu")
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32)
     else:
@@ -718,7 +721,7 @@ def COSclustering(
     if oracle_num_speakers:
         max_num_speaker = oracle_num_speakers
 
-    mat, emb = _getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps[0], uniq_embs_and_timestamps[1])
+    mat, emb = _getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps[0], uniq_embs_and_timestamps[1], device=device)
     emb = emb.to(device)
     
     nmesc = NMESC(
