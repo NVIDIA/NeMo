@@ -56,6 +56,8 @@ parser.add_argument("--num-workers", default=4, type=int)
 parser.add_argument("--normalization-source", default="dataset", type=str, choices=[None, "dataset", "nemo"])
 parser.add_argument("--num-workers-for-normalizer", default=12, type=int)
 
+parser.add_argument("--save-google-normalization-separately", action="store_true", default=False)
+
 parser.add_argument("--pretrained-model", default="stt_en_citrinet_1024", type=str)
 parser.add_argument('--whitelist-path', type=str, default=None)
 
@@ -289,7 +291,10 @@ def __process_transcript(file_path: str, normalization_source="dataset"):
     return entries
 
 
-def __process_data(data_folder, manifest_file, num_workers, num_workers_for_normalizer, normalization_source="dataset", normalizer=None, pretrained_model=None):
+def __process_data(
+        data_folder, manifest_file, num_workers, num_workers_for_normalizer,
+        normalization_source="dataset", normalizer=None, pretrained_model=None,
+        save_google_normalization_separately=False):
     files = []
     entries = []
 
@@ -309,6 +314,23 @@ def __process_data(data_folder, manifest_file, num_workers, num_workers_for_norm
     with open(manifest_file, 'w') as fout:
         for m in entries:
             fout.write(json.dumps(m) + '\n')
+
+    if save_google_normalization_separately:
+        google_manifest_file = Path(manifest_file).parent / f"{Path(manifest_file).stem}_google.json"
+        entries = []
+        for p in files:
+            with open(p.replace("original.txt", "normalized.txt"), encoding="utf-8") as fin:
+                norm_text = fin.readlines()[0].strip()
+
+            entity = {
+                'audio_filepath': os.path.abspath(p.replace(".original.txt", ".wav")),
+                'normalized_text': norm_text
+            }
+            entries.append(entity)
+
+        with open(google_manifest_file, 'w') as fout:
+            for m in entries:
+                fout.write(json.dumps(m) + '\n')
 
     if normalization_source == "nemo":
         # TODO(oktai15): flags
@@ -358,13 +380,13 @@ def main():
 
         __process_data(
             data_folder=str(data_root / "LibriTTS" / data_set.replace("_", "-")),
-            # manifest_file=str(data_root / "LibriTTS" / f"{data_set}_google.json"),
             manifest_file=str(data_root / "LibriTTS" / f"{data_set}.json"),
             num_workers=num_workers,
             num_workers_for_normalizer=num_workers_for_normalizer,
             normalization_source=args.normalization_source,
             normalizer=normalizer,
-            pretrained_model=args.pretrained_model
+            pretrained_model=args.pretrained_model,
+            save_google_normalization_separately=args.save_google_normalization_separately
         )
 
 
