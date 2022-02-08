@@ -24,7 +24,6 @@ from torch.nn.modules.utils import _single
 
 from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.utils import logging
-from nemo.utils.export_utils import BatchNorm1dNoAutoCast
 
 try:
     from pytorch_quantization import calib
@@ -950,7 +949,7 @@ class JasperBlock(nn.Module):
         elif normalization == "layer":
             layers.append(nn.GroupNorm(num_groups=1, num_channels=out_channels))
         elif normalization == "batch":
-            layers.append(BatchNorm1dNoAutoCast(out_channels, eps=1e-3, momentum=0.1))
+            layers.append(nn.BatchNorm1d(out_channels, eps=1e-3, momentum=0.1))
         else:
             raise ValueError(
                 f"Normalization method ({normalization}) does not match" f" one of [batch, layer, group, instance]."

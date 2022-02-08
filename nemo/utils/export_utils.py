@@ -37,16 +37,16 @@ _EXT_DICT = {
 }
 
 
-class BatchNorm1dNoAutoCast(nn.BatchNorm1d):
-    def __init__(self, num_features, **kwargs):
-        nn.BatchNorm1d.__init__(self, num_features, **kwargs)
+class CastToFloat(nn.Module):
+    def __init__(self, mod):
+        super(CastToFloat, self).__init__()
+        self.mod = mod
 
     def forward(self, x):
-        if torch.onnx.is_in_onnx_export():
-            with torch.cuda.amp.autocast(enabled=False):
-                ret = nn.BatchNorm1d.forward(self, x.to(torch.float)).to(x.dtype)
+        if torch.is_autocast_enabled():
+            ret = self.mod.forward(x.to(torch.float)).to(x.dtype)
         else:
-            ret = nn.BatchNorm1d.forward(self, x)
+            ret = self.mod.forward(x)
         return ret
 
 
@@ -200,6 +200,23 @@ def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[
     return expansion_fn
 
 
+def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
+    """
+    Generic function generator to replace BaseT module with DestT wrapper. 
+    Args:
+        BaseT : module type to replace
+        DestT : destination module type
+    Returns:
+        swap function to replace BaseT module with DestT
+    """
+
+    def expansion_fn(mod: nn.Module) -> Optional[nn.Module]:
+        out = DestT(mod)
+        return out
+
+    return expansion_fn
+
+
 def swap_modules(model: nn.Module, mapping: Dict[str, nn.Module]):
     """
     This function swaps nested modules as specified by "dot paths" in mod with a desired replacement. This allows
@@ -237,9 +254,17 @@ def replace_modules(
             swapped = expansions[m_type](m)
             if swapped:
                 mapping[name] = swapped
-    logging.warning(f"Swapped {len(mapping)} modules")
+    if len(mapping) > 0:
+        logging.info(f"Swapped {len(mapping)} modules")
     swap_modules(model, mapping)
     return model
+
+
+default_replacements = {
+    "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
+}
+
+default_replacements.update(default_Apex_replacements)
 
 
 def replace_for_export(model: nn.Module) -> nn.Module:
@@ -252,4 +277,4 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     Returns:
         model, possibly modified in-place
     """
-    replace_modules(model, default_Apex_replacements)
+    replace_modules(model, default_replacements)

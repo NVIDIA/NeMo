@@ -21,7 +21,6 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
-from nemo.utils.export_utils import BatchNorm1dNoAutoCast
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
@@ -148,7 +147,7 @@ class ConformerConvolution(nn.Module):
             bias=True,
         )
         if norm_type == 'batch_norm':
-            self.batch_norm = BatchNorm1dNoAutoCast(d_model)
+            self.batch_norm = nn.BatchNorm1d(d_model)
         elif norm_type == 'layer_norm':
             self.batch_norm = nn.LayerNorm(d_model)
         else:

@@ -110,23 +110,25 @@ def nemo_export(argv):
     typecheck.set_typecheck_enabled(enabled=False)
 
     try:
+        #
+        #  Add custom export parameters here
+        #
+        in_args = {}
+        if args.max_batch is not None:
+            in_args["max_batch"] = args.max_batch
+        if args.max_dim is not None:
+            in_args["max_dim"] = args.max_dim
+
         autocast = nullcontext
         model = model.to(device=args.device)
         model.eval()
+        with torch.inference_mode():
+            input_example = model.input_module.input_example(**in_args)
         if args.autocast:
             autocast = torch.cuda.amp.autocast
         with autocast(), torch.inference_mode():
             logging.info(f"Exporting model with autocast={args.autocast}")
-            #
-            #  Add custom export parameters here
-            #
-            in_args = {}
-            if args.max_batch is not None:
-                in_args["max_batch"] = args.max_batch
-            if args.max_dim is not None:
-                in_args["max_dim"] = args.max_dim
 
-            input_example = model.input_module.input_example(**in_args)
             input_list, input_dict = parse_input_example(input_example)
             output_example = forward_method(model)(*input_list, **input_dict)
             input_names = model.input_names

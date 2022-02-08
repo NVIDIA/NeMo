@@ -47,7 +47,6 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging
-from nemo.utils.export_utils import BatchNorm1dNoAutoCast
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
@@ -541,7 +540,7 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
                     )
                 )
             self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
-            self.decoder_layers.append(BatchNorm1dNoAutoCast(self.feat_hidden, eps=1e-3, momentum=0.1))
+            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
         for i in range(non_stride_layers):
             self.decoder_layers.append(activation)
             self.decoder_layers.append(
@@ -555,7 +554,7 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
                 )
             )
             self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
-            self.decoder_layers.append(BatchNorm1dNoAutoCast(self.feat_hidden, eps=1e-3, momentum=0.1))
+            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
 
         self.decoder_layers.append(activation)
         self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_out, kernel_size=1, bias=True))
@@ -825,14 +824,14 @@ class SpeakerDecoder(NeuralModule, Exportable):
     ):
         if affine_type == 'conv':
             layer = nn.Sequential(
-                BatchNorm1dNoAutoCast(inp_shape, affine=True, track_running_stats=True),
+                nn.BatchNorm1d(inp_shape, affine=True, track_running_stats=True),
                 nn.Conv1d(inp_shape, out_shape, kernel_size=1),
             )
 
         else:
             layer = nn.Sequential(
                 nn.Linear(inp_shape, out_shape),
-                BatchNorm1dNoAutoCast(out_shape, affine=learn_mean, track_running_stats=True),
+                nn.BatchNorm1d(out_shape, affine=learn_mean, track_running_stats=True),
                 nn.ReLU(),
             )
 
