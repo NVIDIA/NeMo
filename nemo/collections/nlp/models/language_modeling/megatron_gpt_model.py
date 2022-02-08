@@ -429,8 +429,7 @@ class MegatronGPTModel(NLPModel):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
-            torch.cuda.nvtx.range_push("batch = [x.cuda() for x in batch]")
-            batch = [x.cuda() for x in batch]
+            batch = [x.cuda(non_blocking=True) for x in batch]
 
             if self.use_soft_prompts:
                 tokens, labels, loss_mask, attention_mask, position_ids, prompt_ids = batch
