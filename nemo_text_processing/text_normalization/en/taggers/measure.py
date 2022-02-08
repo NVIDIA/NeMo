@@ -24,6 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     convert_space,
     delete_space,
+    insert_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
@@ -53,7 +54,9 @@ class MeasureFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True):
+    def __init__(
+        self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True, lm: bool = False
+    ):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
 
@@ -178,7 +181,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
         )
 
-        address = self.get_address_graph(cardinal)
+        address = self.get_address_graph(cardinal, lm=lm)
         address = (
             pynutil.insert("units: \"address\" cardinal { integer: \"")
             + address
@@ -220,7 +223,7 @@ class MeasureFst(GraphFst):
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
-    def get_address_graph(self, cardinal):
+    def get_address_graph(self, cardinal, lm):
         """
         Finite state transducer for classifying serial.
             The serial is a combination of digits, letters and dashes, e.g.:
@@ -235,7 +238,8 @@ class MeasureFst(GraphFst):
             pynutil.insert("integer: \"") + ordinal_tagger + pynutil.insert("\""), ordinal_verbalizer
         )
 
-        address_num = pynini.closure(NEMO_DIGIT, 1) @ cardinal.single_digits_graph
+        address_num = NEMO_DIGIT ** (1, 2) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        address_num += insert_space + NEMO_DIGIT ** 2 @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
         direction = (
             pynini.cross("E", "East")
@@ -281,4 +285,8 @@ class MeasureFst(GraphFst):
             + state
             + zip_code
         )
+
+        if lm:
+            address |= address_num + direction + address_words + pynini.closure(pynini.cross(".", ""), 0, 1)
+
         return address
