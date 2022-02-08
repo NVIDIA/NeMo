@@ -1,10 +1,8 @@
-image: python:3.7
-
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-  CONTAINER_VERSION: "21.12"
+# variables:
+#   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+#   CONTAINER_VERSION: "21.12"
 
 # Pip's cache doesn't store the python packages
 # https://pip.pypa.io/en/stable/reference/pip_install/#caching
@@ -33,4 +31,4 @@ test:bignlp_scripts_temp:
     - pip install -r requirements.txt
     - pip install 'pytest>=3'
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
-    - pytest tests/
+    - pytest data_preparation/dataprep_scripts/test_*
