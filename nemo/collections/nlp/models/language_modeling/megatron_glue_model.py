@@ -16,11 +16,11 @@ from typing import Any, Optional
 
 import torch
 from apex.transformer import parallel_state
-from omegaconf.dictconfig import DictConfig
 from omegaconf import OmegaConf, open_dict
-from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
+from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -40,9 +40,7 @@ class MegatronT5FineTuneModel(NLPModel):
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
         t5_cfg = MegatronT5Model.restore_from(
-            self.register_artifact('t5_base_model', cfg.restore_from_path),
-            trainer=trainer,
-            return_config=True
+            self.register_artifact('t5_base_model', cfg.restore_from_path), trainer=trainer, return_config=True
         )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
@@ -50,7 +48,8 @@ class MegatronT5FineTuneModel(NLPModel):
 
         self.model = MegatronT5Model.restore_from(
             self.register_artifact('t5_base_model', cfg.restore_from_path),
-            trainer=trainer, override_config_path=t5_cfg
+            trainer=trainer,
+            override_config_path=t5_cfg,
         )
 
     def training_step(self, batch, batch_idx):
@@ -215,10 +214,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset,
-            num_replicas=world_size,
-            rank=rank,
-            shuffle=shuffle
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
 
         # Data loader. Note that batch size is the per GPU batch size.
