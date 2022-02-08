@@ -14,10 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    GraphFst,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
@@ -27,6 +24,7 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+
 
 class RomanFst(GraphFst):
     """
@@ -76,7 +74,8 @@ class RomanFst(GraphFst):
 
         # two and more roman numerals, single digit roman numbers could be initials or I
         roman_to_ordinal = pynini.compose(
-            pynini.closure(NEMO_ALPHA, 2), (pynutil.insert("default_ordinal: \"default\" ") + default_graph + pynutil.delete("th"))
+            pynini.closure(NEMO_ALPHA, 2),
+            (pynutil.insert("default_ordinal: \"default\" ") + default_graph + pynutil.delete("th")),
         )
 
         graph |= roman_to_cardinal | roman_to_ordinal

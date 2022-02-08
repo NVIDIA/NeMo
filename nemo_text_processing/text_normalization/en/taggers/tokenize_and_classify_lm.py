@@ -122,7 +122,7 @@ class ClassifyFst(GraphFst):
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
             measure_graph = measure.fst
             date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
-            date_graph =date.fst
+            date_graph = date.fst
             word_graph = WordFst(deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
             telephone_graph = TelephoneFst(deterministic=True).fst

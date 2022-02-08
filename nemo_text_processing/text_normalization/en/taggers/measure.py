@@ -26,7 +26,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
 
 try:
@@ -256,7 +256,11 @@ class MeasureFst(GraphFst):
         city = pynini.closure(NEMO_ALPHA | pynini.accep(NEMO_SPACE), 1)
         city = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + city, 0, 1)
 
-        state = pynini.invert(pynini.string_file(get_abs_path("data/address/states.tsv")))
+        states = load_labels(get_abs_path("data/address/states.tsv"))
+        states_map = [(x, y) for x, y in states]
+        states_map.extend([(x, y[0].upper() + y[1:].lower()) for x, y in states])
+        state_graph = pynini.string_map(states_map)
+        state = pynini.invert(state_graph)
         state = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + state, 0, 1)
 
         zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)

@@ -66,13 +66,11 @@ class WhiteListFst(GraphFst):
                 states_map = [(x.lower(), y) for x, y in states]
                 states_map.extend([(x.lower(), y[0].upper() + y[1:].lower()) for x, y in states])
             else:
-                states_map = [(x, y) for x, y in states] 
+                states_map = [(x, y) for x, y in states]
                 states_map.extend([(x, y[0].upper() + y[1:].lower()) for x, y in states])
             state_graph = pynini.string_map(states_map)
             graph |= (
-                pynini.closure(NEMO_NOT_SPACE, 1)
-                + pynini.union(", ", ",")
-                + pynini.invert(state_graph).optimize()
+                pynini.closure(NEMO_NOT_SPACE, 1) + pynini.union(", ", ",") + pynini.invert(state_graph).optimize()
             )
 
         if input_file:
