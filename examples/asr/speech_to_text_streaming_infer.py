@@ -205,7 +205,7 @@ def main():
     )
 
     print(asr_out_whole)
-    print(greedy_merge(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
+    #print(greedy_merge(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
 
@@ -265,7 +265,7 @@ def main():
         step_num += 1
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
-    print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
+    #print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
 
     print(torch.sum(asr_out_stream_total != asr_out_whole))
     print(step_num)
