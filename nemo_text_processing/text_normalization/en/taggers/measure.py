@@ -131,6 +131,15 @@ class MeasureFst(GraphFst):
             + unit_singular
         )
 
+        unit_graph = (
+            pynutil.insert("cardinal { integer: \"-\" } units: \"")
+            + pynini.cross(pynini.union("/", "per"), "per")
+            + delete_space
+            + pynutil.insert(NEMO_NON_BREAKING_SPACE)
+            + graph_unit
+            + pynutil.insert("\" preserve_order: true")
+        )
+
         cardinal_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
             + cardinal_graph
@@ -210,6 +219,7 @@ class MeasureFst(GraphFst):
         final_graph = (
             subgraph_decimal
             | subgraph_cardinal
+            | unit_graph
             | cardinal_dash_alpha
             | alpha_dash_cardinal
             | decimal_dash_alpha
@@ -239,7 +249,10 @@ class MeasureFst(GraphFst):
         )
 
         address_num = NEMO_DIGIT ** (1, 2) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        address_num += insert_space + NEMO_DIGIT ** 2 @ (pynini.closure(pynini.cross("0", "zero "), 0, 1) +  cardinal.graph_hundred_component_at_least_one_none_zero_digit)
+        address_num += insert_space + NEMO_DIGIT ** 2 @ (
+            pynini.closure(pynini.cross("0", "zero "), 0, 1)
+            + cardinal.graph_hundred_component_at_least_one_none_zero_digit
+        )
 
         direction = (
             pynini.cross("E", "East")

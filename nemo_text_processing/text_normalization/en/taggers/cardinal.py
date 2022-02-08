@@ -155,8 +155,8 @@ class CardinalFst(GraphFst):
         """
         num_graph = self.single_digits_graph
 
-        if not self.deterministic:
-            num_graph |= self.graph
+        # if not self.deterministic:
+        num_graph |= self.graph
 
         # add space between letter and digit
         graph_with_space = pynini.compose(

@@ -127,7 +127,6 @@ class NormalizerWithAudio(Normalizer):
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
         original_text = text
-
         if self.lang == "en":
             text = pre_process(text)
         text = text.strip()
