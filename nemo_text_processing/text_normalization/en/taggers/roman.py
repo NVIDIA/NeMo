@@ -14,10 +14,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    GraphFst,
-)
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
