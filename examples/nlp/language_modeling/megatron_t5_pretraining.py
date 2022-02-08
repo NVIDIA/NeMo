@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
