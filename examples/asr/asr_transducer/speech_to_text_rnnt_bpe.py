@@ -40,7 +40,7 @@ python speech_to_text_rnnt_bpe.py \
     model.tokenizer.type=<either bpe or wpe> \
     trainer.devices=-1 \
     trainer.accelerator="gpu" \
-    strategy="ddp" \
+    trainer.strategy="ddp" \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
     model.optim.lr=0.001 \

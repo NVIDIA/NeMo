@@ -90,16 +90,17 @@ def get_batch_size(train_dataloader):
         raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
 
 
+# TODO change trainer.training_type_plugin.distributed_backend to trainer.strategy after PTL 1.6 version releases
 def get_num_workers(trainer):
-    if trainer._distrib_type is None:
+    if trainer.training_type_plugin.distributed_backend is None:
         return trainer.num_gpus or 1
-    elif trainer._distrib_type.value == "ddp_cpu":
+    elif trainer.training_type_plugin.distributed_backend.value == "ddp_cpu":
         return trainer.num_processes * trainer.num_nodes
-    elif trainer._distrib_type.value == "ddp":
+    elif trainer.training_type_plugin.distributed_backend.value == "ddp":
         return trainer.num_gpus * trainer.num_nodes
     else:
         logging.warning(
-            f"The lightning trainer received strategy: {trainer._distrib_type.value}. We "
+            f"The lightning trainer received strategy: {trainer.training_type_plugin.distributed_backend.value}. We "
             "recommend to use 'ddp' instead."
         )
         return trainer.num_gpus * trainer.num_nodes
