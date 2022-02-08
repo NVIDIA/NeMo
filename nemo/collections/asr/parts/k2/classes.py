@@ -28,7 +28,6 @@ from nemo.utils import logging
 # fmt: off
 from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
 k2_import_guard()
-import k2 # isort:skip
 # fmt: on
 
 
@@ -74,7 +73,7 @@ class ASRK2Mixin(metaclass=ABCMeta):
         self.use_graph_lm = criterion_type == "map"
         if self.use_graph_lm:
             token_lm_path = self.graph_module_cfg.background_cfg.get("token_lm", None)
-            if token_lm_path == None:
+            if token_lm_path is None:
                 raise ValueError(
                     f"graph_module_cfg.background_cfg.token_lm is empty. It must be set for criterion_type == `{criterion_type}`"
                 )
