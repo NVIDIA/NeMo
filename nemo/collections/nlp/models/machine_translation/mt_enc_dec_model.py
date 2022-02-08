@@ -48,6 +48,7 @@ from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGe
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers
+from nemo.utils.export_utils import augment_filename
 
 __all__ = ['MTEncDecModel']
 
@@ -945,10 +946,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
-            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
+            augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
         )
         decoder_exp, decoder_descr = self.decoder.export(
-            self._augment_output_filename(output, 'Decoder'),
+            augment_filename(output, 'Decoder'),
             # TODO: propagate from export()
             input_example=None,
             **kwargs,

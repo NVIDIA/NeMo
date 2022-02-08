@@ -36,6 +36,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
+from nemo.utils.export_utils import augment_filename
 
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
@@ -259,7 +260,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
                         entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
@@ -516,10 +517,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
                     * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
@@ -896,11 +902,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
-            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
+            augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
         )
         decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
         decoder_exp, decoder_descr = decoder_joint.export(
-            self._augment_output_filename(output, 'Decoder-Joint'),
+            augment_filename(output, 'Decoder-Joint'),
             # TODO: propagate from export()
             input_example=None,
             **kwargs,

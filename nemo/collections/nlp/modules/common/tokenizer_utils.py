@@ -99,7 +99,7 @@ def get_tokenizer(
 
     if 'megatron' in tokenizer_name:
         if not HAVE_APEX:
-            logging.warning(
+            raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         if vocab_file is None:

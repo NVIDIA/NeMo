@@ -14,7 +14,13 @@
 # limitations under the License.
 
 import torch
-from apex._autocast_utils import _cast_if_autocast_enabled
+
+try:
+    from apex._autocast_utils import _cast_if_autocast_enabled
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 ###### BIAS GELU FUSION/ NO AUTOGRAD ################
 # 1/sqrt(2*pi)-> 0.3989423
