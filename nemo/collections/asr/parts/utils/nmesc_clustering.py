@@ -383,7 +383,6 @@ def getLamdaGaplist(lambdas):
     return lambdas[1:] - lambdas[:-1]
 
 
-
 @torch.jit.script
 def estimateNumofSpeakers(affinity_mat, max_num_speaker: int, is_cuda: bool=False, device: torch.device=torch.device('cpu')):
     """
