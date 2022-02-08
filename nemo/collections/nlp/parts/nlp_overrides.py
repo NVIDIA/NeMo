@@ -142,6 +142,9 @@ class NLPDDPPlugin(DDPPlugin):
         # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
+            # destroy groups in case they have already been created
+            # this happens with multiple calls to trainer.test for example
+            parallel_state.destroy_model_parallel()
             if torch.distributed.is_initialized():
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
