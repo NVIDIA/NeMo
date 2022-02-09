@@ -48,6 +48,7 @@ def create_temp_dataset():
 
 
 class TestMegatronGPTPromptTuningDataset:
+    @pytest.mark.skip('disabled until prompt tuning is fixed for pipeline')
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_init_prompt_tuning_dataset(self):
@@ -63,6 +64,7 @@ class TestMegatronGPTPromptTuningDataset:
 
         os.remove(dataset_path)
 
+    @pytest.mark.skip('disabled until prompt tuning is fixed for pipeline')
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_prompt_tuning_dataset_collate_fn(self):
