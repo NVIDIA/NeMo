@@ -187,12 +187,14 @@ MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"]
 
 
 def is_start_piece(piece):
-    """Check if the current word piece is the starting piece (BERT)."""
+    """Check if the current word piece is the starting piece."""
     # When a word has been split into
     # WordPieces, the first token does not have any marker and any subsequence
     # tokens are prefixed with ##. So whenever we see the ## token, we
     # append it to the previous set of word indexes.
-    return not piece.startswith("##")
+
+    # For sentencepiece models, tokens *not* prefixed with ▁ the subsequent chunks of a large word.
+    return not piece.startswith("##") or piece.startswith('▁')
 
 
 def create_masked_lm_predictions(
