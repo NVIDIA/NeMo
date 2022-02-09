@@ -274,9 +274,16 @@ class MeasureFst(GraphFst):
         city = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + city, 0, 1)
 
         states = load_labels(get_abs_path("data/address/states.tsv"))
-        states_map = [(x, y) for x, y in states]
-        states_map.extend([(x, y[0].upper() + y[1:].lower()) for x, y in states])
-        state_graph = pynini.string_map(states_map)
+
+        additional_options = []
+        for x, y in states:
+            additional_options.append((x, f"{y[0]}. {y[1:]}"))
+            additional_options.append((x, f"{y[0]}.{y[1:]}"))
+            additional_options.append((x, f"{y[0].upper()}{y[1:].lower()}"))
+            additional_options.append((x, f"{y[0].upper()}.{y[1:].lower()}"))
+            additional_options.append((x, f"{y[0].upper()}. {y[1:].lower()}"))
+        states.extend(additional_options)
+        state_graph = pynini.string_map(states)
         state = pynini.invert(state_graph)
         state = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + state, 0, 1)
 

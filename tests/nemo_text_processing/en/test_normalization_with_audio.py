@@ -21,7 +21,7 @@ from ..utils import CACHE_DIR, PYNINI_AVAILABLE, get_test_cases_multiple
 
 class TestNormalizeWithAudio:
     normalizer_with_audio_en = (
-        NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
+        NormalizerWithAudio(input_case='cased', lang='en', lm=True, cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE and CACHE_DIR
         else None
     )
