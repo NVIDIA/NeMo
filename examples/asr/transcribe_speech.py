@@ -117,7 +117,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         device = [cfg.cuda]
         accelerator = 'gpu'
 
-    map_location = torch.device(f'cuda:{cfg.cuda}' if accelerator == 'gpu' else 'cpu')
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
 
     # setup model
     if cfg.model_path is not None:
