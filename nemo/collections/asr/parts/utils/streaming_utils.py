@@ -62,7 +62,7 @@ def write_lcs_alignment_to_pickle(alignment, filepath, extras=None):
         extras = {}
 
     extras['alignment'] = alignment
-    torch.save(alignment, filepath)
+    torch.save(extras, filepath)
 
 
 def longest_common_subsequence_merge(X, Y, filepath=None):
