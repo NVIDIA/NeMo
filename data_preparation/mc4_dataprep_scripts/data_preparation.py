@@ -14,7 +14,6 @@ def create_slurm_file(
         time="04:00:00",
         exclusive=True,
         requeue=True,
-        node_array="0",
         nodes=1,
         partition="batch",
         account=None,
@@ -23,6 +22,7 @@ def create_slurm_file(
         job_name="",
 ):
     task = code_path.split("/")[-1].split(".")[0]
+    node_array = f"0-{nodes-1}"
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines("#SBATCH --nodes=1\n")
@@ -62,10 +62,13 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     download_mc4 = data_cfg.download_mc4
     preprocess_data = data_cfg.preprocess_data
     c4_dir = data_cfg.c4_dir
+    preprocessed_dir = data_cfg.preprocessed_dir
     git_lfs_dir = data_cfg.git_lfs_dir
     download_vocab_url = data_cfg.download_vocab_url
     download_merges_url = data_cfg.download_merges_url
     download_tokenizer_url = data_cfg.download_tokenizer_url
+    vocab_save_dir = data_cfg.vocab_save_dir
+    merges_save_dir = data_cfg.merges_save_dir
     tokenizer_save_dir = data_cfg.tokenizer_save_dir
     tokenizer = data_cfg.tokenizer
     languages = data_cfg.languages
@@ -82,6 +85,22 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    # Download vocab
+    if download_vocab_url is not None:
+        assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
+        utils.download_single_file(
+            url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
+        )
+
+    # Download merges
+    if download_merges_url is not None:
+        assert merges_save_dir is not None, "merges_save_dir must be a valid path."
+        utils.download_single_file(
+            url=download_merges_url,
+            save_dir=merges_save_dir,
+            file_name="merges.txt",
+        )
+
     # TODO: Download tokenizer
     # if download_vocab_url is not None:
     #     assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
@@ -89,20 +108,38 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     #         url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
     #     )
 
+    # Define running commands
     prepare_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/prepare.py")
     prepare_args = f"-data-path={data_dir} " \
                    f"--git-lfs-path={git_lfs_dir} " \
                    f"--languages={languages} " \
                    f"--node-array-size={nodes} " \
                    f"--worker-mapping-file={download_worker_mapping}"
+
     download_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/download.py")
     download_args = f"--c4-path={c4_dir} " \
                     f"--git-lfs-path={git_lfs_dir} " \
                     f"--worker-mapping-file={download_worker_mapping}"
+
     setup_preprocess_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/setup_preprocess.py")
-    setup_preprocess_args = f""
+    setup_preprocess_args = f"--c4-path={c4_dir} " \
+                            f"--soft-link-path={softlinks_dir} " \
+                            f"--languages={languages} " \
+                            f"--node-array-size={nodes} " \
+                            f"--workers-per-node={workers_per_node} " \
+                            f"--worker-mapping-file={preprocess_worker_mapping}"
+
     preprocess_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/preprocess.py")
-    preprocess_args = f""
+    rm_arg = "--rm-downloaded" if rm_downloaded else ""
+    preprocess_args = f"{rm_arg}" \
+                      f"--worker-mapping-file={preprocess_worker_mapping} " \
+                      f"--output-path={preprocessed_dir} " \
+                      f"--tokenizer-library sentencepiece " \
+                      f"--tokenizer-model {tokenizer} " \
+                      f"--dataset-impl mmap " \
+                      f"--workers {cpus_per_node // workers_per_node}  " \
+                      f"--preproc-folder " \
+                      f"--apply-ftfy"
 
     # BCM config
     if cfg.cluster_type == "bcm":
@@ -126,6 +163,30 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         assert isinstance(download_mc4, bool), "download_mc4 must be bool."
         if download_mc4:
             # Prepare mC4 dataset repo
+            prepare_script_path = os.path.join(
+                bignlp_path, "data_preparation/prepare_mc4_script.sh"
+            )
+            create_slurm_file(
+                new_script_path=prepare_script_path,
+                code_path=prepare_code_path,
+                log_dir=log_dir,
+                flags=flags,
+                args=prepare_args,
+                dependency=dependency,
+                time=time_limit,
+                nodes=1,
+                partition=partition,
+                account=account,
+                mem=mem,
+                exclusive=exclusive,
+                overcommit=overcommit,
+                job_name=f"{job_name_prefix}mc4_prepare",
+            )
+            job_id = subprocess.check_output(
+                [f"sbatch --parsable {prepare_script_path}"], shell=True
+            )
+            dependency = job_id.decode("utf-8")
+            print(f"Submitted Download script with job id: {dependency}")
 
             # Download mC4 dataset files
             download_script_path = os.path.join(
@@ -147,53 +208,53 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}mc4_download",
             )
-            job_id_1 = subprocess.check_output(
+            job_id = subprocess.check_output(
                 [f"sbatch --parsable {download_script_path}"], shell=True
             )
-            dependency = job_id_1.decode("utf-8")
+            dependency = job_id.decode("utf-8")
             print(f"Submitted Download script with job id: {dependency}")
 
-            # Extract The Pile dataset files
-            extract_script_path = os.path.join(
-                bignlp_path, "data_preparation/extract_script.sh"
+        assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
+        if preprocess_data:
+            # Setup preprocess for mC4 dataset
+            setup_preprocess_script_path = os.path.join(
+                bignlp_path, "data_preparation/setup_preprocess_script.sh"
             )
             create_slurm_file(
-                new_script_path=extract_script_path,
-                code_path=extract_code_path,
+                new_script_path=setup_preprocess_script_path,
+                code_path=setup_preprocess_code_path,
                 log_dir=log_dir,
                 flags=flags,
-                hydra_args=hydra_args,
+                args=setup_preprocess_args,
                 dependency=dependency,
                 time=time_limit,
-                file_numbers=file_numbers,
                 nodes=nodes,
                 partition=partition,
                 account=account,
                 mem=mem,
                 overcommit=overcommit,
-                job_name=f"{job_name_prefix}extract",
+                job_name=f"{job_name_prefix}setup_preprocess",
             )
-            job_id_2 = subprocess.check_output(
+            job_id = subprocess.check_output(
                 [f"sbatch --parsable {extract_script_path}"], shell=True
             )
-            dependency = job_id_2.decode("utf-8")
+            dependency = job_id.decode("utf-8")
             print(f"Submitted Extract script with job id: {dependency}")
 
-        assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
-        if preprocess_data:
             # Preprocess the dataset
             preprocess_script_path = os.path.join(
                 bignlp_path, "data_preparation/preprocess_script.sh"
             )
+            preprocess_flags = flags + f" --ntasks-per-node={workers_per_node} " \
+                                       f" --cpus-per-task={cpus_per_node // workers_per_node}"
             create_slurm_file(
                 new_script_path=preprocess_script_path,
                 code_path=preprocess_code_path,
                 log_dir=log_dir,
-                flags=flags,
-                hydra_args=hydra_args,
+                flags=preprocess_flags,
+                args=preprocess_args,
                 dependency=dependency,
                 time=time_limit,
-                file_numbers=file_numbers,
                 nodes=nodes,
                 partition=partition,
                 account=account,
@@ -201,87 +262,13 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}preprocess",
             )
-            job_id_3 = subprocess.check_output(
+            job_id = subprocess.check_output(
                 [f"sbatch --parsable {preprocess_script_path}"], shell=True
             )
-            dependency = job_id_3.decode("utf-8")
+            dependency = job_id.decode("utf-8")
             print(f"Submitted Preprocessing script with job id: {dependency}")
         return dependency
 
     if cfg.cluster_type == "bcp":
-        def get_launcher(nnodes, npernode, cmd):
-            if utils.is_tool('bcprun'):
-                launcher = "NGC_ARRAY_TYPE=MPIJob " + \
-                           f"bcprun --nnodes {nnodes} --npernode {npernode} " + \
-                           f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
-            else:
-                launcher = \
-                    f"mpirun --allow-run-as-root " + \
-                    f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
-            return launcher
-
-        joblog = os.path.join(log_dir, "data_joblog.log")
-        nnodes = int(os.environ.get("NGC_ARRAY_SIZE", 1))
-
-        assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
-        if download_the_pile:
-            # Downloading the files
-            cmd = f"python3 {download_code_path} {hydra_args}"
-            launchcmd = get_launcher(nnodes, 1, cmd)
-            proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
-            print(f"\nSubmitted Download script with job pid: {proc.pid}")
-            with open(joblog, "a", encoding="utf-8") as jlog:
-                print(f"Download CMD:\n{launchcmd}", file=jlog)
-                for line in proc.stdout:
-                    print(line)
-                    jlog.write(line)
-
-            proc.wait()
-            print(f"Finished Download script returncode: {proc.returncode}")
-
-            # Extract The Pile dataset files
-            cmd = f"python3 {extract_code_path} {hydra_args}"
-            launchcmd = get_launcher(nnodes, 1, cmd)
-            proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
-            print(f"\nSubmitted extract script with job pid: {proc.pid}")
-            with open(joblog, "a", encoding="utf-8") as jlog:
-                print(f"Extract CMD:\n{launchcmd}", file=jlog)
-                for line in proc.stdout:
-                    print(line)
-                    jlog.write(line)
-
-            proc.wait()
-            print(f"Finished extract script returncode: {proc.returncode}")
-
-        assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
-        if preprocess_data:
-            # Preprocess the dataset
-            megatron_dir = '/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron'
-            # Remove compiled helpers lib to avoid race condition
-            compiled_helpers_lib = os.path.join(
-                megatron_dir, 'compiled_helpers_lib')
-            clean = f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
-                    f'rm "{compiled_helpers_lib}" \''
-            cleancmd = get_launcher(nnodes, 1, clean)
-            os.system(cleancmd)
-
-            preproc_npernode = int(data_cfg.bcp_preproc_npernode)
-            cmd = f"python3 {preprocess_code_path} {hydra_args}"
-            launchcmd = get_launcher(nnodes, preproc_npernode, cmd)
-            proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
-            print(f"\nSubmitted preprocess script with job pid: {proc.pid}")
-            with open(joblog, "a", encoding="utf-8") as jlog:
-                print(f"Preprocess CMD:\n{launchcmd}", file=jlog)
-                for line in proc.stdout:
-                    print(line)
-                    jlog.write(line)
-
-            proc.wait()
-            print(f"Finished preprocess script returncode: {proc.returncode}")
+        raise NotImplementedError
     return None

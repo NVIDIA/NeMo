@@ -4,7 +4,7 @@ import copy
 import hydra
 import omegaconf
 
-from data_preparation.pile_dataprep_scripts import data_preparation
+# from data_preparation.pile_dataprep_scripts import data_preparation
 from train_scripts import train
 from conversion_scripts import convert
 from eval_scripts import evaluate
@@ -52,6 +52,14 @@ def main(cfg):
     run_training = cfg.run_training
     run_conversion = cfg.run_conversion
     run_evaluation = cfg.run_evaluation
+
+    # TODO: build a mapping from dataset name to modules
+    if "pile" in cfg.datset:
+        from data_preparation.pile_dataprep_scripts import data_preparation
+    elif "mc4" in cfg.dataset:
+        from data_preparation.mc4_dataprep_scripts import data_preparation
+    else:
+        raise ValueError(f"Unrecognized dataset {cfg.dataset}.")
 
     cfg_copy = copy.deepcopy(cfg)
     dependency = None

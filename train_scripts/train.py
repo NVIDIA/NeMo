@@ -86,7 +86,12 @@ def run_training(cfg, hydra_args="", dependency=None):
     
     # Shared between BCP and BCM 
     new_script_path = os.path.join(bignlp_path, f"train_scripts/{name}.sh")
-    code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
+    if "gpt" in cfg.training_config:
+        code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
+    elif "t5" in cfg.training_config:
+        code_path = os.path.join(bignlp_path, "train_scripts/pretrain_t5.py")
+    else:
+        raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
     train_cmd = f"python3 -u {code_path} {hydra_args}"
 
     nodes = train_cfg.trainer.num_nodes

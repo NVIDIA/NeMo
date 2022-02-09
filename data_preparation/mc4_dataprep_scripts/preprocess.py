@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import time
 import glob
@@ -19,6 +20,7 @@ Example usage:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Preprocess (m)C4", allow_abbrev=False)
+    parser.add_argument("--rm-downloaded", help="Whether to remove original downloaded data", action="store_true")
     parser.add_argument("--output-path", help="Path to store output bin files", required=True)
     parser.add_argument("--worker-mapping-file", help="Decide which worker download which languages", required=True)
     parser.add_argument("--workers-per-node", default=int(os.environ.get("SLURM_NTASKS_PER_NODE", 1)),
@@ -51,6 +53,15 @@ if __name__ == '__main__':
             task_id, rank, os.path.basename(split)))
         input_arg = ["--input", split]
         output_arg = ["--output-prefix", os.path.join(args.output_path, os.path.basename(split))]
-        subprocess.call(cmd + input_arg + output_arg + other_args)
+        try:
+            subprocess.check_call(cmd + input_arg + output_arg + other_args)
+        except subprocess.CalledProcessError:
+            print(" ****** Task ID {:02d} Rank {:02d} ERRORS in preprocessing {:}...".format(
+                task_id, rank, os.path.basename(split)))
         print(" ****** Task ID {:02d} Rank {:02d} finished preprocessing {:}...".format(
             task_id, rank, os.path.basename(split)))
+        if args.rm_downloaded:
+            for f in listdir(split):
+                os.remove(os.readlink(f))
+            shutil.rmtree(split)
+

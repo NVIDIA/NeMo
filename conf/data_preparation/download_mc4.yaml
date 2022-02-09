@@ -1,17 +1,20 @@
-dataset: mC4
 download_mc4: True  # Whether to download the pile dataset from the internet.
 preprocess_data: True  # True to preprocess the data from a json.gz file, False otherwise.
 c4_dir: ${data_dir}/c4 # Path to (m)C4 dataset repo.
 git_lfs_dir: ${data_dir}/lfs # Path to store git lfs files.
+download_vocab_url: null  # URL to download the vocab from.
+download_merges_url: null  # URL to download the merges from.
 download_tokenizer_url: ??? # URL to download tokenizer from
-tokenizer_save_dir: ${data_dir}/tokenizer # Path to save tokenizers
-tokenizer: ${data_dir}/tokenizer/???
+vocab_save_dir: ${.c4_dir}/bpe
+merges_save_dir: ${.c4_dir}/bpe
+tokenizer_save_dir: ${.c4_dir}/bpe
 languages: all # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
-softlinks_dir: ${data_dir}/c4/softlinks # Path to languages soft links for preprocessing
-download_worker_mapping: ${data_dir}/c4/download_mapping
-preprocess_worker_mapping: ${data_dir}/c4/preprocess_mapping
-log_dir: ${base_results_dir}/data_preparation/logs  # Where to save the logs
-rm_downloaded: True # Extract script will remove downloaded zst after extraction
+softlinks_dir: ${.c4_dir}/softlinks # Path to languages soft links for preprocessing
+preprocessed_dir: ${.c4_dir}/preprocessed
+download_worker_mapping: ${.c4_dir}/download_mapping
+preprocess_worker_mapping: ${.c4_dir}/preprocess_mapping
+log_dir: ${base_results_dir}/data_preparation/mc4_logs  # Where to save the logs
+rm_downloaded: False # Script will not remove downloaded after preprocessing
 nodes: 20
 cpus_per_node: 256 # 256 cpus for A100(80G)
 time_limit: "4:00:00"
