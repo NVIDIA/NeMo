@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,8 +52,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         self._encoder_key = "encoder"
         self._decoder_key = "decoder"
-
-    # FIXME: no need to set decoder too?
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""

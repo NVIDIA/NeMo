@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -314,7 +314,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
-        # TODO: move into a class inside MegatronTokenLevelEncoderDecoderModule (?)
+        # TODO: move method into a class inside MegatronTokenLevelEncoderDecoderModule (?)
         encoder_hidden_states = itemgetter("enc_output")(
             self(
                 encoder_input_ids=tokens_enc,

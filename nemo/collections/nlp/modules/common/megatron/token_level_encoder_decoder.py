@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""T5 model."""
 
 import torch
 
@@ -64,7 +62,7 @@ class MegatronTokenLevelHead(MegatronModule):
         return output
 
 
-# TODO: add soft prompts
+# TODO: add soft prompts as an Embedding sub-class
 
 
 class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
@@ -116,7 +114,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        # TODO: add get_embedding function
+        # TODO: add get_embedding function to support various embedders (like prompt tuning)
         self.encoder_embedding = Embedding(
             hidden_size=hidden_size,
             vocab_size=vocab_size,
