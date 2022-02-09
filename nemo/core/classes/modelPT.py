@@ -475,6 +475,7 @@ class ModelPT(LightningModule, Model):
             logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
 
         if 'sched' in optim_config and self._trainer is not None:
+            # TODO change trainer.training_type_plugin.distributed_backend to trainer.strategy after PTL 1.6 version releases
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
             if self._trainer.max_steps is None or self.trainer.max_steps < 0:
@@ -482,11 +483,21 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if HAVE_NLPPLUGIN and isinstance(self._trainer.training_type_plugin, NLPDDPPlugin):
+                if self._trainer.training_type_plugin is None:
+                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
+                elif self._trainer.training_type_plugin.distributed_backend.value == "ddp_cpu":
+                    optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
+                elif self._trainer.training_type_plugin.distributed_backend.value == "ddp":
+                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
+                elif HAVE_NLPPLUGIN and isinstance(self._trainer.training_type_plugin, NLPDDPPlugin):
                     app = AppState()
                     optim_config['sched']['t_num_workers'] = app.data_parallel_size
                 else:
-                    optim_config['sched']['t_num_workers'] = self._trainer.devices * self._trainer.num_nodes
+                    logging.warning(
+                        f"The lightning trainer received strategy: {self._trainer.training_type_plugin.distributed_backend.value}. We "
+                        "recommend to use 'ddp' instead."
+                    )
+                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
