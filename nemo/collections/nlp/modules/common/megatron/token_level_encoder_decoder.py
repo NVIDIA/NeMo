@@ -191,7 +191,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)
         self._enc_dec_model_key = "enc_dec_model"
 
-        self.tokens_head = MegatronTokenLevelHead(self.decoder_embedding.word_embeddings.weight.size(0), parallel_output)
+        self.tokens_head = MegatronTokenLevelHead(
+            self.decoder_embedding.word_embeddings.weight.size(0), parallel_output
+        )
         self._tokens_head_key = 'tokens_head'
 
     def set_input_tensor(self, input_tensor):
