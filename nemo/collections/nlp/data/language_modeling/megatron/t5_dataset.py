@@ -70,13 +70,14 @@ class T5Dataset(MegatronDataset):
         )
 
         self.tokenizer = tokenizer
-
+        self.tokenizer_type = 'wordpiece' # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
         if isinstance(self.tokenizer, YouTokenToMeTokenizer):
             raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
 
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             if not self.tokenizer.legacy:
                 raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
+            self.tokenizer_type = 'sentencepiece'
 
         self.cls_id = tokenizer.cls_id
         self.sep_id = tokenizer.sep_id
@@ -119,6 +120,7 @@ class T5Dataset(MegatronDataset):
             bos_id=self.bos_id,
             eos_id=self.eos_id,
             sentinel_tokens=self.sentinel_tokens,
+            tokenizer_type=self.tokenizer_type
         )
         return training_sample
 
@@ -139,6 +141,7 @@ def build_training_sample(
     bos_id=None,
     eos_id=None,
     sentinel_tokens=None,
+    tokenizer_type="wordpiece"
 ):
     """Build training sample.
     Arguments:
@@ -159,6 +162,7 @@ def build_training_sample(
         bos_id: start of decoder example id
         eos_id: end of generation id
         sentinel_tokens: unique value to be substituted for every replaced span
+        tokenizer_type: wordpiece (BERT-style) or sentencepiece tokenizer. Used for whole word masking logic.
     """
     assert target_seq_length <= max_seq_length
 
@@ -183,8 +187,12 @@ def build_training_sample(
         max_predictions_per_seq,
         np_rng,
         max_ngrams=10,
+        do_whole_word_mask=True,
+        favor_longer_ngram=False,
+        do_permutation=False,
         geometric_dist=True,
         masking_style="t5",
+        tokenizer_type=tokenizer_type,
     )
 
     # Padding.
