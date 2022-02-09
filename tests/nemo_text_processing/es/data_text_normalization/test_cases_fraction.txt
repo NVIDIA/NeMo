@@ -72,3 +72,5 @@
 1/10000~un diezmilésimo
 1/100.000~un cienmilésimo
 1/1.000.000~un millonésimo
+1/100.000.000~un cienmillonésimo
+1/1.200.000.000~un mildoscientosmillonésimo

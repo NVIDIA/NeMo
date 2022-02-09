@@ -46,12 +46,12 @@ class CardinalFst(GraphFst):
         self.numbers = integer
         graph = optional_sign + self.numbers
 
-        # For alternate renderings
-        no_adjust = graph
-        fem_adjust = shift_cardinal_gender(graph) + pynutil.delete(" morphosyntactic_features: \"gender_fem\"")
-        apocope_adjust = strip_cardinal_apocope(graph) + pynutil.delete(" morphosyntactic_features: \"no_apocope\"")
-
-        graph = no_adjust | fem_adjust | apocope_adjust
+        if not deterministic:
+            # For alternate renderings
+            no_adjust = graph
+            fem_adjust = shift_cardinal_gender(graph)
+            apocope_adjust = strip_cardinal_apocope(graph)
+            graph = no_adjust | fem_adjust | apocope_adjust
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

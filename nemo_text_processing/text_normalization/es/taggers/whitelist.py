@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
+from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -61,7 +61,7 @@ class WhiteListFst(GraphFst):
                 graph = whitelist_provided
 
         if not deterministic:
-            units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measure/measurements.tsv"))
+            units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measures/measurements.tsv"))
             graph |= units_graph
 
         self.graph = graph

@@ -134,3 +134,4 @@ CD~cuadringentésimo
 D~quingentésimo
 CM~noningentésimo
 999.º~noningentésimo nonagésimo noveno
+cmxcix~noningentésimo nonagésimo noveno

@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ from typing import Dict, List, Union
 
 from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
+from pynini.lib import rewrite
 from tqdm import tqdm
 
 try:
@@ -46,8 +47,8 @@ SPACE_DUP = re.compile(' {2,}')
 
 class Normalizer:
     """
-    Normalizer class that converts text from written to spoken form. 
-    Useful for TTS preprocessing. 
+    Normalizer class that converts text from written to spoken form.
+    Useful for TTS preprocessing.
 
     Args:
         input_case: expected input capitalization
@@ -104,7 +105,7 @@ class Normalizer:
 
     def normalize_list(self, texts: List[str], verbose=False, punct_post_process: bool = False) -> List[str]:
         """
-        NeMo text normalizer 
+        NeMo text normalizer
 
         Args:
             texts: list of input strings
@@ -204,6 +205,7 @@ class Normalizer:
 
         Returns: spoken form
         """
+        print(rewrite.rewrites(text, self.tagger.fst))
         original_text = text
         if punct_pre_process:
             text = pre_process(text)

@@ -14,18 +14,6 @@
 
 import os
 
-from nemo_text_processing.text_normalization.es.taggers.cardinal import CardinalFst
-from nemo_text_processing.text_normalization.es.taggers.date import DateFst
-from nemo_text_processing.text_normalization.es.taggers.decimals import DecimalFst
-#from nemo_text_processing.text_normalization.es.taggers.electronic import ElectronicFst
-from nemo_text_processing.text_normalization.es.taggers.fraction import FractionFst
-#from nemo_text_processing.text_normalization.es.taggers.measure import MeasureFst
-#from nemo_text_processing.text_normalization.es.taggers.money import MoneyFst
-from nemo_text_processing.text_normalization.es.taggers.ordinal import OrdinalFst
-#from nemo_text_processing.text_normalization.es.taggers.telephone import TelephoneFst
-#from nemo_text_processing.text_normalization.es.taggers.time import TimeFst
-from nemo_text_processing.text_normalization.es.taggers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.es.taggers.word import WordFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -33,6 +21,18 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     generator_main,
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.es.taggers.cardinal import CardinalFst
+from nemo_text_processing.text_normalization.es.taggers.date import DateFst
+from nemo_text_processing.text_normalization.es.taggers.decimals import DecimalFst
+from nemo_text_processing.text_normalization.es.taggers.electronic import ElectronicFst
+from nemo_text_processing.text_normalization.es.taggers.fraction import FractionFst
+from nemo_text_processing.text_normalization.es.taggers.measure import MeasureFst
+from nemo_text_processing.text_normalization.es.taggers.money import MoneyFst
+from nemo_text_processing.text_normalization.es.taggers.ordinal import OrdinalFst
+from nemo_text_processing.text_normalization.es.taggers.telephone import TelephoneFst
+from nemo_text_processing.text_normalization.es.taggers.time import TimeFst
+from nemo_text_processing.text_normalization.es.taggers.whitelist import WhiteListFst
+from nemo_text_processing.text_normalization.es.taggers.word import WordFst
 
 from nemo.utils import logging
 
@@ -48,7 +48,7 @@ except (ModuleNotFoundError, ImportError):
 class ClassifyFst(GraphFst):
     """
     Final class that composes all other classification grammars. This class can process an entire sentence, that is lower cased.
-    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File.
     More details to deployment at NeMo/tools/text_processing_deployment.
 
     Args:
@@ -91,43 +91,43 @@ class ClassifyFst(GraphFst):
             self.decimal = DecimalFst(cardinal=self.cardinal, deterministic=deterministic)
             decimal_graph = self.decimal.fst
 
-            self.fraction = FractionFst(ordinal=self.ordinal, deterministic=deterministic)
+            self.fraction = FractionFst(cardinal=self.cardinal, ordinal=self.ordinal, deterministic=deterministic)
             fraction_graph = self.fraction.fst
-            # self.measure = MeasureFst(
-            #     cardinal=self.cardinal, decimal=self.decimal, fraction=self.fraction, deterministic=deterministic
-            # )
-            # measure_graph = self.measure.fst
+            self.measure = MeasureFst(
+                cardinal=self.cardinal, decimal=self.decimal, fraction=self.fraction, deterministic=deterministic
+            )
+            measure_graph = self.measure.fst
             self.date = DateFst(cardinal=self.cardinal, deterministic=deterministic)
             date_graph = self.date.fst
             word_graph = WordFst(deterministic=deterministic).fst
-            # self.time = TimeFst(deterministic=deterministic)
-            # time_graph = self.time.fst
-            # self.telephone = TelephoneFst(cardinal=self.cardinal, deterministic=deterministic)
-            # telephone_graph = self.telephone.fst
-            # self.electronic = ElectronicFst(deterministic=deterministic)
-            # electronic_graph = self.electronic.fst
-            # self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
-            # money_graph = self.money.fst
+            self.time = TimeFst(self.cardinal, deterministic=deterministic)
+            time_graph = self.time.fst
+            self.telephone = TelephoneFst(deterministic=deterministic)
+            telephone_graph = self.telephone.fst
+            self.electronic = ElectronicFst(deterministic=deterministic)
+            electronic_graph = self.electronic.fst
+            self.money = MoneyFst(cardinal=self.cardinal, decimal=self.decimal, deterministic=deterministic)
+            money_graph = self.money.fst
             self.whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
             whitelist_graph = self.whitelist.fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = (
                 pynutil.add_weight(whitelist_graph, 1.01)
-                # | pynutil.add_weight(time_graph, 1.1)
-                # | pynutil.add_weight(measure_graph, 1.1)
+                | pynutil.add_weight(time_graph, 1.09)
+                | pynutil.add_weight(measure_graph, 1.08)
                 | pynutil.add_weight(cardinal_graph, 1.1)
-                | pynutil.add_weight(fraction_graph, 1.1)
+                | pynutil.add_weight(fraction_graph, 1.09)
                 | pynutil.add_weight(date_graph, 1.1)
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
-                # | pynutil.add_weight(money_graph, 1.1)
-                # | pynutil.add_weight(telephone_graph, 1.1)
-                # | pynutil.add_weight(electronic_graph, 1.1)
-                | pynutil.add_weight(word_graph, 100)
+                | pynutil.add_weight(money_graph, 1.1)
+                | pynutil.add_weight(telephone_graph, 1.1)
+                | pynutil.add_weight(electronic_graph, 1.1)
+                | pynutil.add_weight(word_graph, 200)
             )
 
-            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
+            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=2.0) + pynutil.insert(" }")
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
             token_plus_punct = (
                 pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)

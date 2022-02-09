@@ -12,15 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_NOT_SPACE,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-)
-from nemo_text_processing.text_normalization.es.graph_utils import shift_cardinal_gender
-from nemo_text_processing.text_normalization.es.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, NEMO_SIGMA, NEMO_SPACE, GraphFst
+from nemo_text_processing.text_normalization.es.graph_utils import shift_number_gender
 
 try:
     import pynini
@@ -55,7 +48,7 @@ class OrdinalFst(GraphFst):
         graph_fem_ending = graph @ pynini.cdrewrite(
             pynini.cross("o", "a"), "", NEMO_SPACE | pynini.accep("[EOS]"), NEMO_SIGMA
         )
-        graph_fem = shift_cardinal_gender(graph_fem_ending) + pynutil.delete(" morphosyntactic_features: \"gender_fem")
+        graph_fem = shift_number_gender(graph_fem_ending) + pynutil.delete(" morphosyntactic_features: \"gender_fem")
 
         # Apocope just changes tercero and primero. May occur if someone wrote 11.er (uncommon)
         graph_apocope = (
@@ -69,12 +62,13 @@ class OrdinalFst(GraphFst):
 
         graph = graph_apocope | graph_masc | graph_fem
 
-        # Plural graph
-        graph_plural = pynini.cdrewrite(
-            pynutil.insert("s"), pynini.union("o", "a"), NEMO_SPACE | pynini.accep("[EOS]"), NEMO_SIGMA
-        )
+        if not deterministic:
+            # Plural graph
+            graph_plural = pynini.cdrewrite(
+                pynutil.insert("s"), pynini.union("o", "a"), NEMO_SPACE | pynini.accep("[EOS]"), NEMO_SIGMA
+            )
 
-        graph |= (graph @ graph_plural) + pynutil.delete("/plural")
+            graph |= (graph @ graph_plural) + pynutil.delete("/plural")
 
         self.graph = graph + pynutil.delete("\"")
 

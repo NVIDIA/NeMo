@@ -1,9 +1,9 @@
 1 enero~primero de enero
 5 febrero~cinco de febrero
 20 de marzo~veinte de marzo
-abril 30~abril treinta
+abril 30~treinta de abril
 10 mayo 1990~diez de mayo de mil novecientos noventa
-junio 11 2000~junio once de dos mil
+junio 11 2000~once de junio de dos mil
 30 julio del 2020~treinta de julio del dos mil veinte
 30-2-1990~treinta de febrero de mil novecientos noventa
 30/2/1990~treinta de febrero de mil novecientos noventa

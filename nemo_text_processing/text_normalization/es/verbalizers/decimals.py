@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#	 http://www.apache.org/licenses/LICENSE-2.0
+# 	 http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,79 +12,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#from nemo_text_processing.text_normalization.es.taggers.decimals import quantities
+# from nemo_text_processing.text_normalization.es.taggers.decimals import quantities
 from nemo_text_processing.text_normalization.en.graph_utils import (
-	NEMO_NOT_QUOTE,
-	GraphFst,
-	delete_preserve_order,
-	insert_space,
-	NEMO_SIGMA
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_preserve_order,
+    delete_space,
+    insert_space,
 )
-from pynini.lib import rewrite
-try:
-	import pynini
-	from pynini.lib import pynutil
+from nemo_text_processing.text_normalization.es.graph_utils import (
+    shift_cardinal_gender,
+    shift_number_gender,
+    strip_cardinal_apocope,
+)
 
-	PYNINI_AVAILABLE = True
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-	PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = False
 
 
 class DecimalFst(GraphFst):
-	"""
-	Finite state transducer for classifying decimal, e.g. 
-		decimal { negative: "true" integer_part: "dos"  fractional_part: "quatro cero" quantity: "billonen" } -> menos dos coma quatro cero billones 
+    """
+	Finite state transducer for classifying decimal, e.g.
+		decimal { negative: "true" integer_part: "dos"  fractional_part: "quatro cero" quantity: "billonen" } -> menos dos coma quatro cero billones
 		decimal { integer_part: "eins" quantity: "billion" } -> eins billion
 
 	"""
 
-	def __init__(self, deterministic: bool = True):
-		super().__init__(name="decimal", kind="classify", deterministic=deterministic)
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-		delete_space = pynutil.delete(" ")
-		self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "menos ") + delete_space, 0, 1)
-		self.integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-		self.fractional_default = (
-			pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-		)
+        self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "menos ") + delete_space, 0, 1)
+        self.integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        self.fractional_default = (
+            pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        )
 
-		conjunction = pynutil.insert(" coma ")
-		if not deterministic:
-			conjunction |= pynutil.insert(" con ")
-			conjunction |= pynutil.insert(" y ")
-		self.fractional = conjunction + self.fractional_default
+        conjunction = pynutil.insert(" coma ")
+        if not deterministic:
+            conjunction |= pynutil.insert(pynini.union(" con ", " y "))
+            self.fractional_default |= strip_cardinal_apocope(self.fractional_default)
+        self.fractional = conjunction + self.fractional_default
 
-		self.quantity = (
-			delete_space + insert_space + pynutil.delete("quantity: \"") + NEMO_SIGMA + pynutil.delete("\"")
-		)
-		self.optional_quantity = pynini.closure(self.quantity, 0, 1)
+        self.quantity = (
+            delete_space
+            + insert_space
+            + pynutil.delete("quantity: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+        )
+        self.optional_quantity = pynini.closure(self.quantity, 0, 1)
 
-		graph = self.optional_sign + (
-			self.integer + self.quantity | self.integer + delete_space + self.fractional + self.optional_quantity
-		)
+        graph = self.optional_sign + (
+            (self.integer + self.quantity) | (self.integer + delete_space + self.fractional + self.optional_quantity)
+        )
 
-		self.numbers = graph
-		graph += delete_preserve_order
+        self.numbers = graph
+        self.numbers_no_quantity = self.integer + delete_space + self.fractional + self.optional_quantity
 
-		if not deterministic:
-			no_adjust = graph
-			fem_adjust = graph + pynutil.delete(" morphosyntactic_features: \"gender_fem\"")
-			
-			fem_hundreds = pynini.cross("ientos", "ientas")
-			fem_ones_final = pynini.cross("un", "una") | pynini.cross("ún", "una")
-			fem_ones_rest = pynini.cross("uno", "una")
-			fem_allign = pynini.cdrewrite(fem_hundreds, "", "", NEMO_SIGMA)
-			fem_allign @= pynini.cdrewrite(fem_ones_final, "", "[EOS]", NEMO_SIGMA)
-			fem_allign @= pynini.cdrewrite(fem_ones_rest, "", "", NEMO_SIGMA)
+        if not deterministic:
+            fem_adjust = self.optional_sign + (
+                shift_cardinal_gender(self.integer + delete_space) + shift_number_gender(self.fractional)
+            )
+            graph |= fem_adjust
 
-			fem_adjust @= fem_allign
-
-			apocope_adjust =  graph + pynutil.delete(" morphosyntactic_features: \"no_apocope\"")
-			strip_apocope = pynini.cross("un", "uno") | pynini.cross("ún", "uno")
-			strip_apocope = pynini.cdrewrite(strip_apocope, "", "[EOS]", NEMO_SIGMA)
-
-			apocope_adjust @= strip_apocope
-
-			graph = no_adjust | fem_adjust | apocope_adjust
-		delete_tokens = self.delete_tokens(graph)
-		self.fst = delete_tokens.optimize()
+        graph += delete_preserve_order
+        delete_tokens = self.delete_tokens(graph)
+        self.fst = delete_tokens.optimize()

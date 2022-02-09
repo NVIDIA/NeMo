@@ -5,7 +5,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#	 http://www.apache.org/licenses/LICENSE-2.0
+# 	 http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,21 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, NEMO_NOT_QUOTE, NEMO_NOT_SPACE, delete_space, NEMO_SIGMA, NEMO_SPACE, GraphFst, insert_space
-from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst
-from nemo_text_processing.text_normalization.es.utils import get_abs_path
-from nemo_text_processing.text_normalization.es.graph_utils import strip_accents
-try:
-	import pynini
-	from pynini.lib import pynutil
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_NOT_QUOTE,
+    NEMO_NOT_SPACE,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import (
+    accents,
+    shift_cardinal_gender,
+    strip_cardinal_apocope,
+)
 
-	PYNINI_AVAILABLE = True
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-	PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = False
 
 
 class FractionFst(GraphFst):
-	"""
+    """
 	Finite state transducer for verbalizing fraction
 		e.g. tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } } ->
 		twenty three four fifth
@@ -37,124 +49,136 @@ class FractionFst(GraphFst):
 			for False multiple transduction are generated (used for audio-based normalization)
 	"""
 
-	def __init__(self, deterministic: bool = True):
-		super().__init__(name="fraction", kind="verbalize", deterministic=deterministic)
+    def __init__(self, deterministic: bool = True):
+        super().__init__(name="fraction", kind="verbalize", deterministic=deterministic)
 
-		# Derivational strings append 'avo' as a suffix.
-		fraction_stem = pynutil.insert(" avo") # This is the stem for production. Addi					ng a space to manage preprocessing.
-		denominator_add_stem =pynutil.delete("denominator: \"") + (
-			pynini.closure(NEMO_NOT_QUOTE) + fraction_stem 
-			+ pynutil.delete("\" morphosyntactic_features: \"add_root\"")
-		)
-		   
-		# Ordinals we take as is 
-		denominator_ordinal = pynutil.delete("denominator: \"") + (
-			pynini.closure(NEMO_NOT_QUOTE) 
-			+ pynutil.delete("\" morphosyntactic_features: \"ordinal\"")
-		)
+        # Derivational strings append 'avo' as a suffix. Adding space for processing aid
+        fraction_stem = pynutil.insert(" avo")
+        plural = pynutil.insert("s")
 
-		denominator_cardinal = pynutil.delete("denominator: \"") + (
-			pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\"")
-		)
+        integer = (
+            pynutil.delete("integer_part: \"")
+            + strip_cardinal_apocope(pynini.closure(NEMO_NOT_QUOTE))
+            + pynutil.delete("\"")
+        )
 
-		denominator_singular = pynini.union(denominator_add_stem, denominator_ordinal)
+        numerator_one = pynutil.delete("numerator: \"") + pynini.accep("un") + pynutil.delete("\" ")
+        numerator = (
+            pynutil.delete("numerator: \"")
+            + pynini.difference(pynini.closure(NEMO_NOT_QUOTE), "un")
+            + pynutil.delete("\" ")
+        )
 
-		plural = pynutil.insert("s")
+        denominator_add_stem = pynutil.delete("denominator: \"") + (
+            pynini.closure(NEMO_NOT_QUOTE)
+            + fraction_stem
+            + pynutil.delete("\" morphosyntactic_features: \"add_root\"")
+        )
+        denominator_ordinal = pynutil.delete("denominator: \"") + (
+            pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" morphosyntactic_features: \"ordinal\"")
+        )
+        denominator_cardinal = pynutil.delete("denominator: \"") + (
+            pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\"")
+        )
 
-		denominator_plural = denominator_singular + plural
+        denominator_singular = pynini.union(denominator_add_stem, denominator_ordinal)
+        denominator_plural = denominator_singular + plural
 
-		if not deterministic:
-		# Occasional exceptions
-		# Eleven and twelve
-			denominator_singular |= (pynutil.delete("denominator: \"") +
-			pynini.string_map([
-				 ("once", "undécimo"),
-				 ("doce", "duodécimo")
-			 ])
-			+ pynutil.delete("\" morphosyntactic_features: \"add_root\""))
+        if not deterministic:
+            # Occasional exceptions
+            denominator_singular |= denominator_add_stem @ pynini.string_map(
+                [("once avo", "undécimo"), ("doce avo", "duodécimo")]
+            )
 
-		merge = pynini.cdrewrite(pynini.cross(" y ", "i"), "", "", NEMO_SIGMA) # The denominator must be a single word, with the conjunction "y" replaced by i
-		merge = merge @ pynini.cdrewrite(delete_space, "", pynini.difference(NEMO_CHAR, "p"), NEMO_SIGMA) # The "p" will only show up for "parte"
-		# The merger can produce duplicate vowels. This is not allowed in orthography
-		delete_duplicates = pynini.string_map([ # Removes vowels
-			("aa", "a"),
-			("oo", "o")
-		])
-		delete_duplicates = pynini.cdrewrite(delete_duplicates, "", "", NEMO_SIGMA)
-		remove_accents = pynini.cdrewrite( strip_accents, pynini.union(NEMO_SPACE, pynini.accep("[BOS]")) + pynini.closure(NEMO_NOT_SPACE), pynini.closure(NEMO_NOT_SPACE) + pynini.union("avo", "ava", "ésimo", "ésima") + pynini.accep("s").ques, NEMO_SIGMA)
-		merge_into_single_word = merge @ remove_accents @ delete_duplicates
-		
-		# Cardinals assume apocope with final ones, need to remove this
-		final_one = pynini.union("un", "ún")
-		remove_apocope = pynini.cdrewrite(pynini.cross(final_one, "uno"), "", pynini.accep("[EOS]"), NEMO_SIGMA)  
+        # Merging operations
+        merge = pynini.cdrewrite(
+            pynini.cross(" y ", "i"), "", "", NEMO_SIGMA
+        )  # The denominator must be a single word, with the conjunction "y" replaced by i
+        merge @= pynini.cdrewrite(delete_space, "", pynini.difference(NEMO_CHAR, "parte"), NEMO_SIGMA)
 
-		integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
-		integer @= remove_apocope
+        # The merger can produce duplicate vowels. This is not allowed in orthography
+        delete_duplicates = pynini.string_map([("aa", "a"), ("oo", "o")])  # Removes vowels
+        delete_duplicates = pynini.cdrewrite(delete_duplicates, "", "", NEMO_SIGMA)
 
-		numerator_one = pynutil.delete("numerator: \"") + pynini.accep("un") + pynutil.delete("\" ")
+        remove_accents = pynini.cdrewrite(
+            accents,
+            pynini.union(NEMO_SPACE, pynini.accep("[BOS]")) + pynini.closure(NEMO_NOT_SPACE),
+            pynini.closure(NEMO_NOT_SPACE) + pynini.union("avo", "ava", "ésimo", "ésima"),
+            NEMO_SIGMA,
+        )
+        merge_into_single_word = merge @ remove_accents @ delete_duplicates
 
-		numerator = pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
-		numerator @= pynini.cdrewrite(pynutil.delete("un"), pynini.accep("[BOS]"), pynini.accep("[EOS]"), NEMO_SIGMA) @ NEMO_CHAR.plus # To block "un"
+        fraction_default = numerator + delete_space + insert_space + (denominator_plural @ merge_into_single_word)
+        fraction_with_one = (
+            numerator_one + delete_space + insert_space + (denominator_singular @ merge_into_single_word)
+        )
 
-		fraction_default = (
-				numerator + insert_space + (denominator_plural @ merge_into_single_word)
-			)
+        fraction_with_cardinal = strip_cardinal_apocope(numerator | numerator_one)
+        fraction_with_cardinal += (
+            delete_space + pynutil.insert(" sobre ") + strip_cardinal_apocope(denominator_cardinal)
+        )
 
-		fraction_with_one = (
-				numerator_one + insert_space + (denominator_singular @ merge_into_single_word)
-				)
+        conjunction = pynutil.insert(" y ")
 
-		fraction_with_cardinal = (numerator | numerator_one) @ remove_apocope
-		fraction_with_cardinal += pynutil.insert(" sobre ") + (denominator_cardinal @ remove_apocope)
+        if not deterministic:
+            # There is an alternative rendering where ordinals act as adjectives for 'parte'. This requires use of the feminine
+            # Other rules will manage use of "un" at end, so just worry about endings
+            exceptions = pynini.string_map([("tercia", "tercera")])
+            apply_exceptions = pynini.cdrewrite(exceptions, "", "", NEMO_SIGMA)
+            vowel_change = pynini.cdrewrite(pynini.cross("o", "a"), "", pynini.accep("[EOS]"), NEMO_SIGMA)
 
-		conjunction = pynutil.insert(" y ")
+            denominator_singular_fem = shift_cardinal_gender(denominator_singular) @ vowel_change @ apply_exceptions
+            denominator_plural_fem = denominator_singular_fem + plural
 
-		if not deterministic:
-		   	# There is an alternative rendering where ordinals act as adjectives for 'parte'. This requires use of the feminine
-			# Other rules will manage use of "un" at end, so just worry about endings
-			change_gender_ending = pynini.cdrewrite(pynini.cross("o", "a"), "", pynini.accep("[EOS]"), NEMO_SIGMA)
-			change_gender_hundred = pynini.cdrewrite(pynini.cross("ientos", "ientas"), "", "", NEMO_SIGMA)
-			gender_allignment = remove_apocope @ change_gender_hundred @ change_gender_ending
+            numerator_one_fem = shift_cardinal_gender(numerator_one)
+            numerator_fem = shift_cardinal_gender(numerator)
 
-			denominator_singular_fem = denominator_singular @ gender_allignment
-			denominator_plural_fem = denominator_singular @ gender_allignment + plural
+            fraction_with_cardinal |= (
+                (numerator_one_fem | numerator_fem)
+                + delete_space
+                + pynutil.insert(" sobre ")
+                + shift_cardinal_gender(denominator_cardinal)
+            )
 
-			fraction_with_cardinal |= (numerator | numerator_one) @ gender_allignment + pynutil.insert(" sobre ") + (denominator_cardinal @ gender_allignment)
+            # Still need to manage stems
+            merge_stem = pynini.cdrewrite(
+                delete_space, "", pynini.union("avo", "ava", "avos", "avas"), NEMO_SIGMA
+            )  # For managing alternative spacing
+            merge_stem @= remove_accents @ delete_duplicates
 
-			numerator_one_fem = numerator_one @  gender_allignment
-			numerator_fem = numerator @ gender_allignment
+            fraction_with_one_fem = numerator_one_fem + delete_space + insert_space
+            fraction_with_one_fem += pynini.union(
+                denominator_singular_fem @ merge_stem, denominator_singular_fem @ merge_into_single_word
+            )  # Both forms exists
+            fraction_with_one_fem @= pynini.cdrewrite(pynini.cross("una media", "media"), "", "", NEMO_SIGMA)
+            fraction_with_one_fem += pynutil.insert(" parte")
 
-			# Still need to manage stems
-			merge_stem = pynini.cdrewrite(delete_space, "", pynini.union("avo", "ava", "avos", "avas"), NEMO_SIGMA) # For managing alternative spacing
-			merge_stem @= remove_accents @ delete_duplicates
+            fraction_default_fem = numerator_fem + delete_space + insert_space
+            fraction_default_fem += pynini.union(
+                denominator_plural_fem @ merge_stem, denominator_plural_fem @ merge_into_single_word
+            )
+            fraction_default_fem += pynutil.insert(" partes")
 
-			fraction_with_one_fem = numerator_one_fem + insert_space 
-			fraction_with_one_fem += pynini.union(denominator_singular_fem @ merge_stem, denominator_singular_fem @ merge_into_single_word) # Both forms exists 
-			fraction_with_one_fem @= pynini.cdrewrite(pynini.cross("una media", "media"), "", "", NEMO_SIGMA)
-			fraction_with_one_fem += pynutil.insert(" parte")
+            fraction_default |= (
+                numerator + delete_space + insert_space + denominator_plural @ merge_stem
+            )  # Case of no merger
+            fraction_default |= fraction_default_fem
 
-			fraction_default_fem = numerator_fem + insert_space 
-			fraction_default_fem += pynini.union(denominator_plural_fem @ merge_stem, denominator_plural_fem @ merge_into_single_word)
-			fraction_default_fem += pynutil.insert(" partes")
-
-			fraction_default |= numerator + insert_space + denominator_plural @ merge_stem # Case of no merger
-			fraction_default |= fraction_default_fem
-
-			fraction_with_one |= numerator_one + insert_space + denominator_singular @ merge_stem
-			fraction_with_one |= fraction_with_one_fem
+            fraction_with_one |= numerator_one + delete_space + insert_space + denominator_singular @ merge_stem
+            fraction_with_one |= fraction_with_one_fem
 
             # Integers are influenced by dominant noun, need to allow feminine forms as well
-			integer |= integer @ gender_allignment
+            integer |= shift_cardinal_gender(integer)
 
-		# Remove 'un medio'
-		fraction_with_one @= pynini.cdrewrite(pynini.cross("un medio", "medio"), "", "", NEMO_SIGMA)
+        # Remove 'un medio'
+        fraction_with_one @= pynini.cdrewrite(pynini.cross("un medio", "medio"), "", "", NEMO_SIGMA)
 
-		integer = pynini.closure(integer + conjunction, 0, 1)
+        integer = pynini.closure(integer + delete_space + conjunction, 0, 1)
 
-		fraction = fraction_with_one | fraction_default | fraction_with_cardinal
+        fraction = fraction_with_one | fraction_default | fraction_with_cardinal
 
-		graph = integer + fraction
+        graph = integer + fraction
 
-		self.graph = graph
-		delete_tokens = self.delete_tokens(self.graph)
-		self.fst = delete_tokens.optimize()
+        self.graph = graph
+        delete_tokens = self.delete_tokens(self.graph)
+        self.fst = delete_tokens.optimize()

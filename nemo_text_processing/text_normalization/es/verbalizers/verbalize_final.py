@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.es.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
+from nemo_text_processing.text_normalization.es.verbalizers.verbalize import VerbalizeFst
 
 try:
     import pynini
@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError):
 class VerbalizeFinalFst(GraphFst):
     """
     Finite state transducer that verbalizes an entire sentence
-    
+
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)

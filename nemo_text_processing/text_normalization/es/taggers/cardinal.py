@@ -49,13 +49,6 @@ except (ModuleNotFoundError, ImportError):
     graph_hundreds = None
 
 
-def get_one_to_one_thousand(cardinal):
-    numbers = [str(_) for _ in range(1, 1000)]
-    graph = pynini.string_map(numbers) @ cardinal
-    graph = pynini.project(graph, "output")
-    return graph.optimize()
-
-
 def filter_punctuation(fst):
     exactly_three_digits = NEMO_DIGIT ** 3  # for blocks of three
     up_to_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)  # for start of string
@@ -109,57 +102,44 @@ class CardinalFst(GraphFst):
             pynutil.delete("00") + digits_no_one
         )
 
-        # Larger numbers (manage spaces here)
-        graph_thousands = pynini.cross("001", "mil")
-        graph_thousands |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" mil")
-        graph_thousands |= pynutil.delete("000")
-        graph_thousands += insert_space
+        graph_thousands_component_at_least_one_none_zero_digit = pynini.union(
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_none_zero_digit,
+            graph_hundreds_component_at_least_one_none_zero_digit_no_one
+            + pynutil.insert(" mil")
+            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+            pynini.cross("001", "mil")
+            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+        )
 
-        graph_million = pynutil.add_weight(pynini.cross("001", "un millón"), -0.001)
-        graph_million |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" millones")
-        graph_million |= pynutil.delete("000")
+        graph_thousands_component_at_least_one_none_zero_digit_no_one = pynini.union(
+            pynutil.delete("000") + graph_hundreds_component_at_least_one_none_zero_digit_no_one,
+            graph_hundreds_component_at_least_one_none_zero_digit_no_one
+            + pynutil.insert(" mil")
+            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+            pynini.cross("001", "mil")
+            + ((insert_space + graph_hundreds_component_at_least_one_none_zero_digit) | pynutil.delete("000")),
+        )
+
+        graph_million = pynutil.add_weight(pynini.cross("000001", "un millón"), -0.001)
+        graph_million |= graph_thousands_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" millones")
+        graph_million |= pynutil.delete("000000")
         graph_million += insert_space
 
-        graph_mil_million = pynutil.add_weight(pynini.cross("001", "mil millones"), -0.001)
-        graph_mil_million |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(
-            " mil millones"
-        )
-        graph_mil_million |= pynutil.delete("000")
-        graph_mil_million += insert_space
-
-        graph_billion = pynutil.add_weight(pynini.cross("001", "un billón"), -0.001)
-        graph_billion |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" billones")
-        graph_billion |= pynutil.delete("000")
+        graph_billion = pynutil.add_weight(pynini.cross("000001", "un billón"), -0.001)
+        graph_billion |= graph_thousands_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" billones")
+        graph_billion |= pynutil.delete("000000")
         graph_billion += insert_space
 
-        graph_mil_billion = pynutil.add_weight(pynini.cross("001", "mil billones"), -0.001)
-        graph_mil_billion |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(
-            " mil billones"
-        )
-        graph_mil_billion |= pynutil.delete("000")
-        graph_mil_billion += insert_space
-
-        graph_trillion = pynutil.add_weight(pynini.cross("001", "un trillón"), -0.001)
-        graph_trillion |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" trillones")
-        graph_trillion |= pynutil.delete("000")
+        graph_trillion = pynutil.add_weight(pynini.cross("000001", "un trillón"), -0.001)
+        graph_trillion |= graph_thousands_component_at_least_one_none_zero_digit_no_one + pynutil.insert(" trillones")
+        graph_trillion |= pynutil.delete("000000")
         graph_trillion += insert_space
 
-        graph_mil_trillion = pynutil.add_weight(pynini.cross("001", "mil trillones"), -0.001)
-        graph_mil_trillion |= graph_hundreds_component_at_least_one_none_zero_digit_no_one + pynutil.insert(
-            " mil trillones"
-        )
-        graph_mil_trillion |= pynutil.delete("000")
-        graph_mil_trillion += insert_space
-
         graph = (
-            graph_mil_trillion
-            + graph_trillion
-            + graph_mil_billion
+            graph_trillion
             + graph_billion
-            + graph_mil_million
             + graph_million
-            + graph_thousands
-            + (graph_hundreds_component_at_least_one_none_zero_digit | pynutil.delete("000"))
+            + (graph_thousands_component_at_least_one_none_zero_digit | pynutil.delete("000000"))
         )
 
         self.graph = (
@@ -177,14 +157,9 @@ class CardinalFst(GraphFst):
 
         self.graph = filter_punctuation(self.graph).optimize()
 
-        self.numbers_one_to_one_thousand = get_one_to_one_thousand(self.graph)
-
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        if not deterministic:
-            derivations = pynutil.insert(" morphosyntactic_features: ")  # Allows verbalizer to apply gender allignment
-            derivations += pynutil.insert("\"gender_fem\"") | pynutil.insert("\"no_apocope\"")
-            final_graph += derivations.ques
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
