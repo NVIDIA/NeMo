@@ -18,11 +18,14 @@
 # https://github.com/huggingface/transformers
 
 import csv
+import functools
 import json
+import re
 from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from sympy import substitution
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
@@ -33,7 +36,13 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 
-__all__ = ['DataProcessor', 'GPTPTuneDataset', 'register_taskdata_processor', 'GPTPTuneInferenceDataset']
+__all__ = [
+    'DataProcessor',
+    'GPTPTuneDataset',
+    'register_taskdata_processor',
+    'GPTPTuneInferenceDataset',
+    'TemplateProcessor',
+]
 
 SMALL_NUM = -100
 TASK_KEY = 'prompt_tag'
@@ -81,6 +90,72 @@ class InputExample(object):
 
     def __repr__(self):
         return f"InputExample(content='{self.content}')"
+
+
+class TemplateProcessor(DataProcessor):
+    """Processor convert the input data according to template. 
+        E.g. template "{v0} {var1} some text {v1} {var2} some text {var3} {v2}"
+    """
+
+    def __init__(self, template: str, limit_length_field: str):
+        super().__init__()
+        start = 0
+        self.pieces = []
+        while True:
+            result = re.search('{v\d}', template)
+            if result is None:
+                break
+            start = result.end()
+            sentence = template[: result.start()]
+            if len(sentence) != 0:
+                self.pieces.append(sentence)
+            self.pieces.append(int(template[result.start() + 2 : start - 1]))
+            template = template[start:]
+        sentence = template
+        if len(sentence) != 0:
+            self.pieces.append(sentence)
+        self.limit_length_field = limit_length_field
+
+    def get_ptune_query(
+        self, content: Dict, prompt_token_id: int, max_seq_len: int, templates: List[int], tokenizer: TokenizerSpec,
+    ):
+        all_ids = []
+        limits = []
+        for piece in self.pieces:
+            if isinstance(piece, str):
+                # replace variables if any
+                variables = re.findall(r'{\w*}', piece)
+                variable_text = {}
+                limit_length = False
+                for var in variables:
+                    varname = var[1:-1]
+                    variable_text[varname] = content[varname]
+                    if varname == self.limit_length_field:
+                        limit_length = True
+                text = piece.format(**variable_text)
+                text_ids = tokenizer.text_to_ids(text)
+                all_ids.append(text_ids)
+                limits.append(limit_length)
+            else:
+                # this is virtual token
+                all_ids.append([prompt_token_id] * templates[piece])
+                limits.append(False)
+        total_num_of_ids = sum([len(i) for i in all_ids])
+        if total_num_of_ids > max_seq_len:
+            logging.warning("Input sequence is longer than the LM model max seq, will cut it off to fit")
+            cut = total_num_of_ids - max_seq_len
+            new_ids = []
+            for i in range(len(limits)):
+                if limits[i]:
+                    new_ids.append(all_ids[i][cut:])
+                else:
+                    new_ids.append(all_ids[i])
+            return functools.reduce(lambda x, y: x + y, new_ids)
+        else:
+            return functools.reduce(lambda x, y: x + y, all_ids)
+
+    def label2string(self, label):
+        return ' ' + label
 
 
 class BoolQProcessor(DataProcessor):

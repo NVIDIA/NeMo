@@ -24,6 +24,7 @@ from pytorch_lightning.plugins.environments.torchelastic_environment import Torc
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
+from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import TemplateProcessor, register_taskdata_processor
 from nemo.collections.nlp.models.language_modeling.megatron_ptune_gpt_model import MegatronGPTPTuneModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
@@ -36,6 +37,13 @@ from nemo.utils.exp_manager import StatelessTimer, exp_manager
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+
+    # setup the data processor
+    for processor_config in cfg.model.task_processors:
+        processor = TemplateProcessor(
+            template=processor_config.template, limit_length_field=processor_config.limit_length_field
+        )
+        register_taskdata_processor(processor_config.taskname, processor)
 
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
     if cfg.trainer.precision == 16:
