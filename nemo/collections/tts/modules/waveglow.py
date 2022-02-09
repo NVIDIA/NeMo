@@ -97,7 +97,6 @@ class WaveGlowModule(NeuralModule, Exportable):
         self.n_halves = n_halves
 
         self.removed_weightnorm = False
-        self.converted_to_2D = False
 
     def _prepare_for_export(self, **kwargs):
         """
@@ -105,9 +104,7 @@ class WaveGlowModule(NeuralModule, Exportable):
         Base version does common necessary module replacements (Apex etc)
         """
         self.remove_weightnorm()
-        if not self.converted_to_2D:
-            super()._prepare_for_export(replace_1D_2D=True, **kwargs)
-            self.converted_to_2D = True
+        super()._prepare_for_export(**kwargs)
 
     @typecheck()
     def forward(self, spec, z=None, audio=None, run_inverse=True, sigma=1.0):
@@ -212,8 +209,6 @@ class WaveGlowModule(NeuralModule, Exportable):
         return torch.cat(output_audio, 1), log_s_list, log_det_W_list
 
     def norm_dist_to_audio(self, *, spec, z=None, sigma: float = 1.0):
-        if self.converted_to_2D:
-            spec = torch.unsqueeze(spec, 3)
         spec = self.upsample(spec)
         spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
         # trim conv artifacts. maybe pad spec to kernel multiple
@@ -227,10 +222,6 @@ class WaveGlowModule(NeuralModule, Exportable):
         z_size = torch.Size([spec.size(0), self.n_group, spec.size(2)])
         if z is None:
             z = sigma * torch.randn(z_size, device=spec.device).to(spec.dtype)
-
-        if self.converted_to_2D:
-            z = torch.unsqueeze(z, 3)
-            spec = torch.unsqueeze(spec, 3)
 
         audio, z = torch.split(z, [self.n_remaining_channels, z.size(1) - self.n_remaining_channels], 1)
 
@@ -250,9 +241,6 @@ class WaveGlowModule(NeuralModule, Exportable):
             if k % self.n_early_every == 0 and k > 0:
                 z1, z = torch.split(z, [self.n_early_size, z.size(1) - self.n_early_size], 1)
                 audio = torch.cat((z1, audio), 1)
-
-        if self.converted_to_2D:
-            audio = audio.view(audio.size(0), audio.size(1), -1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
 
     def remove_weightnorm(self):
