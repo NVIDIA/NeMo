@@ -11,12 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# USAGE: python get_data.py --data-root=<where to put data> --data-set=<datasets_to_download> --num-workers=<number of parallel workers>
-# where <datasets_to_download> can be: dev_clean, dev_other, test_clean,
-# test_other, train_clean_100, train_clean_360, train_other_500 or ALL
-# You can also put more than one data_set comma-separated:
-# --data-set=dev_clean,train_clean_100
+
 import argparse
 import fnmatch
 import functools
@@ -35,6 +30,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+import wget
 from joblib import Parallel, delayed
 from omegaconf import OmegaConf
 
@@ -59,7 +55,9 @@ parser.add_argument("--num-workers-for-normalizer", default=12, type=int)
 parser.add_argument("--save-google-normalization-separately", action="store_true", default=False)
 
 parser.add_argument("--pretrained-model", default="stt_en_citrinet_1024", type=str)
+
 parser.add_argument('--whitelist-path', type=str, default=None)
+parser.add_argument("--overwrite-cache-dir", action="store_true", default=False)
 
 parser.add_argument('--without-download', action='store_true', default=False)
 parser.add_argument('--without-extract', action='store_true', default=False)
@@ -77,6 +75,9 @@ URLS = {
     'TEST_OTHER': "https://www.openslr.org/resources/60/test-other.tar.gz",
 }
 
+
+#########################
+# Start of copy-paste from examples/asr/transcribe_speech.py
 
 @dataclass
 class TranscriptionConfig:
@@ -211,6 +212,9 @@ def transcribe_manifest(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info("Finished writing predictions !")
     return cfg
 
+# End of copy-paste from examples/asr/transcribe_speech.py
+##########################
+
 
 def _normalize_line(normalizer: NormalizerWithAudio, line: str):
     line = json.loads(line)
@@ -238,10 +242,10 @@ def normalize_manifest(normalizer, manifest_file, num_workers):
     with open(manifest_file, 'r') as f:
         lines = f.readlines()
 
-    normalized_lines = []
-    for line in tqdm(lines):
-        normalized_lines.append(_normalize_line(normalizer, line))
-    # normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
+    # normalized_lines = []
+    # for line in tqdm(lines):
+    #     normalized_lines.append(_normalize_line(normalizer, line))
+    normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
 
     with open(manifest_out, 'w') as f_out:
         for line in normalized_lines:
@@ -347,22 +351,35 @@ def __process_data(
         transcribe_manifest(cfg)
         normalize_manifest(normalizer, output_filename, num_workers=num_workers_for_normalizer)
 
-
+# python scripts/dataset_processing/tts/libritts/get_data.py --data-root=/data_4tb/datasets2 --data-set=test_clean \
+# --num-workers=4 --normalization-source nemo --whitelist-path ./nemo_text_processing/text_normalization/en/data/whitelist_lj_speech_libri_tts.tsv \
+# --save-google-normalization-separately
 def main():
     data_root = args.data_root
     data_sets = args.data_sets
     num_workers = args.num_workers
     num_workers_for_normalizer = args.num_workers if args.num_workers_for_normalizer is None else args.num_workers_for_normalizer
 
+    data_root = data_root / "LibriTTS"
+    data_root.mkdir(exist_ok=True, parents=True)
+
     normalizer = None
-    # TODO(oktai15): download whitelist_path
     if args.normalization_source == "nemo":
+        whitelist_path = args.whitelist_path
+        if whitelist_path is None:
+            # TODO(oktai15): change the branch after merging to main
+            wget.download(
+                "https://raw.githubusercontent.com/NVIDIA/NeMo/upd_tts_libritts_get_data/nemo_text_processing/text_normalization/en/data/whitelist_lj_speech_libri_tts.tsv",
+                out=str(data_root),
+            )
+            whitelist_path = data_root / "whitelist_lj_speech_libri_tts.tsv"
+
         normalizer = NormalizerWithAudio(
             lang="en",
             input_case="cased",
-            whitelist=args.whitelist_path,
-            overwrite_cache=False,
-            cache_dir=data_root / "LibriTTS" / "cache_dir",
+            whitelist=whitelist_path,
+            overwrite_cache=args.overwrite_cache_dir,
+            cache_dir=data_root / "cache_dir",
         )
 
     if data_sets == "ALL":
@@ -376,11 +393,12 @@ def main():
             __maybe_download_file(URLS[data_set.upper()], filepath)
 
         if not args.without_extract:
-            __extract_file(str(filepath), str(data_root))
+            # We need to use data_root.parent, because tarred file contains LibriTTS directory
+            __extract_file(str(filepath), str(data_root.parent))
 
         __process_data(
-            data_folder=str(data_root / "LibriTTS" / data_set.replace("_", "-")),
-            manifest_file=str(data_root / "LibriTTS" / f"{data_set}.json"),
+            data_folder=str(data_root / data_set.replace("_", "-")),
+            manifest_file=str(data_root / f"{data_set}.json"),
             num_workers=num_workers,
             num_workers_for_normalizer=num_workers_for_normalizer,
             normalization_source=args.normalization_source,
