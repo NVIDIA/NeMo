@@ -33,30 +33,14 @@
 from collections import Counter
 
 import numpy as np
-from tqdm import tqdm
 
-from sklearn.cluster._kmeans import k_means, kmeans_plusplus
-from sklearn.utils.extmath import row_norms, stable_cumsum
-from sklearn.metrics.pairwise import cosine_similarity, _euclidean_distances
-from sklearn.preprocessing import MinMaxScaler
 
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
 from functools import partial
 import torch
 from typing import Dict, List
-scaler = MinMaxScaler(feature_range=(0, 1))
-DEVICE = 0
-try:
-    from torch.linalg import eigh as eigh
-
-    TORCH_EIGN = True
-
-except ImportError:
-    TORCH_EIGN = False
-    from scipy.linalg import eigh as eigh
-
-    logging.warning("Using eigen decomposition from scipy, upgrade torch to 1.9 or higher for faster clustering")
+from torch.linalg import eigh as eigh
 
 
 @torch.jit.script
@@ -261,7 +245,7 @@ def getMinimumConnection(mat, max_N, n_list, device: torch.device):
     return affinity_mat, p_value
 
 @torch.jit.script
-def _getRepeatedList(mapping_argmat, score_mat_size):
+def getRepeatedList(mapping_argmat, score_mat_size):
     """
     Count the numbers in the mapping dictionary and create lists that contain
     repeated indices to be used for creating the repeated affinity matrix for
@@ -304,7 +288,7 @@ def get_argmin_mat(uniq_scale_list: List[List[torch.Tensor]]):
     return session_scale_mapping_dict
 
 @torch.jit.script
-def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale_list: List[List[torch.Tensor]], device: torch.device=torch.device('cpu')):
+def getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale_list: List[List[torch.Tensor]], device: torch.device=torch.device('cpu')):
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
     apply multiscale weights to calculate the fused similarity matrix.
@@ -325,23 +309,21 @@ def _getMultiScaleCosAffinityMatrix(multiscale_weights: torch.Tensor, uniq_scale
     N_scale = len(uniq_scale_list)
     base_scale_idx = N_scale - 1
     base_scale_emb = uniq_scale_list[base_scale_idx][0]
-    multiscale_weights = multiscale_weights.unsqueeze(0).to(device)
+    multiscale_weights = multiscale_weights.float().to(device)
 
     score_mat_list, repeated_tensor_list = [], []
     repeated_mat_list = [] 
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_list)
     for scale_idx in range(N_scale):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
-        emb_t = uniq_scale_list[scale_idx][0].to(device)
-        _emb = emb_t.half()
-        sim_d = cos_similarity(_emb, _emb)
+        emb_t = uniq_scale_list[scale_idx][0].half().to(device)
+        sim_d = cos_similarity(emb_t, emb_t)
         score_mat_torch = ScalerMinMax(sim_d).to(device)
-        repeat_list = _getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0])).to(device)
+        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(score_mat_torch.shape[0])).to(device)
         repeated_tensor_0 = torch.repeat_interleave(score_mat_torch, repeats=repeat_list, dim=0)
         repeated_tensor_1 = torch.repeat_interleave(repeated_tensor_0, repeats=repeat_list, dim=1)
         repeated_tensor_list.append(repeated_tensor_1)
     repp = torch.stack(repeated_tensor_list).float().to(device)
-    multiscale_weights = multiscale_weights.squeeze(0).float()
     fused_sim_d = torch.matmul(repp.permute(2,1,0), multiscale_weights.t()).squeeze(2).t()
     return fused_sim_d, base_scale_emb
 
@@ -350,8 +332,8 @@ def getCosAffinityMatrix(_emb):
     """
     Calculate cosine similarity values among speaker embeddings.
     """
-    _emb = _emb.half()
-    sim_d = cos_similarity(_emb, _emb)
+    emb = _emb.half()
+    sim_d = cos_similarity(emb, emb)
     sim_d = ScalerMinMax(sim_d)
     return sim_d
 
@@ -367,7 +349,7 @@ def getLaplacian(X: torch.Tensor):
     return L
 
 @torch.jit.script
-def eigDecompose(laplacian, is_cuda: bool, device: torch.device=torch.device('cpu')):
+def eigDecompose(laplacian: torch.Tensor, is_cuda: bool, device: torch.device=torch.device('cpu')):
     if is_cuda:
         if device is None:
             device = torch.cuda.current_device()
@@ -721,8 +703,9 @@ def COSclustering(
     if oracle_num_speakers:
         max_num_speaker = oracle_num_speakers
 
-    mat, emb = _getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps[0], uniq_embs_and_timestamps[1], device=device)
-    emb = emb.to(device)
+    mat, emb = getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps[0], 
+                                              uniq_embs_and_timestamps[1], 
+                                              device=device)
     
     nmesc = NMESC(
         mat,
