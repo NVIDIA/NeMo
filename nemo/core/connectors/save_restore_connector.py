@@ -106,6 +106,7 @@ class SaveRestoreConnector:
             else:
                 map_location = torch.device('cpu')
 
+        app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
@@ -131,7 +132,6 @@ class SaveRestoreConnector:
                     instance = conf
                     return instance
                 else:
-                    app_state = AppState()
                     if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
@@ -143,6 +143,8 @@ class SaveRestoreConnector:
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
                 if conf.get('megatron_amp_O2', False):
                     new_state_dict = {}
