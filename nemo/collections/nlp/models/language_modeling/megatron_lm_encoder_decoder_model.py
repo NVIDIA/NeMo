@@ -26,9 +26,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.models.language_modeling.megatron.tokens_encoder_decoder import TokensEncoderDecoderModule
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.megatron.tokens_encoder_decoder import TokensEncoderDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
