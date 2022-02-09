@@ -209,9 +209,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
-    """
-    Returns a dict with various items (i.e., can be extended in a child class)
-    """
+        """
+        Returns a dict with various items, including loss.
+        Can be extended / altered by a child class, but loss is always expected.
+        """
         ret_dict = {}
 
         # encoder embeddings
