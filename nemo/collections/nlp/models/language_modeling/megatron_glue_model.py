@@ -15,7 +15,6 @@
 from typing import Any, Optional
 
 import torch
-from apex.transformer import parallel_state
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -27,6 +26,14 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
 
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+
 __all__ = ['MegatronT5FineTuneModel']
 
 
@@ -36,6 +43,10 @@ class MegatronT5FineTuneModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer)
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
@@ -98,6 +109,10 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
         self.acc_metric = ExactStringMatchMetric()
@@ -173,42 +188,31 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         logging.info(f'Validation accuracy: {val_acc}')
 
     def test_step(self, batch, batch_idx):
-        return self.inference_step(batch, batch_idx)
+        raise NotImplementedError("Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)")
 
     def test_epoch_end(self, outputs):
-        test_loss, test_acc = self.inference_epoch_end(outputs)
-        self.log('test_loss', test_loss, prog_bar=True)
-        self.log('test_acc', test_acc, prog_bar=True)
-        logging.info(f'Test loss: {test_loss}')
-        logging.info(f'Test accuracy: {test_acc}')
+        raise NotImplementedError("Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)")
 
-    def build_train_valid_test_datasets(self, test_only=False):
+    def build_train_valid_test_datasets(self, validation_only=False):
         logging.info('Building GLUE datasets.')
-        self._test_ds = TextToTextGLUEDataset(
-            self.cfg.data.test_ds.file_path,
-            task_name=self.cfg.data.test_ds.task_name,
-            tokenizer=self.model.tokenizer,
-            max_seq_length=self.cfg.data.test_ds.max_seq_length,
-        )
-        if test_only:
-            return None, None, self._test_ds
-        self._train_ds = TextToTextGLUEDataset(
-            self.cfg.data.train_ds.file_path,
-            task_name=self.cfg.data.train_ds.task_name,
-            tokenizer=self.model.tokenizer,
-            max_seq_length=self.cfg.data.train_ds.max_seq_length,
-        )
         self._validation_ds = TextToTextGLUEDataset(
             self.cfg.data.validation_ds.file_path,
             task_name=self.cfg.data.validation_ds.task_name,
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.validation_ds.max_seq_length,
         )
+        if validation_only:
+            return None, self._validation_ds
+        self._train_ds = TextToTextGLUEDataset(
+            self.cfg.data.train_ds.file_path,
+            task_name=self.cfg.data.train_ds.task_name,
+            tokenizer=self.model.tokenizer,
+            max_seq_length=self.cfg.data.train_ds.max_seq_length,
+        )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-        logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building T5 datasets.')
-        return self._train_ds, self._validation_ds, self._test_ds
+        return self._train_ds, self._validation_ds
 
     def build_pretraining_data_loader(self, dataset, batch_size, shuffle, num_workers, pin_memory):
         """Buld dataloader given an input dataset."""
@@ -236,12 +240,13 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        self.build_train_valid_test_datasets(test_only=stage == 'test')
-        self.setup_test_data()
-        if stage == 'test':
+
+        # NOTE: PTL uses the same stage string "test" for both testing and validation.
+        self.build_train_valid_test_datasets(validation_only=stage == 'validate')
+        self.setup_validation_data()
+        if stage == 'validate':
             return
         self.setup_training_data()
-        self.setup_validation_data()
 
     def setup_training_data(self):
         self._train_dl = self.build_pretraining_data_loader(

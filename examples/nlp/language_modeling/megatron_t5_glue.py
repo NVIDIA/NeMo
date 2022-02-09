@@ -73,7 +73,7 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
     model = MegatronT5GLUEModel(cfg.model, trainer)
     trainer.fit(model)
-    trainer.test(model)
+    trainer.validate(model)
 
 
 if __name__ == '__main__':

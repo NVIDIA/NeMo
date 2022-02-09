@@ -58,15 +58,6 @@ model:
       pin_memory: True
       max_seq_length: 512
 
-    test_ds:
-      task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/dev_matched.tsv' # We use dev as test data here because test data doesn't have labels we can evaluate against.
-      batch_size: 32
-      shuffle: False
-      num_workers: 8
-      pin_memory: True
-      max_seq_length: 512
-
   optim:
     name: fused_adam
     lr: 5e-6
