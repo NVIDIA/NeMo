@@ -48,7 +48,7 @@ class RomanFst(GraphFst):
         names = pynini.string_map(male_labels).optimize()
         names |= pynini.string_map(female_labels).optimize()
 
-        # roman numerals from I to IV with a preceding name are converted to ordinal form
+        # up to five digit roman numerals with a preceding name are converted to ordinal form
         graph = (
             pynutil.insert("key_the_ordinal: \"")
             + names
