@@ -45,12 +45,10 @@ class ElectronicFst(GraphFst):
 
         accepted_username = alpha_num | symbols
         process_dot = pynini.cross("dot", ".")
-        username = (
-            pynutil.insert("username: \"")
-            + alpha_num
-            + pynini.closure(delete_extra_space + accepted_username)
-            + pynutil.insert("\"")
+        username = (alpha_num + pynini.closure(delete_extra_space + accepted_username)) | pynutil.add_weight(
+            pynini.closure(NEMO_ALPHA, 1), weight=0.0001
         )
+        username = pynutil.insert("username: \"") + username + pynutil.insert("\"")
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
         server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
         domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
@@ -79,7 +77,11 @@ class ElectronicFst(GraphFst):
         )
 
         protocol_default = (
-            (pynini.closure(delete_extra_space + accepted_username, 1) | server) + pynini.closure(ending, 1)
+            (
+                (pynini.closure(delete_extra_space + accepted_username, 1) | server)
+                | pynutil.add_weight(pynini.closure(NEMO_ALPHA, 1), weight=0.0001)
+            )
+            + pynini.closure(ending, 1)
         ).optimize()
         protocol = (
             pynini.closure(protocol_start, 0, 1) + protocol_end + delete_extra_space + process_dot + protocol_default

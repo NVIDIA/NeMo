@@ -14,7 +14,13 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALNUM,
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    GraphFst,
+    insert_space,
+)
 
 try:
     import pynini
@@ -23,6 +29,17 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+
+
+def get_serial_number(cardinal):
+    """
+    any alphanumerical character sequence with at least one number with length greater equal to 3
+    """
+    digit = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT)
+    character = digit | NEMO_ALPHA
+    sequence = character + pynini.closure(pynutil.delete(" ") + character, 2)
+    sequence = sequence @ (pynini.closure(NEMO_ALNUM) + NEMO_DIGIT + pynini.closure(NEMO_ALNUM))
+    return sequence.optimize()
 
 
 class TelephoneFst(GraphFst):
@@ -43,9 +60,12 @@ class TelephoneFst(GraphFst):
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="telephone", kind="classify")
         # country code, number_part, extension
-        digit_to_str = pynini.invert(
-            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        ).optimize() | pynini.cross("0", pynini.union("o", "oh", "zero"))
+        digit_to_str = (
+            pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize())
+            | pynini.cross("0", pynini.union("o", "oh", "zero")).optimize()
+        )
+
+        str_to_digit = pynini.invert(digit_to_str)
 
         double_digit = pynini.union(
             *[
@@ -59,32 +79,26 @@ class TelephoneFst(GraphFst):
             ]
         )
         double_digit.invert()
-        number_part = (
-            pynini.closure(digit_to_str + insert_space, 2, 2)
-            + digit_to_str
-            + pynutil.delete("-")
-            + insert_space
-            + pynini.closure(digit_to_str + insert_space, 2, 2)
-            + digit_to_str
-            + pynutil.delete("-")
-            + insert_space
-            + pynini.closure(digit_to_str + insert_space, 3, 3)
-            + digit_to_str
-        )
-        number_part = (
-            pynutil.insert("number_part: \"")
-            + pynini.cdrewrite(double_digit, "", "", NEMO_SIGMA) @ pynini.invert(number_part)
-            + pynutil.insert("\"")
-        )
 
-        str_to_digit = pynini.invert(digit_to_str)
         # to handle cases like "one twenty three"
         two_digit_cardinal = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT ** 2)
-        cardinal_option = (
-            (str_to_digit + pynutil.delete(" ") + two_digit_cardinal)
-            | two_digit_cardinal
-            | (two_digit_cardinal + pynutil.delete(" ") + str_to_digit)
+        double_digit_to_digit = (
+            pynini.compose(double_digit, str_to_digit + pynutil.delete(" ") + str_to_digit) | two_digit_cardinal
         )
+
+        single_or_double_digit = (pynutil.add_weight(double_digit_to_digit, -0.0001) | str_to_digit).optimize()
+        single_or_double_digit |= (
+            single_or_double_digit
+            + pynini.closure(pynutil.add_weight(pynutil.delete(" ") + single_or_double_digit, 0.0001))
+        ).optimize()
+
+        number_part = pynini.compose(
+            single_or_double_digit,
+            NEMO_DIGIT ** 3 + pynutil.insert("-") + NEMO_DIGIT ** 3 + pynutil.insert("-") + NEMO_DIGIT ** 4,
+        ).optimize()
+        number_part = pynutil.insert("number_part: \"") + number_part.optimize() + pynutil.insert("\"")
+
+        cardinal_option = pynini.compose(single_or_double_digit, NEMO_DIGIT ** (2, 3))
 
         country_code = (
             pynutil.insert("country_code: \"")
@@ -92,17 +106,21 @@ class TelephoneFst(GraphFst):
             + ((pynini.closure(str_to_digit + pynutil.delete(" "), 0, 2) + str_to_digit) | cardinal_option)
             + pynutil.insert("\"")
         )
+
         optional_country_code = pynini.closure(country_code + pynutil.delete(" ") + insert_space, 0, 1).optimize()
         graph = optional_country_code + number_part
 
-        # card number
-        double_digit_to_digit = pynini.compose(double_digit, str_to_digit + pynutil.delete(" ") + str_to_digit)
-        card_graph = (double_digit_to_digit | str_to_digit).optimize()
-        card_graph = (card_graph + pynini.closure(pynutil.delete(" ") + card_graph)).optimize()
-        # reformat card number, group by four
+        # credit card number
         space_four_digits = insert_space + NEMO_DIGIT ** 4
-        card_graph = pynini.compose(card_graph, NEMO_DIGIT ** 4 + space_four_digits ** 3).optimize()
-        graph |= pynutil.insert("number_part: \"") + card_graph.optimize() + pynutil.insert("\"")
+        credit_card_graph = pynini.compose(single_or_double_digit, NEMO_DIGIT ** 4 + space_four_digits ** 3).optimize()
+        graph |= pynutil.insert("number_part: \"") + credit_card_graph.optimize() + pynutil.insert("\"")
+
+        # SSN
+        ssn_graph = pynini.compose(
+            single_or_double_digit,
+            NEMO_DIGIT ** 3 + pynutil.insert("-") + NEMO_DIGIT ** 2 + pynutil.insert("-") + NEMO_DIGIT ** 4,
+        ).optimize()
+        graph |= pynutil.insert("number_part: \"") + ssn_graph.optimize() + pynutil.insert("\"")
 
         # ip
         digit_or_double = pynini.closure(str_to_digit + pynutil.delete(" "), 0, 1) + double_digit_to_digit
@@ -112,7 +130,13 @@ class TelephoneFst(GraphFst):
         digit_or_double = digit_or_double.optimize()
 
         ip_graph = digit_or_double + (pynini.cross(" dot ", ".") + digit_or_double) ** 3
+
         graph |= pynutil.insert("number_part: \"") + ip_graph.optimize() + pynutil.insert("\"")
+        graph |= (
+            pynutil.insert("number_part: \"")
+            + pynutil.add_weight(get_serial_number(cardinal=cardinal), weight=0.0001)
+            + pynutil.insert("\"")
+        )
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
