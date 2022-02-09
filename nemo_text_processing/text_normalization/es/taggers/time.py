@@ -70,9 +70,7 @@ class TimeFst(GraphFst):
         labels_minute_single = [str(x) for x in range(1, 10)]
         labels_minute_double = [str(x) for x in range(10, 60)]
 
-        delete_leading_zero_to_double_digit = pynini.cdrewrite(
-            pynutil.delete("0"), pynini.accep("[BOS]"), NEMO_DIGIT, NEMO_SIGMA
-        )
+        delete_leading_zero_to_double_digit = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
 
         graph_24 = (
             pynini.closure(NEMO_DIGIT, 1, 2) @ delete_leading_zero_to_double_digit @ pynini.union(*labels_hour_24)
