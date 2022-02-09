@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,13 +59,19 @@ class DialogueInputExample(object):
 
 
 class DialogueSGDInputExample(DialogueInputExample):
-    pass
+
     """
     {
         "example_id": <example_id>,
         "example_id_num": <example_id_num>,
         "utterance": <utterance>,
         "system_utterance": <system_utterance>,
+        "system_slots": None or {
+                    "<slot-name1>": {
+                        "exclusive_end": 46,
+                        "slot": "restaurant_name",
+                        "start": 34
+            },
         "labels": {
             "service": <service>,
             "intent": <intent>,
@@ -226,8 +232,8 @@ class SGDInputExample(object):
             ] = STR_DONTCARE
         if self.noncategorical_slot_status == STATUS_ACTIVE:
             slot = self.service_schema.get_non_categorical_slot_from_id(self.noncategorical_slot_id)
-            start_id = self.noncategorical_slot_value_start[idx]
-            end_id = self.noncategorical_slot_value_end[idx]
+            start_id = self.noncategorical_slot_value_start[slot]
+            end_id = self.noncategorical_slot_value_end[slot]
             # Token list is consisted of the subwords that may start with "##". We
             # remove "##" to reconstruct the original value. Note that it's not a
             # strict restoration of the original string. It's primarily used for
@@ -443,7 +449,7 @@ class SGDInputExample(object):
         """
         all_slots = self.service_schema.slots
         slot = all_slots[self.requested_slot_id]
-        if slot in frame["state"]["requested_slots"]:
+        if slot in frame["labels"]["slots"]:
             self.requested_slot_status = STATUS_ACTIVE
 
     def add_intents(self, frame):
@@ -453,7 +459,7 @@ class SGDInputExample(object):
         """
         all_intents = self.service_schema.intents
         intent = all_intents[self.intent_id]
-        if intent == frame["state"]["active_intent"]:
+        if intent == frame["labels"]["intent"]:
             self.intent_status = STATUS_ACTIVE
 
 

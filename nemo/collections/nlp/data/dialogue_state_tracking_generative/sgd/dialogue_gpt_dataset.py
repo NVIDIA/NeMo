@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,12 +43,14 @@ class DialogueGPTDataset(Dataset):
             dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
         """
-        self.label_type = "intent"  # "service"
+        self.label_type = "intent"
         self.all_possible_labels = set()
         self.tokenizer = tokenizer
         self.cfg = cfg
         self.max_candidates = 2
         self.label_to_description = defaultdict(str)
+        if not isinstance(dataset_split, str):
+            dataset_split = dataset_split[0]
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         for idx in range(len(self.features)):
             self.preprocess_feature(idx)
@@ -90,7 +92,7 @@ class DialogueGPTDataset(Dataset):
 
         for candidate in candidates:
             self.all_possible_labels.add(candidate)
-        self.max_candidates = max(self.max_candidates, len(candidates))
+        self.max_candidates = max(self.max_candidates, len(candidates) * 2)
 
     def default_encode(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
@@ -127,12 +129,25 @@ class DialogueGPTDataset(Dataset):
 
         sentence_without_answer = base_template
 
-        sentence = base_template + ' ' + label + ' (' + self.label_to_description[label] + ')'
+        sentence = base_template + ' ' + label  # + ' (' + self.label_to_description[label] + ')'
 
-        candidate_sentences = [
-            base_template + ' ' + candidate + ' (' + self.label_to_description[candidate] + ')'
-            for candidate in candidates
-        ]
+        if self.cfg.eval_mode == "binary_score":
+            candidate_sentences = []
+            for candidate in candidates:
+                positive_answer = base_template + ' ' + candidate + ' Answer: ' + 'yes'
+                negative_answer = base_template + ' ' + candidate + ' Answer: ' + 'no'
+                if candidate == label:
+                    correct_candidate = len(candidate_sentences) // 2
+                    candidate_sentences.append(positive_answer)
+                    candidate_sentences.append(negative_answer)
+                else:
+                    candidate_sentences.append(negative_answer)
+                    candidate_sentences.append(positive_answer)
+        else:
+            candidate_sentences = [
+                base_template + ' ' + candidate  # + ' (' + self.label_to_description[candidate] + ')'
+                for candidate in candidates
+            ]
 
         self.tokenizer.tokenizer.padding_side = "right"
 
@@ -147,6 +162,14 @@ class DialogueGPTDataset(Dataset):
         candidate_input_ids = torch.stack([i[1] for i in candidate_tokenized_sentences])
         candidate_attn_masks = torch.stack([i[2] for i in candidate_tokenized_sentences])
 
+        labels = copy.copy(torch.squeeze(encodings_dict['input_ids']))
+
+        training_mask_end = self.get_n_tokens_in_sentence(sentence_without_answer)
+
+        labels.data = torch.tensor(
+            [-100 if i < training_mask_end else labels.data[i] for i in range(len(labels.data))]
+        )
+
         # left padding is for batch generation but right padding is essential for teacher force training
         self.tokenizer.tokenizer.padding_side = "left"
 
@@ -156,14 +179,6 @@ class DialogueGPTDataset(Dataset):
             max_length=self.cfg.max_seq_length,
             padding="max_length",
             return_tensors="pt",
-        )
-
-        labels = copy.copy(torch.squeeze(encodings_dict['input_ids']))
-
-        training_mask_end = self.get_n_tokens_in_sentence(sentence_without_answer)
-
-        labels.data = torch.tensor(
-            [-100 if i < training_mask_end else labels.data[i] for i in range(len(labels.data))]
         )
 
         generate_input_ids = torch.squeeze(encodings_dict_without_answer['input_ids'])
@@ -178,4 +193,5 @@ class DialogueGPTDataset(Dataset):
             candidate_attn_masks,
             training_mask_end,
             utterance_length,
+            correct_candidate,
         )

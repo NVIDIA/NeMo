@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 import collections
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Union
 
 import numpy as np
 import torch
@@ -33,7 +33,6 @@ from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
     DialogueSGDDataProcessor,
     Schema,
 )
-from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -49,10 +48,8 @@ NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
 class DialogueGPTModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.data_prepared = False
-
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-
         self.language_model = get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
@@ -60,15 +57,20 @@ class DialogueGPTModel(NLPModel):
             checkpoint_file=cfg.language_model.lm_checkpoint,
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
         )
-
-        all_labels = list(self._train_dl.dataset.all_possible_labels)
-
-        self.label_to_ids = collections.defaultdict(int)
-        # 0 is reserved for unseen labels
-        for i in range(len(all_labels)):
-            self.label_to_ids[all_labels[i]] = i + 1
-
         self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
+
+        all_labels = list(
+            self._train_dl.dataset.all_possible_labels.union(
+                self._validation_dl.dataset.all_possible_labels, self._test_dl.dataset.all_possible_labels
+            )
+        )
+        self.label_to_ids = collections.defaultdict(int)
+
+        for i in range(len(all_labels)):
+            self.label_to_ids[all_labels[i]] = i
+
+        self.all_existing_labels = set(self.label_to_ids.keys())
+
         self.token_to_words = {}
         self.classification_report = ClassificationReport(
             num_classes=len(self.label_to_ids) + 1, mode='micro', label_ids=self.label_to_ids, dist_sync_on_step=True
@@ -86,7 +88,22 @@ class DialogueGPTModel(NLPModel):
             candidate_attn_masks,
             template_length,
             utterance_length,
+            correct_candidate,
         ) = batch
+
+        if self.eval_mode == "binary_score":
+            new_input_ids = []
+            new_attn_masks = []
+            for i in range(candidate_input_ids.size(0)):
+                for j in range(0, candidate_input_ids.size(1), 2):
+                    if j > 0 and torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
+                        break
+                    new_input_ids.append(candidate_input_ids[i, j, :])
+                    new_attn_masks.append(candidate_attn_masks[i, j, :])
+            input_ids = torch.stack(new_input_ids)
+            attn_masks = torch.stack(new_attn_masks)
+            labels = self.get_binary_score_labels(input_ids)
+
         loss, logits = self.language_model(input_ids=input_ids, attention_mask=attn_masks, labels=labels)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss, 'logits': logits}
@@ -95,12 +112,12 @@ class DialogueGPTModel(NLPModel):
         return self.eval_step_helper(batch=batch)
 
     def validation_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs)
+        self.eval_epoch_end(outputs, mode='val')
 
     def test_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs)
+        self.eval_epoch_end(outputs, mode='test')
 
-    def eval_epoch_end(self, outputs):
+    def eval_epoch_end(self, outputs, mode='val'):
         precision, recall, f1, report = self.classification_report.compute()
 
         logging.info(report)
@@ -109,7 +126,7 @@ class DialogueGPTModel(NLPModel):
         self.log('precision', precision)
         self.log('f1', f1)
         self.log('recall', recall)
-        self.log('accuracy', acc * 100)
+        self.log('{}_accuracy'.format(mode), acc * 100)
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
@@ -128,8 +145,76 @@ class DialogueGPTModel(NLPModel):
             self.token_to_words[tokens] = self.tokenizer.tokenizer.decode(tokens)
         return self.token_to_words[tokens]
 
+    def binary_score_candidates(
+        self,
+        candidate_input_ids,
+        candidate_attn_masks,
+        utterance_length,
+        labels,
+        template_length,
+        correct_candidate,
+        minus_negative=True,
+    ):
+        best_candidate_input_ids = []
+
+        for i in range(candidate_input_ids.size(0)):
+            best_j = 0
+
+            lowest_loss = float("inf")
+
+            for j in range(0, candidate_input_ids.size(1), 2):
+
+                if j > 0 and torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
+                    break
+
+                start_yes = j if j // 2 == correct_candidate[i].item() else j + 1
+
+                cand_loss, _ = self.language_model(
+                    input_ids=candidate_input_ids[i, start_yes : start_yes + 1, :],
+                    attention_mask=candidate_attn_masks[i, start_yes : start_yes + 1, :],
+                    labels=self.get_binary_score_labels(candidate_input_ids[i, start_yes : start_yes + 1, :]),
+                )
+
+                considered_loss = cand_loss.item()
+
+                if minus_negative:
+                    start_no = j + 1 if j // 2 == correct_candidate[i].item() else j
+
+                    negative_cand_loss, _ = self.language_model(
+                        input_ids=candidate_input_ids[i, start_no : start_no + 1, :],
+                        attention_mask=candidate_attn_masks[i, start_no : start_no + 1, :],
+                        labels=self.get_binary_score_labels(candidate_input_ids[i, start_no : start_no + 1, :]),
+                    )
+                    considered_loss -= negative_cand_loss.item()
+
+                if considered_loss < lowest_loss:
+                    best_j = start_yes
+                    lowest_loss = considered_loss
+
+            best_candidate_input_ids.append(candidate_input_ids[i, best_j, :])
+
+        candidate_tokens = torch.stack(best_candidate_input_ids)
+        generated_field, ground_truth_field = self.process_into_structured_fields(
+            candidate_tokens, labels, left_padding=False, template_length=template_length
+        )
+        return generated_field, ground_truth_field
+
+    def get_binary_score_labels(self, input_ids):
+        # mask out every token except the last token for yes/no/true/false
+        labels = torch.zeros_like(input_ids)
+
+        for i in range(input_ids.size(0)):
+            for j in range(input_ids.size(1)):
+                if input_ids.data[0, j] == self.tokenizer.tokenizer.pad_token_id:
+                    stop_point = j
+                    break
+            last_point = stop_point - 1
+            labels.data[i, last_point] = input_ids[i, last_point]
+
+        return labels
+
     def rank_candidates(
-        self, candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length, minus_prior=False
+        self, candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length, minus_prior=True
     ):
         best_candidate_input_ids = []
 
@@ -198,6 +283,7 @@ class DialogueGPTModel(NLPModel):
             candidate_attn_masks,
             template_length,
             utterance_length,
+            correct_candidate,
         ) = batch
 
         loss, logits = self.language_model(input_ids=input_ids, attention_mask=attn_masks, labels=labels)
@@ -214,16 +300,23 @@ class DialogueGPTModel(NLPModel):
             generated_field, ground_truth_field = self.generate_candidates(
                 generate_input_ids, generate_attn_masks, labels
             )
+        elif self.eval_mode == "binary_score":
+            generated_field, ground_truth_field = self.binary_score_candidates(
+                candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length, correct_candidate
+            )
+
         else:
             raise ValueError("{} is not among supported options (ranking, generation)".format(self.eval_mode))
-        generated_field_ids = torch.tensor([self.label_to_ids[label] for label in generated_field], dtype=int).to(
-            labels.device
-        )
+
+        generated_field_ids = torch.tensor(
+            [self.label_to_ids[label.strip()] for label in generated_field], dtype=int
+        ).to(labels.device)
         ground_truth_field_ids = torch.tensor(
-            [self.label_to_ids[label] for label in ground_truth_field], dtype=int
+            [self.label_to_ids[label.strip()] for label in ground_truth_field], dtype=int
         ).to(labels.device)
 
         tp, fn, fp, _ = self.classification_report(generated_field_ids, ground_truth_field_ids)
+
         acc = np.mean(
             [int(generated_field[i].strip() == ground_truth_field[i].strip()) for i in range(len(generated_field))]
         )
@@ -254,6 +347,9 @@ class DialogueGPTModel(NLPModel):
                 if generated_tokens.data[i, j] == self.tokenizer.tokenizer.pad_token_id:
                     stop_point = j
                     break
+            # this is to account for the tokens ' Answer: ' + 'yes'/'no'/'true'/'false'
+            if self.eval_mode == "binary_score":
+                stop_point -= 3
             generated_field.append(self.decode(generated_tokens[i, start_point:stop_point]).strip())
 
         ground_truth_field = []
@@ -320,9 +416,15 @@ class DialogueGPTModel(NLPModel):
         self.prepare_data()
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split=train_data_config.ds_item)
 
+    def setup_multiple_validation_data(self, val_data_config: Optional[DictConfig] = None):
+        return self.setup_validation_data(val_data_config)
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
         self.prepare_data()
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split=val_data_config.ds_item)
+
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        self.setup_test_data(test_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
         self.prepare_data()

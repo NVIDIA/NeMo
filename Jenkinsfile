@@ -713,7 +713,7 @@ pipeline {
             trainer.val_check_interval=0.0 \
             trainer.gpus=[0] \
             model.dataset.use_cache=false \
-            model.language_model.pretrained_model_name=gpt2 \
+            model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=ddp \
             exp_manager=null  && \
             rm -rf sgd_gen_bert_outputs'

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -127,11 +127,9 @@ def main(cfg: DictConfig) -> None:
         if cfg.pretrained_model:
             logging.info(f'Loading pretrained model {cfg.pretrained_model}')
             model = model_class.from_pretrained(cfg.pretrained_model)
-
         else:
             logging.info(f'Restoring model from {cfg.model.nemo_path}')
             model = model_class.restore_from(cfg.model.nemo_path)
-
         if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +17,13 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
-import collections
+import os
 import re
 from typing import List
 
 import numpy as np
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
-    STATUS_ACTIVE,
-    SGDInputExample,
-)
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import SGDInputExample
 from nemo.core.classes import Dataset
 
 __all__ = ['DialogueSGDBERTDataset', 'DialogueBERTDataset']
@@ -48,21 +45,41 @@ class DialogueSGDBERTDataset(Dataset):
             (e.g. intent classification, slot filling or both together etc)
     '''
 
-    def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, schemas, schema_config):
+    def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, schemas, schema_config, cfg):
         """ Constructor
         Args:
-            dataset_split: dataset split`
+            dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
         """
         self.dataset_split = dataset_split
-        self.features = []
         self.tokenizer = tokenizer
         self.schemas = schemas
         self.schema_config = schema_config
-        self.raw_features = dialogues_processor.get_dialog_examples(dataset_split)
+        self.dialogues_processor = dialogues_processor
+        self.cfg = cfg
+        self.subsample = self.dialogues_processor._subsample
 
+        dial_file = f"{dialogues_processor._task_name}_{dataset_split}_examples_bert.processed"
+        self.dial_file = os.path.join(self.cfg.data_dir, dial_file)
+        if self.cfg.use_cache and os.path.exists(self.dial_file):
+            self.load_features()
+        else:
+            self.process_features()
+            self.save_features()
+
+    def load_features(self):
+        with open(self.dial_file, "rb") as f:
+            self.features = np.load(f, allow_pickle=True)
+
+    def process_features(self):
+        self.features = []
+        self.raw_features = self.dialogues_processor.get_dialog_examples(self.dataset_split)
         for idx in range(len(self.raw_features)):
             self.bert_process_one_sample(idx)
+
+    def save_features(self):
+        with open(self.dial_file, "wb") as f:
+            np.save(f, self.features)
 
     def _tokenize(self, utterance: str):
         """
@@ -137,8 +154,7 @@ class DialogueSGDBERTDataset(Dataset):
 
         return (
             np.array(ex.example_id_num),
-            # below is service_id
-            np.array(ex.example_id_num[-1]),
+            np.array(ex.example_id_num[-1]),  # service_id
             np.array(ex.utterance_ids),
             np.array(ex.utterance_segment),
             np.array(ex.utterance_mask, dtype=np.long),
@@ -179,6 +195,7 @@ class DialogueSGDBERTDataset(Dataset):
         service = ex["labels"]["service"]
         schemas = self.schemas
         state_update = ex["labels"]["slots"]
+        system_slots = ex["system_slots"]
 
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
@@ -214,9 +231,7 @@ class DialogueSGDBERTDataset(Dataset):
                         system_user_utterance,
                     )
 
-                    if intent == ex["labels"]["intent"]:
-                        task_example.intent_status = STATUS_ACTIVE
-
+                    task_example.add_intents(ex)
                     examples.append(task_example)
 
             if model_task == 1:
@@ -237,8 +252,7 @@ class DialogueSGDBERTDataset(Dataset):
                         user_utterance,
                     )
 
-                    if slot in ex["labels"]["slots"]:
-                        task_example.requested_slot_status = STATUS_ACTIVE
+                    task_example.add_requested_slots(ex)
                     examples.append(task_example)
 
             if model_task == 2:
@@ -296,7 +310,13 @@ class DialogueSGDBERTDataset(Dataset):
                             assert task_example.categorical_slot_status == old_example.categorical_slot_status
                             examples.append(task_example)
 
-                examples.extend(off_slots)
+                if self.dataset_split == 'train' and self.subsample:
+                    num_on_slots = len(on_slots)
+                    examples.extend(
+                        np.random.choice(off_slots, replace=False, size=min(max(num_on_slots, 1), len(off_slots)))
+                    )
+                else:
+                    examples.extend(off_slots)
 
             if model_task == 4:  # noncat slot status
                 off_slots = []
@@ -322,13 +342,24 @@ class DialogueSGDBERTDataset(Dataset):
                     user_span_boundaries = self._find_subword_indices(
                         state_update,
                         user_utterance,
-                        ex["label_positions"]["slots"],  # user_frame["slots"],
+                        ex["label_positions"]["slots"],
                         user_alignments,
                         user_tokens,
                         2 + len(slot_tokens) + len(system_tokens),
                     )
 
-                    system_span_boundaries = {}
+                    if system_slots is not None:
+                        system_span_boundaries = self._find_subword_indices(
+                            state_update,
+                            system_utterance,
+                            system_slots,
+                            system_alignments,
+                            system_tokens,
+                            2 + len(slot_tokens),
+                        )
+                    else:
+                        system_span_boundaries = {}
+
                     task_example.add_noncategorical_slots(state_update, user_span_boundaries, system_span_boundaries)
                     if task_example.noncategorical_slot_status == 0:
                         off_slots.append(task_example)
@@ -344,7 +375,13 @@ class DialogueSGDBERTDataset(Dataset):
                         task_example.example_id_num = base_example.example_id_num + [5, slot_id, 0]
                         examples.append(task_example)
 
-                examples.extend(off_slots)
+                if self.dataset_split == 'train' and self.subsample:
+                    num_on_slots = len(on_slots)
+                    examples.extend(
+                        np.random.choice(off_slots, replace=False, size=min(max(num_on_slots, 1), len(off_slots)))
+                    )
+                else:
+                    examples.extend(off_slots)
 
         for example in examples:
             self.features.append(example)

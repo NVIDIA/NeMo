@@ -590,6 +590,7 @@ class SGDQAModel(NLPModel):
             tokenizer=self.dialogues_processor._tokenizer,
             schemas=self.dialogues_processor.schemas,
             schema_config=self.dialogues_processor.schema_config,
+            cfg=dataset_cfg,
         )
 
         dl = torch.utils.data.DataLoader(

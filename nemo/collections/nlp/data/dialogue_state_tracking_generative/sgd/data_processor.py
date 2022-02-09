@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,6 @@ import collections
 import json
 import os
 import pickle
-import re
 from typing import Dict, List
 
 import numpy as np
@@ -136,7 +135,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         self.slots_relation_file = os.path.join(dialogues_example_dir, f"{task_name}_train_slots_relation_list.np")
         for dataset in ["train", "dev", "test"]:
             # Process dialogue files
-            dial_file = f"{task_name}_{dataset}_examples.processed"
+            dial_file = f"{task_name}_{dataset}_examples.json"
             dial_file = os.path.join(dialogues_example_dir, dial_file)
             self.dial_files[(task_name, dataset)] = dial_file
 
@@ -161,8 +160,8 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     dataset, self.schemas, self._subsample
                 )
 
-                with open(dial_file, "wb") as f:
-                    np.save(f, dial_examples)
+                with open(dial_file, "w", encoding="UTF-8") as f:
+                    json.dump([i.data for i in dial_examples], f)
 
                 if dataset == "train":
                     with open(self.slots_relation_file, "wb") as f:
@@ -207,7 +206,8 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         logging.info(f"Loading dialogue examples from {dial_file}.")
 
         with open(dial_file, "rb") as f:
-            dial_examples = np.load(f, allow_pickle=True)
+            dial_examples = json.load(f)
+            dial_examples = [DialogueSGDInputExample(i) for i in dial_examples]
             f.close()
 
         if not os.path.exists(self.slots_relation_file):
@@ -382,7 +382,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             state = user_frame["state"]["slot_values"]
             state_update = self._get_state_update(state, prev_states.get(service, {}))
             states[service] = state
-
+            system_frame = system_frames.get(service, None)
             dataset_split, dialog_id, turn_id_ = turn_id.split('-')
             dialog_id_1, dialog_id_2 = dialog_id.split('_')
             example_id = f"{turn_id}-{service}"
@@ -395,23 +395,14 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             intent = user_frames[service]["state"]['active_intent']
             all_possible_slots = schemas.get_service_schema(service).slots
             categorical_slots = schemas.get_service_schema(service).categorical_slots
-            """
-            print("-"*20)
-            print("slots: ", slots)
-            print("slot values: ", slot_values)
-            print("state", user_frames[service]["state"])
-            print("state_update: ", state_update)
-            print("utterance", user_utterance)
-            print("system_utterance", system_utterance)
-            print("slot_carryover_values", slot_carryover_values)
-            print("state", state)
-            #raise ValueError
-            """
             one_example = {
                 "example_id": example_id,
                 "example_id_num": example_id_num,
                 "utterance": user_utterance,
                 "system_utterance": system_utterance,
+                "system_slots": {slot["slot"]: slot for slot in system_frame["slots"]}
+                if system_frame is not None
+                else None,
                 "labels": {
                     "service": service,
                     "intent": intent,
@@ -504,7 +495,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         """
         dialogs = []
         for dialog_json_filepath in sorted(dialog_json_filepaths):
-            with open(dialog_json_filepath, 'r') as f:
+            with open(dialog_json_filepath, 'r', encoding="UTF-8") as f:
                 dialogs.extend(json.load(f))
                 f.close()
         return dialogs
