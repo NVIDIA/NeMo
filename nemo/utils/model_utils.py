@@ -585,7 +585,7 @@ def inject_model_parallel_rank(filepath):
         # filepath needs to be updated to include mp_rank
         dirname = os.path.dirname(filepath)
         basename = os.path.basename(filepath)
-        if app_state.pipeline_model_parallel_size == 1:
+        if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
             filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
         else:
             filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
