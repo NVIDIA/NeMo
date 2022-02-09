@@ -35,18 +35,6 @@ python speech_to_text_buffered_infer_rnnt.py \
     --device="cuda:0" \
     --batch_size=128
 
-
-python speech_to_text_buffered_infer_rnnt.py \
-    --asr_model="/home/smajumdar/PycharmProjects/nemo-eval/tmp/notebook/stt_en_conformer_transducer_large_mls.nemo" \
-    --test_manifest="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/librispeech/manifests/test_other.json" \
-    --model_stride=4 \
-    --output_path="." \
-    --total_buffer_in_secs=10.0 \
-    --chunk_len_in_secs=8.0 \
-    --device="cuda:0" \
-    --batch_size=128
-
-
 # Longer Common Subsequence (LCS) Merge algorithm
 
 python speech_to_text_buffered_infer_rnnt.py \
@@ -54,7 +42,7 @@ python speech_to_text_buffered_infer_rnnt.py \
     --test_manifest="<Path to a JSON manifest>" \
     --model_stride=4 \
     --output_path="." \
-    --use_lcs_merge \
+    --merge_algo="lcs" \
     --lcs_alignment_dir=<OPTIONAL: Some path to store the LCS alignments> \
     --total_buffer_in_secs=10.0 \
     --chunk_len_in_secs=8.0 \
@@ -87,6 +75,48 @@ from nemo.collections.asr.parts.utils.streaming_utils import (
 from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
+
+# Common Arguments
+parser = ArgumentParser()
+parser.add_argument(
+    "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
+)
+parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
+parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument(
+    "--total_buffer_in_secs",
+    type=float,
+    default=4.0,
+    help="Length of buffer (chunk + left and right padding) in seconds ",
+)
+parser.add_argument("--chunk_len_in_secs", type=float, default=1.6, help="Chunk length in seconds")
+parser.add_argument("--output_path", type=str, help="path to output file", default=None)
+parser.add_argument(
+    "--model_stride",
+    type=int,
+    default=8,
+    help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
+)
+parser.add_argument(
+    '--max_steps_per_timestep', type=int, default=5, help='Maximum number of tokens decoded per acoustic timestepB'
+)
+parser.add_argument('--stateful_decoding', action='store_true', help='Whether to perform stateful decoding')
+parser.add_argument('--device', default=None, type=str, required=False)
+
+# Merge algorithm for transducers
+parser.add_argument(
+    '--merge_algo',
+    default='middle',
+    type=str,
+    required=False,
+    choices=['middle', 'lcs'],
+    help='Choice of algorithm to apply during inference.',
+)
+
+# LCS Merge Algorithm
+parser.add_argument(
+    '--lcs_alignment_dir', type=str, default=None, help='Path to a directory to store LCS algo alignments'
+)
 
 
 def get_wer_feat(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch_size):
@@ -141,50 +171,7 @@ def get_wer_feat(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch
     return hyps, refs, wer
 
 
-def main():
-    # Common Arguments
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
-    )
-    parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument(
-        "--total_buffer_in_secs",
-        type=float,
-        default=4.0,
-        help="Length of buffer (chunk + left and right padding) in seconds ",
-    )
-    parser.add_argument("--chunk_len_in_secs", type=float, default=1.6, help="Chunk length in seconds")
-    parser.add_argument("--output_path", type=str, help="path to output file", default=None)
-    parser.add_argument(
-        "--model_stride",
-        type=int,
-        default=8,
-        help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-    )
-    parser.add_argument(
-        '--max_steps_per_timestep', type=int, default=5, help='Maximum number of tokens decoded per acoustic timestepB'
-    )
-    parser.add_argument('--stateful_decoding', action='store_true', help='Whether to perform stateful decoding')
-    parser.add_argument('--device', default=None, type=str, required=False)
-
-    # Merge algorithm for transducers
-    parser.add_argument(
-        '--merge_algo',
-        default='middle',
-        type=str,
-        required=False,
-        choices=['middle', 'lcs'],
-        help='Choice of algorithm to apply during inference.',
-    )
-
-    # LCS Merge Algorithm
-    parser.add_argument(
-        '--lcs_alignment_dir', type=str, default=None, help='Path to a directory to store LCS algo alignments'
-    )
-
-    args = parser.parse_args()
+def main(args):
     torch.set_grad_enabled(False)
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
@@ -304,4 +291,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    args = parser.parse_args()
+    main(args)  # noqa pylint: disable=no-value-for-parameter
