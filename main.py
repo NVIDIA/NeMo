@@ -1,12 +1,10 @@
 import sys
-import os
-import subprocess
 
 import copy
 import hydra
 import omegaconf
 
-from data_preparation import data_preparation
+from data_preparation.pile_dataprep_scripts import data_preparation
 from train_scripts import train
 from conversion_scripts import convert
 from eval_scripts import evaluate

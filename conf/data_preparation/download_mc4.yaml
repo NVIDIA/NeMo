@@ -1,0 +1,19 @@
+dataset: mC4
+download_mc4: True  # Whether to download the pile dataset from the internet.
+preprocess_data: True  # True to preprocess the data from a json.gz file, False otherwise.
+c4_dir: ${data_dir}/c4 # Path to (m)C4 dataset repo.
+git_lfs_dir: ${data_dir}/lfs # Path to store git lfs files.
+download_tokenizer_url: ??? # URL to download tokenizer from
+tokenizer_save_dir: ${data_dir}/tokenizer # Path to save tokenizers
+tokenizer: ${data_dir}/tokenizer/???
+languages: all # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
+softlinks_dir: ${data_dir}/c4/softlinks # Path to languages soft links for preprocessing
+download_worker_mapping: ${data_dir}/c4/download_mapping
+preprocess_worker_mapping: ${data_dir}/c4/preprocess_mapping
+log_dir: ${base_results_dir}/data_preparation/logs  # Where to save the logs
+rm_downloaded: True # Extract script will remove downloaded zst after extraction
+nodes: 20
+cpus_per_node: 256 # 256 cpus for A100(80G)
+time_limit: "4:00:00"
+workers_per_node: 8 # Number of workers per node in preprocessing step.
+bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.

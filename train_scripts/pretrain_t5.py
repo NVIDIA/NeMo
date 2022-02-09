@@ -21,7 +21,7 @@ def main(cfg):
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
-        f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
+        f"{code_dir}/examples/nlp/language_modeling/megatron_t5_pretraining.py"
     )
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
     # Write command to launch training.

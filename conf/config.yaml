@@ -2,7 +2,7 @@ defaults:
   - _self_
   - cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
   - data_preparation: download_pile
-  - training: 5b  # Must match training_config below.
+  - training: gpt3/5b  # Must match training_config below.
   - conversion: convert
   - evaluation: evaluate_all
   - override hydra/job_logging: stdout
@@ -18,7 +18,7 @@ run_conversion: True
 run_evaluation: True
 
 cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
-training_config: 5b  # Must match - training above.
+training_config: gpt3/5b  # Must match - training above.
 bignlp_path: ???  # Path should end with bignlp-scripts
 data_dir: ${bignlp_path}/data  # Location to store and read the data.
 base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.

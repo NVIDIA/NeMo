@@ -1,24 +1,8 @@
-config: t5/220m  # Must match relative path in training
-
-
-slurm:
-  partition: ???
-  account: null
-  time_limit: "7-00:00:00"
-  nodes: 16
-  exclusive: True
-  mem: 0
-  overcommit: True
-  ntasks_per_node: 8
-  gpus_per_task: 1
-  dependency: "singleton"
-  job_name: "bignlp-t5:220m"
-
-
 run:
   name: t5_220m
-  log_dir: ${bignlp_path}/train_scripts/logs/${.name}
-
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "1-12:00:00"
+  dependency: "singleton"
 
 trainer:
   gpus: ${training.slurm.ntasks_per_node}
@@ -46,8 +30,8 @@ exp_manager:
   name: megatron_t5
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_gpt_pretraining
-    name: dev
+    project: nemo_t5
+    name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
@@ -68,7 +52,7 @@ model:
   micro_batch_size: 16
   tensor_model_parallel_size: 1
 
-  # model architecture
+  # model architecture TODO: modify for O2
   seq_length: 512
   max_position_embeddings: ${.seq_length}
   num_layers: 12

@@ -1,3 +1,4 @@
+dataset: pile
 download_the_pile: True  # Whether to download the pile dataset from the internet.
 the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
 file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.

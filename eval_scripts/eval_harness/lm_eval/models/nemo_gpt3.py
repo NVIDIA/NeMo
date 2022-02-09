@@ -277,7 +277,7 @@ class NeMo_GPT3LM(LM):
             for chunk in utils.chunks(tqdm(reord.get_reordered(), disable=disable_tqdm),
                                       n=self.batch_size):  # NOTE: hard-code batch size to be 1 for 530B model for now
                 inps = []
-                contlens = []
+                conts = []
                 inplens = []
 
                 padding_length = None
@@ -316,13 +316,13 @@ class NeMo_GPT3LM(LM):
                     ], dim=0)
 
                     inps.append(inp.unsqueeze(0))
-                    contlens.append(cont)
+                    conts.append(cont)
                     inplens.append(inplen)
 
                 maybe_multi_logits = self._model_call_megatron(torch.cat(inps, dim=0))  # [batch, seq, vocab]
 
                 for (cache_key, _, _), maybe_logits, inp, inplen, cont_toks in zip(chunk, maybe_multi_logits, inps,
-                                                                                   inplens, contlens):
+                                                                                   inplens, conts):
                     contlen = len(cont_toks)
 
                     if self.can_access_output():
