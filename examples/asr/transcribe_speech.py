@@ -137,7 +137,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    trainer = pl.Trainer(device=device, accelerator=accelerator)
+    trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
