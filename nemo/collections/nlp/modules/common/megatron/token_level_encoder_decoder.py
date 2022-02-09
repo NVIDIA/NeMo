@@ -209,6 +209,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_hidden_states=None,
         output_enc_hidden_only=False,
     ):
+    """
+    Returns a dict with various items (i.e., can be extended in a child class)
+    """
         ret_dict = {}
 
         # encoder embeddings
@@ -226,7 +229,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
 
             ret_dict.update(
-                self.enc_dec_model.forward(
+                self.enc_dec_model(
                     enc_input=enc_input,
                     enc_attn_mask=enc_attn_mask,
                     dec_input=dec_input,
@@ -240,6 +243,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
             )
 
+            # project decoder output to vocabulary-size dimensions
             token_logits = self.tokens_head(ret_dict["dec_output"], self.decoder_embedding.word_embeddings.weight)
             ret_dict["token_logits"] = token_logits
 
@@ -250,7 +254,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 else:
                     tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
 
-                ret_dict["tokens_loss"] = tokens_loss
+                AAA
+                # loss might comprise multiple terms. Here it is only tokens_loss
+                ret_dict["loss"] = ret_dict["tokens_loss"] = tokens_loss
 
         return ret_dict
 
