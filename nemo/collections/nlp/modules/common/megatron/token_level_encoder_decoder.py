@@ -210,8 +210,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         output_enc_hidden_only=False,
     ):
         """
-        Returns a dict with various items, including loss.
-        Can be extended / altered by a child class, but loss is always expected.
+        Return value is per token / per dimension (i.e., non collapsed loss value)
         """
         ret_dict = {}
 
@@ -246,18 +245,19 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
             # project decoder output to vocabulary-size dimensions
             token_logits = self.tokens_head(ret_dict["dec_output"], self.decoder_embedding.word_embeddings.weight)
+            # token_logits [batch, length, vocab_size]
             ret_dict["token_logits"] = token_logits
 
             if labels is not None:
+                # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                 if self.fp16_cross_entropy:
                     assert token_logits.dtype == torch.half
                     tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
                 else:
                     tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
 
-                AAA
-                # loss might comprise multiple terms. Here it is only tokens_loss
-                ret_dict["loss"] = ret_dict["tokens_loss"] = tokens_loss
+            # tokens_loss [batch, length]
+            ret_dict["tokens_loss"] = tokens_loss
 
         return ret_dict
 

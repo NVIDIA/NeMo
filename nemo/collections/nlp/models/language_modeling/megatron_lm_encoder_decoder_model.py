@@ -144,11 +144,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(
+        tokens_loss = itemgetter("tokens_loss")(
             self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
         )
 
-        loss = self.loss_func(loss_mask, output_tensor)
+        loss = self.loss_func(loss_mask, tokens_loss)
         self.log('train_loss', loss)
         # Reduced loss for logging. This averages the loss across all workers unlike "loss" above which is specific to a DDP rank.
         reduced_loss = average_losses_across_data_parallel_group([loss])
@@ -170,10 +170,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def validation_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = itemgetter("tokens_loss", "enc_output")(
+        tokens_loss = itemgetter("tokens_loss")(
             self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
         )
-        loss = self.loss_func(loss_mask, output_tensor)
+        loss = self.loss_func(loss_mask, tokens_loss)
         reduced_loss = average_losses_across_data_parallel_group([loss])
         return reduced_loss
 
@@ -189,11 +189,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
 
-    def loss_func(self, loss_mask, output_tensor):
-        losses = output_tensor.float()
+    def loss_func(self, loss_mask, tokens_loss):
+        """
+        This function takes as input per-token loss and masks non-required values.
+        """
+        losses = tokens_loss.view(-1).float()
         loss_mask = loss_mask.view(-1).float()
         # TODO: add nemo version here
-        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
+        loss = torch.sum(losses * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
     def process_batch(self, batch):
@@ -331,7 +334,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         for _ in range(num_tokens_to_generate):
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
-            output_tensor = itemgetter("dec_output")(
+            token_logits = itemgetter("token_logits")(
                 self(
                     encoder_input_ids=tokens_enc,
                     decoder_input_ids=predicted_tokens_dec,
@@ -343,9 +346,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     output_enc_hidden_only=False,
                 )
             )
-            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
             # FIXME: already log softmax?
-            log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
+            log_probs, token_ids = torch.max(nn.functional.log_softmax(token_logits, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
             if token_ids[:, -1] == self.tokenizer.eos_id:
                 break
