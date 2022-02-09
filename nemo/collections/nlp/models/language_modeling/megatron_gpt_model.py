@@ -122,6 +122,7 @@ class MegatronGPTModel(NLPModel):
 
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
+            raise ValueError('prompt tuning is temporarily disabled. Please use NeMo 1.6')
         self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
@@ -197,8 +198,12 @@ class MegatronGPTModel(NLPModel):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # we prepare the micro batches for the apex fwd/bwd function
-        batch_for_pipeline = self.process_global_batch(batch)
+        if self.use_soft_prompts:
+            # The micro batches are already prepared for apex by the prompt tuning dataclass
+            batch_for_pipeline = batch
+        else:
+            # we prepare the micro batches for the apex fwd/bwd function
+            batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -576,6 +581,7 @@ class MegatronGPTModel(NLPModel):
             dataset_path=dataset_path,
             tokenizer=self.tokenizer,
             num_prompt_tokens=self.cfg.num_prompt_tokens,
+            micro_batch_size=self.cfg.micro_batch_size,
             max_seq_length=self.cfg.data.get('max_seq_length', 512),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos_eos=self.cfg.data.get('add_bos_eos', True),
@@ -815,8 +821,10 @@ class MegatronGPTModel(NLPModel):
                 * offsets: list of tokens start positions in text
                 
         """
-
         # TODO: Add raise with message to use previous commit ID / version of NeMo
+        if self.cfg.pipeline_model_parallel_size > 1:
+            raise ValueError('complete method is not yet supported for pipeline')
+
         results = []
         request_tokens = request["tokens"]
 
