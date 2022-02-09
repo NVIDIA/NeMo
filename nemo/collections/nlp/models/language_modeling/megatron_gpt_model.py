@@ -822,7 +822,7 @@ class MegatronGPTModel(NLPModel):
                 
         """
         # TODO: Add raise with message to use previous commit ID / version of NeMo
-        if self.cfg.pipeline_model_parallel_size > 1:
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             raise ValueError('complete method is not yet supported for pipeline')
 
         results = []
