@@ -279,6 +279,10 @@ def main():
         for abbr, t in libri_wo_changes_abbrs.items():
             google_text = google_text.replace(abbr, t)
 
+        #############################################
+        # comparison nemo and google normalization  #
+        #############################################
+
         if nemo_text.lower() != google_text.lower():
             # check if nemo_text is almost equal to google_text (with some exceptions, see `almost_equal`)
             if almost_equal(nemo_text.lower(), google_text.lower(), stats):
