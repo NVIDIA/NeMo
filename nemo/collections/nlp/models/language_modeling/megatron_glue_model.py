@@ -154,9 +154,11 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
         averaged_loss = average_losses_across_data_parallel_group(losses)
+        val_acc = self.acc_metric.compute()
         self.log('validation_loss', averaged_loss)
-        self.log('validation_acc', self.acc_metric)
-        return averaged_loss[0], self.acc_metric.compute()
+        self.log('validation_acc', val_acc)
+        self.acc_metric.reset()
+        return averaged_loss[0], val_acc
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
