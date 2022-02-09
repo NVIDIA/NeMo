@@ -147,6 +147,10 @@ class TemplateProcessor(DataProcessor):
             new_ids = []
             for i in range(len(limits)):
                 if limits[i]:
+                    if len(all_ids[i]) < cut:
+                        raise ValueError(
+                            f"Some other field length is too long, cutting {self.limit_length_field} is not enough"
+                        )
                     new_ids.append(all_ids[i][cut:])
                 else:
                     new_ids.append(all_ids[i])
@@ -396,7 +400,7 @@ class GPTPTuneDataset(TaskDataset):
             self.max_seq_length_decoder = max_label_len
         else:
             self.max_seq_length_decoder = max(
-                self.max_seq_length, max_label_len
+                self.max_seq_length_decoder, max_label_len
             )  # take the max of the two to be conservative
         for ex_index, example in enumerate(self.examples):
             taskname = example.taskname
