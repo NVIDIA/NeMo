@@ -142,8 +142,11 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             if self.model.tokenizer.eos_id in pred:
                 idx = pred.index(self.model.tokenizer.eos_id)
                 pred = pred[:idx]
-            pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
-            label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
+
+            # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
+            if hasattr(self.model.tokenizer, 'special_token_to_id'):
+                pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
+                label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
             pred = self.model.tokenizer.ids_to_text(pred)
             label = self.model.tokenizer.ids_to_text(label)
             _ = self.acc_metric(pred, label)
