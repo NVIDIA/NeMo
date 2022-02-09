@@ -119,7 +119,7 @@ class ClassifyFst(GraphFst):
             fraction_graph = fraction.fst
 
             # use False deterministic for measure to add range graph to cardinal options
-            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False)
+            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False, lm=True)
             measure_graph = measure.fst
             date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
             date_graph = date.fst

@@ -155,8 +155,10 @@ class CardinalFst(GraphFst):
         """
         num_graph = self.single_digits_graph
 
-        if not self.deterministic:
-            num_graph |= self.graph
+        # also allow double digits to be pronounced as integer in serial number
+        num_graph |= pynutil.add_weight(
+            NEMO_DIGIT ** 2 @ self.graph_hundred_component_at_least_one_none_zero_digit, weight=0.0001
+        )
 
         # add space between letter and digit
         graph_with_space = pynini.compose(

@@ -70,7 +70,7 @@ def get_hundreds_graph(deterministic: bool = True):
     graph_ties = get_ties_graph(deterministic)
     graph = (
         graph_ties + insert_space + graph_ties
-        | graph_teen + insert_space + pynini.cross("00", "hundred")
+        | (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred")
         | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")) + pynutil.delete("0s"))
         @ pynini.cdrewrite(pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA)
         | pynutil.add_weight(
@@ -160,6 +160,18 @@ class DateFst(GraphFst):
                 + pynutil.insert("\"")
             )
 
+            year_graph_standalone |= (
+                pynutil.insert("year: \"")
+                + (
+                    ((NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph)
+                    | get_hundreds_graph(deterministic=deterministic)
+                )
+                + pynutil.delete(pynini.closure(pynini.accep(" ")))
+                + insert_space
+                + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
+                + pynutil.insert("\"")
+            )
+
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_graph + pynutil.insert("\"")
 
@@ -191,7 +203,7 @@ class DateFst(GraphFst):
             pynutil.insert(" year: \"")
             + pynini.accep(",")
             + pynini.closure(pynini.accep(" "), 0, 1)
-            + year_graph
+            + (year_graph | ((NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph))
             + pynutil.insert("\"")
         )
         optional_graph_year = pynini.closure(graph_year, 0, 1)

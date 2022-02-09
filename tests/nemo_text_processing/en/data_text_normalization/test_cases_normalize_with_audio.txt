@@ -132,3 +132,10 @@ zero point zero zero four
 oh point oh oh four
 ~[0.4] and [5 and 4]
 [zero point four] and [five and four]
+~Henry III.
+Henry three.
+Henry the third.
+~340 A.D.
+three hundred forty a d.
+three forty a d.
+
