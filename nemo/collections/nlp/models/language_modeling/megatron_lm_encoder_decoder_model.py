@@ -93,6 +93,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         Default tokenizer is based on available nemo tokenizers.
         Override this method to use an external tokenizer.
         All tokenizers are expected to provide compatible interface.
+        Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
         """
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
@@ -100,6 +101,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
             tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
             vocab_file=self.register_artifact("vocab_file", self._cfg.tokenizer.vocab_file),
             merges_file=self.register_artifact("merges_file", self._cfg.tokenizer.merge_file),
+            legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
         )
 
     def _build_vocab(self):

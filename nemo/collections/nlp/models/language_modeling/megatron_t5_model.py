@@ -40,19 +40,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModule):
 
         super()._build_vocab()
 
-    def _build_tokenizer(self):
-        """
-        Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
-        """
-        self.tokenizer = get_nmt_tokenizer(
-            library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self._cfg.tokenizer.merge_file),
-            legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
-        )
-
     def _add_special_tokens_to_tokenizer(self):
         if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
             additional_tokens = {
