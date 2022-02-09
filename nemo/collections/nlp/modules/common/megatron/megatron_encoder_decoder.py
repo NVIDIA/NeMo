@@ -16,6 +16,16 @@
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 
+try:
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+    AttnMaskType = None
+
+
 __all__ = ["MegatronTransformerEncoderDecoderModule"]
 
 
@@ -28,8 +38,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         encoder,
         decoder,
         # AttnMaskType enum mask type (e.g., padding, casual)
-        encoder_attn_mask_type=None,
-        decoder_attn_mask_type=None,
+        encoder_attn_mask_type: AttnMaskType=None,
+        decoder_attn_mask_type: AttnMaskType=None,
     ):
         super(MegatronTransformerEncoderDecoderModule, self).__init__()
 
