@@ -94,7 +94,7 @@ class GPTPromptTuningDataset(Dataset):
 
     def split_into_micro_batches(self, prompt_tags, tokens, labels, attention_mask, loss_mask, text_position_ids):
         """ Now that the global batch sequences have been padded, split into micro batches """
-        
+
         # TODO: Need to split prompt tags still
 
         tokens = torch.split(tokens, self.micro_batch_size)
@@ -102,7 +102,6 @@ class GPTPromptTuningDataset(Dataset):
         attention_mask = torch.split(attention_mask, self.micro_batch_size)
         loss_mask = torch.split(loss_mask, self.micro_batch_size)
         text_position_ids = torch.split(text_position_ids, self.micro_batch_size)
-
 
         return prompt_tags, tokens, labels, attention_mask, loss_mask, text_position_ids
 
@@ -117,7 +116,7 @@ class GPTPromptTuningDataset(Dataset):
         prompt_token_labels = torch.full(
             size=(batch_size, self.num_prompt_tokens - 1), fill_value=self.tokenizer.bos_id, dtype=torch.long,
         )
-        
+
         # Should be a label for every token in batch, label is the next token, starting with soft prompts
         labels = torch.cat((prompt_token_labels, tokens[:, :].contiguous()), dim=1)
         tokens = tokens[:, :-1].contiguous()
@@ -170,9 +169,7 @@ class GPTPromptTuningDataset(Dataset):
         full_seq_length = len(tokens[0]) + self.num_prompt_tokens
 
         # Position ids for text
-        text_position_ids = torch.arange(
-                start=self.num_prompt_tokens, end=full_seq_length, dtype=torch.long,
-        )
+        text_position_ids = torch.arange(start=self.num_prompt_tokens, end=full_seq_length, dtype=torch.long,)
         text_position_ids = text_position_ids.unsqueeze(0).expand_as(tokens).clone()
 
         # Attention mask (lower triangular) starting with prompt tokens
@@ -185,7 +182,6 @@ class GPTPromptTuningDataset(Dataset):
 
         return text_position_ids, attention_mask
 
-
     def collate_fn(self, batch):
         """ Prepares global batch, then splits into micro batches if pipeline parallel is > 1"""
 
@@ -193,17 +189,12 @@ class GPTPromptTuningDataset(Dataset):
 
         # Prepare global batch
         tokens, labels, attention_mask, loss_mask, text_position_ids = self.process_global_batch(
-                input_ids,
-                answer_lens,
+            input_ids, answer_lens,
         )
 
         # Split into micro batchs
         propmt_tags, tokens, labels, attention_mask, loss_mask, text_position_ids = split_into_micro_batches(
-                prompt_tags, 
-                labels,
-                attention_mask,
-                loss_mask,
-                text_position_ids
+            prompt_tags, labels, attention_mask, loss_mask, text_position_ids
         )
 
         return tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids
