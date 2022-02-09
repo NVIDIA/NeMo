@@ -17,7 +17,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
-    MegatronLMEncoderDecoderModule,
+    MegatronLMEncoderDecoderModel,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
@@ -25,7 +25,7 @@ from nemo.utils import logging
 __all__ = ["MegatronT5Model"]
 
 
-class MegatronT5Model(MegatronLMEncoderDecoderModule):
+class MegatronT5Model(MegatronLMEncoderDecoderModel):
     """
     Megatron T5 pretraining
     """

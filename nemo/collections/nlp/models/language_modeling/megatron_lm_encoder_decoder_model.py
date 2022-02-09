@@ -28,7 +28,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.tokens_encoder_decoder import TokensEncoderDecoderModule
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelEncoderDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
@@ -41,10 +41,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-__all__ = ["MegatronLMEncoderDecoderModule"]
+__all__ = ["MegatronLMEncoderDecoderModel"]
 
 
-class MegatronLMEncoderDecoderModule(MegatronBaseModel):
+class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
     Megatron encoder-decoder base class
     """
@@ -59,7 +59,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         self._build_vocab()
 
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        self.enc_dec_model = TokensEncoderDecoderModule(
+        self.enc_dec_model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=cfg.encoder_arch,
             decoder_arch=cfg.decoder_arch,
             vocab_size=self.padded_vocab_size,
@@ -312,7 +312,7 @@ class MegatronLMEncoderDecoderModule(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
-        # TODO: move into a class inside TokensEncoderDecoderModule (?)
+        # TODO: move into a class inside MegatronTokenLevelEncoderDecoderModule (?)
         encoder_hidden_states = itemgetter("enc_output")(
             self(
                 encoder_input_ids=tokens_enc,
