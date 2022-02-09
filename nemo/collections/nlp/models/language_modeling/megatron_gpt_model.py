@@ -134,11 +134,11 @@ class MegatronGPTModel(NLPModel):
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=cfg.precision)
 
-        if self.cfg.precision == 32:
+        if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
-        elif self.cfg.precision == 16:
+        elif self.trainer.precision == 16:
             self.autocast_dtype = torch.half
-        elif self.cfg.precision == 'bf16':
+        elif self.trainer.precision == 'bf16':
             self.autocast_dtype = torch.bfloat16
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
@@ -815,6 +815,8 @@ class MegatronGPTModel(NLPModel):
                 * offsets: list of tokens start positions in text
                 
         """
+
+        # TODO: Add raise with message to use previous commit ID / version of NeMo
         results = []
         request_tokens = request["tokens"]
 
