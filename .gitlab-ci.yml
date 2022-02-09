@@ -19,7 +19,7 @@
     - master
     - merge_requests
   tags:
-    - V100
+    - joc-automation
 
 stages:
   - test
