@@ -19,7 +19,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import b
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
 __all__ = ["MegatronT5Model"]
