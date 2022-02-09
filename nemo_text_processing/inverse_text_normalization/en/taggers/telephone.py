@@ -14,7 +14,13 @@
 # limitations under the License.
 
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALNUM,
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    GraphFst,
+    insert_space,
+)
 
 try:
     import pynini
@@ -23,6 +29,17 @@ try:
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
+
+
+def get_serial_number(cardinal):
+    """
+    any alphanumerical character sequence with at least one number with length greater equal to 3
+    """
+    digit = pynini.compose(cardinal.graph_no_exception, NEMO_DIGIT)
+    character = digit | NEMO_ALPHA
+    sequence = character + pynini.closure(pynutil.delete(" ") + character, 2)
+    sequence = sequence @ (pynini.closure(NEMO_ALNUM) + NEMO_DIGIT + pynini.closure(NEMO_ALNUM))
+    return sequence.optimize()
 
 
 class TelephoneFst(GraphFst):
@@ -43,10 +60,13 @@ class TelephoneFst(GraphFst):
     def __init__(self, cardinal: GraphFst):
         super().__init__(name="telephone", kind="classify")
         # country code, number_part, extension
-        digit_to_str = pynini.invert(
-            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        ).optimize() | pynini.cross("0", pynini.union("o", "oh", "zero"))
+        digit_to_str = (
+            pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")).optimize())
+            | pynini.cross("0", pynini.union("o", "oh", "zero")).optimize()
+        )
+
         str_to_digit = pynini.invert(digit_to_str)
+
         double_digit = pynini.union(
             *[
                 pynini.cross(
@@ -66,9 +86,10 @@ class TelephoneFst(GraphFst):
             pynini.compose(double_digit, str_to_digit + pynutil.delete(" ") + str_to_digit) | two_digit_cardinal
         )
 
-        single_or_double_digit = (double_digit_to_digit | str_to_digit).optimize()
-        single_or_double_digit = (
-            single_or_double_digit + pynini.closure(pynutil.delete(" ") + single_or_double_digit)
+        single_or_double_digit = (pynutil.add_weight(double_digit_to_digit, -0.0001) | str_to_digit).optimize()
+        single_or_double_digit |= (
+            single_or_double_digit
+            + pynini.closure(pynutil.add_weight(pynutil.delete(" ") + single_or_double_digit, 0.0001))
         ).optimize()
 
         number_part = pynini.compose(
@@ -85,6 +106,7 @@ class TelephoneFst(GraphFst):
             + ((pynini.closure(str_to_digit + pynutil.delete(" "), 0, 2) + str_to_digit) | cardinal_option)
             + pynutil.insert("\"")
         )
+
         optional_country_code = pynini.closure(country_code + pynutil.delete(" ") + insert_space, 0, 1).optimize()
         graph = optional_country_code + number_part
 
@@ -108,7 +130,13 @@ class TelephoneFst(GraphFst):
         digit_or_double = digit_or_double.optimize()
 
         ip_graph = digit_or_double + (pynini.cross(" dot ", ".") + digit_or_double) ** 3
+
         graph |= pynutil.insert("number_part: \"") + ip_graph.optimize() + pynutil.insert("\"")
+        graph |= (
+            pynutil.insert("number_part: \"")
+            + pynutil.add_weight(get_serial_number(cardinal=cardinal), weight=0.0001)
+            + pynutil.insert("\"")
+        )
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
