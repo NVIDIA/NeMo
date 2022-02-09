@@ -70,7 +70,7 @@ class T5Dataset(MegatronDataset):
         )
 
         self.tokenizer = tokenizer
-        self.tokenizer_type = 'wordpiece' # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
+        self.tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
         if isinstance(self.tokenizer, YouTokenToMeTokenizer):
             raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
 
@@ -120,7 +120,7 @@ class T5Dataset(MegatronDataset):
             bos_id=self.bos_id,
             eos_id=self.eos_id,
             sentinel_tokens=self.sentinel_tokens,
-            tokenizer_type=self.tokenizer_type
+            tokenizer_type=self.tokenizer_type,
         )
         return training_sample
 
@@ -141,7 +141,7 @@ def build_training_sample(
     bos_id=None,
     eos_id=None,
     sentinel_tokens=None,
-    tokenizer_type="wordpiece"
+    tokenizer_type="wordpiece",
 ):
     """Build training sample.
     Arguments:

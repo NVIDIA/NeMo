@@ -199,6 +199,7 @@ def is_start_piece(piece, tokenizer_type='wordpiece'):
     else:
         raise ValueError(f"Tokenizer type {tokenizer_type} is not supported.")
 
+
 def create_masked_lm_predictions(
     tokens,
     vocab_id_list,
@@ -236,7 +237,11 @@ def create_masked_lm_predictions(
         # Note that Whole Word Masking does *not* change the training code
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
-        if do_whole_word_mask and len(cand_indexes) >= 1 and not is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type):
+        if (
+            do_whole_word_mask
+            and len(cand_indexes) >= 1
+            and not is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type)
+        ):
             cand_indexes[-1].append(i)
         else:
             cand_indexes.append([i])
