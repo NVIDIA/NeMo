@@ -38,8 +38,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         encoder,
         decoder,
         # AttnMaskType enum mask type (e.g., padding, casual)
-        encoder_attn_mask_type: AttnMaskType=None,
-        decoder_attn_mask_type: AttnMaskType=None,
+        encoder_attn_mask_type: AttnMaskType = None,
+        decoder_attn_mask_type: AttnMaskType = None,
     ):
         super(MegatronTransformerEncoderDecoderModule, self).__init__()
 
