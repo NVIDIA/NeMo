@@ -95,6 +95,13 @@ def update_model_config(
             with open_dict(update_cfg.model):
                 update_cfg.model.pop('target')
 
+    # Remove ModelPT artifact `nemo_version`
+    if 'nemo_version' in update_cfg.model:
+        # Assume artifact from ModelPT and pop
+        if 'nemo_version' not in model_cls.model:
+            with open_dict(update_cfg.model):
+                update_cfg.model.pop('nemo_version')
+
     model_cfg = OmegaConf.merge(model_cls, update_cfg)
 
     return model_cfg

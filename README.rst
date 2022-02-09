@@ -34,7 +34,7 @@ Introduction
 ------------
 
 NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), natural language processing (NLP), and text-to-speech synthesis (TTS).
-The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
+The primary objective of NeMo is to help researchers from industry and academia to reuse prior work (code and pretrained models) and make it easier to create new `conversational AI models <https://developer.nvidia.com/conversational-ai#started>`_.
 
 `Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
 
@@ -134,6 +134,10 @@ Use this installation mode if you want the latest released version.
     pip install Cython
     pip install nemo_toolkit['all']
 
+.. note::
+
+    Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+
 Pip from source
 ~~~~~~~~~~~~~~~
 Use this installation mode if you want the a version from particular GitHub branch (e.g main).
@@ -155,6 +159,11 @@ Use this installation mode if you are contributing to NeMo.
     git clone https://github.com/NVIDIA/NeMo
     cd NeMo
     ./reinstall.sh
+
+.. note::
+
+    If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
+    with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
 RNNT
 ~~~~
