@@ -1136,8 +1136,7 @@ pipeline {
           }
         }
       }
-    }
-    post {
+      post {
         always {
           sh 'pwd && ls nemo_* && rm -rf nemo_experiments && ls nemo_*'
         }
