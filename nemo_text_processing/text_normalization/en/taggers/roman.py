@@ -39,8 +39,10 @@ class RomanFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="roman", kind="classify", deterministic=deterministic)
 
-        default_graph = pynini.string_file(get_abs_path("data/roman/roman_to_spoken.tsv")).optimize()
+        roman_dict = load_labels(get_abs_path("data/roman/roman_to_spoken.tsv"))
+        default_graph = pynini.string_map(roman_dict).optimize()
         default_graph = pynutil.insert("integer: \"") + default_graph + pynutil.insert("\"")
+        graph_teens = pynini.string_map([x[0] for x in roman_dict[:19]]).optimize()
         male_labels = load_labels(get_abs_path("data/roman/male.tsv"))
         female_labels = load_labels(get_abs_path("data/roman/female.tsv"))
         male_labels.extend([[x[0].upper()] for x in male_labels])
@@ -54,7 +56,7 @@ class RomanFst(GraphFst):
             + names
             + pynutil.insert("\"")
             + pynini.accep(" ")
-            + pynini.compose(pynini.closure(NEMO_ALPHA, 1, 5), default_graph)
+            + graph_teens @ default_graph
         ).optimize()
         key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
 
@@ -74,8 +76,8 @@ class RomanFst(GraphFst):
 
         # two and more roman numerals, single digit roman numbers could be initials or I
         roman_to_ordinal = pynini.compose(
-            pynini.closure(NEMO_ALPHA, 2),
-            (pynutil.insert("default_ordinal: \"default\" ") + default_graph + pynutil.delete("th")),
+            pynini.closure(NEMO_ALPHA, 3),
+            (pynutil.insert("default_ordinal: \"default\" ") + graph_teens @ default_graph + pynutil.delete("th")),
         )
 
         graph |= roman_to_cardinal | roman_to_ordinal
