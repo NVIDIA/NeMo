@@ -682,7 +682,8 @@ class MegatronGPTModel(NLPModel):
                 contiguous_grad_bucket = True
             elif self.cfg.precision == 16:
                 fp32_grad_accum = False
-                contiguous_grad_bucket = false
+                # TODO: contiguous grad bucket for fp16 is also planned to be supported
+                contiguous_grad_bucket = False
 
             # TODO: this should be true when not using pipeline parallelism
             # we will support that for bf16 when we have async handler from apex
