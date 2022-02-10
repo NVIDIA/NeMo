@@ -15,6 +15,7 @@
 import os
 import re
 from typing import Any, Dict, List, Optional
+from sympy import false
 
 import torch
 import torch.nn.functional as F
@@ -677,9 +678,17 @@ class MegatronGPTModel(NLPModel):
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
         if self.megatron_amp_o2 and self._optimizer is not None:
-            fp32_grad_accum = self.cfg.get('fp32_grad_accum', False)
-            contiguous_grad_bucket = self.cfg.get('contiguous_grad_bucket', False)
-            async_grad_allreduce = self.cfg.get('async_grad_allreduce', False)
+            if self.cfg.precision == 'bf16':
+                fp32_grad_accum = True
+                contiguous_grad_bucket = True
+            elif self.cfg.precision == 16:
+                fp32_grad_accum = False
+                contiguous_grad_bucket = false
+
+            # TODO: this should be true when not using pipeline parallelism
+            # we will support that for bf16 when we have async handler from apex
+            # and we will support it for fp16 when we have it implemented in the O2 recipe
+            async_grad_allreduce = False
 
             self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
