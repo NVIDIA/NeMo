@@ -288,9 +288,16 @@ def rttm_to_labels(rttm_filename):
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
 
-
-# embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
-
+def write_cluster_labels(uniq_id, base_scale_idx, lines, cluster_labels, out_rttm_dir):
+    """
+    Write cluster labels that are generated from clustering into a file.
+    """
+    out_label_name = os.path.join(out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label')
+    with open(out_label_name, 'a') as f:
+        for (seg_line, clus_label) in zip(lines, cluster_labels.tolist()):
+            seg_line = seg_line.strip()
+            label_line = f'{uniq_id} {seg_line}\n'
+            f.write(label_line)
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
     """
@@ -349,6 +356,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         labels = merge_stamps(a)
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+            write_cluster_labels(uniq_id, base_scale_idx, lines, cluster_labels, out_rttm_dir)
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 
