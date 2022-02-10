@@ -40,7 +40,16 @@ except (ImportError, ModuleNotFoundError):
 
 
 def build_train_valid_test_datasets(
-    cfg, trainer, data_prefix, data_impl, splits_string, train_valid_test_num_samples, seq_length, seed, skip_warmup
+    cfg,
+    trainer,
+    data_prefix,
+    data_impl,
+    splits_string,
+    train_valid_test_num_samples,
+    seq_length,
+    seed,
+    skip_warmup,
+    eos_id,
 ):
     """Build train, valid, and test datasets."""
 
@@ -56,6 +65,7 @@ def build_train_valid_test_datasets(
             seq_length,
             seed,
             skip_warmup,
+            eos_id,
         )
 
     # Blending dataset.
@@ -78,6 +88,7 @@ def build_train_valid_test_datasets(
             seq_length,
             seed,
             skip_warmup,
+            eos_id,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -101,7 +112,16 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
-    cfg, trainer, data_prefix, data_impl, splits_string, train_valid_test_num_samples, seq_length, seed, skip_warmup
+    cfg,
+    trainer,
+    data_prefix,
+    data_impl,
+    splits_string,
+    train_valid_test_num_samples,
+    seq_length,
+    seed,
+    skip_warmup,
+    eos_id
 ):
     """Build train, valid, and test datasets."""
 
@@ -139,6 +159,7 @@ def _build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
+                eos_id,
             )
         return dataset
 
@@ -162,7 +183,19 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 
 class GPTDataset(MegatronDataset):
-    def __init__(self, cfg, trainer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed):
+    def __init__(
+        self,
+        cfg,
+        trainer,
+        name,
+        data_prefix,
+        documents,
+        indexed_dataset,
+        num_samples,
+        seq_length,
+        seed,
+        eos_id,
+    ):
         if not HAVE_APEX:
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
@@ -175,6 +208,11 @@ class GPTDataset(MegatronDataset):
         # Checks
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
+
+        self.reset_osition_ids = cfg.data.get('reset_position_ids', False)
+        self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
+        self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
+        self.eos_id = eos_idp
 
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
@@ -209,7 +247,64 @@ class GPTDataset(MegatronDataset):
             sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
             sample = np.concatenate(sample_list)
 
-        return {'text': np.array(sample, dtype=np.int64)}
+        text = torch.from_numpy(sample.astype(np.int64))
+        tokens = text[:-1].contiguous()
+        labels = text[1:].contiguous()
+        attention_mask, loss_mask, position_ids = _calc_ltor_masks_and_position_ids(
+            tokens,
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss,
+        )
+
+        return {
+            'tokens': tokens,
+            'labels': labels,
+            'attention_mask': attention_mask,
+            'loss_mask': loss_mask,
+            'position_ids': position_ids,
+        }
+
+
+@torch.no_grad()
+def _calc_ltor_masks_and_position_ids(
+        tokens,
+        eod_token,
+        reset_position_ids,
+        reset_attention_mask,
+        eod_mask_loss,
+):
+    """Modified version of get_ltor_masks_and_position_ids in nemo/collections/nlp/modules/common/megatron/utils.py"""  # NOQA
+    assert tokens.ndim == 1
+    seq_length = tokens.numel()
+    # `attention_mask` has the shape of [1, seq_length, seq_length]
+    attention_mask = torch.tril(torch.ones((seq_length, seq_length))).unsqueeze(0)
+    loss_mask = torch.ones(seq_length, dtype=torch.float)
+    if eod_mask_loss:
+        loss_mask[tokens == eod_token] = 0.0
+
+    position_ids = torch.arange(seq_length, dtype=torch.int64)
+    if reset_position_ids:
+        position_ids = position_ids.clone()
+
+    if reset_position_ids or reset_attention_mask:
+        # Find indices where EOD token is.
+        eod_index = position_ids[tokens[b] == eod_token]
+        # Detach indices from positions if going to modify positions.
+        if reset_position_ids:
+            eod_index = eod_index.clone()
+        prev_index = 0
+        for j in range(eod_index.numel()):
+            i = eod_index[j]
+            if reset_attention_mask:
+                attention_mask[0, (i + 1):, :(i + 1)] = 0
+            if reset_position_ids:
+                position_ids[(i + 1):] -= i + 1 - prev_index
+                prev_index = i + 1
+    # Convert attention mask to binary.
+    attention_mask = attention_mask < 0.5
+    return attention_mask, loss_mask, position_ids
 
 
 def _build_index_mappings(name, data_prefix, documents, sizes, num_samples, seq_length, seed):
