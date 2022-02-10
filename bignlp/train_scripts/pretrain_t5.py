@@ -7,7 +7,7 @@ from train_utils import pause_and_prime_dns_connections, generate_cmd_prefix, nu
     convert_args_to_hydra_train_args
 
 
-@hydra.main(config_path="../conf", config_name="config")
+@hydra.main(config_path="../../conf", config_name="config")
 def main(cfg):
     args = sys.argv[1:]
     hydra_train_args = convert_args_to_hydra_train_args(args)

@@ -6,10 +6,9 @@ import omegaconf
 import subprocess
 
 # from data_preparation.pile_dataprep_scripts import data_preparation
-from train_scripts import train
-from conversion_scripts import convert
-from eval_scripts import evaluate
-
+from bignlp.train_scripts import train
+from bignlp.conversion_scripts import convert
+from bignlp.eval_scripts import evaluate
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
 
@@ -64,9 +63,9 @@ def main(cfg):
 
     # TODO: build a mapping from dataset name to modules
     if "pile" in cfg.data_config:
-        from data_preparation.pile_dataprep_scripts import data_preparation
+        from bignlp.data_preparation.pile_dataprep_scripts import data_preparation
     elif "mc4" in cfg.data_config:
-        from data_preparation.mc4_dataprep_scripts import data_preparation
+        from bignlp.data_preparation.mc4_dataprep_scripts import data_preparation
     else:
         raise ValueError(f"Unrecognized dataset in data config `{cfg.data_config}`.")
 

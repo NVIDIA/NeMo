@@ -134,7 +134,7 @@ def main():
         print(decoded, end="")
         if FLAGS.accumulate:
             accumulated_tokens = output_tokens_only[
-                -text_generation.MAXIMUM_LENGTH - FLAGS.output_len :
+                                 -text_generation.MAXIMUM_LENGTH - FLAGS.output_len:
             ]
             encoded_text = accumulated_tokens
             decoded_ak = encoder.decode(accumulated_tokens)
