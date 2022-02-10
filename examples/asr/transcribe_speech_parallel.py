@@ -91,7 +91,7 @@ class ParallelTranscriptionConfig:
     use_cer: bool = False
 
     # decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
     trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
 
 
