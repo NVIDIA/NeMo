@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Any, Optional
+from operator import itemgetter
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -118,13 +119,13 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         self.acc_metric = ExactStringMatchMetric()
 
     def training_step(self, batch, batch_idx):
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
-        output_tensor, encoder_hidden_states = self.model(
-            tokens_enc, tokens_dec, enc_mask, dec_mask, enc_dec_mask, tokentype_ids=None, lm_labels=labels
+        tokens_loss = itemgetter("tokens_loss")(
+            self.model(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
         )
 
-        loss = self.model.loss_func(loss_mask, output_tensor)
+        loss = self.model.loss_func(loss_mask, tokens_loss)
         self.log('train_loss', loss)
         # Reduced loss for logging.
         reduced_loss = average_losses_across_data_parallel_group([loss])
@@ -145,7 +146,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def inference_step(self, batch, batch_idx):
         loss = self.model.validation_step(batch, batch_idx)
 
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_dec_mask = self.process_batch(batch)
+        tokens_enc, _, _, labels, enc_mask, _ = self.process_batch(batch)
 
         predicted_token_ids, log_probs = self.model.decode(
             tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
