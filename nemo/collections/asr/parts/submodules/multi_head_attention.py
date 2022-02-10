@@ -58,6 +58,7 @@ class MultiHeadAttention(nn.Module):
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
+        self.s_d_k = math.sqrt(self.d_k)
         self.h = n_head
         self.linear_q = nn.Linear(n_feat, n_feat)
         self.linear_k = nn.Linear(n_feat, n_feat)
@@ -120,7 +121,7 @@ class MultiHeadAttention(nn.Module):
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
         q, k, v = self.forward_qkv(query, key, value)
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
         return self.forward_attention(v, scores, mask)
 
 
@@ -157,9 +158,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
         b, h, qlen, pos_len = x.size()  # (b, h, t1, t2)
-
-        # need to add a column of zeros on the left side of last two dimensions to perform the relative shifting
-        x = torch.nn.functional.pad(x, pad=(1, 0, 0, 0))  # (b, h, t1, t2+1)
+        # need to add a column of zeros on the left side of last dimension to perform the relative shifting
+        x = torch.nn.functional.pad(x, pad=(1, 0))  # (b, h, t1, t2+1)
         x = x.view(b, h, -1, qlen)  # (b, h, t2+1, t1)
         # need to drop the first row
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
@@ -198,10 +198,10 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # (batch, head, time1, time2)
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
-        # drops extra elements in the matrix_bd if there are any left from rel_shift() to match the matrix_ac's size
+        # drops extra elements in the matrix_bd to match the matrix_ac's size
         matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
-        scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
+        scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
 
         return self.forward_attention(v, scores, mask)
 
