@@ -164,7 +164,6 @@ trainer:
   enable_checkpointing: False
   logger: False
   gradient_clip_val: 1.0
-  flush_logs_every_n_steps: 1000
   log_every_n_steps: 200
   check_val_every_n_epoch: 25
 

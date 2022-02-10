@@ -136,7 +136,6 @@ trainer:
   accumulate_grad_batches: 1
   enable_checkpointing: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  flush_logs_every_n_steps: 1000
   log_every_n_steps: 200
   check_val_every_n_epoch: 25
 
