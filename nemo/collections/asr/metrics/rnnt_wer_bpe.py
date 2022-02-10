@@ -19,7 +19,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding
+from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
@@ -255,12 +255,5 @@ class RNNTBPEWER(Metric):
 
 
 @dataclass
-class RNNTBPEDecodingConfig:
-    strategy: str = "greedy_batch"
-    compute_hypothesis_token_set: bool = False
-
-    # greedy decoding config
-    greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
-
-    # beam decoding config
-    beam: beam_decode.BeamRNNTInferConfig = beam_decode.BeamRNNTInferConfig(beam_size=4)
+class RNNTBPEDecodingConfig(RNNTDecodingConfig):
+    pass
