@@ -15,7 +15,6 @@
 import os
 import re
 from typing import Any, Dict, List, Optional
-from sympy import false
 
 import torch
 import torch.nn.functional as F
@@ -1065,4 +1064,3 @@ class MegatronGPTModel(NLPModel):
             raise ValueError(
                 f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
-
