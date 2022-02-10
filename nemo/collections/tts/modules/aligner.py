@@ -15,6 +15,8 @@
 import torch
 from torch import nn
 
+from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
+
 
 class ConvNorm(torch.nn.Module):
     def __init__(
@@ -95,6 +97,20 @@ class AlignmentEncoder(torch.nn.Module):
             dist.data.masked_fill_(mask.permute(0, 2, 1).unsqueeze(2), float("inf"))
 
         return dist.squeeze(1)
+
+    @staticmethod
+    def get_durations(attn_soft, text_len, spect_len):
+        """Calculation of durations.
+
+        Args:
+            attn_soft (torch.tensor): B x 1 x T1 x T2 tensor.
+            text_len (torch.tensor): B tensor, lengths of text.
+            spect_len (torch.tensor): B tensor, lengths of mel spectrogram.
+        """
+        attn_hard = binarize_attention_parallel(attn_soft, text_len, spect_len)
+        durations = attn_hard.sum(2)[:, 0, :]
+        assert torch.all(torch.eq(durations.sum(dim=1), spect_len))
+        return durations
 
     @staticmethod
     def get_mean_dist_by_durations(dist, durations, mask=None):
