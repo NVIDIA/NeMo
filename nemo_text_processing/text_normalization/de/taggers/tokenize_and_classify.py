@@ -129,12 +129,14 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(money_graph, 1.1)
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)
-                | pynutil.add_weight(word_graph, 100)
             )
 
             if not deterministic:
                 range_graph = RangeFst(cardinal=self.cardinal, deterministic=deterministic).fst
                 classify |= pynutil.add_weight(range_graph, 1.0)
+        
+            
+            classify |= pynutil.add_weight(word_graph, 100)
 
             punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
