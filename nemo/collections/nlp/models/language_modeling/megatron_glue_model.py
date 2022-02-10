@@ -253,27 +253,18 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         self._train_dl = self.build_pretraining_data_loader(
             self._train_ds,
             self.cfg.data.train_ds.batch_size,
-            shuffle=True,
+            shuffle=self.cfg.data.train_ds.shuffle,
             num_workers=self.cfg.data.train_ds.num_workers,
-            pin_memory=True,
+            pin_memory=self.cfg.data.train_ds.pin_memory,
         )
 
     def setup_validation_data(self):
         self._validation_dl = self.build_pretraining_data_loader(
             self._validation_ds,
             self.cfg.data.validation_ds.batch_size,
-            shuffle=False,
+            shuffle=self.cfg.data.validation_ds.shuffle,
             num_workers=self.cfg.data.validation_ds.num_workers,
-            pin_memory=True,
-        )
-
-    def setup_test_data(self):
-        self._test_dl = self.build_pretraining_data_loader(
-            self._test_ds,
-            self.cfg.data.test_ds.batch_size,
-            shuffle=False,
-            num_workers=self.cfg.data.test_ds.num_workers,
-            pin_memory=True,
+            pin_memory=self.cfg.data.validation_ds.pin_memory,
         )
 
     def list_available_models():
