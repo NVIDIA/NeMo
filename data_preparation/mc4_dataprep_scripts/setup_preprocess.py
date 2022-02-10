@@ -1,5 +1,6 @@
 import os
 import glob
+import shutil
 import math
 import argparse
 
@@ -7,7 +8,7 @@ from prepare import ALL_LANGS
 
 """
 Example usage:
- python setup_preprocess_c4.py \
+ python setup_preprocess.py \
     --c4-path=<path/to/c4> \
     --soft-link-path=<path/to/save/softlinks> \
     --languages='all' \
@@ -97,6 +98,8 @@ if __name__ == "__main__":
     parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
     args = parser.parse_args()
 
+    print(f" ****** Removing git lfs cache files in {args.c4_path} ...")
+    shutil.rmtree(os.path.join(args.c4_path, ".git", "lfs"))
     lang_splits_info = split_languages(args.c4_path, args.languages, args.max_split_size, args.soft_link_path)
     distribute_lang_splits(lang_splits_info, args.node_array_size, args.workers_per_node, args.max_split_size,
                            args.worker_mapping_file)

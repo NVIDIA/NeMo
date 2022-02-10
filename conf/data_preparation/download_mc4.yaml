@@ -1,18 +1,19 @@
 download_mc4: True  # Whether to download the pile dataset from the internet.
 preprocess_data: True  # True to preprocess the data from a json.gz file, False otherwise.
-c4_dir: ${data_dir}/c4 # Path to (m)C4 dataset repo.
-git_lfs_dir: ${data_dir}/lfs # Path to store git lfs files.
+mc4_dir: ${data_dir}/mc4 # Path to (m)C4 dataset repo.
+git_lfs_dir: ${.mc4_dir}/lfs # Path to store git lfs files.
 download_vocab_url: null  # URL to download the vocab from.
 download_merges_url: null  # URL to download the merges from.
-download_tokenizer_url: ??? # URL to download tokenizer from
-vocab_save_dir: ${.c4_dir}/bpe
-merges_save_dir: ${.c4_dir}/bpe
-tokenizer_save_dir: ${.c4_dir}/bpe
+download_tokenizer_url: https://something.to.be.add # URL to download tokenizer from
+vocab_save_dir: ${.mc4_dir}/bpe
+merges_save_dir: ${.mc4_dir}/bpe
+tokenizer_save_dir: ${.mc4_dir}/bpe
+tokenizer_model: ${.tokenizer_save_dir}/mt5_tokenizer.model
 languages: all # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
-softlinks_dir: ${.c4_dir}/softlinks # Path to languages soft links for preprocessing
-preprocessed_dir: ${.c4_dir}/preprocessed
-download_worker_mapping: ${.c4_dir}/download_mapping
-preprocess_worker_mapping: ${.c4_dir}/preprocess_mapping
+softlinks_dir: ${.mc4_dir}/softlinks # Path to languages soft links for preprocessing
+preprocessed_dir: ${.mc4_dir}/preprocessed
+download_worker_mapping: ${.mc4_dir}/download_mapping
+preprocess_worker_mapping: ${.mc4_dir}/preprocess_mapping
 log_dir: ${base_results_dir}/data_preparation/mc4_logs  # Where to save the logs
 rm_downloaded: False # Script will not remove downloaded after preprocessing
 nodes: 20

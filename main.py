@@ -54,12 +54,12 @@ def main(cfg):
     run_evaluation = cfg.run_evaluation
 
     # TODO: build a mapping from dataset name to modules
-    if "pile" in cfg.datset:
+    if "pile" in cfg.data_config:
         from data_preparation.pile_dataprep_scripts import data_preparation
-    elif "mc4" in cfg.dataset:
+    elif "mc4" in cfg.data_config:
         from data_preparation.mc4_dataprep_scripts import data_preparation
     else:
-        raise ValueError(f"Unrecognized dataset {cfg.dataset}.")
+        raise ValueError(f"Unrecognized dataset in data config `{cfg.data_config}`.")
 
     cfg_copy = copy.deepcopy(cfg)
     dependency = None

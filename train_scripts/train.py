@@ -92,7 +92,9 @@ def run_training(cfg, hydra_args="", dependency=None):
         code_path = os.path.join(bignlp_path, "train_scripts/pretrain_t5.py")
     else:
         raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
-    train_cmd = f"python3 -u {code_path} {hydra_args}"
+
+    hydra_args = hydra_args.replace(" ", " \\\n  ")
+    train_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.gpus

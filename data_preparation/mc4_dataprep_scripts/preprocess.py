@@ -7,7 +7,7 @@ import argparse
 
 """
 Example usage:
- python preprocess_c4.py \
+ python preprocess.py \
     --worker-mapping-file=<path/to/preprocess_mapping_file> \
     --output-path=<output/path> \
     --tokenizer-library <some_tokenizer_lib> \
@@ -46,8 +46,7 @@ if __name__ == '__main__':
         time.sleep(10)
 
     os.makedirs(args.output_path, exist_ok=True)
-    # TODO: modify this to default path
-    cmd = ["python", "/code/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"]
+    cmd = ["python", "/opt/bignlp/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"]
     for split in lang_splits:
         print(" ****** Task ID {:02d} Rank {:02d} starts to preprocess {:}...".format(
             task_id, rank, os.path.basename(split)))

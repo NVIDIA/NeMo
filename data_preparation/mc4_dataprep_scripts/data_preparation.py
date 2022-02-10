@@ -45,7 +45,8 @@ def create_slurm_file(
             f.writelines(f"#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --array={node_array}%{nodes}\n")
         f.writelines(f"#SBATCH -o {log_dir}/log-{task}-%j_%a.out\n")
-        f.writelines(f"srun {flags} python3 {code_path} {args} &\n")
+        args = args.replace(" ", " \\\n  ")
+        f.writelines(f"srun {flags} \\\n python3 {code_path} \\\n  {args} &\n")
         f.writelines("wait\n")
 
 
@@ -61,7 +62,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Data preparation config
     download_mc4 = data_cfg.download_mc4
     preprocess_data = data_cfg.preprocess_data
-    c4_dir = data_cfg.c4_dir
+    mc4_dir = data_cfg.mc4_dir
     preprocessed_dir = data_cfg.preprocessed_dir
     git_lfs_dir = data_cfg.git_lfs_dir
     download_vocab_url = data_cfg.download_vocab_url
@@ -70,7 +71,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     vocab_save_dir = data_cfg.vocab_save_dir
     merges_save_dir = data_cfg.merges_save_dir
     tokenizer_save_dir = data_cfg.tokenizer_save_dir
-    tokenizer = data_cfg.tokenizer
+    tokenizer_model = data_cfg.tokenizer_model
     languages = data_cfg.languages
     softlinks_dir = data_cfg.softlinks_dir
     download_worker_mapping = data_cfg.download_worker_mapping
@@ -107,22 +108,21 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     #     utils.download_single_file(
     #         url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
     #     )
-
     # Define running commands
     prepare_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/prepare.py")
-    prepare_args = f"-data-path={data_dir} " \
+    prepare_args = f"--data-path={mc4_dir} " \
                    f"--git-lfs-path={git_lfs_dir} " \
                    f"--languages={languages} " \
                    f"--node-array-size={nodes} " \
                    f"--worker-mapping-file={download_worker_mapping}"
 
     download_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/download.py")
-    download_args = f"--c4-path={c4_dir} " \
+    download_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
                     f"--git-lfs-path={git_lfs_dir} " \
                     f"--worker-mapping-file={download_worker_mapping}"
 
     setup_preprocess_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/setup_preprocess.py")
-    setup_preprocess_args = f"--c4-path={c4_dir} " \
+    setup_preprocess_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
                             f"--soft-link-path={softlinks_dir} " \
                             f"--languages={languages} " \
                             f"--node-array-size={nodes} " \
@@ -134,10 +134,11 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     preprocess_args = f"{rm_arg}" \
                       f"--worker-mapping-file={preprocess_worker_mapping} " \
                       f"--output-path={preprocessed_dir} " \
-                      f"--tokenizer-library sentencepiece " \
-                      f"--tokenizer-model {tokenizer} " \
-                      f"--dataset-impl mmap " \
-                      f"--workers {cpus_per_node // workers_per_node}  " \
+                      f"--tokenizer-library=sentencepiece " \
+                      f"--tokenizer-model={tokenizer_model} " \
+                      f"--dataset-impl=mmap " \
+                      f"--workers={cpus_per_node // workers_per_node} " \
+                      f"--log-interval=2000 " \
                       f"--preproc-folder " \
                       f"--apply-ftfy"
 
@@ -186,7 +187,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {prepare_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            print(f"Submitted Download script with job id: {dependency}")
+            print(f"Submitted mC4 Prepare script with job id: {dependency}")
 
             # Download mC4 dataset files
             download_script_path = os.path.join(
@@ -212,13 +213,13 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {download_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            print(f"Submitted Download script with job id: {dependency}")
+            print(f"Submitted mC4 Download script with job id: {dependency}")
 
         assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
         if preprocess_data:
             # Setup preprocess for mC4 dataset
             setup_preprocess_script_path = os.path.join(
-                bignlp_path, "data_preparation/setup_preprocess_script.sh"
+                bignlp_path, "data_preparation/setup_preprocess_mc4_script.sh"
             )
             create_slurm_file(
                 new_script_path=setup_preprocess_script_path,
@@ -228,7 +229,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 args=setup_preprocess_args,
                 dependency=dependency,
                 time=time_limit,
-                nodes=nodes,
+                nodes=1,
                 partition=partition,
                 account=account,
                 mem=mem,
@@ -236,14 +237,14 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 job_name=f"{job_name_prefix}setup_preprocess",
             )
             job_id = subprocess.check_output(
-                [f"sbatch --parsable {extract_script_path}"], shell=True
+                [f"sbatch --parsable {setup_preprocess_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            print(f"Submitted Extract script with job id: {dependency}")
+            print(f"Submitted mC4 Setup Preprocessing script with job id: {dependency}")
 
             # Preprocess the dataset
             preprocess_script_path = os.path.join(
-                bignlp_path, "data_preparation/preprocess_script.sh"
+                bignlp_path, "data_preparation/preprocess_mc4_script.sh"
             )
             preprocess_flags = flags + f" --ntasks-per-node={workers_per_node} " \
                                        f" --cpus-per-task={cpus_per_node // workers_per_node}"
@@ -266,7 +267,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {preprocess_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            print(f"Submitted Preprocessing script with job id: {dependency}")
+            print(f"Submitted mC4 Preprocessing script with job id: {dependency}")
         return dependency
 
     if cfg.cluster_type == "bcp":
