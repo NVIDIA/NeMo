@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Any, Optional
 from operator import itemgetter
 
@@ -267,5 +268,13 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             pin_memory=self.cfg.data.validation_ds.pin_memory,
         )
 
-    def list_available_models():
-        pass
+    @classmethod
+    def list_available_models(cls):
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        return result

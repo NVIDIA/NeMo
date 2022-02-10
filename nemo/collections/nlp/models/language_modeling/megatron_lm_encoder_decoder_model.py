@@ -86,7 +86,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             persist_layer_norm=cfg.get('persist_layer_norm', False),
-            bias_gelu_fusion=True,
+            bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
+            masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
             onnx_safe=cfg.get('onnx_safe', False),
         )
 
