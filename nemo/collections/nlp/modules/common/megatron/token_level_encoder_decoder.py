@@ -256,8 +256,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 else:
                     tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
 
-            # tokens_loss [batch, length]
-            ret_dict["tokens_loss"] = tokens_loss
+                # tokens_loss [batch, length]
+                ret_dict["tokens_loss"] = tokens_loss
 
         return ret_dict
 
