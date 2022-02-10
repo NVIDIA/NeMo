@@ -540,7 +540,13 @@ class DiarizationLabel(_Collection):
 class TSVADSpeechLabel(DiarizationLabel):
     """`SpeechLabel` collector from structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], emb_dict: Dict, is_regression_task=False, *args, **kwargs):
+    def __init__(self, 
+                 manifests_files: Union[str, List[str]], 
+                 emb_dict: Dict, 
+                 is_regression_task=False, 
+                 subsample_rate=4,
+                 max_spks=5,
+                 *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -551,6 +557,7 @@ class TSVADSpeechLabel(DiarizationLabel):
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
         self.emb_dict = emb_dict
+        self.subsample_rate = subsample_rate
         audio_files, durations, rttm_files, offsets = [], [], [], []
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             audio_files.append(item['audio_file'])
@@ -558,34 +565,37 @@ class TSVADSpeechLabel(DiarizationLabel):
             rttm_files.append(item['rttm_file'])
             offsets.append(item['offset'])
 
-        super().__init__(audio_files, durations, rttm_files, offsets, *args, **kwargs)
+        super().__init__(audio_files, durations, rttm_files, offsets, max_spks, *args, **kwargs)
 
-    def parse_rttm(self, rttm_path):
-        max_spks = 5
-        def str2num(x):
-            ROUND=2
-            return round(float(x),ROUND)
-        rttm_lines = self.read_rttm_file(rttm_path)
-        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
-        stt_list, end_list, speaker_list = [], [], []
-        for line in rttm_lines:
-            rttm = line.strip().split()
-            start, end, speaker = str2num(rttm[3]), str2num(rttm[4]) + str2num(rttm[3]), rttm[7]
-            end_list.append(end)
-            stt_list.append(start)
-            speaker_list.append(speaker)
+    # def parse_rttm(self, rttm_path):
+        # max_spks = 5
+        # def str2num(x):
+            # ROUND=2
+            # return round(float(x),ROUND)
+        # rttm_lines = self.read_rttm_file(rttm_path)
+        # uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
+        # stt_list, end_list, speaker_list = [], [], []
+        # for line in rttm_lines:
+            # rttm = line.strip().split()
+            # start, end, speaker = str2num(rttm[3]), str2num(rttm[4]) + str2num(rttm[3]), rttm[7]
+            # end_list.append(end)
+            # stt_list.append(start)
+            # speaker_list.append(speaker)
 
-        max_len = max(end_list)
-        total_fr_len = int(max_len*100)
-        spk_num = len(set(speaker_list))
-        assert spk_num <= max_spks
-        target = torch.zeros(total_fr_len, max_spks)
-        for stt, end, spk in zip(stt_list, end_list, speaker_list):
-            # import ipdb; ipdb.set_trace()
-            spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
-            stt, end, spk = round(int(stt), 2), round(int(end), 2), int(spk)
-            target[stt:end, spk] = 1
-        return target
+        # max_len = max(end_list)
+        # total_fr_len = int(max_len*100)
+        # spk_num = len(set(speaker_list))
+        # assert spk_num <= max_spks
+        # total_fr_len_ceil = -(-total_fr_len//self.subsample_rate)
+        # target = torch.zeros(total_fr_len_ceil, max_spks)
+        # for stt, end, spk in zip(stt_list, end_list, speaker_list):
+            # spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
+            # stt, end, spk = round(int(stt), 2), round(int(end), 2), int(spk)
+            # target[stt:end, spk] = 1
+
+        # target_downsample = target.view(self.subsample_rate, -1, max_spks)
+        # target_subsampled = torch.mode(target_downsample, dim=0)[0]
+        # return target_subsampled
 
 
     def read_rttm_file(self, rttm_path):
@@ -606,8 +616,6 @@ class TSVADSpeechLabel(DiarizationLabel):
         item['audio_file'] = os.path.expanduser(item['audio_file'])
         uniq_id = item['rttm_filepath'].split('/')[-1].split('.rttm')[0]
         item['uniq_id'] = uniq_id
-        # rttm_tensor = torch.rand(2, 3)
-        # item['target'] = self.parse_rttm(item.pop('rttm_filepath'))
 
         # Duration.
         if 'duration' not in item:

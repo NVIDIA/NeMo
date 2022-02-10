@@ -26,7 +26,6 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 
 """
@@ -83,7 +82,6 @@ def audio_rttm_map(manifest):
     return AUDIO_RTTM_MAP
 
 
-@experimental
 def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
     """
     Check whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
@@ -157,7 +155,6 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         return None
 
 
-@experimental
 def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
     The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
@@ -291,18 +288,19 @@ def rttm_to_labels(rttm_filename):
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
 
-def write_cluster_labels(lines, cluster_labels, uniq_id, out_dir):
+
+def write_cluster_labels(uniq_id, base_scale_idx, lines, cluster_labels, out_rttm_dir):
     """
-    Write cluster labels with segment ranges.
+    Write cluster labels that are generated from clustering into a file.
     """
-    out_label_name = os.path.join(out_dir, 'speaker_outputs', 'subsegments_cluster.label')
+    out_label_name = os.path.join(
+        out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label'
+    )
     with open(out_label_name, 'a') as f:
         for (seg_line, clus_label) in zip(lines, cluster_labels.tolist()):
             seg_line = seg_line.strip()
             label_line = f'{uniq_id} {seg_line}\n'
             f.write(label_line)
-
-# embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
 
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
@@ -362,7 +360,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         labels = merge_stamps(a)
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
-            write_cluster_labels(lines, cluster_labels, uniq_id, out_rttm_dir)
+            write_cluster_labels(uniq_id, base_scale_idx, lines, cluster_labels, out_rttm_dir)
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 

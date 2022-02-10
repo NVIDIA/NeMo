@@ -57,14 +57,12 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-    # sd_model = ClusteringDiarizer(cfg=cfg)
-    # sd_model.diarize()
-
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     # speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     clustering_embedding = ClusterEmbedding(cfg_clus=cfg)
     clustering_embedding.prepare_cluster_embs()
+    clustering_embedding.prepare_split_manifest()
     ts_vad_model = EncDecDiarLabelModel(cfg=cfg.ts_vad_model, emb_clus=clustering_embedding, trainer=trainer)
     trainer.fit(ts_vad_model)
 

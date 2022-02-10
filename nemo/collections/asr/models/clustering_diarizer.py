@@ -424,7 +424,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         all_reference, all_hypothesis = perform_clustering(
             embs_and_timestamps=embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
-            out_dir=self._out_dir,
+            out_rttm_dir=self._out_dir,
             clustering_params=self._cluster_params,
         )
 

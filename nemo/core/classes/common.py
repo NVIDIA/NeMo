@@ -201,6 +201,10 @@ class Typing(ABC):
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
                 if key not in input_types:
+                    print('input_types:', input_types)
+                    print('key:', key)
+                    print('kwargs keys():', kwargs.keys())
+                    # import ipdb; ipdb.set_trace()
                     raise TypeError(
                         f"Input argument {key} has no corresponding input_type match. "
                         f"Existing input_types = {input_types.keys()}"
@@ -815,9 +819,10 @@ class typecheck:
             )
 
         # Preserve type information
+        # print("------------- self.input_types:", self.input_types)
+        # print("------------- instance: ", instance)
         if self.input_types is typecheck.TypeState.UNINITIALIZED:
             self.input_types = instance.input_types
-
         if self.output_types is typecheck.TypeState.UNINITIALIZED:
             self.output_types = instance.output_types
 

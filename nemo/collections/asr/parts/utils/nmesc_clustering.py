@@ -37,6 +37,7 @@ import torch
 from sklearn.cluster._kmeans import k_means
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
+from scipy.linalg import eigh as eigh_scipy
 
 from nemo.utils import logging
 from nemo.utils.decorators.experimental import experimental
@@ -304,9 +305,13 @@ def eigDecompose(laplacian, cuda, device=None):
             laplacian = torch.from_numpy(laplacian).float().to(device)
         else:
             laplacian = torch.from_numpy(laplacian).float()
-        lambdas, diffusion_map = eigh(laplacian)
-        lambdas = lambdas.cpu().numpy()
-        diffusion_map = diffusion_map.cpu().numpy()
+        try:
+            lambdas, diffusion_map = eigh(laplacian)
+            lambdas = lambdas.cpu().numpy()
+            diffusion_map = diffusion_map.cpu().numpy()
+        except:
+            lambdas, diffusion_map = eigh_scipy(laplacian.cpu().numpy())
+
     else:
         lambdas, diffusion_map = eigh(laplacian)
 
@@ -675,5 +680,8 @@ def COSclustering(
 
     spectral_model = _SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda)
     Y = spectral_model.predict(affinity_mat)
+
+    if oracle_num_speakers:
+        assert  len(set(Y)) == oracle_num_speakers
 
     return Y

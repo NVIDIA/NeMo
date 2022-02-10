@@ -5,7 +5,7 @@ dropout: &drop 0.5
 separable: &separable True
 n_filters: &n_filters 256
 num_workers: 4
-batch_size: 64
+batch_size: 128
 
 diarizer:
   manifest_filepath: ???
@@ -34,34 +34,38 @@ diarizer:
   speaker_embeddings:
     model_path: ??? # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.5 # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
-      shift_length_in_sec: 0.75 # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
+      window_length_in_sec: 3.0 # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
+      shift_length_in_sec: 1.5 # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
       multiscale_weights: null # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [0.33,0.33,0.33]
       save_embeddings: True # Save embeddings as pickle file for each audio input.
   
   clustering:
     parameters:
-      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: 20 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
+      oracle_num_speakers: True # If True, use num of speakers value provided in manifest file.
+      max_num_speakers: 5 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
 
 ts_vad_model:
-  max_num_of_spks: 5
+  max_num_of_spks: &max_num_of_spks 5
+  subsample_rate: &subsample_rate 1
+  split_length: 30
 
   train_ds:
     manifest_filepath: ???
     emb_dir: ???
     sample_rate: 16000
+    num_spks: *max_num_of_spks
     labels: null
-    batch_size: 2
+    batch_size: 5
     shuffle: True
 
   validation_ds:
     manifest_filepath: ???
     emb_dir: ???
     sample_rate: 16000
+    num_spks: *max_num_of_spks
     labels: null
     batch_size: 2
     shuffle: False
@@ -70,6 +74,7 @@ ts_vad_model:
     manifest_filepath: ???
     emb_dir: ???
     sample_rate: 16000
+    num_spks: *max_num_of_spks
     labels: null
     batch_size: 2
     shuffle: False
@@ -85,15 +90,18 @@ ts_vad_model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-
+  
   tsvad_module:
-    _target_: nemo.collections.asr.modules.tsvad_diarizer.TSVAD
+    _target_: nemo.collections.asr.modules.tsvad_diarizer.TSVAD_module
     feat_in: *n_mels
     frame_splicing: 1
-    out_channels: [64,64,128,128]
+    num_spks: *max_num_of_spks
+    out_channels: [2,2,3,4]
     lstm_hidden_size: 1024
-    rproj: 128
-    nproj: 160
+    emb_sizes: 192
+    y_stride: *subsample_rate
+    rproj: 100
+    nproj: 100
     cell: 896
 
   loss:
@@ -101,10 +109,9 @@ ts_vad_model:
     margin: 0.2
 
   optim:
-    name: sgd
-    lr: .006
-    weight_decay: 0.001
-    momentum: 0.9
+    name: adam
+    lr: .001
+    weight_decay: 0.0
 
     # scheduler setup
     sched:
