@@ -195,13 +195,21 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return self._parser
 
     def parse(self, str_input: str, normalize=True) -> torch.tensor:
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
         if str_input[-1] not in [".", "!", "?"]:
             str_input = str_input + "."
 
         if normalize and self.text_normalizer_call is not None:
             str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_kwargs)
 
-        tokens = self.parser(str_input)
+        if self.learn_alignment:
+            # Disable mixed g2p representation
+            with self.vocab.set_phone_prob():
+                tokens = self.parser(str_input)
+        else:
+            # TODO(Oktai15): remove it in 1.8.0 version
+            tokens = self.parser(str_input)
 
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x

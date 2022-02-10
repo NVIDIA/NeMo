@@ -15,6 +15,7 @@
 import abc
 import itertools
 import string
+from contextlib import contextmanager
 from typing import List
 
 from nemo.collections.tts.torch.de_utils import german_text_preprocessing
@@ -359,3 +360,13 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             ps = [space] + ps + [space]
 
         return [self._token2id[p] for p in ps]
+
+    @contextmanager
+    def set_phone_prob(self, prob=1.0):
+        if hasattr(self.g2p, "phoneme_probability"):
+            self.g2p.phoneme_probability = prob
+        try:
+            yield
+        finally:
+            if hasattr(self.g2p, "phoneme_probability"):
+                self.g2p.phoneme_probability = self.phoneme_probability

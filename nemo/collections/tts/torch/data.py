@@ -24,6 +24,7 @@ import librosa
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
+import numpy as np
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
@@ -337,7 +338,7 @@ class TTSDataset(Dataset):
         self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
         if not self.cache_text:
             if 'use_beta_binomial_interpolator' in kwargs and not self.use_beta_binomial_interpolator:
-                logging(
+                logging.warning(
                     "phoneme_probability is not None, but use_beta_binomial_interpolator=False, we"
                     " set use_beta_binomial_interpolator=True manually to use phoneme_probability."
                 )
@@ -434,8 +435,8 @@ class TTSDataset(Dataset):
         if AlignPriorMatrix in self.sup_data_types_set:
             align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
-                align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
                 mel_len = self.get_log_mel(audio).shape[2]
+                align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
             else:
                 prior_path = self.align_prior_matrix_folder / f"{rel_audio_path_as_text_id}.pt"
 
@@ -839,7 +840,10 @@ class VocoderDataset(Dataset):
             features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-            mel = torch.load(sample["mel_filepath"])
+            if Path(sample["mel_filepath"]).suffix == ".npy":
+                mel = np.load(sample["mel_filepath"])
+            else:
+                mel = torch.load(sample["mel_filepath"])
             frames = math.ceil(self.n_segments / self.hop_length)
 
             if len(audio) > self.n_segments:
