@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import os
-from typing import Any, Optional
 from operator import itemgetter
+from typing import Any, Optional
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -190,10 +190,14 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         logging.info(f'Validation accuracy: {val_acc}')
 
     def test_step(self, batch, batch_idx):
-        raise NotImplementedError("Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)")
+        raise NotImplementedError(
+            "Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)"
+        )
 
     def test_epoch_end(self, outputs):
-        raise NotImplementedError("Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)")
+        raise NotImplementedError(
+            "Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)"
+        )
 
     def build_train_valid_test_datasets(self, validation_only=False):
         logging.info('Building GLUE datasets.')
