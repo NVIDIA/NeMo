@@ -46,6 +46,7 @@ if __name__ == '__main__':
         time.sleep(10)
 
     os.makedirs(args.output_path, exist_ok=True)
+    start_time = time.time()
     cmd = ["python", "/opt/bignlp/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py"]
     for split in lang_splits:
         print(" ****** Task ID {:02d} Rank {:02d} starts to preprocess {:}...".format(
@@ -59,6 +60,8 @@ if __name__ == '__main__':
                 task_id, rank, os.path.basename(split)))
         print(" ****** Task ID {:02d} Rank {:02d} finished preprocessing {:}...".format(
             task_id, rank, os.path.basename(split)))
+        print(" ****** Task ID {:02d} Rank {:02d} time elapsed {:.2f} min.".format(
+            task_id, rank, (time.time() - start_time) / 60))
         if args.rm_downloaded:
             for f in listdir(split):
                 os.remove(os.readlink(f))

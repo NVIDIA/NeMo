@@ -35,6 +35,7 @@ if __name__ == '__main__':
             lang_split_dict[split] = pattern
 
     c4_path = args.c4_path
+    start_time = time.time()
     for lang in languages:
         print(" ****** Task ID {:02d} starts to download {:}...".format(task_id, lang))
         if lang in lang_split_dict:
@@ -44,3 +45,4 @@ if __name__ == '__main__':
             os.system(f"cd {c4_path} && "
                       f"git -c lfs.concurrenttransfers=20 lfs pull --include 'multilingual/c4-{lang}.*.json.gz'")
         print(" ****** Task ID {:02d} finished downloading {:}...".format(task_id, lang))
+        print(" ****** Task ID {:02d} time elapsed {:.2f} min.".format(task_id, (time.time() - start_time) / 60))
