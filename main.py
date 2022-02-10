@@ -3,6 +3,7 @@ import sys
 import copy
 import hydra
 import omegaconf
+import subprocess
 
 # from data_preparation.pile_dataprep_scripts import data_preparation
 from train_scripts import train
@@ -41,11 +42,19 @@ def convert_to_null(val):
         return "null"
     return val
 
+def fake_submit(*args, **kwargs):
+    print(args, kwargs)
+    fake_id = 123456
+    return str(fake_id).encode()
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
     hydra_args = " ".join(sys.argv[1:])
     hydra_args = convert_to_cli(cfg)
+
+
+    if cfg.debug:
+        subprocess.check_output = fake_submit
 
     # Read config
     run_data_preparation = cfg.run_data_preparation

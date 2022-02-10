@@ -50,6 +50,15 @@ def create_slurm_file(
         f.writelines("wait\n")
 
 
+def download_single_file(url, save_dir, file_name):
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, file_name)
+    if os.path.exists(save_path):
+        print(f"File {save_path} already exists, skipping download.")
+        return save_path
+    subprocess.call(f"wget {url} -O {save_path}", shell=True)
+
+
 def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Read config
     bignlp_path = cfg.bignlp_path
@@ -66,10 +75,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     preprocessed_dir = data_cfg.preprocessed_dir
     git_lfs_dir = data_cfg.git_lfs_dir
     download_vocab_url = data_cfg.download_vocab_url
-    download_merges_url = data_cfg.download_merges_url
     download_tokenizer_url = data_cfg.download_tokenizer_url
     vocab_save_dir = data_cfg.vocab_save_dir
-    merges_save_dir = data_cfg.merges_save_dir
     tokenizer_save_dir = data_cfg.tokenizer_save_dir
     tokenizer_model = data_cfg.tokenizer_model
     languages = data_cfg.languages
@@ -89,25 +96,17 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Download vocab
     if download_vocab_url is not None:
         assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
-        utils.download_single_file(
-            url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
-        )
-
-    # Download merges
-    if download_merges_url is not None:
-        assert merges_save_dir is not None, "merges_save_dir must be a valid path."
-        utils.download_single_file(
-            url=download_merges_url,
-            save_dir=merges_save_dir,
-            file_name="merges.txt",
+        download_single_file(
+            url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.txt"
         )
 
     # TODO: Download tokenizer
-    # if download_vocab_url is not None:
-    #     assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
-    #     utils.download_single_file(
-    #         url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
-    #     )
+    if download_tokenizer_url is not None:
+        assert tokenizer_save_dir is not None, "vocab_save_dir must be a valid path."
+        download_single_file(
+            url=download_tokenizer_url, save_dir=tokenizer_save_dir, file_name="mt5_tokenizer.model"
+        )
+
     # Define running commands
     prepare_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/prepare.py")
     prepare_args = f"--data-path={mc4_dir} " \
