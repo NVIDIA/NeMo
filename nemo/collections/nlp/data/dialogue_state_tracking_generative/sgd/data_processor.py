@@ -27,10 +27,10 @@ from typing import Dict, List
 import numpy as np
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import DialogueSGDInputExample
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import DialogueInputExample
 from nemo.utils import logging
 
-__all__ = ['DialogueSGDDataProcessor']
+__all__ = ['DialogueDataProcessor', 'DialogueSGDDataProcessor']
 
 FILE_RANGES = {
     "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
@@ -207,8 +207,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
 
         with open(dial_file, "rb") as f:
             dial_examples = json.load(f)
-            dial_examples = [DialogueSGDInputExample(i) for i in dial_examples]
-            f.close()
+            dial_examples = [DialogueInputExample(i) for i in dial_examples]
 
         if not os.path.exists(self.slots_relation_file):
             raise ValueError(
@@ -428,7 +427,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 },
             }
 
-            examples.append(DialogueSGDInputExample(one_example))
+            examples.append(DialogueInputExample(one_example))
 
             if service not in prev_states and int(turn_id_) > 0:
                 for slot_name, values in state_update.items():

@@ -56,7 +56,10 @@ class DialogueGPTDataset(Dataset):
             self.preprocess_feature(idx)
 
     def transform(self, label):
-        label = self.convert_camelcase_to_lower(label)
+        if self.cfg.task == "sgd":
+            label = self.convert_camelcase_to_lower(label)
+        elif self.cfg.task == "assistant":
+            label = label.replace('_', ' ')
         return label
 
     def convert_camelcase_to_lower(self, label):
@@ -87,8 +90,8 @@ class DialogueGPTDataset(Dataset):
 
         self.features[idx].data["labels"][self.label_type] = label
         self.features[idx].data["possible_labels"][self.label_type] = candidates
-        description = ex["description"][self.label_type]
-        self.label_to_description[label] = description
+        # description = ex["description"][self.label_type]
+        # self.label_to_description[label] = description
 
         for candidate in candidates:
             self.all_possible_labels.add(candidate)
@@ -144,6 +147,7 @@ class DialogueGPTDataset(Dataset):
                     candidate_sentences.append(negative_answer)
                     candidate_sentences.append(positive_answer)
         else:
+            correct_candidate = 0
             candidate_sentences = [
                 base_template + ' ' + candidate  # + ' (' + self.label_to_description[candidate] + ')'
                 for candidate in candidates

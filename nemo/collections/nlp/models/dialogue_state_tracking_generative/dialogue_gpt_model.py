@@ -33,6 +33,9 @@ from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
     DialogueSGDDataProcessor,
     Schema,
 )
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.assistant_data_processor import (
+    DialogueAssistantDataProcessor,
+)
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -368,33 +371,39 @@ class DialogueGPTModel(NLPModel):
         """
         if self.data_prepared:
             return
-        schema_config = {
-            "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
-            "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
-            "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
-            "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
-            "NUM_TASKS": NUM_TASKS,
-            "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
-        }
-        all_schema_json_paths = []
-        for dataset_split in ['train', 'test', 'dev']:
-            all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
-        schemas = Schema(all_schema_json_paths)
 
-        self.dialogues_processor = DialogueSGDDataProcessor(
-            task_name=self._cfg.dataset.task_name,
-            data_dir=self._cfg.dataset.data_dir,
-            dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
-            tokenizer=self.tokenizer,
-            schemas=schemas,
-            schema_config=schema_config,
-            subsample=self._cfg.dataset.subsample,
-        )
+        if self._cfg.dataset.task == 'sgd':
+            schema_config = {
+                "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
+                "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
+                "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
+                "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
+                "NUM_TASKS": NUM_TASKS,
+                "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
+            }
+            all_schema_json_paths = []
+            for dataset_split in ['train', 'test', 'dev']:
+                all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
+            schemas = Schema(all_schema_json_paths)
+
+            self.dialogues_processor = DialogueSGDDataProcessor(
+                task_name=self._cfg.dataset.task_name,
+                data_dir=self._cfg.dataset.data_dir,
+                dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
+                tokenizer=self.tokenizer,
+                schemas=schemas,
+                schema_config=schema_config,
+                subsample=self._cfg.dataset.subsample,
+            )
+        elif self._cfg.dataset.task == 'assistant':
+            self.dialogues_processor = DialogueAssistantDataProcessor(
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+            )
 
         if is_global_rank_zero():
             overwrite_dial_files = not self._cfg.dataset.use_cache
-            self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
-
+            if self._cfg.dataset.task == 'sgd':
+                self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
         self.data_prepared = True
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
@@ -436,15 +445,13 @@ class DialogueGPTModel(NLPModel):
 
         if not os.path.exists(data_dir):
             raise FileNotFoundError(f"Data directory is not found at: {data_dir}.")
-        if dataset_cfg.task == 'sgd':
-            dataset = DialogueGPTDataset(
-                dataset_split=split,
-                dialogues_processor=self.dialogues_processor,
-                tokenizer=self.dialogues_processor._tokenizer,
-                cfg=dataset_cfg,
-            )
-        else:
-            raise NotImplementedError("Task {} has not been implemented".format(dataset_cfg.task_name))
+
+        dataset = DialogueGPTDataset(
+            dataset_split=split,
+            dialogues_processor=self.dialogues_processor,
+            tokenizer=self.dialogues_processor._tokenizer,
+            cfg=dataset_cfg,
+        )
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,

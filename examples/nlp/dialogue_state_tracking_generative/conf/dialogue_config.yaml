@@ -39,7 +39,7 @@ model:
       tokenizer_model: null # only used if tokenizer is sentencepiece
       special_tokens: null
 
-  eval_mode: ranking # ranking or generation or binary_score
+  eval_mode: ${model.dataset.eval_mode} 
 
   language_model:
     pretrained_model_name: gpt2
@@ -52,7 +52,7 @@ model:
 
   dataset:
     task: sgd
-    eval_mode: ${model.eval_mode}
+    eval_mode: ranking # ranking or generation or binary_score
     max_seq_length: 128 # the maximum length BERT supports is 512
     max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
     max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
