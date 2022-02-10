@@ -288,16 +288,20 @@ def rttm_to_labels(rttm_filename):
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
 
+
 def write_cluster_labels(uniq_id, base_scale_idx, lines, cluster_labels, out_rttm_dir):
     """
     Write cluster labels that are generated from clustering into a file.
     """
-    out_label_name = os.path.join(out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label')
+    out_label_name = os.path.join(
+        out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label'
+    )
     with open(out_label_name, 'a') as f:
         for (seg_line, clus_label) in zip(lines, cluster_labels.tolist()):
             seg_line = seg_line.strip()
             label_line = f'{uniq_id} {seg_line}\n'
             f.write(label_line)
+
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
     """
