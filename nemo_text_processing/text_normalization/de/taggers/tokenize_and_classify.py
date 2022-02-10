@@ -31,6 +31,8 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_space,
     generator_main,
+    NEMO_CHAR,
+    NEMO_DIGIT
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 
@@ -78,6 +80,8 @@ class ClassifyFst(GraphFst):
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode="r")["tokenize_and_classify"]
+            no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
+            self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
             logging.info(f"ClassifyFst.fst was restored from {far_file}.")
         else:
             logging.info(f"Creating ClassifyFst grammars. This might take some time...")
@@ -137,6 +141,8 @@ class ClassifyFst(GraphFst):
             graph = delete_space + graph + delete_space
 
             self.fst = graph.optimize()
+            no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
+            self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
 
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
