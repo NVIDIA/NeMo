@@ -12,6 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+"""
+python get_data.py \
+--data-root=/home/ebakhturina/misc_scripts/toy/libri_tts/ \
+ --data-set=test_clean \
+--num-workers=4 --normalization-source nemo \
+--whitelist-path /home/ebakhturina/NeMo/nemo_text_processing/text_normalization/en/data/whitelist_lj_speech_libri_tts.tsv \
+--save-google-normalization-separately  \
+--without-download --without-extract
+
+
+--overwrite-cache-dir
+"""
 import argparse
 import fnmatch
 import functools
