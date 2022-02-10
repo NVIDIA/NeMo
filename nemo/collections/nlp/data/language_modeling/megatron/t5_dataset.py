@@ -70,13 +70,14 @@ class T5Dataset(MegatronDataset):
         )
 
         self.tokenizer = tokenizer
-
+        self.tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
         if isinstance(self.tokenizer, YouTokenToMeTokenizer):
             raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
 
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             if not self.tokenizer.legacy:
                 raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
+            self.tokenizer_type = 'sentencepiece'
 
         self.cls_id = tokenizer.cls_id
         self.sep_id = tokenizer.sep_id
@@ -119,6 +120,7 @@ class T5Dataset(MegatronDataset):
             bos_id=self.bos_id,
             eos_id=self.eos_id,
             sentinel_tokens=self.sentinel_tokens,
+            tokenizer_type=self.tokenizer_type,
         )
         return training_sample
 
@@ -139,6 +141,7 @@ def build_training_sample(
     bos_id=None,
     eos_id=None,
     sentinel_tokens=None,
+    tokenizer_type="wordpiece",
 ):
     """Build training sample.
     Arguments:
@@ -159,6 +162,7 @@ def build_training_sample(
         bos_id: start of decoder example id
         eos_id: end of generation id
         sentinel_tokens: unique value to be substituted for every replaced span
+        tokenizer_type: wordpiece (BERT-style) or sentencepiece tokenizer. Used for whole word masking logic.
     """
     assert target_seq_length <= max_seq_length
 
@@ -183,12 +187,16 @@ def build_training_sample(
         max_predictions_per_seq,
         np_rng,
         max_ngrams=10,
+        do_whole_word_mask=True,
+        favor_longer_ngram=False,
+        do_permutation=False,
         geometric_dist=True,
         masking_style="t5",
+        tokenizer_type=tokenizer_type,
     )
 
     # Padding.
-    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask = pad_and_convert_to_numpy(
+    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_to_numpy(
         tokens,
         masked_positions,
         masked_labels,
@@ -209,7 +217,6 @@ def build_training_sample(
         'truncated': int(truncated),
         'enc_mask': enc_mask,
         'dec_mask': dec_mask,
-        'enc_dec_mask': enc_dec_mask,
     }
     return train_sample
 
@@ -276,10 +283,8 @@ def pad_and_convert_to_numpy(
     tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
     # Create attention masks
-    enc_mask = make_attention_mask(tokens_enc, tokens_enc, pad_id)
-    enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc, pad_id)
-    dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in, pad_id)
-    dec_mask = dec_mask * make_history_mask(tokens_dec_in)
+    enc_mask = (tokens_enc != pad_id).astype(np.int64)
+    dec_mask = (tokens_dec_in != pad_id).astype(np.int64)
 
     # Labels mask.
     labels = t5_decoder_out + ([-1] * padding_length_dec)
@@ -289,7 +294,7 @@ def pad_and_convert_to_numpy(
     loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
-    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
+    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
 
 
 def make_attention_mask(source_block, target_block, pad_id):
