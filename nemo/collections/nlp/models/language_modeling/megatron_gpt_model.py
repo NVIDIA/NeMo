@@ -74,6 +74,8 @@ class MegatronGPTModel(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
+        self._validate_config()
+
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
@@ -1038,3 +1040,20 @@ class MegatronGPTModel(NLPModel):
             Microbatches are transferred from CPU to GPU inside the pipeline. 
         """
         return batch
+
+    def _validate_config(self):
+        """ Certain config options can break training.
+            Here we try to catch them and raise an error.
+        """
+
+        pass
+
+    def _validate_trainer(self):
+        """ Certain trainer configurations can break training.
+            Here we try to catch them and raise an error.
+        """
+        if self.trainer.accumulate_grad_batches > 1:
+            raise ValueError(
+                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+            )
+
