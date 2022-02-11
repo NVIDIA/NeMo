@@ -322,7 +322,7 @@ class TestRNNTHelper:
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
         x = np.full([batch_size], fill_value=0.0)  # np.random.rand(8192)
-        y = np.full([batch_size], fill_value=2.0)  # np.random.rand(8192)
+        y = np.random.randn(batch_size)  # np.random.rand(8192)
 
         stream = cuda.stream()
         x_c = cuda.to_device(x, stream=stream)
