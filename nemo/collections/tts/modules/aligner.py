@@ -124,24 +124,24 @@ class AlignmentEncoder(torch.nn.Module):
         Output:
             mean_dist (torch.tensor): B x 1 tensor.
         """
+        batch_size, t1_size, t2_size = dist.size()
+        assert torch.all(torch.eq(durations.sum(dim=1), t1_size))
+
         if mask is not None:
             dist = dist.masked_fill(mask.permute(0, 2, 1).unsqueeze(2), 0)
 
-        batch_size = dist.size(0)
-        t2_size = dist.size(2)
-
+        # TODO(oktai15): make it more efficient
         mean_dist_by_durations = []
         for dist_idx in range(batch_size):
-            durations_cums_ends = torch.cumsum(durations[dist_idx], dim=0).long()
-            durations_cums_starts = torch.nn.functional.pad(durations_cums_ends[:-1], (1, 0))
-
-            target_elems = torch.hstack(
-                [
-                    dist[dist_idx, durations_cums_starts[t2_idx] : durations_cums_ends[t2_idx], t2_idx]
-                    for t2_idx in range(t2_size)
-                ]
+            mean_dist_by_durations.append(
+                torch.mean(
+                    dist[
+                        dist_idx,
+                        torch.arange(t1_size),
+                        torch.repeat_interleave(torch.arange(t2_size), repeats=durations[dist_idx])
+                    ]
+                )
             )
-            mean_dist_by_durations.append(torch.mean(target_elems))
 
         return torch.tensor(mean_dist_by_durations, dtype=dist.dtype, device=dist.device)
 
