@@ -129,7 +129,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                             f"--worker-mapping-file={preprocess_worker_mapping}"
 
     preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/preprocess.py")
-    rm_arg = "--rm-downloaded" if rm_downloaded else ""
+    rm_arg = "--rm-downloaded " if rm_downloaded else ""
     preprocess_args = f"{rm_arg}" \
                       f"--worker-mapping-file={preprocess_worker_mapping} " \
                       f"--output-path={preprocessed_dir} " \
