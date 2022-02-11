@@ -37,10 +37,6 @@ from nemo.collections.nlp.data.glue_benchmark.data_processors import (
     StsbProcessor,
     WnliProcessor,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
