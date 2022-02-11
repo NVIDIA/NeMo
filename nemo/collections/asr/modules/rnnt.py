@@ -1065,12 +1065,11 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def fuse_loss_wer(self):
         return self._fuse_loss_wer
 
-    def set_fuse_loss_wer(self, fuse_loss_wer):
+    def set_fuse_loss_wer(self, fuse_loss_wer, loss=None, metric=None):
         self._fuse_loss_wer = fuse_loss_wer
 
-        if self._fuse_loss_wer is False:
-            self._loss = None
-            self._wer = None
+        self._loss = loss
+        self._wer = metric
 
     @property
     def fused_batch_size(self):

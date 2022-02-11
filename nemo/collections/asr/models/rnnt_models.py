@@ -27,7 +27,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
-from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
+from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
@@ -111,7 +111,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self.compute_eval_loss = True
 
         # Setup fused Joint step if flag is set
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
@@ -350,6 +352,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 # Assume same decoding config as before
                 decoding_cfg = self.cfg.decoding
 
+            # Assert the decoding config with all hyper parameters
+            decoding_cls = OmegaConf.structured(RNNTDecodingConfig)
+            decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+            decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
             self.decoding = RNNTDecoding(
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
             )
@@ -363,7 +370,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             )
 
             # Setup fused Joint step
-            if self.joint.fuse_loss_wer:
+            if self.joint.fuse_loss_wer or (
+                self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+            ):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
 
@@ -398,6 +407,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
             decoding_cfg = self.cfg.decoding
 
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
         self.decoding = RNNTDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
@@ -411,7 +425,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         )
 
         # Setup fused Joint step
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
