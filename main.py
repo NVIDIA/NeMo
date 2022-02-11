@@ -10,7 +10,7 @@ from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
 from bignlp.eval_scripts import evaluate
 
-omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
+omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y, replace=True)
 
 def convert_to_cli(cfg):
     result = ""
@@ -90,6 +90,10 @@ def main(cfg):
         dependency = evaluate.run_evaluation(cfg, dependency=dependency)
     else:
         cfg_copy._content.pop("evaluation")
+
+    if cfg.run_search_train:
+        from bignlp.search_train_scripts.run_config_generator import search_config
+        dependency = search_config(cfg, dependency=dependency)
 
     print(omegaconf.OmegaConf.to_yaml(cfg_copy))
 

@@ -108,19 +108,19 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         )
 
     # Define running commands
-    prepare_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/prepare.py")
+    prepare_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/prepare.py")
     prepare_args = f"--data-path={mc4_dir} " \
                    f"--git-lfs-path={git_lfs_dir} " \
                    f"--languages={languages} " \
                    f"--node-array-size={nodes} " \
                    f"--worker-mapping-file={download_worker_mapping}"
 
-    download_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/download.py")
+    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/download.py")
     download_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
                     f"--git-lfs-path={git_lfs_dir} " \
                     f"--worker-mapping-file={download_worker_mapping}"
 
-    setup_preprocess_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/setup_preprocess.py")
+    setup_preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/setup_preprocess.py")
     setup_preprocess_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
                             f"--soft-link-path={softlinks_dir} " \
                             f"--languages={languages} " \
@@ -128,7 +128,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                             f"--workers-per-node={workers_per_node} " \
                             f"--worker-mapping-file={preprocess_worker_mapping}"
 
-    preprocess_code_path = os.path.join(bignlp_path, "data_preparation/mc4_dataprep_scripts/preprocess.py")
+    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/preprocess.py")
     rm_arg = "--rm-downloaded" if rm_downloaded else ""
     preprocess_args = f"{rm_arg}" \
                       f"--worker-mapping-file={preprocess_worker_mapping} " \
@@ -164,7 +164,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         if download_mc4:
             # Prepare mC4 dataset repo
             prepare_script_path = os.path.join(
-                bignlp_path, "data_preparation/prepare_mc4_script.sh"
+                bignlp_path, "bignlp/data_preparation/prepare_mc4_script.sh"
             )
             create_slurm_file(
                 new_script_path=prepare_script_path,
@@ -190,7 +190,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
 
             # Download mC4 dataset files
             download_script_path = os.path.join(
-                bignlp_path, "data_preparation/download_mc4_script.sh"
+                bignlp_path, "bignlp/data_preparation/download_mc4_script.sh"
             )
             create_slurm_file(
                 new_script_path=download_script_path,
@@ -218,7 +218,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         if preprocess_data:
             # Setup preprocess for mC4 dataset
             setup_preprocess_script_path = os.path.join(
-                bignlp_path, "data_preparation/setup_preprocess_mc4_script.sh"
+                bignlp_path, "bignlp/data_preparation/setup_preprocess_mc4_script.sh"
             )
             create_slurm_file(
                 new_script_path=setup_preprocess_script_path,
@@ -243,7 +243,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
 
             # Preprocess the dataset
             preprocess_script_path = os.path.join(
-                bignlp_path, "data_preparation/preprocess_mc4_script.sh"
+                bignlp_path, "bignlp/data_preparation/preprocess_mc4_script.sh"
             )
             preprocess_flags = flags + f" --ntasks-per-node={workers_per_node} " \
                                        f" --cpus-per-task={cpus_per_node // workers_per_node}"

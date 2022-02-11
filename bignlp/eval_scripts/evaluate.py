@@ -85,12 +85,12 @@ def run_evaluation(cfg, dependency=None):
     
     # Command to download the eval datasets.
     cache_dir = os.path.join(results_dir, "data_cache")
-    code_path1 = os.path.join(bignlp_path, "eval_scripts/eval_harness/download.py")
+    code_path1 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/download.py")
     eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache_dir {cache_dir} " \
     
     # Command to run the model on the eval datasets.
-    new_script_path = os.path.join(bignlp_path, f"eval_scripts/{name}.sh")
-    code_path2 = os.path.join(bignlp_path, "eval_scripts/eval_harness/evaluate.py")
+    new_script_path = os.path.join(bignlp_path, f"bignlp/eval_scripts/{name}.sh")
+    code_path2 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/evaluate.py")
     eval_cmd2 = f"python -u {code_path2} " \
                 f"--name {name} " \
                 f"--model {model_type} " \
