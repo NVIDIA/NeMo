@@ -456,6 +456,7 @@ class SpectrogramAugmentation(NeuralModule):
         """Returns definitions of module output types
         """
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+                #"augmented_length": NeuralType(tuple('B'), LengthsType()),}
 
     def __init__(
         self,
@@ -466,6 +467,7 @@ class SpectrogramAugmentation(NeuralModule):
         rect_masks=0,
         rect_time=5,
         rect_freq=20,
+        same_time_masks=False,
         rng=None,
         mask_value=0.0,
         use_numba_spec_augment: bool = True,
@@ -483,6 +485,7 @@ class SpectrogramAugmentation(NeuralModule):
                 time_masks=time_masks,
                 freq_width=freq_width,
                 time_width=time_width,
+                same_time_masks=same_time_masks,
                 rng=rng,
                 mask_value=mask_value,
             )
@@ -506,6 +509,7 @@ class SpectrogramAugmentation(NeuralModule):
     @typecheck()
     def forward(self, input_spec, length):
         augmented_spec = self.spec_cutout(input_spec=input_spec)
+        #augmented_length = length
 
         # To run the Numba kernel, correct numba version is required as well as
         # tensor must be on GPU and length must be provided
@@ -513,7 +517,7 @@ class SpectrogramAugmentation(NeuralModule):
             augmented_spec = self.spec_augment_numba(input_spec=augmented_spec, length=length)
         else:
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
-        return augmented_spec
+        return augmented_spec#, augmented_length
 
 
 class CropOrPadSpectrogramAugmentation(NeuralModule):

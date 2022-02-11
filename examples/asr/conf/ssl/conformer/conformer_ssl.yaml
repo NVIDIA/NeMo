@@ -77,7 +77,8 @@ model:
     freq_masks: 4
     time_masks: 10
     freq_width: 27
-    time_width: 0.05
+    time_width: 0.1
+    same_time_masks: true
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
@@ -120,7 +121,7 @@ model:
     feat_hidden: 128
     feat_out: *dec_out
     stride_layers: 0
-    non_stride_layers: 2
+    non_stride_layers: 0
 
 
   loss:
@@ -129,6 +130,7 @@ model:
     proj_dim: *dec_out
     combine_time_steps: 4
     codebook_size: 1200
+    sample_from_same_utterance_only: true
 
   optim:
     name: adamw
@@ -140,10 +142,10 @@ model:
     # scheduler setup
     sched:
       name: NoamAnnealing
-      d_model: ${model.encoder.d_model}
+      #d_model: ${model.encoder.d_model}
       # scheduler config override
       warmup_steps: 10000
-      warmup_ratio: null
+      #warmup_ratio: null
       min_lr: 1e-6
 
 trainer:
