@@ -16,28 +16,40 @@ import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
 
+
 class T5LMAdaptedDataset(GPTDataset):
     """
     Dataset for unlearning span corruption (https://arxiv.org/abs/2104.08691) in T5 models.
     Corresponds to the prefix-LM objective in the T5 paper (Table 3 in https://arxiv.org/abs/1910.10683).
     """
-    def __init__(self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seed, **kwargs):
+
+    def __init__(
+        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seed, **kwargs
+    ):
         self.seq_length_encoder = cfg.data.seq_length
         self.seq_length_decoder = cfg.data.seq_length_dec
         self.tokenizer = tokenizer
-        super().__init__(cfg, trainer, name, data_prefix, documents, indexed_dataset, num_samples, self.seq_length_encoder + self.seq_length_decoder, seed)
+        super().__init__(
+            cfg,
+            trainer,
+            name,
+            data_prefix,
+            documents,
+            indexed_dataset,
+            num_samples,
+            self.seq_length_encoder + self.seq_length_decoder,
+            seed,
+        )
 
     def __getitem__(self, idx):
         text = super().__getitem__(idx)
         text = text['text']
 
         # Split text sequence into encoder and decoder inputs
-        tokens_enc = text[:self.seq_length_encoder]
+        tokens_enc = text[: self.seq_length_encoder]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
-        tokens_dec = np.concatenate(
-            ([self.tokenizer.bos_id], text[self.seq_length_encoder:])
-        )
+        tokens_dec = np.concatenate(([self.tokenizer.bos_id], text[self.seq_length_encoder :]))
 
         # Shift sequences for teacher forcing
         tokens_dec_in = tokens_dec[:-1]

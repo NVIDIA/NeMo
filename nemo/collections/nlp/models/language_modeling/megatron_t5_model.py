@@ -121,7 +121,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             short_seq_prob=self._cfg.data.short_seq_prob,
             seed=self._cfg.seed,
             skip_warmup=self._cfg.data.skip_warmup,
-            dataset_type=self._cfg.data.get('dataset_type', 't5')
+            dataset_type=self._cfg.data.get('dataset_type', 't5'),
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
