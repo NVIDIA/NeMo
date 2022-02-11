@@ -727,7 +727,7 @@ pipeline {
             trainer.val_check_interval=0.0 \
             trainer.gpus=[0] \
             model.dataset.use_cache=false \
-            model.tokenizer.special_tokens={pad_token:"<|endoftext|>"}\
+            model.tokenizer.special_tokens={pad_token:'"<|endoftext|>"'}\
             model.language_model.pretrained_model_name=gpt2 \
             trainer.accelerator=ddp \
             exp_manager=null  && \
