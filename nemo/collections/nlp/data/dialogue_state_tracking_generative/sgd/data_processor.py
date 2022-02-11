@@ -91,7 +91,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         subsample: bool = False,
     ):
         """
-        Constructs SGDDataProcessor
+        Constructs DialogueSGDDataProcessor
         Args:
             task_name: task name, e.g. "sgd_single_domain"
             data_dir: path to data directory

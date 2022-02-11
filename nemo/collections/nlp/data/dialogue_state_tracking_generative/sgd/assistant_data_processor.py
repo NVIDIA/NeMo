@@ -29,6 +29,7 @@ __all__ = ['DialogueAssistantDataProcessor']
 
 class DialogueAssistantInputExample(DialogueInputExample):
     """
+    Template for DialogueAssistantInputExample
     {
         
         "utterance": <utterance>,
@@ -66,16 +67,35 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
     """Data Processor for Assistant dialogues."""
 
     def __init__(self, data_dir: str, tokenizer: object):
+        """
+        Constructs SGDDataProcessor
+        Args:
+            data_dir: path to data directory
+            tokenizer: tokenizer object
+        """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
 
     def open_file(self, filename):
+        """
+        Reads file into a list
+        """
         filename = os.path.join(self.data_dir, filename)
         with open(filename, "r", encoding="UTF-8") as f:
             lines = [i.strip() for i in f.readlines()]
         return lines
 
     def get_continuous_slots(self, slot_ids):
+        """
+        Extract continuous spans of slot_ids
+        Args:
+            Slot: list of int representing slot of each word token
+            For instance, 54 54 54 54 54 54 54 54 18 54 44 44 54 46 46 54 12 
+            Corresponds to "please set an alarm clock for my next meeting with the team at three pm next friday"
+            Except for the empty_slot_id (54 in this case), we hope to extract the continuous spans of tokens,
+            each containing a start position and an exclusive end position
+            E.g {18: [9, 10], 44: [11,13], 46: [14, 16], 12: [17, 18]}
+        """
         slot_id_stack = []
         position_stack = []
         for i, slot_id in enumerate(slot_ids):
@@ -93,6 +113,15 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         return slot_id_to_start_and_exclusive_end
 
     def get_dialog_examples(self, dataset_split: str):
+        """
+        Process raw files into DialogueInputExample
+        Args: 
+            dataset_split: {train, dev, test}
+        For the assistant dataset, there is no explicit dev set.
+        Therefore, this function creates a dev set and a new train set from the train set.
+        This is done by taking every 10th example and putting it into the dev set,
+        with all other examples going into the new train set.
+        """
         examples = []
         intents = self.open_file("dict.intents.csv")
         services = sorted(list(set([intent.split('_')[0] for intent in intents])))
