@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from operator import itemgetter
 from typing import Any, Optional
 
@@ -41,7 +40,8 @@ __all__ = ['MegatronT5FineTuneModel']
 
 class MegatronT5FineTuneModel(NLPModel):
     """
-    Megatron T5 finetuning
+    Base class for finetuning pre-trained T5 models.
+    Inherit from this class and implement the dataset building and train/validation steps.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -107,7 +107,7 @@ class MegatronT5FineTuneModel(NLPModel):
 
 class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     """
-    Megatron T5 finetuning for GLUE
+    Megatron T5 finetuning for GLUE datasets.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
