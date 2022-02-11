@@ -289,7 +289,7 @@ class DialogueGPTModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attn_masks, labels=labels)
 
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
