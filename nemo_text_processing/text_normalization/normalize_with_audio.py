@@ -368,22 +368,28 @@ def parse_args():
     return parser.parse_args()
 
 
-def _normalize_line(normalizer: NormalizerWithAudio, line: str, model=None, tokenizer=None):
+def _normalize_line(
+    normalizer: NormalizerWithAudio,
+    n_tagged,
+    verbose,
+    line: str,
+    remove_punct,
+    punct_post_process,
+    model=None,
+    tokenizer=None,
+):
     line = json.loads(line)
     pred_text = line["pred_text"]
 
     normalized_texts = normalizer.normalize(
-        text=line["text"],
-        verbose=args.verbose,
-        n_tagged=args.n_tagged,
-        punct_post_process=not args.no_punct_post_process,
+        text=line["text"], verbose=verbose, n_tagged=n_tagged, punct_post_process=punct_post_process,
     )
     normalized_text, cer = normalizer.select_best_match(
         normalized_texts=normalized_texts,
         input_text=line["text"],
         pred_text=pred_text,
-        verbose=args.verbose,
-        remove_punct=args.remove_punct,
+        verbose=verbose,
+        remove_punct=remove_punct,
         model=model,
         tokenizer=tokenizer,
     )
@@ -391,7 +397,17 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str, model=None, toke
     line["CER_nemo_normalized"] = cer
     return line
 
-def normalize_manifest(normalizer, audio_data:str, language:  str="en", lm:  bool=False):
+
+def normalize_manifest(
+    normalizer,
+    audio_data: str,
+    n_jobs: int,
+    n_tagged: int,
+    remove_punct: bool,
+    punct_post_process,
+    language: str = "en",
+    lm: bool = False,
+):
     """
     Args:
         args.audio_data: path to .json manifest file.
@@ -409,24 +425,29 @@ def normalize_manifest(normalizer, audio_data:str, language:  str="en", lm:  boo
     with open(audio_data, 'r') as f:
         lines = f.readlines()
 
-        print(f'Normalizing {len(lines)}lines of {args.audio_data}...')
+        print(f'Normalizing {len(lines)}lines of {audio_data}...')
         with open(manifest_out, 'w') as f_out:
             # to save intermediate results to a file
             batch = max(round(len(lines) / 10), 1000)
-            for i in range(0, len(lines), batch):
-                print(f'Processing batch {i} out of {round(len(lines)/batch)}.')
-                normalized_lines = Parallel(n_jobs=args.n_jobs)(
-                    delayed(_normalize_line)(normalizer, line, model, tokenizer) for line in tqdm(lines[i : i + batch])
+            for batch_idx, i in enumerate(range(0, len(lines), batch)):
+                print(f'Processing batch {batch_idx} out of {round(len(lines)/batch)}.')
+                normalized_lines = Parallel(n_jobs=n_jobs)(
+                    delayed(_normalize_line)(
+                        normalizer,
+                        n_tagged,
+                        verbose=False,
+                        line=line,
+                        remove_punct=remove_punct,
+                        punct_post_process=punct_post_process,
+                        model=model,
+                        tokenizer=tokenizer,
+                    )
+                    for line in tqdm(lines[i : i + batch])
                 )
 
                 for line in normalized_lines:
                     f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
     print(f'Normalized version saved at {manifest_out}')
-
-
-
-
-
 
 
 if __name__ == "__main__":
@@ -481,7 +502,16 @@ if __name__ == "__main__":
             overwrite_cache=args.overwrite_cache,
             whitelist=args.whitelist,
         )
-        normalize_manifest(normalizer, args.audio_data, args.language, args.lm)
+        normalize_manifest(
+            normalizer,
+            args.audio_data,
+            args.n_jobs,
+            args.n_tagged,
+            args.remove_punct,
+            not args.no_punct_post_process,
+            args.language,
+            args.lm,
+        )
     else:
         raise ValueError(
             "Provide either path to .json manifest in '--audio_data' OR "

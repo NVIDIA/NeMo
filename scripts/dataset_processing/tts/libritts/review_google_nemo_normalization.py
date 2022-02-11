@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+import json
 import re
 import warnings
-import argparse
-
 from collections import Counter
 from pathlib import Path
 
-import json
-from tqdm import tqdm
-
 # this module is copy-paste from https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/SpeechSynthesis/FastPitch/common/text/unidecoder
 from scripts.dataset_processing.tts.libritts.unidecoder import unidecoder
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='TODO')
 parser.add_argument("--google-normalized-manifest-path", required=True, type=str)
@@ -35,17 +33,24 @@ args = parser.parse_args()
 # Normalized text in LibriTTS by Google which contains abbreviations from `libri_only_remove_dot_abbrs` looks like this:
 # "Mr. Smith" -> "mr Smith" (i.e removing dot and lowercasing all letters).
 libri_only_remove_dot_abbrs = {
-    "Mrs.", "Mr.", "Dr.", "Co.", "Lt.",
-    "Sgt.", "Drs.", "Maj.", "Capt.", "Esq.",
-    "Gen.", "Ltd.", "Col."
+    "Mrs.",
+    "Mr.",
+    "Dr.",
+    "Co.",
+    "Lt.",
+    "Sgt.",
+    "Drs.",
+    "Maj.",
+    "Capt.",
+    "Esq.",
+    "Gen.",
+    "Ltd.",
+    "Col.",
 }
 
 # Normalized text in LibriTTS by Google which contains abbreviations from `libri_converts_abbrs` looks like this:
 # "&" -> "and", "Jr." -> "Junior" (i.e correct conversion).
-libri_converts_abbrs = {
-    "&", "Gov.", "=", "Jr.", "Hon.", "Mt.",
-    "§"  # currently, unidecoder doesn't pass it
-}
+libri_converts_abbrs = {"&", "Gov.", "=", "Jr.", "Hon.", "Mt.", "§"}  # currently, unidecoder doesn't pass it
 
 # Normalized text in LibriTTS by Google which contains abbreviations from `libri_sometimes_converts_abbrs` sometimes wasn't converted.
 libri_sometimes_converts_abbrs = {"St.": "saint", "Rev.": "reverend"}
@@ -102,7 +107,7 @@ google_abbr2expand = {
     "&": "and",
     "§": "section",
     "#": "hash",
-    "=": "equals"
+    "=": "equals",
 }
 
 nemo_abbr2expand = {
@@ -130,7 +135,7 @@ nemo_abbr2expand = {
     "&": "and",
     "§": "section",
     "#": "hash",
-    "=": "equals"
+    "=": "equals",
 }
 
 
@@ -219,7 +224,7 @@ def main():
     with open(args.nemo_normalized_manifest_path) as f:
         for l in f:
             j = json.loads(l)
-            text = j["normalized_text"].strip()
+            text = j["nemo_normalized"].strip()
             key = j["audio_filepath"]
             nemo_texts.append((key, text))
 
@@ -302,10 +307,22 @@ def main():
     #     print()
     print()
     print("good samples", len(good_samples), f"{len(good_samples) / len(google_texts) * 100:.2f}%")
-    print("almost equal samples (they are good samples too)", len(almost_equal_samples), f"{len(almost_equal_samples) / len(google_texts) * 100:.2f}%")
-    print("bad characters samples", len(bad_characters_samples), f"{len(bad_characters_samples) / len(google_texts) * 100:.2f}%")
+    print(
+        "almost equal samples (they are good samples too)",
+        len(almost_equal_samples),
+        f"{len(almost_equal_samples) / len(google_texts) * 100:.2f}%",
+    )
+    print(
+        "bad characters samples",
+        len(bad_characters_samples),
+        f"{len(bad_characters_samples) / len(google_texts) * 100:.2f}%",
+    )
     print("different_samples", len(different_samples), f"{len(different_samples) / len(google_texts) * 100:.2f}%")
-    print("bug_with_one_first_samples", len(bug_with_one_first_samples), f"{len(bug_with_one_first_samples) / len(google_texts) * 100:.2f}%")
+    print(
+        "bug_with_one_first_samples",
+        len(bug_with_one_first_samples),
+        f"{len(bug_with_one_first_samples) / len(google_texts) * 100:.2f}%",
+    )
     print()
 
     top_k = 5

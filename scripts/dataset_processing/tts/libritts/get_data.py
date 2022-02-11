@@ -20,41 +20,96 @@ python get_data.py \
 --num-workers=4 --normalization-source nemo \
 --whitelist-path /home/ebakhturina/NeMo/nemo_text_processing/text_normalization/en/data/whitelist_lj_speech_libri_tts.tsv \
 --save-google-normalization-separately  \
+--overwrite-cache-dir \
 --without-download --without-extract
 
+export SET="test_clean"
+python review_google_nemo_normalization.py \
+--google-normalized-manifest-path /home/ebakhturina/misc_scripts/toy/libri_tts/LibriTTS/${SET}_google.json \
+--nemo-normalized-manifest-path /home/ebakhturina/misc_scripts/toy/libri_tts/LibriTTS/${SET}_stt_en_citrinet_1024_normalized.json \
+--save-dir /home/ebakhturina/misc_scripts/toy/libri_tts/LibriTTS/${SET}_review_data
 
---overwrite-cache-dir
+DEFAULT: (remove_punct=True)
+good samples 4111 84.99%
+almost equal samples (they are good samples too) 717 14.82%
+bad characters samples 0 0.00%
+different_samples 6 0.12%
+bug_with_one_first_samples 3 0.06%
+
+stats for almost equal samples (top-5):
+diff:[-1 x ` `|1 x `-`], 321 samples, 6.64%
+diff:[1 x `-`], 167 samples, 3.45%
+diff:[1 x `.`], 59 samples, 1.22%
+diff:[-2 x ` `|2 x `-`], 45 samples, 0.93%
+diff:[2 x `-`], 38 samples, 0.79%
+stats for almost equal samples (after top-5):
+87 samples, 1.80%
+================================================
+DEFAULT with nemo_text_pr code (remove_punct=False)
+good samples 4140 85.59%
+almost equal samples (they are good samples too) 689 14.24%
+bad characters samples 0 0.00%
+different_samples 6 0.12%
+bug_with_one_first_samples 2 0.04%
+
+stats for almost equal samples (top-5):
+diff:[-1 x ` `|1 x `-`], 325 samples, 6.72%
+diff:[1 x `-`], 171 samples, 3.54%
+diff:[-2 x ` `|2 x `-`], 45 samples, 0.93%
+diff:[2 x `-`], 38 samples, 0.79%
+diff:[1 x `.`], 29 samples, 0.60%
+stats for almost equal samples (after top-5):
+81 samples, 1.67%
+================================================
+DEFAULT with nemo_text_pr code REMOVE_PUNCT=True
+good samples 4117 85.11%
+almost equal samples (they are good samples too) 711 14.70%
+bad characters samples 0 0.00%
+different_samples 6 0.12%
+bug_with_one_first_samples 3 0.06%
+
+stats for almost equal samples (top-5):
+diff:[-1 x ` `|1 x `-`], 326 samples, 6.74%
+diff:[1 x `-`], 167 samples, 3.45%
+diff:[1 x `.`], 58 samples, 1.20%
+diff:[-2 x ` `|2 x `-`], 45 samples, 0.93%
+diff:[2 x `-`], 38 samples, 0.79%
+stats for almost equal samples (after top-5):
+77 samples, 1.59%
+
+
+======================================
++LM remove_punct=True
+
+
+
 """
 import argparse
+import contextlib
 import fnmatch
 import functools
+import glob
+import json
 import multiprocessing
-import pytorch_lightning as pl
-import torch
+import os
 import subprocess
 import tarfile
 import urllib.request
-from pathlib import Path
-import contextlib
-import glob
-import json
-import os
-
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
+import pytorch_lightning as pl
+import torch
 import wget
 from joblib import Parallel, delayed
+from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio, normalize_manifest
 from omegaconf import OmegaConf
-
-
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.utils import logging, model_utils
-
 from tqdm import tqdm
 
-from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
+from nemo.collections.asr.models import ASRModel
+from nemo.utils import logging, model_utils
 
 parser = argparse.ArgumentParser(description='Download LibriTTS and create manifests')
 parser.add_argument("--data-root", required=True, type=Path)
@@ -91,6 +146,7 @@ URLS = {
 
 #########################
 # Start of copy-paste from examples/asr/transcribe_speech.py
+
 
 @dataclass
 class TranscriptionConfig:
@@ -225,6 +281,7 @@ def transcribe_manifest(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info("Finished writing predictions !")
     return cfg
 
+
 # End of copy-paste from examples/asr/transcribe_speech.py
 ##########################
 
@@ -232,39 +289,32 @@ def transcribe_manifest(cfg: TranscriptionConfig) -> TranscriptionConfig:
 def _normalize_line(normalizer: NormalizerWithAudio, line: str):
     line = json.loads(line)
 
-    normalized_texts = normalizer.normalize(
-        text=line["text"],
-        n_tagged=100,
-        punct_post_process=True,
-    )
+    normalized_texts = normalizer.normalize(text=line["text"], n_tagged=100, punct_post_process=True,)
 
     normalized_text, _ = normalizer.select_best_match(
-        normalized_texts=normalized_texts,
-        input_text=line["text"],
-        pred_text=line["pred_text"],
-        remove_punct=True,
+        normalized_texts=normalized_texts, input_text=line["text"], pred_text=line["pred_text"], remove_punct=True,
     )
     line["normalized_text"] = normalized_text
     return line
 
 
-def normalize_manifest(normalizer, manifest_file, num_workers):
-    manifest_out = manifest_file.replace('.json', '_normalized.json')
-
-    print(f'Normalizing of {manifest_file}...')
-    with open(manifest_file, 'r') as f:
-        lines = f.readlines()
-
-    # normalized_lines = []
-    # for line in tqdm(lines):
-    #     normalized_lines.append(_normalize_line(normalizer, line))
-    normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
-
-    with open(manifest_out, 'w') as f_out:
-        for line in normalized_lines:
-            f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
-
-    print(f'Normalized version saved at {manifest_out}')
+# def normalize_manifest(normalizer, manifest_file, num_workers):
+#     manifest_out = manifest_file.replace('.json', '_normalized.json')
+#
+#     print(f'Normalizing of {manifest_file}...')
+#     with open(manifest_file, 'r') as f:
+#         lines = f.readlines()
+#
+#     # normalized_lines = []
+#     # for line in tqdm(lines):
+#     #     normalized_lines.append(_normalize_line(normalizer, line))
+#     normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
+#
+#     with open(manifest_out, 'w') as f_out:
+#         for line in normalized_lines:
+#             f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+#
+#     print(f'Normalized version saved at {manifest_out}')
 
 
 def __maybe_download_file(source_url, destination_path):
@@ -309,9 +359,15 @@ def __process_transcript(file_path: str, normalization_source="dataset"):
 
 
 def __process_data(
-        data_folder, manifest_file, num_workers, num_workers_for_normalizer,
-        normalization_source="dataset", normalizer=None, pretrained_model=None,
-        save_google_normalization_separately=False):
+    data_folder,
+    manifest_file,
+    num_workers,
+    num_workers_for_normalizer,
+    normalization_source="dataset",
+    normalizer=None,
+    pretrained_model=None,
+    save_google_normalization_separately=False,
+):
     files = []
     entries = []
 
@@ -320,10 +376,7 @@ def __process_data(
             files.append(os.path.join(root, filename))
 
     with multiprocessing.Pool(num_workers) as p:
-        processing_func = functools.partial(
-            __process_transcript,
-            normalization_source=normalization_source
-        )
+        processing_func = functools.partial(__process_transcript, normalization_source=normalization_source)
         results = p.imap(processing_func, files)
         for result in tqdm(results, total=len(files)):
             entries.extend(result)
@@ -341,7 +394,7 @@ def __process_data(
 
             entity = {
                 'audio_filepath': os.path.abspath(p.replace(".original.txt", ".wav")),
-                'normalized_text': norm_text
+                'normalized_text': norm_text,
             }
             entries.append(entity)
 
@@ -359,10 +412,21 @@ def __process_data(
             num_workers=num_workers,
             cuda=0,
             amp=True,
-            overwrite_transcripts=False
+            overwrite_transcripts=False,
         )
         transcribe_manifest(cfg)
-        normalize_manifest(normalizer, output_filename, num_workers=num_workers_for_normalizer)
+        # normalize_manifest(normalizer, output_filename, num_workers=num_workers_for_normalizer)
+
+        normalize_manifest(
+            normalizer,
+            output_filename,
+            num_workers_for_normalizer,
+            n_tagged=100,
+            remove_punct=True,
+            punct_post_process=True,
+            lm=True,
+        )
+
 
 # python scripts/dataset_processing/tts/libritts/get_data.py --data-root=/data_4tb/datasets2 --data-set=test_clean \
 # --num-workers=4 --normalization-source nemo --whitelist-path ./nemo_text_processing/text_normalization/en/data/whitelist_lj_speech_libri_tts.tsv \
@@ -371,7 +435,9 @@ def main():
     data_root = args.data_root
     data_sets = args.data_sets
     num_workers = args.num_workers
-    num_workers_for_normalizer = args.num_workers if args.num_workers_for_normalizer is None else args.num_workers_for_normalizer
+    num_workers_for_normalizer = (
+        args.num_workers if args.num_workers_for_normalizer is None else args.num_workers_for_normalizer
+    )
 
     data_root = data_root / "LibriTTS"
     data_root.mkdir(exist_ok=True, parents=True)
@@ -417,7 +483,7 @@ def main():
             normalization_source=args.normalization_source,
             normalizer=normalizer,
             pretrained_model=args.pretrained_model,
-            save_google_normalization_separately=args.save_google_normalization_separately
+            save_google_normalization_separately=args.save_google_normalization_separately,
         )
 
 

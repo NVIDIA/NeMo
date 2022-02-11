@@ -44,9 +44,9 @@ def unidecoder(s, homoglyphs=False):
 
         if a is None:
             if not warned:
-                warnings.warn(f'Unexpected character {u}: '
-                              'please revise your text cleaning rules.',
-                              stacklevel=10**6)
+                warnings.warn(
+                    f'Unexpected character {u}: ' 'please revise your text cleaning rules.', stacklevel=10 ** 6
+                )
                 warned = True
         else:
             ret += a
