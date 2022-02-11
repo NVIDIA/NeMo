@@ -83,6 +83,9 @@ To run a tutorial:
      - Streaming inference for ASR
      - `Streaming inference <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Streaming_ASR.ipynb>`_
    * - ASR
+     - Buffered Transducer inference for ASR
+     - `Buffered Transducer inference <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Buffered_Transducer_Inference.ipynb>`_
+   * - ASR
      - Self-supervised pre-training for ASR
      - `Self-supervised Pre-training for ASR <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Self_Supervised_Pre_Training.ipynb>`_
    * - NLP
