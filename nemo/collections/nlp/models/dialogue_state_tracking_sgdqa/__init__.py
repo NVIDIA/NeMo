@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
 from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_gpt_model import DialogueGPTModel
+from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
