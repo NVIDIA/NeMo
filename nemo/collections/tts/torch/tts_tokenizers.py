@@ -362,7 +362,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         return [self._token2id[p] for p in ps]
 
     @contextmanager
-    def set_phone_prob(self, prob=1.0):
+    def set_phone_prob(self, prob):
         if hasattr(self.g2p, "phoneme_probability"):
             self.g2p.phoneme_probability = prob
         try:

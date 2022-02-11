@@ -205,7 +205,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         if self.learn_alignment:
             # Disable mixed g2p representation
-            with self.vocab.set_phone_prob():
+            with self.vocab.set_phone_prob(prob=1.0):
                 tokens = self.parser(str_input)
         else:
             # TODO(Oktai15): remove it in 1.8.0 version

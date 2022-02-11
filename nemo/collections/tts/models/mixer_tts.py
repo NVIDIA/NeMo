@@ -648,7 +648,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-        with self.tokenizer.set_phone_prob():
+        with self.tokenizer.set_phone_prob(prob=1.0):
             tokens = self.tokenizer.encode(text)
         return torch.tensor(tokens).long().unsqueeze(0).to(self.device)
 

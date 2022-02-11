@@ -71,6 +71,8 @@ class EnglishG2p(BaseG2p):
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
