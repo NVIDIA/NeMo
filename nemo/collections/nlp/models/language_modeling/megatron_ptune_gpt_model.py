@@ -61,10 +61,6 @@ class MegatronGPTPTuneModel(NLPModel):
             seed=cfg.get('seed', 1234),
         )
 
-        # shared params for dataset and data loaders
-        # tokenizer needs to get initialized before the super.__init__()
-        # as dataloaders and datasets need it to process the data
-
         self.model = MegatronGPTModel.restore_from(
             self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
             trainer=trainer,
@@ -78,10 +74,7 @@ class MegatronGPTPTuneModel(NLPModel):
 
         hidden_size = self.model.cfg.hidden_size
 
-        # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
         self.embeddings = self.model.model.language_model.embedding.word_embeddings
-
-        # self.vocab = self.tokenizer.tokenizer.get_vocab()
 
         self.template = cfg.prompt_encoder.template
 
@@ -181,11 +174,6 @@ class MegatronGPTPTuneModel(NLPModel):
                     None, None, encoder_input=encoder_input, attention_mask=input_attn_mask, labels=labels,
                 )
         output_tensor, encoder_hidden_states = output
-
-        # _, returned_pred = self.get_prediction(batch_size, label_position, logits)
-        # returned_label = self.get_ground_truth_labels(batch_size, label_ids)
-        # return floss, returned_pred, returned_label
-
         loss = self.loss_func(loss_mask, output_tensor)
         return loss
 
@@ -268,12 +256,9 @@ class MegatronGPTPTuneModel(NLPModel):
 
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
-                # only use the allowed vocab if it is defined
+                # TODO, add logic to use the allowed labels if it is defined
                 log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
 
-                # append empty array in the end
-                # predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
-                # new_pred = torch.zeros_like(token_ids[:, 0:1])
                 new_pred = torch.full_like(token_ids[:, 0:1], self.pad_token_id)
                 predicted_tokens_dec = torch.cat([predicted_tokens_dec, new_pred], 1)
 
