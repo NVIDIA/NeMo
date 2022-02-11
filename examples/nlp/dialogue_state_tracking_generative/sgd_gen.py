@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,6 +95,8 @@ by default. You may update the config file from the file directly. The other opt
 To load a pretrained checkpoint from the cloud prior to training (e.g. for fine-tuning) or evaluation you can set cfg.from_pretrained=<MODEL_NAME>. You can find all pretrained model names by using 
 SGDQAModel.list_available_models(). To load a local checkpoint use model.restore_from(<PATH_TO_CHECKPOINT>)
 
+# Known issue, when do_training=True on multi-gpu, test-loop gets stuck
+# Quick fix is to simply load checkpoint for testing separately after training
 """
 
 import os
@@ -102,31 +104,38 @@ import os
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.models.dialogue_state_tracking.sgdqa_model import SGDQAModel
+from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_gpt_model import DialogueGPTModel
+from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="sgdqa_config")
+@hydra_runner(config_path="conf", config_name="dialogue_config")
 def main(cfg: DictConfig) -> None:
+    pl.seed_everything(42)
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
+    if 'bert' in cfg.model.language_model.pretrained_model_name:
+        model_class = SGDQAModel
+    elif 'gpt' in cfg.model.language_model.pretrained_model_name.lower():
+        model_class = DialogueGPTModel
+
     if cfg.pretrained_model or (cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)):
         if cfg.pretrained_model:
             logging.info(f'Loading pretrained model {cfg.pretrained_model}')
-            model = SGDQAModel.from_pretrained(cfg.pretrained_model)
+            model = model_class.from_pretrained(cfg.pretrained_model)
         else:
             logging.info(f'Restoring model from {cfg.model.nemo_path}')
-            model = SGDQAModel.restore_from(cfg.model.nemo_path)
+            model = model_class.restore_from(cfg.model.nemo_path)
         if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
     else:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
-        model = SGDQAModel(cfg.model, trainer=trainer)
+        model = model_class(cfg.model, trainer=trainer)
 
     if cfg.do_training:
         trainer.fit(model)
