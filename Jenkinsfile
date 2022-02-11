@@ -656,7 +656,7 @@ pipeline {
     //   }
     // }
 
-    stage('L2: SGD-QA') {
+    stage('L2: STS-b') {
       when {
         anyOf {
           branch 'main'
@@ -665,28 +665,6 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: SGD-QA') {
-          steps {
-            sh 'cd examples/nlp/dialogue_state_tracking && \
-        python sgd_qa.py \
-        model.dataset.data_dir=/home/TestData/nlp/sgd_small \
-        model.dataset.dialogues_example_dir=sgd_outputs \
-        model.dataset.task_name=debug_sample \
-        trainer.max_steps=1 \
-        trainer.max_epochs=1 \
-        model.train_ds.batch_size=2 \
-        model.validation_ds.batch_size=2 \
-        model.test_ds.batch_size=2 \
-        model.nemo_path=null \
-        trainer.val_check_interval=0.0 \
-        trainer.gpus=[0,1] \
-        model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=bert-base-cased \
-        trainer.accelerator=ddp \
-        exp_manager=null  && \
-        rm -rf sgd_outputs'
-          }
-        }
         stage('GLUE STS-b with AlBERT') {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
@@ -729,7 +707,62 @@ pipeline {
         }
       }
     }
-
+    stage('L2: SGD-GEN') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('SGD-GEN') {
+          steps {
+            sh 'cd examples/nlp/dialogue_state_tracking_generative && \
+            python sgd_gen.py \
+            model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+            model.dataset.dialogues_example_dir=sgd_gen_outputs \
+            model.dataset.task_name=debug_sample \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.gpus=[0] \
+            model.dataset.use_cache=false \
+            model.tokenizer.special_tokens={pad_token:"endoftext"}\
+            model.language_model.pretrained_model_name=gpt2 \
+            trainer.accelerator=ddp \
+            exp_manager=null  && \
+            rm -rf sgd_gen_outputs'
+          }
+        }
+        stage('SGD-GEN Backward compatible with SGDQA') {
+          steps {
+            sh 'cd examples/nlp/dialogue_state_tracking_generative && \
+            python sgd_gen.py \
+            model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+            model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
+            model.dataset.task_name=debug_sample \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.gpus=[1] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=bert-base-cased \
+            trainer.accelerator=ddp \
+            exp_manager=null  && \
+            rm -rf sgd_gen_bert_outputs'
+          }
+        }
+      }
+    }
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf {
