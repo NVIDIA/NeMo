@@ -24,7 +24,6 @@ Conversion script to convert PTL checkpoints into nemo checkpoint.
      --pipeline_model_parallel_size <pipeline_model_parallel_size>
 """
 
-import itertools
 import os
 from argparse import ArgumentParser
 

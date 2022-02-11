@@ -456,10 +456,6 @@ class MegatronGPTModel(NLPModel):
     def process_micro_batch(self, micro_batch):
         """ Micro batch returned by MegatronGPT dataloader"""
 
-        # Items and their type.
-        keys = ['text']
-        datatype = torch.int64
-
         data = micro_batch
         # data_b = tensor_parallel.broadcast_data(keys, data, datatype)
         data_b = data
