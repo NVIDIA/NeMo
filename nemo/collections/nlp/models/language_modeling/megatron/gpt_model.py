@@ -16,10 +16,13 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
-from nemo.utils import logging
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    init_method_normal,
+    parallel_lm_logits,
+    scaled_init_method_normal,
+)
 
 try:
     from apex.transformer import tensor_parallel
