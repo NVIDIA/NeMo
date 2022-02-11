@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -249,6 +249,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             # Assume same decoding config as before
             decoding_cfg = self.cfg.decoding
 
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
@@ -262,7 +267,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
 
         # Setup fused Joint step
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
@@ -291,6 +298,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
             decoding_cfg = self.cfg.decoding
 
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
@@ -304,7 +316,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
 
         # Setup fused Joint step
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
