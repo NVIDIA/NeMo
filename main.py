@@ -6,10 +6,10 @@ import copy
 import hydra
 import omegaconf
 
-from data_preparation import data_preparation
-from train_scripts import train
-from conversion_scripts import convert
-from eval_scripts import evaluate
+from bignlp.data_preparation import data_preparation
+from bignlp.train_scripts import train
+from bignlp.conversion_scripts import convert
+from bignlp.eval_scripts import evaluate
 
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
