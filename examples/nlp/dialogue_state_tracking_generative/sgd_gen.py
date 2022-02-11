@@ -105,7 +105,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_gpt_model import DialogueGPTModel
-from nemo.collections.nlp.models.dialogue_state_tracking_hybrid.sgdqa_model import SGDQAModel
+from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

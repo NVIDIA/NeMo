@@ -26,8 +26,8 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.evaluate import evaluate, get_in_domain_services
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils import write_predictions_to_file
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.evaluate import evaluate, get_in_domain_services
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.prediction_utils import write_predictions_to_file
 from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
     DialogueSGDBERTDataset,
     DialogueSGDDataProcessor,

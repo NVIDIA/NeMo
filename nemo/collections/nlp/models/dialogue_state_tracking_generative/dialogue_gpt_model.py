@@ -38,6 +38,7 @@ from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.assistant_
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -61,7 +62,8 @@ class DialogueGPTModel(NLPModel):
             vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
         )
         self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
-
+        #self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
+        
         all_labels = list(
             self._train_dl.dataset.all_possible_labels.union(
                 self._validation_dl.dataset.all_possible_labels, self._test_dl.dataset.all_possible_labels
@@ -289,8 +291,13 @@ class DialogueGPTModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attn_masks, labels=labels)
-
+        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        # position_ids = torch.arange(self._cfg.dataset.max_seq_length, dtype=torch.long, device=input_ids.device)
+        # position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
+        
+        # print(input_ids.dtype, position_ids.dtype, attn_masks.dtype, labels.dtype)
+        # loss, logits = self.language_model(input_ids, position_ids, attention_mask=attn_masks, labels=labels)
+        
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         # ranking using perplexity of candidates
