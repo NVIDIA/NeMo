@@ -26,9 +26,13 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue_state_tracking import Schema, SGDDataProcessor, SGDDataset
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.evaluate import evaluate, get_in_domain_services
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.prediction_utils import write_predictions_to_file
+from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
+    DialogueSGDBERTDataset,
+    DialogueSGDDataProcessor,
+    Schema,
+)
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.evaluate import evaluate, get_in_domain_services
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.prediction_utils import write_predictions_to_file
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -462,7 +466,7 @@ class SGDQAModel(NLPModel):
             )
             os.makedirs(prediction_dir, exist_ok=True)
 
-            input_json_files = SGDDataProcessor.get_dialogue_files(
+            input_json_files = DialogueSGDDataProcessor.get_dialogue_files(
                 self._cfg.dataset.data_dir, split, self._cfg.dataset.task_name
             )
 
@@ -528,7 +532,7 @@ class SGDQAModel(NLPModel):
             all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
         schemas = Schema(all_schema_json_paths)
 
-        self.dialogues_processor = SGDDataProcessor(
+        self.dialogues_processor = DialogueSGDDataProcessor(
             task_name=self._cfg.dataset.task_name,
             data_dir=self._cfg.dataset.data_dir,
             dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
@@ -578,7 +582,16 @@ class SGDQAModel(NLPModel):
         if not os.path.exists(data_dir):
             raise FileNotFoundError(f"Data directory is not found at: {data_dir}.")
 
-        dataset = SGDDataset(dataset_split=split, dialogues_processor=self.dialogues_processor)
+        # dataset = SGDDataset(dataset_split=split, dialogues_processor=self.dialogues_processor)
+
+        dataset = DialogueSGDBERTDataset(
+            dataset_split=split,
+            dialogues_processor=self.dialogues_processor,
+            tokenizer=self.dialogues_processor._tokenizer,
+            schemas=self.dialogues_processor.schemas,
+            schema_config=self.dialogues_processor.schema_config,
+            cfg=dataset_cfg,
+        )
 
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
