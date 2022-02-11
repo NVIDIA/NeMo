@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,8 +39,10 @@ model:
       tokenizer_model: null # only used if tokenizer is sentencepiece
       special_tokens: null
 
+  eval_mode: ${model.dataset.eval_mode} 
+
   language_model:
-    pretrained_model_name: bert-base-cased
+    pretrained_model_name: gpt2
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null
@@ -49,6 +51,8 @@ model:
     dropout: 0.1
 
   dataset:
+    task: sgd
+    eval_mode: ranking # ranking or generation or binary_score
     max_seq_length: 128 # the maximum length BERT supports is 512
     max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
     max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
@@ -107,7 +111,11 @@ model:
 
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
-  name: "SGDQA"  # The name of your model
+  name: "SGDGEN"  # The name of your model
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    name: ???
+    project: SGDGEN
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
   resume_if_exists: false
