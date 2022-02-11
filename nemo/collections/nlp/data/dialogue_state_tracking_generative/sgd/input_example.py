@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,99 @@ from typing import List
 
 from nemo.utils import logging
 
-__all__ = ['InputExample', 'STR_DONTCARE', 'STATUS_OFF', 'STATUS_ACTIVE', 'STATUS_DONTCARE']
+__all__ = [
+    'DialogueInputExample',
+    'SGDInputExample',
+    'SGDInputExample',
+    'STR_DONTCARE',
+    'STATUS_OFF',
+    'STATUS_ACTIVE',
+    'STATUS_DONTCARE',
+]
+
+
+class DialogueInputExample(object):
+    """
+    Generic Dialogue Input Example
+    Uses data: dict as a flexible interface to support various input types.
+    This ranges from classification labels, to complex nested labels such as those in SGD
+
+    {
+        "utterance": <utterance>,
+        "labels": { 
+            "intent": <intent>,
+            "slots": { ... },
+        }
+    }
+    """
+
+    def __init__(self, data: dict):
+        self.data = data
+
+    def __repr__(self):
+        return self.data
+
+    def __str__(self):
+        return self.data
+
+
+class DialogueSGDInputExample(DialogueInputExample):
+
+    """
+    {
+        "example_id": <example_id>,
+        "example_id_num": <example_id_num>,
+        "utterance": <utterance>,
+        "system_utterance": <system_utterance>,
+        "system_slots": None or {
+                    "<slot-name1>": {
+                        "exclusive_end": 46,
+                        "slot": "restaurant_name",
+                        "start": 34
+            },
+        "labels": {
+            "service": <service>,
+            "intent": <intent>,
+            "slots": {
+                #only non-empty slots
+                #most slot values are list of length 1 
+                #but there are some of length 2 as both are accepted
+                #e.g. 1930 and 7:30 pm
+                "<slot-name1>": [<slot-value1>, <slot-value2>],
+                "<slot-name2>": [<slot-value2>],
+            }
+        },
+        "label_positions":{
+            "slots": {
+                "<slot-name1>": {
+                    "exclusive_end": 46,
+                    "slot": "restaurant_name",
+                    "start": 34
+              },
+            }
+        },
+        "possible_labels": {
+            "service": [<service1>, <service2>, ...],
+            "intent": [<intent1>, <intent2>, ...],
+            "slots": {
+                #all slots including empty
+                "<slot-name1>": [<slot-value1>, <slot-value2>, ...],
+                "<slot-name2>": [<slot-value1>, <slot-value2>, ...],
+            }
+        },
+        "description": {
+            "service": <service description>,
+            "intent": <intent description>,
+            "slots": {
+                #only non-empty slots
+                "<slot-name1>": <slot-name1 description>,
+                "<slot-name2>": <slot-name2 description>,
+            }
+        }
+    }
+
+    """
+
 
 STR_DONTCARE = "dontcare"
 
@@ -33,7 +125,7 @@ STATUS_ACTIVE = 1
 STATUS_DONTCARE = 2
 
 
-class InputExample(object):
+class SGDInputExample(object):
     """An example for training/inference."""
 
     def __init__(
@@ -140,8 +232,8 @@ class InputExample(object):
             ] = STR_DONTCARE
         if self.noncategorical_slot_status == STATUS_ACTIVE:
             slot = self.service_schema.get_non_categorical_slot_from_id(self.noncategorical_slot_id)
-            start_id = self.noncategorical_slot_value_start[idx]
-            end_id = self.noncategorical_slot_value_end[idx]
+            start_id = self.noncategorical_slot_value_start[slot]
+            end_id = self.noncategorical_slot_value_end[slot]
             # Token list is consisted of the subwords that may start with "##". We
             # remove "##" to reconstruct the original value. Note that it's not a
             # strict restoration of the original string. It's primarily used for
@@ -257,7 +349,7 @@ class InputExample(object):
 
     def make_copy(self):
         """Make a copy of the current example with utterance features."""
-        new_example = InputExample(
+        new_example = SGDInputExample(
             schema_config=self.schema_config,
             service_schema=self.service_schema,
             example_id=self.example_id,
@@ -357,7 +449,7 @@ class InputExample(object):
         """
         all_slots = self.service_schema.slots
         slot = all_slots[self.requested_slot_id]
-        if slot in frame["state"]["requested_slots"]:
+        if slot in frame["labels"]["slots"]:
             self.requested_slot_status = STATUS_ACTIVE
 
     def add_intents(self, frame):
@@ -367,7 +459,7 @@ class InputExample(object):
         """
         all_intents = self.service_schema.intents
         intent = all_intents[self.intent_id]
-        if intent == frame["state"]["active_intent"]:
+        if intent == frame["labels"]["intent"]:
             self.intent_status = STATUS_ACTIVE
 
 

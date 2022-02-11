@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ import os
 from collections import OrderedDict, defaultdict
 from typing import Dict, List, Optional
 
-from nemo.collections.nlp.data.dialogue_state_tracking.sgd.input_example import (
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
     STATUS_ACTIVE,
     STATUS_DONTCARE,
     STR_DONTCARE,
@@ -238,7 +238,7 @@ def write_predictions_to_file(
 
     # Read each input file and write its predictions.
     for input_file_path in input_json_files:
-        with open(input_file_path, encoding='utf-8') as f:
+        with open(input_file_path, encoding="UTF-8") as f:
             dialogs = json.load(f)
             logging.debug(f'{input_file_path} file is loaded')
             pred_dialogs = []
@@ -247,5 +247,5 @@ def write_predictions_to_file(
                 pred_dialogs.append(pred_dialog)
         input_file_name = os.path.basename(input_file_path)
         output_file_path = os.path.join(output_dir, input_file_name)
-        with open(output_file_path, "w", encoding='utf-8') as f:
+        with open(output_file_path, "w", encoding="UTF-8") as f:
             json.dump(pred_dialogs, f, indent=2, separators=(",", ": "), sort_keys=True)
