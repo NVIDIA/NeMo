@@ -1901,7 +1901,7 @@ pipeline {
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=10 \
         trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=2 \
+        trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
@@ -1968,7 +1968,7 @@ pipeline {
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=10 \
         trainer.limit_val_batches=2 \
-        trainer.accumulate_grad_batches=2 \
+        trainer.accumulate_grad_batches=1 \
         trainer.max_steps=10 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
