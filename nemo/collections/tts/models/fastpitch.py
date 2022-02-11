@@ -436,12 +436,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
             dataset = instantiate(cfg.dataset, parser=self.parser)
         elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
-            dataset = instantiate(
-                cfg.dataset,
-                text_normalizer=self.normalizer,
-                text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
-                text_tokenizer=self.vocab,
-            )
+            with self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability):
+                dataset = instantiate(
+                    cfg.dataset,
+                    text_normalizer=self.normalizer,
+                    text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+                    text_tokenizer=self.vocab,
+                )
         else:
             # TODO(Oktai15): remove it in 1.8.0 version
             dataset = instantiate(cfg.dataset)

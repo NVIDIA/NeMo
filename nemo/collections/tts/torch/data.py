@@ -21,10 +21,10 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import librosa
+import numpy as np
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
-import numpy as np
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
