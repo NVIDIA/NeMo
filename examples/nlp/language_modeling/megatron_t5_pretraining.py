@@ -17,6 +17,7 @@ from pathlib import Path
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
+from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
@@ -45,7 +46,7 @@ def main(cfg) -> None:
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
-    trainer = Trainer(plugins=plugins, **cfg.trainer)
+    trainer = Trainer(plugins=plugins, **cfg.trainer, callbacks=[ModelSummary(max_depth=3)])
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -73,7 +74,6 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronT5Model(cfg.model, trainer)
-
     trainer.fit(model)
 
 

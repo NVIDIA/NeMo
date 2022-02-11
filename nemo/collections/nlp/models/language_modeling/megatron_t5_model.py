@@ -104,6 +104,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
+        # Make sure the user specifies dataset type as either 't5' or 't5_prefix_lm' only.
+        if self._cfg.data.get('dataset_type', None) is not None:
+            assert self._cfg.data.get('dataset_type') in ['t5', 't5_prefix_lm']
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self._cfg,
             trainer=self.trainer,
@@ -118,7 +121,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             short_seq_prob=self._cfg.data.short_seq_prob,
             seed=self._cfg.seed,
             skip_warmup=self._cfg.data.skip_warmup,
-            dataset_type='t5',
+            dataset_type=self._cfg.data.get('dataset_type', 't5')
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
