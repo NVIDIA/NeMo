@@ -2129,7 +2129,7 @@ pipeline {
       steps{
         sh "python examples/nlp/language_modeling/megatron_t5_eval.py \
             --model_file \
-            /home/TestData/nlp/megatron_t5/220m/megatron_t5_220m.nemo \
+            /home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
             --prompt \
             'How do I fix my GPU memory issue? I am seeing <mask> out of memory.' \
             --tensor_model_parallel_size 1"
