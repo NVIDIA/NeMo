@@ -651,7 +651,7 @@ pipeline {
     //   }
     // }
 
-    stage('L2: SGD-QA') {
+    stage('L2: STS-b') {
       when {
         anyOf {
           branch 'main'
@@ -660,28 +660,6 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('L2: SGD-QA') {
-          steps {
-            sh 'cd examples/nlp/dialogue_state_tracking && \
-            python sgd_qa.py \
-            model.dataset.data_dir=/home/TestData/nlp/sgd_small \
-            model.dataset.dialogues_example_dir=sgd_outputs \
-            model.dataset.task_name=debug_sample \
-            trainer.max_steps=1 \
-            trainer.max_epochs=1 \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            model.test_ds.batch_size=2 \
-            model.nemo_path=null \
-            trainer.val_check_interval=0.0 \
-            trainer.gpus=[0,1] \
-            model.dataset.use_cache=false \
-            model.language_model.pretrained_model_name=bert-base-cased \
-            trainer.accelerator=ddp \
-            exp_manager=null  && \
-            rm -rf sgd_outputs'
-          }
-        }
         stage('GLUE STS-b with AlBERT') {
           steps {
             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
