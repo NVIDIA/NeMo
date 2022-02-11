@@ -13,77 +13,6 @@
 # limitations under the License.
 
 
-"""
-python get_data.py \
---data-root=/home/ebakhturina/misc_scripts/toy/libri_tts/ \
- --data-set=test_clean \
---num-workers=4 --normalization-source nemo \
---whitelist-path /home/ebakhturina/NeMo/nemo_text_processing/text_normalization/en/data/whitelist_lj_speech_libri_tts.tsv \
---save-google-normalization-separately  \
---overwrite-cache-dir \
---without-download --without-extract
-
-export SET="test_clean"
-python review_google_nemo_normalization.py \
---google-normalized-manifest-path /home/ebakhturina/misc_scripts/toy/libri_tts/LibriTTS/${SET}_google.json \
---nemo-normalized-manifest-path /home/ebakhturina/misc_scripts/toy/libri_tts/LibriTTS/${SET}_stt_en_citrinet_1024_normalized.json \
---save-dir /home/ebakhturina/misc_scripts/toy/libri_tts/LibriTTS/${SET}_review_data
-
-DEFAULT: (remove_punct=True)
-good samples 4111 84.99%
-almost equal samples (they are good samples too) 717 14.82%
-bad characters samples 0 0.00%
-different_samples 6 0.12%
-bug_with_one_first_samples 3 0.06%
-
-stats for almost equal samples (top-5):
-diff:[-1 x ` `|1 x `-`], 321 samples, 6.64%
-diff:[1 x `-`], 167 samples, 3.45%
-diff:[1 x `.`], 59 samples, 1.22%
-diff:[-2 x ` `|2 x `-`], 45 samples, 0.93%
-diff:[2 x `-`], 38 samples, 0.79%
-stats for almost equal samples (after top-5):
-87 samples, 1.80%
-================================================
-DEFAULT with nemo_text_pr code (remove_punct=False)
-good samples 4140 85.59%
-almost equal samples (they are good samples too) 689 14.24%
-bad characters samples 0 0.00%
-different_samples 6 0.12%
-bug_with_one_first_samples 2 0.04%
-
-stats for almost equal samples (top-5):
-diff:[-1 x ` `|1 x `-`], 325 samples, 6.72%
-diff:[1 x `-`], 171 samples, 3.54%
-diff:[-2 x ` `|2 x `-`], 45 samples, 0.93%
-diff:[2 x `-`], 38 samples, 0.79%
-diff:[1 x `.`], 29 samples, 0.60%
-stats for almost equal samples (after top-5):
-81 samples, 1.67%
-================================================
-DEFAULT with nemo_text_pr code REMOVE_PUNCT=True
-good samples 4117 85.11%
-almost equal samples (they are good samples too) 711 14.70%
-bad characters samples 0 0.00%
-different_samples 6 0.12%
-bug_with_one_first_samples 3 0.06%
-
-stats for almost equal samples (top-5):
-diff:[-1 x ` `|1 x `-`], 326 samples, 6.74%
-diff:[1 x `-`], 167 samples, 3.45%
-diff:[1 x `.`], 58 samples, 1.20%
-diff:[-2 x ` `|2 x `-`], 45 samples, 0.93%
-diff:[2 x `-`], 38 samples, 0.79%
-stats for almost equal samples (after top-5):
-77 samples, 1.59%
-
-
-======================================
-+LM remove_punct=True
-
-
-
-"""
 import argparse
 import contextlib
 import fnmatch
@@ -298,24 +227,6 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str):
     return line
 
 
-# def normalize_manifest(normalizer, manifest_file, num_workers):
-#     manifest_out = manifest_file.replace('.json', '_normalized.json')
-#
-#     print(f'Normalizing of {manifest_file}...')
-#     with open(manifest_file, 'r') as f:
-#         lines = f.readlines()
-#
-#     # normalized_lines = []
-#     # for line in tqdm(lines):
-#     #     normalized_lines.append(_normalize_line(normalizer, line))
-#     normalized_lines = Parallel(n_jobs=num_workers)(delayed(_normalize_line)(normalizer, line) for line in tqdm(lines))
-#
-#     with open(manifest_out, 'w') as f_out:
-#         for line in normalized_lines:
-#             f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
-#
-#     print(f'Normalized version saved at {manifest_out}')
-
 
 def __maybe_download_file(source_url, destination_path):
     if not destination_path.exists():
@@ -415,7 +326,6 @@ def __process_data(
             overwrite_transcripts=False,
         )
         transcribe_manifest(cfg)
-        # normalize_manifest(normalizer, output_filename, num_workers=num_workers_for_normalizer)
 
         normalize_manifest(
             normalizer,
