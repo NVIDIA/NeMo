@@ -209,10 +209,10 @@ class GPTDataset(MegatronDataset):
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
 
-        self.reset_osition_ids = cfg.data.get('reset_position_ids', False)
+        self.reset_position_ids = cfg.data.get('reset_position_ids', False)
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
         self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
-        self.eos_id = eos_idp
+        self.eos_id = eos_id
 
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
