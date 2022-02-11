@@ -138,7 +138,7 @@ class AlignmentEncoder(torch.nn.Module):
                     dist[
                         dist_idx,
                         torch.arange(t1_size),
-                        torch.repeat_interleave(torch.arange(t2_size), repeats=durations[dist_idx])
+                        torch.repeat_interleave(torch.arange(t2_size), repeats=durations[dist_idx]),
                     ]
                 )
             )
