@@ -106,7 +106,7 @@ def copy_data_1d(source: torch.Tensor, dest: torch.Tensor, idx: int):
 def compute_costs_data(source: torch.Tensor, dest: torch.Tensor, fastemit_lambda: float):
     block = cuda.blockIdx.x
     tid = cuda.threadIdx.x
-    idx = block * cuda.gridDim.x + tid
+    idx = block * cuda.blockDim.x + tid
     length = source.shape[0]
 
     if idx < length:

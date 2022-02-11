@@ -218,7 +218,7 @@ class GPURNNT:
         # But copying this data into a pytorch pointer is more difficult (numba api is one way)
         # Therefore launch a pointwise CUDA kernel to update the costs inplace from data of llForward
         # Then negate to compute the loglikelihood.
-        threadsperblock = min(costs.shape[0], 128, global_constants.threads_per_block())
+        threadsperblock = min(costs.shape[0], 32)
         blockspergrid = (costs.shape[0] + (threadsperblock - 1)) // threadsperblock
         rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](
             llForward, costs, self.fastemit_lambda_
