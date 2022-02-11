@@ -7,7 +7,7 @@ import shutil
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-@hydra.main(config_path="../conf", config_name="config")
+@hydra.main(config_path="../../conf", config_name="config")
 def main(cfg):
     # Read Config
     bignlp_path = cfg.bignlp_path

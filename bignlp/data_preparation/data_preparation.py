@@ -91,9 +91,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
-    download_code_path = os.path.join(bignlp_path, "data_preparation/dataprep_scripts/download.py")
-    extract_code_path = os.path.join(bignlp_path, "data_preparation/dataprep_scripts/extract.py")
-    preprocess_code_path = os.path.join(bignlp_path, "data_preparation/dataprep_scripts/preprocess.py")
+    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/dataprep_scripts/download.py")
+    extract_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/dataprep_scripts/extract.py")
+    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/dataprep_scripts/preprocess.py")
     
     # BCM config
     if cfg.cluster_type == "bcm":
@@ -118,7 +118,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         if download_the_pile:
             # Download The Pile dataset files
             download_script_path = os.path.join(
-                bignlp_path, "data_preparation/download_script.sh"
+                bignlp_path, "bignlp/data_preparation/download_script.sh"
             )
             create_slurm_file(
                 new_script_path=download_script_path,
@@ -145,7 +145,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
 
             # Extract The Pile dataset files
             extract_script_path = os.path.join(
-                bignlp_path, "data_preparation/extract_script.sh"
+                bignlp_path, "bignlp/data_preparation/extract_script.sh"
             )
             create_slurm_file(
                 new_script_path=extract_script_path,
@@ -174,7 +174,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         if preprocess_data:
             # Preprocess the dataset
             preprocess_script_path = os.path.join(
-                bignlp_path, "data_preparation/preprocess_script.sh"
+                bignlp_path, "bignlp/data_preparation/preprocess_script.sh"
             )
             create_slurm_file(
                 new_script_path=preprocess_script_path,

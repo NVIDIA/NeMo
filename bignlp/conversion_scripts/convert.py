@@ -87,8 +87,8 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     os.makedirs(output_path, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
 
-    new_script_path = os.path.join(bignlp_path, f"conversion_scripts/{model_train_name}.sh")
-    code_path = os.path.join(bignlp_path, "conversion_scripts/convert_ckpt.py")
+    new_script_path = os.path.join(bignlp_path, f"bignlp/conversion_scripts/{model_train_name}.sh")
+    code_path = os.path.join(bignlp_path, "bignlp/conversion_scripts/convert_ckpt.py")
     cmd_str = f"python3 -u {code_path} {hydra_args}"
     
     if cfg.cluster_type == "bcm":

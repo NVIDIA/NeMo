@@ -39,7 +39,7 @@ def prime_dns_connections() -> None:
     print(f'SPDNS: {me} connected to {master_addr}:{master_port}')
     sock.close()
 
-@hydra.main(config_path="../conf", config_name="config")
+@hydra.main(config_path="../../conf", config_name="config")
 def main(cfg):
     args = sys.argv[1:]
     for index, arg in enumerate(args):
