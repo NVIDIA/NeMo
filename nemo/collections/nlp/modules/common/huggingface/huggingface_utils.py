@@ -24,7 +24,6 @@ from transformers import (
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
-    AutoModelForCausalLM,
     BertConfig,
     DistilBertConfig,
     GPT2Config,
@@ -72,12 +71,6 @@ HUGGINGFACE_MODELS = {
         "config": GPT2Config,
         "pretrained_model_list": GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
-    "GPT2LMHeadModel": {
-        "default": "gpt2",
-        "class": GPT2Encoder,
-        "config": GPT2Config,
-        "pretrained_model_list": GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
-    },
 }
 
 VOCAB_FILE_NAME = {
@@ -106,11 +99,7 @@ def get_huggingface_lm_model(
     """
 
     try:
-        if 'gpt' in pretrained_model_name:
-            automodel = AutoModelForCausalLM.from_pretrained(pretrained_model_name)
-        else:
-            automodel = AutoModel.from_pretrained(pretrained_model_name)
-
+        automodel = AutoModel.from_pretrained(pretrained_model_name)
     except Exception as e:
         raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
 
@@ -132,7 +121,7 @@ def get_huggingface_lm_model(
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
-        raise ValueError(f"Use HuffingFace API directly in NeMo for {pretrained_model_name}")
+        raise ValueError(f"Use HuggingFace API directly in NeMo for {pretrained_model_name}")
 
 
 def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -> List[str]:
