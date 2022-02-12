@@ -138,6 +138,7 @@ class ConvSubsampling(torch.nn.Module):
 
         # is_causal = False
         self.is_causal = is_causal
+        self.is_streaming = False
 
         in_channels = 1
         layers = []
@@ -224,47 +225,45 @@ class ConvSubsampling(torch.nn.Module):
         self.conv = torch.nn.Sequential(*layers)
 
     def forward(self, x, lengths, cache=None, cache_next=None):
-        x = x.unsqueeze(1)
-        x_length = x.size()[-2]
-        input_x = x
-        if cache is not None:
-            if hasattr(self, '_cache_id'):
-                cache = cache[self._cache_id]
-                cache_next = cache_next[self._cache_id]
-
-            cache_length = cache.size()[-2]
-            cache_next_length = cache_next.size()[-2]
-
-            if x_length != 1:
-                # needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
-                needed_cache = cache[:, :, -self._max_cache_len :]
-                x = torch.cat((needed_cache, x), dim=-2)
-
-        x = self.conv(x)
-
-        if cache is not None:
-            if x_length != 1:
-                x = x[:, :, 2:, :]
-            # cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
-            cache_next[:, :, :-x_length] = cache[:, :, cache_length - (cache_next_length - x_length) :]
-            cache_next[:, :, -x_length:, :] = input_x[:, :, -cache_next_length:, :]
-
-        b, c, t, f = x.size()
-        x = self.out(x.transpose(1, 2).reshape(b, t, -1))
-
-        if cache is not None:
-            conv_right_padding = 0
-        else:
-            conv_right_padding = self._right_padding
-
         lengths = calc_length(
             lengths,
-            padding=self._left_padding + conv_right_padding,
+            padding=self._left_padding + self._right_padding,
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
+
+        x = x.unsqueeze(1)
+        #x_length = x.size()[-2]
+        # if self.is_streaming: #cache is not None:
+        #     # input_x = x
+        #     # if hasattr(self, '_cache_id'):
+        #     #     cache = cache[self._cache_id]
+        #     #     cache_next = cache_next[self._cache_id]
+        #     # if x_length != 1:
+        #     #     # needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
+        #     #     needed_cache = cache[:, :, -self._max_cache_len:]
+        #     #     x = torch.cat((needed_cache, x), dim=-2)
+        #     #
+        #     # cache_length = cache.size()[-2]
+        #     # cache_next_length = cache_next.size()[-2]
+        #     # cache_next[:, :, :-x_length] = cache[:, :, cache_length - (cache_next_length - x_length) :]
+        #     # cache_next[:, :, -x_length:, :] = input_x[:, :, -cache_next_length:, :]
+        #     conv_right_padding = 0
+        # else:
+        #conv_right_padding = self._right_padding
+
+        x = self.conv(x)
+        #if cache is not None and x_length != 1:
+
+        if self.is_streaming: # and x.size(2) > 1: #cache is not None:
+            x = x[:, :, 2:, :]
+            lengths = lengths - 2
+
+            # cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
+        b, c, t, f = x.size()
+        x = self.out(x.transpose(1, 2).reshape(b, t, -1))
 
         return x, lengths
 
