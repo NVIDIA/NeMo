@@ -110,7 +110,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
                 "cache_last_channel_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_time_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-                "cache_pre_encode_next": NeuralType(('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
+                #"cache_pre_encode_next": NeuralType(('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
             }
         )
 
@@ -283,19 +283,19 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.pos_enc.extend_pe(max_audio_length, device)
 
     @typecheck()
-    def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None):
+    def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None): #, cache_pre_encode=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_for_export(
             audio_signal=audio_signal,
             length=length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
-            cache_pre_encode=cache_pre_encode,
+            #cache_pre_encode=cache_pre_encode,
         )
 
     @typecheck()
     def forward_for_export(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None#, cache_pre_encode=None
     ):
         max_audio_length: int = audio_signal.size(-1)
         length = length.to(audio_signal.device)
@@ -308,16 +308,16 @@ class ConformerEncoder(NeuralModule, Exportable):
             )
 
         if cache_last_channel is not None:
-            cache_pre_encode_next = None #torch.zeros_like(cache_pre_encode)
+            #cache_pre_encode_next = None #torch.zeros_like(cache_pre_encode)
             cache_last_time_next = torch.zeros_like(cache_last_time)
         else:
-            cache_pre_encode_next = None
+            #cache_pre_encode_next = None
             cache_last_time_next = None
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling) or isinstance(self.pre_encode, StackingSubsampling):
             audio_signal, length = self.pre_encode(
-                x=audio_signal, lengths=length, cache=cache_pre_encode, cache_next=cache_pre_encode_next
+                x=audio_signal, lengths=length#, cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
         else:
             audio_signal = self.pre_encode(x=audio_signal)
@@ -385,7 +385,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if cache_last_channel is not None:
-            return audio_signal, length, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next
+            return audio_signal, length, cache_last_channel_next, cache_last_time_next#, cache_pre_encode_next
         else:
             return audio_signal, length
 

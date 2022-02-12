@@ -81,7 +81,7 @@ def set_streaming_mode(asr_model, cache_drop_size=0):
                 m._cache_id = last_time_num
                 last_time_num += 1
                 m.cache_drop_size = cache_drop_size
-    pre_encoder = asr_model.encoder.pre_encode
+    # pre_encoder = asr_model.encoder.pre_encode
     # if type(pre_encoder) == ConvSubsampling:
     #     pre_encoder.is_streaming = True
 
@@ -95,7 +95,7 @@ def model_process(
     valid_out_len=None,
     cache_last_channel=None,
     cache_last_time=None,
-    cache_pre_encode=None,
+    #cache_pre_encode=None,
     previous_hypotheses=None,
 ):
 
@@ -104,13 +104,13 @@ def model_process(
         length=length,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
-        cache_pre_encode=cache_pre_encode,
+        #cache_pre_encode=cache_pre_encode,
     )
-    if len(out) == 5:
-        encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next = out
+    if len(out) > 2: #4:
+        encoded, encoded_len, cache_last_channel_next, cache_last_time_next = out
     else:
         encoded, encoded_len = out
-        cache_last_channel_next = cache_last_time_next = cache_pre_encode_next = None
+        cache_last_channel_next = cache_last_time_next = None
 
     if valid_out_len is not None:
         encoded = encoded[:, :, :valid_out_len]
@@ -120,7 +120,8 @@ def model_process(
         best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
             encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
         )
-        #greedy_predictions = [hyp.y_sequence for hyp in best_hyp][0]
+        #greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
+        #greedy_predictions = best_hyp[0].y_sequence
         greedy_predictions = []
         for alignment in best_hyp[0].alignments:
             alignment.remove(1024)
@@ -131,10 +132,10 @@ def model_process(
         log_probs = asr_model.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         best_hyp = None
-    return greedy_predictions, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp
+    return greedy_predictions, cache_last_channel_next, cache_last_time_next, best_hyp
 
 
-def greedy_merge(asr_model, preds):
+def greedy_merge_ctc(asr_model, preds):
     blank_id = len(asr_model.decoder.vocabulary)
     model_tokenizer = asr_model.tokenizer
 
@@ -146,6 +147,19 @@ def greedy_merge(asr_model, preds):
         previous = p
     hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
     return hypothesis
+
+# def greedy_merge_trnasducer(asr_model, preds):
+#     blank_id = len(asr_model.decoder.vocabulary)
+#     model_tokenizer = asr_model.tokenizer
+#
+#     decoded_prediction = []
+#     previous = blank_id
+#     for p in preds:
+#         if (p != previous or previous == blank_id) and p != blank_id:
+#             decoded_prediction.append(int(p))
+#         previous = p
+#     hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
+#     return hypothesis
 
 
 def main():
@@ -232,14 +246,14 @@ def main():
         input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
     )
 
-    asr_out_whole, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp = model_process(
+    asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
         asr_model=asr_model,
         audio_signal=processed_signal,
         length=processed_signal_length,
         valid_out_len=None,
         cache_last_channel=None,
         cache_last_time=None,
-        cache_pre_encode=None,
+        #cache_pre_encode=None,
         previous_hypotheses=None,
     )
 
@@ -280,14 +294,14 @@ def main():
     init_audio = processed_signal[:, :, :init_chunk_size]
     init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
 
-    asr_out_stream, cache_last_channel_next, cache_last_time_next, cache_pre_encode_next, best_hyp = model_process(
+    asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
         asr_model=asr_model,
         audio_signal=init_audio,
         length=torch.tensor([init_audio.size(-1)]),# torch.tensor([init_chunk]),
         valid_out_len=(init_shift_size - 1) // subsampling_factor + 1,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
-        cache_pre_encode=None, #cache_pre_encode,
+        #cache_pre_encode=None, #cache_pre_encode,
         previous_hypotheses=None,
     )
     print(asr_out_stream)
@@ -326,7 +340,7 @@ def main():
             asr_out_stream,
             cache_last_channel_next,
             cache_last_time_next,
-            cache_pre_encode_next,
+            #cache_pre_encode_next,
             previous_hypotheses,
         ) = model_process(
             asr_model=asr_model,
@@ -335,7 +349,7 @@ def main():
             valid_out_len=valid_out_len,
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
-            cache_pre_encode=None, #cache_pre_encode_next,
+            #cache_pre_encode=None, #cache_pre_encode_next,
             previous_hypotheses=previous_hypotheses,
         )
         if last_channel_cache_size >= 0:
