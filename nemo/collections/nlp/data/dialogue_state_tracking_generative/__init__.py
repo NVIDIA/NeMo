@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,3 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.data_processor import DialogueSGDDataProcessor
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_bert_dataset import (
+    DialogueBERTDataset,
+    DialogueSGDBERTDataset,
+)
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_gpt_dataset import DialogueGPTDataset
+from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.schema import Schema
