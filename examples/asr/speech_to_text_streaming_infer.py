@@ -120,7 +120,12 @@ def model_process(
         best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
             encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
         )
-        greedy_predictions = [hyp.y_sequence for hyp in best_hyp][0]
+        #greedy_predictions = [hyp.y_sequence for hyp in best_hyp][0]
+        greedy_predictions = []
+        for alignment in best_hyp[0].alignments:
+            alignment.remove(1024)
+            greedy_predictions.extend(alignment)
+        greedy_predictions = torch.Tensor(greedy_predictions)
 
     else:
         log_probs = asr_model.decoder(encoder_output=encoded)
@@ -239,7 +244,7 @@ def main():
     )
 
     print(asr_out_whole)
-    print(greedy_merge(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
+    #print(greedy_merge(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
 
@@ -344,7 +349,7 @@ def main():
             break
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
-    print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
+    #print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
 
     print(torch.sum(asr_out_stream_total != asr_out_whole))
     print(step_num)
