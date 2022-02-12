@@ -88,6 +88,7 @@ class Normalizer:
         elif lang == 'de':
             from nemo_text_processing.text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.de.verbalizers.verbalize_final import VerbalizeFinalFst
+
         self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
@@ -95,7 +96,10 @@ class Normalizer:
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        if lang == "de":
+            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic, lm=lm)
+        else:    
+            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
         self.lang = lang
 
