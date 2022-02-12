@@ -27,7 +27,7 @@ lowfreq: 0
 highfreq: 8000
 window: hann
 
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
@@ -77,6 +77,7 @@ model:
       _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.5
 
   train_ds:
     dataset:
@@ -99,8 +100,9 @@ model:
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
-      pitch_avg: ${model.pitch_mean}
+      pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
@@ -131,6 +133,7 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false

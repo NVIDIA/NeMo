@@ -18,10 +18,6 @@ import math
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType, AttnType, LayerType
-from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
-from apex.transformer.utils import divide as safe_divide
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
@@ -32,6 +28,16 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType, AttnType, LayerType
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+    from apex.transformer.utils import divide as safe_divide
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 """ We use the following notation throughout this file:
@@ -619,6 +625,7 @@ class ParallelTransformer(MegatronModule):
         hidden_dropout=0.1,
         use_cpu_initialization=False,
         bias_gelu_fusion=True,
+        masked_softmax_fusion=True,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
@@ -666,6 +673,7 @@ class ParallelTransformer(MegatronModule):
                 hidden_dropout=hidden_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_gelu_fusion=bias_gelu_fusion,
+                masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,

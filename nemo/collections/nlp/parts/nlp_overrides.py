@@ -65,10 +65,12 @@ class NLPDDPPlugin(DDPPlugin):
         no_ddp_communication_hook: bool = False,
         **kwargs: Union[Any, Dict[str, Any]],
     ) -> None:
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(parallel_devices, num_nodes, cluster_environment, checkpoint_io, sync_batchnorm, **kwargs)
 
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
         self.no_ddp_communication_hook = no_ddp_communication_hook
 
     def setup_distributed(self, global_rank: int = None, world_size: int = None) -> None:
@@ -76,10 +78,11 @@ class NLPDDPPlugin(DDPPlugin):
         super().setup_distributed()
 
         # init model parallel if needed
-        app_state = AppState()
+        if parallel_state.is_unitialized():
+            app_state = AppState()
 
-        if app_state.model_parallel_size is not None:
-            self.init_model_parallel(app_state.global_rank, app_state.world_size)
+            if app_state.model_parallel_size is not None:
+                self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -100,7 +103,6 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
 
@@ -127,7 +129,7 @@ class NLPDDPPlugin(DDPPlugin):
         # we initialize megatron-lm model parallel and data parallel groups
         # after initializing DDP with PTL.
         if app_state.model_parallel_size is not None:
-            if torch.distributed.is_initialized():
+            if torch.distributed.is_initialized() and app_state.data_parallel_group is None:
                 parallel_state.initialize_model_parallel(app_state.model_parallel_size)
                 app_state.model_parallel_group = parallel_state.get_tensor_model_parallel_group()
                 app_state.data_parallel_group = parallel_state.get_data_parallel_group()
@@ -145,12 +147,13 @@ class NLPDDPPlugin(DDPPlugin):
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
-        if isinstance(self.lightning_module.model, Float16Module):
-            new_state_dict = {}
-            for key in checkpoint['state_dict'].keys():
-                new_key = key.replace('model.', 'model.module.', 1)
-                new_state_dict[new_key] = checkpoint['state_dict'][key]
-            checkpoint['state_dict'] = new_state_dict
+        if hasattr(self.lightning_module, 'model'):
+            if isinstance(self.lightning_module.model, Float16Module):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
 
         self.lightning_module.load_state_dict(checkpoint["state_dict"])
 
@@ -200,9 +203,15 @@ class NLPDDPPlugin(DDPPlugin):
 
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     def __init__(self) -> None:
-        super().__init__()
         if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+            logging.warning(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/apex\n"
+                "Megatron-based models require Apex to function correctly."
+            )
+            # raise ImportError(
+            #    "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            # )
+        super().__init__()
 
     def save_to(self, model, save_path: str):
         app_state = AppState()
@@ -410,7 +419,10 @@ class GradScaler(torch.cuda.amp.GradScaler):
         self._init_growth_tracker = state_dict["_growth_tracker"]
         if self._growth_tracker is not None:
             self._growth_tracker.fill_(state_dict["_growth_tracker"])
-        self._hysteresis_tracker = state_dict["_hysteresis_tracker"]
+        if "_hysterisis_tracker" in state_dict:
+            self._hysteresis_tracker = state_dict["_hysterisis_tracker"]
+        else:
+            self._hysteresis_tracker = 1
 
 
 class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):

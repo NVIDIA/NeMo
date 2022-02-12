@@ -27,7 +27,7 @@ lowfreq: 0
 highfreq: 8000
 window: hann
 
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
@@ -81,7 +81,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
+      _target_: nemo.collections.tts.torch.data.TTSDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -109,7 +109,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
+      _target_: nemo.collections.tts.torch.data.TTSDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}

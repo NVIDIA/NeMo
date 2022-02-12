@@ -87,8 +87,9 @@ def get_lm_model(
         )
 
     if nemo_file is not None:
-        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
         import torch
+
+        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 
         class Identity(torch.nn.Module):
             def __init__(self):

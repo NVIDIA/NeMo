@@ -267,6 +267,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.out_proj = None
             self._feat_out = d_model
         self.set_max_audio_length(self.pos_emb_max_len)
+        self.use_pad_mask = True
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -294,7 +295,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward_for_export(
-        self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_pre_encode=None
     ):
         max_audio_length: int = audio_signal.size(-1)
         length = length.to(audio_signal.device)
@@ -404,4 +405,10 @@ class ConformerEncoder(NeuralModule, Exportable):
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
         mask = self.seq_range[:max_audio_length].repeat(seq_lens.size(0), 1) < seq_lens.unsqueeze(-1)
+        return mask
+
+    def enable_pad_mask(self, on=True):
+        # On inference, user may chose to disable pad mask
+        mask = self.use_pad_mask
+        self.use_pad_mask = on
         return mask

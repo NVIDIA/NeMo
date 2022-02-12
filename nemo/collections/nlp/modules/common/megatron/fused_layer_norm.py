@@ -13,9 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
+
+try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.normalization.fused_layer_norm import MixedFusedLayerNorm
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def get_layer_norm(hidden_size, eps=1e-5, persist_layer_norm=False):
