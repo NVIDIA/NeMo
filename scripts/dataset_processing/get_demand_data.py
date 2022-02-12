@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# USAGE: python get_librispeech_data.py --data_root=<where to put data>
-#        --data_set=<datasets_to_download> --num_workers=<number of parallel workers>
-# where <datasets_to_download> can be: dev_clean, dev_other, test_clean,
-# test_other, train_clean_100, train_clean_360, train_other_500 or ALL
-# You can also put more than one data_set comma-separated:
-# --data_set=dev_clean,train_clean_100
+
+# USAGE: python get_demand_data.py --data_root=<where to put data>
+#        --data_set=<datasets_to_download>
+# where <datasets_to_download> can be: one or more of the 16 kHz noise profiles
+# listed at https://zenodo.org/record/1227121#.Ygb4avXMKJk ,
+# or ALL
+# You can put more than one data_set comma-separated:
+# --data_sets=DKITCHEN,DLIVING,NRIVER
 import argparse
 import fnmatch
 import functools
@@ -26,29 +27,37 @@ import logging
 import multiprocessing
 import os
 import subprocess
-import tarfile
 import urllib.request
+import shutil
+import glob
 
-from sox import Transformer
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
-parser.add_argument("--data_sets", default="dev_clean", type=str)
-parser.add_argument("--num_workers", default=4, type=int)
+parser.add_argument("--data_sets", default="ALL", type=str)
+
 parser.add_argument('--log', dest='log', action='store_true', default=False)
 args = parser.parse_args()
 
 URLS = {
-    'TRAIN_CLEAN_100': ("http://www.openslr.org/resources/12/train-clean-100.tar.gz"),
-    'TRAIN_CLEAN_360': ("http://www.openslr.org/resources/12/train-clean-360.tar.gz"),
-    'TRAIN_OTHER_500': ("http://www.openslr.org/resources/12/train-other-500.tar.gz"),
-    'DEV_CLEAN': "http://www.openslr.org/resources/12/dev-clean.tar.gz",
-    'DEV_OTHER': "http://www.openslr.org/resources/12/dev-other.tar.gz",
-    'TEST_CLEAN': "http://www.openslr.org/resources/12/test-clean.tar.gz",
-    'TEST_OTHER': "http://www.openslr.org/resources/12/test-other.tar.gz",
-    'DEV_CLEAN_2': "https://www.openslr.org/resources/31/dev-clean-2.tar.gz",
-    'TRAIN_CLEAN_5': "https://www.openslr.org/resources/31/train-clean-5.tar.gz",
+    'DKITCHEN': ("https://zenodo.org/record/1227121/files/DKITCHEN_16k.zip"),
+    'DLIVING': ("https://zenodo.org/record/1227121/files/DLIVING_16k.zip"),
+    'DWASHING': ("https://zenodo.org/record/1227121/files/DWASHING_16k.zip"),
+    'NFIELD': ("https://zenodo.org/record/1227121/files/NFIELD_16k.zip"),
+    'NPARK': ("https://zenodo.org/record/1227121/files/NPARK_16k.zip"),
+    'NRIVER': ("https://zenodo.org/record/1227121/files/NRIVER_16k.zip"),
+    'OHALLWAY': ("https://zenodo.org/record/1227121/files/OHALLWAY_16k.zip"),
+    'OMEETING': ("https://zenodo.org/record/1227121/files/OMEETING_16k.zip"),
+    'OOFFICE': ("https://zenodo.org/record/1227121/files/OOFFICE_16k.zip"),
+    'PCAFETER': ("https://zenodo.org/record/1227121/files/PCAFETER_16k.zip"),
+    'PRESTO': ("https://zenodo.org/record/1227121/files/PRESTO_16k.zip"),
+    'PSTATION': ("https://zenodo.org/record/1227121/files/PSTATION_16k.zip"),
+    'SPSQUARE': ("https://zenodo.org/record/1227121/files/SPSQUARE_16k.zip"),
+    'STRAFFIC': ("https://zenodo.org/record/1227121/files/STRAFFIC_16k.zip"),
+    'TBUS': ("https://zenodo.org/record/1227121/files/TBUS_16k.zip"),
+    'TCAR': ("https://zenodo.org/record/1227121/files/TCAR_16k.zip"),
+    'TMETRO': ("https://zenodo.org/record/1227121/files/TMETRO_16k.zip"),
 }
 
 
@@ -73,104 +82,63 @@ def __maybe_download_file(destination: str, source: str):
 
 
 def __extract_file(filepath: str, data_dir: str):
-    try:
-        tar = tarfile.open(filepath)
-        tar.extractall(data_dir)
-        tar.close()
-    except Exception:
-        logging.info('Not extracting. Maybe already there?')
+    shutil.unpack_archive(filepath, data_dir)
 
 
-def __process_transcript(file_path: str, dst_folder: str):
+def __create_manifest(dst_folder: str):
     """
-    Converts flac files to wav from a given transcript, capturing the metadata.
+    Create manifests for the noise files
     Args:
         file_path: path to a source transcript  with flac sources
-        dst_folder: path where wav files will be stored
+        dst_folder: path where manifests will be created
     Returns:
+
         a list of metadata entries for processed files.
     """
-    entries = []
-    root = os.path.dirname(file_path)
-    with open(file_path, encoding="utf-8") as fin:
-        for line in fin:
-            id, text = line[: line.index(" ")], line[line.index(" ") + 1 :]
-            transcript_text = text.lower().strip()
-
-            # Convert FLAC file to WAV
-            flac_file = os.path.join(root, id + ".flac")
-            wav_file = os.path.join(dst_folder, id + ".wav")
-            if not os.path.exists(wav_file):
-                Transformer().build(flac_file, wav_file)
-            # check duration
-            duration = subprocess.check_output("soxi -D {0}".format(wav_file), shell=True)
-
-            entry = {}
-            entry['audio_filepath'] = os.path.abspath(wav_file)
-            entry['duration'] = float(duration)
-            entry['text'] = transcript_text
-            entries.append(entry)
-    return entries
-
-
-def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_workers: int):
-    """
-    Converts flac to wav and build manifests's json
-    Args:
-        data_folder: source with flac files
-        dst_folder: where wav files will be stored
-        manifest_file: where to store manifest
-        num_workers: number of parallel workers processing files
-    Returns:
-    """
-
-    if not os.path.exists(dst_folder):
-        os.makedirs(dst_folder)
-
-    files = []
-    entries = []
-
-    for root, dirnames, filenames in os.walk(data_folder):
-        for filename in fnmatch.filter(filenames, '*.trans.txt'):
-            files.append(os.path.join(root, filename))
-
-    with multiprocessing.Pool(num_workers) as p:
-        processing_func = functools.partial(__process_transcript, dst_folder=dst_folder)
-        results = p.imap(processing_func, files)
-        for result in tqdm(results, total=len(files)):
-            entries.extend(result)
-
-    with open(manifest_file, 'w') as fout:
-        for m in entries:
-            fout.write(json.dumps(m) + '\n')
+    #Read directory
+    #Get all wav file names
+    #create line per wav file in manifest
+    noise_name = os.path.basename(dst_folder)
+    wav_files = glob.glob(dst_folder+"/*.wav")
+    wav_files.sort()
+    os.makedirs(os.path.join(os.path.dirname(dst_folder), "manifests"), exist_ok=True)
+    with open(os.path.join(os.path.dirname(dst_folder), "manifests", noise_name+".json"), "w") as mfst_f:
+        for wav_f in wav_files:
+            dur = subprocess.check_output("soxi -D {0}".format(wav_f), shell=True)
+            row = {
+                "audio_filepath": wav_f,
+                "text": "",
+                "duration": float(dur)
+            }
+            mfst_f.write(json.dumps(row) +"\n")
 
 
 def main():
     data_root = args.data_root
     data_sets = args.data_sets
-    num_workers = args.num_workers
 
     if args.log:
+        print("here")
         logging.basicConfig(level=logging.INFO)
+    if not os.path.exists(data_root):
+        os.makedirs(data_root)
 
     if data_sets == "ALL":
-        data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360,train_other_500,test_clean,test_other"
-    if data_sets == "mini":
-        data_sets = "dev_clean_2,train_clean_5"
-    for data_set in data_sets.split(','):
+        data_sets = URLS.keys()
+    else:
+        data_sets = data_sets.split(',')
+
+    for data_set in data_sets:
+        if data_set not in URLS.keys():
+            raise ValueError(f"{data_sets} is not part of demand noise database")
         logging.info("\n\nWorking on: {0}".format(data_set))
-        filepath = os.path.join(data_root, data_set + ".tar.gz")
+        filepath = os.path.join(data_root, data_set + "_16k.zip")
         logging.info("Getting {0}".format(data_set))
         __maybe_download_file(filepath, data_set.upper())
         logging.info("Extracting {0}".format(data_set))
         __extract_file(filepath, data_root)
         logging.info("Processing {0}".format(data_set))
-        __process_data(
-            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),),
-            os.path.join(os.path.join(data_root, "LibriSpeech"), data_set.replace("_", "-"),) + "-processed",
-            os.path.join(data_root, data_set + ".json"),
-            num_workers=num_workers,
-        )
+        __create_manifest(os.path.join(data_root, data_set))
     logging.info('Done!')
 
 
