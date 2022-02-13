@@ -142,6 +142,7 @@ class RNNEncoder(NeuralModule, Exportable):
 
         self.layers = nn.ModuleList()
         for i in range(n_layers):
+            rnn_proj_out = proj_out//2 if bidirectional else proj_out
             layer = nn.LSTM(
                 input_size=self._feat_out,
                 hidden_size=d_model,
@@ -149,13 +150,12 @@ class RNNEncoder(NeuralModule, Exportable):
                 batch_first=True,
                 bidirectional=bidirectional,
 #                dropout=dropout,
-                proj_size=proj_out
+                proj_size=rnn_proj_out
             )
             self.layers.append(layer)
-            rnn_out_size = 2*proj_out if bidirectional else proj_out
-            self.layers.append(nn.LayerNorm(rnn_out_size))
+            self.layers.append(nn.LayerNorm(proj_out))
             self.layers.append(nn.Dropout(p=dropout))
-            self._feat_out = rnn_out_size
+            self._feat_out = proj_out
 
         if proj_out > 0 and self._feat_out != proj_out:
             self.out_proj = nn.Linear(self._feat_out, proj_out)
