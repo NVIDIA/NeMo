@@ -78,10 +78,11 @@ class NLPDDPPlugin(DDPPlugin):
         super().setup_distributed()
 
         # init model parallel if needed
-        app_state = AppState()
+        if parallel_state.is_unitialized():
+            app_state = AppState()
 
-        if app_state.model_parallel_size is not None:
-            self.init_model_parallel(app_state.global_rank, app_state.world_size)
+            if app_state.model_parallel_size is not None:
+                self.init_model_parallel(app_state.global_rank, app_state.world_size)
 
     def configure_ddp(self):
         """ Override LightningModule ddp if using model parallel.
@@ -102,7 +103,6 @@ class NLPDDPPlugin(DDPPlugin):
                 device_ids=device_ids,
                 output_device=device_ids[0],
                 process_group=app_state.data_parallel_group,
-                find_unused_parameters=False,
                 **self._ddp_kwargs,
             )
 

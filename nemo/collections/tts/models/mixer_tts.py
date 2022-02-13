@@ -644,9 +644,13 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         return pred_spect
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-        return torch.tensor(self.tokenizer.encode(text)).long().unsqueeze(0).to(self.device)
+        with self.tokenizer.set_phone_prob(prob=1.0):
+            tokens = self.tokenizer.encode(text)
+        return torch.tensor(tokens).long().unsqueeze(0).to(self.device)
 
     def _loader(self, cfg):
         try:

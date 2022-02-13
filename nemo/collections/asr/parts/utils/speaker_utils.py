@@ -26,7 +26,6 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 
 """
@@ -83,7 +82,6 @@ def audio_rttm_map(manifest):
     return AUDIO_RTTM_MAP
 
 
-@experimental
 def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
     """
     Check whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
@@ -157,7 +155,6 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         return None
 
 
-@experimental
 def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
     The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are

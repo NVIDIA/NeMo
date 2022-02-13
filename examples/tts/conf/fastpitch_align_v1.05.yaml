@@ -77,6 +77,7 @@ model:
       _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.5
 
   train_ds:
     dataset:
@@ -101,6 +102,7 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
@@ -131,6 +133,7 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
