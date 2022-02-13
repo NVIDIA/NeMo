@@ -319,7 +319,7 @@ class ClusterEmbedding:
         """
         scale_index = 0
         pickle_path = os.path.join(out_dir, 'speaker_outputs', 'embeddings', f'subsegments_scale{scale_index}_embeddings.pkl')
-        clus_label_path = os.path.join(out_dir, 'speaker_outputs', f'subsegments_cluster.label')
+        clus_label_path = os.path.join(out_dir, 'speaker_outputs', f'subsegments_scale{scale_index}_cluster.label')
         with open(pickle_path, "rb") as input_file:
             emb_dict = pkl.load(input_file)
         with open(clus_label_path) as f:
