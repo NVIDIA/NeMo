@@ -40,6 +40,7 @@ try:
     masc_plural = pynini.project(masc, "output")
 
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
     fem_plural = None
     masc_plural = None

@@ -29,11 +29,11 @@ try:
     from pynini.lib import pynutil
 
     unit = pynini.string_file(get_abs_path("data/measures/measurements.tsv"))
-
     unit_plural_fem = pynini.string_file(get_abs_path("data/measures/measurements_plural_fem.tsv"))
     unit_plural_masc = pynini.string_file(get_abs_path("data/measures/measurements_plural_masc.tsv"))
 
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
@@ -41,7 +41,7 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure,  e.g.
-        "2,4 g" -> measure { cardinal { integer_part: "dos" fractional_part: "quatro" units: "gramos" preserve_order: true } }
+        "2,4 g" -> measure { cardinal { integer_part: "dos" fractional_part: "cuatro" units: "gramos" preserve_order: true } }
         "1 g" -> measure { cardinal { integer: "un" units: "gramo" preserve_order: true } }
         "1 millón g" -> measure { cardinal { integer: "un quantity: "millón" units: "gramos" preserve_order: true } }
         e.g. "a-8" —> "a ocho"
@@ -58,10 +58,13 @@ class MeasureFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
+
         unit_singular = unit
         unit_plural = unit_singular @ (unit_plural_fem | unit_plural_masc)
+
         graph_unit_singular = convert_space(unit_singular)
         graph_unit_plural = convert_space(unit_plural)
+
         optional_graph_negative = pynini.closure("-", 0, 1)
 
         graph_unit_denominator = (
@@ -93,7 +96,7 @@ class MeasureFst(GraphFst):
             + unit_plural
         )
 
-        subgraph_cardinal |= (  # If introducing quantities of feminine gender, fixes needed here
+        subgraph_cardinal |= (
             (optional_graph_negative + pynini.accep("1")) @ cardinal.fst
             + insert_space
             + pynini.closure(delete_space, 0, 1)

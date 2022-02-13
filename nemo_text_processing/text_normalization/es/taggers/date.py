@@ -19,22 +19,25 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    delete_leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
     articles = pynini.union("de", "del", "el", "del año")
+    delete_leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
+    month_numbers = pynini.string_file(get_abs_path("data/dates/months.tsv"))
 
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
     articles = None
+    delete_leading_zero = None
+    month_numbers = None
 
     PYNINI_AVAILABLE = False
-
 
 class DateFst(GraphFst):
     """
     Finite state transducer for classifying date, e.g.
         "01.04.2010" -> date { day: "un" month: "enero" year: "dos mil diez" preserve_order: true }
-        "1994" -> date { year: "mil nuevecientos noventa y cuatro" }
-        "1900" -> date { year: "mil nuevecientos" }
+        "marzo 4 2000" -> date { month: "marzo" day: "cuatro" year: "dos mil" }
+        "1990-20-01" -> date { year: "mil novecientos noventa" day: "veinte" month: "enero" }
 
     Args:
         cardinal: cardinal GraphFst
@@ -44,11 +47,13 @@ class DateFst(GraphFst):
 
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
-        number_to_month = pynini.string_file(get_abs_path("data/dates/months.tsv")).optimize()
+
+        number_to_month = month_numbers
         month_graph = pynini.project(number_to_month, "output")
 
         numbers = cardinal.graph
         optional_leading_zero = delete_leading_zero | NEMO_DIGIT
+
         # 01, 31, 1
         digit_day = optional_leading_zero @ pynini.union(*[str(x) for x in range(1, 32)]) @ numbers
         day = (pynutil.insert("day: \"") + digit_day + pynutil.insert("\"")).optimize()

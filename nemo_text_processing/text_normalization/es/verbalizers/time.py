@@ -28,37 +28,39 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+    alt_minutes = pynini.string_file(get_abs_path("data/time/alt_minutes.tsv"))
 
+    morning_times = pynini.string_file(get_abs_path("data/time/morning_times.tsv"))
+    afternoon_times = pynini.string_file(get_abs_path("data/time/afternoon_times.tsv"))
+    evening_times = pynini.string_file(get_abs_path("data/time/evening_times.tsv"))
+
+    PYNINI_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
+    morning_times = None
+    afternoon_times = None
+    evening_times = None
+
+    PYNINI_AVAILABLE = False
 
 class TimeFst(GraphFst):
     """
     Finite state transducer for verbalizing time, e.g.
-        time { hours: "twelve" minutes: "thirty" suffix: "a m" zone: "e s t" } -> twelve thirty a m e s t
-        time { hours: "twelve" } -> twelve o'clock
+        time { hours: "doce" minutes: "media" suffix: "a m" } -> doce y media de la noche
+        time { hours: "doce" } -> twelve o'clock
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    # un -> uno, plurals
-    # style
     def __init__(self, deterministic: bool = True):
         super().__init__(name="time", kind="verbalize", deterministic=deterministic)
 
-        alt_minutes = pynini.string_file(get_abs_path("data/time/alt_minutes.tsv"))
-        change_minutes = pynini.cdrewrite(alt_minutes, "", "", NEMO_SIGMA)
+        change_minutes = pynini.cdrewrite(alt_minutes, pynini.accep("[BOS]"), pynini.accep("[EOS]"), NEMO_SIGMA)
 
-        morning_times = pynini.string_file(get_abs_path("data/time/morning_times.tsv"))
         morning_phrases = pynini.cross("am", "de la mañana")
-
-        afternoon_times = pynini.string_file(get_abs_path("data/time/afternoon_times.tsv"))
         afternoon_phrases = pynini.cross("pm", "de la tarde")
-
-        evening_times = pynini.string_file(get_abs_path("data/time/evening_times.tsv"))
         evening_phrases = pynini.cross("pm", "de la noche")
 
         # For the 12's

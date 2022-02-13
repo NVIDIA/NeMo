@@ -26,12 +26,30 @@ try:
     import pynini
     from pynini.lib import pynutil
 
+    digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
+    teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
+    twenties = pynini.string_file(get_abs_path("data/ordinals/twenties.tsv")).invert()
+    ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv")).invert()
+    hundreds = pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv")).invert()
+
     PYNINI_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
+    digit = None
+    teens = None
+    twenties = None
+    ties = None
+    hundreds = None
+
     PYNINI_AVAILABLE = False
 
 
 def get_one_to_one_thousand(cardinal):
+    """
+    Produces an acceptor for verbalizations of all numbers from 1 to 1000. Needed for ordinals and fractions.
+
+    Args:
+        cardinal: CardinalFst
+    """
     numbers = pynini.string_map([str(_) for _ in range(1, 1000)]) @ cardinal
     return pynini.project(numbers, "output").optimize()
 
@@ -42,33 +60,33 @@ class OrdinalFst(GraphFst):
         	"21.º" -> ordinal { integer: "vigésimo primero" morphosyntactic_features: "gender_masc" }
     This class converts ordinal up to the millionth (millonésimo) order (exclusive).
 
-    Cardinals below ten are not converted (in order to avoid
-    e.g. "1.º hice..." -> "primero hice ...", "2.ª guerra mundial" -> "segunda guerra mundial"
-    and any other odd conversions.)
-
     This FST also records the ending of the ordinal (called "morphosyntactic_features"):
     either as gender_masc, gender_fem, or apocope. Also introduces plural feature for non-deterministic graphs.
 
     Args:
         cardinal: CardinalFst
+        deterministic: if True will provide a single transduction option,
+            for False multiple transduction are generated (used for audio-based normalization)
     """
 
     def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="ordinal", kind="classify")
         cardinal_graph = cardinal.graph
 
-        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
-        graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
-        graph_twenties = pynini.string_file(get_abs_path("data/ordinals/twenties.tsv")).invert()
-        graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv")).invert()
-        graph_hundreds = pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv")).invert()
+        graph_digit = digit
+        graph_teens = teens
+        graph_ties = ties
+        graph_twenties = twenties
+        graph_hundreds = hundreds
 
         if not deterministic:
             # Some alternative derivations
-            graph_teens |= pynini.cross("once", "decimoprimero")
+            graph_ties = graph_ties | pynini.cross("sesenta", "setuagésimo")
+
+            graph_teens = graph_teens | pynini.cross("once", "decimoprimero")
             graph_teens |= pynini.cross("doce", "decimosegundo")
-            graph_ties |= pynini.cross("sesenta", "setuagésimo")
-            graph_digit |= pynini.cross("nueve", "nono")
+
+            graph_digit = graph_digit | pynini.cross("nueve", "nono")
             graph_digit |= pynini.cross("siete", "sétimo")
 
         tens = (
@@ -77,9 +95,8 @@ class OrdinalFst(GraphFst):
             | graph_twenties
         )
 
-        hundreds = graph_hundreds + pynini.closure(NEMO_SPACE + pynini.union(tens, graph_digit), 0, 1)
-
-        graph_hundred_component = tens | hundreds | graph_digit
+        graph_hundred_component = graph_hundreds + pynini.closure(NEMO_SPACE + pynini.union(tens, graph_digit), 0, 1)
+        graph_hundred_component |= tens | graph_digit
 
         # Need to go up to thousands for fractions
         self.one_to_one_thousand = get_one_to_one_thousand(cardinal_graph)
@@ -96,7 +113,7 @@ class OrdinalFst(GraphFst):
 
         if (
             not deterministic
-        ):  # Formally the words preceding the power of ten should be a prefix, but can vary with standard ordinal composition
+        ):  # Formally the words preceding the power of ten should be a prefix, but some maintain word boundaries.
             graph_thousands |= (self.one_to_one_thousand @ graph_hundred_component) + NEMO_SPACE + thousands
 
         graph_thousands += pynini.closure(NEMO_SPACE + graph_hundred_component, 0, 1)
@@ -133,7 +150,7 @@ class OrdinalFst(GraphFst):
             accept_masc += plural
             accep_fem += plural
 
-            # Romanizations have no morphology marker, so give all
+            # Romanizations have no morphology marker, so in non-deterministic case we provide option for all
             insert_morphology = pynutil.insert(pynini.union(masc, fem)) + plural
             insert_morphology |= pynutil.insert(apocope)
             insert_morphology = (

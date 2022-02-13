@@ -31,29 +31,35 @@ try:
     from pynini.lib import pynutil
 
     quantities = pynini.string_file(get_abs_path("data/numbers/quantities.tsv"))
+    digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+    zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
 
     PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
-    quantities = None
 
+except (ModuleNotFoundError, ImportError):
+    quantities = None
+    digit = None
+    zero = None
+
+    PYNINI_AVAILABLE = False
 
 def get_quantity(decimal: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
-    e.g. 2 million -> integer_part: "dos" quantity: "millones"
-    e.g. 2.4 million -> integer_part: "dos" fractional_part: "quatro" quantity: "million"
+    e.g. 2 millones -> integer_part: "dos" quantity: "millones"
+    e.g. 2.4 millones -> integer_part: "dos" fractional_part: "quatro" quantity: "million"
+    e.g. 2.400 millones -> integer_part: "dos mil cuatrocientos" fractional_part: "quatro" quantity: "million"
 
     Args:
-        decimal: decimal FST
-        cardinal_up_to_hundred: cardinal FST
+        decimal: DecimalFST
+        cardinal_up_to_hundred: CardinalFST
     """
     numbers = pynini.closure(NEMO_DIGIT, 1, 6) @ cardinal_graph
     numbers = pynini.cdrewrite(pynutil.delete(cardinal_separator), "", "", NEMO_SIGMA) @ numbers
 
     res = (
         pynutil.insert("integer_part: \"")
-        + numbers  # The cardinal we're passing only produces 'un' for one, so gender agreement is safe (all quantities are masculine). LImit to 10^6 power.
+        + numbers  # The cardinal we're passing only produces 'un' for one, so gender agreement is safe (all quantities are masculine). Limit to 10^6 power.
         + pynutil.insert("\"")
         + NEMO_SPACE
         + pynutil.insert("quantity: \"")
@@ -67,8 +73,8 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') ->
 class DecimalFst(GraphFst):
     """
     Finite state transducer for classifying decimal, e.g.
-        -11,4006 billion -> decimal { negative: "true" integer_part: "once"  fractional_part: "" quantity: "billion" preserve_order: true }
-        1 billion -> decimal { integer_part: "un" quantity: "billón" preserve_order: true }
+        -11,4006 billones -> decimal { negative: "true" integer_part: "once"  fractional_part: "cuatro cero cero seis" quantity: "billones" preserve_order: true }
+        1 billón -> decimal { integer_part: "un" quantity: "billón" preserve_order: true }
     Args:
         cardinal: CardinalFst
         deterministic: if True will provide a single transduction option,
@@ -77,30 +83,27 @@ class DecimalFst(GraphFst):
 
     def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
-
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-        graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
-        graph_digit |= graph_zero
+        graph_digit = digit | zero
 
         if not deterministic:
             graph = pynini.union(graph_digit, cardinal.hundreds, cardinal.tens)
             graph = graph + pynini.closure(insert_space + graph)
 
         else:
-            # General pattern seems to be 1-3 digits: map as cardinal. \
+            # General pattern seems to be 1-3 digits: map as cardinal \
             graph = cardinal.hundreds | graph_digit | cardinal.tens  # Read up to group of three
+            graph |= graph_digit + pynini.closure(insert_space + graph_digit, 3) # Default to string of digits otherwise
+
             graph |= (
-                graph_zero + insert_space + pynini.closure(graph_digit + insert_space) + graph_digit
-            )  # String of digits after 0, or just string of zeros
-            # Default to string of digits after
-            graph |= graph_digit + pynini.closure(insert_space + graph_digit, 3)
+                zero + insert_space + pynini.closure(graph_digit + insert_space) + graph_digit
+            )  # For cases of scientific notation, want to preserve strings of zeroes following digits
 
         # Need to strip apocope everywhere BUT end of string
         reverse_apocope = pynini.string_map([("un", "uno"), ("ún", "uno")])
         apply_reverse_apocope = pynini.cdrewrite(reverse_apocope, "", NEMO_SPACE, NEMO_SIGMA)
         graph @= apply_reverse_apocope
 
-        # Technically SI standards argues for writing decimals grouped by three, e.g. (1,333 333). This removes any possible spaces
+        # Technically decimals should be space delineated groups of three, e.g. (1,333 333). This removes any possible spaces
         strip_formatting = pynini.cdrewrite(delete_space, "", "", NEMO_SIGMA)
         graph = strip_formatting @ graph
 

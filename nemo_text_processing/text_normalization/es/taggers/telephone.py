@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,25 @@ try:
     import pynini
     from pynini.lib import pynutil
 
+    graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
+    graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
+    graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
+    graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv"))
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
+    graph_digit = None
+    graph_ties = None
+    graph_teen = None
+    graph_twenties  = None
+
     PYNINI_AVAILABLE = False
 
 
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers, e.g.
-        uno dos tres uno dos tres cinco seis siete ocho -> { number_part: "123-123-5678" }.
+        123-123-5678 -> { number_part: "uno dos tres uno dos tres cinco seis siete ocho" }.
         If 10 digits are spoken, they are grouped as 3+3+4 (eg. 123-456-7890).
         If 9 digits are spoken, they are grouped as 3+3+3 (eg. 123-456-789).
         If 8 digits are spoken, they are grouped as 4+4 (eg. 1234-5678).
@@ -44,11 +54,6 @@ class TelephoneFst(GraphFst):
 
         # create `single_digits` and `double_digits` graphs as these will be
         # the building blocks of possible telephone numbers
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv"))
-        graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv"))
-        graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv"))
-
         single_digits = pynini.invert(graph_digit).optimize() | pynini.cross("0", "cero")
 
         double_digits = pynini.union(

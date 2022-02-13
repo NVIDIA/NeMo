@@ -28,13 +28,16 @@ try:
     import pynini
     from pynini.lib import pynutil
 
+    maj_singular_labels = load_labels(get_abs_path("data/money/currency_major.tsv"))
     maj_singular = pynini.string_file((get_abs_path("data/money/currency_major.tsv")))
     min_singular = pynini.string_file(get_abs_path("data/money/currency_minor.tsv"))
     fem_plural = pynini.string_file((get_abs_path("data/money/currency_plural_fem.tsv")))
     masc_plural = pynini.string_file((get_abs_path("data/money/currency_plural_masc.tsv")))
 
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
+    maj_singular_labels = None
     min_singular = None
     maj_singular = None
     fem_plural = None
@@ -51,8 +54,8 @@ class MoneyFst(GraphFst):
         "€1,001" -> money { currency_maj: "euro" integer_part: "un" fractional_part: "cero cero un" }
         "£1,4" -> money { integer_part: "una" currency_maj: "libra" fractional_part: "cuarenta" preserve_order: true }
                -> money { integer_part: "una" currency_maj: "libra" fractional_part: "cuarenta" currency_min: "penique" preserve_order: true }
-        "£0,01" -> money { fractional_part: "un" currency_min: "penique" preserve_order: true }
-        "£0,02" -> money { fractional_part: "dos" currency_min: "peniques" preserve_order: true }
+        "0,01 £" -> money { fractional_part: "un" currency_min: "penique" preserve_order: true }
+        "0,02 £" -> money { fractional_part: "dos" currency_min: "peniques" preserve_order: true }
         "£0,01 million" -> money { currency_maj: "libra" integer_part: "cero" fractional_part: "cero un" quantity: "million" }
 
     Args:
@@ -67,7 +70,6 @@ class MoneyFst(GraphFst):
         cardinal_graph = cardinal.graph
         graph_decimal_final = decimal.final_graph_wo_negative
 
-        maj_singular_labels = load_labels(get_abs_path("data/money/currency_major.tsv"))
         maj_singular_graph = maj_singular
         min_singular_graph = min_singular
         maj_plural_graph = maj_singular @ (fem_plural | masc_plural)
@@ -86,7 +88,7 @@ class MoneyFst(GraphFst):
         )
         graph_decimal_plural = (
             (NEMO_SIGMA - "1") + decimal_separator + NEMO_SIGMA
-        ) @ graph_decimal_plural  # Can't have un euros cincuenta
+        ) @ graph_decimal_plural  # Can't have "un euros"
 
         graph_decimal_singular = pynini.union(
             graph_maj_singular + delete_space.ques + insert_space + graph_decimal_final,  # $1,05
@@ -94,7 +96,7 @@ class MoneyFst(GraphFst):
         )
         graph_decimal_singular = (
             pynini.accep("1") + decimal_separator + NEMO_SIGMA
-        ) @ graph_decimal_singular  # Can't have un euros cincuenta
+        ) @ graph_decimal_singular
 
         graph_decimal = graph_decimal_singular | graph_decimal_plural
         graph_decimal |= graph_maj_plural + delete_space.ques + insert_space + decimal_with_quantity

@@ -80,15 +80,5 @@ testTNWord() {
   runtest $input
 }
 
-testTNAddress() {
-  input=$PROJECT_DIR/es/data_text_normalization/test_cases_address.txt
-  runtest $input
-}
-
-testTNMath() {
-  input=$PROJECT_DIR/es/data_text_normalization/test_cases_math.txt
-  runtest $input
-}
-
 # Load shUnit2
 . $PROJECT_DIR/../shunit2/shunit2

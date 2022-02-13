@@ -26,8 +26,14 @@ try:
     import pynini
     from pynini.lib import pynutil
 
+    time_zone_graph = pynini.string_file(get_abs_path("data/time/time_zone.tsv"))
+    suffix = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
+    time_zone_graph  = None
+    suffix = None
+
     PYNINI_AVAILABLE = False
 
 
@@ -47,16 +53,14 @@ class TimeFst(GraphFst):
     # To do--> suffixes tarde, manana, madrugada, de la noche
     def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="time", kind="classify", deterministic=deterministic)
-        one = pynini.string_map([("un", "una"), ("ún", "una")])
-        change_one = pynini.cdrewrite(one, "", "", NEMO_SIGMA)
-
-        cardinal_graph = cardinal.graph @ change_one
 
         delete_time_delimiter = pynutil.delete(pynini.union(".", ":"))
-        time_zone_graph = pynini.string_file(get_abs_path("data/time/time_zone.tsv"))
 
-        day_suffix = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
-        day_suffix = pynutil.insert("suffix: \"") + day_suffix + pynutil.insert("\"")
+        one = pynini.string_map([("un", "una"), ("ún", "una")])
+        change_one = pynini.cdrewrite(one, "", "", NEMO_SIGMA)
+        cardinal_graph = cardinal.graph @ change_one
+
+        day_suffix = pynutil.insert("suffix: \"") + suffix + pynutil.insert("\"")
         day_suffix = delete_space + insert_space + day_suffix
 
         delete_hora_suffix = delete_space + insert_space + pynutil.delete("h")
@@ -70,7 +74,7 @@ class TimeFst(GraphFst):
         labels_minute_single = [str(x) for x in range(1, 10)]
         labels_minute_double = [str(x) for x in range(10, 60)]
 
-        delete_leading_zero_to_double_digit = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
+        delete_leading_zero_to_double_digit = (pynini.closure(pynutil.delete("0") | (NEMO_DIGIT - "0"), 0, 1) + NEMO_DIGIT)
 
         graph_24 = (
             pynini.closure(NEMO_DIGIT, 1, 2) @ delete_leading_zero_to_double_digit @ pynini.union(*labels_hour_24)

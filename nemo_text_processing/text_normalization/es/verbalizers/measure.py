@@ -25,8 +25,6 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = True
-
     unit_plural_fem = pynini.string_file(get_abs_path("data/measures/measurements_plural_fem.tsv"))
     unit_plural_masc = pynini.string_file(get_abs_path("data/measures/measurements_plural_masc.tsv"))
 
@@ -35,15 +33,17 @@ try:
 
     unit_plural_fem = pynini.project(unit_plural_fem, "output")
     unit_plural_masc = pynini.project(unit_plural_masc, "output")
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
+    PYNINI_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
     unit_plural_fem = None
     unit_plural_masc = None
 
     unit_singular_fem = None
     unit_singular_masc = None
 
+    PYNINI_AVAILABLE = False
 
 class MeasureFst(GraphFst):
     """
@@ -52,9 +52,9 @@ class MeasureFst(GraphFst):
         measure { cardinal { integer_part: "dos" quantity: "millones" units: "gramos" } } -> "dos millones de gramos"
 
     Args:
-        decimal: decimal GraphFst
-        cardinal: cardinal GraphFst
-        fraction: fraction GraphFst
+        decimal: DecimalFst
+        cardinal: CardinalFst
+        fraction: FractionFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

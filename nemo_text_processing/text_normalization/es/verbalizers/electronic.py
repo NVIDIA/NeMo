@@ -25,10 +25,24 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+    digit_no_zero = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+    zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
 
+    graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
+    server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
+    domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
+
+    PYNINI_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
+    graph_digit_no_zero = None
+    graph_zero = None
+
+    graph_symbols = None
+    server_common = None
+    domain_common = None
+
+    PYNINI_AVAILABLE = False
 
 class ElectronicFst(GraphFst):
     """
@@ -44,14 +58,9 @@ class ElectronicFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
-        graph_digit_no_zero = pynini.invert(
-            pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        ).optimize() @ pynini.cdrewrite(pynini.cross("un", "uno"), "", "", NEMO_SIGMA)
-        graph_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv"))).optimize()
-        graph_digit = graph_digit_no_zero | graph_zero
-        graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
-        server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
-        domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
+
+        graph_digit_no_zero = digit_no_zero @ pynini.cdrewrite(pynini.cross("un", "uno"), "", "", NEMO_SIGMA).optimize()
+        graph_digit = graph_digit_no_zero | zero
 
         def add_space_after_char():
             return pynini.closure(NEMO_NOT_QUOTE - pynini.accep(" ") + insert_space) + (

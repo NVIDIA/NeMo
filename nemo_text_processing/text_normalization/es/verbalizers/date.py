@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_preserve_order,
 )
 from nemo_text_processing.text_normalization.es.taggers.date import articles
+from nemo_text_processing.text_normalization.es.graph_utils import strip_cardinal_apocope
 
 try:
     import pynini
@@ -46,13 +47,15 @@ class DateFst(GraphFst):
         super().__init__(name="date", kind="verbalize", deterministic=deterministic)
 
         day_cardinal = pynutil.delete("day: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-        day = day_cardinal @ pynini.cdrewrite(
-            pynini.cross("un", "primero"), "[BOS]", "[EOS]", NEMO_SIGMA
-        )  # Traditional
-        if not deterministic:
-            day |= day_cardinal @ pynini.cdrewrite(
-                pynini.cross("un", "uno"), "", "", NEMO_SIGMA
-            )  # Current in some parts
+        day = strip_cardinal_apocope(day_cardinal)
+
+        primero = pynini.cdrewrite(pynini.cross("uno", "primero"), "[BOS]", "[EOS]", NEMO_SIGMA)
+        if deterministic:
+            # Traditional
+            day @= primero
+        else:
+            # Current in some regions
+            day |= day @ primero
 
         month = pynutil.delete("month: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
@@ -63,9 +66,9 @@ class DateFst(GraphFst):
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        year = pynutil.add_weight(year, -0.001)
 
         # Insert preposition if wasn't originally with the year. This would mean a space was present
+        year = pynutil.add_weight(year, -0.001)
         year |= (
             pynutil.delete("year: \"")
             + pynutil.insert("de ")

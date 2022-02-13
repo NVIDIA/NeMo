@@ -13,31 +13,69 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, NEMO_SPACE
 from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
-from pynini.lib import pynutil
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, NEMO_SPACE
+
+    digits = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).project("input")
+    tens = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).project("input")
+    teens = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).project("input")
+    twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).project("input")
+    hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).project("input")
+
+    PYNINI_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
+    NEMO_SIGMA = None
+    NEMO_SPACE = None
+
+    digits = None
+    tens = None
+    teens = None
+    twenties = None
+    hundreds = None
+
+    PYNINI_AVAILABLE = False
+
+accents = pynini.string_map([("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")])
 
 cardinal_separator = pynini.string_map([".", NEMO_SPACE])
 decimal_separator = pynini.accep(",")
+
 ones = pynini.union("un", "ún")
-accents = pynini.string_map([("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")])
-
-digits = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).project("input")
-tens = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).project("input")
-teens = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).project("input")
-twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).project("input")
-hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).project("input")
-
 one_to_one_hundred = pynini.union(digits, tens, teens, twenties, tens + pynini.accep(" y ") + digits)
 
-
 def strip_accent(fst):
+    """
+    Converts all accented vowels to non-accented equivalents
+
+    Args:
+        fst: Any fst. Composes vowel conversion onto fst's output strings
+    """
     return fst @ pynini.cdrewrite(accents, "", "", NEMO_SIGMA)
 
 
 def shift_cardinal_gender(fst):
-    # Converts number string to feminine gender for cardinal string (i.e. only affects place values below one million - higher powers of ten are technically masculine nouns)
+    """
+    Applies gender conversion rules to a cardinal string. These include: rendering all masculine forms of "uno" (including apocopated forms) as "una" and
+    Converting all gendered numbers in the hundreds series (200,300,400...) to feminine equivalent (e.g. "doscientos" -> "doscientas"). Converssion only applies
+    to value place for <1000 and multiple of 1000. (e.g. "doscientos mil doscientos" -> "doscientas mil doscientas".) For place values greater than the thousands, there
+    is no gender shift as the higher powers of ten ("millones", "billones") are masculine nouns and any conversion would be formally
+    ungrammatical.
+    e.g.
+        "doscientos" -> "doscientas"
+        "doscientos mil" -> "doscientas mil"
+        "doscientos millones" -> "doscientos millones"
+        "doscientos mil millones" -> "doscientos mil millones"
+        "doscientos millones doscientos mil doscientos" -> "doscientos millones doscientas mil doscientas"
+
+    Args:
+        fst: Any fst. Composes conversion onto fst's output strings
+    """
     fem_hundreds = hundreds @ pynini.cdrewrite(pynini.cross("ientos", "ientas"), "", "", NEMO_SIGMA)
     fem_ones = pynini.cross("un", "una") | pynini.cross("ún", "una") | pynini.cross("uno", "una")
 
@@ -62,7 +100,18 @@ def shift_cardinal_gender(fst):
 
 
 def shift_number_gender(fst):
-    # Shifts gender without boundary concerns (for ordinals and fractions when the higher powers actually acquire gender)
+    """
+    Performs gender conversion on all verbalized numbers in output. All values in the hundreds series (200,300,400) are changed to
+    feminine gender (e.g. "doscientos" -> "doscientas") and all forms of "uno" (including apocopated forms) are converted to "una".
+    This has no boundary restriction and will perform shift across all values in output string.
+    e.g.
+        "doscientos" -> "doscientas"
+        "doscientos millones" -> "doscientas millones"
+        "doscientos millones doscientos" -> "doscientas millones doscientas"
+
+    Args:
+        fst: Any fst. Composes conversion onto fst's output strings
+    """
     fem_hundreds = pynini.cross("ientos", "ientas")
     fem_ones = pynini.cross("un", "una") | pynini.cross("ún", "una") | pynini.cross("uno", "una")
     fem_allign = pynini.cdrewrite(fem_hundreds, "", "", NEMO_SIGMA)
@@ -73,15 +122,33 @@ def shift_number_gender(fst):
     return fst @ fem_allign
 
 
-def strip_cardinal_apocope(
-    fst,
-):  # Since cardinals use apocope by default, this only needs to act on the last instance of one
+def strip_cardinal_apocope(fst):
+    """
+    Reverts apocope on cardinal strings in line with formation rules. e.g. "un" -> "uno". Due to cardinal formation rules, this in effect only
+    affects strings where the final value is a variation of "un".
+    e.g.
+        "un" -> "uno"
+        "veintiún" -> "veintiuno"
+
+    Args:
+        fst: Any fst. Composes conversion onto fst's output strings
+    """
+    # Since cardinals use apocope by default for large values (e.g. "millón"), this only needs to act on the last instance of one
     strip = pynini.cross("un", "uno") | pynini.cross("ún", "uno")
     strip = pynini.cdrewrite(strip, "", pynini.union("[EOS]", "\""), NEMO_SIGMA)
     return fst @ strip
 
 
 def roman_to_int(fst):
+    """
+    Alters given fst to convert Roman integers (lower and upper cased) into Arabic numerals. Valid for values up to 1000.
+    e.g.
+        "V" -> "5"
+        "i" -> "1"
+
+    Args:
+        fst: Any fst. Composes fst onto Roman conversion outputs.
+    """
     def _load_roman(file: str):
         roman = load_labels(get_abs_path(file))
         roman_numerals = [(x, y) for x, y in roman] + [(x.upper(), y) for x, y in roman]

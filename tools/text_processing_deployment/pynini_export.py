@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,7 +67,7 @@ def tn_grammars(**kwargs):
 
 def export_grammars(output_dir, grammars):
     """
-    Exports tokenizer_and_classify and verbalize Fsts as OpenFst finite state archive (FAR) files. 
+    Exports tokenizer_and_classify and verbalize Fsts as OpenFst finite state archive (FAR) files.
 
     Args:
         output_dir: directory to export FAR files to. Subdirectories will be created for tagger and verbalizer respectively.

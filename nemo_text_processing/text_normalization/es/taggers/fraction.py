@@ -26,28 +26,32 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+    ordinal_exceptions = pynini.string_file(get_abs_path("data/fractions/ordinal_exceptions.tsv"))
+    higher_powers_of_ten = pynini.string_file(get_abs_path("data/fractions/powers_of_ten.tsv"))
 
+    PYNINI_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
+    ordinal_exceptions = None
+    higher_powers_of_ten = None
+
+    PYNINI_AVAILABLE = False
 
 class FractionFst(GraphFst):
     """
     Finite state transducer for classifying fraction
     "23 4/5" ->
-    tokens { fraction { integer: "veintitres" numerator: "quatro" denominator: "quinto" mophosyntactic_features: "ordinal" } }
+    tokens { fraction { integer: "veintitrés" numerator: "cuatro" denominator: "quinto" mophosyntactic_features: "ordinal" } }
 
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal, ordinal, deterministic: bool = True):  # Change so we're using cardinal from ordinal
+    def __init__(self, cardinal, ordinal, deterministic: bool = True):
         super().__init__(name="fraction", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
         ordinal_graph = ordinal.graph
-
-        ordinal_exceptions = pynini.string_file(get_abs_path("data/fractions/ordinal_exceptions.tsv"))
 
         # 2-10 are all ordinals
         three_to_ten = pynini.string_map(["2", "3", "4", "5", "6", "7", "8", "9", "10",])
@@ -58,11 +62,10 @@ class FractionFst(GraphFst):
         graph_three_to_ten @= pynini.cdrewrite(ordinal_exceptions, "", "", NEMO_SIGMA)
 
         # Higher powers of tens (and multiples) are converted to ordinals.
-        higher_powers_of_ten = pynini.string_file(get_abs_path("data/fractions/powers_of_ten.tsv"))
         hundreds = pynini.string_map(["100", "200", "300", "400", "500", "600", "700", "800", "900",])
         graph_hundreds = hundreds @ ordinal_graph
 
-        multiples_of_thousand = ordinal.multiples_of_thousand  # So we can have X milesimo
+        multiples_of_thousand = ordinal.multiples_of_thousand  # So we can have X milésimos
 
         graph_higher_powers_of_ten = (
             pynini.closure(ordinal.one_to_one_thousand + NEMO_SPACE, 0, 1)
@@ -91,32 +94,30 @@ class FractionFst(GraphFst):
         )
         graph_fractions_cardinals @= NEMO_CHAR.plus @ pynini.cdrewrite(
             pynutil.delete("0"), pynini.accep("[BOS]"), pynini.accep("[EOS]"), NEMO_SIGMA
-        )  # For some reason empty characters are made '0'
+        )  # Empty characters become '0' for NEMO_CHAR fst, so ned to block
         graph_fractions_cardinals @= cardinal_graph
         graph_fractions_cardinals += pynutil.insert(
             "\" morphosyntactic_features: \"add_root\""
-        )  # We note the root for later processing NEMO_CHAR.plus #  blocking these entries to reduce erroneous possibilities in debugging
+        )  # blocking these entries to reduce erroneous possibilities in debugging
 
         if deterministic:
             graph_fractions_cardinals = (
                 pynini.closure(NEMO_DIGIT, 1, 2) @ graph_fractions_cardinals
-            )  # Past hundreds the conventional scheme can be hard to read. For determinism we lock here
+            )  # Past hundreds the conventional scheme can be hard to read. For determinism we stop here
 
         graph_denominator = (
             graph_fractions_ordinals
             | graph_fractions_cardinals
             | pynutil.add_weight(cardinal_graph + pynutil.insert("\""), 0.001)
-        )  # Last form is simply recording the cardinal
+        )  # Last form is simply recording the cardinal. Weighting so last resort
 
         integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"") + NEMO_SPACE
         numerator = (
             pynutil.insert("numerator: \"") + cardinal_graph + (pynini.cross("/", "\" ") | pynini.cross(" / ", "\" "))
         )
-
         denominator = pynutil.insert("denominator: \"") + graph_denominator
 
         self.graph = pynini.closure(integer, 0, 1) + numerator + denominator
 
         final_graph = self.add_tokens(self.graph)
-
         self.fst = final_graph.optimize()

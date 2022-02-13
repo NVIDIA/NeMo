@@ -22,7 +22,6 @@ from typing import Dict, List, Union
 
 from nemo_text_processing.text_normalization.data_loader_utils import pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
-from pynini.lib import rewrite
 from tqdm import tqdm
 
 try:
@@ -205,7 +204,6 @@ class Normalizer:
 
         Returns: spoken form
         """
-        print(rewrite.rewrites(text, self.tagger.fst))
         original_text = text
         if punct_pre_process:
             text = pre_process(text)
