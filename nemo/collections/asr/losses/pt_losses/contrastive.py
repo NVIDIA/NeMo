@@ -256,4 +256,5 @@ class ContrastiveLoss(Loss):
         return logits
 
     def set_num_updates(self, num_updates):
-        self.quantizer.set_num_updates(num_updates)
+        if self.quantized_targets:
+            self.quantizer.set_num_updates(num_updates)
