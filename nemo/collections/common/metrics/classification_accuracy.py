@@ -150,3 +150,19 @@ def compute_topk_accuracy(correct_counts_k, total_counts_k):
         top_k_scores.append(correct_count / float(total_count))
 
     return top_k_scores
+
+
+class ExactStringMatchMetric(Metric):
+    def __init__(self, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, pred: str, target: str):
+        if pred == target:
+            self.correct += 1
+        self.total += 1
+
+    def compute(self):
+        return self.correct.float() / self.total
