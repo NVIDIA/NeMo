@@ -198,6 +198,7 @@ def main():
         with open_dict(decoding_cfg):
             decoding_cfg.strategy = "greedy"
             decoding_cfg.preserve_alignments = True
+            #decoding_cfg.greedy.max_symbols = 5
         asr_model.change_decoding_strategy(decoding_cfg)
 
     encoder_cfg = asr_model.cfg.encoder
@@ -258,7 +259,9 @@ def main():
     )
 
     print(asr_out_whole)
-    #print(greedy_merge(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
+    if best_hyp is not None:
+        print(best_hyp[0].text)
+    #print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
 
