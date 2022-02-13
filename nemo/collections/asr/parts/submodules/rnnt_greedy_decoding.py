@@ -286,8 +286,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         if partial_hypotheses is not None:
             if len(partial_hypotheses.y_sequence) > 0:
                 hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
-                hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
-                hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
+            hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
+            hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
 
         if self.preserve_alignments:
             # Alignments is a 2-dimensional dangling list representing T x U
@@ -310,7 +310,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # In later timesteps, we provide previous predicted label as input.
                 last_label = (
                     self._SOS
-                    if (hypothesis.y_sequence == [] and hypothesis.dec_state is None)
+                    if (hypothesis.y_sequence == []) # and hypothesis.dec_state is None)
                     else hypothesis.y_sequence[-1]
                 )
 
@@ -341,6 +341,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     if self.preserve_alignments:
                         # convert Ti-th logits into a torch array
                         hypothesis.alignments.append([])  # blank buffer for next timestep
+                    hypothesis.dec_state = hidden_prime
                 else:
                     # Append token to label set, update RNN state.
                     hypothesis.y_sequence.append(k)
