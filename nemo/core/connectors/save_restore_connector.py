@@ -372,7 +372,7 @@ class SaveRestoreConnector:
                     OmegaConf.update(conf, conf_path, item.path)
                 else:
                     OmegaConf.update(conf, conf_path, item.hashed_path)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
@@ -384,14 +384,23 @@ class SaveRestoreConnector:
     def _make_nemo_file_from_folder(filename, source_dir):
         dirname = os.path.dirname(filename)
         os.makedirs(dirname, exist_ok=True)
-        with tarfile.open(filename, "w:gz") as tar:
+        with tarfile.open(filename, "w:") as tar:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
+        # we start with an assumption of uncompressed tar,
+        # which should be true for versions 1.7.0 and above
+        tar_header = "r:"
+        try:
+            tar_test = tarfile.open(path2file, tar_header)
+            tar_test.close()
+        except tarfile.ReadError:
+            # can be older checkpoint => try compressed tar
+            tar_header = "r:gz"
+        tar = tarfile.open(path2file, tar_header)
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder

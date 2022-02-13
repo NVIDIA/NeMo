@@ -15,6 +15,7 @@
 import abc
 import itertools
 import string
+from contextlib import contextmanager
 from typing import List
 
 from nemo.collections.tts.torch.de_utils import german_text_preprocessing
@@ -282,6 +283,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
              Note that lower() function shouldn't applied here, because text can contains phonemes (it will be handled by g2p).
         """
 
+        self.phoneme_probability = None
+        if hasattr(g2p, "phoneme_probability"):
+            self.phoneme_probability = g2p.phoneme_probability
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]  # Space
 
@@ -295,7 +299,12 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             vowels = [f'{p}{s}' for p, s in itertools.product(vowels, (0, 1, 2))]
         tokens.extend(vowels)
 
-        if chars:
+        if chars or self.phoneme_probability is not None:
+            if not chars:
+                logging.warning(
+                    "phoneme_probability was not None, characters will be enabled even though "
+                    "chars was set to False."
+                )
             tokens.extend(string.ascii_lowercase)
 
         if apostrophe:
@@ -308,7 +317,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
-        self.chars = chars
+        self.chars = chars if self.phoneme_probability is None else True
         self.punct = punct
         self.stresses = stresses
         self.pad_with_space = pad_with_space
@@ -321,7 +330,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
         text = self.text_preprocessing_func(text)
-        g2p_text = self.g2p(text)
+        g2p_text = self.g2p(text)  # TODO: handle infer
 
         for p in g2p_text:  # noqa
             # Remove stress
@@ -351,3 +360,13 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             ps = [space] + ps + [space]
 
         return [self._token2id[p] for p in ps]
+
+    @contextmanager
+    def set_phone_prob(self, prob):
+        if hasattr(self.g2p, "phoneme_probability"):
+            self.g2p.phoneme_probability = prob
+        try:
+            yield
+        finally:
+            if hasattr(self.g2p, "phoneme_probability"):
+                self.g2p.phoneme_probability = self.phoneme_probability

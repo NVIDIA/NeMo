@@ -27,6 +27,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.utilities import rank_zero_only
 
+from nemo import package_info
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -108,6 +109,10 @@ class ModelPT(LightningModule, Model):
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
+
+        if 'nemo_version' not in cfg:
+            with open_dict(cfg):
+                cfg.nemo_version = package_info.__version__
 
         self._cfg = cfg
 
@@ -1280,6 +1285,10 @@ class ModelPT(LightningModule, Model):
         """
         self._cfg = cfg
         self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
+
+        # TODO: Remove in NeMo 1.7 (or when PTL fixes this on their end)
+        if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
+            self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
 
     @staticmethod
     def _is_model_being_restored() -> bool:
