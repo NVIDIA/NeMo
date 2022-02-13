@@ -151,11 +151,11 @@ class RNNEncoder(NeuralModule, Exportable):
 #                dropout=dropout,
                 proj_size=proj_out
             )
-
-            self.layers.append(nn.Dropout(p=dropout))
-            self.layers.append(nn.LayerNorm(proj_out))
             self.layers.append(layer)
-            self._feat_out = proj_out
+            rnn_out_size = 2*proj_out if bidirectional else proj_out
+            self.layers.append(nn.LayerNorm(rnn_out_size))
+            self.layers.append(nn.Dropout(p=dropout))
+            self._feat_out = rnn_out_size
 
         if proj_out > 0 and self._feat_out != proj_out:
             self.out_proj = nn.Linear(self._feat_out, proj_out)
