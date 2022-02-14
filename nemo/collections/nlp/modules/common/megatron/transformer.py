@@ -679,29 +679,27 @@ class ParallelTransformer(MegatronModule):
                 onnx_safe=onnx_safe,
             )
 
-        # TODO: get virtual_pipeline_model_parallel_size from apex.mpu
-        # if parallel_state.get_virtual_pipeline_model_parallel_rank() is not None:
-        #     assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, (
-        #         'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
-        #     )
-        #     # Number of layers in each model chunk is the number of layers in the stage,
-        #     # divided by the number of model chunks in a stage.
-        #     self.num_layers = self.num_layers // args.virtual_pipeline_model_parallel_size
-        #     # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
-        #     # layers to stages like (each list is a model chunk):
-        #     # Stage 0: [0]  [2]  [4]  [6]
-        #     # Stage 1: [1]  [3]  [5]  [7]
-        #     # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
-        #     # layers to stages like (each list is a model chunk):
-        #     # Stage 0: [0, 1]  [4, 5]
-        #     # Stage 1: [2, 3]  [6, 7]
-        #     offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
-        #         args.num_layers // args.virtual_pipeline_model_parallel_size
-        #     ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
-        # else:
-        #     # Each stage gets a contiguous set of layers.
-        #     offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
-        offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+        if parallel_state.get_virtual_pipeline_model_parallel_rank() is not None:
+            assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
+                'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
+            )
+            # Number of layers in each model chunk is the number of layers in the stage,
+            # divided by the number of model chunks in a stage.
+            self.num_layers = self.num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
+            # layers to stages like (each list is a model chunk):
+            # Stage 0: [0]  [2]  [4]  [6]
+            # Stage 1: [1]  [3]  [5]  [7]
+            # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
+            # layers to stages like (each list is a model chunk):
+            # Stage 0: [0, 1]  [4, 5]
+            # Stage 1: [2, 3]  [6, 7]
+            offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
+                num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
+        else:
+            # Each stage gets a contiguous set of layers.
+            offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 

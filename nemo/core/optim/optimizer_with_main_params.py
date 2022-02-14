@@ -93,10 +93,10 @@ class GradBucket(object):
         return buffer_tensor
 
 
-class MasterOptimizerWrapper(torch.optim.Optimizer):
+class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     """
     Float16 optimizer wrapper for half precision (fp16 and bf16) data types.
-    This optimizer wrapper holds master parameters and gradients in fp32 to support
+    This optimizer wrapper holds main parameters and gradients in fp32 to support
     stable convergence.
 
     Arguments:
@@ -144,8 +144,8 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
         if self._contiguous_grad_bucket:
             self._main_grad_buffers = {}
             # get the size of buffers
+            num_elements = {}
             for i, param_group in enumerate(self.optimizer.param_groups):
-                num_elements = {}
                 for param in param_group['params']:
                     if param.requires_grad:
                         num_elements[i] = num_elements.get(i, 0) + param.data.nelement()
@@ -186,6 +186,8 @@ class MasterOptimizerWrapper(torch.optim.Optimizer):
                         if self._contiguous_grad_bucket:
                             num_elements[i] -= param.data.nelement()
                             main_param.grad = self._main_grad_buffers[i].get(param.data.shape, num_elements[i])
+                            # Add a pointer to main_grad in model param for first-last stage embedding param reduction
+                            param.main_grad = main_param.grad
 
                         # Replace the optimizer params with the new fp32 copy.
                         param_group['params'][j] = main_param
