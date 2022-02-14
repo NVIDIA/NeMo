@@ -1544,7 +1544,7 @@ pipeline {
             mkdir -p tmp_data && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
             python punctuation_capitalization_train_evaluate.py \
-              --config-path /home/TestData/nlp/token_classification \
+              --config-path /home/TestData/nlp/token_classification_punctuation \
               --config-name punctuation_capitalization_config_with_ids \
               model.train_ds.use_tarred_dataset=false \
               model.train_ds.ds_item=tmp_data \
