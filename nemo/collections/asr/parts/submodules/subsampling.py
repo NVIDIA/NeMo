@@ -224,7 +224,7 @@ class ConvSubsampling(torch.nn.Module):
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
-    def forward(self, x, lengths): #, cache=None, cache_next=None):
+    def forward(self, x, lengths):  # , cache=None, cache_next=None):
         lengths = calc_length(
             lengths,
             padding=self._left_padding + self._right_padding,
@@ -235,7 +235,7 @@ class ConvSubsampling(torch.nn.Module):
         )
 
         x = x.unsqueeze(1)
-        #x_length = x.size()[-2]
+        # x_length = x.size()[-2]
         # if self.is_streaming: #cache is not None:
         #     # input_x = x
         #     # if hasattr(self, '_cache_id'):
@@ -252,12 +252,12 @@ class ConvSubsampling(torch.nn.Module):
         #     # cache_next[:, :, -x_length:, :] = input_x[:, :, -cache_next_length:, :]
         #     conv_right_padding = 0
         # else:
-        #conv_right_padding = self._right_padding
+        # conv_right_padding = self._right_padding
 
         x = self.conv(x)
-        #if cache is not None and x_length != 1:
+        # if cache is not None and x_length != 1:
 
-        if self.is_streaming: # and x.size(2) > 1: #cache is not None:
+        if self.is_streaming:  # and x.size(2) > 1: #cache is not None:
             x = x[:, :, 2:, :]
             lengths = lengths - 2
 

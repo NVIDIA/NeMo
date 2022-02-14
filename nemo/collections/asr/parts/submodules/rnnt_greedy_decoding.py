@@ -291,7 +291,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
                 hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
 
-
         if self.preserve_alignments:
             # Alignments is a 2-dimensional dangling list representing T x U
             # alignments = [[]]

@@ -277,7 +277,7 @@ class CausalConv1D(nn.Conv1d):
         bias: bool = True,
         padding_mode: str = 'zeros',
         device=None,
-        dtype=None
+        dtype=None,
     ) -> None:
         self.cache_drop_size = None
         if padding is None or padding == -1:
@@ -294,7 +294,7 @@ class CausalConv1D(nn.Conv1d):
                 self._right_padding = padding[1]
 
         padding = 0
-        self._max_cache_len = self._left_padding #kernel_size - 1
+        self._max_cache_len = self._left_padding  # kernel_size - 1
 
         super(CausalConv1D, self).__init__(
             in_channels=in_channels,
@@ -321,13 +321,13 @@ class CausalConv1D(nn.Conv1d):
                 cache_next = cache_next[self._cache_id]
             # cache_length = cache.size()[-1]
             cache_next_length = cache_next.size()[-1]
-            needed_cache = cache[:, :, -self._max_cache_len:]
+            needed_cache = cache[:, :, -self._max_cache_len :]
             x = F.pad(x, pad=(0, self._right_padding))
             x = torch.cat((needed_cache, x), dim=-1)
         if cache_next is not None:
             x_keep_size = x_length - self.cache_drop_size
-            cache_next[:, :, :-x_keep_size] = cache[:, :, -(cache_next_length - x_keep_size):]
-            input_x_kept = input_x[:, :, : x_keep_size]
+            cache_next[:, :, :-x_keep_size] = cache[:, :, -(cache_next_length - x_keep_size) :]
+            input_x_kept = input_x[:, :, :x_keep_size]
             cache_next[:, :, -x_keep_size:] = input_x_kept[:, :, -x_keep_size:]
         # else:
         #     # x = x[:, :, : -self.padding[0]]

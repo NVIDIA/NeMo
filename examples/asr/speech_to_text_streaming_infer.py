@@ -27,15 +27,15 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
-
 
 
 def set_streaming_mode(asr_model, cache_drop_size=0):
@@ -44,7 +44,7 @@ def set_streaming_mode(asr_model, cache_drop_size=0):
     asr_model.encoder.cache_drop_size = cache_drop_size
     for m in asr_model.encoder.layers.modules():
         if hasattr(m, "_max_cache_len"):  # and m._max_cache_len > 0:
-            if type(m) == RelPositionMultiHeadAttention: # or type(m) == RelPositionMultiHeadAttention:
+            if type(m) == RelPositionMultiHeadAttention:  # or type(m) == RelPositionMultiHeadAttention:
                 m._cache_id = last_channel_num
                 last_channel_num += 1
                 m.cache_drop_size = cache_drop_size
@@ -90,13 +90,13 @@ def model_process(
         best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
             encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
         )
-        #greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
+        # greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
         greedy_predictions = best_hyp[0].y_sequence
         # greedy_predictions = []
         # for alignment in best_hyp[0].alignments:
         #     alignment.remove(1024)
         #     greedy_predictions.extend(alignment)
-        #greedy_predictions = torch.Tensor(greedy_predictions)
+        # greedy_predictions = torch.Tensor(greedy_predictions)
 
     else:
         log_probs = asr_model.decoder(encoder_output=encoded)
@@ -151,13 +151,13 @@ def main():
         with open_dict(decoding_cfg):
             decoding_cfg.strategy = "greedy"
             decoding_cfg.preserve_alignments = True
-            #decoding_cfg.greedy.max_symbols = 5
+            # decoding_cfg.greedy.max_symbols = 5
         asr_model.change_decoding_strategy(decoding_cfg)
 
     encoder_cfg = asr_model.cfg.encoder
     subsampling_factor = encoder_cfg.subsampling_factor
     att_context_style = encoder_cfg.get("att_context_style", "regular")
-    conv_context_size = encoder_cfg.get("conv_context_size", [encoder_cfg.conv_kernel_size-1, 0])
+    conv_context_size = encoder_cfg.get("conv_context_size", [encoder_cfg.conv_kernel_size - 1, 0])
     if att_context_style == "chunked_limited":
         lookahead_steps = encoder_cfg.att_context_size[1] + 1
         cache_drop_size = 0
@@ -180,6 +180,7 @@ def main():
     cfg.preprocessor.pad_to = 0
 
     if args.online_normalization:
+        model_normalize_type = cfg.preprocessor.normalize
         cfg.preprocessor.normalize = None
 
     if cfg.preprocessor.normalize != "per_feature":
@@ -212,9 +213,7 @@ def main():
     print(asr_out_whole)
     if best_hyp is not None:
         print(best_hyp[0].text)
-    #print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
-
-    # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
+    # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     last_channel_num, last_time_num = set_streaming_mode(asr_model, cache_drop_size=cache_drop_size)
     bs = 1
@@ -229,18 +228,16 @@ def main():
 
     init_chunk_size = 1 + subsampling_factor * lookahead_steps
     init_shift_size = 1
-
-    pre_encode_cache_size = 0 # 8 # 5
+    pre_encode_cache_size = 0  # 8 # 5
     init_cache_pre_encode = torch.zeros(
         (bs, processed_signal.size(-2), pre_encode_cache_size), device=asr_model.device, dtype=torch.float32
     )
 
-    if args.online_normalization:
-        processed_signal, processed_signal_length = preprocessor(
-            input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
-        )
-
     init_audio = processed_signal[:, :, :init_chunk_size]
+    if args.online_normalization and init_audio.size(-1) > 1:
+        init_audio = normalize_batch(
+            x=init_audio, seq_len=torch.tensor([init_audio.size(-1)]), normalize_type=model_normalize_type
+        )
     init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
 
     asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
@@ -267,25 +264,31 @@ def main():
         else:
             valid_out_len = None
 
-        chunk_audio = processed_signal[:, :, i: i + chunk_size]
+        chunk_audio = processed_signal[:, :, i : i + chunk_size]
+
         start_pre_encode_cache = i - pre_encode_cache_size
         if start_pre_encode_cache < 0:
             start_pre_encode_cache = 0
-        cache_pre_encode = processed_signal[:, :, start_pre_encode_cache: i]
+        cache_pre_encode = processed_signal[:, :, start_pre_encode_cache:i]
         if cache_pre_encode.size(-1) < pre_encode_cache_size:
             zeros_pads = torch.zeros(
-                 (bs, chunk_audio.size(-2), pre_encode_cache_size - cache_pre_encode.size(-1)), device=asr_model.device, dtype=torch.float32
-             )
+                (bs, chunk_audio.size(-2), pre_encode_cache_size - cache_pre_encode.size(-1)),
+                device=asr_model.device,
+                dtype=torch.float32,
+            )
+        else:
+            zeros_pads = None
 
-            cache_pre_encode = torch.cat((zeros_pads, cache_pre_encode), dim=-1)
         chunk_audio = torch.cat((cache_pre_encode, chunk_audio), dim=-1)
+        if args.online_normalization:
+            chunk_audio = normalize_batch(
+                x=chunk_audio, seq_len=torch.tensor([chunk_audio.size(-1)]), normalize_type=model_normalize_type
+            )
 
-        (
-            asr_out_stream,
-            cache_last_channel_next,
-            cache_last_time_next,
-            previous_hypotheses,
-        ) = model_process(
+        if zeros_pads is not None:
+            chunk_audio = torch.cat((zeros_pads, chunk_audio), dim=-1)
+
+        (asr_out_stream, cache_last_channel_next, cache_last_time_next, previous_hypotheses,) = model_process(
             asr_model=asr_model,
             audio_signal=chunk_audio,
             length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
@@ -305,7 +308,7 @@ def main():
             break
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
-    #print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
+    print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
 
     print(torch.sum(asr_out_stream_total != asr_out_whole))
     print(step_num)

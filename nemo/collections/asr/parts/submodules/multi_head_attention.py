@@ -185,7 +185,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
                 cache = cache[self._cache_id]
                 cache_next = cache_next[self._cache_id]
             q_length = query.size()[1]
-            #cache_length = cache.size()[1]
+            # cache_length = cache.size()[1]
             cache_next_length = cache_next.size()[1]
             q_input = query
             key = value = torch.cat((cache, key), dim=1)
@@ -194,7 +194,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             q_keep_size = q_length - self.cache_drop_size
 
             # cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :].clone()
-            cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size):, :].clone()
+            cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
             cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
 
         q, k, v = self.forward_qkv(query, key, value)
