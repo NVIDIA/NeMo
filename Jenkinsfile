@@ -2210,14 +2210,13 @@ pipeline {
             ~trainer.check_val_every_n_epoch'
           }
         }
-        // TODO(Oktai15): update it in 1.8.0 version
         stage('FastPitch') {
           steps {
             sh 'python examples/tts/fastpitch.py \
-            --config-name fastpitch_align \
+            --config-name fastpitch_align_v1.05 \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
-            prior_folder=/home/TestData/an4_dataset/beta_priors \
+            sup_data_path=/home/TestData/an4_dataset/beta_priors \
             trainer.devices="[0]" \
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.strategy=null \
