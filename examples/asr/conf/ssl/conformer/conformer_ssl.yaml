@@ -54,7 +54,7 @@ model:
     num_workers: 8
     pin_memory: true
     use_start_end_token: false
-    min_duration: 4.0
+    min_duration: 8.0
 
 
   preprocessor:
