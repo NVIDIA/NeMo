@@ -145,7 +145,8 @@ class NormalizerWithAudio(Normalizer):
                 try:
                     lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
                 except pynini.lib.rewrite.Error:
-                    lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
+                    lattice = rewrite.rewrite_lattice(text, self.tagger.fst)
+                lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
                 tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
                 tagged_texts.sort(key=lambda x: x[1])
                 tagged_texts, weights = list(zip(*tagged_texts))
