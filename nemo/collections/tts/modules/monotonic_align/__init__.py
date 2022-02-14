@@ -37,9 +37,9 @@
 import numpy as np
 import torch
 
-# TODO: try to use numbda_core instead of C++ core
+# TODO: try to use numbda_core instead of C++ core (done)
+# from .numba_core import maximum_path_c
 from .core import maximum_path_c
-# from .numba_code import maximum_path_c
 
 
 def maximum_path(neg_cent, mask):
