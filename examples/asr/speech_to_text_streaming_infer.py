@@ -200,9 +200,17 @@ def main():
         input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
     )
 
+    if args.online_normalization:
+        processed_signal_normalized = normalize_batch(
+            x=processed_signal, seq_len=processed_signal_length, normalize_type=model_normalize_type
+        )
+    else:
+        processed_signal_normalized = processed_signal
+
+
     asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
         asr_model=asr_model,
-        audio_signal=processed_signal,
+        audio_signal=processed_signal_normalized,
         length=processed_signal_length,
         valid_out_len=None,
         cache_last_channel=None,
@@ -308,7 +316,7 @@ def main():
             break
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
-    print(greedy_merge(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
+    print(greedy_merge_ctc(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
 
     print(torch.sum(asr_out_stream_total != asr_out_whole))
     print(step_num)
