@@ -10,7 +10,8 @@ from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
 from bignlp.eval_scripts import evaluate
 
-omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y, replace=True)
+omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
+
 
 def convert_to_cli(cfg):
     result = ""
@@ -20,7 +21,7 @@ def convert_to_cli(cfg):
             result += " ".join([f"{k}.{x}" for x in output if x != ""]) + " "
         elif isinstance(v, omegaconf.listconfig.ListConfig):
             if k == "data_prefix":
-                v = [x for x in v] # Needed because of lazy omegaconf interpolation.
+                v = [x for x in v]  # Needed because of lazy omegaconf interpolation.
             result += f"{k}={str(v).replace(' ', '')} "
         elif isinstance(v, str) and "{" in v:
             continue
@@ -41,16 +42,17 @@ def convert_to_null(val):
         return "null"
     return val
 
+
 def fake_submit(*args, **kwargs):
     print(args, kwargs)
     fake_id = 123456
     return str(fake_id).encode()
 
+
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
     hydra_args = " ".join(sys.argv[1:])
     hydra_args = convert_to_cli(cfg)
-
 
     if cfg.debug:
         subprocess.check_output = fake_submit
@@ -63,9 +65,9 @@ def main(cfg):
 
     # TODO: build a mapping from dataset name to modules
     if "pile" in cfg.data_config:
-        from bignlp.data_preparation.pile_dataprep_scripts import data_preparation
+        from bignlp.data_preparation import data_preparation_pile as data_preparation
     elif "mc4" in cfg.data_config:
-        from bignlp.data_preparation.mc4_dataprep_scripts import data_preparation
+        from bignlp.data_preparation import data_preparation_mc4 as data_preparation
     else:
         raise ValueError(f"Unrecognized dataset in data config `{cfg.data_config}`.")
 

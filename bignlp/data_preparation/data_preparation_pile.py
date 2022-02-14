@@ -3,7 +3,7 @@ import subprocess
 
 import omegaconf
 
-import utils
+from pile_dataprep_scripts import utils
 
 
 def create_slurm_file(
