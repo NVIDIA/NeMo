@@ -194,6 +194,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             return [self._optimizer], [self._scheduler]
 
+    def get_parameters(self):
+        params = []
+        for param_group in self._optimizer_param_groups:
+            for param in param_group['params']:
+                params.append(param)
+        return params
+
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
