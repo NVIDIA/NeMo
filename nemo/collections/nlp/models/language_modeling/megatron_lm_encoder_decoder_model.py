@@ -89,11 +89,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
             persist_layer_norm=cfg.get('persist_layer_norm', False),
-            bias_gelu_fusion=True,
+            bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
+            masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
             onnx_safe=cfg.get('onnx_safe', False),
         )
 
-        # self.setup_optimizer_param_groups()
+        self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -414,11 +415,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             )
             token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
-            # FIXME: already log softmax?
             log_probs, token_ids = torch.max(nn.functional.log_softmax(token_logits, dim=-1), dim=-1)
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
-            if token_ids[:, -1] == self.tokenizer.eos_id:
-                break
 
         return predicted_tokens_dec, log_probs
 

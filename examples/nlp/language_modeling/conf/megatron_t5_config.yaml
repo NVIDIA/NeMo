@@ -42,7 +42,7 @@ model:
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1
+  pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
 
   # model architecture
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -63,6 +63,7 @@ model:
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
+  gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
 
@@ -92,11 +93,13 @@ model:
   data:
     # Path to data must be specified by the user.
     # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-t5_00_text_document,.5,/raid/data/pile/my-t5_01_text_document]",
-    # Or see example below: 
-    data_prefix: 
-       - 1.0
-       - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/my-t5_test_bert_tokenizer_text_document
-    # data_prefix: ???
+    # Or see example below:
+    # data_prefix: 
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_00_text_document
+    #   - .5
+    #   - /raid/data/pile/my-gpt3_01_text_document
+    data_prefix: ???
     data_impl: mmap
     splits_string: 949,45,5
     seq_length: ${model.seq_length}
