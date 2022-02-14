@@ -17,7 +17,7 @@ ${PIP} uninstall -y nemo_tts
 ${PIP} uninstall -y nemo_simple_gan
 ${PIP} uninstall -y nemo_cv
 
-${PIP} install -U setuptools
+${PIP} install -U setuptools==59.5.0
 
 echo 'Installing nemo and nemo_text_processing'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
