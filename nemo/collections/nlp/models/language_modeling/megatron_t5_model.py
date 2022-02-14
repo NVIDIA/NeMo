@@ -106,7 +106,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         ]
         # Make sure the user specifies dataset type as either 't5' or 't5_prefix_lm' only.
         if self._cfg.data.get('dataset_type', None) is not None:
-            assert self._cfg.data.get('dataset_type') in ['t5', 't5_prefix_lm']
+            if self._cfg.data.get('dataset_type') not in ['t5', 't5_prefix_lm']:
+                raise ValueError(f"dataset_type must be either 't5' or 't5_prefix_lm'. found {self._cfg.data.get('dataset_type')}")
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self._cfg,
             trainer=self.trainer,
