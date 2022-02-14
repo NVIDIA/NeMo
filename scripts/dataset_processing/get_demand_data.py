@@ -19,19 +19,16 @@
 # or ALL
 # You can put more than one data_set comma-separated:
 # --data_sets=DKITCHEN,DLIVING,NRIVER
+
 import argparse
-import fnmatch
-import functools
 import json
 import logging
-import multiprocessing
 import os
 import subprocess
 import urllib.request
 import shutil
 import glob
 
-from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
