@@ -27,6 +27,14 @@ try:
     twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).project("input")
     hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).project("input")
 
+    accents = pynini.string_map([("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")])
+
+    cardinal_separator = pynini.string_map([".", NEMO_SPACE])
+    decimal_separator = pynini.accep(",")
+
+    ones = pynini.union("un", "ún")
+    one_to_one_hundred = pynini.union(digits, tens, teens, twenties, tens + pynini.accep(" y ") + digits)
+
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
@@ -39,15 +47,16 @@ except (ModuleNotFoundError, ImportError):
     twenties = None
     hundreds = None
 
+    accents = None
+
+    cardinal_separator = None
+    decimal_separator = None
+
+    ones = None
+    one_to_one_hundred = None
+
     PYNINI_AVAILABLE = False
 
-accents = pynini.string_map([("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")])
-
-cardinal_separator = pynini.string_map([".", NEMO_SPACE])
-decimal_separator = pynini.accep(",")
-
-ones = pynini.union("un", "ún")
-one_to_one_hundred = pynini.union(digits, tens, teens, twenties, tens + pynini.accep(" y ") + digits)
 
 def strip_accent(fst):
     """
@@ -149,6 +158,7 @@ def roman_to_int(fst):
     Args:
         fst: Any fst. Composes fst onto Roman conversion outputs.
     """
+
     def _load_roman(file: str):
         roman = load_labels(get_abs_path(file))
         roman_numerals = [(x, y) for x, y in roman] + [(x.upper(), y) for x, y in roman]

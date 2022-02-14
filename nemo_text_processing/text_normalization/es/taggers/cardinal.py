@@ -12,41 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    NEMO_WHITE_SPACE,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
-from nemo_text_processing.text_normalization.es.graph_utils import cardinal_separator
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
-    graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-    graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
-    graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
-    graph_twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).invert()
-    graph_hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).invert()
+    from nemo_text_processing.text_normalization.es.graph_utils import cardinal_separator
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_ALPHA,
+        NEMO_DIGIT,
+        NEMO_SIGMA,
+        NEMO_SPACE,
+        NEMO_WHITE_SPACE,
+        GraphFst,
+        delete_space,
+        insert_space,
+    )
+
+    zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
+    digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
+    teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
+    ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
+    twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).invert()
+    hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).invert()
 
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    graph_zero = None
-    graph_digit = None
-    graph_teen = None
-    graph_ties = None
-    graph_twenties = None
-    graph_hundreds = None
+    NEMO_ALPHA = None
+    NEMO_DIGIT = None
+    NEMO_SIGMA = None
+    NEMO_SPACE = None
+    NEMO_WHITE_SPACE = None
+    GraphFst = None
+    delete_space = None
+    insert_space = None
+
+    cardinal_separator = None
+
+    zero = None
+    digit = None
+    teen = None
+    ties = None
+    twenties = None
+    hundreds = None
 
     PYNINI_AVAILABLE = False
+
 
 def filter_punctuation(fst):
     """
@@ -55,8 +68,10 @@ def filter_punctuation(fst):
         "1 000" -> "1000"
         "1.000.000" -> "1000000"
     Args:
-        fst: Any fst. Function composes fst onto string parser fst
+        fst: Any pynini.FstLike object. Function composes fst onto string parser fst
 
+    Returns:
+        fst: A pynini.FstLike object
     """
     exactly_three_digits = NEMO_DIGIT ** 3  # for blocks of three
     up_to_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)  # for start of string
@@ -85,35 +100,42 @@ class CardinalFst(GraphFst):
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
+
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         # Any single digit
-        digits = graph_digit
-        digits_no_one = (NEMO_DIGIT - "1") @ digits
+        graph_digit = digit
+        digits_no_one = (NEMO_DIGIT - "1") @ graph_digit
 
         # Any double digit
-        tens = graph_teen
-        tens |= graph_ties + (pynutil.delete('0') | (pynutil.insert(" y ") + graph_digit))
-        tens |= graph_twenties
+        graph_tens = teen
+        graph_tens |= ties + (pynutil.delete('0') | (pynutil.insert(" y ") + graph_digit))
+        graph_tens |= twenties
 
-        self.tens = tens.optimize()
+        self.tens = graph_tens.optimize()
 
-        self.two_digit_non_zero = pynini.union(digits, tens, (pynini.cross("0", NEMO_SPACE) + digits)).optimize()
+        self.two_digit_non_zero = pynini.union(
+            graph_digit, graph_tens, (pynini.cross("0", NEMO_SPACE) + graph_digit)
+        ).optimize()
 
         # Three digit strings
-        hundreds = graph_hundreds
-        hundreds += pynini.union(pynutil.delete("00"), (insert_space + tens), (pynini.cross("0", NEMO_SPACE) + digits))
-        hundreds |= pynini.cross("100", "cien")
-        hundreds |= pynini.cross("1", "ciento") + insert_space + pynini.union(tens, pynutil.delete("0") + digits)
+        graph_hundreds = hundreds
+        graph_hundreds += pynini.union(
+            pynutil.delete("00"), (insert_space + graph_tens), (pynini.cross("0", NEMO_SPACE) + graph_digit)
+        )
+        graph_hundreds |= pynini.cross("100", "cien")
+        graph_hundreds |= (
+            pynini.cross("1", "ciento") + insert_space + pynini.union(graph_tens, pynutil.delete("0") + graph_digit)
+        )
 
-        self.hundreds = hundreds.optimize()
+        self.hundreds = graph_hundreds.optimize()
 
         # For all three digit strings with leading zeroes (graph appends '0's to manage place in string)
-        graph_hundreds_component = pynini.union(hundreds, pynutil.delete("0") + tens)
+        graph_hundreds_component = pynini.union(hundreds, pynutil.delete("0") + graph_tens)
 
         graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component | (
-            pynutil.delete("00") + digits
+            pynutil.delete("00") + graph_digit
         )
         graph_hundreds_component_at_least_one_none_zero_digit_no_one = graph_hundreds_component | (
             pynutil.delete("00") + digits_no_one
@@ -170,7 +192,7 @@ class CardinalFst(GraphFst):
                 pynini.cross(pynini.closure(NEMO_WHITE_SPACE, 2), NEMO_SPACE), NEMO_ALPHA, NEMO_ALPHA, NEMO_SIGMA
             )
         )
-        self.graph |= graph_zero
+        self.graph |= zero
 
         self.graph = filter_punctuation(self.graph).optimize()
 

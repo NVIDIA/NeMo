@@ -76,9 +76,11 @@
 100.000~cien mil
 1 000 000~un millón
 1.000.000~un millón
+1 234 568~un millón doscientos treinta y cuatro mil quinientos sesenta y ocho
 2.000.000~dos millones
 1.000.000.000~mil millones
 2.000.000.000~dos mil millones
 3 000 000 000 000~tres billones
 3.000.000.000.000~tres billones
 100 000 000 000 000 000 000 000~cien mil trillones
+100 000 000 000 000 000 000 001~cien mil trillones un

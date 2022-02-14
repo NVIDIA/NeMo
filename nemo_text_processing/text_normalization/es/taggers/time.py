@@ -12,26 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
 
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_DIGIT,
+        NEMO_SIGMA,
+        GraphFst,
+        delete_space,
+        insert_space,
+    )
+
     time_zone_graph = pynini.string_file(get_abs_path("data/time/time_zone.tsv"))
     suffix = pynini.string_file(get_abs_path("data/time/time_suffix.tsv"))
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    time_zone_graph  = None
+    NEMO_DIGIT = None
+    NEMO_SIGMA = None
+    GraphFst = None
+    delete_space = None
+    insert_space = None
+
+    time_zone_graph = None
     suffix = None
 
     PYNINI_AVAILABLE = False
@@ -74,7 +80,9 @@ class TimeFst(GraphFst):
         labels_minute_single = [str(x) for x in range(1, 10)]
         labels_minute_double = [str(x) for x in range(10, 60)]
 
-        delete_leading_zero_to_double_digit = (pynini.closure(pynutil.delete("0") | (NEMO_DIGIT - "0"), 0, 1) + NEMO_DIGIT)
+        delete_leading_zero_to_double_digit = (
+            pynini.closure(pynutil.delete("0") | (NEMO_DIGIT - "0"), 0, 1) + NEMO_DIGIT
+        )
 
         graph_24 = (
             pynini.closure(NEMO_DIGIT, 1, 2) @ delete_leading_zero_to_double_digit @ pynini.union(*labels_hour_24)

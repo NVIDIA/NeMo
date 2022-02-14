@@ -11,13 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst, delete_extra_space
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_DIGIT,
+        NEMO_SPACE,
+        GraphFst,
+        delete_extra_space,
+    )
 
     articles = pynini.union("de", "del", "el", "del año")
     delete_leading_zero = (pynutil.delete("0") | (NEMO_DIGIT - "0")) + NEMO_DIGIT
@@ -26,11 +31,17 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
+    NEMO_DIGIT = None
+    NEMO_SPACE = None
+    GraphFst = None
+    delete_extra_space = None
+
     articles = None
     delete_leading_zero = None
     month_numbers = None
 
     PYNINI_AVAILABLE = False
+
 
 class DateFst(GraphFst):
     """
@@ -48,7 +59,7 @@ class DateFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
-        number_to_month = month_numbers
+        number_to_month = month_numbers.optimize()
         month_graph = pynini.project(number_to_month, "output")
 
         numbers = cardinal.graph
@@ -65,7 +76,7 @@ class DateFst(GraphFst):
         month_number = (pynutil.insert("month: \"") + number_to_month + pynutil.insert("\"")).optimize()
 
         # prefer cardinal over year
-        year = (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 0, 3)  # 90, 990, 1990
+        year = (NEMO_DIGIT - "0") + pynini.closure(NEMO_DIGIT, 1, 3)  # 90, 990, 1990
         year @= numbers
         self.year = year
 

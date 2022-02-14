@@ -12,18 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_WHITE_SPACE,
-    GraphFst,
-    delete_preserve_order,
-)
-from nemo_text_processing.text_normalization.es.graph_utils import NEMO_SIGMA, ones, shift_cardinal_gender
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_NOT_QUOTE,
+        NEMO_WHITE_SPACE,
+        NEMO_SIGMA,
+        GraphFst,
+        delete_preserve_order,
+    )
+    from nemo_text_processing.text_normalization.es.graph_utils import ones, shift_cardinal_gender
 
     unit_plural_fem = pynini.string_file(get_abs_path("data/measures/measurements_plural_fem.tsv"))
     unit_plural_masc = pynini.string_file(get_abs_path("data/measures/measurements_plural_masc.tsv"))
@@ -37,6 +39,15 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
+    NEMO_NOT_QUOTE = None
+    NEMO_WHITE_SPACE = None
+    NEMO_SIGM = None
+    GraphFst = None
+    delete_preserve_order = None
+
+    ones = None
+    shift_cardinal_gender = None
+
     unit_plural_fem = None
     unit_plural_masc = None
 
@@ -44,6 +55,7 @@ except (ModuleNotFoundError, ImportError):
     unit_singular_masc = None
 
     PYNINI_AVAILABLE = False
+
 
 class MeasureFst(GraphFst):
     """
@@ -62,6 +74,10 @@ class MeasureFst(GraphFst):
     def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst, deterministic: bool):
         super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
 
+        graph_decimal = decimal.fst
+        graph_cardinal = cardinal.fst
+        graph_fraction = fraction.fst
+
         unit_masc = (unit_plural_masc | unit_singular_masc) + pynini.closure(
             NEMO_WHITE_SPACE + "por" + pynini.closure(NEMO_NOT_QUOTE, 1), 0, 1
         )
@@ -73,16 +89,10 @@ class MeasureFst(GraphFst):
         )
         unit_fem = pynutil.delete("units: \"") + (pynini.closure(NEMO_NOT_QUOTE) @ unit_fem) + pynutil.delete("\"")
 
-        graph_decimal = decimal.fst
-        graph_cardinal = cardinal.fst
-        graph_fraction = fraction.fst
-
         graph_masc = (graph_cardinal | graph_decimal | graph_fraction) + NEMO_WHITE_SPACE + unit_masc
-
         graph_fem = (
             shift_cardinal_gender(graph_cardinal | graph_decimal | graph_fraction) + NEMO_WHITE_SPACE + unit_fem
         )
-
         graph = graph_masc | graph_fem
 
         graph = (

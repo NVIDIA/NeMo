@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 from nemo_text_processing.text_normalization.en.verbalizers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.es.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.es.verbalizers.date import DateFst
@@ -24,6 +23,19 @@ from nemo_text_processing.text_normalization.es.verbalizers.money import MoneyFs
 from nemo_text_processing.text_normalization.es.verbalizers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.es.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.es.verbalizers.time import TimeFst
+
+try:
+    import pynini
+    from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+
+    PYNINI_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
+    GraphFst = None
+
+    PYNINI_AVAILABLE = False
 
 
 class VerbalizeFst(GraphFst):

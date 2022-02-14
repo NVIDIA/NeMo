@@ -12,22 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-    delete_preserve_order,
-)
-from nemo_text_processing.text_normalization.es.taggers.date import articles
-from nemo_text_processing.text_normalization.es.graph_utils import strip_cardinal_apocope
-
 try:
     import pynini
     from pynini.lib import pynutil
 
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_NOT_QUOTE,
+        NEMO_SIGMA,
+        NEMO_SPACE,
+        GraphFst,
+        delete_preserve_order,
+    )
+    from nemo_text_processing.text_normalization.es.taggers.date import articles
+    from nemo_text_processing.text_normalization.es.graph_utils import strip_cardinal_apocope
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
+    NEMO_NOT_QUOTE = None
+    NEMO_SIGMA = None
+    NEMO_SPACE = None
+    GraphFst = None
+    delete_preserve_order = None
+
+    articles = None
+    strip_cardinal_apocope = None
+
     PYNINI_AVAILABLE = False
 
 
@@ -50,12 +59,9 @@ class DateFst(GraphFst):
         day = strip_cardinal_apocope(day_cardinal)
 
         primero = pynini.cdrewrite(pynini.cross("uno", "primero"), "[BOS]", "[EOS]", NEMO_SIGMA)
-        if deterministic:
-            # Traditional
-            day @= primero
-        else:
-            # Current in some regions
-            day |= day @ primero
+        day = (
+            (day @ primero) if deterministic else pynini.union(day, day @ primero)
+        )  # Primero for first day is traditional, but will vary depending on region
 
         month = pynutil.delete("month: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 

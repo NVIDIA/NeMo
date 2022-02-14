@@ -11,30 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_preserve_order,
-    insert_space,
-)
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
 
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_NOT_QUOTE,
+        NEMO_SIGMA,
+        GraphFst,
+        delete_preserve_order,
+        insert_space,
+    )
+
     digit_no_zero = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
     zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
 
-    graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
+    graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv"))
     server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
     domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
+    NEMO_NOT_QUOTE = None
+    NEMO_SIGMA = None
+    GraphFst = None
+    delete_preserve_order = None
+    insert_space = None
+
     graph_digit_no_zero = None
     graph_zero = None
 
@@ -43,6 +49,7 @@ except (ModuleNotFoundError, ImportError):
     domain_common = None
 
     PYNINI_AVAILABLE = False
+
 
 class ElectronicFst(GraphFst):
     """
@@ -59,7 +66,9 @@ class ElectronicFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="electronic", kind="verbalize", deterministic=deterministic)
 
-        graph_digit_no_zero = digit_no_zero @ pynini.cdrewrite(pynini.cross("un", "uno"), "", "", NEMO_SIGMA).optimize()
+        graph_digit_no_zero = (
+            digit_no_zero @ pynini.cdrewrite(pynini.cross("un", "uno"), "", "", NEMO_SIGMA).optimize()
+        )
         graph_digit = graph_digit_no_zero | zero
 
         def add_space_after_char():

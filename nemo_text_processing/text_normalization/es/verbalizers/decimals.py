@@ -11,27 +11,36 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# from nemo_text_processing.text_normalization.es.taggers.decimals import quantities
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    GraphFst,
-    delete_preserve_order,
-    delete_space,
-    insert_space,
-)
-from nemo_text_processing.text_normalization.es.graph_utils import (
-    shift_cardinal_gender,
-    shift_number_gender,
-    strip_cardinal_apocope,
-)
-
 try:
     import pynini
     from pynini.lib import pynutil
 
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_NOT_QUOTE,
+        GraphFst,
+        delete_preserve_order,
+        delete_space,
+        insert_space,
+    )
+    from nemo_text_processing.text_normalization.es.graph_utils import (
+        shift_cardinal_gender,
+        shift_number_gender,
+        strip_cardinal_apocope,
+    )
+
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
+    NEMO_NOT_QUOTE = None
+    GraphFst = None
+    delete_preserve_order = None
+    delete_space = None
+    insert_space = None
+
+    shift_cardinal_gender = None
+    shift_number_gender = None
+    strip_cardinal_apocope = None
+
     PYNINI_AVAILABLE = False
 
 
@@ -71,14 +80,13 @@ class DecimalFst(GraphFst):
             (self.integer + self.quantity) | (self.integer + delete_space + self.fractional + self.optional_quantity)
         )
 
-        self.numbers = graph
+        self.numbers = graph.optimize()
         self.numbers_no_quantity = self.integer + delete_space + self.fractional + self.optional_quantity
 
         if not deterministic:
-            fem_adjust = self.optional_sign + (
+            graph |= self.optional_sign + (
                 shift_cardinal_gender(self.integer + delete_space) + shift_number_gender(self.fractional)
             )
-            graph |= fem_adjust
 
         graph += delete_preserve_order
         delete_tokens = self.delete_tokens(graph)

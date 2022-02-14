@@ -15,6 +15,7 @@
 3 000 millones~tres mil millones
 3000 millones~tres mil millones
 3.000 millones~tres mil millones
+3.001 millones~tres mil un millones
 1 millón~un millón
 1 000 millones~mil millones
 1000 millones~mil millones

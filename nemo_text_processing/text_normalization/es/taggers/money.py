@@ -11,22 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
-from nemo_text_processing.text_normalization.es.graph_utils import decimal_separator
 from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 
 try:
     import pynini
     from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_ALPHA,
+        NEMO_DIGIT,
+        NEMO_SIGMA,
+        NEMO_SPACE,
+        GraphFst,
+        delete_space,
+        insert_space,
+    )
+    from nemo_text_processing.text_normalization.es.graph_utils import decimal_separator
 
     maj_singular_labels = load_labels(get_abs_path("data/money/currency_major.tsv"))
     maj_singular = pynini.string_file((get_abs_path("data/money/currency_major.tsv")))
@@ -37,6 +37,16 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
+    NEMO_ALPHA = None
+    NEMO_DIGIT = None
+    NEMO_SIGMA = None
+    NEMO_SPACE = None
+    GraphFst = None
+    delete_space = None
+    insert_space = None
+
+    decimal_separator = None
+
     maj_singular_labels = None
     min_singular = None
     maj_singular = None
@@ -94,12 +104,13 @@ class MoneyFst(GraphFst):
             graph_maj_singular + delete_space.ques + insert_space + graph_decimal_final,  # $1,05
             graph_decimal_final + delete_space.ques + insert_space + graph_maj_singular,  # 1,05 $
         )
-        graph_decimal_singular = (
-            pynini.accep("1") + decimal_separator + NEMO_SIGMA
-        ) @ graph_decimal_singular
+        graph_decimal_singular = (pynini.accep("1") + decimal_separator + NEMO_SIGMA) @ graph_decimal_singular
 
-        graph_decimal = graph_decimal_singular | graph_decimal_plural
-        graph_decimal |= graph_maj_plural + delete_space.ques + insert_space + decimal_with_quantity
+        graph_decimal = pynini.union(
+            graph_decimal_singular,
+            graph_decimal_plural,
+            graph_maj_plural + pynini.closure(delete_space, 0, 1) + insert_space + decimal_with_quantity,
+        )
 
         graph_integer = (
             pynutil.insert("integer_part: \"") + ((NEMO_SIGMA - "1") @ cardinal_graph) + pynutil.insert("\"")
@@ -134,9 +145,11 @@ class MoneyFst(GraphFst):
         decimal_graph_with_minor = None
         for curr_symbol, _ in maj_singular_labels:
             preserve_order = pynutil.insert(" preserve_order: true")
-            integer_plus_maj = graph_integer + insert_space + pynutil.insert(curr_symbol) @ graph_maj_plural
-            integer_plus_maj |= graph_integer_one + insert_space + pynutil.insert(curr_symbol) @ graph_maj_singular
 
+            integer_plus_maj = pynini.union(
+                graph_integer + insert_space + pynutil.insert(curr_symbol) @ graph_maj_plural,
+                graph_integer_one + insert_space + pynutil.insert(curr_symbol) @ graph_maj_singular,
+            )
             # non zero integer part
             integer_plus_maj = (pynini.closure(NEMO_DIGIT) - "0") @ integer_plus_maj
 
@@ -151,9 +164,9 @@ class MoneyFst(GraphFst):
             )
             graph_fractional = pynutil.insert("fractional_part: \"") + graph_fractional + pynutil.insert("\"")
 
-            fractional_plus_min = graph_fractional + insert_space + pynutil.insert(curr_symbol) @ graph_min_plural
-            fractional_plus_min |= (
-                graph_fractional_one + insert_space + pynutil.insert(curr_symbol) @ graph_min_singular
+            fractional_plus_min = pynini.union(
+                graph_fractional + insert_space + pynutil.insert(curr_symbol) @ graph_min_plural,
+                graph_fractional_one + insert_space + pynutil.insert(curr_symbol) @ graph_min_singular,
             )
 
             decimal_graph_with_minor_curr = (

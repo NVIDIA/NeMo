@@ -11,24 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_DIGIT,
-    NEMO_SIGMA,
-    NEMO_SPACE,
-    GraphFst,
-    delete_space,
-    insert_space,
-)
-from nemo_text_processing.text_normalization.es.graph_utils import (
-    cardinal_separator,
-    decimal_separator,
-    strip_cardinal_apocope,
-)
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_DIGIT,
+        NEMO_SIGMA,
+        NEMO_SPACE,
+        GraphFst,
+        delete_space,
+        insert_space,
+    )
+    from nemo_text_processing.text_normalization.es.graph_utils import (
+        cardinal_separator,
+        decimal_separator,
+        strip_cardinal_apocope,
+    )
 
     quantities = pynini.string_file(get_abs_path("data/numbers/quantities.tsv"))
     digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
@@ -37,18 +38,30 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
+    NEMO_DIGIT = None
+    NEMO_SIGMA = None
+    NEMO_SPACE = None
+    GraphFst = None
+    delete_space = None
+    insert_space = None
+
+    cardinal_separator = None
+    decimal_separator = None
+    strip_cardinal_apocope = None
+
     quantities = None
     digit = None
     zero = None
 
     PYNINI_AVAILABLE = False
 
+
 def get_quantity(decimal: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
     e.g. 2 millones -> integer_part: "dos" quantity: "millones"
-    e.g. 2.4 millones -> integer_part: "dos" fractional_part: "quatro" quantity: "million"
-    e.g. 2.400 millones -> integer_part: "dos mil cuatrocientos" fractional_part: "quatro" quantity: "million"
+    e.g. 2,4 millones -> integer_part: "dos" fractional_part: "quatro" quantity: "millones"
+    e.g. 2,400 millones -> integer_part: "dos mil cuatrocientos" fractional_part: "quatro" quantity: "millones"
 
     Args:
         decimal: DecimalFST
@@ -87,16 +100,19 @@ class DecimalFst(GraphFst):
 
         if not deterministic:
             graph = pynini.union(graph_digit, cardinal.hundreds, cardinal.tens)
-            graph = graph + pynini.closure(insert_space + graph)
+            graph += pynini.closure(insert_space + graph)
 
         else:
-            # General pattern seems to be 1-3 digits: map as cardinal \
-            graph = cardinal.hundreds | graph_digit | cardinal.tens  # Read up to group of three
-            graph |= graph_digit + pynini.closure(insert_space + graph_digit, 3) # Default to string of digits otherwise
-
-            graph |= (
-                zero + insert_space + pynini.closure(graph_digit + insert_space) + graph_digit
-            )  # For cases of scientific notation, want to preserve strings of zeroes following digits
+            # General pattern seems to be 1-3 digits: map as cardinal, default to digits otherwise \
+            graph = pynini.union(
+                graph_digit,
+                cardinal.tens,
+                cardinal.hundreds,
+                graph_digit + pynini.closure(insert_space + graph_digit, 3),
+                zero
+                + pynini.closure(insert_space + zero)
+                + pynini.closure(insert_space + graph_digit),  # For cases such as "1,010"
+            )
 
         # Need to strip apocope everywhere BUT end of string
         reverse_apocope = pynini.string_map([("un", "uno"), ("ún", "uno")])

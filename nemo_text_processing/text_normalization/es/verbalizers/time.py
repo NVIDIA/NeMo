@@ -13,20 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
-    NEMO_SIGMA,
-    GraphFst,
-    delete_preserve_order,
-    delete_space,
-    insert_space,
-)
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
+
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_NOT_QUOTE,
+        NEMO_SIGMA,
+        GraphFst,
+        delete_preserve_order,
+        delete_space,
+        insert_space,
+    )
 
     alt_minutes = pynini.string_file(get_abs_path("data/time/alt_minutes.tsv"))
 
@@ -37,11 +37,19 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
+    NEMO_NOT_QUOTE = None
+    NEMO_SIGMA = None
+    GraphFst = None
+    delete_preserve_order = None
+    delete_space = None
+    insert_space = None
+
     morning_times = None
     afternoon_times = None
     evening_times = None
 
     PYNINI_AVAILABLE = False
+
 
 class TimeFst(GraphFst):
     """

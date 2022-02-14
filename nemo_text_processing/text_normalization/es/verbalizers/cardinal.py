@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
-from nemo_text_processing.text_normalization.es.graph_utils import shift_cardinal_gender, strip_cardinal_apocope
-
 try:
     import pynini
     from pynini.lib import pynutil
 
+    from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
+    from nemo_text_processing.text_normalization.es.graph_utils import shift_cardinal_gender, strip_cardinal_apocope
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
+    NEMO_NOT_QUOTE = None
+    GraphFst = None
+
+    shift_cardinal_gender = None
+    strip_cardinal_apocope - None
+
     PYNINI_AVAILABLE = False
 
 

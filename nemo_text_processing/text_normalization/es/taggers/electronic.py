@@ -12,16 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
 from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 
 try:
     import pynini
     from pynini.lib import pynutil
 
+    from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
+
+    common_domains = [x[0] for x in load_labels(get_abs_path("data/electronic/domain.tsv"))]
+    symbols = [x[0] for x in load_labels(get_abs_path("data/electronic/symbols.tsv"))]
+
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
+    NEMO_ALPHA = None
+    NEMO_DIGIT = None
+    GraphFst = None
+    insert_space = None
+
+    common_domains = None
+    symbols = None
+
     PYNINI_AVAILABLE = False
 
 
@@ -40,10 +51,8 @@ class ElectronicFst(GraphFst):
         super().__init__(name="electronic", kind="classify", deterministic=deterministic)
 
         dot = pynini.accep(".")
-        accepted_common_domains = [x[0] for x in load_labels(get_abs_path("data/electronic/domain.tsv"))]
-        accepted_common_domains = pynini.union(*accepted_common_domains)
-        accepted_symbols = [x[0] for x in load_labels(get_abs_path("data/electronic/symbols.tsv"))]
-        accepted_symbols = pynini.union(*accepted_symbols) - dot
+        accepted_common_domains = pynini.union(*common_domains)
+        accepted_symbols = pynini.union(*symbols) - dot
         accepted_characters = pynini.closure(NEMO_ALPHA | NEMO_DIGIT | accepted_symbols)
         acceepted_characters_with_dot = pynini.closure(NEMO_ALPHA | NEMO_DIGIT | accepted_symbols | dot)
 
