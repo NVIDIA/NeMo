@@ -407,9 +407,9 @@ class TextToTextGLUEDataset(GLUEDataset):
         dec_input = [item['text_dec'] for item in batch]
         labels = [item['labels'] for item in batch]
 
-        max_dec_input_length = max([len(item) for item in dec_input])
-        max_enc_query_length = max([len(item) for item in enc_query])
-        max_label_length = max([len(item) for item in labels])
+        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
+        max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
+        max_label_length = max([len(item) for item in labels]) if labels else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
@@ -421,10 +421,8 @@ class TextToTextGLUEDataset(GLUEDataset):
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
 
-        enc_mask = make_attention_mask_3d(enc_query, enc_query, self.tokenizer.pad_id).long()
-        dec_mask = make_attention_mask_3d(dec_input, dec_input, self.tokenizer.pad_id)
-        dec_mask = (dec_mask * make_history_mask_3d(dec_input)).long()
-        enc_dec_mask = make_attention_mask_3d(dec_input, enc_query, self.tokenizer.pad_id).long()
+        enc_mask = (enc_query != self.tokenizer.pad_id).long()
+        dec_mask = (dec_input != self.tokenizer.pad_id).long()
 
         return {
             'text_enc': enc_query,
@@ -433,7 +431,6 @@ class TextToTextGLUEDataset(GLUEDataset):
             'loss_mask': loss_mask,
             'enc_mask': enc_mask,
             'dec_mask': dec_mask,
-            'enc_dec_mask': enc_dec_mask,
         }
 
     def make_history_mask_3d(self, block):

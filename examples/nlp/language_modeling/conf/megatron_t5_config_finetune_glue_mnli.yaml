@@ -42,7 +42,7 @@ model:
   data:
     train_ds:
       task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/train.tsv'
+      file_path: ??? # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
       batch_size: 32
       shuffle: True
       num_workers: 8
@@ -51,16 +51,7 @@ model:
 
     validation_ds:
       task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/dev.tsv'
-      batch_size: 32
-      shuffle: False
-      num_workers: 8
-      pin_memory: True
-      max_seq_length: 512
-
-    test_ds:
-      task_name: 'mnli'
-      file_path: '/raid/Data/GLUE/MNLI/test.tsv'
+      file_path: ??? # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       batch_size: 32
       shuffle: False
       num_workers: 8

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="megatron_t5_config_finetune_glue_mnli")
+@hydra_runner(config_path="conf", config_name="megatron_t5_config_finetune")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
@@ -72,12 +72,9 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
     model = MegatronT5GLUEModel(cfg.model, trainer)
-    # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.823-step=1953.ckpt', trainer=trainer, cfg=cfg.model)
-    # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments_mnli/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.863-step=21407.ckpt', trainer=trainer, cfg=cfg.model)
-    # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.863-step=24407.ckpt', trainer=trainer, cfg=cfg.model)
-    # model = MegatronT5GLUEModel.load_from_checkpoint('/home/sandeepsub/code/NeMo/examples/nlp/language_modeling/nemo_experiments/megatron_t5_glue/checkpoints/megatron_t5--val_acc=0.893-step=18046.ckpt', trainer=trainer, cfg=cfg.model)
     trainer.fit(model)
-    trainer.test(model)
+    trainer.validate(model)
+
 
 if __name__ == '__main__':
     main()

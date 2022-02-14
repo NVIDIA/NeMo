@@ -38,12 +38,21 @@ import time
 
 import numpy as np
 import torch
-from apex.transformer import parallel_state
 
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
@@ -177,13 +186,18 @@ def create_tokens_and_tokentypes(tokens_a, tokens_b, cls_id, sep_id):
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
 
 
-def is_start_piece(piece):
-    """Check if the current word piece is the starting piece (BERT)."""
+def is_start_piece(piece, tokenizer_type='wordpiece'):
+    """Check if the current word piece is the starting piece. (BERT)"""
     # When a word has been split into
     # WordPieces, the first token does not have any marker and any subsequence
     # tokens are prefixed with ##. So whenever we see the ## token, we
     # append it to the previous set of word indexes.
-    return not piece.startswith("##")
+    if tokenizer_type == 'wordpiece':
+        return not piece.startswith("##")
+    elif tokenizer_type == 'sentencepiece':
+        return piece.startswith('▁')
+    else:
+        raise ValueError(f"Tokenizer type {tokenizer_type} is not supported.")
 
 
 def create_masked_lm_predictions(
@@ -202,6 +216,7 @@ def create_masked_lm_predictions(
     do_permutation=False,
     geometric_dist=False,
     masking_style="bert",
+    tokenizer_type="wordpiece",
 ):
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
@@ -222,11 +237,15 @@ def create_masked_lm_predictions(
         # Note that Whole Word Masking does *not* change the training code
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
-        if do_whole_word_mask and len(cand_indexes) >= 1 and not is_start_piece(vocab_id_to_token_dict[token]):
+        if (
+            do_whole_word_mask
+            and len(cand_indexes) >= 1
+            and not is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type)
+        ):
             cand_indexes[-1].append(i)
         else:
             cand_indexes.append([i])
-            if is_start_piece(vocab_id_to_token_dict[token]):
+            if is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type):
                 token_boundary[i] = 1
 
     output_tokens = list(tokens)

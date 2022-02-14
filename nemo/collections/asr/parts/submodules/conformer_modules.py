@@ -95,33 +95,31 @@ class ConformerLayer(torch.nn.Module):
         Returns:
             x (torch.Tensor): (B, T, d_model)
         """
+        dtype = x.dtype
         residual = x
         x = self.norm_feed_forward1(x)
         x = self.feed_forward1(x)
-        x = self.fc_factor * self.dropout(x) + residual
+        residual = residual + self.dropout(x) * self.fc_factor
 
-        residual = x
-        x = self.norm_self_att(x)
+        x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
             x = None
-        x = self.dropout(x) + residual
+        residual = residual + self.dropout(x)
 
-        residual = x
-        x = self.norm_conv(x)
+        x = self.norm_conv(residual)
         x = self.conv(x, pad_mask)
-        x = self.dropout(x) + residual
+        residual = residual + self.dropout(x)
 
-        residual = x
-        x = self.norm_feed_forward2(x)
+        x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)
-        x = self.fc_factor * self.dropout(x) + residual
+        residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_out(x)
-        return x
+        x = self.norm_out(residual)
+        return x.to(dtype=dtype)
 
 
 class ConformerConvolution(nn.Module):
