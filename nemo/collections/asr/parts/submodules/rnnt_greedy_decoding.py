@@ -285,8 +285,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
-            if len(partial_hypotheses.y_sequence) > 0:
-                hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
+            # if len(partial_hypotheses.y_sequence) > 0:
+            #     hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
             if partial_hypotheses.dec_state is not None:
                 hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
                 hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
@@ -369,8 +369,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
 
         # Remove the original input label if partial hypothesis was provided
-        if partial_hypotheses is not None and len(partial_hypotheses.y_sequence) > 0:
-            hypothesis.y_sequence = hypothesis.y_sequence[1:]
+        # if partial_hypotheses is not None and len(partial_hypotheses.y_sequence) > 0:
+        #     hypothesis.y_sequence = hypothesis.y_sequence[1:]
 
         return hypothesis
 
