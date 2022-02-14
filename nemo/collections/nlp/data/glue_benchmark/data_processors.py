@@ -62,6 +62,12 @@ class MrpcProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mrpc sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return "equivalent" if label == "1" else "not equivalent"
+
 
 class MnliProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
@@ -90,6 +96,12 @@ class MnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mnli hypothesis: {text_a} premise: {text_b}"
+
+    def label2string(self, label):
+        return label
 
 
 class MnliMismatchedProcessor(MnliProcessor):
@@ -125,6 +137,13 @@ class ColaProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        assert text_b is None
+        return f"cola sentence: {text_a}"
+
+    def label2string(self, label):
+        return "acceptable" if label == "1" else "not acceptable"
+
 
 class Sst2Processor(DataProcessor):
     """Processor for the SST-2 data set (GLUE version)."""
@@ -152,6 +171,13 @@ class Sst2Processor(DataProcessor):
             label = line[1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        assert text_b is None
+        return f"sst2 sentence: {text_a}"
+
+    def label2string(self, label):
+        return "positive" if label == "1" else "negative"
 
 
 class StsbProcessor(DataProcessor):
@@ -181,6 +207,12 @@ class StsbProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"stsb sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return '%.1f' % float(label)
 
 
 class QqpProcessor(DataProcessor):
@@ -214,6 +246,12 @@ class QqpProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"qqp question1: {text_a} question2: {text_b}"
+
+    def label2string(self, label):
+        return "duplicate" if label == "1" else "not_duplicate"
+
 
 class QnliProcessor(DataProcessor):
     """Processor for the QNLI data set (GLUE version)."""
@@ -242,6 +280,12 @@ class QnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"qnli question: {text_a} sentence: {text_b}"
+
+    def label2string(self, label):
+        return label
 
 
 class RteProcessor(DataProcessor):
@@ -272,6 +316,12 @@ class RteProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"rte sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return label
+
 
 class WnliProcessor(DataProcessor):
     """Processor for the WNLI data set (GLUE version)."""
@@ -300,6 +350,12 @@ class WnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
+
+    def label2string(self, label):
+        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
 
 
 class InputExample(object):
