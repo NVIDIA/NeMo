@@ -129,7 +129,7 @@ model:
     in_dim: *n_mels
     proj_dim: *dec_out
     combine_time_steps: 4
-    codebook_size: 1200
+    quantized_targets: false
     sample_from_same_utterance_only: false
 
   optim:
