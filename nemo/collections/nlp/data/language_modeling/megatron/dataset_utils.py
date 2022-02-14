@@ -463,6 +463,12 @@ def build_train_valid_test_datasets(
     max_seq_length_dec=None,
     dataset_type='standard_bert',
     tokenizer=None,
+    max_ngram_size=10,
+    mean_ngram_size=None,
+    geometric_dist=True,
+    permutation=False,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
 ):
 
     if len(data_prefix) == 1:
@@ -482,6 +488,12 @@ def build_train_valid_test_datasets(
             max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
+            max_ngram_size=max_ngram_size,
+            mean_ngram_size=mean_ngram_size,
+            geometric_dist=geometric_dist,
+            permutation=permutation,
+            whole_word_masking=whole_word_masking,
+            favor_long_ngrams=favor_long_ngrams,
         )
     # Blending dataset.
     # Parse the values.
@@ -509,6 +521,12 @@ def build_train_valid_test_datasets(
             max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
+            max_ngram_size=max_ngram_size,
+            mean_ngram_size=mean_ngram_size,
+            geometric_dist=geometric_dist,
+            permutation=permutation,
+            whole_word_masking=whole_word_masking,
+            favor_long_ngrams=favor_long_ngrams,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -547,6 +565,12 @@ def _build_train_valid_test_datasets(
     max_seq_length_dec,
     dataset_type='standard_bert',
     tokenizer=None,
+    max_ngram_size=10,
+    mean_ngram_size=None,
+    geometric_dist=True,
+    permutation=False,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -628,6 +652,12 @@ def _build_train_valid_test_datasets(
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,
                     short_seq_prob=short_seq_prob,
+                    max_ngram_size=max_ngram_size,
+                    mean_ngram_size=mean_ngram_size,
+                    geometric_dist=geometric_dist,
+                    permutation=permutation,
+                    whole_word_masking=whole_word_masking,
+                    favor_long_ngrams=favor_long_ngrams,
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BERT:
