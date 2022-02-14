@@ -221,7 +221,8 @@ def main():
     print(asr_out_whole)
     if best_hyp is not None:
         print(best_hyp[0].text)
-    # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
+
+    print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     last_channel_num, last_time_num = set_streaming_mode(asr_model, cache_drop_size=cache_drop_size)
     bs = 1
