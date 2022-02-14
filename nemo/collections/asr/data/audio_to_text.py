@@ -1490,8 +1490,6 @@ class BucketingDataset(IterableDataset):
         self.wrapped_dataset = dataset
         self.bucketing_batch_size = bucketing_batch_size
         super().__init__()
-        print(self.wrapped_dataset)
-        print(self.bucketing_batch_size)
 
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch[0], self.wrapped_dataset.pad_id)
