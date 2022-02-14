@@ -123,7 +123,7 @@ class ContrastiveLoss(Loss):
 
         high = y.shape[0]
         neg_idxs = torch.multinomial(torch.ones(num, high), self.num_negatives).to(device=y.device)
-        # neg_idxs = torch.randint(low=0, high=high - 1, size=(self.num_negatives * num,))
+        #neg_idxs = torch.randint(low=0, high=high - 1, size=(self.num_negatives * num,))
 
         negs = y[neg_idxs.view(-1)]
         negs = negs.view((num, self.num_negatives) + y.shape[1:])
@@ -148,9 +148,12 @@ class ContrastiveLoss(Loss):
             targets = self.target_proj(targets)
 
         if self.sample_from_same_utterance_only:
-            masks = masks.mean(dim=(0, -1)) > self.mask_threshold
-            out_masked_only = decoder_outputs[:, masks]
-            targets_masked_only = targets[:, masks]
+            bs = decoder_outputs.shape[0]
+            masks = masks.mean(-1) > self.mask_threshold
+            out_masked_only = decoder_outputs[masks]
+            targets_masked_only = targets[masks]
+            out_masked_only = out_masked_only.reshape(bs, -1, out_masked_only.shape[-1])
+            targets_masked_only = targets_masked_only.reshape(bs, -1, targets_masked_only.shape[-1])
 
             # BxT'xC
             # number of masked time steps to predict (T')

@@ -52,6 +52,7 @@ __all__ = [
     'AudioToMelSpectrogramPreprocessor',
     'AudioToMFCCPreprocessor',
     'SpectrogramAugmentation',
+    'MaskedPatchAugmentation',
     'CropOrPadSpectrogramAugmentation',
 ]
 
@@ -518,6 +519,66 @@ class SpectrogramAugmentation(NeuralModule):
         else:
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
         return augmented_spec#, augmented_length
+
+class MaskedPatchAugmentation(NeuralModule):
+
+    @property
+    def input_types(self):
+        """Returns definitions of module input types
+        """
+        return {
+            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output types
+        """
+        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
+    def __init__(
+        self,
+        patch_size=64,
+        mask_patches=10,
+        freq_masks=0,
+        freq_width=0,
+    ):
+        super().__init__()
+        self.patch_size = patch_size
+        self.mask_patches = mask_patches
+
+        if freq_masks > 0:
+            self.spec_augment = SpecAugment(
+                freq_masks=freq_masks,
+                time_masks=0,
+                freq_width=freq_width,
+                time_width=0,
+            )
+        else:
+            self.spec_augment = None
+
+    @typecheck()
+    def forward(self, input_spec, length):
+        augmented_spec = input_spec
+
+        min_len = torch.min(length)
+        mask_patches = self.mask_patches
+        if min_len < self.patch_size * self.mask_patches:
+            mask_patches = min_len // self.patch_size
+
+        for idx in range(input_spec.shape[0]):
+            cur_len = length[idx]
+            patches = range(cur_len // self.patch_size - 1)
+            masked_patches = random.sample(patches, mask_patches)
+
+            for mp in masked_patches:
+                augmented_spec[idx, :, mp * self.patch_size: (mp + 1) * self.patch_size] = 0.
+
+        if self.spec_augment is not None:
+            augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
+
+        return augmented_spec
 
 
 class CropOrPadSpectrogramAugmentation(NeuralModule):
