@@ -40,11 +40,21 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.core.optim import MasterOptimizerWrapper, prepare_lr_scheduler
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.pipeline_parallel.schedules.common import (
+        build_model,
+        _get_params_for_weight_decay_optimization,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -64,21 +74,24 @@ class MegatronGPTModel(NLPModel):
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
 
+        self._validate_trainer()
+
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
 
-        # buffer used during train_step for logging average loss over gradient accumulation steps
-        self._reduced_loss_buffer = []
-
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
+            micro_batch_size=cfg.get('micro_batch_size'),
+            global_batch_size=cfg.get('global_batch_size'),
             seed=self.cfg.get('seed', 1234),
+            apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
 
         self.tokenizer = get_nmt_tokenizer(
@@ -91,40 +104,15 @@ class MegatronGPTModel(NLPModel):
 
         vocab_size = self.tokenizer.vocab_size
 
-        padded_vocab_size = self._vocab_size_with_padding(
+        self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=vocab_size,
             make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
         )
 
-        self.model = GPTModel(
-            vocab_size=padded_vocab_size,
-            hidden_size=cfg.hidden_size,
-            max_position_embeddings=cfg.max_position_embeddings,
-            num_layers=cfg.num_layers,
-            num_attention_heads=cfg.num_attention_heads,
-            apply_query_key_layer_scaling=cfg.get('apply_query_key_layer_scaling', True),
-            kv_channels=cfg.get('kv_channels', None),
-            ffn_hidden_size=cfg.ffn_hidden_size,
-            num_tokentypes=0,
-            parallel_output=True,
-            pre_process=cfg.get('pre_process', True),
-            post_process=cfg.get('post_process', True),
-            init_method_std=cfg.get('init_method_std', 0.02),
-            fp16_lm_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
-            use_cpu_initialization=cfg.get('use_cpu_initialization', False),
-            hidden_dropout=cfg.get('hidden_dropout', 0.1),
-            precision=cfg.get('precision', 16),
-            fp32_residual_connection=cfg.get('fp32_residual_connection', False),
-            activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
-            activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
-            layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
-            persist_layer_norm=cfg.get('persist_layer_norm', False),
-            onnx_safe=cfg.get('onnx_safe', False),
-            use_soft_prompts=cfg.get('use_soft_prompts', False),
-            num_prompt_tokens=cfg.get('num_prompt_tokens', 10),
-            prompt_tags=cfg.get('existing_prompt_tags', None),
-        )
+        # TODO: Not sure how to use lists of modules with PTL.
+        # This means we can only use pipeline parallelism without the interleaved schedule.
+        self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
 
         self.use_soft_prompts = False
 
@@ -136,6 +124,8 @@ class MegatronGPTModel(NLPModel):
 
             if self.cfg.get('existing_prompt_tags', None):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
+            raise ValueError('prompt tuning is temporarily disabled. Please use NeMo 1.6')
+        self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -147,46 +137,143 @@ class MegatronGPTModel(NLPModel):
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(module=self.model, precision=cfg.precision)
 
+        if self.trainer.precision == 32:
+            self.autocast_dtype = torch.float
+        elif self.trainer.precision == 16:
+            self.autocast_dtype = torch.half
+        elif self.trainer.precision == 'bf16':
+            self.autocast_dtype = torch.bfloat16
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
+
+    def model_provider_func(self, pre_process, post_process):
+        """Model depends on pipeline paralellism."""
+        model = GPTModel(
+            vocab_size=self.padded_vocab_size,
+            hidden_size=self.cfg.hidden_size,
+            max_position_embeddings=self.cfg.max_position_embeddings,
+            num_layers=self.cfg.num_layers,
+            num_attention_heads=self.cfg.num_attention_heads,
+            apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
+            kv_channels=self.cfg.get('kv_channels', None),
+            ffn_hidden_size=self.cfg.ffn_hidden_size,
+            num_tokentypes=0,
+            parallel_output=True,
+            pre_process=pre_process,
+            post_process=post_process,
+            init_method_std=self.cfg.get('init_method_std', 0.02),
+            fp16_lm_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
+            use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
+            hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
+            precision=self.cfg.get('precision', 16),
+            fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
+            activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
+            activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
+            layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
+            onnx_safe=self.cfg.get('onnx_safe', False),
+            use_soft_prompts=self.cfg.get('use_soft_prompts', False),
+            num_prompt_tokens=self.cfg.get('num_prompt_tokens', 10),
+            prompt_tags=self.cfg.get('existing_prompt_tags', None),
+            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
+        )
+
+        return model
+
     def forward(self, tokens, text_position_ids, attention_mask, labels, prompt_tags=None):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels, prompt_tags=prompt_tags,)
         return output_tensor
 
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
+
     def training_step(self, batch, batch_idx):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            Batch should be a list of microbatches and those microbatches should on CPU.
+            Microbatches are then moved to GPU during the pipeline.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        self._optimizer.zero_grad()
+
         if self.use_soft_prompts:
-            tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids = batch
-
-            tokens = tokens.to(self.device)
-            labels = labels.to(self.device)
-            attention_mask = attention_mask.to(self.device)
-            loss_mask = loss_mask.to(self.device)
-            text_position_ids = text_position_ids.to(self.device)
-
-            output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags)
+            # The micro batches are already prepared for apex by the prompt tuning dataclass
+            batch_for_pipeline = batch
         else:
-            tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-            output_tensor = self(tokens, position_ids, attention_mask, labels)
+            # we prepare the micro batches for the apex fwd/bwd function
+            batch_for_pipeline = self.process_global_batch(batch)
+        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
-        loss = self.loss_func(loss_mask, output_tensor)
-        reduced_loss = average_losses_across_data_parallel_group([loss])
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
 
-        # cache reduced loss while accumulating gradients
-        self._reduced_loss_buffer.append(reduced_loss[0])
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
 
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
-            # Reduced loss for logging.
-            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
-            self._reduced_loss_buffer = []
-            if self.cfg.precision == 16:
-                loss_scale = self.trainer.precision_plugin.scaler._scale
-                if loss_scale is not None:
-                    self.log('loss_scale', loss_scale)
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            loss_mean = torch.tensor(0.0).cuda()
 
-        return loss
+        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
+        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
+        if self.megatron_amp_o2:
+            # main grads are stored in the MainParamsOptimizer wrapper
+            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
+
+            self.allreduce_first_last_embeddings()
+        else:
+
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+            self.allreduce_first_last_embeddings()
+
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        # TODO: make sure compute_consumed_samples works for pipeline parallelism
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step),
+            prog_bar=True,
+            rank_zero_only=True,
+        )
+        return loss_mean
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, batch, batch_idx)
@@ -226,30 +313,131 @@ class MegatronGPTModel(NLPModel):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
+    def backward(self, *args, **kwargs):
+        """ LightningModule hook to do backward.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            No need to call it here.
+        """
+        return
+
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing as we are zeroing grads during the training_step.
+        """
+        return
+
+    def allreduce_gradients(self):
+        """Reduce gradients across data parallel ranks.
+           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        """
+        # Bucketize and all-reduce
+        buckets = {}
+        # Pack the buckets.
+        for param in self.parameters():
+            if param.requires_grad and param.grad is not None:
+                tp = param.data.type()
+                if tp not in buckets:
+                    buckets[tp] = []
+                buckets[tp].append(param)
+                # param.main_grad = param.grad
+
+        # For each bucket, all-reduce and copy all-reduced grads.
+        for tp in buckets:
+            bucket = buckets[tp]
+            grads = [param.grad.data for param in bucket]
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            coalesced /= parallel_state.get_data_parallel_world_size()
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
+
+    def allreduce_first_last_embeddings(self):
+
+        # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
+        # All-reduce word_embeddings' grad across first and last stages to ensure
+        # that word_embeddings parameters stay in sync.
+        # This should only run for models that support pipelined model parallelism
+        # (BERT and GPT-2).
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
+            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
+        ):
+            if self.model.share_word_embeddings:
+                word_embeddings_weight = self.model.word_embeddings_weight()
+                if self.megatron_amp_o2:
+                    # O2 recipe stores a "main" copy of weights and grads
+                    grad = word_embeddings_weight.main_grad
+                else:
+                    grad = word_embeddings_weight.grad
+                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+            batch = [x.cuda() for x in batch]
+            tokens, labels, loss_mask, attention_mask, position_ids = batch
+            attention_mask = attention_mask[0:1]
+            output_tensor = model(tokens, position_ids, attention_mask, labels)
+
+            def loss_func(output_tensor):
+                loss = self.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                return loss, {'avg': reduced_loss}
+
+            return output_tensor, loss_func
+
+        return fwd_output_and_loss_func
+
     def validation_step(self, batch, batch_idx):
-        if self.use_soft_prompts:
-            tokens, labels, prompt_tags, attention_mask, loss_mask, text_position_ids = batch
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
 
-            tokens = tokens.to(self.device)
-            labels = labels.to(self.device)
-            attention_mask = attention_mask.to(self.device)
-            loss_mask = loss_mask.to(self.device)
-            text_position_ids = text_position_ids.to(self.device)
-
-            output_tensor = self(tokens, text_position_ids, attention_mask, labels, prompt_tags)
+        batch_for_pipeline = self.process_global_batch(batch)
+        tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+            )
         else:
-            tokens, labels, loss_mask, attention_mask, position_ids = self.process_batch(batch)
-            output_tensor = self(tokens, position_ids, attention_mask, labels)
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+            )
 
-        loss = self.loss_func(loss_mask, output_tensor)
-        reduced_loss = average_losses_across_data_parallel_group([loss])
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = []
 
-        return reduced_loss
+        return loss_mean
 
     def validation_epoch_end(self, outputs):
-        averaged_loss = torch.stack(outputs).mean()
-        self.log('val_loss', averaged_loss, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -265,14 +453,12 @@ class MegatronGPTModel(NLPModel):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()  # sequence level nll
         return loss
 
-    def process_batch(self, batch):
+    def process_micro_batch(self, micro_batch):
+        """ Micro batch returned by MegatronGPT dataloader"""
 
-        # Items and their type.
-        keys = ['text']
-        datatype = torch.int64
-
-        data = batch
-        data_b = tensor_parallel.broadcast_data(keys, data, datatype)
+        data = micro_batch
+        # data_b = tensor_parallel.broadcast_data(keys, data, datatype)
+        data_b = data
 
         # Unpack.
         tokens_ = data_b['text'].long()
@@ -289,6 +475,33 @@ class MegatronGPTModel(NLPModel):
         )
 
         return tokens, labels, loss_mask, attention_mask, position_ids
+
+    def process_global_batch(self, global_batch):
+        """ Prepares the global batch for apex fwd/bwd functions.
+            Global batch is a list of micro batches.
+        """
+        tokens_list = []
+        labels_list = []
+        loss_mask_list = []
+        attention_mask_list = []
+        position_ids_list = []
+        for micro_batch in global_batch:
+            tokens, labels, loss_mask, attention_mask, position_ids = self.process_micro_batch(micro_batch)
+            micro_batch_size = tokens.shape[0]
+            tokens_list.append(tokens)
+            labels_list.append(labels)
+            loss_mask_list.append(loss_mask)
+            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            attention_mask_list.append(attention_mask_repeat)
+            position_ids_list.append(position_ids)
+
+        tokens_tensor = torch.concat(tokens_list)
+        labels_tensor = torch.concat(labels_list)
+        loss_mask_tensor = torch.concat(loss_mask_list)
+        attention_mask_tensor = torch.concat(attention_mask_list)
+        position_ids_tensor = torch.concat(position_ids_list)
+
+        return tokens_tensor, labels_tensor, loss_mask_tensor, attention_mask_tensor, position_ids_tensor
 
     def build_train_valid_test_datasets(self):
         if self.use_soft_prompts:
@@ -357,7 +570,6 @@ class MegatronGPTModel(NLPModel):
         else:
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
-        # Torch dataloader.
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
@@ -367,6 +579,7 @@ class MegatronGPTModel(NLPModel):
             dataset_path=dataset_path,
             tokenizer=self.tokenizer,
             num_prompt_tokens=self.cfg.num_prompt_tokens,
+            micro_batch_size=self.cfg.micro_batch_size,
             max_seq_length=self.cfg.data.get('max_seq_length', 512),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos_eos=self.cfg.data.get('add_bos_eos', True),
@@ -384,6 +597,12 @@ class MegatronGPTModel(NLPModel):
         return dataset, dataloader
 
     def setup(self, stage=None):
+        """ PTL hook that is executed after DDP spawns.
+            We setup datasets here as megatron datasets require DDP to instantiate.
+            See https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#setup for more information.
+        Args:
+            stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
+        """
         if stage == 'predict':
             return
         else:
@@ -393,6 +612,10 @@ class MegatronGPTModel(NLPModel):
             self.setup_training_data(self.cfg.data)
             self.setup_validation_data(self.cfg.data)
             self.setup_test_data(self.cfg.data)
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            self.model.sync_initial_word_embeddings()
 
     def setup_training_data(self, cfg):
         if self.use_soft_prompts:
@@ -450,11 +673,20 @@ class MegatronGPTModel(NLPModel):
 
         # Wrap the baseline optimizer with the optimizer class with master parameters
         if self.megatron_amp_o2 and self._optimizer is not None:
-            fp32_grad_accum = self.cfg.get('fp32_grad_accum', False)
-            contiguous_grad_bucket = self.cfg.get('contiguous_grad_bucket', False)
-            async_grad_allreduce = self.cfg.get('async_grad_allreduce', False)
+            if self.cfg.precision == 'bf16':
+                fp32_grad_accum = True
+                contiguous_grad_bucket = True
+            elif self.cfg.precision == 16:
+                fp32_grad_accum = False
+                # TODO: contiguous grad bucket for fp16 is also planned to be supported
+                contiguous_grad_bucket = False
 
-            self._optimizer = MasterOptimizerWrapper(
+            # TODO: this should be true when not using pipeline parallelism
+            # we will support that for bf16 when we have async handler from apex
+            # and we will support it for fp16 when we have it implemented in the O2 recipe
+            async_grad_allreduce = False
+
+            self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
                 fp32_grad_accum=fp32_grad_accum,
                 contiguous_grad_bucket=contiguous_grad_bucket,
@@ -473,12 +705,11 @@ class MegatronGPTModel(NLPModel):
             return [self._optimizer], [self._scheduler]
 
     def compute_consumed_samples(self, global_step):
+        # TODO: this should be a counter self.consumed_samples
+        # and updated after every train_step: self.consumed_samples += global_batch_size
         app_state = AppState()
         consumed_samples = (
-            global_step
-            * app_state.data_parallel_size
-            * self.cfg.micro_batch_size
-            * self.trainer.accumulate_grad_batches
+            global_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 
@@ -498,9 +729,11 @@ class MegatronGPTModel(NLPModel):
             # grep fp32 master parameters for gradient clipping
             parameters = self._optimizer.get_parameters()
         else:
-            parameters = self.model.parameters()
+            parameters = self.get_parameters()
+
         grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-        self.log('grad_norm', grad_norm)
+
+        self.log('grad_norm', grad_norm, rank_zero_only=True)
 
     def prompt_tuning_freeze(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
@@ -556,6 +789,13 @@ class MegatronGPTModel(NLPModel):
 
         return request, positions, tokens_to_generate, compute_logprobs[0]
 
+    def get_parameters(self):
+        params = []
+        for param_group in self._optimizer_param_groups:
+            for param in param_group['params']:
+                params.append(param)
+        return params
+
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
             batch, self.use_soft_prompts
@@ -588,6 +828,10 @@ class MegatronGPTModel(NLPModel):
                 * offsets: list of tokens start positions in text
                 
         """
+        # TODO: Add raise with message to use previous commit ID / version of NeMo
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            raise ValueError('complete method is not yet supported for pipeline')
+
         results = []
         request_tokens = request["tokens"]
 
@@ -627,9 +871,11 @@ class MegatronGPTModel(NLPModel):
                         eod_mask_loss=self.cfg.get('eod_mask_loss', False),
                     )
 
+                # get output tensor
                 # No labels during inference. Still need masks to not attend to the right
                 output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+
                 log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
                 reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
                 tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
@@ -791,3 +1037,20 @@ class MegatronGPTModel(NLPModel):
         else:
             # Not a Nvidia container. Dependency check is on users
             pass
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
+            When using pipeline parallelism, we need the global batch to remain on the CPU,
+            since the memory overhead will be too high when using a large number of microbatches.
+            Microbatches are transferred from CPU to GPU inside the pipeline. 
+        """
+        return batch
+
+    def _validate_trainer(self):
+        """ Certain trainer configurations can break training.
+            Here we try to catch them and raise an error.
+        """
+        if self.trainer.accumulate_grad_batches > 1:
+            raise ValueError(
+                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+            )
