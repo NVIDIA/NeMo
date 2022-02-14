@@ -398,8 +398,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_enc_hidden_only=True,
             )
         )
-        predicted_tokens_dec = torch.LongTensor([self.tokenizer.bos_id]).unsqueeze(0).to(tokens_enc.device)
-
+        predicted_tokens_dec = (
+            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
+        )
         for _ in range(num_tokens_to_generate):
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
             token_logits = itemgetter("token_logits")(

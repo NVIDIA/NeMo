@@ -49,7 +49,7 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
 
-  megatron_amp_O2: True
+  megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
@@ -96,9 +96,9 @@ model:
     # Or see example below:
     # data_prefix: 
     #   - .5
-    #   - /raid/data/pile/my-gpt3_00_text_document
+    #   - /raid/data/pile/my-t5_00_text_document
     #   - .5
-    #   - /raid/data/pile/my-gpt3_01_text_document
+    #   - /raid/data/pile/my-t5_01_text_document
     data_prefix: ???
     data_impl: mmap
     splits_string: 949,45,5
