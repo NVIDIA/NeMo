@@ -62,7 +62,7 @@ def main(cfg):
     # speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     clustering_embedding = ClusterEmbedding(cfg_clus=cfg)
     clustering_embedding.prepare_cluster_embs()
-    clustering_embedding.prepare_split_manifest()
+    # clustering_embedding.prepare_split_manifest()
     ts_vad_model = EncDecDiarLabelModel(cfg=cfg.ts_vad_model, emb_clus=clustering_embedding, trainer=trainer)
     trainer.fit(ts_vad_model)
 

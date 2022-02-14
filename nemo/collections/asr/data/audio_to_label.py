@@ -902,6 +902,8 @@ class _AudioTSVADDataset(Dataset):
         *,
         manifest_filepath: str,
         emb_dict: Dict,
+        emb_seq: Dict,
+        clus_label_dict: Dict,
         featurizer,
         subsample_rate=4,
         max_spks=5,
@@ -910,23 +912,67 @@ class _AudioTSVADDataset(Dataset):
         self.collection = TSVADSpeechLabel(
             manifests_files=manifest_filepath.split(','),
             emb_dict=emb_dict,
+            emb_seq=emb_seq,
+            clus_label_dict=clus_label_dict,
             is_regression_task=False,
             subsample_rate=subsample_rate,
             max_spks=max_spks,
         )
         self.featurizer = featurizer
         self.emb_dict = emb_dict
+        self.emb_seq = emb_seq
+        self.clus_label_dict = clus_label_dict
         self.ROUND = 2
         self.decim = 10 ** self.ROUND
         self.subsample_rate = subsample_rate
         self.max_spks = max_spks
         self.fr_per_sec = 100
+        self.soft_label_thres = 0.5
 
     def __len__(self):
         return len(self.collection)
    
     def s2n(self, x):
         return round(float(x), self.ROUND)
+    
+    def parse_rttm_multiscale(self, sample):
+        rttm_path = sample.rttm_file
+        rttm_lines = self.read_rttm_file(rttm_path)
+        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
+        uniq_id = self.get_uniq_id(rttm_path)
+        # offset_fr = int(sample.offset * self.fr_per_sec)
+        # dur_fr = int(sample.duration * self.fr_per_sec)
+        # sample_stt = sample.offset
+        sample_end = (sample.offset + sample.duration)
+        stt_list, end_list, speaker_list = [], [], []
+        for line in rttm_lines:
+            rttm = line.strip().split()
+            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+            end_list.append(end)
+            stt_list.append(start)
+            speaker_list.append(speaker)
+
+        max_len = max(end_list)
+        total_fr_len = int(max_len*self.decim)
+        spk_num = len(set(speaker_list))
+        assert spk_num <= self.max_spks
+        sample_stt = 0
+        dur_fr = int(max_len * self.fr_per_sec)
+        target = torch.zeros(dur_fr, self.max_spks)
+        for stt, end, spk in zip(stt_list, end_list, speaker_list):
+            spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
+            stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
+            target[stt_fr:end_fr, spk] = 1
+        
+        seg_target = []
+        for (seg_stt, seg_end, label_int) in self.clus_label_dict[uniq_id]:
+            seg_stt_fr, seg_end_fr = int(seg_stt * self.fr_per_sec), int(seg_end * self.fr_per_sec)
+            soft_label_vec = torch.sum(target[seg_stt_fr:seg_end_fr, :], axis=0) / (seg_end_fr - seg_stt_fr)
+            label_vec = (soft_label_vec > self.soft_label_thres).int()
+            seg_target.append(label_vec)
+            seg_target_tensor = torch.stack(seg_target)
+        # import ipdb; ipdb.set_trace()
+        return seg_target_tensor
 
     def parse_rttm(self, sample):
         rttm_path = sample.rttm_file
@@ -952,10 +998,7 @@ class _AudioTSVADDataset(Dataset):
         target = torch.zeros(dur_fr, self.max_spks)
         for stt, end, spk in zip(stt_list, end_list, speaker_list):
             if sample_stt <= stt < sample_end or sample_stt <= end < sample_end:
-                try:
-                    spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
-                except:
-                    import ipdb; ipdb.set_trace()
+                spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
                 stt, end = max(sample_stt, stt), min(sample_end, end)
                 stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
                 target[stt_fr:end_fr, spk] = 1
@@ -985,13 +1028,15 @@ class _AudioTSVADDataset(Dataset):
         if offset is None:
             offset = 0
         
-        targets = self.parse_rttm(sample)
-        targets = torch.tensor(targets, dtype=torch.int)
+        targets = self.parse_rttm_multiscale(sample)
         uniq_id = self.get_uniq_id(sample.rttm_file)
-        ivectors = self.emb_dict[uniq_id]['avg_embs']
-        processed_feats = self.featurizer.process(sample.audio_file, offset=sample.offset, duration=sample.duration)
+        avg_embs = self.emb_dict[uniq_id]['avg_embs']
+        import ipdb; ipdb.set_trace()
+        # processed_feats = self.featurizer.process(sample.audio_file, 
+                                                  # offset=sample.offset, 
+                                                  # duration=sample.duration)
         feats, feats_len = processed_feats, torch.tensor(processed_feats.shape[0]).long()
-        return feats, feats_len, targets, ivectors
+        return feats, feats_len, targets, avg_embs
 
     def __getitem__(self, index):
         sample = self.collection[index]
@@ -1004,7 +1049,7 @@ class _AudioTSVADDataset(Dataset):
         # targets, sample_duration = self.parse_rttm(sample.rttm_file)
         targets = self.parse_rttm(sample)
         uniq_id = self.get_uniq_id(sample.rttm_file)
-        ivectors = self.emb_dict[uniq_id]['avg_embs']
+        avg_embs = self.emb_dict[uniq_id]['avg_embs']
         processed_feats = self.featurizer.process(sample.audio_file, 
                                                   offset=sample.offset, 
                                                   duration=sample.duration)
@@ -1018,7 +1063,7 @@ class _AudioTSVADDataset(Dataset):
         # feats = feats[:limit_fr]
         # targets = targets[:limit_fr, :]
         # print(f"shapes: {feats.shape}, feats_len: {feats_len}, targets: {targets.shape}")
-        return feats, feats_len, targets, ivectors
+        return feats, feats_len, targets, avg_embs
 
 def _tsvad_collate_fn(self, batch):
     packed_batch = list(zip(*batch))
@@ -1057,6 +1102,8 @@ class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
         *,
         manifest_filepath: str,
         emb_dict: Dict,
+        emb_seq: Dict,
+        clus_label_dict: Dict,
         featurizer,
         subsample_rate,
         max_spks,
@@ -1064,6 +1111,8 @@ class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
         super().__init__(
             manifest_filepath=manifest_filepath,
             emb_dict=emb_dict,
+            emb_seq=emb_seq,
+            clus_label_dict=clus_label_dict,
             featurizer=featurizer,
             subsample_rate=subsample_rate,
             max_spks=max_spks,

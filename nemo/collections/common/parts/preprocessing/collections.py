@@ -503,14 +503,17 @@ class DiarizationLabel(_Collection):
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
         for audio_file, duration, rttm_file, offset in zip(audio_files, durations, rttm_files, offsets):
+            if duration == None:
+                duration = 0
             # Duration filters.
-            if min_duration is not None and duration < min_duration:
-                duration_filtered += duration
-                continue
+            # import ipdb; ipdb.set_trace()
+            # if min_duration is not None and duration < min_duration:
+                # duration_filtered += duration
+                # continue
 
-            if max_duration is not None and duration > max_duration:
-                duration_filtered += duration
-                continue
+            # if max_duration is not None and duration > max_duration:
+                # duration_filtered += duration
+                # continue
 
             data.append(output_type(audio_file, duration, rttm_file, offset))
 
@@ -543,6 +546,8 @@ class TSVADSpeechLabel(DiarizationLabel):
     def __init__(self, 
                  manifests_files: Union[str, List[str]], 
                  emb_dict: Dict, 
+                 emb_seq: Dict,
+                 clus_label_dict: Dict,
                  is_regression_task=False, 
                  subsample_rate=4,
                  max_spks=5,
@@ -557,6 +562,7 @@ class TSVADSpeechLabel(DiarizationLabel):
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
         self.emb_dict = emb_dict
+        self.clus_label_dict = clus_label_dict
         self.subsample_rate = subsample_rate
         audio_files, durations, rttm_files, offsets = [], [], [], []
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
