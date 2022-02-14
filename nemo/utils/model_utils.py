@@ -23,7 +23,7 @@ import wrapt
 
 import nemo
 from nemo import constants
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 
@@ -573,3 +573,32 @@ def resolve_cache_dir() -> Path:
     else:
         path = Path(override_dir).resolve()
     return path
+
+
+def inject_model_parallel_rank(filepath):
+    """
+    Injects tensor/pipeline model parallel ranks into the filepath.
+    Does nothing if not using model parallelism.
+    """
+    app_state = AppState()
+    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+        # filepath needs to be updated to include mp_rank
+        dirname = os.path.dirname(filepath)
+        basename = os.path.basename(filepath)
+        if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
+            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
+        else:
+            filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
+        return filepath
+    else:
+        return filepath
+
+
+def uninject_model_parallel_rank(filepath):
+    if 'mp_rank' or 'tp_rank' in filepath:
+        dirname = os.path.dirname(os.path.dirname(filepath))
+        basename = os.path.basename(filepath)
+        filepath = os.path.join(dirname, basename)
+        return filepath
+    else:
+        return filepath
