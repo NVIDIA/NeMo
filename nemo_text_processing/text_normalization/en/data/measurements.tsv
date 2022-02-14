@@ -1,5 +1,8 @@
 f	fahrenheit
-c	celsius
+°f	fahrenheit
+℉	fahrenheit
+°c	celsius
+℃	celsius
 km	kilometer
 m	meter
 cm	centimeter
@@ -22,7 +25,6 @@ khz	kilohertz
 mhz	megahertz
 lb	pound
 lbs	pound
-lbs.	pound
 v	volt
 h	hour
 mc	mega coulomb
@@ -90,7 +92,6 @@ ms	mega siemens
 bar	bar
 gl	giga liter
 μs	microsecond
-da	deci ampere
 pa	pascal
 ds	deci second
 ms	milli second

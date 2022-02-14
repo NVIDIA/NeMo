@@ -298,14 +298,14 @@ With NeMo and Hydra, every aspect of model training can be modified from the com
 of experiments on compute clusters or for quickly testing parameters while developing.
 
 All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ come with instructions on how to
-run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`_
+run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/asr_ctc/speech_to_text_ctc.py#L24>`_
 for an example).
 
 With Hydra, arguments are set using the ``=`` operator:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         trainer.gpus=2 \
@@ -315,7 +315,7 @@ We can use the ``+`` operator to add arguments from the CLI:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         trainer.gpus=2 \
@@ -326,7 +326,7 @@ We can use the ``~`` operator to remove configurations:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
@@ -338,7 +338,7 @@ We can specify configuration files using the ``--config-path`` and ``--config-na
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
@@ -371,6 +371,8 @@ be instantiated and modified like any Python `Dataclass <https://docs.python.org
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
+.. _optimization-label:
+
 Optimization
 ------------
 
@@ -389,17 +391,17 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
     
         # scheduler setup
         sched:
-        name: CosineAnnealing
+            name: CosineAnnealing
     
-        # Optional arguments
-        max_steps: null # computed at runtime or explicitly set here
-        monitor: val_loss
-        reduce_on_plateau: false
+            # Optional arguments
+            max_steps: null # computed at runtime or explicitly set here
+            monitor: val_loss
+            reduce_on_plateau: false
     
-        # scheduler config override
-        warmup_steps: 1000
-        warmup_ratio: null
-        min_lr: 1e-9:
+            # scheduler config override
+            warmup_steps: 1000
+            warmup_ratio: null
+            min_lr: 1e-9:
 
 .. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ has optimizer and scheduler configurations for
 every NeMo model. 
@@ -408,7 +410,7 @@ Optimizers can be configured from the CLI as well:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         ...
@@ -418,6 +420,8 @@ Optimizers can be configured from the CLI as well:
         model.optim.lr=.0004 \
         # modify betas 
         model.optim.betas=[.8, .5]
+
+.. _optimizers-label:
 
 Optimizers
 ~~~~~~~~~~
@@ -467,6 +471,8 @@ Register Optimizer
 To register a new optimizer to be used with NeMo, run:
 
 .. autofunction:: nemo.core.optim.optimizers.register_optimizer
+
+.. _learning-rate-schedulers-label:
 
 Learning Rate Schedulers
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -600,7 +606,7 @@ The resulting .nemo file will then have the following file:
 If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
 if the ``src`` cannot be found. 
 
-
+.. _exp-manager-label:
 
 Experiment Manager
 ==================

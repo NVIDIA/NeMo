@@ -45,13 +45,15 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
+from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers
+from nemo.utils.export_utils import augment_filename
 
 __all__ = ['MTEncDecModel']
 
 
-class MTEncDecModel(EncDecNLPModel):
+class MTEncDecModel(EncDecNLPModel, Exportable):
     """
     Encoder-decoder machine translation model.
     """
@@ -72,11 +74,27 @@ class MTEncDecModel(EncDecNLPModel):
 
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
+        self.special_tokens = {}
 
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
+        if self.multilingual:
+            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+                raise ValueError(
+                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
+                )
+            elif isinstance(self.src_language, ListConfig):
+                pass
+            elif isinstance(self.tgt_language, ListConfig):
+                for lng in self.tgt_language:
+                    self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
+            else:
+                raise ValueError(
+                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
+                )
+        self.shared_embeddings = cfg.get("shared_embeddings", False)
 
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
@@ -97,23 +115,16 @@ class MTEncDecModel(EncDecNLPModel):
             else 0.0,
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
+            special_tokens=self.special_tokens,
         )
 
         if self.multilingual:
-            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-                raise ValueError(
-                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
-                )
-            elif isinstance(self.src_language, ListConfig):
+            if isinstance(self.src_language, ListConfig):
                 for lng in self.src_language:
                     self.multilingual_ids.append(None)
-            elif isinstance(self.tgt_language, ListConfig):
+            else:
                 for lng in self.tgt_language:
                     self.multilingual_ids.append(self.encoder_tokenizer.token_to_id("<" + lng + ">"))
-            else:
-                raise ValueError(
-                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
-                )
 
             if isinstance(self.src_language, ListConfig):
                 self.tgt_language = [self.tgt_language] * len(self.src_language)
@@ -191,6 +202,24 @@ class MTEncDecModel(EncDecNLPModel):
             len_pen=cfg.len_pen,
             max_delta_length=cfg.max_generation_delta,
         )
+
+        # tie embedding weights
+        if self.shared_embeddings:
+            if not cfg.get("shared_tokenizer", True):
+                raise ValueError("shared_tokenizer cannot be False when shared_embeddings is True")
+
+            # validate vocabulary size and embedding dimension
+            if (
+                self.encoder.embedding.token_embedding.weight.shape
+                != self.decoder.embedding.token_embedding.weight.shape
+            ):
+                raise ValueError(
+                    f"Cannot tie encoder and decoder embeddings due to mismatch in embedding sizes "
+                    f"(num_embeddings, embedding_dim): {self.encoder.embedding.token_embedding.weight.shape} (encoder) "
+                    f"{self.decoder.embedding.token_embedding.weight.shape} (decoder)"
+                )
+
+            self.encoder.embedding.token_embedding.weight = self.decoder.embedding.token_embedding.weight
 
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
@@ -293,7 +322,7 @@ class MTEncDecModel(EncDecNLPModel):
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         eval_loss = self.eval_loss_fn(log_probs=log_probs, labels=labels)
         # this will run encoder twice -- TODO: potentially fix
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
+        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
             getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         else:
@@ -305,6 +334,7 @@ class MTEncDecModel(EncDecNLPModel):
         ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
         num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,
@@ -344,8 +374,10 @@ class MTEncDecModel(EncDecNLPModel):
             else:
                 eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
 
+            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(inputs)
             assert len(translations) == len(ground_truths)
 
             # Gather translations and ground truths from all workers
@@ -387,6 +419,7 @@ class MTEncDecModel(EncDecNLPModel):
                 for i in range(0, 3):
                     ind = random.randint(0, len(translations) - 1)
                     logging.info("    " + '\u0332'.join(f"Example {i}:"))
+                    logging.info(f"    Input:        {inputs[ind]}")
                     logging.info(f"    Prediction:   {translations[ind]}")
                     logging.info(f"    Ground Truth: {ground_truths[ind]}")
             else:
@@ -430,6 +463,7 @@ class MTEncDecModel(EncDecNLPModel):
         decoder_bpe_dropout=0.0,
         decoder_model_name=None,
         decoder_r2l=False,
+        special_tokens={},
     ):
 
         supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'megatron', 'byte-level']
@@ -445,7 +479,7 @@ class MTEncDecModel(EncDecNLPModel):
             bpe_dropout=encoder_bpe_dropout,
             model_name=encoder_model_name,
             vocab_file=self.register_artifact("encoder_tokenizer.vocab_file", encoder_tokenizer_vocab_file),
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
             r2l=encoder_r2l,
         )
@@ -455,7 +489,7 @@ class MTEncDecModel(EncDecNLPModel):
             bpe_dropout=decoder_bpe_dropout,
             model_name=decoder_model_name,
             vocab_file=None,
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
             r2l=decoder_r2l,
         )
@@ -481,10 +515,10 @@ class MTEncDecModel(EncDecNLPModel):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
-        self.setup_validation_data(self._cfg.get('validation_ds'))
+        self.setup_validation_data(val_data_config)
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
-        self.setup_test_data(self._cfg.get('test_ds'))
+        self.setup_test_data(test_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
@@ -740,10 +774,10 @@ class MTEncDecModel(EncDecNLPModel):
             self.source_processor = ChineseProcessor()
         elif source_lang == 'hi':
             self.source_processor = IndicProcessor(source_lang)
-        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
-            self.source_processor = MosesProcessor(source_lang)
         elif source_lang == 'ignore':
             self.source_processor = None
+        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
+            self.source_processor = MosesProcessor(source_lang)
 
         if self.decoder_tokenizer_library == 'byte-level':
             self.target_processor = ByteLevelProcessor()
@@ -753,10 +787,10 @@ class MTEncDecModel(EncDecNLPModel):
             self.target_processor = ChineseProcessor()
         elif target_lang == 'hi':
             self.target_processor = IndicProcessor(target_lang)
+        elif target_lang == 'ignore':
+            self.target_processor = None
         elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
             self.target_processor = MosesProcessor(target_lang)
-        elif target_lang == 'ignore':
-            self.target_processor == None
 
         return self.source_processor, self.target_processor
 
@@ -909,6 +943,18 @@ class MTEncDecModel(EncDecNLPModel):
                 return_val = (return_val, timing)
 
         return return_val
+
+    def export(self, output: str, input_example=None, **kwargs):
+        encoder_exp, encoder_descr = self.encoder.export(
+            augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
+        )
+        decoder_exp, decoder_descr = self.decoder.export(
+            augment_filename(output, 'Decoder'),
+            # TODO: propagate from export()
+            input_example=None,
+            **kwargs,
+        )
+        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

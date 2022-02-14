@@ -38,12 +38,21 @@ import time
 
 import numpy as np
 import torch
-from apex.transformer import parallel_state
 
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
@@ -177,13 +186,18 @@ def create_tokens_and_tokentypes(tokens_a, tokens_b, cls_id, sep_id):
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
 
 
-def is_start_piece(piece):
-    """Check if the current word piece is the starting piece (BERT)."""
+def is_start_piece(piece, tokenizer_type='wordpiece'):
+    """Check if the current word piece is the starting piece. (BERT)"""
     # When a word has been split into
     # WordPieces, the first token does not have any marker and any subsequence
     # tokens are prefixed with ##. So whenever we see the ## token, we
     # append it to the previous set of word indexes.
-    return not piece.startswith("##")
+    if tokenizer_type == 'wordpiece':
+        return not piece.startswith("##")
+    elif tokenizer_type == 'sentencepiece':
+        return piece.startswith('▁')
+    else:
+        raise ValueError(f"Tokenizer type {tokenizer_type} is not supported.")
 
 
 def create_masked_lm_predictions(
@@ -202,6 +216,7 @@ def create_masked_lm_predictions(
     do_permutation=False,
     geometric_dist=False,
     masking_style="bert",
+    tokenizer_type="wordpiece",
 ):
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
@@ -222,11 +237,15 @@ def create_masked_lm_predictions(
         # Note that Whole Word Masking does *not* change the training code
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
-        if do_whole_word_mask and len(cand_indexes) >= 1 and not is_start_piece(vocab_id_to_token_dict[token]):
+        if (
+            do_whole_word_mask
+            and len(cand_indexes) >= 1
+            and not is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type)
+        ):
             cand_indexes[-1].append(i)
         else:
             cand_indexes.append([i])
-            if is_start_piece(vocab_id_to_token_dict[token]):
+            if is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type):
                 token_boundary[i] = 1
 
     output_tokens = list(tokens)
@@ -422,6 +441,8 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
 
 def build_train_valid_test_datasets(
+    cfg,
+    trainer,
     data_prefix,
     data_impl,
     splits_string,
@@ -434,10 +455,13 @@ def build_train_valid_test_datasets(
     binary_head=False,
     max_seq_length_dec=None,
     dataset_type='standard_bert',
+    tokenizer=None,
 ):
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
+            cfg,
+            trainer,
             data_prefix[0],
             data_impl,
             splits_string,
@@ -450,6 +474,7 @@ def build_train_valid_test_datasets(
             binary_head,
             max_seq_length_dec,
             dataset_type=dataset_type,
+            tokenizer=tokenizer,
         )
     # Blending dataset.
     # Parse the values.
@@ -462,6 +487,8 @@ def build_train_valid_test_datasets(
     test_datasets = []
     for i in range(len(prefixes)):
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
             prefixes[i],
             data_impl,
             splits_string,
@@ -472,7 +499,9 @@ def build_train_valid_test_datasets(
             seed,
             skip_warmup,
             binary_head,
+            max_seq_length_dec,
             dataset_type=dataset_type,
+            tokenizer=tokenizer,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -496,6 +525,8 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
+    cfg,
+    trainer,
     data_prefix,
     data_impl,
     splits_string,
@@ -508,6 +539,7 @@ def _build_train_valid_test_datasets(
     binary_head,
     max_seq_length_dec,
     dataset_type='standard_bert',
+    tokenizer=None,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -517,7 +549,6 @@ def _build_train_valid_test_datasets(
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
 
     if dataset_type == DSET_TYPE_ICT:
-        args = get_args()
         title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
@@ -547,6 +578,7 @@ def _build_train_valid_test_datasets(
     print_split_stats('test', 2)
 
     def build_dataset(index, name):
+        # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
@@ -565,13 +597,26 @@ def _build_train_valid_test_datasets(
                 name=name,
                 data_prefix=data_prefix,
                 num_epochs=None,
-                max_num_samples=train_valid_test_num_samples[index],
+                max_num_samples=int(train_valid_test_num_samples[index]),
                 max_seq_length=max_seq_length,
                 seed=seed,
             )
 
-            if dataset_type == DSET_TYPE_T5:
+            if dataset_type == DSET_TYPE_ICT:
+                dataset = ICTDataset(
+                    block_dataset=indexed_dataset,
+                    title_dataset=title_dataset,
+                    query_in_block_prob=args.query_in_block_prob,
+                    use_one_sent_docs=args.use_one_sent_docs,
+                    binary_head=binary_head,
+                    **kwargs,
+                )
+            elif dataset_type == DSET_TYPE_T5:
+                assert tokenizer is not None, "Tokenizer is required for T5 dataset"
                 dataset = T5Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,
@@ -584,6 +629,7 @@ def _build_train_valid_test_datasets(
                     masked_lm_prob=masked_lm_prob,
                     short_seq_prob=short_seq_prob,
                     binary_head=binary_head,
+                    tokenizer=tokenizer,
                     **kwargs,
                 )
             else:
@@ -686,13 +732,15 @@ def get_samples_mapping(
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
-
         try:
             if is_global_rank_zero():
                 compile_helper()
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
+        except ImportError:
+            raise ImportError(
+                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+            )
+
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
@@ -711,9 +759,8 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
-    # This should be a barrier but nccl barrier assumes
-    # device_index=rank which is not the case for model
-    # parallel case
+
+    torch.distributed.barrier()
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())

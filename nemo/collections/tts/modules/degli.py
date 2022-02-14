@@ -599,7 +599,7 @@ class DegliModule(NeuralModule, Exportable):
                 "final_out": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
             }
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=512):
         """
         Generates input examples for tracing etc.
         Returns:
@@ -607,9 +607,9 @@ class DegliModule(NeuralModule, Exportable):
         """
         par = next(self.parameters())
         n_freq = self.n_fft // 2 + 1
-        T = 500
-        x = torch.randn((1, 2, n_freq, T), device=par.device, dtype=par.dtype)
-        mag = torch.randn((1, 1, n_freq, T), device=par.device, dtype=par.dtype)
+        T = max_dim
+        x = torch.randn((max_batch, 2, n_freq, T), device=par.device, dtype=par.dtype)
+        mag = torch.randn((max_batch, 1, n_freq, T), device=par.device, dtype=par.dtype)
         max_length = torch.tensor((T - 1) * self.hop_length)
         repeat = torch.tensor(8)
         out = tuple([x, mag, max_length, repeat])

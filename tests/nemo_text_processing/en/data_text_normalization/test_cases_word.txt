@@ -1,10 +1,13 @@
 ~
-May I come in?~May I come in?
-Yes you may.~Yes you may.
-On the mar.~On the mar.
-es3~e s three
+ ~
+ 1~one
+ no~no
+May I come in?~May I come in ?
+Yes you may.~Yes you may .
+On the mar.~On the mar .
+es3~es three
 x ~x
-X!~X!
+X!~X !
 2!~two !
 —~—
 aabach~aabach
@@ -12,15 +15,21 @@ aabenraa~aabenraa
 aabye~aabye
 aaccessed~aaccessed
 aach~aach
-aachen's~aachen's
+aachen's~aachen ' s
 aadri~aadri
 aafia~aafia
 aagaard~aagaard
 aagadu~aagadu
 aagard~aagard
 aagathadi~aagathadi
-aaghart's~aaghart's
+aaghart's~aaghart ' s
 aalem~aalem
-a'ali~a'ali
-aaliyan's~aaliyan's
-mother-in-law~mother-in-law
+a'ali~a ' ali
+aaliyan's~aaliyan ' s
+mother-in-law~mother - in - law
+Hi it's 5pm,4A.M.?-34. Hi,no,yes,34! 12,again,4 and NO?17 and $.01,here & there--0.004kg~Hi it ' s five p m , four A M ? minus thirty four . Hi , no , yes , thirty four ! twelve , again , four and NO ? seventeen and one cent , here and there - minus zero point zero zero four kilograms
+there--0.4kg~there - minus zero point four kilograms
+there -0.4kg~there minus zero point four kilograms
+there- -0.4kg~there - minus zero point four kilograms
+ÀÁÂÃ check §- and ƛ, also ɧ~ÀÁÂÃ check § - and ƛ , also ɧ
+$ and 5% or %~dollar and five percent or percent sign

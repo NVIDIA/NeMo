@@ -118,13 +118,23 @@ class AbstractRNNTDecoding(ABC):
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
-        self.preserve_alignments = self.cfg.get('preserve_alignments', False)
+        self.preserve_alignments = self.cfg.get('preserve_alignments', None)
+        self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
             raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
 
+        # Update preserve alignments
+        if self.preserve_alignments is None:
+            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+                self.preserve_alignments = self.cfg.greedy.get('preserve_alignments', False)
+
+            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
+                self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
+
         if self.cfg.strategy == 'greedy':
+
             self.decoding = greedy_decode.GreedyRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -136,6 +146,7 @@ class AbstractRNNTDecoding(ABC):
             )
 
         elif self.cfg.strategy == 'greedy_batch':
+
             self.decoding = greedy_decode.GreedyBatchedRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -209,6 +220,9 @@ class AbstractRNNTDecoding(ABC):
                 f"Incorrect decoding strategy supplied. Must be one of {possible_strategies}\n"
                 f"but was provided {self.cfg.strategy}"
             )
+
+        # Update the joint fused batch size or disable it entirely if needed.
+        self.update_joint_fused_batch_size()
 
     def rnnt_decoder_predictions_tensor(
         self,
@@ -325,6 +339,32 @@ class AbstractRNNTDecoding(ABC):
             A list of decoded tokens.
         """
         raise NotImplementedError()
+
+    def update_joint_fused_batch_size(self):
+        if self.joint_fused_batch_size is None:
+            # do nothing and let the Joint itself handle setting up of the fused batch
+            return
+
+        if not hasattr(self.decoding.joint, 'set_fused_batch_size'):
+            logging.warning(
+                "The joint module does not have `set_fused_batch_size(int)` as a setter function.\n"
+                "Ignoring update of joint fused batch size."
+            )
+            return
+
+        if not hasattr(self.decoding.joint, 'set_fuse_loss_wer'):
+            logging.warning(
+                "The joint module does not have `set_fuse_loss_wer(bool, RNNTLoss, RNNTWER)` "
+                "as a setter function.\n"
+                "Ignoring update of joint fused batch size."
+            )
+            return
+
+        if self.joint_fused_batch_size > 0:
+            self.decoding.joint.set_fused_batch_size(self.joint_fused_batch_size)
+        else:
+            logging.info("Joint fused batch size <= 0; Will temporarily disable fused batch step in the Joint.")
+            self.decoding.joint.set_fuse_loss_wer(False)
 
 
 class RNNTDecoding(AbstractRNNTDecoding):
@@ -550,6 +590,12 @@ class RNNTWER(Metric):
 class RNNTDecodingConfig:
     strategy: str = "greedy_batch"
     compute_hypothesis_token_set: bool = False
+
+    # preserve decoding alignments
+    preserve_alignments: Optional[bool] = None
+
+    # RNNT Joint fused batch size
+    fused_batch_size: Optional[int] = None
 
     # greedy decoding config
     greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
