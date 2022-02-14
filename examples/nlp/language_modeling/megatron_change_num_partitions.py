@@ -144,15 +144,24 @@ def main():
     trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    app_state.model_parallel_size = tp_size
+    app_state.pipeline_model_parallel_size = 1  # not supported yet in this script
+    app_state.tensor_model_parallel_size = tp_size
+    app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
 
     if tp_size > 1:
         partitions = []
         for i in range(tp_size):
-            app_state.model_parallel_rank = i
+            app_state.tensor_model_parallel_rank = i
             model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
             params = [p for _, p in model.named_parameters()]
             partitions.append(params)
+            # app_state is being updated incorrectly during restore
+            app_state.data_parallel_rank = 0
+            app_state.pipeline_model_parallel_size = 1  # not supported yet in this script
+            app_state.tensor_model_parallel_size = tp_size
+            app_state.model_parallel_size = (
+                app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+            )
 
         model.cfg.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
