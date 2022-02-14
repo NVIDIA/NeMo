@@ -6,8 +6,9 @@
 
 name: VITS
 
-train_dataset: "ljspeech_ds/LJSpeech-1.1/train_manifest.json"
-validation_datasets: "ljspeech_ds/LJSpeech-1.1/val_manifest.json"
+
+train_dataset: "../datasets/ljspeech_ds/LJSpeech-1.1/train_manifest.json"
+validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
 sup_data_path: null
 sup_data_types: null
 
@@ -125,13 +126,20 @@ model:
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
 
-
+    
     dataloader_params:
-      drop_last: false
-      shuffle: true
-      batch_size: 16
+      # drop_last: false
+      # shuffle: true
+      # batch_size: 32
       num_workers: 4
       pin_memory: false
+
+    batch_sampler:
+      batch_size: 32
+      boundaries: [32,300,400,500,600,700,800,900,1000]
+      num_replicas: ${trainer.devices}
+      shuffle: true
+
 
   validation_ds:
     dataset:
@@ -153,7 +161,6 @@ model:
       trim: False
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
-
 
     dataloader_params:
       drop_last: false
@@ -199,7 +206,7 @@ model:
 
 trainer:
   num_nodes: 1
-  devices: 4
+  devices: 2
   accelerator: gpu
   strategy: ddp
   precision: 16
@@ -213,17 +220,17 @@ trainer:
   check_val_every_n_epoch: 2
 
 exp_manager:
-  exp_dir: first_run_vits
+  exp_dir: ../local_exps/vits_ddp
   name: ${name}
-  create_tensorboard_logger: false
+  create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: loss_gen_all
     mode: min
-  create_wandb_logger: true
+  create_wandb_logger: false
   wandb_logger_kwargs:
-    name: ${name}
-    project: VITS
+    name: VITS_chars
+    project: ${name}
     entity: treacker
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

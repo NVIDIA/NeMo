@@ -15,6 +15,7 @@
 
 import json
 import math
+import os
 import pickle
 import random
 from pathlib import Path
@@ -160,6 +161,7 @@ class TTSDataset(Dataset):
         if isinstance(manifest_filepath, str):
             manifest_filepath = [manifest_filepath]
         self.manifest_filepath = manifest_filepath
+        self.lengths = []
 
         data = []
         total_duration = 0
@@ -190,7 +192,7 @@ class TTSDataset(Dataset):
                         file_info["text_tokens"] = self.text_tokenizer(item["normalized_text"])
 
                     data.append(file_info)
-
+                    self.lengths.append(os.path.getsize(item["audio_filepath"]) // (2 * hop_length))
                     if file_info["duration"] is None:
                         logging.info(
                             "Not all audio files have duration information. Duration logging will be disabled."
@@ -222,7 +224,7 @@ class TTSDataset(Dataset):
         self.hop_len = self.hop_length or self.n_fft // 4
         self.fb = torch.tensor(
             librosa.filters.mel(
-                self.sample_rate, self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
+                sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
             ),
             dtype=torch.float,
         ).unsqueeze(0)

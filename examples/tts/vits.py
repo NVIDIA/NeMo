@@ -22,6 +22,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
+
 @hydra_runner(config_path="conf", config_name="vits")
 def main(cfg):
     plugins = []
@@ -29,7 +30,8 @@ def main(cfg):
         scaler = GradScaler(enabled=True)
         plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
-    trainer = pl.Trainer(plugins=plugins, **cfg.trainer)
+    trainer = pl.Trainer(plugins=plugins, replace_sampler_ddp=False, **cfg.trainer)
+    # trainer = pl.Trainer(plugins=plugins, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)
     trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])

@@ -563,7 +563,8 @@ class TextEncoder(nn.Module):
                  n_heads,
                  n_layers,
                  kernel_size,
-                 p_dropout):
+                 p_dropout,
+                 padding_idx):
         super().__init__()
         self.n_vocab = n_vocab
         self.out_channels = out_channels
@@ -575,7 +576,7 @@ class TextEncoder(nn.Module):
         self.p_dropout = p_dropout
 
         # TODO: add padding idx in __init__, specify padding idx in self.emb
-        self.emb = nn.Embedding(n_vocab, hidden_channels)
+        self.emb = nn.Embedding(n_vocab, hidden_channels, padding_idx=padding_idx)
         nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
 
         self.encoder = Encoder(
@@ -825,6 +826,7 @@ class SynthesizerTrn(nn.Module):
                  n_layers,
                  kernel_size,
                  p_dropout,
+                 padding_idx,
                  resblock,
                  resblock_kernel_sizes,
                  resblock_dilation_sizes,
@@ -846,6 +848,7 @@ class SynthesizerTrn(nn.Module):
         self.n_layers = n_layers
         self.kernel_size = kernel_size
         self.p_dropout = p_dropout
+        self.padding_idx = padding_idx
         self.resblock = resblock
         self.resblock_kernel_sizes = resblock_kernel_sizes
         self.resblock_dilation_sizes = resblock_dilation_sizes
@@ -865,7 +868,8 @@ class SynthesizerTrn(nn.Module):
                                  n_heads,
                                  n_layers,
                                  kernel_size,
-                                 p_dropout)
+                                 p_dropout,
+                                 padding_idx)
         self.dec = Generator(inter_channels, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=gin_channels)
         self.enc_q = PosteriorEncoder(spec_channels, inter_channels, hidden_channels, 5, 1, 16, gin_channels=gin_channels)
         self.flow = ResidualCouplingBlock(inter_channels, hidden_channels, 5, 1, 4, gin_channels=gin_channels)

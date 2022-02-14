@@ -26,9 +26,9 @@ from pytorch_lightning.loggers import WandbLogger
 from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
-from nemo.collections.tts.losses.vits_losses import KlLoss
+from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, DistributedBucketSampler
+from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, GeneratorLoss
+from nemo.collections.tts.losses.vits_losses import KlLoss, FeatureMatchingLoss
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import (
     MultiPeriodDiscriminator,
@@ -44,6 +44,7 @@ from nemo.utils import logging, model_utils
 class VitsModel(TextToWaveform):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
+
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
@@ -66,7 +67,6 @@ class VitsModel(TextToWaveform):
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
 
-        self.multiperioddisc = MultiPeriodDiscriminator()
         self.feat_matching_loss = FeatureMatchingLoss()
         self.disc_loss = DiscriminatorLoss()
         self.gen_loss = GeneratorLoss()
@@ -82,7 +82,6 @@ class VitsModel(TextToWaveform):
         self.win_length = cfg.train_ds.dataset.win_length
 
         # TODO: need to add SynthesizerTrn in config
-        # TODO: how model knows padding idx? Need to use self.tokenizer_pad
         self.net_g = SynthesizerTrn(
             n_vocab=num_tokens,
             spec_channels=cfg.train_ds.dataset.n_fft // 2 + 1,
@@ -94,6 +93,7 @@ class VitsModel(TextToWaveform):
             n_layers=cfg.n_layers,
             kernel_size=cfg.pitch_embedding_kernel_size,
             p_dropout=cfg.p_dropout,
+            padding_idx=self.tokenizer_pad,
             resblock=cfg.generator.resblock,
             resblock_kernel_sizes=cfg.generator.resblock_kernel_sizes,
             resblock_dilation_sizes=cfg.generator.resblock_dilation_sizes,
@@ -248,7 +248,6 @@ class VitsModel(TextToWaveform):
         with autocast(enabled=True):
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
-
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
@@ -352,6 +351,25 @@ class VitsModel(TextToWaveform):
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
 
+    def train_dataloader(self):
+    # default used by the Trainer
+        dataset = instantiate(
+            self.cfg.train_ds.dataset,
+            text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer,
+        )
+
+        train_sampler = DistributedBucketSampler(
+            dataset,
+            self.cfg.train_ds.batch_sampler.batch_size,
+            [32,300,400,500,600,700,800,900,1000],
+            shuffle=True)
+        dataloader = torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, batch_sampler=train_sampler, 
+        **self.cfg.train_ds.dataloader_params,)
+        print('made ddp loader')
+        return dataloader
+    
     def setup_training_data(self, cfg):
         self._train_dl = self._loader(cfg)
 
