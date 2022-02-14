@@ -122,11 +122,12 @@ class ContrastiveLoss(Loss):
         # y - T'x...
 
         high = y.shape[0]
-        with torch.no_grad():
-            neg_idxs = torch.randint(low=0, high=high - 1, size=(self.num_negatives * num,))
+        neg_idxs = torch.multinomial(torch.ones(num, high), self.num_negatives).to(device=y.device)
+        # neg_idxs = torch.randint(low=0, high=high - 1, size=(self.num_negatives * num,))
 
         negs = y[neg_idxs.view(-1)]
-        negs = negs.view((self.num_negatives, num) + y.shape[1:])
+        negs = negs.view((num, self.num_negatives) + y.shape[1:])
+        negs = negs.transpose(0, 1)
         # negs - NxT'x...
 
         return negs, neg_idxs
