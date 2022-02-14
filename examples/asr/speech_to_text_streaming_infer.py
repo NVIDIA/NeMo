@@ -20,9 +20,6 @@ This script serves three goals:
 """
 
 import copy
-import json
-import math
-import os
 from argparse import ArgumentParser
 
 import librosa
@@ -30,7 +27,6 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
@@ -40,30 +36,6 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
 
-# can_gpu = torch.cuda.is_available()
-
-
-# def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
-#     # Create a preprocessor to convert audio samples into raw features,
-#     # Normalization will be done per buffer in frame_bufferer
-#     # Do not normalize whatever the model's preprocessor setting is
-#     preprocessor_cfg.normalize = "None"
-#     preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(preprocessor_cfg)
-#     preprocessor.to(device)
-#     hyps = []
-#     refs = []
-#
-#     with open(mfst, "r") as mfst_f:
-#         for l in mfst_f:
-#             asr.reset()
-#             row = json.loads(l.strip())
-#             asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
-#             hyp = asr.transcribe(tokens_per_chunk, delay)
-#             hyps.append(hyp)
-#             refs.append(row['text'])
-#
-#     wer = word_error_rate(hypotheses=hyps, references=refs)
-#     return hyps, refs, wer
 
 
 def set_streaming_mode(asr_model, cache_drop_size=0):
@@ -72,7 +44,7 @@ def set_streaming_mode(asr_model, cache_drop_size=0):
     asr_model.encoder.cache_drop_size = cache_drop_size
     for m in asr_model.encoder.layers.modules():
         if hasattr(m, "_max_cache_len"):  # and m._max_cache_len > 0:
-            if type(m) == RelPositionMultiHeadAttention:
+            if type(m) == RelPositionMultiHeadAttention: # or type(m) == RelPositionMultiHeadAttention:
                 m._cache_id = last_channel_num
                 last_channel_num += 1
                 m.cache_drop_size = cache_drop_size
@@ -95,7 +67,6 @@ def model_process(
     valid_out_len=None,
     cache_last_channel=None,
     cache_last_time=None,
-    #cache_pre_encode=None,
     previous_hypotheses=None,
 ):
 
@@ -104,9 +75,8 @@ def model_process(
         length=length,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
-        #cache_pre_encode=cache_pre_encode,
     )
-    if len(out) > 2: #4:
+    if len(out) > 2:
         encoded, encoded_len, cache_last_channel_next, cache_last_time_next = out
     else:
         encoded, encoded_len = out
@@ -148,34 +118,13 @@ def greedy_merge_ctc(asr_model, preds):
     hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
     return hypothesis
 
-# def greedy_merge_trnasducer(asr_model, preds):
-#     blank_id = len(asr_model.decoder.vocabulary)
-#     model_tokenizer = asr_model.tokenizer
-#
-#     decoded_prediction = []
-#     previous = blank_id
-#     for p in preds:
-#         if (p != previous or previous == blank_id) and p != blank_id:
-#             decoded_prediction.append(int(p))
-#         previous = p
-#     hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
-#     return hypothesis
-
 
 def main():
     parser = ArgumentParser()
     parser.add_argument(
         "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
     )
-    # parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=32)
-    # parser.add_argument(
-    #     "--total_buffer_in_secs",
-    #     type=float,
-    #     default=4.0,
-    #     help="Length of buffer (chunk + left and right padding) in seconds ",
-    # )
-    # parser.add_argument("--chunk_len_in_ms", type=int, default=1600, help="Chunk length in milliseconds")
     parser.add_argument("--output_path", type=str, help="path to output file", default=None)
     parser.add_argument(
         "--model_stride",
@@ -220,10 +169,6 @@ def main():
 
     chunk_size = subsampling_factor * (1 + lookahead_steps)
     shift_size = subsampling_factor * ((1 + lookahead_steps) - cache_drop_size)
-
-    #if lookahead_steps == 0:
-    #    init_buffer = 1
-    #else:
 
     asr_model = asr_model.to("cuda")
 
