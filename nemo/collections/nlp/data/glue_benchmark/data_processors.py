@@ -389,12 +389,6 @@ class WnliProcessor(DataProcessor):
     def label2string(self, label):
         raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
 
-    def get_t5_prompted_query(self, text_a, text_b):
-        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
-
-    def label2string(self, label):
-        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
-
 
 class InputExample(object):
     """A single training/test example for simple sequence classification.
