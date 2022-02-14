@@ -58,6 +58,21 @@ class WhiteListFst(GraphFst):
         if not deterministic:
             graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
 
+            multiple_forms_whitelist =  load_labels(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
+            additional_options = []
+            for x, y in multiple_forms_whitelist:
+                if input_case == "lower_cased":
+                    x = x.lower()
+                additional_options.append((f"{x}.", y)) # default "dr" -> doctor, this includes period "dr." -> doctor
+                additional_options.append((f"{x[0].upper() + x[1:]}", f"{y[0].upper() + y[1:]}")) # "Dr" -> Doctor
+                additional_options.append(
+                    (f"{x[0].upper() + x[1:]}.", f"{y[0].upper() + y[1:]}"))  # "Dr." -> Doctor
+                additional_options.append((f"{x.upper()}", f"{y[0].upper() + y[1:]}")) # DR -> Doctor
+                additional_options.append((f"{x.upper()}.", f"{y[0].upper() + y[1:]}"))  # DR. -> Doctor
+            multiple_forms_whitelist.extend(additional_options)
+            multiple_forms_whitelist_graph = pynini.string_map(multiple_forms_whitelist)
+            graph |= multiple_forms_whitelist_graph
+
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
             # e.g. "IN", "OH", "OK"
             # TODO or only exclude above?

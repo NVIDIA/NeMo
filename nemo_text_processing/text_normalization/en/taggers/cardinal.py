@@ -140,7 +140,7 @@ class CardinalFst(GraphFst):
         range_graph = (
             (pynutil.add_weight(pynini.accep("from "), -0.001) | pynini.closure(pynutil.insert("from "), 0, 1))
             + graph
-            + pynini.cross("-", " to ")
+            + (pynini.cross("-", " to ") | pynini.cross(" - ", " to "))
             + graph
         )
         range_graph |= graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + graph
