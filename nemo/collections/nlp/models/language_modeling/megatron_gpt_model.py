@@ -263,7 +263,6 @@ class MegatronGPTModel(NLPModel):
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
 
-            torch.cuda.nvtx.range_push("forward/backward function call")
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -273,7 +272,6 @@ class MegatronGPTModel(NLPModel):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
-            torch.cuda.nvtx.range_pop()
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
@@ -285,20 +283,14 @@ class MegatronGPTModel(NLPModel):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
-        torch.cuda.nvtx.range_push("Handling loss")
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
-            torch.cuda.nvtx.range_push("# average loss across micro batches")
             # average loss across micro batches
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
-            torch.cuda.nvtx.range_pop()
         else:
-            torch.cuda.nvtx.range_push("loss_mean = torch.tensor(0.0).cuda()")
             loss_mean = torch.tensor(0.0).cuda()
-            torch.cuda.nvtx.range_pop()
-        torch.cuda.nvtx.range_pop()
 
         # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
         # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
@@ -444,14 +436,8 @@ class MegatronGPTModel(NLPModel):
                 output_tensor = model(tokens, position_ids, attention_mask, labels)
 
             def loss_func(output_tensor):
-                torch.cuda.nvtx.range_push("loss_func")
-                torch.cuda.nvtx.range_push("loss = self.loss_func(loss_mask, output_tensor)")
                 loss = self.loss_func(loss_mask, output_tensor)
-                torch.cuda.nvtx.range_pop()
-                torch.cuda.nvtx.range_push("reduced_loss = average_losses_across_data_parallel_group([loss])")
                 reduced_loss = average_losses_across_data_parallel_group([loss])
-                torch.cuda.nvtx.range_pop()
-                torch.cuda.nvtx.range_pop()
                 return loss, {'avg': reduced_loss}
 
             return output_tensor, loss_func
@@ -489,7 +475,6 @@ class MegatronGPTModel(NLPModel):
             from the dataloader to produce a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        torch.cuda.nvtx.range_push("validation step")
 
         if self.use_soft_prompts:
             # The micro batches are already prepared for apex by the prompt tuning dataclass
@@ -527,7 +512,6 @@ class MegatronGPTModel(NLPModel):
             # we're not on the last pipeline stage so no losses
             loss_mean = []
 
-        torch.cuda.nvtx.range_pop()
         return loss_mean
 
     def validation_epoch_end(self, outputs):
