@@ -38,10 +38,7 @@ from nemo.collections.nlp.data.glue_benchmark.data_processors import (
     WnliProcessor,
     XNliProcessor,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
+
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
@@ -469,6 +466,7 @@ class TextToTextGLUEDataset(GLUEDataset):
 
         return features
 
+
 class TextToTextXNliDataset(TextToTextGLUEDataset):
 
     def __getitem__(self, idx):
@@ -496,10 +494,8 @@ class TextToTextXNliDataset(TextToTextGLUEDataset):
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
 
-        enc_mask = make_attention_mask_3d(enc_query, enc_query, self.tokenizer.pad_id).long()
-        dec_mask = make_attention_mask_3d(dec_input, dec_input, self.tokenizer.pad_id)
-        dec_mask = (dec_mask * make_history_mask_3d(dec_input)).long()
-        enc_dec_mask = make_attention_mask_3d(dec_input, enc_query, self.tokenizer.pad_id).long()
+        enc_mask = (enc_query != self.tokenizer.pad_id).long()
+        dec_mask = (dec_input != self.tokenizer.pad_id).long()
 
         return {
             'text_enc': enc_query,
@@ -508,7 +504,6 @@ class TextToTextXNliDataset(TextToTextGLUEDataset):
             'loss_mask': loss_mask,
             'enc_mask': enc_mask,
             'dec_mask': dec_mask,
-            'enc_dec_mask': enc_dec_mask,
             "lang": lang,
         }
 

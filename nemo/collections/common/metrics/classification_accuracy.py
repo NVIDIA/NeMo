@@ -16,6 +16,7 @@ from typing import List
 
 import torch
 from torchmetrics import Metric
+import logging
 
 __all__ = ['TopKClassificationAccuracy']
 
@@ -166,3 +167,35 @@ class ExactStringMatchMetric(Metric):
 
     def compute(self):
         return self.correct.float() / self.total
+
+
+class ExactStringPerCategoryMatchMetric(Metric):
+    def __init__(self, categories, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.categories = categories
+
+        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
+        for category in categories:
+            self.add_state(f"{category}_total", default=torch.tensor(0), dist_reduce_fx="sum")
+            self.add_state("{category}_correct", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, pred: str, target: str, category: str):
+        if pred == target:
+            self.correct += 1
+        self.total += 1
+        if category in self.categories:
+            val = getattr(self, f"{category}_total")
+            setattr(self, f"{category}_total", val + 1)
+            if pred == target:
+                val = getattr(self, f"{category}_correct")
+                setattr(self, f"{category}_correct", val + 1)
+        else:
+            logging.warn(f'{category} is not in the pre-defined list')
+
+    def compute(self):
+        results = {}
+        results['acc'] = self.correct.float() / self.total
+        for category in self.categories:
+            results[category] = getattr(self, f"{category}_correct") / getattr(self, f"{category}_total")
+        return results
