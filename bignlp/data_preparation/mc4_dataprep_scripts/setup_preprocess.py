@@ -99,7 +99,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print(f" ****** Removing git lfs cache files in {args.c4_path} ...")
-    shutil.rmtree(os.path.join(args.c4_path, ".git", "lfs"))
+
+    # Remove git lfs cached files
+    if os.path.exists(os.path.join(args.c4_path, ".git", "lfs")):
+        shutil.rmtree(os.path.join(args.c4_path, ".git", "lfs"))
     lang_splits_info = split_languages(args.c4_path, args.languages, args.max_split_size, args.soft_link_path)
     distribute_lang_splits(lang_splits_info, args.node_array_size, args.workers_per_node, args.max_split_size,
                            args.worker_mapping_file)

@@ -53,17 +53,13 @@ if __name__ == '__main__':
             task_id, rank, os.path.basename(split)))
         input_arg = ["--input", split]
         output_arg = ["--output-prefix", os.path.join(args.output_path, os.path.basename(split))]
-        try:
-            subprocess.check_call(cmd + input_arg + output_arg + other_args)
-        except subprocess.CalledProcessError:
-            print(" ****** Task ID {:02d} Rank {:02d} ERRORS in preprocessing {:}...".format(
-                task_id, rank, os.path.basename(split)))
+        subprocess.check_call(cmd + input_arg + output_arg + other_args)
         print(" ****** Task ID {:02d} Rank {:02d} finished preprocessing {:}...".format(
             task_id, rank, os.path.basename(split)))
         print(" ****** Task ID {:02d} Rank {:02d} time elapsed {:.2f} min.".format(
             task_id, rank, (time.time() - start_time) / 60))
         if args.rm_downloaded:
-            for f in listdir(split):
-                os.remove(os.readlink(f))
+            for f in os.listdir(split):
+                os.remove(os.readlink(os.path.join(split, f)))
             shutil.rmtree(split)
 
