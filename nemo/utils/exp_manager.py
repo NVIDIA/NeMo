@@ -35,11 +35,11 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.states import RunningStage
 from pytorch_lightning.utilities.distributed import rank_zero_info
-from pytorch_lightning.utilities.types import _METRIC
 
-from nemo.constants import NEMO_ENV_VARNAME_VERSION
+from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
@@ -80,6 +80,7 @@ class CallbackParams:
     postfix: str = ".nemo"
     save_best_model: bool = False
     always_save_nemo: bool = False
+    save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
     model_parallel_size: Optional[int] = None
 
 
@@ -89,7 +90,7 @@ class StepTimingParams:
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
-    buffer_size: Optional[int] = -1
+    buffer_size: Optional[int] = 1
 
 
 @dataclass
@@ -193,7 +194,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
-                trainer.checkpoint_connector.resume_checkpoint_path so that the trainer should auto-resume. exp_manager will move files
+                trainer.checkpoint_connector.resume_from_checkpoint_fit_path so that the trainer should auto-resume. exp_manager will move files
                 under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
                 we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
@@ -224,8 +225,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_gpus + local_rank
     logging.rank = global_rank
+    world_size = trainer.world_size
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -280,9 +283,19 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer._default_root_dir = log_dir
 
-    # Handle Loggers by creating file and handle DEBUG statements
-    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
-    logging.add_file_handler(log_file)
+    # Handle logging to file
+    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or world_size <= 32:
+        # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    elif world_size <= 256 and local_rank == 0:
+        # If less than 256 ranks, try to save 1 log file per "machine"
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    elif global_rank == 0:
+        # If running more than 256 ranks, only save 1 log file
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
@@ -315,13 +328,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 copy(Path(_file), log_dir)
 
         # Create files for cmd args and git info
-        with open(log_dir / 'cmd-args.log', 'w') as _file:
+        with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
             _file.write(" ".join(sys.argv))
 
         # Try to get git hash
         git_repo, git_hash = get_git_hash()
         if git_repo:
-            with open(log_dir / 'git-info.log', 'w') as _file:
+            with open(log_dir / 'git-info.log', 'w', encoding='utf-8') as _file:
                 _file.write(f'commit hash: {git_hash}')
                 _file.write(get_git_diff())
 
@@ -372,7 +385,7 @@ def check_resume(
     resume_ignore_no_checkpoint: bool = False,
 ):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
-    trainer.checkpoint_connector.resume_checkpoint_path as necessary.
+    trainer.checkpoint_connector.resume_from_checkpoint_fit_path as necessary.
 
     Returns:
         log_dir (Path): the log_dir
@@ -428,7 +441,7 @@ def check_resume(
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
+    trainer.checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
@@ -657,6 +670,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def __init__(
         self,
         always_save_nemo=False,
+        save_nemo_on_train_end=True,
         save_best_model=False,
         postfix=".nemo",
         n_resume=False,
@@ -665,7 +679,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
+        self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
+        if self.save_best_model and not self.save_nemo_on_train_end:
+            logging.warning(
+                (
+                    "Found save_best_model is True and save_nemo_on_train_end is False. "
+                    "Set save_nemo_on_train_end to True to automatically save the best model."
+                )
+            )
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
@@ -740,11 +762,23 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         filepath = os.path.join(dirname, basename)
         return filepath
 
+    # TODO remove _save_last_checkpoint after fix for issue #https://github.com/PyTorchLightning/pytorch-lightning/issues/11451
+    def _save_last_checkpoint(self, trainer, monitor_candidates) -> None:
+        if not self.save_last:
+            return
+
+        filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST)
+        if self.last_model_path and self.last_model_path != filepath:
+            trainer.training_type_plugin.remove_checkpoint(self.last_model_path)
+
+        self.last_model_path = filepath
+        trainer.save_checkpoint(filepath, self.save_weights_only)
+
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # output = None
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-
         else:
             # Load the best model and then re-save it
             app_state = AppState()
@@ -791,7 +825,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             else:
                 trainer.checkpoint_connector.restore(self.best_model_path)
 
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        if self.save_nemo_on_train_end:
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
@@ -870,7 +905,7 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
+    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_from_checkpoint_fit_path or ""
     if params.model_parallel_size is not None and params.model_parallel_size > 1:
         checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
             checkpoint_callback.last_model_path

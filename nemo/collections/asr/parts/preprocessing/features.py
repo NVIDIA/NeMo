@@ -42,20 +42,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from librosa.util import tiny
 from torch.autograd import Variable
+from torch_stft import STFT
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.utils import logging
-
-# TODO @blisc: Perhaps refactor instead of import guarding
-try:
-    from torch_stft import STFT
-except ModuleNotFoundError:
-    from nemo.utils.exceptions import CheckInstall
-
-    # fmt: off
-    class STFT(CheckInstall): pass
-    # fmt: on
 
 CONSTANT = 1e-5
 
@@ -443,7 +434,7 @@ class FilterbankFeatures(nn.Module):
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
-        mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
+        mask = mask.repeat(x.size(0), 1) >= seq_len.unsqueeze(1)
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
         pad_to = self.pad_to

@@ -1,3 +1,5 @@
+# TODO(Oktai15): update this config in 1.8.0 version
+
 name: TalkNetDurs
 sample_rate: 22050
 
@@ -63,7 +65,7 @@ model:
       batch_size: 64
       num_workers: 1
 
-  model:
+  encoder:
     _target_: "nemo.collections.asr.modules.ConvASREncoder"
     feat_in: ${model.d_char}
     activation: relu

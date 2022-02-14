@@ -41,11 +41,15 @@ An example ASR train and validation configuration should look similar to the fol
       trim_silence: True
       max_duration: 16.7
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
       num_workers: 8
       pin_memory: true
+      # tarred datasets
+      is_tarred: false # If set to true, uses the tarred version of the Dataset
+      tarred_audio_filepaths: null     # Not used if is_tarred is false
+      shuffle_n: 2048                  # Not used if is_tarred is false
+      # bucketing params
+      bucketing_strategy: "synced_randomized"
+      bucketing_batch_size: null
 
     validation_ds:
       manifest_filepath: ???
@@ -313,7 +317,7 @@ Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder. The decoder
 | :code:`vocabulary`      | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
 |                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
+| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                              |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 For example, a decoder config corresponding to the encoder above should look similar to the following:
@@ -351,14 +355,14 @@ While the configs for Citrinet and QuartzNet are similar, we note the additional
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 | **Parameter**             | **Datatype**     | **Description**                                                                                           | **Supported Values**              |
 +===========================+==================+===========================================================================================================+===================================+
-| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`   |
+| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
+| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
+| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
-|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`            |
+| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                  |
+|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`              |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 
 A Citrinet-512 config should look similar to the following:
@@ -715,18 +719,22 @@ Refer to the above paper for results and recommendations of ``fastemit_lambda``.
 Fine-tuning Configurations
 --------------------------
 
-All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
+All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the **currently instantiated model**. Note that the currently instantiated model should have parameters that match the pre-trained checkpoint (such that weights may load properly). In order to directly fine-tune a pre-existing checkpoint, please follow the tuturial : `ASR Language Fine-tuning. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>_
+
+Pre-trained weights can be provided in multiple ways -
 
 1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
+
+There are multiple ASR subtasks inside the ``examples/asr/`` directory, you can substitute the ``<subtask>`` tag below.
 
 Fine-tuning via a NeMo model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
@@ -741,7 +749,7 @@ Fine-tuning via a NeMo pretrained model name
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
@@ -755,7 +763,7 @@ Fine-tuning via a Pytorch Lightning checkpoint
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \

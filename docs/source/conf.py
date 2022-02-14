@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
+templates_path = ["_templates"]
 
 autodoc_mock_imports = [
     'torch',
@@ -53,6 +54,7 @@ autodoc_mock_imports = [
     'nemo_text_processing.text_normalization',  # Not installed automatically
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
+    'apex',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -138,7 +140,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "© 2020-2021 NVIDIA Corporation & Affiliates. All rights reserved."
+copyright = "© 2021-2022 NVIDIA Corporation & Affiliates. All rights reserved."
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for

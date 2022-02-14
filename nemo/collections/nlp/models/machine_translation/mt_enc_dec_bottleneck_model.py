@@ -95,13 +95,15 @@ class MTBottleneckModel(MTEncDecModel):
         # project bridge dimension back to decoder hidden dimensions
         self.latent2hidden = build_linear_or_identity(self.latent_size, self.decoder.hidden_size)
 
-        # project dimension of encoder hidden to latent dimension
-        self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
-
-        # MIM or VAE
-        if self.model_type != "nll":
+        if self.model_type == "nll":
+            # project dimension of encoder hidden to latent dimension
+            self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
+        else:
+            # MIM or VAE requires two independent projections for mean/variance
+            # project dimension of encoder hidden to latent dimension
+            self.hidden2latent_mean = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
             # for probabilistic latent variable models we also need variance
-            self.hidden2latent_logv = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
+            self.hidden2latent_logv = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
 
     def _validate_encoder_decoder_hidden_size(self):
         """
@@ -437,7 +439,7 @@ class MTBottleneckModel(MTEncDecModel):
         # pass cache to sampler in order to reuse encoder's output
         cache = dict(z=z, z_mean=z_mean, z_mask=z_mask, timer=timer,)
 
-        _, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
+        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
 
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
@@ -461,6 +463,7 @@ class MTBottleneckModel(MTEncDecModel):
                 log_dict[f"{k}_timing"] = v
 
         return {
+            'inputs': inputs,
             'translations': translations,
             'ground_truths': ground_truths,
             'num_non_pad_tokens': num_non_pad_tokens,

@@ -9,12 +9,18 @@ Documentation section for speaker related tasks can be found at:
 |:------------------------------:|:---------------------:|:--------------------------------------:|
 | [speakerverification_speakernet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet) |        xvector        |                  1.96                  |
 |           [ecapa_tdnn](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.92                  |
+|           [titanet_large](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.66                  |
 
 ## Training
 Speaker Recognition models can be trained in a similar way as other models in NeMo using train and dev manifest files. Steps on how to create manifest files for voxceleb are provided below.
-We provide two model configurations based on xvector and modified ecapa_tdnn, with pretrained models provided for each of them. 
+We provide three model configurations based on TitaNet, SpeakerNet and modified ECAPA_TDNN, with pretrained models provided for each of them. 
 
 For training speakernet (x-vector) model:
+For training titanet_large (channel-attention) model:
+```bash
+python speaker_reco.py --config_path='conf' --config_name='titanet_large.yaml' 
+```
+
 ```bash
 python speaker_reco.py --config_path='conf' --config_name='SpeakerNet_verification_3x2x256.yaml' 
 ```
@@ -48,12 +54,12 @@ python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb1_test
 ### Embedding Extraction 
 Now using the manifest file created, we can extract embeddings to `data` folder using:
 ```bash
-python extract_speaker_embeddings.py --manifest=voxceleb1_test_manifest.json --model_path='ecapa_tdnn' --embedding_dir='./'
+python extract_speaker_embeddings.py --manifest=voxceleb1_test_manifest.json --model_path='titanet_large' --embedding_dir='./'
 ```
 If you have a single file, you may also be using the following one liner to get embeddings for the audio file:
 
 ```python
-speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="ecapa_tdnn")
+speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="titanet_large")
 embs = speaker_model.get_embedding('audio_path')
 ```
 

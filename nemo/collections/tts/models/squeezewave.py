@@ -34,6 +34,7 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
 @dataclass
@@ -45,6 +46,7 @@ class SqueezeWaveConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
+@deprecated(version="1.8", explanation="SqueezeWaveModel will be removed. Use WaveGlowModel or HifiGanModel instead.")
 class SqueezeWaveModel(GlowVocoder):
     """ SqueezeWave model that generates audio conditioned on mel-spectrogram
     """

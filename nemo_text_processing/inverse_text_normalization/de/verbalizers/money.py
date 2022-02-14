@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_CHAR, GraphFst, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, delete_space
 
 try:
     import pynini
@@ -30,11 +30,11 @@ class MoneyFst(GraphFst):
         money { integer_part: "12" fractional_part: "05" currency: "$" } -> $12.05
 
     Args:
-        decimal: DecimalFst
+        decimal: ITN Decimal verbalizer
     """
 
-    def __init__(self, decimal: GraphFst):
-        super().__init__(name="money", kind="verbalize")
+    def __init__(self, decimal: GraphFst, deterministic: bool = True):
+        super().__init__(name="money", kind="verbalize", deterministic=deterministic)
         unit = (
             pynutil.delete("currency:")
             + delete_space

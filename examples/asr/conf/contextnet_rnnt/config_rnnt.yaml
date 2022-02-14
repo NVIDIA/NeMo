@@ -15,9 +15,14 @@ model:
     max_duration: 16.7
     labels: ${model.labels}
     shuffle: true
+    # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
 
   validation_ds:
     manifest_filepath: ???
@@ -199,7 +204,8 @@ model:
   loss:
     loss_name: "default"
     warprnnt_numba_kwargs:
-      fastemit_lambda: 0.0
+      fastemit_lambda: 0.0  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
+      clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   optim:
     name: adam
