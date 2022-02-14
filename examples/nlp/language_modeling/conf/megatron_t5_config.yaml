@@ -5,7 +5,7 @@ trainer:
   gpus: 1
   num_nodes: 1
   accelerator: ddp
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
@@ -49,6 +49,8 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
 
+  megatron_amp_O2: True
+
   seq_length: 512
   max_position_embeddings: ${.seq_length}
   num_layers: 12
@@ -91,12 +93,10 @@ model:
     # Path to data must be specified by the user.
     # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-t5_00_text_document,.5,/raid/data/pile/my-t5_01_text_document]",
     # Or see example below: 
-    # data_prefix: 
-    #   - .5
-    #   - /raid/data/pile/my-t5_00_text_document
-    #   - .5
-    #   - /raid/data/pile/my-t5_01_text_document
-    data_prefix: ???
+    data_prefix: 
+       - 1.0
+       - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/my-t5_test_bert_tokenizer_text_document
+    # data_prefix: ???
     data_impl: mmap
     splits_string: 949,45,5
     seq_length: ${model.seq_length}
