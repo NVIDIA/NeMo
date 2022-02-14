@@ -35,12 +35,14 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
-    model_parallel_size: ${model.tensor_model_parallel_size}
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
+    
 
 model:
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
 
   # model architecture
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.

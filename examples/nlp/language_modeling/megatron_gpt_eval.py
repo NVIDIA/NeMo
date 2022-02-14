@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import GPTRequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -101,6 +101,9 @@ def main():
     parser.add_argument(
         "--tensor_model_parallel_size", type=int, default=1, required=False,
     )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, default=1, required=False,
+    )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
     parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
     parser.add_argument(
@@ -113,13 +116,26 @@ def main():
     if args.precision in ["32", "16"]:
         args.precision = int(float(args.precision))
 
-    # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
+    trainer = Trainer(
+        plugins=NLPDDPPlugin(),
+        gpus=args.tensor_model_parallel_size * args.pipeline_model_parallel_size,
+        precision=args.precision,
+    )
 
     app_state = AppState()
-    if args.tensor_model_parallel_size > 1:
-        app_state.model_parallel_size = args.tensor_model_parallel_size
-        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
+    if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+        app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+        (
+            app_state.tensor_model_parallel_rank,
+            app_state.pipeline_model_parallel_rank,
+            app_state.model_parallel_size,
+            _,
+        ) = fake_initialize_model_parallel(
+            world_size=app_state.model_parallel_size,
+            rank=trainer.global_rank,
+            tensor_model_parallel_size_=args.tensor_model_parallel_size,
+            pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
+        )
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
     model.freeze()
