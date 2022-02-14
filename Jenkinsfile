@@ -1171,8 +1171,6 @@ pipeline {
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.label_vocab_dir') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            mkdir -p tmp_data && \
-            cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
             label_vocab_dir=label_vocab_dir && \
             mkdir -p ${label_vocab_dir} && \
             punct_label_vocab="${label_vocab_dir}/punct_label_vocab.csv" && \
@@ -1181,9 +1179,9 @@ pipeline {
             printf "O\nU\n" > "${capit_label_vocab}" && \
             python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=tmp_data \
-              model.validation_ds.ds_item=tmp_data \
-              model.test_ds.ds_item=tmp_data \
+              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               model.common_dataset_parameters.label_vocab_dir="${label_vocab_dir}" \
               model.class_labels.punct_labels_file="$(basename "${punct_label_vocab}")" \
@@ -1201,7 +1199,7 @@ pipeline {
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=tmp_data \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
               pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
@@ -1210,7 +1208,6 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -r tmp_data && \
             rm -r "${label_vocab_dir}" && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
@@ -1218,15 +1215,13 @@ pipeline {
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.{punct,capit}_label_ids') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            mkdir -p tmp_data && \
-            cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
             python punctuation_capitalization_train_evaluate.py \
               --config-path /home/TestData/nlp/token_classification_punctuation \
               --config-name punctuation_capitalization_config_with_ids \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=tmp_data \
-              model.validation_ds.ds_item=tmp_data \
-              model.test_ds.ds_item=tmp_data \
+              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
@@ -1241,7 +1236,7 @@ pipeline {
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=tmp_data \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
               pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
@@ -1250,7 +1245,6 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -r tmp_data && \
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
