@@ -721,6 +721,7 @@ pipeline {
             sh 'cd examples/nlp/dialogue_state_tracking_generative && \
             python sgd_gen.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+            model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
             model.dataset.dialogues_example_dir=sgd_gen_outputs \
             model.dataset.task_name=debug_sample \
             trainer.max_steps=1 \
