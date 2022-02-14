@@ -184,6 +184,10 @@ def main():
         help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
     )
 
+    parser.add_argument(
+        "--online_normalization", default=False, action='store_true', help="Perform normalization on the run."
+    )
+
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if args.asr_model.endswith('.nemo'):
@@ -230,6 +234,9 @@ def main():
     cfg.preprocessor.dither = 0.0
     cfg.preprocessor.pad_to = 0
 
+    if args.online_normalization:
+        cfg.preprocessor.normalize = None
+
     if cfg.preprocessor.normalize != "per_feature":
         logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
 
@@ -254,7 +261,6 @@ def main():
         valid_out_len=None,
         cache_last_channel=None,
         cache_last_time=None,
-        #cache_pre_encode=None,
         previous_hypotheses=None,
     )
 
@@ -265,19 +271,10 @@ def main():
 
     # asr_out_whole = asr_model.forward(processed_signal=processed_signal, processed_signal_length=processed_signal_length)
 
-    #chunk_size = 4
-
     last_channel_num, last_time_num = set_streaming_mode(asr_model, cache_drop_size=cache_drop_size)
-
     bs = 1
-
     last_channel_cache_size = cfg.encoder.att_context_size[0]
-    last_time_cache_size = conv_context_size[0] #cfg.encoder.conv_kernel_size - 1
-    # cache_pre_encode = torch.zeros(
-    #     (1, bs, pre_encode_cache_size, processed_signal.size(-2)), device=asr_model.device, dtype=torch.float32
-    # )
-
-    # cache_last_channel = torch.zeros((last_channel_num, 1, last_channel_cache_size, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32)
+    last_time_cache_size = conv_context_size[0]
     cache_last_channel = torch.zeros(
         (last_channel_num, bs, 0, cfg.encoder.d_model), device=asr_model.device, dtype=torch.float32
     )
@@ -285,26 +282,29 @@ def main():
         (last_time_num, bs, cfg.encoder.d_model, last_time_cache_size), device=asr_model.device, dtype=torch.float32
     )
 
-
     init_chunk_size = 1 + subsampling_factor * lookahead_steps
     init_shift_size = 1
 
-    # init_chunk = init_chunk_size + subsampling_factor * lookahead_steps
     pre_encode_cache_size = 0 # 8 # 5
     init_cache_pre_encode = torch.zeros(
         (bs, processed_signal.size(-2), pre_encode_cache_size), device=asr_model.device, dtype=torch.float32
     )
+
+    if args.online_normalization:
+        processed_signal, processed_signal_length = preprocessor(
+            input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
+        )
+
     init_audio = processed_signal[:, :, :init_chunk_size]
     init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
 
     asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
         asr_model=asr_model,
         audio_signal=init_audio,
-        length=torch.tensor([init_audio.size(-1)]),# torch.tensor([init_chunk]),
+        length=torch.tensor([init_audio.size(-1)]),
         valid_out_len=(init_shift_size - 1) // subsampling_factor + 1,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
-        #cache_pre_encode=None, #cache_pre_encode,
         previous_hypotheses=None,
     )
     print(asr_out_stream)
@@ -312,11 +312,7 @@ def main():
 
     step_num = 1
     previous_hypotheses = best_hyp
-    #input_done = False
-    pre_encode_cache_size = 5 # 5
-    # cache_pre_encode = torch.zeros(
-    #     (bs, processed_signal.size(-2), pre_encode_cache_size), device=asr_model.device, dtype=torch.float32
-    # )
+    pre_encode_cache_size = 5
     if type(asr_model.encoder.pre_encode) == ConvSubsampling:
         asr_model.encoder.pre_encode.is_streaming = True
 
@@ -343,7 +339,6 @@ def main():
             asr_out_stream,
             cache_last_channel_next,
             cache_last_time_next,
-            #cache_pre_encode_next,
             previous_hypotheses,
         ) = model_process(
             asr_model=asr_model,
@@ -352,7 +347,6 @@ def main():
             valid_out_len=valid_out_len,
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
-            #cache_pre_encode=None, #cache_pre_encode_next,
             previous_hypotheses=previous_hypotheses,
         )
         if last_channel_cache_size >= 0:
@@ -370,56 +364,6 @@ def main():
 
     print(torch.sum(asr_out_stream_total != asr_out_whole))
     print(step_num)
-    # with open(args.test_manifest, "r") as mfst_f:
-    #     for l in mfst_f:
-    #         # asr.reset()
-    #         row = json.loads(l.strip())
-    #         asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
-
-    # feature_stride = cfg.preprocessor['window_stride']
-    # model_stride_in_secs = feature_stride * args.model_stride
-    # total_buffer = args.total_buffer_in_secs
-    #
-    # chunk_len = args.chunk_len_in_ms / 1000
-
-    # tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
-    # mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
-    # print(tokens_per_chunk, mid_delay)
-    #
-    # frame_asr = FrameBatchASR(
-    #     asr_model=asr_model, frame_len=chunk_len, total_buffer=args.total_buffer_in_secs, batch_size=args.batch_size,
-    # )
-    #
-    # hyps, refs, wer = get_wer_feat(
-    #     args.test_manifest,
-    #     frame_asr,
-    #     chunk_len,
-    #     tokens_per_chunk,
-    #     mid_delay,
-    #     cfg.preprocessor,
-    #     model_stride_in_secs,
-    #     asr_model.device,
-    # )
-    # logging.info(f"WER is {round(wer, 2)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
-
-    # if args.output_path is not None:
-    #
-    #     fname = (
-    #         os.path.splitext(os.path.basename(args.asr_model))[0]
-    #         + "_"
-    #         + os.path.splitext(os.path.basename(args.test_manifest))[0]
-    #         + ".json"
-    #     )
-    #     hyp_json = os.path.join(args.output_path, fname)
-    #     os.makedirs(args.output_path, exist_ok=True)
-    #     with open(hyp_json, "w") as out_f:
-    #         for i, hyp in enumerate(hyps):
-    #             record = {
-    #                 "pred_text": hyp,
-    #                 "text": refs[i],
-    #                 "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
-    #             }
-    #             out_f.write(json.dumps(record) + '\n')
 
 
 if __name__ == '__main__':
