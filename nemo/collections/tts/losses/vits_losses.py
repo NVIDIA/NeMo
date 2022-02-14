@@ -78,3 +78,33 @@ class KlLoss(Loss):
         kl = torch.sum(kl * z_mask)
         l = kl / torch.sum(z_mask)
         return l
+
+class FeatureMatchingLoss(Loss):
+    """VITS Feature Matching Loss module"""
+
+    @property
+    def input_types(self):
+        return {
+            "fmap_r": [[NeuralType(elements_type=VoidType())]],
+            "fmap_g": [[NeuralType(elements_type=VoidType())]],
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, fmap_r, fmap_g):
+        """
+        fmap_r, fmap_g: List[List[Tensor]]
+        """
+        loss = 0
+        for dr, dg in zip(fmap_r, fmap_g):
+            for rl, gl in zip(dr, dg):
+                rl = rl.float().detach()
+                gl = gl.float()
+                loss += torch.mean(torch.abs(rl - gl))
+
+        return loss * 2
