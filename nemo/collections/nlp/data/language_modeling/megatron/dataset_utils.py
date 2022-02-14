@@ -39,13 +39,13 @@ import time
 import numpy as np
 import torch
 
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
-from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
     get_train_valid_test_split_,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -590,6 +590,7 @@ def _build_train_valid_test_datasets(
                 )
             elif dataset_type == DSET_TYPE_T5:
                 assert tokenizer is not None, "Tokenizer is required for T5 dataset"
+                logging.info("Instatiating T5 Dataset ...")
                 dataset = T5Dataset(
                     cfg=cfg,
                     trainer=trainer,
@@ -601,6 +602,7 @@ def _build_train_valid_test_datasets(
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BERT:
+                logging.info("Instatiating BERT Dataset ...")
                 dataset = BertDataset(
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
@@ -611,6 +613,7 @@ def _build_train_valid_test_datasets(
                 )
             elif dataset_type == DSET_TYPE_T5_LM:
                 documents = np.arange(start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32)
+                logging.info("Instatiating T5 Prefix-LM Dataset ...")
                 dataset = T5LMAdaptedDataset(
                     cfg=cfg,
                     trainer=trainer,
