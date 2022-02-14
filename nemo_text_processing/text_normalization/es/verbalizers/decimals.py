@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_text_processing.text_normalization.es import LOCALIZATION
+
 try:
     import pynini
     from pynini.lib import pynutil
@@ -61,7 +63,7 @@ class DecimalFst(GraphFst):
             pynutil.delete("fractional_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         )
 
-        conjunction = pynutil.insert(" coma ")
+        conjunction = pynutil.insert(" punto ") if LOCALIZATION == "am" else pynutil.insert(" coma ")
         if not deterministic:
             conjunction |= pynutil.insert(pynini.union(" con ", " y "))
             self.fractional_default |= strip_cardinal_apocope(self.fractional_default)

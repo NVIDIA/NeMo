@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo_text_processing.text_normalization.es import LOCALIZATION
 from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 
 try:
@@ -29,8 +29,12 @@ try:
 
     accents = pynini.string_map([("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")])
 
-    cardinal_separator = pynini.string_map([".", NEMO_SPACE])
-    decimal_separator = pynini.accep(",")
+    if LOCALIZATION == "am":  # Setting localization for central and northern america formatting
+        cardinal_separator = pynini.string_map([",", NEMO_SPACE])
+        decimal_separator = pynini.accep(".")
+    else:
+        cardinal_separator = pynini.string_map([".", NEMO_SPACE])
+        decimal_separator = pynini.accep(",")
 
     ones = pynini.union("un", "ún")
     one_to_one_hundred = pynini.union(digits, tens, teens, twenties, tens + pynini.accep(" y ") + digits)
