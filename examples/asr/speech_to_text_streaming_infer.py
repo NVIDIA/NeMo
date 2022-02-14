@@ -121,12 +121,12 @@ def model_process(
             encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
         )
         #greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
-        #greedy_predictions = best_hyp[0].y_sequence
-        greedy_predictions = []
-        for alignment in best_hyp[0].alignments:
-            alignment.remove(1024)
-            greedy_predictions.extend(alignment)
-        greedy_predictions = torch.Tensor(greedy_predictions)
+        greedy_predictions = best_hyp[0].y_sequence
+        # greedy_predictions = []
+        # for alignment in best_hyp[0].alignments:
+        #     alignment.remove(1024)
+        #     greedy_predictions.extend(alignment)
+        #greedy_predictions = torch.Tensor(greedy_predictions)
 
     else:
         log_probs = asr_model.decoder(encoder_output=encoded)
