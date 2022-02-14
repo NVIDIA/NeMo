@@ -74,8 +74,8 @@ model:
 
   spec_augment:
     _target_: nemo.collections.asr.modules.MaskedPatchAugmentation
-    freq_masks: 4
-    freq_width: 27
+    freq_masks: 3
+    freq_width: 20
     patch_size: 64
     mask_patches: 10
 
