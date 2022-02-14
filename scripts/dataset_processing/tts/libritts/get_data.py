@@ -74,9 +74,9 @@ def __process_transcript(file_path: str):
         assert os.path.exists(wav_file), f"{wav_file} not found!"
         duration = subprocess.check_output(f"soxi -D {wav_file}", shell=True)
         entry = {
-            'audio_filepath': os.path.abspath(wav_file), 
-            'duration': float(duration), 
-            'text': text, 
+            'audio_filepath': os.path.abspath(wav_file),
+            'duration': float(duration),
+            'text': text,
             'speaker': int(speaker_id),
         }
 
