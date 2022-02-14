@@ -289,7 +289,21 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-# embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
+def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
+    """
+
+    Write cluster labels that are generated from clustering into a file.
+    Args:
+        base_scale_idx (int): The base scale index which is the highest scale index.
+        lines_cluster_labels (list): The start and end time-stamps of each segment with the predicted cluster label.
+        out_rttm_dir (str): The path where output rttm files are saved.
+    """
+    out_label_name = os.path.join(
+        out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label'
+    )
+    with open(out_label_name, 'w') as f:
+        for clus_label_line in lines_cluster_labels:
+            f.write(clus_label_line)
 
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
@@ -314,6 +328,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     all_reference = []
     no_references = False
     max_num_speakers = clustering_params['max_num_speakers']
+    lines_cluster_labels = []
 
     cuda = True
     if not torch.cuda.is_available():
@@ -349,6 +364,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         labels = merge_stamps(a)
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+            lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 
@@ -360,6 +376,9 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             no_references = True
             all_reference = []
+
+    if out_rttm_dir:
+        write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
 
     return all_reference, all_hypothesis
 
