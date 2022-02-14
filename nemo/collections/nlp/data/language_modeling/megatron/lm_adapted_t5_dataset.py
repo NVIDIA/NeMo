@@ -59,7 +59,7 @@ class T5LMAdaptedDataset(GPTDataset):
         enc_mask = (tokens_enc != self.tokenizer.pad_id).astype(np.int64)
         dec_mask = (tokens_dec_in != self.tokenizer.pad_id).astype(np.int64)
 
-        loss_mask = np.array([1] * len(labels), dtype=np.int64)
+        loss_mask = dec_mask
 
         train_sample = {
             'text_enc': tokens_enc,

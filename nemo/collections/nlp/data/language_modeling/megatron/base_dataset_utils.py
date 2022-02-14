@@ -36,6 +36,7 @@ def get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_sampl
     # Add 0.5% (the 1.005 factor) so in case the bleding dataset does
     # not uniformly distribute the number of samples, we still have
     # samples left to feed to the network.
+    # TODO: check data leakage between train/val/test?
     datasets_train_valid_test_num_samples = []
     for weight in weights:
         datasets_train_valid_test_num_samples.append(
@@ -55,6 +56,8 @@ def get_train_valid_test_split_(splits_string, size):
         splits = [float(s) for s in splits_string.split('/')]
     else:
         splits = [float(splits_string)]
+    if len(splits) != 3:
+        raise ValueError(f"Invalid splits string: {splits_string}. Expected 3 comma separated values.")
     while len(splits) < 3:
         splits.append(0.0)
     splits = splits[:3]
