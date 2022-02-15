@@ -843,6 +843,14 @@ class MegatronGPTModel(NLPModel):
                 * offsets: list of tokens start positions in text
                 
         """
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=1,
+            micro_batch_size=1,
+            data_parallel_size=1,
+        )
 
         results = []
         request_tokens = request["tokens"]
@@ -886,16 +894,7 @@ class MegatronGPTModel(NLPModel):
                     )
 
                 batch = [tokens, attention_mask, position_ids]
-                # batch_for_pipeline = self.process_global_batch(batch)
                 tensor_shape = [tokens.shape[1], 1, self.cfg.hidden_size]
-                app_state = AppState()
-                _reconfigure_microbatch_calculator(
-                    rank=app_state.global_rank,
-                    rampup_batch_size=None,
-                    global_batch_size=1,
-                    micro_batch_size=1,
-                    data_parallel_size=1,
-                )
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                     output_tensor = forward_backward_pipelining_without_interleaving(
                         forward_step_func=self.get_forward_output_only_func(),
@@ -919,22 +918,32 @@ class MegatronGPTModel(NLPModel):
                 # No labels during inference. Still need masks to not attend to the right
                 # output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
                 # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                if parallel_state.is_pipeline_last_stage():
+                    output_tensor = output_tensor[0]['logits']
+                    output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
-                log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
-                # reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
-                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+                    log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
+                    tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+                else:
+                    log_probs = torch.zeros((tokens.shape[0], tokens.shape[1]), dtype=torch.float).cuda()
+                    tokens = torch.zeros((tokens.shape[0], tokens.shape[1] + 1), dtype=tokens.dtype).cuda()
+
+                torch.distributed.broadcast(tokens, get_last_rank())
+                torch.distributed.broadcast(log_probs, get_last_rank())
 
             # add to results as (text, tokens, log_probs, offsets)
             for token, prob in zip(tokens, log_probs.tolist()):
                 results.append(
-                    (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0])
+                    (self.tokenizer.ids_to_text(token[:-1]), self.tokenizer.ids_to_tokens(token[:-1]), prob, [0],)
                 )
+
         # offsets calculation
         for item in results:
             for index, token in enumerate(item[1]):
                 if index != len(item[1]) - 1:
                     item[3].append(len(token) + item[3][-1])
-        # returnprompts in order they were inputted
+
+        # return prompts in the order that they were input
         response = [0 for i in range(len(positions))]
         for item, index in zip(results, positions):
             response[index] = item
