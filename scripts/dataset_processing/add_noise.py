@@ -126,9 +126,12 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num_workers", default=1, type=int)
     parser.add_argument("--sample_rate", default=16000, type=int)
-    parser.add_argument("--attenuation_factor", default=0.8, type=float, help="Attenuation factor applied on the"
-                                                                              " noise added samples before writing"
-                                                                              " to wave")
+    parser.add_argument(
+        "--attenuation_factor",
+        default=0.8,
+        type=float,
+        help="Attenuation factor applied on the noise added samples before writing to wave",
+    )
     args = parser.parse_args()
     global sample_rate
     sample_rate = args.sample_rate
