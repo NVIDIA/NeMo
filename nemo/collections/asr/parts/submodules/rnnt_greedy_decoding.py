@@ -311,7 +311,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 if hypothesis.last_token is None and hypothesis.dec_state is None:
                     last_label = (self._SOS)
                 else:
-                    last_label = (hypothesis.last_token)
+                    last_label = label_collate([[hypothesis.last_token]])
 
                 # Perform prediction network and joint network steps.
                 g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
