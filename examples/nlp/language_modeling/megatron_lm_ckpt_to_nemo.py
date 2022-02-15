@@ -41,8 +41,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_bert_model import Me
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import inject_model_parallel_rank
 from nemo.utils.distributed import initialize_distributed
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 # this enums code is copied from Megatron_LM
 enum_code = '''
@@ -165,6 +165,10 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint):
     NEW_LR_SCHEDULER = 'lr_schedulers'
     if OPTIMIZER_KEY in lm_checkpoint and OPTIMIZER_KEY in lm_checkpoint[OPTIMIZER_KEY]:
         opt_state = lm_checkpoint[OPTIMIZER_KEY][OPTIMIZER_KEY]
+        if LR_SCHEDULER in lm_checkpoint:
+            sched = lm_checkpoint[LR_SCHEDULER]
+            for param_group in opt_state['param_groups']:
+                param_group['initial_lr'] = sched['max_lr']
         new_checkpoint[NEW_OPTIMIZER_KEY] = [opt_state]
     if STEP_KEY in lm_checkpoint:
         new_checkpoint[NEW_STEP_KEY] = lm_checkpoint[STEP_KEY]
@@ -172,14 +176,19 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint):
     if LR_SCHEDULER in lm_checkpoint:
         sched = lm_checkpoint[LR_SCHEDULER]
         content = OrderedDict()
-        content['max_steps'] = sched['num_steps']
-        content['warmup_steps'] = sched['warmup_steps']
+        content['max_steps'] = int(sched['decay_steps'])
+        content['warmup_steps'] = int(sched['warmup_steps'])
         content['constant_steps'] = 0  # no such conf in lm checkpoint
-        content['decay_steps'] = sched['decay_steps']
+        content['decay_steps'] = content['max_steps'] - content['warmup_steps']
         content['min_lr'] = sched['min_lr']
-        content['base_lrs'] = [sched['min_lr']]  # no such conf in lm checkpoint
-        content['last_epoch'] = 0  # no such conf
-        content['_step_count'] = 0  # no such conf
+        if OPTIMIZER_KEY in lm_checkpoint:
+            content['base_lrs'] = [i['initial_lr'] for i in new_checkpoint['optimizer_states'][0]['param_groups']]
+            content['last_epoch'] = new_checkpoint['optimizer_states'][0]['param_groups'][0]['step']
+            content['_last_lr'] = [i['lr'] for i in new_checkpoint['optimizer_states'][0]['param_groups']]
+        else:
+            content['base_lrs'] = [sched['max_lr']]
+            content['last_epoch'] = int(sched['num_steps'])
+        content['_step_count'] = int(sched['num_steps'])
         content['verbose'] = False
         content['_get_lr_called_within_step'] = False
         new_checkpoint[NEW_LR_SCHEDULER] = [content]
