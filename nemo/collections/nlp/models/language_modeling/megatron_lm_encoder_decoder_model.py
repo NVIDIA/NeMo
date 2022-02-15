@@ -28,14 +28,14 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
     MegatronTokenLevelEncoderDecoderModule,
 )
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.utils import AppState, logging
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
