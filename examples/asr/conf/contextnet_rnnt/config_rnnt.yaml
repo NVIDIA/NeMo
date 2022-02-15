@@ -15,6 +15,8 @@ model:
     max_duration: 16.7
     labels: ${model.labels}
     shuffle: true
+    num_workers: 8
+    pin_memory: true
     is_tarred: false
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
@@ -24,6 +26,8 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
+    num_workers: 8
+    pin_memory: true
     labels: ${model.labels}
 
   test_ds:
@@ -31,6 +35,8 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 32
     shuffle: false
+    num_workers: 8
+    pin_memory: true
     labels: ${model.labels}
 
   model_defaults:
