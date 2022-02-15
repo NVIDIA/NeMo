@@ -26,7 +26,7 @@ from nemo.utils import logging
 __all__ = ['AggregateTokenizer']
 
 
-class DummyTokenizer():
+class DummyTokenizer:
     def __init__(self, vocab):
         self.vocab = vocab
         self.vocab_size = len(vocab)
@@ -43,9 +43,7 @@ class AggregateTokenizer(TokenizerSpec):
         tokenizers: dict of tokenizers, keys are lang ids
     '''
 
-    def __init__(
-            self, tokenizers: Dict
-    ):
+    def __init__(self, tokenizers: Dict):
 
         self.tokenizers_dict = tokenizers
         self.vocabulary = []
@@ -67,7 +65,6 @@ class AggregateTokenizer(TokenizerSpec):
         for tokenizer in self.tokenizers_dict.values():
             self.vocabulary.extend(tokenizer.vocab)
 
-
         self.vocab_size = len(self.vocabulary)
         logging.info(f'Aggregate vocab size: {self.vocab_size}')
 
@@ -86,11 +83,10 @@ class AggregateTokenizer(TokenizerSpec):
             off_id = id - list(self.token_id_offset.values())[cur_num]
             if cur_num + 1 < tot:
                 if id >= list(self.token_id_offset.values())[cur_num + 1]:
-                  cur_num += 1
-                  off_id = id - list(self.token_id_offset.values())[cur_num]
+                    cur_num += 1
+                    off_id = id - list(self.token_id_offset.values())[cur_num]
             offsets[id] = off_id
             tokenizers[id] = list(self.tokenizers_dict.values())[cur_num]
-                     
 
         return offsets, tokenizers
 
@@ -107,7 +103,7 @@ class AggregateTokenizer(TokenizerSpec):
     def text_to_ids(self, text, lang_id):
         tokenizer = self.tokenizers_dict[lang_id]
         token_ids = tokenizer.text_to_ids(text)
-        token_ids[:]=[t + self.token_id_offset[lang_id] for t in token_ids]
+        token_ids[:] = [t + self.token_id_offset[lang_id] for t in token_ids]
 
         return token_ids
 
@@ -120,7 +116,6 @@ class AggregateTokenizer(TokenizerSpec):
 
         tokenizer = self.tokenizers_dict[lang_id]
         return tokenizer.decode_pieces(tokens)
-
 
     def ids_to_text(self, ids):
         if isinstance(ids, np.ndarray):
@@ -135,15 +130,12 @@ class AggregateTokenizer(TokenizerSpec):
 
         return text
 
-
     def token_to_id(self, token):
         raise ValueError("Aggregate Tokenizer needs the language id to be passed in")
-
 
     def token_to_id(self, token, lang_id):
         tokenizer = self.tokenizers_dict[lang_id]
         return tokenizer.token_to_id(token) + self.token_id_offset[lang_id]
-
 
     def ids_to_tokens(self, ids):
         tokens = []
@@ -170,7 +162,6 @@ class AggregateTokenizer(TokenizerSpec):
             lang_id = langs[i]
             ids.append(self.token_to_id(token, lang_id))
         return ids
-
 
     @property
     def vocab(self):
