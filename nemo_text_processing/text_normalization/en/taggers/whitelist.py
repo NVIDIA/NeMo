@@ -81,11 +81,7 @@ class WhiteListFst(GraphFst):
             for x, y in states:
                 if input_case == "lower_cased":
                     x = x.lower()
-                additional_options.append((x, f"{y[0]}. {y[1:]}"))
                 additional_options.append((x, f"{y[0]}.{y[1:]}"))
-                additional_options.append((x, f"{y[0].upper()}{y[1:].lower()}"))
-                additional_options.append((x, f"{y[0].upper()}.{y[1:].lower()}"))
-                additional_options.append((x, f"{y[0].upper()}. {y[1:].lower()}"))
             states.extend(additional_options)
             state_graph = pynini.string_map(states)
             graph |= (

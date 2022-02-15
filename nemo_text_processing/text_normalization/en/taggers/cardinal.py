@@ -143,7 +143,21 @@ class CardinalFst(GraphFst):
             + (pynini.cross("-", " to ") | pynini.cross(" - ", " to "))
             + graph
         )
-        range_graph |= graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + graph
+
+        range_graph |= (
+            graph
+            + (pynini.cross("-", " minus ") | pynini.cross(" - ", " minus "))
+            + graph
+        )
+
+        for x in ["+", " + "]:
+            range_graph |= graph + pynini.closure(pynini.cross(x, " plus ") + graph, 1)
+        for x in ["/", " / "]:
+            range_graph |= graph + pynini.closure(pynini.cross(x, " divided by ") + graph, 1)
+        for x in [" x ", "x"]:
+            range_graph |= graph + pynini.closure(pynini.cross(x, pynini.union(" by ", " times ")) + graph, 1)
+        for x in ["*", " * "]:
+            range_graph |= graph + pynini.closure(pynini.cross(x, pynini.union(" times ")) + graph, 1)
         return range_graph.optimize()
 
     def get_serial_graph(self):
