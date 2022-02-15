@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
+templates_path = ["_templates"]
 
 autodoc_mock_imports = [
     'torch',

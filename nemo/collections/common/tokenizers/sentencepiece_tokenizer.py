@@ -240,7 +240,10 @@ class SentencePieceTokenizer(TokenizerSpec):
     @property
     def additional_special_tokens_ids(self):
         """Returns a list of the additional special tokens (excluding bos, eos, pad, unk). Used to return sentinel tokens for e.g. T5."""
-        return list(self.special_token_to_id.values())
+        special_tokens = set(
+            [self.bos_token, self.eos_token, self.pad_token, self.mask_token, self.cls_token, self.sep_token]
+        )
+        return [v for k, v in self.special_token_to_id.items() if k not in special_tokens]
 
     @property
     def vocab(self):

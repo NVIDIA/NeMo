@@ -416,13 +416,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
             self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
 
-        embs_and_timestamps = get_embs_and_timestamps(
+        self.embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
 
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
-            embs_and_timestamps=embs_and_timestamps,
+            embs_and_timestamps=self.embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,

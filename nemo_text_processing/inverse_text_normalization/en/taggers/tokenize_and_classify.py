@@ -85,7 +85,7 @@ class ClassifyFst(GraphFst):
             whitelist_graph = WhiteListFst().fst
             punct_graph = PunctuationFst().fst
             electronic_graph = ElectronicFst().fst
-            telephone_graph = TelephoneFst().fst
+            telephone_graph = TelephoneFst(cardinal).fst
 
             classify = (
                 pynutil.add_weight(whitelist_graph, 1.01)

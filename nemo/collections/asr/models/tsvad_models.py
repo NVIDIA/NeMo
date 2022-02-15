@@ -19,10 +19,12 @@ import json
 import math
 import os
 import pickle as pkl
+import numpy as np
 from typing import Dict, List, Optional, Union
 
 import librosa
 import torch
+from statistics import mode
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
@@ -38,6 +40,7 @@ from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize, get_uniqname_from_filepath
+from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
@@ -60,8 +63,8 @@ from nemo.core.neural_types.elements import ProbsType
 
 
 def sprint(*args):
-    if False:
-    # if True:
+    # if False:
+    if True:
         print(*args)
     else:
         pass
@@ -74,6 +77,42 @@ def write_json_file(name, lines):
             json.dump(dic, fout)
             fout.write('\n')
     logging.info("wrote", name)
+
+def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
+    """
+    Calculate cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Args:
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization 
+            is performed.
+
+    Returns:
+        fused_sim_d (np.array):
+            This function generates an ffinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+        base_scale_emb (np.array):
+            The base scale embedding (the embeddings from the finest scale)
+    """
+    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+    base_scale_idx = max(uniq_scale_dict.keys())
+    base_scale_emb = np.array(uniq_scale_dict[base_scale_idx]['embeddings'])
+    multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
+    scale_mapping_argmat = {}
+
+    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
+    for scale_idx in sorted(uniq_scale_dict.keys()):
+        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        scale_mapping_argmat[scale_idx] = mapping_argmat
+        # score_mat = getCosAffinityMatrix(uniq_scale_dict[scale_idx]['embeddings'])
+        # score_mat_list.append(score_mat)
+        # repeat_list = getRepeatedList(mapping_argmat, score_mat.shape[0])
+        # repeated_mat = np.repeat(np.repeat(score_mat, repeat_list, axis=0), repeat_list, axis=1)
+        # repeated_mat_list.append(repeated_mat)
+
+    return scale_mapping_argmat
 
 class MultiBinaryAcc(Metric):
     def __init__(self, dist_sync_on_step=False):
@@ -133,6 +172,7 @@ class ClusterEmbedding:
         self.max_num_of_spks = self._cfg.diarizer.clustering.parameters.max_num_speakers
         self.clus_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
         self.clus_map_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
+        self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
     
     def prepare_cluster_embs(self):
         """
@@ -191,25 +231,43 @@ class ClusterEmbedding:
             # # print(i,  meta_dict['offset'])
             # assert (meta_dict['offset'] + meta_dict['duration']) <= duration
         # return meta_list
-        
-    def get_clus_emb(self, emb_scale_seq_dict, clus_label, mapping_dict):
+    
+    def assign_labels_to_longer_segs(self, scale_n, base_clus_label_dict, session_scale_mapping_dict):
+        new_clus_label_dict = {scale_index: {} for scale_index in range(scale_n)}
+        for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
+            try:
+                base_scale_clus_label = np.array([ x[-1] for x in base_clus_label_dict[uniq_id]])
+            except:
+                import ipdb; ipdb.set_trace()
+
+            new_clus_label_dict[scale_n-1][uniq_id] = base_scale_clus_label
+            for scale_index in range(scale_n-1):
+                new_clus_label = []
+                for seg_idx in list(set(uniq_scale_mapping_dict[scale_index])):
+                    seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping_dict[scale_index] == seg_idx])
+                    new_clus_label.append(seg_clus_label)
+                new_clus_label_dict[scale_index][uniq_id] = new_clus_label
+        return new_clus_label_dict
+
+    def get_clus_emb(self, emb_scale_seq_dict, clus_label, speaker_mapping_dict, session_scale_mapping_dict):
         """
         TSVAD
         Get an average embedding vector for each cluster (speaker).
         """
         scale_n = len(emb_scale_seq_dict.keys())
-        clus_label_dict = {key: [] for key in emb_scale_seq_dict[scale_n-1].keys()}
+        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[scale_n-1].keys()}
         emb_sess_avg_dict = {scale_index:{key: [] for key in emb_scale_seq_dict[scale_n-1].keys() } for scale_index in emb_scale_seq_dict.keys()}
         for line in clus_label:
             uniq_id = line.split()[0]
             label = int(line.split()[-1].split('_')[-1])
             stt, end = [round(float(x), 2) for x in line.split()[1:3]]
-            clus_label_dict[uniq_id].append([stt, end, label])
+            base_clus_label_dict[uniq_id].append([stt, end, label])
         
+        all_scale_clus_label_dict = self.assign_labels_to_longer_segs(scale_n, base_clus_label_dict, session_scale_mapping_dict)
         dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
         for scale_index in emb_scale_seq_dict.keys():
             for uniq_id, emb_tensor in emb_scale_seq_dict[scale_index].items():
-                clus_label_list = [ int(x[-1]) for x in clus_label_dict[uniq_id]]
+                clus_label_list = all_scale_clus_label_dict[scale_index][uniq_id]
                 spk_set = set(clus_label_list)
                 # Create a label array which identifies clustering result for each segment.
                 spk_N = len(spk_set)
@@ -219,9 +277,9 @@ class ClusterEmbedding:
                 for spk_idx in spk_set:
                     selected_embs = emb_tensor[label_array == spk_idx]
                     avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
-                inv_map = {clus_key: rttm_key for rttm_key, clus_key in mapping_dict[uniq_id].items()}
+                inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
                 emb_sess_avg_dict[scale_index][uniq_id] = {'mapping': inv_map, 'avg_embs': avg_embs}
-        return emb_sess_avg_dict, clus_label_dict
+        return emb_sess_avg_dict, base_clus_label_dict
     
     def get_manifest_uniq_ids(self, manifest_filepath):
         manifest_lines = []
@@ -260,19 +318,20 @@ class ClusterEmbedding:
     def check_embedding_and_RTTM(self, emb_sess_avg_dict, manifest_filepath):
         uniq_id_list, json_lines_list = self.get_manifest_uniq_ids(manifest_filepath)
         output_json_list = []
-        for uniq_id, json_dict in zip(uniq_id_list, json_lines_list):
-            rttm_filepath = json_dict['rttm_filepath']
-            rttm_speaker_set = self.parse_rttm(rttm_filepath)
-            dict_speaker_set = set(list(emb_sess_avg_dict[uniq_id]['mapping'].keys()))
-            dict_speaker_value_set = set(list(emb_sess_avg_dict[uniq_id]['mapping'].values()))
-            if rttm_speaker_set != dict_speaker_set:
-                remainder_rttm_keys = rttm_speaker_set - dict_speaker_set
-                total_spk_set = set(['speaker_'+str(x) for x in range(len(rttm_speaker_set))])
-                remainder_dict_keys = total_spk_set - dict_speaker_value_set
-                for rttm_key, dict_key in zip(remainder_rttm_keys, remainder_dict_keys):
-                    emb_sess_avg_dict[uniq_id]['mapping'][rttm_key] = dict_key
-                dict_speaker_set = set(list(emb_sess_avg_dict[uniq_id]['mapping'].keys()))
-                assert rttm_speaker_set == dict_speaker_set
+        for scale_index in emb_sess_avg_dict.keys():
+            for uniq_id, json_dict in zip(uniq_id_list, json_lines_list):
+                rttm_filepath = json_dict['rttm_filepath']
+                rttm_speaker_set = self.parse_rttm(rttm_filepath)
+                dict_speaker_set = set(list(emb_sess_avg_dict[scale_index][uniq_id]['mapping'].keys()))
+                dict_speaker_value_set = set(list(emb_sess_avg_dict[scale_index][uniq_id]['mapping'].values()))
+                if rttm_speaker_set != dict_speaker_set:
+                    remainder_rttm_keys = rttm_speaker_set - dict_speaker_set
+                    total_spk_set = set(['speaker_'+str(x) for x in range(len(rttm_speaker_set))])
+                    remainder_dict_keys = total_spk_set - dict_speaker_value_set
+                    for rttm_key, dict_key in zip(remainder_rttm_keys, remainder_dict_keys):
+                        emb_sess_avg_dict[scale_index][uniq_id]['mapping'][rttm_key] = dict_key
+                    dict_speaker_set = set(list(emb_sess_avg_dict[scale_index][uniq_id]['mapping'].keys()))
+                    assert rttm_speaker_set == dict_speaker_set
         return emb_sess_avg_dict
 
     def run_clustering_diarizer(self, manifest_filepath, out_dir):
@@ -280,53 +339,76 @@ class ClusterEmbedding:
         TSVAD
         Run clustering diarizer to get initial clustering results.
         """
-        if os.path.exists(f'{out_dir}/{self.clus_emb_path}'):
-            print(f"-- Embedding path exists {out_dir}/{self.clus_emb_path}")
+        isEmbReady = True
+        if os.path.exists(f'{out_dir}/speaker_outputs/embeddings'):
+            print(f"-- Embedding path exists {out_dir}/speaker_outputs/embeddings")
             try:
-                emb_sess_avg_dict = self.load_dict_from_pkl(out_dir) 
+                emb_sess_avg_dict, session_scale_mapping_dict = self.load_dict_from_pkl(out_dir) 
                 uniq_id_list, _ = self.get_manifest_uniq_ids(manifest_filepath)
-                isEmbReady = set(uniq_id_list).issubset(set(emb_sess_avg_dict.keys()))
+                base_scale_index = max(emb_sess_avg_dict.keys())
+                condA = set(uniq_id_list).issubset(set(emb_sess_avg_dict[base_scale_index].keys()))
+                condB = set(uniq_id_list).issubset(set(session_scale_mapping_dict.keys()))
+                isEmbReady = condA and condB
             except:
+                # import ipdb; ipdb.set_trace()
                 isEmbReady = False
         else:
+            # import ipdb; ipdb.set_trace()
             isEmbReady = False
         
         if isEmbReady:    
             print(f"--- Embedding isEmbReady: {isEmbReady}")
-            mapping_dict = self.load_mapping_from_pkl(out_dir) 
-            emb_sess_avg_dict, emb_scale_seq_dict, clus_label_dict = self.load_embeddings_from_pickle(out_dir, mapping_dict)
+            speaker_mapping_dict = self.load_mapping_from_pkl(out_dir) 
+            emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(out_dir, 
+                                                                                                      speaker_mapping_dict, 
+                                                                                                      session_scale_mapping_dict)
         else:
-            print("-- Embedding path does not exist")
+            print("--- Embedding path does not exist")
             self._cfg.diarizer.manifest_filepath = manifest_filepath
             self._cfg.diarizer.out_dir = out_dir
             sd_model = ClusteringDiarizer(cfg=self._cfg)
             score = sd_model.diarize()
-            metric, mapping_dict = score 
-            emb_sess_avg_dict, emb_scale_seq_dict, clus_label_dict = self.load_embeddings_from_pickle(out_dir, mapping_dict)
-            self.save_dict_as_pkl(out_dir, emb_sess_avg_dict, mapping_dict)
+            metric, speaker_mapping_dict = score 
+            session_scale_mapping_dict = self.get_scale_map(sd_model.embs_and_timestamps)
+            emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(out_dir, 
+                                                                                                      speaker_mapping_dict, 
+                                                                                                      session_scale_mapping_dict)
+            self.save_dict_as_pkl(out_dir, emb_sess_avg_dict, speaker_mapping_dict, session_scale_mapping_dict)
 
         logging.info("Checking clustering results and rttm files.")
         emb_sess_avg_dict = self.check_embedding_and_RTTM(emb_sess_avg_dict, manifest_filepath)
         logging.info("Clustering results and rttm files test passed.")
-        return emb_sess_avg_dict, emb_scale_seq_dict, clus_label_dict
+        emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
+        return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
     
     def load_dict_from_pkl(self, out_dir): 
         with open(f'{out_dir}/{self.clus_emb_path}', 'rb') as handle:
             emb_sess_avg_dict = pkl.load(handle)
-        return emb_sess_avg_dict
+        with open(f'{out_dir}/{self.scale_map_path}', 'rb') as handle:
+            session_scale_mapping_dict  = pkl.load(handle)
+        return emb_sess_avg_dict, session_scale_mapping_dict
     
     def load_mapping_from_pkl(self, out_dir): 
         with open(f'{out_dir}/{self.clus_map_path}', 'rb') as handle:
-            mapping_dict = pkl.load(handle)
-        return mapping_dict
+            speaker_mapping_dict = pkl.load(handle)
+        return speaker_mapping_dict
 
-    def save_dict_as_pkl(self, out_dir, emb_sess_avg_dict, mapping_dict):
+    def save_dict_as_pkl(self, out_dir, emb_sess_avg_dict, speaker_mapping_dict, session_scale_mapping_dict):
         with open(f'{out_dir}/{self.clus_emb_path}', 'wb') as handle:
             pkl.dump(emb_sess_avg_dict, handle, protocol=pkl.HIGHEST_PROTOCOL)
         with open(f'{out_dir}/{self.clus_map_path}', 'wb') as handle:
-            pkl.dump(mapping_dict, handle, protocol=pkl.HIGHEST_PROTOCOL)
+            pkl.dump(speaker_mapping_dict, handle, protocol=pkl.HIGHEST_PROTOCOL)
+        with open(f'{out_dir}/{self.scale_map_path}', 'wb') as handle:
+            pkl.dump(session_scale_mapping_dict, handle, protocol=pkl.HIGHEST_PROTOCOL)
     
-    def load_embeddings_from_pickle(self, out_dir, mapping_dict):
+    def get_scale_map(self, embs_and_timestamps):
+        session_scale_mapping_dict = {}
+        for uniq_id, uniq_embs_and_timestamps in embs_and_timestamps.items():
+            scale_mapping_dict = getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps)
+            session_scale_mapping_dict[uniq_id] = scale_mapping_dict
+        return session_scale_mapping_dict
+    
+    def load_embeddings_from_pickle(self, out_dir, speaker_mapping_dict, session_scale_mapping_dict):
         """
         TSVAD
         Load embeddings from diarization result folder.
@@ -346,8 +428,8 @@ class ClusterEmbedding:
         clus_label_path = os.path.join(out_dir, 'speaker_outputs', f'subsegments_scale{base_scale_index}_cluster.label')
         with open(clus_label_path) as f:
             clus_label = f.readlines()
-        emb_sess_avg_dict, clus_label_dict = self.get_clus_emb(emb_scale_seq_dict, clus_label, mapping_dict)
-        return emb_sess_avg_dict, emb_scale_seq_dict, clus_label_dict
+        emb_sess_avg_dict, base_clus_label_dict = self.get_clus_emb(emb_scale_seq_dict, clus_label, speaker_mapping_dict, session_scale_mapping_dict)
+        return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
 
 class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
     """Encoder decoder class for speaker label models.
@@ -572,10 +654,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         sprint(f"Running Validation Step0.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
         signals, signal_lengths, targets, ivectors = batch
         sprint(f"Running Validation Step1.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
+        sprint(signals.shape, signal_lengths, ivectors.shape, targets.shape)
         preds = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
                              ivectors=ivectors)
-        # import ipdb; ipdb.set_trace()
         sprint(f"Running Validation Step2.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
         loss_value = self.loss(logits=preds, labels=targets)
         self._accuracy(preds, targets)

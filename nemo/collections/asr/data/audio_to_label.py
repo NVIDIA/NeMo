@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Union
 import braceexpand
 import torch
 import webdataset as wd
+from collections import Counter
 
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
@@ -940,9 +941,6 @@ class _AudioTSVADDataset(Dataset):
         rttm_lines = self.read_rttm_file(rttm_path)
         uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
         uniq_id = self.get_uniq_id(rttm_path)
-        # offset_fr = int(sample.offset * self.fr_per_sec)
-        # dur_fr = int(sample.duration * self.fr_per_sec)
-        # sample_stt = sample.offset
         sample_end = (sample.offset + sample.duration)
         stt_list, end_list, speaker_list = [], [], []
         for line in rttm_lines:
@@ -959,8 +957,12 @@ class _AudioTSVADDataset(Dataset):
         sample_stt = 0
         dur_fr = int(max_len * self.fr_per_sec)
         target = torch.zeros(dur_fr, self.max_spks)
+        base_scale_idx = max(self.emb_dict.keys())
         for stt, end, spk in zip(stt_list, end_list, speaker_list):
-            spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
+            try:
+                spk = int(self.emb_dict[base_scale_idx][uniq_id]['mapping'][spk].split('_')[1])
+            except:
+                import ipdb;ipdb.set_trace()
             stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
             target[stt_fr:end_fr, spk] = 1
         
@@ -1020,6 +1022,21 @@ class _AudioTSVADDataset(Dataset):
     def get_uniq_id(self, rttm_path):
         return rttm_path.split('/')[-1].split('.rttm')[0]
     
+    def getRepeatedList(self, mapping_argmat, score_mat_size):
+        """
+        Count the numbers in the mapping dictionary and create lists that contain
+        repeated indices to be used for creating the repeated affinity matrix for
+        fusing the affinity values.
+        """
+        count_dict = dict(Counter(mapping_argmat))
+        repeat_list = []
+        for k in range(score_mat_size):
+            if k in count_dict:
+                repeat_list.append(count_dict[k])
+            else:
+                repeat_list.append(0)
+        return repeat_list
+    
     def item_sim(self, index):
         sample = self.collection[index]
 
@@ -1030,13 +1047,20 @@ class _AudioTSVADDataset(Dataset):
         
         targets = self.parse_rttm_multiscale(sample)
         uniq_id = self.get_uniq_id(sample.rttm_file)
-        avg_embs = self.emb_dict[uniq_id]['avg_embs']
-        import ipdb; ipdb.set_trace()
-        # processed_feats = self.featurizer.process(sample.audio_file, 
-                                                  # offset=sample.offset, 
-                                                  # duration=sample.duration)
-        feats, feats_len = processed_feats, torch.tensor(processed_feats.shape[0]).long()
-        return feats, feats_len, targets, avg_embs
+        scale_n = len(self.emb_dict.keys())
+
+        # avg_embs: scale_n x emb_dim x max_spks
+        avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+        
+        feats = []
+        for scale_index in range(scale_n):
+            repeat_mat = torch.tensor(self.emb_seq["session_scale_mapping"][uniq_id][scale_index])
+
+            feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
+        feats_out= torch.stack(feats).permute(1, 0, 2)
+        feats_len = feats_out.shape[0]
+        # import ipdb; ipdb.set_trace()
+        return feats_out, feats_len, targets, avg_embs
 
     def __getitem__(self, index):
         sample = self.collection[index]
@@ -1045,50 +1069,47 @@ class _AudioTSVADDataset(Dataset):
 
         if offset is None:
             offset = 0
-        
-        # targets, sample_duration = self.parse_rttm(sample.rttm_file)
-        targets = self.parse_rttm(sample)
+        # targets: feats_len x max_spks 
+        targets = self.parse_rttm_multiscale(sample)
         uniq_id = self.get_uniq_id(sample.rttm_file)
-        avg_embs = self.emb_dict[uniq_id]['avg_embs']
-        processed_feats = self.featurizer.process(sample.audio_file, 
-                                                  offset=sample.offset, 
-                                                  duration=sample.duration)
-        # print("processed_feats shape:", processed_feats.shape)
-        # print(f"offset: {sample.offset} duration: {sample.duration}")
-        feats, feats_len = processed_feats, torch.tensor(processed_feats.shape[0]).long()
-        # limit_sec = 60*2
-        # limit_fr = limit_sec * 100
-        # limit = 16000 * limit_sec
-        # feats_len = torch.clamp(feats_len, max=limit) 
-        # feats = feats[:limit_fr]
-        # targets = targets[:limit_fr, :]
-        # print(f"shapes: {feats.shape}, feats_len: {feats_len}, targets: {targets.shape}")
-        return feats, feats_len, targets, avg_embs
+        scale_n = len(self.emb_dict.keys())
+
+        # avg_embs: scale_n x emb_dim x max_spks
+        avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+        
+        feats = []
+        for scale_index in range(scale_n):
+            repeat_mat = torch.tensor(self.emb_seq["session_scale_mapping"][uniq_id][scale_index])
+            feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
+        
+        # avg_embs: feats_len x scale_n x emb_dim 
+        feats_out= torch.stack(feats).permute(1, 0, 2)
+        feats_len = feats_out.shape[0]
+        return feats_out, feats_len, targets, avg_embs
 
 def _tsvad_collate_fn(self, batch):
     packed_batch = list(zip(*batch))
     feats, feats_len, targets, ivectors = packed_batch
     feats_list, flen_list, targets_list, ivectors_list = [], [], [], []
-    max_audio_len = max(feats_len).item()
+    max_audio_len = max(feats_len)
     max_target_len = max([x.shape[0] for x in targets])
 
     for feature, feat_len, target, ivector in batch:
         flen_list.append(feat_len)
         ivectors_list.append(ivector)
-        feat_len = feat_len.item()
         if feat_len < max_audio_len:
-            pad_a = (0, max_audio_len - feat_len)
-            pad_t = (0, max_target_len - target.shape[0])
+            pad_a = (0, 0, 0, 0, 0,  max_audio_len - feat_len)
+            pad_t = (0, 0, 0, max_target_len - target.shape[0])
             padded_feature = torch.nn.functional.pad(feature, pad_a)
-            padded_target = torch.nn.functional.pad(target.t(), pad_t)
+            padded_target = torch.nn.functional.pad(target, pad_t)
             feats_list.append(padded_feature)
-            targets_list.append(padded_target.t())
+            targets_list.append(padded_target)
         else:
             targets_list.append(target.clone().detach())
             feats_list.append(feature.clone().detach())
     
     feats = torch.stack(feats_list)
-    feats_len = torch.stack(flen_list)
+    feats_len = torch.tensor(flen_list)
     targets = torch.stack(targets_list)
     ivectors = torch.stack(ivectors_list)
     return feats, feats_len, targets, ivectors

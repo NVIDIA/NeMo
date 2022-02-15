@@ -17,6 +17,7 @@ The full documentation tree:
    configs
    datasets
    results
+   api
 
 Resource and Documentation Guide
 --------------------------------

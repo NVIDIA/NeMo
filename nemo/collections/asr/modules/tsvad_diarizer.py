@@ -127,9 +127,9 @@ class TSVAD_module(NeuralModule, Exportable):
         """
         return OrderedDict(
             {
-            "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "audio_signal": NeuralType(('B', 'T', 'C', 'D'), SpectrogramType()),
             "length": NeuralType(tuple('B'), LengthsType()),
-            "ivectors": NeuralType(('B', 'D', 'C'), EncodedRepresentation()),
+            "ivectors": NeuralType(('B', 'C', 'D', 'C'), EncodedRepresentation()),
             }
         )
     # init_mode: Optional[str] = 'xavier_uniform',
@@ -197,12 +197,18 @@ class TSVAD_module(NeuralModule, Exportable):
 
         self.linear_layer = torch.nn.Linear(in_features=lstm_hidden_size, out_features=self._num_classes)
         # self.apply(lambda x: init_weights(x, mode=init_mode))
+    
+    # def core_model(self, cnn_encoded, signal_lengths, ivectors):
+
+        # bs, cnn_chan, dim, tframe = cnn_encoded.shape
+        # print(f"cnn_encoded input shape: bs, cnn_chan, dim, tframe, {bs, cnn_chan, dim, tframe}")
+
 
     def core_model(self, cnn_encoded, signal_lengths, ivectors):
         # bs = cnn_encoded.shape[0]
         # bs, cnn_chan, tframe, dim = cnn_encoded.shape
         bs, cnn_chan, dim, tframe = cnn_encoded.shape
-        sprint(f"cnn_encoded input shape: bs, cnn_chan, dim, tframe, {bs, cnn_chan, dim, tframe}")
+        print(f"cnn_encoded input shape: bs, cnn_chan, dim, tframe, {bs, cnn_chan, dim, tframe}")
         # tframe = torch.max(signal_lengths).item()
         sprint("cnn_encoded shape0:", cnn_encoded.shape)
         cnn_encoded    = cnn_encoded.permute(0, 2, 1, 3)  # B x 1 x T x cnn_feat -> B x T x 1 x cnn_feat

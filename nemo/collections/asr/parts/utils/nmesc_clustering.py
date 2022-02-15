@@ -40,7 +40,6 @@ from sklearn.preprocessing import MinMaxScaler
 from scipy.linalg import eigh as eigh_scipy
 
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 scaler = MinMaxScaler(feature_range=(0, 1))
 
@@ -139,7 +138,6 @@ def getRepeatedList(mapping_argmat, score_mat_size):
     return repeat_list
 
 
-@experimental
 def get_argmin_mat(uniq_scale_dict):
     """
     Calculate the mapping between the base scale and other scales. A segment from a longer scale is
@@ -172,7 +170,6 @@ def get_argmin_mat(uniq_scale_dict):
     return session_scale_mapping_dict
 
 
-@experimental
 def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
     """
     Calculate cosine similarity values among speaker embeddings for each scale then

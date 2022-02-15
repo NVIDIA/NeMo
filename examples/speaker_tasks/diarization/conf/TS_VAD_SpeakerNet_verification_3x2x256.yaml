@@ -58,7 +58,7 @@ ts_vad_model:
     sample_rate: 16000
     num_spks: *max_num_of_spks
     labels: null
-    batch_size: 5
+    batch_size: 2
     shuffle: True
 
   validation_ds:
