@@ -77,7 +77,6 @@ class GPTModule(NeuralModule, Exportable):
         if 'embeddings.position_ids' in model_dict and 'embeddings.position_ids' not in pretrained_dict:
             pretrained_dict['embeddings.position_ids'] = model_dict['embeddings.position_ids']
 
-        assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
         logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
