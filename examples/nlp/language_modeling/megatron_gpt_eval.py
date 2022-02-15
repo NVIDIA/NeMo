@@ -194,6 +194,8 @@ def main():
     print("***************************")
     print(response)
     print("***************************")
+    if args.prompt:
+        print(f'Prompt: {args.prompt}\n\n Response: {response[0][0][0]}')
 
 
 if __name__ == '__main__':
