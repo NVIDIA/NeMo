@@ -49,7 +49,7 @@ class FractionFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal, ordinal, deterministic: bool = True):
+    def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool = True):
         super().__init__(name="fraction", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
         ordinal_graph = ordinal.graph

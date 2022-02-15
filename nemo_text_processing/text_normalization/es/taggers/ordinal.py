@@ -43,7 +43,7 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
-def get_one_to_one_thousand(cardinal):
+def get_one_to_one_thousand(cardinal: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Produces an acceptor for verbalizations of all numbers from 1 to 1000. Needed for ordinals and fractions.
 

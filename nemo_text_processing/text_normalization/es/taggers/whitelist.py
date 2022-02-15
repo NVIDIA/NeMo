@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for classifying whitelist, e.g.
-        "Mr." -> tokens { name: "mister" }
+        "sr." -> tokens { name: "señor" }
     This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
 
     Args:

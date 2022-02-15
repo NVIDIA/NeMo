@@ -48,7 +48,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def filter_punctuation(fst):
+def filter_punctuation(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Helper function for parsing number strings. Converts common cardinal strings (groups of three digits delineated by 'cardinal_separator' - see graph_utils)
     and converts to a string of digits:

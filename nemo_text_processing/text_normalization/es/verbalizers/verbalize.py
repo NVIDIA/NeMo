@@ -24,16 +24,6 @@ from nemo_text_processing.text_normalization.es.verbalizers.ordinal import Ordin
 from nemo_text_processing.text_normalization.es.verbalizers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.es.verbalizers.time import TimeFst
 
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-
-except (ModuleNotFoundError, ImportError):
-
-    PYNINI_AVAILABLE = False
-
 
 class VerbalizeFst(GraphFst):
     """

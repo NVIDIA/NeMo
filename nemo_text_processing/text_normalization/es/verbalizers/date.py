@@ -35,10 +35,9 @@ class DateFst(GraphFst):
     """
     Finite state transducer for verbalizing date, e.g.
         date { day: "treinta y uno" month: "marzo" year: "dos mil" } -> "treinta y uno de marzo de dos mil"
-        date { day: "uno" month: "mayo" year: "del mil nuevecientos noventa" } -> "primero de mayo del mil nuevecientos noventa"
+        date { day: "uno" month: "mayo" year: "del mil novecientos noventa" } -> "primero de mayo del mil novecientos noventa"
 
     Args:
-        ordinal: ordinal verbalizer GraphFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """

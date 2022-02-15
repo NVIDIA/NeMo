@@ -61,7 +61,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def strip_accent(fst):
+def strip_accent(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Converts all accented vowels to non-accented equivalents
 
@@ -71,7 +71,7 @@ def strip_accent(fst):
     return fst @ pynini.cdrewrite(accents, "", "", NEMO_SIGMA)
 
 
-def shift_cardinal_gender(fst):
+def shift_cardinal_gender(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Applies gender conversion rules to a cardinal string. These include: rendering all masculine forms of "uno" (including apocopated forms) as "una" and
     Converting all gendered numbers in the hundreds series (200,300,400...) to feminine equivalent (e.g. "doscientos" -> "doscientas"). Converssion only applies
@@ -108,7 +108,7 @@ def shift_cardinal_gender(fst):
     return fst @ fem_allign
 
 
-def shift_number_gender(fst):
+def shift_number_gender(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Performs gender conversion on all verbalized numbers in output. All values in the hundreds series (200,300,400) are changed to
     feminine gender (e.g. "doscientos" -> "doscientas") and all forms of "uno" (including apocopated forms) are converted to "una".
@@ -129,7 +129,7 @@ def shift_number_gender(fst):
     return fst @ fem_allign
 
 
-def strip_cardinal_apocope(fst):
+def strip_cardinal_apocope(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Reverts apocope on cardinal strings in line with formation rules. e.g. "un" -> "uno". Due to cardinal formation rules, this in effect only
     affects strings where the final value is a variation of "un".
@@ -146,7 +146,7 @@ def strip_cardinal_apocope(fst):
     return fst @ strip
 
 
-def roman_to_int(fst):
+def roman_to_int(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Alters given fst to convert Roman integers (lower and upper cased) into Arabic numerals. Valid for values up to 1000.
     e.g.

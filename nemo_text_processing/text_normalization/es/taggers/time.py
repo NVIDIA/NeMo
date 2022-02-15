@@ -39,17 +39,17 @@ except (ModuleNotFoundError, ImportError):
 class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time, e.g.
-        "02:15 est" -> time { hours: "2" minutes: "15" zone: "e s t"}
-        "2 h" -> time { hours: "2" }
-        "9 h" -> time { hours: "9" }
-        "02:15:10 Uhr" -> time { hours: "2" minutes: "15" seconds: "10"}
+        "02:15 est" -> time { hours: "dos" minutes: "quince" zone: "e s t"}
+        "2 h" -> time { hours: "dos" }
+        "9 h" -> time { hours: "nueve" }
+        "02:15:10 h" -> time { hours: "dos" minutes: "quince" seconds: "diez"}
 
     Args:
+        cardinal: CardinalFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    # To do--> suffixes tarde, manana, madrugada, de la noche
     def __init__(self, cardinal: GraphFst, deterministic: bool = True):
         super().__init__(name="time", kind="classify", deterministic=deterministic)
 

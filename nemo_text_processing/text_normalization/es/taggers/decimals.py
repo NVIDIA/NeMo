@@ -44,7 +44,7 @@ except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 
-def get_quantity(decimal: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') -> 'pynini.FstLike':
+def get_quantity(decimal_graph: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Returns FST that transforms either a cardinal or decimal followed by a quantity into a numeral,
     e.g. 2 millones -> integer_part: "dos" quantity: "millones"
@@ -52,8 +52,8 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') ->
     e.g. 2,400 millones -> integer_part: "dos mil cuatrocientos" fractional_part: "quatro" quantity: "millones"
 
     Args:
-        decimal: DecimalFST
-        cardinal_up_to_hundred: CardinalFST
+        decimal_graph: DecimalFST
+        cardinal_graph: CardinalFST
     """
     numbers = pynini.closure(NEMO_DIGIT, 1, 6) @ cardinal_graph
     numbers = pynini.cdrewrite(pynutil.delete(cardinal_separator), "", "", NEMO_SIGMA) @ numbers
@@ -67,7 +67,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_graph: 'pynini.FstLike') ->
         + quantities
         + pynutil.insert("\"")
     )
-    res |= decimal + NEMO_SPACE + pynutil.insert("quantity: \"") + quantities + pynutil.insert("\"")
+    res |= decimal_graph + NEMO_SPACE + pynutil.insert("quantity: \"") + quantities + pynutil.insert("\"")
     return res
 
 

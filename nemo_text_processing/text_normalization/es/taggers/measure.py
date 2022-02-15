@@ -48,12 +48,13 @@ class MeasureFst(GraphFst):
         "1 g" -> measure { cardinal { integer: "un" units: "gramo" preserve_order: true } }
         "1 millón g" -> measure { cardinal { integer: "un quantity: "millón" units: "gramos" preserve_order: true } }
         e.g. "a-8" —> "a ocho"
-        e.g. "1,2-a" —> "un coma dos a"
+        e.g. "1,2-a" —> "uno coma dos a"
 
 
     Args:
         cardinal: CardinalFst
         decimal: DecimalFst
+        fraction: FractionFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -108,34 +109,6 @@ class MeasureFst(GraphFst):
 
         subgraph_fraction = fraction.fst + insert_space + pynini.closure(delete_space, 0, 1) + unit_plural
 
-        cardinal_dash_alpha = (
-            pynutil.insert("cardinal { integer: \"")
-            + cardinal_graph
-            + pynutil.delete('-')
-            + pynutil.insert("\" } units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
-            + pynutil.insert("\"")
-        )
-
-        alpha_dash_cardinal = (
-            pynutil.insert("units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
-            + pynutil.delete('-')
-            + pynutil.insert("\"")
-            + pynutil.insert(" cardinal { integer: \"")
-            + cardinal_graph
-            + pynutil.insert("\" }")
-        )
-
-        decimal_dash_alpha = (
-            pynutil.insert("decimal { ")
-            + decimal.final_graph_wo_negative
-            + pynutil.delete('-')
-            + pynutil.insert(" } units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
-            + pynutil.insert("\"")
-        )
-
         decimal_times = (
             pynutil.insert("decimal { ")
             + decimal.final_graph_wo_negative
@@ -146,33 +119,13 @@ class MeasureFst(GraphFst):
 
         cardinal_times = (
             pynutil.insert("cardinal { integer: \"")
-            + cardinal_graph
+            + strip_cardinal_apocope(cardinal_graph)
             + pynutil.insert("\" } units: \"")
             + pynini.union('x', 'X')
             + pynutil.insert("\"")
         )
 
-        alpha_dash_decimal = (
-            pynutil.insert("units: \"")
-            + pynini.closure(NEMO_ALPHA, 1)
-            + pynutil.delete('-')
-            + pynutil.insert("\"")
-            + pynutil.insert(" decimal { ")
-            + decimal.final_graph_wo_negative
-            + pynutil.insert(" }")
-        )
-
-        final_graph = (
-            subgraph_decimal
-            | subgraph_cardinal
-            | cardinal_dash_alpha
-            | alpha_dash_cardinal
-            | decimal_dash_alpha
-            | decimal_times
-            | alpha_dash_decimal
-            | subgraph_fraction
-            | cardinal_times
-        )
+        final_graph = subgraph_decimal | subgraph_cardinal | decimal_times | subgraph_fraction | cardinal_times
         final_graph += pynutil.insert(" preserve_order: true")
         final_graph = self.add_tokens(final_graph)
 

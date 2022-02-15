@@ -58,7 +58,6 @@ class MoneyFst(GraphFst):
         money { integer_part: "un" currency_maj: "libra" fractional_part: "cuarenta" preserve_order: true} -> "una libra cuarenta"
         money { integer_part: "un" currency_maj: "libra" fractional_part: "cuarenta" currency_min: "peniques" preserve_order: true} -> "una libra con cuarenta peniques"
         money { fractional_part: "un" currency_min: "penique" preserve_order: true} -> "un penique"
-        money { currency_maj: "libra" integer_part: "null" fractional_part: "null eins" quantity: "million"} -> "null komma null eins million pfund"
 
     Args:
         decimal: GraphFst
@@ -131,7 +130,7 @@ class MoneyFst(GraphFst):
         graph_integer_fem = shift_cardinal_gender(integer_part) + NEMO_SPACE + maj_fem
         graph_integer = graph_integer_fem | graph_integer_masc
 
-        #  *** currency_maj + (***) | ((und) *** current_min)
+        #  *** currency_maj + (***) | ((con) *** current_min)
         graph_integer_with_minor_masc = (
             integer_part
             + NEMO_SPACE
@@ -160,7 +159,7 @@ class MoneyFst(GraphFst):
 
         graph_integer_with_minor = graph_integer_with_minor_fem | graph_integer_with_minor_masc
 
-        # *** comma *** currency_maj
+        # *** coma *** currency_maj
         graph_decimal_masc = decimal.numbers + NEMO_SPACE + maj_masc
 
         # Need to fix some of the inner parts, so don't use decimal here (note: quantities covered by masc)

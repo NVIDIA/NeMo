@@ -39,14 +39,17 @@ class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers, e.g.
         123-123-5678 -> { number_part: "uno dos tres uno dos tres cinco seis siete ocho" }.
-        If 10 digits are spoken, they are grouped as 3+3+4 (eg. 123-456-7890).
-        If 9 digits are spoken, they are grouped as 3+3+3 (eg. 123-456-789).
-        If 8 digits are spoken, they are grouped as 4+4 (eg. 1234-5678).
-        In Spanish, digits are generally spoken individually, or as 2-digit numbers,
-        eg. "one twenty three" = "123",
-            "twelve thirty four" = "1234".
+        In Spanish, digits are generally read individually, or as 2-digit numbers,
+        eg. "123" = "uno dos tres",
+            "1234" = "doce treinta y cuatro".
+        This will verbalize sequences of 10 (3+3+4 e.g. 123-456-7890).
+        9 (3+3+3 e.g. 123-456-789) and 8 (4+4 e.g. 1234-5678) digits.
 
-        (we ignore more complicated cases such as "three hundred and two" or "three nines").
+        (we ignore more complicated cases such as "doscientos y dos" or "tres nueves").
+
+    Args:
+		deterministic: if True will provide a single transduction option,
+			for False multiple transduction are generated (used for audio-based normalization)
     """
 
     def __init__(self, deterministic: bool = True):
@@ -65,7 +68,7 @@ class TelephoneFst(GraphFst):
         double_digits = pynini.invert(double_digits)
 
         # define `ten_digit_graph`, `nine_digit_graph`, `eight_digit_graph`
-        # which accept telephone numbers spoken (1) only with single digits,
+        # which produces telephone numbers spoken (1) only with single digits,
         # or (2) spoken with double digits (and sometimes single digits)
 
         # 10-digit option (1): all single digits
