@@ -5,7 +5,7 @@ trainer:
   gpus: 1
   num_nodes: 1
   accelerator: ddp
-  precision: bf16
+  precision: 16
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
@@ -108,7 +108,7 @@ model:
     num_workers: 0
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
-    short_seq_prob: 0.1
+    short_seq_prob: 0.0
     max_ngram_size: 10
     mean_ngram_size: null
     geometric_dist: True
