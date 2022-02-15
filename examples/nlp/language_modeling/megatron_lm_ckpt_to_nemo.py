@@ -158,6 +158,7 @@ def parse_weights(weight_dict: OrderedDict, parent_key: str, total: list, conver
 def add_optimizer_state(lm_checkpoint, new_checkpoint):
     # this method is to convert lm_checkpoint optimizer states for nemo checkpoint
     OPTIMIZER_KEY = 'optimizer'
+    FP32_FP16_KEY = 'fp32_from_fp16_params'
     NEW_OPTIMIZER_KEY = 'optimizer_states'
     STEP_KEY = 'iteration'
     NEW_STEP_KEY = 'global_step'
@@ -165,11 +166,17 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint):
     NEW_LR_SCHEDULER = 'lr_schedulers'
     if OPTIMIZER_KEY in lm_checkpoint and OPTIMIZER_KEY in lm_checkpoint[OPTIMIZER_KEY]:
         opt_state = lm_checkpoint[OPTIMIZER_KEY][OPTIMIZER_KEY]
+        opt_dict = dict()
         if LR_SCHEDULER in lm_checkpoint:
             sched = lm_checkpoint[LR_SCHEDULER]
             for param_group in opt_state['param_groups']:
                 param_group['initial_lr'] = sched['max_lr']
-        new_checkpoint[NEW_OPTIMIZER_KEY] = [opt_state]
+        if FP32_FP16_KEY in lm_checkpoint[OPTIMIZER_KEY]:
+            fp32_state = lm_checkpoint[OPTIMIZER_KEY][FP32_FP16_KEY]
+            opt_dict[FP32_FP16_KEY] = fp32_state
+        opt_dict[OPTIMIZER_KEY] = opt_state
+        new_checkpoint[NEW_OPTIMIZER_KEY] = [opt_dict]
+
     if STEP_KEY in lm_checkpoint:
         new_checkpoint[NEW_STEP_KEY] = lm_checkpoint[STEP_KEY]
         new_checkpoint['epoch'] = 1  # always one epoch
@@ -182,9 +189,9 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint):
         content['decay_steps'] = content['max_steps'] - content['warmup_steps']
         content['min_lr'] = sched['min_lr']
         if OPTIMIZER_KEY in lm_checkpoint:
-            content['base_lrs'] = [i['initial_lr'] for i in new_checkpoint['optimizer_states'][0]['param_groups']]
-            content['last_epoch'] = new_checkpoint['optimizer_states'][0]['param_groups'][0]['step']
-            content['_last_lr'] = [i['lr'] for i in new_checkpoint['optimizer_states'][0]['param_groups']]
+            content['base_lrs'] = [i['initial_lr'] for i in new_checkpoint['optimizer_states'][0]['optimizer']['param_groups']]
+            content['last_epoch'] = new_checkpoint['optimizer_states'][0]['optimizer']['param_groups'][0]['step']
+            content['_last_lr'] = [i['lr'] for i in new_checkpoint['optimizer_states'][0]['optimizer']['param_groups']]
         else:
             content['base_lrs'] = [sched['max_lr']]
             content['last_epoch'] = int(sched['num_steps'])
