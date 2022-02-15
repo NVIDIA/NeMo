@@ -3,6 +3,8 @@ import sys
 import re
 import socket
 import time
+import math
+from collections import defaultdict
 
 dgxa100_gpu2core = {0: '48-51,176-179', 1: '60-63,188-191', 2: '16-19,144-147', 3: '28-31,156-159',
                     4: '112-115,240-243', 5: '124-127,252-255', 6: '80-83,208-211', 7: '92-95,220-223'}
@@ -74,3 +76,36 @@ def convert_args_to_hydra_train_args(args):
     train_args = [x.replace("None", "null") for x in train_args if "run." not in x]
     hydra_train_args = " ".join(train_args)
     return hydra_train_args
+
+
+def generate_mt5_data_blend(cfg, alpha=0.3):
+    train_cfg = cfg.training
+    if train_cfg.model.data.data_prefix is not None:
+        return train_cfg.model.data.data_prefix
+
+    data_cfg = cfg.data_preparation
+    data_dir = data_cfg.preprocessed_dir
+
+    data_files = os.listdir(data_dir)
+    lang_size = defaultdict(int)
+    file_size = defaultdict(list)
+    for f in data_files:
+        if f.endswith(".bin"):
+            f_path = os.path.join(data_dir, f)
+            f_size = os.path.getsize(f_path)
+
+            elements = f.split('_')
+            lang = elements[0]
+            lang_size[lang] += f_size
+            file_size[lang].append((f_path.strip(".bin"), f_size))
+
+    lang_ratio = {lang: math.pow(lang_size[lang], alpha) for lang in lang_size}
+    total = sum(lang_ratio.values())
+    lang_ratio = {lang: lang_ratio[lang] / total for lang in lang_ratio}
+
+    res = []
+    for lang in file_size:
+        for prefix, size in file_size[lang]:
+            res.extend([round(size / lang_size[lang] * lang_ratio[lang], 6),
+                        prefix])
+    return res
