@@ -381,21 +381,20 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    if PYNINI_AVAILABLE:
-        args = parse_args()
-        whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
-        normalizer = Normalizer(
-            input_case=args.input_case,
-            cache_dir=args.cache_dir,
-            overwrite_cache=args.overwrite_cache,
-            whitelist=whitelist,
-            lang=args.language,
+    args = parse_args()
+    whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
+    normalizer = Normalizer(
+        input_case=args.input_case,
+        cache_dir=args.cache_dir,
+        overwrite_cache=args.overwrite_cache,
+        whitelist=whitelist,
+        lang=args.language,
+    )
+    print(
+        normalizer.normalize(
+            args.input_string,
+            verbose=args.verbose,
+            punct_pre_process=args.punct_pre_process,
+            punct_post_process=args.punct_post_process,
         )
-        print(
-            normalizer.normalize(
-                args.input_string,
-                verbose=args.verbose,
-                punct_pre_process=args.punct_pre_process,
-                punct_post_process=args.punct_post_process,
-            )
-        )
+    )
