@@ -118,10 +118,12 @@ class TimeFst(GraphFst):
             final_graph_hour_24
             + delete_time_delimiter
             + (pynutil.delete("00") | (insert_space + final_graph_minute))
-            + (
-                delete_time_delimiter + (pynini.cross("00", " seconds: \"0\"") | (insert_space + final_graph_second))
-            ).ques  # For seconds 2.30.35 h
-            + delete_hora_suffix.ques  # 2.30 is valid if unambiguous
+            + pynini.closure(
+                delete_time_delimiter + (pynini.cross("00", " seconds: \"0\"") | (insert_space + final_graph_second)),
+                0,
+                1,
+            )  # For seconds 2.30.35 h
+            + pynini.closure(delete_hora_suffix, 0, 1)  # 2.30 is valid if unambiguous
             + final_time_zone_optional
         )
 
@@ -132,11 +134,13 @@ class TimeFst(GraphFst):
             + delete_space
             + (pynutil.delete("00") | (insert_space + final_graph_minute))
             + delete_minute_suffix
-            + (
+            + pynini.closure(
                 delete_space
                 + (pynini.cross("00", " seconds: \"0\"") | (insert_space + final_graph_second))
-                + delete_second_suffix
-            ).ques  # For seconds
+                + delete_second_suffix,
+                0,
+                1,
+            )  # For seconds
             + final_time_zone_optional
         )
 
@@ -145,9 +149,11 @@ class TimeFst(GraphFst):
             final_graph_hour_12
             + delete_time_delimiter
             + (pynutil.delete("00") | (insert_space + final_graph_minute))
-            + (
-                delete_time_delimiter + (pynini.cross("00", " seconds: \"0\"") | (insert_space + final_graph_second))
-            ).ques  # For seconds 2.30.35 a. m.
+            + pynini.closure(
+                delete_time_delimiter + (pynini.cross("00", " seconds: \"0\"") | (insert_space + final_graph_second)),
+                0,
+                1,
+            )  # For seconds 2.30.35 a. m.
             + day_suffix
             + final_time_zone_optional
         )
@@ -158,8 +164,8 @@ class TimeFst(GraphFst):
 
         if not deterministic:
             # This includes alternate vocalization (hour menos min, min para hour), here we shift the times and indicate a `style` tag
-            hour_shift_24 = pynini.string_file(get_abs_path("data/time/hour_to_24.tsv")).invert()
-            hour_shift_12 = pynini.string_file(get_abs_path("data/time/hour_to_12.tsv")).invert()
+            hour_shift_24 = pynini.invert(pynini.string_file(get_abs_path("data/time/hour_to_24.tsv")))
+            hour_shift_12 = pynini.invert(pynini.string_file(get_abs_path("data/time/hour_to_12.tsv")))
             minute_shift = pynini.string_file(get_abs_path("data/time/minute_to.tsv"))
 
             graph_hour_to_24 = graph_24 @ hour_shift_24 @ cardinal_graph
@@ -183,7 +189,7 @@ class TimeFst(GraphFst):
                 + delete_time_delimiter
                 + insert_space
                 + final_graph_minute_to
-                + delete_hora_suffix.ques  # 2.30 is valid if unambiguous
+                + pynini.closure(delete_hora_suffix, 0, 1)  # 2.30 is valid if unambiguous
                 + final_time_zone_optional
                 + final_graph_style
             )

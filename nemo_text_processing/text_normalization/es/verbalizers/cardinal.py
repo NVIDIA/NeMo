@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# 	 http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,8 +44,8 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
         optional_sign = pynini.closure(pynini.cross("negative: \"true\" ", "menos "), 0, 1)
         self.optional_sign = optional_sign
-        integer = pynini.closure(NEMO_NOT_QUOTE, 1)
 
+        integer = pynini.closure(NEMO_NOT_QUOTE, 1)
         self.integer = pynutil.delete(" \"") + integer + pynutil.delete("\"")
 
         integer = pynutil.delete("integer:") + self.integer

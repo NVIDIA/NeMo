@@ -67,7 +67,8 @@ class TelephoneFst(GraphFst):
             graph_teen,
             (graph_ties + pynutil.delete("0")),
             (graph_ties + insert_space + pynutil.insert("y") + insert_space + graph_digit),
-        ).invert()
+        )
+        double_digits = pynini.invert(double_digits)
 
         # define `ten_digit_graph`, `nine_digit_graph`, `eight_digit_graph`
         # which accept telephone numbers spoken (1) only with single digits,

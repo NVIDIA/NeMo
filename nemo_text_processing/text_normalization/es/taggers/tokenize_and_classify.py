@@ -39,11 +39,13 @@ try:
         delete_extra_space,
         delete_space,
         generator_main,
+        NEMO_WHITE_SPACE,
     )
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     GraphFst = None
+    NEMO_WHITE_SPACE = None
     delete_extra_space = None
     delete_space = None
     generator_main = None
@@ -132,15 +134,27 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(word_graph, 200)
             )
-
-            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=2.0) + pynutil.insert(" }")
+            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=2.1) + pynutil.insert(" }")
+            punct = pynini.closure(
+                pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                | (pynutil.insert(" ") + punct),
+                1,
+            )
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
             token_plus_punct = (
                 pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
             )
 
-            graph = token_plus_punct + pynini.closure(pynutil.add_weight(delete_extra_space, 1.1) + token_plus_punct)
+            graph = token_plus_punct + pynini.closure(
+                (
+                    pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                    | (pynutil.insert(" ") + punct + pynutil.insert(" "))
+                )
+                + token_plus_punct
+            )
+
             graph = delete_space + graph + delete_space
+            graph |= punct
 
             self.fst = graph.optimize()
 

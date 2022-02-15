@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# 	 http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,12 +30,12 @@ try:
         insert_space,
     )
 
-    zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
-    digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-    teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
-    ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
-    twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).invert()
-    hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).invert()
+    zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
+    digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
+    teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv")))
+    ties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv")))
+    twenties = pynini.invert(pynini.string_file(get_abs_path("data/numbers/twenties.tsv")))
+    hundreds = pynini.invert(pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")))
 
     PYNINI_AVAILABLE = True
 
@@ -120,8 +120,7 @@ class CardinalFst(GraphFst):
         ).optimize()
 
         # Three digit strings
-        graph_hundreds = hundreds
-        graph_hundreds += pynini.union(
+        graph_hundreds = hundreds + pynini.union(
             pynutil.delete("00"), (insert_space + graph_tens), (pynini.cross("0", NEMO_SPACE) + graph_digit)
         )
         graph_hundreds |= pynini.cross("100", "cien")
@@ -132,7 +131,7 @@ class CardinalFst(GraphFst):
         self.hundreds = graph_hundreds.optimize()
 
         # For all three digit strings with leading zeroes (graph appends '0's to manage place in string)
-        graph_hundreds_component = pynini.union(hundreds, pynutil.delete("0") + graph_tens)
+        graph_hundreds_component = pynini.union(graph_hundreds, pynutil.delete("0") + graph_tens)
 
         graph_hundreds_component_at_least_one_none_zero_digit = graph_hundreds_component | (
             pynutil.delete("00") + graph_digit

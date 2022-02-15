@@ -93,16 +93,16 @@ class MoneyFst(GraphFst):
         decimal_with_quantity = (NEMO_SIGMA + NEMO_ALPHA) @ graph_decimal_final
 
         graph_decimal_plural = pynini.union(
-            graph_maj_plural + delete_space.ques + insert_space + graph_decimal_final,  # $1,05
-            graph_decimal_final + delete_space.ques + insert_space + graph_maj_plural,  # 1,05 $
+            graph_maj_plural + pynini.closure(delete_space, 0, 1) + insert_space + graph_decimal_final,  # $1,05
+            graph_decimal_final + pynini.closure(delete_space, 0, 1) + insert_space + graph_maj_plural,  # 1,05 $
         )
         graph_decimal_plural = (
             (NEMO_SIGMA - "1") + decimal_separator + NEMO_SIGMA
         ) @ graph_decimal_plural  # Can't have "un euros"
 
         graph_decimal_singular = pynini.union(
-            graph_maj_singular + delete_space.ques + insert_space + graph_decimal_final,  # $1,05
-            graph_decimal_final + delete_space.ques + insert_space + graph_maj_singular,  # 1,05 $
+            graph_maj_singular + pynini.closure(delete_space, 0, 1) + insert_space + graph_decimal_final,  # $1,05
+            graph_decimal_final + pynini.closure(delete_space, 0, 1) + insert_space + graph_maj_singular,  # 1,05 $
         )
         graph_decimal_singular = (pynini.accep("1") + decimal_separator + NEMO_SIGMA) @ graph_decimal_singular
 
@@ -117,12 +117,12 @@ class MoneyFst(GraphFst):
         )
 
         graph_integer_only = pynini.union(
-            graph_maj_singular + delete_space.ques + insert_space + graph_integer_one,
-            graph_integer_one + delete_space.ques + insert_space + graph_maj_singular,
+            graph_maj_singular + pynini.closure(delete_space, 0, 1) + insert_space + graph_integer_one,
+            graph_integer_one + pynini.closure(delete_space, 0, 1) + insert_space + graph_maj_singular,
         )
         graph_integer_only |= pynini.union(
-            graph_maj_plural + delete_space.ques + insert_space + graph_integer,
-            graph_integer + delete_space.ques + insert_space + graph_maj_plural,
+            graph_maj_plural + pynini.closure(delete_space, 0, 1) + insert_space + graph_integer,
+            graph_integer + pynini.closure(delete_space, 0, 1) + insert_space + graph_maj_plural,
         )
 
         graph = graph_integer_only | graph_decimal
@@ -183,8 +183,14 @@ class MoneyFst(GraphFst):
 
             decimal_graph_with_minor_curr |= pynutil.delete("0,") + fractional_plus_min
             decimal_graph_with_minor_curr = pynini.union(
-                pynutil.delete(curr_symbol) + delete_space.ques + decimal_graph_with_minor_curr + preserve_order,
-                decimal_graph_with_minor_curr + preserve_order + delete_space.ques + pynutil.delete(curr_symbol),
+                pynutil.delete(curr_symbol)
+                + pynini.closure(delete_space, 0, 1)
+                + decimal_graph_with_minor_curr
+                + preserve_order,
+                decimal_graph_with_minor_curr
+                + preserve_order
+                + pynini.closure(delete_space, 0, 1)
+                + pynutil.delete(curr_symbol),
             )
 
             decimal_graph_with_minor = (

@@ -28,11 +28,11 @@ try:
     )
     from nemo_text_processing.text_normalization.es.graph_utils import roman_to_int, strip_accent
 
-    digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
-    teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
-    twenties = pynini.string_file(get_abs_path("data/ordinals/twenties.tsv")).invert()
-    ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv")).invert()
-    hundreds = pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv")).invert()
+    digit = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/digit.tsv")))
+    teens = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/teen.tsv")))
+    twenties = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/twenties.tsv")))
+    ties = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/ties.tsv")))
+    hundreds = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv")))
 
     PYNINI_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

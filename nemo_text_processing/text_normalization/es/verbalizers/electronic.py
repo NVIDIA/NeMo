@@ -25,8 +25,8 @@ try:
         insert_space,
     )
 
-    digit_no_zero = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-    zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
+    digit_no_zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
+    zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
 
     graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv"))
     server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))

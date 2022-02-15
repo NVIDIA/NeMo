@@ -32,8 +32,9 @@ try:
     )
 
     quantities = pynini.string_file(get_abs_path("data/numbers/quantities.tsv"))
-    digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
-    zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv")).invert()
+
+    digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
+    zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
 
     PYNINI_AVAILABLE = True
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,8 @@ class FractionFst(GraphFst):
     tokens { fraction { integer: "veintitrés" numerator: "cuatro" denominator: "quinto" mophosyntactic_features: "ordinal" } }
 
     Args:
+        cardinal: CardinalFst
+        ordinal: OrdinalFst
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
     """
@@ -111,10 +113,10 @@ class FractionFst(GraphFst):
                 pynini.closure(NEMO_DIGIT, 1, 2) @ graph_fractions_cardinals
             )  # Past hundreds the conventional scheme can be hard to read. For determinism we stop here
 
-        graph_denominator = (
-            graph_fractions_ordinals
-            | graph_fractions_cardinals
-            | pynutil.add_weight(cardinal_graph + pynutil.insert("\""), 0.001)
+        graph_denominator = pynini.union(
+            graph_fractions_ordinals,
+            graph_fractions_cardinals,
+            pynutil.add_weight(cardinal_graph + pynutil.insert("\""), 0.001),
         )  # Last form is simply recording the cardinal. Weighting so last resort
 
         integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"") + NEMO_SPACE

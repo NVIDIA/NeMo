@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ try:
 
     from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, NEMO_SPACE
 
-    digits = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).project("input")
-    tens = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).project("input")
-    teens = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).project("input")
-    twenties = pynini.string_file(get_abs_path("data/numbers/twenties.tsv")).project("input")
-    hundreds = pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")).project("input")
+    digits = pynini.project(pynini.string_file(get_abs_path("data/numbers/digit.tsv")), "input")
+    tens = pynini.project(pynini.string_file(get_abs_path("data/numbers/ties.tsv")), "input")
+    teens = pynini.project(pynini.string_file(get_abs_path("data/numbers/teen.tsv")), "input")
+    twenties = pynini.project(pynini.string_file(get_abs_path("data/numbers/twenties.tsv")), "input")
+    hundreds = pynini.project(pynini.string_file(get_abs_path("data/numbers/hundreds.tsv")), "input")
 
     accents = pynini.string_map([("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u")])
 
@@ -36,7 +36,9 @@ try:
         decimal_separator = pynini.accep(",")
 
     ones = pynini.union("un", "ún")
+    fem_ones = pynini.union(pynini.cross("un", "una"), pynini.cross("ún", "una"), pynini.cross("uno", "una"))
     one_to_one_hundred = pynini.union(digits, tens, teens, twenties, tens + pynini.accep(" y ") + digits)
+    fem_hundreds = hundreds @ pynini.cdrewrite(pynini.cross("ientos", "ientas"), "", "", NEMO_SIGMA)
 
     PYNINI_AVAILABLE = True
 
@@ -56,7 +58,9 @@ except (ModuleNotFoundError, ImportError):
     decimal_separator = None
 
     ones = None
+    fem_ones = None
     one_to_one_hundred = None
+    fem_hundreds = None
 
     PYNINI_AVAILABLE = False
 
@@ -88,9 +92,6 @@ def shift_cardinal_gender(fst):
     Args:
         fst: Any fst. Composes conversion onto fst's output strings
     """
-    fem_hundreds = hundreds @ pynini.cdrewrite(pynini.cross("ientos", "ientas"), "", "", NEMO_SIGMA)
-    fem_ones = pynini.cross("un", "una") | pynini.cross("ún", "una") | pynini.cross("uno", "una")
-
     before_mil = (
         NEMO_SPACE
         + (pynini.accep("mil") | pynini.accep("milésimo"))
@@ -124,8 +125,6 @@ def shift_number_gender(fst):
     Args:
         fst: Any fst. Composes conversion onto fst's output strings
     """
-    fem_hundreds = pynini.cross("ientos", "ientas")
-    fem_ones = pynini.cross("un", "una") | pynini.cross("ún", "una") | pynini.cross("uno", "una")
     fem_allign = pynini.cdrewrite(fem_hundreds, "", "", NEMO_SIGMA)
     fem_allign @= pynini.cdrewrite(
         fem_ones, "", pynini.union(NEMO_SPACE, pynini.accep("[EOS]"), pynini.accep("\"")), NEMO_SIGMA
