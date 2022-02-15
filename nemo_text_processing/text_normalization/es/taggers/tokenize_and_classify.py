@@ -14,6 +14,13 @@
 
 import os
 
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_WHITE_SPACE,
+    GraphFst,
+    delete_extra_space,
+    delete_space,
+    generator_main,
+)
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.es.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.es.taggers.date import DateFst
@@ -34,22 +41,9 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        GraphFst,
-        delete_extra_space,
-        delete_space,
-        generator_main,
-        NEMO_WHITE_SPACE,
-    )
-
     PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    GraphFst = None
-    NEMO_WHITE_SPACE = None
-    delete_extra_space = None
-    delete_space = None
-    generator_main = None
 
+except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 

@@ -11,22 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+    delete_space,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import roman_to_int, strip_accent
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_CHAR,
-        NEMO_SIGMA,
-        NEMO_SPACE,
-        GraphFst,
-        delete_space,
-    )
-    from nemo_text_processing.text_normalization.es.graph_utils import roman_to_int, strip_accent
 
     digit = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/digit.tsv")))
     teens = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/teen.tsv")))
@@ -35,21 +32,13 @@ try:
     hundreds = pynini.invert(pynini.string_file(get_abs_path("data/ordinals/hundreds.tsv")))
 
     PYNINI_AVAILABLE = True
+
 except (ImportError, ModuleNotFoundError):
     digit = None
     teens = None
     twenties = None
     ties = None
     hundreds = None
-
-    roman_to_int = None
-    strip_accent = None
-
-    NEMO_CHAR = None
-    NEMO_SIGMA = None
-    NEMO_SPACE = None
-    GraphFst = None
-    delete_space = None
 
     PYNINI_AVAILABLE = False
 

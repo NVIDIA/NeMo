@@ -11,21 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    NEMO_WHITE_SPACE,
+    GraphFst,
+    delete_preserve_order,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import ones, shift_cardinal_gender
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_NOT_QUOTE,
-        NEMO_WHITE_SPACE,
-        NEMO_SIGMA,
-        GraphFst,
-        delete_preserve_order,
-    )
-    from nemo_text_processing.text_normalization.es.graph_utils import ones, shift_cardinal_gender
 
     unit_plural_fem = pynini.string_file(get_abs_path("data/measures/measurements_plural_fem.tsv"))
     unit_plural_masc = pynini.string_file(get_abs_path("data/measures/measurements_plural_masc.tsv"))
@@ -39,15 +37,6 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    NEMO_NOT_QUOTE = None
-    NEMO_WHITE_SPACE = None
-    NEMO_SIGM = None
-    GraphFst = None
-    delete_preserve_order = None
-
-    ones = None
-    shift_cardinal_gender = None
-
     unit_plural_fem = None
     unit_plural_masc = None
 

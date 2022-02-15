@@ -16,16 +16,14 @@
 import sys
 from unicodedata import category
 
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+
 try:
     import pynini
     from pynini.lib import pynutil
 
-    from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
-    GraphFst = None
-
     PYNINI_AVAILABLE = False
 
 

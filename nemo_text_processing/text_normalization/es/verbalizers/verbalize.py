@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 from nemo_text_processing.text_normalization.en.verbalizers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.es.verbalizers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.es.verbalizers.date import DateFst
@@ -28,12 +28,9 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    GraphFst = None
 
     PYNINI_AVAILABLE = False
 

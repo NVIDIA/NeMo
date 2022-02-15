@@ -11,22 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import decimal_separator
 from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_ALPHA,
-        NEMO_DIGIT,
-        NEMO_SIGMA,
-        NEMO_SPACE,
-        GraphFst,
-        delete_space,
-        insert_space,
-    )
-    from nemo_text_processing.text_normalization.es.graph_utils import decimal_separator
 
     maj_singular_labels = load_labels(get_abs_path("data/money/currency_major.tsv"))
     maj_singular = pynini.string_file((get_abs_path("data/money/currency_major.tsv")))
@@ -37,16 +36,6 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    NEMO_ALPHA = None
-    NEMO_DIGIT = None
-    NEMO_SIGMA = None
-    NEMO_SPACE = None
-    GraphFst = None
-    delete_space = None
-    insert_space = None
-
-    decimal_separator = None
-
     maj_singular_labels = None
     min_singular = None
     maj_singular = None

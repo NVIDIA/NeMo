@@ -11,23 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    NEMO_NON_BREAKING_SPACE,
+    NEMO_SPACE,
+    GraphFst,
+    convert_space,
+    delete_space,
+    insert_space,
+)
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_ALPHA,
-        NEMO_DIGIT,
-        NEMO_NON_BREAKING_SPACE,
-        NEMO_SPACE,
-        GraphFst,
-        convert_space,
-        delete_space,
-        insert_space,
-    )
 
     unit = pynini.string_file(get_abs_path("data/measures/measurements.tsv"))
     unit_plural_fem = pynini.string_file(get_abs_path("data/measures/measurements_plural_fem.tsv"))
@@ -36,15 +34,6 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    NEMO_ALPHA = None
-    NEMO_DIGIT = None
-    NEMO_NON_BREAKING_SPACE = None
-    NEMO_SPACE = None
-    GraphFst = None
-    convert_space = None
-    delete_space = None
-    insert_space = None
-
     unit = None
     unit_plural_fem = None
     unit_plural_masc = None

@@ -11,19 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_DIGIT,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+)
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_CHAR,
-        NEMO_DIGIT,
-        NEMO_SIGMA,
-        NEMO_SPACE,
-        GraphFst,
-    )
 
     ordinal_exceptions = pynini.string_file(get_abs_path("data/fractions/ordinal_exceptions.tsv"))
     higher_powers_of_ten = pynini.string_file(get_abs_path("data/fractions/powers_of_ten.tsv"))
@@ -31,12 +30,6 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    NEMO_SIGMA = None
-    NEMO_SPACE = None
-    NEMO_CHAR = None
-    NEMO_DIGIT = None
-    GraphFst = None
-
     ordinal_exceptions = None
     higher_powers_of_ten = None
 

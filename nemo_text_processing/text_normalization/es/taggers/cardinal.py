@@ -11,24 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    NEMO_WHITE_SPACE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import cardinal_separator
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.es.graph_utils import cardinal_separator
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_ALPHA,
-        NEMO_DIGIT,
-        NEMO_SIGMA,
-        NEMO_SPACE,
-        NEMO_WHITE_SPACE,
-        GraphFst,
-        delete_space,
-        insert_space,
-    )
 
     zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
     digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv")))
@@ -40,17 +38,6 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    NEMO_ALPHA = None
-    NEMO_DIGIT = None
-    NEMO_SIGMA = None
-    NEMO_SPACE = None
-    NEMO_WHITE_SPACE = None
-    GraphFst = None
-    delete_space = None
-    insert_space = None
-
-    cardinal_separator = None
-
     zero = None
     digit = None
     teen = None

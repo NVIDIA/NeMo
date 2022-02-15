@@ -11,18 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
-
     PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    NEMO_NOT_QUOTE = None
-    GraphFst = None
 
+except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 

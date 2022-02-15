@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
 from nemo_text_processing.text_normalization.es.verbalizers.verbalize import VerbalizeFst
 
@@ -19,14 +19,9 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
-
     PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    GraphFst = None
-    delete_extra_space = None
-    delete_space = None
 
+except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
 

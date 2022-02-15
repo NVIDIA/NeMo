@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, NEMO_SPACE
 from nemo_text_processing.text_normalization.es import LOCALIZATION
 from nemo_text_processing.text_normalization.es.utils import get_abs_path, load_labels
 
 try:
     import pynini
     from pynini.lib import pynutil
-
-    from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, NEMO_SPACE
 
     digits = pynini.project(pynini.string_file(get_abs_path("data/numbers/digit.tsv")), "input")
     tens = pynini.project(pynini.string_file(get_abs_path("data/numbers/ties.tsv")), "input")
@@ -43,9 +42,6 @@ try:
     PYNINI_AVAILABLE = True
 
 except (ModuleNotFoundError, ImportError):
-    NEMO_SIGMA = None
-    NEMO_SPACE = None
-
     digits = None
     tens = None
     teens = None

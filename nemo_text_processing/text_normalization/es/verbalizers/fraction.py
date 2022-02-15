@@ -11,42 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_NOT_QUOTE,
+    NEMO_NOT_SPACE,
+    NEMO_SIGMA,
+    NEMO_SPACE,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
+from nemo_text_processing.text_normalization.es.graph_utils import (
+    accents,
+    shift_cardinal_gender,
+    strip_cardinal_apocope,
+)
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_CHAR,
-        NEMO_NOT_QUOTE,
-        NEMO_NOT_SPACE,
-        NEMO_SIGMA,
-        NEMO_SPACE,
-        GraphFst,
-        delete_space,
-        insert_space,
-    )
-    from nemo_text_processing.text_normalization.es.graph_utils import (
-        accents,
-        shift_cardinal_gender,
-        strip_cardinal_apocope,
-    )
-
     PYNINI_AVAILABLE = True
+
 except (ModuleNotFoundError, ImportError):
-    NEMO_CHAR = None
-    NEMO_NOT_QUOTE = None
-    NEMO_NOT_SPACE = None
-    NEMO_SIGMA = None
-    NEMO_SPACE = None
-    GraphFst = None
-    delete_space = None
-    insert_space = None
-
-    accents = None
-    shift_cardinal_gender = None
-    strip_cardinal_apocope = None
-
     PYNINI_AVAILABLE = False
 
 
