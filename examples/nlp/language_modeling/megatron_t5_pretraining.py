@@ -40,7 +40,9 @@ def main(cfg) -> None:
     plugins = [
         NLPDDPPlugin(
             num_nodes=cfg.trainer.num_nodes,
-            no_ddp_communication_hook=(megatron_amp_o2 and cfg.trainer.precision == 'bf16'), # Only bf16 uses fp32_grad_accum.
+            no_ddp_communication_hook=(
+                megatron_amp_o2 and cfg.trainer.precision == 'bf16'
+            ),  # Only bf16 uses fp32_grad_accum.
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
         )
     ]
