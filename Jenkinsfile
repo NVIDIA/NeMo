@@ -762,7 +762,7 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=ddp \
             exp_manager=null  && \
-            rm -rf sgd_gen_bert_outputs && TRANSOFMERS_OFFLINE=1'
+            rm -rf sgd_gen_bert_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
       }
