@@ -310,10 +310,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # In the first timestep, we initialize the network with RNNT Blank
                 # In later timesteps, we provide previous predicted label as input.
-                if hypothesis.last_token is None:
+                if hypothesis.last_token is None and hypothesis.dec_state is None:
                     last_label = self._SOS
                 else:
-                    last_label = hypothesis.last_token
+                    last_label = label_collate([[hypothesis.last_token]])
 
                 # last_label = (
                 #     self._SOS
