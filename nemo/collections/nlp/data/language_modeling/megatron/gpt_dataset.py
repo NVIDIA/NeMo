@@ -250,7 +250,7 @@ class GPTDataset(MegatronDataset):
         text = torch.from_numpy(sample.astype(np.int64))
         tokens = text[:-1].contiguous()
         labels = text[1:].contiguous()
-        attention_mask, loss_mask, position_ids = _calc_ltor_masks_and_position_ids(
+        attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
             tokens,
             self.eos_id,
             self.reset_position_ids,
@@ -268,12 +268,12 @@ class GPTDataset(MegatronDataset):
 
 
 @torch.no_grad()
-def _calc_ltor_masks_and_position_ids(
-        tokens,
-        eod_token,
-        reset_position_ids,
-        reset_attention_mask,
-        eod_mask_loss,
+def _create_ltor_masks_and_position_ids(
+    tokens,
+    eod_token,
+    reset_position_ids,
+    reset_attention_mask,
+    eod_mask_loss,
 ):
     """Modified version of get_ltor_masks_and_position_ids in nemo/collections/nlp/modules/common/megatron/utils.py"""  # NOQA
     assert tokens.ndim == 1

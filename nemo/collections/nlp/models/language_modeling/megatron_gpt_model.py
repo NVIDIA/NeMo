@@ -23,13 +23,13 @@ from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.data.language_modeling.megatron._megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
-)
-from nemo.collections.nlp.data.language_modeling.megatron._megatron_batch_samplers import (
-    MegatronPretrainingRandomBatchSampler,
-    MegatronPretrainingBatchSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
@@ -608,7 +608,7 @@ class MegatronGPTModel(NLPModel):
                 batch_sampler = MegatronPretrainingBatchSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    local_global_batch_size=self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size(),
+                    num_micro_batch_times_micro_batch_size=self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size(),
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
@@ -616,7 +616,7 @@ class MegatronGPTModel(NLPModel):
                 batch_sampler = MegatronPretrainingRandomBatchSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    local_global_batch_size=self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size(),
+                    num_micro_batch_times_micro_batch_size=self.cfg.global_batch_size // parallel_state.get_data_parallel_world_size(),
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
