@@ -97,6 +97,24 @@ def log_plus(p1: float, p2: float):
     return result
 
 
+@cuda.jit(device=True, inline=True)
+def copy_data_1d(source: torch.Tensor, dest: torch.Tensor, idx: int):
+    dest[idx] = source[idx]
+
+
+@cuda.jit()
+def compute_costs_data(source: torch.Tensor, dest: torch.Tensor, fastemit_lambda: float):
+    block = cuda.blockIdx.x
+    tid = cuda.threadIdx.x
+    idx = block * cuda.blockDim.x + tid
+    length = source.shape[0]
+
+    if idx < length:
+        copy_data_1d(source, dest, idx)
+        dest[idx] *= -1.0
+        dest[idx] *= 1.0 + fastemit_lambda
+
+
 def get_workspace_size(
     maxT: int, maxU: int, minibatch: int, gpu: bool
 ) -> (Optional[int], global_constants.RNNTStatus):
