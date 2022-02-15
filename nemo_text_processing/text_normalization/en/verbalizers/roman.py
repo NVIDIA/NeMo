@@ -69,7 +69,7 @@ class RomanFst(GraphFst):
             + pynini.closure(pynutil.insert("the "), 0, 1)
             + ordinal
             + pynutil.delete("\"")
-            ).optimize()
+        ).optimize()
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

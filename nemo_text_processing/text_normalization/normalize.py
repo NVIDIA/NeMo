@@ -98,7 +98,7 @@ class Normalizer:
         )
         if lang == "de":
             self.verbalizer = VerbalizeFinalFst(deterministic=deterministic, lm=lm)
-        else:    
+        else:
             self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
         self.lang = lang

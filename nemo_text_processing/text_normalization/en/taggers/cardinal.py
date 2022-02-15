@@ -144,11 +144,7 @@ class CardinalFst(GraphFst):
             + graph
         )
 
-        range_graph |= (
-            graph
-            + (pynini.cross("-", " minus ") | pynini.cross(" - ", " minus "))
-            + graph
-        )
+        range_graph |= graph + (pynini.cross("-", " minus ") | pynini.cross(" - ", " minus ")) + graph
 
         for x in ["+", " + "]:
             range_graph |= graph + pynini.closure(pynini.cross(x, " plus ") + graph, 1)

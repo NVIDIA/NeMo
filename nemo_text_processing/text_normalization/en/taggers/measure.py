@@ -27,9 +27,9 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
+from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
-from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats
 
 try:
     import pynini
@@ -290,9 +290,7 @@ class MeasureFst(GraphFst):
 
         zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
         zip_code = pynini.closure(
-            pynutil.add_weight(
-                pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -100
-            ),
+            pynutil.add_weight(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -100),
             0,
             1,
         )

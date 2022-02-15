@@ -54,7 +54,7 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
-        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
+        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
         if not deterministic:
             graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
 
@@ -98,8 +98,7 @@ def get_formats(input_f, input_case="cased"):
             x = x.lower()
         additional_options.append((f"{x}.", y))  # default "dr" -> doctor, this includes period "dr." -> doctor
         additional_options.append((f"{x[0].upper() + x[1:]}", f"{y[0].upper() + y[1:]}"))  # "Dr" -> Doctor
-        additional_options.append(
-            (f"{x[0].upper() + x[1:]}.", f"{y[0].upper() + y[1:]}"))  # "Dr." -> Doctor
+        additional_options.append((f"{x[0].upper() + x[1:]}.", f"{y[0].upper() + y[1:]}"))  # "Dr." -> Doctor
         additional_options.append((f"{x.upper()}", f"{y[0].upper() + y[1:]}"))  # DR -> Doctor
         additional_options.append((f"{x.upper()}.", f"{y[0].upper() + y[1:]}"))  # DR. -> Doctor
     multiple_formats.extend(additional_options)

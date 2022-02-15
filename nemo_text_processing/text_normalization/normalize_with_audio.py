@@ -158,6 +158,7 @@ class NormalizerWithAudio(Normalizer):
                 tagged_texts, tagger_weights = list(zip(*tagged_texts))
                 normalized_texts = []
                 weights = []
+
                 def get_verbalized_text(tagged_text, weight):
                     lattice = rewrite.rewrite_lattice(tagged_text, self.verbalizer.fst)
                     lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
@@ -165,6 +166,7 @@ class NormalizerWithAudio(Normalizer):
                     tagged_texts.sort(key=lambda x: x[1])
                     tagged_texts, weights = list(zip(*tagged_texts))
                     return tagged_texts, weights
+
                 for tagged_text, weight in zip(tagged_texts, tagger_weights):
 
                     self.parser(tagged_text)
