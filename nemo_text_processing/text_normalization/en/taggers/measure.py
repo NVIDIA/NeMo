@@ -29,6 +29,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
+from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats
 
 try:
     import pynini
@@ -259,10 +260,10 @@ class MeasureFst(GraphFst):
             | pynini.cross("S", "South")
             | pynini.cross("W", "West")
             | pynini.cross("N", "North")
-        )
-        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -1), 0, 1)
+        ) + pynini.closure(pynutil.delete("."), 0, 1)
 
-        address_words = pynini.string_file(get_abs_path("data/address/address_words.tsv"))
+        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -1), 0, 1)
+        address_words = get_formats(get_abs_path("data/address/address_words.tsv"))
         address_words = (
             pynini.accep(NEMO_SPACE)
             + pynini.closure(ordinal_num, 0, 1)
@@ -300,10 +301,7 @@ class MeasureFst(GraphFst):
             address_num
             + direction
             + address_words
-            + pynini.closure(pynini.cross(".", ""), 0, 1)
-            + city
-            + state
-            + zip_code
+            + pynini.closure(city + state + zip_code, 0, 1)
         )
 
         if lm:

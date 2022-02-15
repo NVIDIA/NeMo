@@ -58,19 +58,7 @@ class WhiteListFst(GraphFst):
         if not deterministic:
             graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
 
-            multiple_forms_whitelist =  load_labels(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
-            additional_options = []
-            for x, y in multiple_forms_whitelist:
-                if input_case == "lower_cased":
-                    x = x.lower()
-                additional_options.append((f"{x}.", y)) # default "dr" -> doctor, this includes period "dr." -> doctor
-                additional_options.append((f"{x[0].upper() + x[1:]}", f"{y[0].upper() + y[1:]}")) # "Dr" -> Doctor
-                additional_options.append(
-                    (f"{x[0].upper() + x[1:]}.", f"{y[0].upper() + y[1:]}"))  # "Dr." -> Doctor
-                additional_options.append((f"{x.upper()}", f"{y[0].upper() + y[1:]}")) # DR -> Doctor
-                additional_options.append((f"{x.upper()}.", f"{y[0].upper() + y[1:]}"))  # DR. -> Doctor
-            multiple_forms_whitelist.extend(additional_options)
-            multiple_forms_whitelist_graph = pynini.string_map(multiple_forms_whitelist)
+            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
             graph |= multiple_forms_whitelist_graph
 
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
@@ -101,3 +89,23 @@ class WhiteListFst(GraphFst):
 
         self.graph = (convert_space(graph)).optimize()
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
+
+
+def get_formats(input_f, input_case="cased"):
+    """
+    Adds various abbreviation format options to the list of acceptable input forms
+    """
+    multiple_formats = load_labels(input_f)
+    additional_options = []
+    for x, y in multiple_formats:
+        if input_case == "lower_cased":
+            x = x.lower()
+        additional_options.append((f"{x}.", y))  # default "dr" -> doctor, this includes period "dr." -> doctor
+        additional_options.append((f"{x[0].upper() + x[1:]}", f"{y[0].upper() + y[1:]}"))  # "Dr" -> Doctor
+        additional_options.append(
+            (f"{x[0].upper() + x[1:]}.", f"{y[0].upper() + y[1:]}"))  # "Dr." -> Doctor
+        additional_options.append((f"{x.upper()}", f"{y[0].upper() + y[1:]}"))  # DR -> Doctor
+        additional_options.append((f"{x.upper()}.", f"{y[0].upper() + y[1:]}"))  # DR. -> Doctor
+    multiple_formats.extend(additional_options)
+    multiple_formats = pynini.string_map(multiple_formats)
+    return multiple_formats
