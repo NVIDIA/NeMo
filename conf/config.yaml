@@ -1,0 +1,14 @@
+defaults:
+  - _self_
+  - cluster: bcm
+  - search_config: 126m
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+
+bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  # Path should end with bignlp-hp-tool
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
+inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.01-py3
