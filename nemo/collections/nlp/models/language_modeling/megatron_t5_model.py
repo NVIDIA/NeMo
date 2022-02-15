@@ -119,6 +119,12 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             seed=self._cfg.seed,
             skip_warmup=self._cfg.data.skip_warmup,
             dataset_type='t5',
+            max_ngram_size=self._cfg.get('max_ngram_size', 10),
+            mean_ngram_size=self._cfg.get('mean_ngram_size', None),
+            geometric_dist=self._cfg.get('geometric_dist', True),
+            permutation=self._cfg.get('permutation', False),
+            whole_word_masking=self._cfg.get('whole_word_masking', True),
+            favor_long_ngrams=self._cfg.get('favor_long_ngrams', False),
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
