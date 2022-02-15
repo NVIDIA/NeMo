@@ -66,7 +66,7 @@ class RomanFst(GraphFst):
             + pynutil.delete("\"")
             + pynini.accep(" ")
             + pynutil.delete("integer: \"")
-            + pynutil.insert("the ")
+            + pynini.closure(pynutil.insert("the "), 0, 1)
             + ordinal
             + pynutil.delete("\"")
             ).optimize()

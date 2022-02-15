@@ -269,13 +269,14 @@ class MeasureFst(GraphFst):
         address_words = get_formats(get_abs_path("data/address/address_words.tsv"))
         address_words = (
             pynini.accep(NEMO_SPACE)
-            + pynini.closure(ordinal_num, 0, 1)
-            + pynini.closure(NEMO_ALPHA | NEMO_SPACE, 1)
+            + (pynini.closure(ordinal_num, 0, 1) | pynini.closure(NEMO_ALPHA, 1))
+            + NEMO_SPACE
+            + pynini.closure(NEMO_ALPHA | NEMO_SPACE)
             + address_words
         )
 
         city = pynini.closure(NEMO_ALPHA | pynini.accep(NEMO_SPACE), 1)
-        city = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + city, 0, 1)
+        city = pynini.closure(pynini.accep(",") + pynini.accep(NEMO_SPACE) + city, 0, 1)
 
         states = load_labels(get_abs_path("data/address/states.tsv"))
 
@@ -289,12 +290,12 @@ class MeasureFst(GraphFst):
         states.extend(additional_options)
         state_graph = pynini.string_map(states)
         state = pynini.invert(state_graph)
-        state = pynini.closure(pynini.cross(",", "") + pynini.accep(NEMO_SPACE) + state, 0, 1)
+        state = pynini.closure(pynini.accep(",") + pynini.accep(NEMO_SPACE) + state, 0, 1)
 
         zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
         zip_code = pynini.closure(
             pynutil.add_weight(
-                pynini.closure(pynini.cross(",", ""), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -100
+                pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -100
             ),
             0,
             1,
@@ -304,7 +305,7 @@ class MeasureFst(GraphFst):
             address_num
             + direction
             + address_words
-            + pynini.closure(city + state + zip_code, 0, 1)
+            + pynini.closure(pynutil.add_weight(city + state + zip_code, -0.001), 0, 1)
         )
 
         if lm:
