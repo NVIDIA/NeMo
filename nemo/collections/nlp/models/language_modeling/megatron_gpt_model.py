@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from doctest import OutputChecker
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -42,7 +43,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -54,7 +55,7 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -385,6 +386,20 @@ class MegatronGPTModel(NLPModel):
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
+
+    def get_forward_output_only_func(self):
+        def fwd_output_only_func(batch, model):
+            batch = [x.cuda() for x in batch]
+            tokens, attention_mask, position_ids = batch
+            attention_mask = attention_mask[0:1]
+            output_tensor = model(tokens, position_ids, attention_mask)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     def validation_step(self, batch, batch_idx):
         """
@@ -828,9 +843,6 @@ class MegatronGPTModel(NLPModel):
                 * offsets: list of tokens start positions in text
                 
         """
-        # TODO: Add raise with message to use previous commit ID / version of NeMo
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            raise ValueError('complete method is not yet supported for pipeline')
 
         results = []
         request_tokens = request["tokens"]
@@ -839,6 +851,8 @@ class MegatronGPTModel(NLPModel):
 
             # For prompt tuned GPT models
             if self.use_soft_prompts:
+                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                    raise ValueError('complete method is not yet supported for pipeline with soft prompts')
                 prompt_tags = request["prompt_tags"][idx]
             else:
                 prompt_tags = None
@@ -871,13 +885,43 @@ class MegatronGPTModel(NLPModel):
                         eod_mask_loss=self.cfg.get('eod_mask_loss', False),
                     )
 
+                batch = [tokens, attention_mask, position_ids]
+                # batch_for_pipeline = self.process_global_batch(batch)
+                tensor_shape = [tokens.shape[1], 1, self.cfg.hidden_size]
+                app_state = AppState()
+                _reconfigure_microbatch_calculator(
+                    rank=app_state.global_rank,
+                    rampup_batch_size=None,
+                    global_batch_size=1,
+                    micro_batch_size=1,
+                    data_parallel_size=1,
+                )
+                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                    output_tensor = forward_backward_pipelining_without_interleaving(
+                        forward_step_func=self.get_forward_output_only_func(),
+                        batch=batch,
+                        model=self.model,
+                        forward_only=True,
+                        tensor_shape=tensor_shape,
+                        dtype=self.autocast_dtype,
+                    )
+                else:
+                    output_tensor = forward_backward_no_pipelining(
+                        forward_step_func=self.get_forward_output_only_func(),
+                        batch=batch,
+                        model=self.model,
+                        forward_only=True,
+                        tensor_shape=tensor_shape,
+                        dtype=self.autocast_dtype,
+                    )
+
                 # get output tensor
                 # No labels during inference. Still need masks to not attend to the right
-                output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
-                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                # output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
+                # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
                 log_probs, token_ids = torch.max(logsoftmaxlayer(output_tensor), dim=-1)
-                reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
+                # reached_eos = token_ids[0, -1].item() == self.tokenizer.eos_id
                 tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
 
             # add to results as (text, tokens, log_probs, offsets)
@@ -916,7 +960,7 @@ class MegatronGPTModel(NLPModel):
         """
         results = []
         request_tokens = request["tokens"]
-        logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
+        # logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
         for idx, tokens in enumerate(request_tokens):
             tokens_cut = tokens[:, :-1]
             # For prompt tuned GPT models
