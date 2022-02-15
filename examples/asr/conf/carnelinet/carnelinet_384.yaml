@@ -35,6 +35,8 @@ model:
     use_start_end_token: false
     max_duration: 16.7
     shuffle: true
+    num_workers: 8
+    pin_memory: true
     is_tarred: false
     tarred_audio_filepaths: null
 
@@ -43,6 +45,8 @@ model:
     sample_rate: 16000
     batch_size: 32
     shuffle: false
+    num_workers: 8
+    pin_memory: true
     use_start_end_token: false
 
   test_ds:
@@ -50,6 +54,8 @@ model:
     sample_rate: 16000
     batch_size: 32
     shuffle: false
+    num_workers: 8
+    pin_memory: true
     use_start_end_token: false
 
   model_defaults:
