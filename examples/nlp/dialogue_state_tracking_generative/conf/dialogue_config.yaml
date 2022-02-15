@@ -29,10 +29,12 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
-
+  logger: False  # Provided by exp_manager 
+  
 model:
+  tensor_model_parallel_size: 1
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  library: huggingface # huggingface or megatron
   tokenizer:
       tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
       vocab_file: null # path to vocab file

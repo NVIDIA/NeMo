@@ -734,8 +734,10 @@ pipeline {
             trainer.val_check_interval=0.0 \
             trainer.gpus=[0] \
             model.dataset.use_cache=false \
-            model.tokenizer.special_tokens={pad_token:"endoftext"}\
-            model.language_model.pretrained_model_name=gpt2 \
+            model.tokenizer.special_tokens={pad_token:"endoftext"} \
+            model.tokenizer.tokenizer_name=gpt2 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
+            model.language_model.pretrained_model_name=/home/TestData/nlp/gpt2 \
             trainer.accelerator=ddp \
             exp_manager=null  && \
             rm -rf sgd_gen_outputs'

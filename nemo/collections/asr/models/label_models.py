@@ -229,11 +229,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         }
 
     @typecheck()
+    def forward_for_export(self, processed_signal, processed_signal_len):
+        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        logits, embs = self.decoder(encoder_output=encoded, length=length)
+        return logits, embs
+
+    @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
-
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
