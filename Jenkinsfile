@@ -1191,7 +1191,8 @@ pipeline {
             sh 'data_dir=/home/TestData/nlp/token_classification_punctuation && \
             usual_data=${data_dir}/wmt_wiki_10000 && \
             tarred_data=${data_dir}/train_tarred && \
-            output=${data_dir}/output && \
+            TIME=`date +"%Y-%m-%d-%T"` \
+            output=${data_dir}/output_${TIME} && \
             tokens_in_batch=2000 && \
             max_seq_length=512 && \
             lm_model=distilbert-base-uncased && \
