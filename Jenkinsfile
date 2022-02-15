@@ -721,6 +721,8 @@ pipeline {
             sh 'cd examples/nlp/dialogue_state_tracking_generative && \
             python sgd_gen.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+            model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
+            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
             model.dataset.dialogues_example_dir=sgd_gen_outputs \
             model.dataset.task_name=debug_sample \
             trainer.max_steps=1 \
@@ -1189,7 +1191,8 @@ pipeline {
             sh 'data_dir=/home/TestData/nlp/token_classification_punctuation && \
             usual_data=${data_dir}/wmt_wiki_10000 && \
             tarred_data=${data_dir}/train_tarred && \
-            output=${data_dir}/output && \
+            TIME=`date +"%Y-%m-%d-%T"` \
+            output=${data_dir}/output_${TIME} && \
             tokens_in_batch=2000 && \
             max_seq_length=512 && \
             lm_model=distilbert-base-uncased && \
