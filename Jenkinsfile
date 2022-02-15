@@ -718,7 +718,7 @@ pipeline {
       parallel {
         stage('SGD-GEN') {
           steps {
-            sh 'cd examples/nlp/dialogue_state_tracking_generative && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
             python sgd_gen.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
@@ -734,8 +734,10 @@ pipeline {
             trainer.val_check_interval=0.0 \
             trainer.gpus=[0] \
             model.dataset.use_cache=false \
-            model.tokenizer.special_tokens={pad_token:"endoftext"}\
-            model.language_model.pretrained_model_name=gpt2 \
+            model.tokenizer.special_tokens={pad_token:"endoftext"} \
+            model.tokenizer.tokenizer_name=gpt2 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
+            model.language_model.pretrained_model_name=/home/TestData/nlp/gpt2 \
             trainer.accelerator=ddp \
             exp_manager=null  && \
             rm -rf sgd_gen_outputs'
@@ -743,7 +745,7 @@ pipeline {
         }
         stage('SGD-GEN Backward compatible with SGDQA') {
           steps {
-            sh 'cd examples/nlp/dialogue_state_tracking_generative && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
             python sgd_gen.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
@@ -760,7 +762,7 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=ddp \
             exp_manager=null  && \
-            rm -rf sgd_gen_bert_outputs'
+            rm -rf sgd_gen_bert_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
       }

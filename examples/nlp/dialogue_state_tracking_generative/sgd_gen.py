@@ -106,8 +106,11 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_gpt_model import DialogueGPTModel
 from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -115,8 +118,16 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     pl.seed_everything(42)
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
-    trainer = pl.Trainer(**cfg.trainer)
+
+    plugin = NLPDDPPlugin()
+    trainer = pl.Trainer(**cfg.trainer, plugins=plugin)
+
     exp_manager(trainer, cfg.get("exp_manager", None))
+
+    app_state = AppState()
+    if cfg.model.tensor_model_parallel_size > 1:
+        app_state.model_parallel_size = cfg.model.tensor_model_parallel_size
+        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
 
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         model_class = SGDQAModel
@@ -155,7 +166,7 @@ def main(cfg: DictConfig) -> None:
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
-        trainer = pl.Trainer(gpus=gpu)
+        trainer = pl.Trainer(gpus=gpu, plugins=plugin, precision=16)
         model.setup_multiple_test_data(test_data_config=cfg.model.test_ds)
         if model.prepare_test(trainer):
             trainer.test(model)
