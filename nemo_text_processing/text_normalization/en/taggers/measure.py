@@ -254,6 +254,9 @@ class MeasureFst(GraphFst):
             pynini.closure(pynini.cross("0", "zero "), 0, 1)
             + cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
+        # to handle the rest of the numbers
+        address_num = pynutil.add_weight(pynini.compose(NEMO_DIGIT ** (3, 4), address_num), -0.001)
+        address_num |= cardinal.graph
 
         direction = (
             pynini.cross("E", "East")
