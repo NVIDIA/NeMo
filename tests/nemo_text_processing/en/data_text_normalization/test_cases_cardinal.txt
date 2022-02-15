@@ -17,7 +17,7 @@ W2s~W two s
 b-c-1-5-b-s-b~b - c-one-five-b-s-b
 MIG-25/235212-asdg~MIG-two five/two three five two one two-asdg
 1/f-4s~one/f-four s
-1/f~one per fahrenheit
+1/f~one per degree Fahrenheit
 4s~four seconds
 7-eleven~seven- eleven
 1234567890123124~one two three four five six seven eight nine zero one two three one two four

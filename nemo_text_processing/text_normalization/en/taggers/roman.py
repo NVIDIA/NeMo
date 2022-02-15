@@ -81,5 +81,6 @@ class RomanFst(GraphFst):
         )
 
         graph |= roman_to_cardinal | roman_to_ordinal
+
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

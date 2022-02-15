@@ -91,6 +91,10 @@ def get_hundreds_graph(deterministic: bool = True):
     )
     return graph.optimize()
 
+def _get_two_digit_year_with_s_graph():
+    # to handle '70s -> seventies
+    return pynutil.add_weight(pynini.closure(pynutil.add_weight(pynutil.delete("'"), -0.001), 0, 1) + pynini.compose(
+        ties_graph + pynutil.delete("0s"), pynini.cdrewrite(pynini.cross("y", "ies"), "", "[EOS]", NEMO_SIGMA)), -0.2).optimize()
 
 def _get_year_graph(deterministic: bool = True):
     """
@@ -106,6 +110,8 @@ def _get_year_graph(deterministic: bool = True):
         + NEMO_DIGIT
         + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)
     ) @ graph
+
+    graph |= _get_two_digit_year_with_s_graph()
     return graph.optimize()
 
 
