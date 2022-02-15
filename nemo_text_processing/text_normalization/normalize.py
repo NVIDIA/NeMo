@@ -20,7 +20,7 @@ from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
 
-from nemo_text_processing.text_normalization.data_loader_utils import pre_process
+from nemo_text_processing.text_normalization.data_loader_utils import get_installation_msg, pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -67,6 +67,9 @@ class Normalizer:
         whitelist: str = None,
     ):
         assert input_case in ["lower_cased", "cased"]
+
+        if not PYNINI_AVAILABLE:
+            raise ImportError(get_installation_msg())
 
         if lang == 'en' and deterministic:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst

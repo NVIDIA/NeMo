@@ -210,16 +210,20 @@ def create_masked_lm_predictions(
     mask_id,
     max_predictions_per_seq,
     np_rng,
-    max_ngrams=3,
-    do_whole_word_mask=True,
-    favor_longer_ngram=False,
-    do_permutation=False,
+    max_ngram_size=3,
+    mean_ngram_size=None,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
+    permutation=False,
     geometric_dist=False,
     masking_style="bert",
     tokenizer_type="wordpiece",
 ):
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
+
+    if not geometric_dist and mean_ngram_size is not None:
+        raise ValueError(f"Mean ngram size is only supported for geometric distribution.")
 
     cand_indexes = []
     # Note(mingdachen): We create a list for recording if the piece is
@@ -238,7 +242,7 @@ def create_masked_lm_predictions(
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
         if (
-            do_whole_word_mask
+            whole_word_masking
             and len(cand_indexes) >= 1
             and not is_start_piece(vocab_id_to_token_dict[token], tokenizer_type=tokenizer_type)
         ):
@@ -258,13 +262,13 @@ def create_masked_lm_predictions(
 
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
 
-    ngrams = np.arange(1, max_ngrams + 1, dtype=np.int64)
+    ngrams = np.arange(1, max_ngram_size + 1, dtype=np.int64)
     if not geometric_dist:
         # Note(mingdachen):
         # By default, we set the probilities to favor shorter ngram sequences.
-        pvals = 1.0 / np.arange(1, max_ngrams + 1)
+        pvals = 1.0 / np.arange(1, max_ngram_size + 1)
         pvals /= pvals.sum(keepdims=True)
-        if favor_longer_ngram:
+        if favor_long_ngrams:
             pvals = pvals[::-1]
 
     ngram_indexes = []
@@ -299,7 +303,10 @@ def create_masked_lm_predictions(
             # Sampling "n" from the geometric distribution and clipping it to
             # the max_ngrams. Using p=0.2 default from the SpanBERT paper
             # https://arxiv.org/pdf/1907.10529.pdf (Sec 3.1)
-            n = min(np_rng.geometric(0.2), max_ngrams)
+
+            # The expectation of a geometric distribution is E[X] = 1 / p
+            p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
+            n = min(np_rng.geometric(p), max_ngram_size)
 
         index_set = sum(cand_index_set[n - 1], [])
         n -= 1
@@ -350,7 +357,7 @@ def create_masked_lm_predictions(
     np_rng.shuffle(ngram_indexes)
 
     select_indexes = set()
-    if do_permutation:
+    if permutation:
         for cand_index_set in ngram_indexes:
             if len(select_indexes) >= num_to_predict:
                 break
@@ -456,6 +463,12 @@ def build_train_valid_test_datasets(
     max_seq_length_dec=None,
     dataset_type='standard_bert',
     tokenizer=None,
+    max_ngram_size=3,
+    mean_ngram_size=None,
+    geometric_dist=True,
+    permutation=False,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
 ):
 
     if len(data_prefix) == 1:
@@ -475,6 +488,12 @@ def build_train_valid_test_datasets(
             max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
+            max_ngram_size=max_ngram_size,
+            mean_ngram_size=mean_ngram_size,
+            geometric_dist=geometric_dist,
+            permutation=permutation,
+            whole_word_masking=whole_word_masking,
+            favor_long_ngrams=favor_long_ngrams,
         )
     # Blending dataset.
     # Parse the values.
@@ -502,6 +521,12 @@ def build_train_valid_test_datasets(
             max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
+            max_ngram_size=max_ngram_size,
+            mean_ngram_size=mean_ngram_size,
+            geometric_dist=geometric_dist,
+            permutation=permutation,
+            whole_word_masking=whole_word_masking,
+            favor_long_ngrams=favor_long_ngrams,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -540,6 +565,12 @@ def _build_train_valid_test_datasets(
     max_seq_length_dec,
     dataset_type='standard_bert',
     tokenizer=None,
+    max_ngram_size=3,
+    mean_ngram_size=None,
+    geometric_dist=True,
+    permutation=False,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -621,6 +652,12 @@ def _build_train_valid_test_datasets(
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,
                     short_seq_prob=short_seq_prob,
+                    max_ngram_size=max_ngram_size,
+                    mean_ngram_size=mean_ngram_size,
+                    geometric_dist=geometric_dist,
+                    permutation=permutation,
+                    whole_word_masking=whole_word_masking,
+                    favor_long_ngrams=favor_long_ngrams,
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BERT:
