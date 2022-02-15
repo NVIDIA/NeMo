@@ -34,6 +34,8 @@ from nemo.collections.asr.parts.preprocessing.perturb import NoisePerturbation
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 
 rng = None
+att_factor = 0.8
+sample_rate = 16000
 
 
 def get_out_dir_name(out_dir, input_name, noise_name, snr):
@@ -72,7 +74,7 @@ def process_row(row):
     for snr in row['snrs']:
         min_snr_db = snr
         max_snr_db = snr
-        att_factor = 0.8
+        global att_factor
         perturber = NoisePerturbation(
             manifest_path=row['noise_manifest'], min_snr_db=min_snr_db, max_snr_db=max_snr_db, rng=rng
         )
@@ -123,7 +125,15 @@ def main():
     parser.add_argument("--snrs", type=int, nargs="+", default=[0, 10, 20, 30])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num_workers", default=1, type=int)
+    parser.add_argument("--sample_rate", default=16000, type=int)
+    parser.add_argument("--attenuation_factor", default=0.8, type=float, help="Attenuation factor applied on the"
+                                                                              " noise added samples before writing"
+                                                                              " to wave")
     args = parser.parse_args()
+    global sample_rate
+    sample_rate = args.sample_rate
+    global att_factor
+    att_factor = args.attenuation_factor
     global rng
     rng = random.Random(args.seed)
     num_workers = args.num_workers
