@@ -70,7 +70,8 @@ def create_manifest(input_manifest, noise_manifest, snrs, out_path):
 
 def process_row(row):
     audio_file = row['audio_filepath']
-    data_orig = AudioSegment.from_file(audio_file, target_sr=16000, offset=0)
+    global sample_rate
+    data_orig = AudioSegment.from_file(audio_file, target_sr=sample_rate, offset=0)
     for snr in row['snrs']:
         min_snr_db = snr
         max_snr_db = snr
@@ -95,7 +96,7 @@ def process_row(row):
 
         norm_factor = att_factor / max_level
         new_samples = norm_factor * data.samples
-        sf.write(out_f, new_samples.transpose(), 16000)
+        sf.write(out_f, new_samples.transpose(), sample_rate)
 
 
 def add_noise(infile, snrs, noise_manifest, out_dir, num_workers=1):
