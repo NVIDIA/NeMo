@@ -21,14 +21,13 @@
 # --data_sets=DKITCHEN,DLIVING,NRIVER
 
 import argparse
+import glob
 import json
 import logging
 import os
+import shutil
 import subprocess
 import urllib.request
-import shutil
-import glob
-
 
 parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -92,22 +91,18 @@ def __create_manifest(dst_folder: str):
 
         a list of metadata entries for processed files.
     """
-    #Read directory
-    #Get all wav file names
-    #create line per wav file in manifest
+    # Read directory
+    # Get all wav file names
+    # create line per wav file in manifest
     noise_name = os.path.basename(dst_folder)
-    wav_files = glob.glob(dst_folder+"/*.wav")
+    wav_files = glob.glob(dst_folder + "/*.wav")
     wav_files.sort()
     os.makedirs(os.path.join(os.path.dirname(dst_folder), "manifests"), exist_ok=True)
-    with open(os.path.join(os.path.dirname(dst_folder), "manifests", noise_name+".json"), "w") as mfst_f:
+    with open(os.path.join(os.path.dirname(dst_folder), "manifests", noise_name + ".json"), "w") as mfst_f:
         for wav_f in wav_files:
             dur = subprocess.check_output("soxi -D {0}".format(wav_f), shell=True)
-            row = {
-                "audio_filepath": wav_f,
-                "text": "",
-                "duration": float(dur)
-            }
-            mfst_f.write(json.dumps(row) +"\n")
+            row = {"audio_filepath": wav_f, "text": "", "duration": float(dur)}
+            mfst_f.write(json.dumps(row) + "\n")
 
 
 def main():
