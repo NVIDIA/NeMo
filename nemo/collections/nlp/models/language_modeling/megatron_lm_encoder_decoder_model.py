@@ -83,6 +83,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             fp16_cross_entropy=cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=cfg.get('use_cpu_initialization', False),
             hidden_dropout=cfg.get('hidden_dropout', 0.1),
+            attention_dropout=cfg.get('attention_dropout', 0.1),
             precision=cfg.get('precision', 16),
             fp32_residual_connection=cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
