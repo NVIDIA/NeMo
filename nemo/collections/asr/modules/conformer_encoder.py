@@ -75,7 +75,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def input_example(self, max_batch=1, max_dim=256):
+    def input_example(self, max_batch=1, max_dim=256, max_cache=256):
         """
         Generates input examples for tracing etc.
         Returns:
@@ -84,7 +84,17 @@ class ConformerEncoder(NeuralModule, Exportable):
         dev = next(self.parameters()).device
         input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
         input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
-        return tuple([input_example, input_example_length])
+
+        if self.is_causal:
+            cache_last_channel = torch.randn(self.n_layers, max_batch, max_cache, self.d_model).to(dev)
+            cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_cache).to(dev)
+            all_input_example = {"audio_signal": input_example,
+                                 "length": input_example_length,
+                                 "cache_last_channel": cache_last_channel,
+                                 "cache_last_time": cache_last_time}
+        else:
+            all_input_example = tuple([input_example, input_example_length])
+        return all_input_example
 
     @property
     def input_types(self):
@@ -94,9 +104,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
                 "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
-                "cache_last_time": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-                "cache_pre_encode": NeuralType(('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
+                "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+                "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
             }
         )
 
@@ -110,7 +119,6 @@ class ConformerEncoder(NeuralModule, Exportable):
                 "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
                 "cache_last_channel_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
                 "cache_last_time_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-                # "cache_pre_encode_next": NeuralType(('B', 'D', 'T', 'D'), SpectrogramType(), optional=True),
             }
         )
 
@@ -141,8 +149,10 @@ class ConformerEncoder(NeuralModule, Exportable):
     ):
         super().__init__()
         self.cache_drop_size = None
+        self.is_causal = is_causal
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
+        self.n_layers = n_layers
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
         # self.att_context_style = att_context_style
@@ -285,19 +295,18 @@ class ConformerEncoder(NeuralModule, Exportable):
     @typecheck()
     def forward(
         self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None
-    ):  # , cache_pre_encode=None):
+    ):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_for_export(
             audio_signal=audio_signal,
             length=length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
-            # cache_pre_encode=cache_pre_encode,
         )
 
     @typecheck()
     def forward_for_export(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None  # , cache_pre_encode=None
+        self, audio_signal, length, cache_last_channel, cache_last_time
     ):
         max_audio_length: int = audio_signal.size(-1)
         length = length.to(audio_signal.device)

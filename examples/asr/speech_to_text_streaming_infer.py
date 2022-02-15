@@ -208,7 +208,7 @@ def main():
         processed_signal_normalized = processed_signal
 
     #model_normalize_type = {"fixed_mean": x_mean_whole, "fixed_std": x_std_whole}
-    print(x_mean_whole, x_std_whole)
+    #print(x_mean_whole, x_std_whole)
 
     asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
         asr_model=asr_model,
@@ -249,8 +249,8 @@ def main():
         init_audio, x_mean, x_std = normalize_batch(
             x=init_audio, seq_len=torch.tensor([init_audio.size(-1)]), normalize_type=model_normalize_type
         )
-        print(x_mean)
-        print(x_std)
+        #print(x_mean)
+        #print(x_std)
     init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
 
     asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
@@ -297,8 +297,8 @@ def main():
             chunk_audio, x_mean, x_std = normalize_batch(
                 x=chunk_audio, seq_len=torch.tensor([chunk_audio.size(-1)]), normalize_type=model_normalize_type
             )
-            print(x_mean)
-            print(x_std)
+            #print(x_mean)
+            #print(x_std)
 
         if zeros_pads is not None:
             chunk_audio = torch.cat((zeros_pads, chunk_audio), dim=-1)
