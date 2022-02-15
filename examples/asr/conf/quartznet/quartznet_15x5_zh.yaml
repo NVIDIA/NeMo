@@ -224,6 +224,8 @@ model:
     normalize: False
     max_duration: 16.7
     shuffle: True
+    num_workers: 8
+    pin_memory: true
     is_tarred: False
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
@@ -235,6 +237,8 @@ model:
     labels: *labels
     batch_size: 32
     shuffle: False
+    num_workers: 8
+    pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
