@@ -24,6 +24,8 @@ model:
     max_duration: 35.0
     min_duration: 3.0
     shuffle: true
+    num_workers: 8
+    pin_memory: true
     is_tarred: false
     tarred_audio_filepaths: null
     use_start_end_token: false
@@ -33,6 +35,8 @@ model:
     sample_rate: 16000
     batch_size: 32
     shuffle: false
+    num_workers: 8
+    pin_memory: true
     use_start_end_token: false
     max_duration: 35.0
     min_duration: 3.0
