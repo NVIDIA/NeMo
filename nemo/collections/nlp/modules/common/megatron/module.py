@@ -174,7 +174,10 @@ class Float16Module(MegatronModule):
                 return val.bfloat16()
 
         else:
-            raise Exception(f'{precision} is not supported. Float16Module supports ' 'only fp16 and bf16.')
+            raise Exception(
+                f'precision {precision} is not supported. Float16Module (megatron_amp_O2) supports '
+                'only fp16 and bf16.'
+            )
 
         self.float16_converter = float16_converter
 
