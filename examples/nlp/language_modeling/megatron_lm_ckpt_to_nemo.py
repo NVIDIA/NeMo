@@ -354,7 +354,7 @@ def convert(local_rank, rank, world_size, args):
         name_translate['transformer'] = 'encoder'
         name_translate['.attention.'] = '.self_attention.'
         # nemo megatron doesn't have _for_head key
-        name_translate['.word_embeddings_for_head.'] = '.word_embeddings.'
+        name_translate['word_embeddings_for_head'] = 'word_embeddings'
         model, checkpoint, consumed, steps = load_from_checkpoint(
             MegatronGPTModel,
             checkpoint_path,
@@ -369,7 +369,7 @@ def convert(local_rank, rank, world_size, args):
         name_translate['transformer'] = 'encoder'
         name_translate['.attention.'] = '.self_attention.'
         # nemo megatron doesn't have _for_head key
-        name_translate['.word_embeddings_for_head.'] = '.word_embeddings.'
+        name_translate['word_embeddings_for_head'] = 'word_embeddings'
         model, checkpoint, consumed, steps = load_from_checkpoint(
             MegatronBertModel,
             checkpoint_path,
