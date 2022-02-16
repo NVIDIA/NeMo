@@ -13,12 +13,12 @@
 # limitations under the License.
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
-    NEMO_SPACE,
     NEMO_SIGMA,
+    NEMO_SPACE,
     NEMO_WHITE_SPACE,
     GraphFst,
+    delete_extra_space,
     delete_preserve_order,
-    delete_extra_space
 )
 from nemo_text_processing.text_normalization.es.graph_utils import ones, shift_cardinal_gender
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
@@ -96,10 +96,10 @@ class MeasureFst(GraphFst):
         graph @= pynini.cdrewrite(pynini.cross(ones, "uno"), "", NEMO_WHITE_SPACE + "por", NEMO_SIGMA)
 
         # To manage alphanumeric combonations ("a-8, 5x"), we let them use a weighted default path.
-        alpha_num_unit =  pynutil.delete("units: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\"")
+        alpha_num_unit = pynutil.delete("units: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\"")
         graph_alpha_num = pynini.union(
             (graph_cardinal | graph_decimal) + NEMO_SPACE + alpha_num_unit,
-            alpha_num_unit + delete_extra_space + (graph_cardinal | graph_decimal)
+            alpha_num_unit + delete_extra_space + (graph_cardinal | graph_decimal),
         )
 
         graph |= pynutil.add_weight(graph_alpha_num, 0.01)
