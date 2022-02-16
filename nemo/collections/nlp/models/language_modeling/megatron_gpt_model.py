@@ -204,15 +204,12 @@ class MegatronGPTModel(NLPModel):
         """
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
-        print("STARTING A TRAIN STEP")
         self._optimizer.zero_grad()
 
         if self.use_soft_prompts:
             # The micro batches are already prepared for apex by the prompt tuning dataclass
             batch_for_pipeline = batch
             tensor_shape = [len(batch_for_pipeline[0][0]), self.cfg.micro_batch_size, self.cfg.hidden_size]
-            print(f"GLOBAL BATCH LEN IS: {len(batch_for_pipeline[0])}")
-            print("\n\nLOADED BATCH\n\n")
         else:
             # we prepare the micro batches for the apex fwd/bwd function
             batch_for_pipeline = self.process_global_batch(batch)
@@ -239,7 +236,7 @@ class MegatronGPTModel(NLPModel):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
-
+        parameters = self.get_parameters()
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -249,7 +246,6 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        print("\n\nALL REDUCE GRADIAENTS CALLED\n\n")
         # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
         # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
         if self.megatron_amp_o2:
@@ -262,20 +258,17 @@ class MegatronGPTModel(NLPModel):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
             self.allreduce_first_last_embeddings()
-        print("\n\nALL REDUCE GRADIAENTS FINISHED\n\n")
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
-        print("\n\nMEAN BROADCASTED")
 
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
-                print("\n\nLOSS SCALED")
-
+            
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
@@ -287,12 +280,10 @@ class MegatronGPTModel(NLPModel):
             prog_bar=True,
             rank_zero_only=True,
         )
-        print("\n\nTRAINING STEP COMPLETED")
         print(f"MEAN LOSS: {loss_mean}")
         return loss_mean
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        print("\n\nON TRAIN BATCH END")
         super().on_train_batch_end(outputs, batch, batch_idx)
 
         # TODO: Replace with newer override for scheduler.step() instead of
@@ -648,7 +639,7 @@ class MegatronGPTModel(NLPModel):
                     self.init_prompt_from_text(tag, init_text)
 
                 elif init_method == 'random':
-                    model.init_prompt_from_random(tag)
+                    self.init_prompt_from_random(tag)
 
                 else:
                     raise AttributeError(f'\n Soft prompt init method {init_method} is not recognized\

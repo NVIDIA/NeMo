@@ -14,6 +14,7 @@
 
 """Transformer based language model."""
 import math
+from turtle import forward
 
 import torch
 import torch.nn as nn
@@ -425,7 +426,6 @@ class PromptTable(torch.nn.Module):
                     hidden_size=self.hidden_size,
                     num_prompt_tokens=self.num_prompt_tokens,
                 )
-
     def forward(self, prompt_id):
         prompt_id = prompt_id.item()
         prompt_tag = self.prompt_id_to_tag[prompt_id]
