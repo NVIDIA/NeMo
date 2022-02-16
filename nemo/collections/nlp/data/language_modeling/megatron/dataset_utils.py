@@ -564,9 +564,6 @@ def _build_train_valid_test_datasets(
     binary_head,
     max_seq_length_dec,
     dataset_type='standard_bert',
-<<<<<<< HEAD
-    tokenizer=None
-=======
     tokenizer=None,
     max_ngram_size=3,
     mean_ngram_size=None,
@@ -574,7 +571,6 @@ def _build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
->>>>>>> main
 ):
 
     if dataset_type not in DSET_TYPES:
