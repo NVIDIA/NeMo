@@ -197,8 +197,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def parse(self, str_input: str, normalize=True) -> torch.tensor:
         if self.training:
             logging.warning("parse() is meant to be called in eval mode.")
-        if str_input[-1] not in [".", "!", "?"]:
-            str_input = str_input + "."
 
         if normalize and self.text_normalizer_call is not None:
             str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_kwargs)

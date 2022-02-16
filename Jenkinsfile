@@ -718,7 +718,7 @@ pipeline {
       parallel {
         stage('SGD-GEN') {
           steps {
-            sh 'cd examples/nlp/dialogue_state_tracking_generative && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
             python sgd_gen.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
@@ -745,7 +745,7 @@ pipeline {
         }
         stage('SGD-GEN Backward compatible with SGDQA') {
           steps {
-            sh 'cd examples/nlp/dialogue_state_tracking_generative && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
             python sgd_gen.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
@@ -762,7 +762,7 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=ddp \
             exp_manager=null  && \
-            rm -rf sgd_gen_bert_outputs'
+            rm -rf sgd_gen_bert_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
       }
@@ -2304,7 +2304,9 @@ pipeline {
             model.input_fft.n_layer=2 \
             model.output_fft.d_inner=384 \
             model.output_fft.n_layer=2 \
-            ~trainer.check_val_every_n_epoch'
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
           }
         }
         stage('Mixer-TTS') {
@@ -2320,7 +2322,9 @@ pipeline {
             model.train_ds.dataloader_params.num_workers=1 \
             model.validation_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.num_workers=1 \
-            ~trainer.check_val_every_n_epoch'
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
           }
         }
         stage('Hifigan') {
