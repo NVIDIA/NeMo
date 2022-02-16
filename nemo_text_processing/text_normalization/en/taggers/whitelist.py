@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_NOT_SPACE,
+    SINGULAR_TO_PLURAL,
+    GraphFst,
+    convert_space,
+)
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
@@ -61,6 +67,10 @@ class WhiteListFst(GraphFst):
             multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
             graph |= multiple_forms_whitelist_graph
 
+            graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+            graph_unit_plural = graph_unit @ SINGULAR_TO_PLURAL
+            units_graph = pynini.compose(NEMO_CHAR ** (3, ...), convert_space(graph_unit | graph_unit_plural))
+            graph |= units_graph
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
             # e.g. "IN", "OH", "OK"
             # TODO or only exclude above?

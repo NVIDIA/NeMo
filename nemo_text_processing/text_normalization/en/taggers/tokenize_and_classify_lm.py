@@ -36,6 +36,7 @@ from nemo_text_processing.text_normalization.en.taggers.measure import MeasureFs
 from nemo_text_processing.text_normalization.en.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.en.taggers.range import RangeFst as RangeFst
 from nemo_text_processing.text_normalization.en.taggers.roman import RomanFst
 from nemo_text_processing.text_normalization.en.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
@@ -50,10 +51,10 @@ from nemo_text_processing.text_normalization.en.verbalizers.fraction import Frac
 from nemo_text_processing.text_normalization.en.verbalizers.measure import MeasureFst as vMeasure
 from nemo_text_processing.text_normalization.en.verbalizers.money import MoneyFst as vMoney
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinal
+from nemo_text_processing.text_normalization.en.verbalizers.range import RangeFst as vRangeFst
 from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
-from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWordFst
 
 from nemo.utils import logging
 
@@ -108,6 +109,7 @@ class ClassifyFst(GraphFst):
             logging.info(f'Creating ClassifyFst grammars. This might take some time...')
             # TAGGERS
             cardinal = CardinalFst(deterministic=True, lm=True)
+            cardinal_tagger = cardinal
             cardinal_graph = cardinal.fst
 
             ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
@@ -150,11 +152,14 @@ class ClassifyFst(GraphFst):
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
 
+            time_final = pynini.compose(time_graph, v_time_graph)
+            cardinal_final = pynini.compose(cardinal_graph, v_cardinal_graph)
+
             classify_and_verbalize = (
-                pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
+                pynutil.add_weight(time_final, 1.1)
                 | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
+                | pynutil.add_weight(cardinal_final, 1.1)
                 | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
@@ -186,6 +191,9 @@ class ClassifyFst(GraphFst):
             # abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
             # classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
+            range_graph = RangeFst(time=time_final, cardinal=cardinal_tagger, deterministic=deterministic).fst
+            v_range_graph = vRangeFst(deterministic=deterministic).fst
+            classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.5)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
 

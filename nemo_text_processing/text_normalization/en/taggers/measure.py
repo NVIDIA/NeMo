@@ -62,7 +62,7 @@ class MeasureFst(GraphFst):
         cardinal_graph = cardinal.graph
 
         if not deterministic:
-            cardinal_graph |= cardinal.range_graph
+            cardinal_graph = cardinal.graph | cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit).optimize()
@@ -202,15 +202,15 @@ class MeasureFst(GraphFst):
         delimiter = pynini.accep(" ") | pynutil.insert(" ")
 
         math = (
-            cardinal_graph
+            (cardinal_graph | NEMO_ALPHA)
             + delimiter
             + math_operations
-            + delimiter
+            + (delimiter | NEMO_ALPHA)
             + cardinal_graph
             + delimiter
             + pynini.cross("=", "equals")
             + delimiter
-            + cardinal_graph
+            + (cardinal_graph | NEMO_ALPHA)
         )
         math = (
             pynutil.insert("units: \"math\" cardinal { integer: \"")
