@@ -13,21 +13,25 @@
 # limitations under the License.
 
 import os
+from collections import Counter
 from typing import Any, Dict, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 
-from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset, TextToTextXNliDataset
+from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
+from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
+    TextToTextGLUEDataset,
+    TextToTextXNliDataset,
+)
+from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
-from collections import Counter
 
 try:
     from apex.transformer import tensor_parallel
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -38,7 +42,6 @@ __all__ = ['MegatronXNliModel']
 
 
 class MegatronXNliModel(MegatronT5GLUEModel):
-
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg

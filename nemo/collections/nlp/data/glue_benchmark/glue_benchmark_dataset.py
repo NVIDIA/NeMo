@@ -38,7 +38,6 @@ from nemo.collections.nlp.data.glue_benchmark.data_processors import (
     WnliProcessor,
     XNliProcessor,
 )
-
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
@@ -468,11 +467,9 @@ class TextToTextGLUEDataset(GLUEDataset):
 
 
 class TextToTextXNliDataset(TextToTextGLUEDataset):
-
     def __getitem__(self, idx):
         enc_query, dec_input, labels, lang = self.features[idx]
-        return {'text_enc': enc_query, 'text_dec': dec_input,
-                'labels': labels, 'lang': lang}
+        return {'text_enc': enc_query, 'text_dec': dec_input, 'labels': labels, 'lang': lang}
 
     def collate_fn(self, batch):
         enc_query = [item['text_enc'] for item in batch]
