@@ -40,6 +40,7 @@ def main(cfg) -> None:
                 megatron_amp_o2 and cfg.trainer.precision == 'bf16'
             ),  # Only bf16 uses fp32_grad_accum.
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+            find_unused_parameters=False,
         )
     ]
     if cfg.trainer.precision in [16, 'bf16']:
