@@ -21,6 +21,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
+from nemo_text_processing.text_normalization.es.graph_utils import strip_cardinal_apocope
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
@@ -47,6 +48,9 @@ class MeasureFst(GraphFst):
         "2,4 g" -> measure { cardinal { integer_part: "dos" fractional_part: "cuatro" units: "gramos" preserve_order: true } }
         "1 g" -> measure { cardinal { integer: "un" units: "gramo" preserve_order: true } }
         "1 millón g" -> measure { cardinal { integer: "un quantity: "millón" units: "gramos" preserve_order: true } }
+        e.g. "a-8" —> "a ocho"
+        e.g. "1,2-a" —> "uno coma dos a"
+        This class also converts words containing numbers and letters
         e.g. "a-8" —> "a ocho"
         e.g. "1,2-a" —> "uno coma dos a"
 
@@ -125,7 +129,55 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        final_graph = subgraph_decimal | subgraph_cardinal | decimal_times | subgraph_fraction | cardinal_times
+        cardinal_dash_alpha = (
+            pynutil.insert("cardinal { integer: \"")
+            + strip_cardinal_apocope(cardinal_graph)
+            + pynutil.delete('-')
+            + pynutil.insert("\" } units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.insert("\"")
+        )
+
+        decimal_dash_alpha = (
+            pynutil.insert("decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynutil.delete('-')
+            + pynutil.insert(" } units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.insert("\"")
+        )
+
+        alpha_dash_cardinal = (
+            pynutil.insert("units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.delete('-')
+            + pynutil.insert("\"")
+            + pynutil.insert(" cardinal { integer: \"")
+            + cardinal_graph
+            + pynutil.insert("\" } preserve_order: true")
+        )
+
+        alpha_dash_decimal = (
+            pynutil.insert("units: \"")
+            + pynini.closure(NEMO_ALPHA, 1)
+            + pynutil.delete('-')
+            + pynutil.insert("\"")
+            + pynutil.insert(" decimal { ")
+            + decimal.final_graph_wo_negative
+            + pynutil.insert(" } preserve_order: true")
+        )
+
+        final_graph = (
+            subgraph_decimal
+            | subgraph_cardinal
+            | subgraph_fraction
+            | cardinal_dash_alpha
+            | alpha_dash_cardinal
+            | decimal_dash_alpha
+            | decimal_times
+            | cardinal_times
+            | alpha_dash_decimal
+        )
         final_graph += pynutil.insert(" preserve_order: true")
         final_graph = self.add_tokens(final_graph)
 

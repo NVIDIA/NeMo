@@ -1,3 +1,5 @@
+1,2-a~uno coma dos a
+a-5~a cinco
 200 m~doscientos metros
 3 h~tres horas
 1 h~una hora
