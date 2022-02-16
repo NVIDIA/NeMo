@@ -611,6 +611,7 @@ def _build_train_valid_test_datasets(
 
             if dataset_type == DSET_TYPE_ICT:
                 raise NotImplementedError("ICT dataset is not implemented yet.")
+                '''
                 dataset = ICTDataset(
                     block_dataset=indexed_dataset,
                     title_dataset=title_dataset,
@@ -619,6 +620,7 @@ def _build_train_valid_test_datasets(
                     binary_head=binary_head,
                     **kwargs,
                 )
+                '''
             elif dataset_type == DSET_TYPE_T5:
                 assert tokenizer is not None, "Tokenizer is required for T5 dataset"
                 logging.info("Instatiating T5 Dataset ...")
