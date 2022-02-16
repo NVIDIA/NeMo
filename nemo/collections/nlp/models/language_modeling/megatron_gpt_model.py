@@ -204,12 +204,15 @@ class MegatronGPTModel(NLPModel):
         """
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
+        print("STARTING A TRAIN STEP")
         self._optimizer.zero_grad()
 
         if self.use_soft_prompts:
             # The micro batches are already prepared for apex by the prompt tuning dataclass
             batch_for_pipeline = batch
-            tensor_shape = [len(batch[0][0]), self.cfg.micro_batch_size, self.cfg.hidden_size]
+            tensor_shape = [len(batch_for_pipeline[0][0]), self.cfg.micro_batch_size, self.cfg.hidden_size]
+            print(f"GLOBAL BATCH LEN IS: {len(batch_for_pipeline[0])}")
+            print("\n\nLOADED BATCH\n\n")
         else:
             # we prepare the micro batches for the apex fwd/bwd function
             batch_for_pipeline = self.process_global_batch(batch)
@@ -246,6 +249,7 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
+        print("\n\nALL REDUCE GRADIAENTS CALLED\n\n")
         # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
         # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
         if self.megatron_amp_o2:
@@ -258,16 +262,19 @@ class MegatronGPTModel(NLPModel):
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
             self.allreduce_first_last_embeddings()
+        print("\n\nALL REDUCE GRADIAENTS FINISHED\n\n")
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
+        print("\n\nMEAN BROADCASTED")
 
         if self.cfg.precision == 16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
+                print("\n\nLOSS SCALED")
 
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
@@ -280,9 +287,12 @@ class MegatronGPTModel(NLPModel):
             prog_bar=True,
             rank_zero_only=True,
         )
+        print("\n\nTRAINING STEP COMPLETED")
+        print(f"MEAN LOSS: {loss_mean}")
         return loss_mean
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
+        print("\n\nON TRAIN BATCH END")
         super().on_train_batch_end(outputs, batch, batch_idx)
 
         # TODO: Replace with newer override for scheduler.step() instead of
@@ -385,7 +395,7 @@ class MegatronGPTModel(NLPModel):
             # TODO: Think of better way to do this without magic numbers
             SOFT_PROMPT_BATCH_LENGTH = 6
 
-            if len(batch) == SOFT_PROMPT_BATCH_LENTH:
+            if len(batch) == SOFT_PROMPT_BATCH_LENGTH:
                 tokens, labels, loss_mask, attention_mask, position_ids, prompt_ids = batch
                 output_tensor = model(tokens, position_ids, attention_mask, labels, prompt_ids=prompt_ids)
             else:
@@ -413,7 +423,7 @@ class MegatronGPTModel(NLPModel):
         if self.use_soft_prompts:
             # The micro batches are already prepared for apex by the prompt tuning dataclass
             batch_for_pipeline = batch
-            tensor_shape = [len(batch[0][0]), self.cfg.micro_batch_size, self.cfg.hidden_size]
+            tensor_shape = [len(batch_for_pipeline[0][0]), self.cfg.micro_batch_size, self.cfg.hidden_size]
         else:
             batch_for_pipeline = self.process_global_batch(batch)
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
@@ -605,15 +615,17 @@ class MegatronGPTModel(NLPModel):
             micro_batch_size=self.cfg.micro_batch_size,
             max_seq_length=self.cfg.data.get('max_seq_length', self.cfg.max_position_embeddings),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
-            add_bos_eos=self.cfg.data.get('add_bos_eos', False),
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True),
             calc_loss_on_answer_only=self.cfg.get('calc_loss_on_answer_only', False),
         )
 
         dataloader = torch.utils.data.DataLoader(
             dataset,
-            batch_size=self.cfg.data.batch_size,
+            batch_size=self.cfg.global_batch_size,
             collate_fn=dataset.collate_fn,
-            num_workers=self.cfg.data.num_workers,
+            num_workers=5,
+            #num_workers=self.cfg.data.num_workers,
             pin_memory=True,
         )
 

@@ -69,7 +69,7 @@ def get_language_model(
     onnx_safe=False,
     use_soft_prompts=False,
     num_prompt_tokens=10,
-    prompt_tags=None,
+    existing_prompt_tags=None,
 ):
     """Build language model and return along with the key to save."""
 
@@ -118,7 +118,7 @@ def get_language_model(
         onnx_safe=onnx_safe,
         use_soft_prompts=use_soft_prompts,
         num_prompt_tokens=num_prompt_tokens,
-        prompt_tags=prompt_tags,
+        existing_prompt_tags=existing_prompt_tags,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -352,8 +352,8 @@ class PromptEmbedding(MegatronModule):
 
         # Set ids needed for forward pass and broadcast them 
         ids = {'ids': torch.arange(self.num_prompt_tokens, dtype=torch.int64)}
-        ids_b = tensor_parallel.broadcast_data(['ids'], init_token_ids, torch.int64)
-        self.ids = init_token_ids_b['ids'].long()
+        ids_b = tensor_parallel.broadcast_data(['ids'], ids, torch.int64)
+        self.ids = ids_b['ids'].long()
 
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
@@ -426,7 +426,7 @@ class PromptTable(torch.nn.Module):
                     num_prompt_tokens=self.num_prompt_tokens,
                 )
 
-    def forward(self, prompt_tag):
+    def forward(self, prompt_id):
         prompt_id = prompt_id.item()
         prompt_tag = self.prompt_id_to_tag[prompt_id]
         return self.prompt_table[prompt_tag]()
@@ -498,8 +498,8 @@ class PromptTable(torch.nn.Module):
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
             num_prompt_tokens=self.num_prompt_tokens,
-            word_embedding_weights=embedding_weights,
-            position_embedding_weights=position_weights,
+            word_embedding_weights=word_embeddings,
+            position_embedding_weights=position_embeddings,
         )
 
         self.prompt_table[prompt_tag] = prompt_embeddings
@@ -715,7 +715,7 @@ class TransformerLanguageModel(MegatronModule):
             embedding_output = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
             # Soft prompts
-            if self.use_soft_prompts and prompt_ids:
+            if self.use_soft_prompts and prompt_ids != None:
                 prompt_embeddings = [self.prompt_table(prompt_id) for prompt_id in prompt_ids]
                 prompt_embeddings = torch.stack(prompt_embeddings)
                 encoder_input = torch.cat((prompt_embeddings, embedding_output), dim=1)

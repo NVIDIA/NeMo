@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,12 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -27,9 +30,9 @@ Can currently only prompt tune on one task at a time, but can
 run inference with multiple soft-prompts/tasks within a batch.
 
 Datasets should be formatted with in a json file like:
-{"prompt_tag": <tag1>, "text": <text1>}
-{"prompt_tag": <tag1>, "text": <text2>}
-{"prompt_tag": <tag2>, "text": <text3>}
+{"prompt_tag": <tag1>, "text": <text1>, "answer": <answer1>}
+{"prompt_tag": <tag1>, "text": <text2>, "answer": <answer2>}
+{"prompt_tag": <tag1>, "text": <text3>, "answer": <answer3>}
 
 Example Usage for first prompt tuning task:
 
@@ -139,38 +142,35 @@ python megatron_gpt_prompt_tuning.py \
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_config")
+@hydra_runner(config_path="conf", config_name="megatron_prompt_tuning_gpt_cfg")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
-
+    
     plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
-
     trainer = Trainer(plugins=plugins, **cfg.trainer)
-
     exp_manager(trainer, cfg.exp_manager)
+
+    app_state = AppState()
+    if cfg.model.tensor_model_parallel_size > 1 or cfg.model.pipeline_model_parallel_size > 1:
+        app_state.model_parallel_size = cfg.model.tensor_model_parallel_size * cfg.model.pipeline_model_parallel_size
+        (
+            app_state.tensor_model_parallel_rank,
+            app_state.pipeline_model_parallel_rank,
+            app_state.model_parallel_size,
+            _,
+        ) = fake_initialize_model_parallel(
+            world_size=app_state.model_parallel_size,
+            rank=trainer.global_rank,
+            tensor_model_parallel_size_=cfg.model.tensor_model_parallel_size,
+            pipeline_model_parallel_size_=cfg.model.pipeline_model_parallel_size,
+        )
 
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronGPTModel.restore_from(cfg.restore_from_path, cfg.model, trainer=trainer)
-
-    # Init all new prompts
-    for idx, tag in enumerate(cfg.model.new_prompt_tags):
-        init_method = cfg.model.new_prompt_init_methods[idx]
-
-        if init_method == "text":
-            init_text = cfg.model.new_prompt_init_text[idx]
-            model.init_prompt_from_text(tag, init_text)
-
-        elif init_method == 'random':
-            model.init_prompt_from_random(tag)
-
-        else:
-            logging.info(f'\n Soft prompt init method {init_method} is not recognized, please use text or random')
-
-    logging.info(f'\nCurrent soft prompts include {model.get_prompt_table()}')
     trainer.fit(model)
 
 

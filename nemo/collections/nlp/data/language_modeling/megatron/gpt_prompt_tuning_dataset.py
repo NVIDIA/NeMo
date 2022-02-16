@@ -41,12 +41,14 @@ class GPTPromptTuningDataset(Dataset):
         micro_batch_size: int,
         max_seq_length: int,
         min_seq_length: int = 1,
-        add_bos_eos: bool = True,
-        calc_loss_on_answer_only=True,
+        add_bos: bool = False,
+        add_eos: bool = True,
+        calc_loss_on_answer_only = False,
     ):
         self.tokenizer = tokenizer
         self.prompt_tag_to_id = dict(prompt_table)
-        self.add_bos_eos = add_bos_eos
+        self.add_bos = add_bos
+        self.add_eos = add_eos
         self.calc_loss_on_answer_only = calc_loss_on_answer_only
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -54,6 +56,8 @@ class GPTPromptTuningDataset(Dataset):
         self.micro_batch_size = micro_batch_size
         self.max_sent_length = max_seq_length - num_prompt_tokens
         self.prompt_ids_and_tokens = []
+
+        print(f"\n\nMicro batch size: {micro_batch_size}")
 
         assert min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -76,9 +80,13 @@ class GPTPromptTuningDataset(Dataset):
             answer_ids = tokenizer.text_to_ids(answer)
             answer_len = len(answer_ids)
 
-            if self.add_bos_eos:
-                sent_ids = [tokenizer.bos_id] + sent_ids + [tokenizer.eos_id]
+            if self.add_bos:
+                sent_ids = [tokenizer.bos_id] + sent_ids
+
+            if self.add_eos:
+                sent_ids = sent_ids + [tokenizer.eos_id]
                 answer_len += 1  # To account for EOS token
+
 
             # Need to leave space for prompt tokens in sequence
             if self.min_seq_length <= len(sent_ids) <= self.max_sent_length:
@@ -93,7 +101,7 @@ class GPTPromptTuningDataset(Dataset):
         return len(self.prompt_ids_and_tokens)
 
     def __getitem__(self, idx):
-        return self.tags_and_tokens[idx]
+        return self.prompt_ids_and_tokens[idx]
 
     def collate_fn(self, batch):
         """ Prepares global batch, then splits into micro batches if pipeline parallel is > 1"""
@@ -102,59 +110,58 @@ class GPTPromptTuningDataset(Dataset):
         prompt_ids = torch.tensor(prompt_ids)
 
         # Prepare global batch
-        tokens, labels, attention_mask, loss_mask, text_position_ids = self.process_global_batch(
+        tokens, labels, loss_mask, attention_mask, text_position_ids = self.process_global_batch(
                 input_ids,
                 answer_lens,
         )
 
         # Split into micro batchs
-        prompt_ids, tokens, labels, attention_mask, loss_mask, text_position_ids = split_into_micro_batches(
-                prompt_ids,
-                tokens,
-                labels,
-                attention_mask,
-                loss_mask,
-                text_position_ids
-        )
+        #tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids = self.split_into_micro_batches(
+        #        tokens,
+        #        labels,
+        #        loss_mask,
+        #        attention_mask,
+        #        text_position_ids,
+        #        prompt_ids,
+        #)
 
-        return tokens, labels, attention_mask, loss_mask, text_position_ids, prompt_ids
+        return tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids
 
     def process_global_batch(self, input_ids, answer_lens):
         """ Perpare tokens, labels, loss mask, attention_mask, and position ids for global batch """
         # Get max sequence length of batch
         batch_size = len(input_ids)
         batch_max = max(len(ids) for ids in input_ids)
-        tokens, loss_masks = self.pad_batch_and_build_loss_mask(input_ids, answer_lens, batch_max)
+        tokens, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, answer_lens, batch_max)
 
         # Labels for prompt tokens, just padding because the loss mask masks these out
         prompt_token_labels = torch.full(
             size=(batch_size, self.num_prompt_tokens - 1), fill_value=self.tokenizer.bos_id, dtype=torch.long,
         )
 
-        # Should be a label for every token in batch, label is the next token, starting with soft prompts
-        labels = torch.cat((prompt_token_labels, tokens[:, :].contiguous()), dim=1)
+        # Should be a label for every token in batch, label is the next token, starting with the virtual tokens
+        labels = torch.cat((prompt_token_labels, tokens.contiguous()), dim=1)
         tokens = tokens[:, :-1].contiguous()
         text_position_ids, attention_mask = self.get_ltor_attention_mask_and_position_ids(batch_size, tokens)
 
-        return tokens, labels, attention_mask, loss_mask, text_position_ids
+        return tokens, labels, loss_mask, attention_mask, text_position_ids 
 
-
-    def split_into_micro_batches(self, prompt_ids, tokens, labels, attention_mask, loss_mask, text_position_ids):
+    def split_into_micro_batches(self, tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids):
         """ Now that the global batch sequences have been padded, split into micro batches """
 
-        prompt_ids = torch.split(prompt_ids, self.micro_batch_size)
-        tokens = torch.split(tokens, self.micro_batch_size)
-        labels = torch.split(labels, self.micro_batch_size)
-        attention_mask = torch.split(attention_mask, self.micro_batch_size)
-        loss_mask = torch.split(loss_mask, self.micro_batch_size)
-        text_position_ids = torch.split(text_position_ids, self.micro_batch_size)
+        tokens = torch.cat(torch.split(tokens, self.micro_batch_size))
+        labels = torch.cat(torch.split(labels, self.micro_batch_size))
+        loss_mask = torch.cat(torch.split(loss_mask, self.micro_batch_size))
+        attention_mask = torch.cat(torch.split(attention_mask, self.micro_batch_size))
+        text_position_ids = torch.cat(torch.split(text_position_ids, self.micro_batch_size))
+        prompt_ids = torch.cat(torch.split(prompt_ids, self.micro_batch_size))
 
-        return prompt_ids, tokens, labels, attention_mask, loss_mask, text_position_ids
+        return tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids
 
 
     def pad_batch_and_build_loss_mask(self, input_ids, answer_lens, batch_max):
         """ Pad tokens in batch to max batch length while building loss mask """
-        loss_masks = []
+        loss_mask = []
         for idx, ids in enumerate(input_ids):
             text_length = len(ids)
             answer_length = answer_lens[idx]
@@ -178,13 +185,13 @@ class GPTPromptTuningDataset(Dataset):
             padding_length = batch_max - text_length
             ids.extend([self.tokenizer.eos_id] * padding_length)
             text_loss_mask.extend([0.0] * padding_length)
-            loss_masks.append(torch.tensor(text_loss_mask, dtype=torch.float))
+            loss_mask.append(torch.tensor(text_loss_mask, dtype=torch.float))
 
-        # Make into a torch tensor and move to GPU
+        # Make into a torch tensor
         tokens = torch.tensor(input_ids, dtype=torch.long)
-        loss_maks = torch.stack(loss_masks)
+        loss_mask = torch.stack(loss_mask)
 
-        return input_ids, loss_masks
+        return tokens, loss_mask
 
     def get_ltor_attention_mask_and_position_ids(self, batch_size, tokens):
         """ Makes prompt tuning left to right attention mask and position ids.
