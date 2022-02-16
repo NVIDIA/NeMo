@@ -108,12 +108,33 @@ class MegatronXNliModel(MegatronT5GLUEModel):
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
 
+    def test_step(self, batch, batch_idx):
+        return self.inference_step(batch, batch_idx)
+
+    def setup(self, stage=None):
+        # NOTE: PTL uses the same stage string "test" for both testing and validation.
+        self.build_train_valid_test_datasets(test_only=stage == 'test')
+        self.setup_test_data()
+        if stage == 'test':
+            return
+        self.setup_validation_data()
+        self.setup_training_data()
+
+    def setup_test_data(self):
+        self._test_dl = self.build_pretraining_data_loader(
+            self._test_ds,
+            self.cfg.data.validation_ds.batch_size,
+            shuffle=self.cfg.data.validation_ds.shuffle,
+            num_workers=self.cfg.data.validation_ds.num_workers,
+            pin_memory=self.cfg.data.validation_ds.pin_memory,
+        )
+
     def validation_epoch_end(self, outputs):
         val_loss, val_acc = self.inference_epoch_end(outputs)
         self.log('val_loss', val_loss, prog_bar=True)
         self.log('val_acc', val_acc['acc'], prog_bar=True)
         for category in self.cfg.categories:
-            logging.info(f"Validation {category} accuracy: {val_acc[category]}")
+            logging.info(f"Validation {category} accuracy: {val_acc[category]} total: {val_acc[category+'_total']}")
         logging.info(f'Validation loss: {val_loss}')
         logging.info(f"Validation accuracy: {val_acc['acc']}")
 
@@ -122,7 +143,7 @@ class MegatronXNliModel(MegatronT5GLUEModel):
         self.log('test_loss', test_loss, prog_bar=True)
         self.log('test_acc', test_acc['acc'], prog_bar=True)
         for category in self.cfg.categories:
-            logging.info(f"Test {category} accuracy: {test_acc[category]}")
+            logging.info(f"Test {category} accuracy: {test_acc[category]} total: {test_acc[category+'_total']}")
         logging.info(f'Test loss: {test_loss}')
         logging.info(f"Test accuracy: {test_acc['acc']}")
 

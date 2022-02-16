@@ -178,7 +178,7 @@ class ExactStringPerCategoryMatchMetric(Metric):
         self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
         for category in categories:
             self.add_state(f"{category}_total", default=torch.tensor(0), dist_reduce_fx="sum")
-            self.add_state("{category}_correct", default=torch.tensor(0), dist_reduce_fx="sum")
+            self.add_state(f"{category}_correct", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, pred: str, target: str, category: str):
         if pred == target:
@@ -198,4 +198,6 @@ class ExactStringPerCategoryMatchMetric(Metric):
         results['acc'] = self.correct.float() / self.total
         for category in self.categories:
             results[category] = getattr(self, f"{category}_correct") / getattr(self, f"{category}_total")
+        for category in self.categories:
+            results[f"{category}_total"] = getattr(self, f"{category}_total")
         return results
