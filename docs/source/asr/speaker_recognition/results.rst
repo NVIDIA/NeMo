@@ -30,12 +30,12 @@ Where the model base class is the ASR model class of the original checkpoint, or
 Speaker Label Inference
 ------------------------
 
-Speaker label Inference, is to infer speaker labels using speaker model with known speaker labels from enrollment set. We provide `speaker_identification_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
+The goal of speaker label inference is to infer speaker labels using a speaker model with known speaker labels from enrollment set. We provide `speaker_identification_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
 Currently supported backends are cosine_similarity and neural classifier.
 
 The audio files should be 16KHz mono channel wav files.
 
-Script takes two manifest files: 
+The script takes two manifest files: 
 
 * enrollment_manifest : This manifest contains enrollment data with known speaker labels.
 * test_manifest: This manifest contains test data for which we map speaker labels captured from enrollment manifest using one of provided backend
@@ -53,8 +53,8 @@ Speaker Embedding Extraction
 -----------------------------
 Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unknown speakers). We provide two ways to do this:
 
-* single python liner for extracting embeddings from a single file 
-* python script for extracting embeddings from a bunch of files provided through manifest file
+* single Python liner for extracting embeddings from a single file 
+* Python script for extracting embeddings from a bunch of files provided through manifest file
 
 For extracting embeddings from a single file:
 
@@ -103,14 +103,14 @@ The SpeakerNet-ASR collection has checkpoints of several models trained on vario
 The tables below list the speaker embedding extractor models available from NGC, and the models can be accessed via the
 :code:`from_pretrained()` method inside the EncDecSpeakerLabelModel Model class.
 
-In general, you can load any of these models with code in the following format.
+In general, you can load any of these models with code in the following format:
 
 .. code-block:: python
 
   import nemo.collections.asr as nemo_asr
   model = nemo_asr.models.<MODEL_CLASS_NAME>.from_pretrained(model_name="<MODEL_NAME>")
 
-Where the model name is the value under "Model Name" entry in the tables below.
+where the model name is the value under "Model Name" entry in the tables below.
 
 If you would like to programatically list the models available for a particular base class, you can use the
 :code:`list_available_models()` method.
