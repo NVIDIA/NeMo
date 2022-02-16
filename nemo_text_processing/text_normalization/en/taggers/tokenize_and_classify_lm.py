@@ -128,7 +128,7 @@ class ClassifyFst(GraphFst):
             telephone_graph = TelephoneFst(deterministic=True).fst
             electronic_graph = ElectronicFst(deterministic=True).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
-            whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
+            whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist, lm=True)
             whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=True).graph
 
@@ -161,7 +161,6 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.1)
-                | pynutil.add_weight(whitelist_graph, 1.01)
             ).optimize()
 
             # classify = (
@@ -187,7 +186,7 @@ class ClassifyFst(GraphFst):
             # classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
-            classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
+            classify_and_verbalize |= pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.1)
 
             punct_only = pynutil.add_weight(punct_graph, weight=0.1)
             punct = pynini.closure(

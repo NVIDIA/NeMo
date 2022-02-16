@@ -42,23 +42,29 @@ class WhiteListFst(GraphFst):
         input_file: path to a file with whitelist replacements
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None):
+    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None, lm: bool = False):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
-        def _get_whitelist_graph(input_case, file):
+        def _get_whitelist_graph(input_case, file, is_default=True):
             whitelist = load_labels(file)
             if input_case == "lower_cased":
                 whitelist = [(x.lower(), y) for x, y in whitelist]
             else:
                 whitelist = [(x, y) for x, y in whitelist]
+
+            if not is_default:
+                whitelist = [(x, f"|raw_start|{x}|raw_end||norm_start|{y}|norm_end|") for (x, y) in whitelist]
             graph = pynini.string_map(whitelist)
             return graph
 
-        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
-        if not deterministic:
-            graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
+        is_default = not lm
+        if deterministic:
+            graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
+        else:
+            graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"), is_default=is_default)
+            graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"), is_default=is_default)
 
-            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
+            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"), is_default=is_default)
             graph |= multiple_forms_whitelist_graph
 
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
@@ -69,7 +75,12 @@ class WhiteListFst(GraphFst):
             for x, y in states:
                 if input_case == "lower_cased":
                     x = x.lower()
-                additional_options.append((x, f"{y[0]}.{y[1:]}"))
+
+                if is_default:
+                    additional_options.append((x, f"{y[0]}.{y[1:]}"))
+                else:
+                    additional_options.append((f"|norm_start|{x}|norm_end|", f"|raw_start|{y[0]}.{y[1:]}|raw_end|"))
+
             states.extend(additional_options)
             state_graph = pynini.string_map(states)
             graph |= (
@@ -84,10 +95,11 @@ class WhiteListFst(GraphFst):
                 graph = whitelist_provided
 
         self.graph = (convert_space(graph)).optimize()
+
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
 
 
-def get_formats(input_f, input_case="cased"):
+def get_formats(input_f, input_case="cased", is_default=False):
     """
     Adds various abbreviation format options to the list of acceptable input forms
     """
@@ -102,5 +114,9 @@ def get_formats(input_f, input_case="cased"):
         additional_options.append((f"{x.upper()}", f"{y[0].upper() + y[1:]}"))  # DR -> Doctor
         additional_options.append((f"{x.upper()}.", f"{y[0].upper() + y[1:]}"))  # DR. -> Doctor
     multiple_formats.extend(additional_options)
+
+    if not is_default:
+        multiple_formats = [(x, f"|raw_start|{x}|raw_end||norm_start|{y}|norm_end|") for (x, y) in multiple_formats]
+
     multiple_formats = pynini.string_map(multiple_formats)
     return multiple_formats
