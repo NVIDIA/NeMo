@@ -19,13 +19,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
     NEMO_SPACE,
+    NEMO_UPPER,
     SINGULAR_TO_PLURAL,
     TO_LOWER,
     GraphFst,
     convert_space,
     delete_space,
     insert_space,
-    NEMO_UPPER
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
 from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats

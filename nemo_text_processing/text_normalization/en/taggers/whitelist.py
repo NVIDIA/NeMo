@@ -16,6 +16,7 @@
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_NOT_SPACE,
+    NEMO_UPPER,
     SINGULAR_TO_PLURAL,
     GraphFst,
     convert_space,
@@ -61,6 +62,12 @@ class WhiteListFst(GraphFst):
             return graph
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
+        for x in [".", ". "]:
+            graph |= (
+                NEMO_UPPER
+                + pynini.closure(pynutil.delete(x) + NEMO_UPPER, 2)
+                + pynini.closure(pynutil.delete("."), 0, 1)
+            )
         if not deterministic:
             graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
 

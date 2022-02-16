@@ -71,7 +71,11 @@ class RomanFst(GraphFst):
 
         # two and more roman numerals, single digit roman numbers could be initials or I
         roman_to_cardinal = pynini.compose(
-            pynini.closure(NEMO_ALPHA, 2), (pynutil.insert("default_cardinal: \"default\" ") + default_graph)
+            pynini.closure(NEMO_ALPHA, 2),
+            (
+                pynutil.insert("default_cardinal: \"default\" ")
+                + (pynini.string_map([x[0] for x in roman_dict[:50]]).optimize()) @ default_graph
+            ),
         )
 
         # two and more roman numerals, single digit roman numbers could be initials or I
