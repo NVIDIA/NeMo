@@ -14,7 +14,6 @@
 
 import os
 import re
-from doctest import OutputChecker
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -43,7 +42,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
