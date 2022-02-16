@@ -94,7 +94,7 @@ def reconstruct_wave(*args: ndarray, kwargs_istft, n_sample=-1) -> ndarray:
     if spec is None:
         spec = mag * np.exp(1j * phase)
 
-    wave = librosa.istft(spec, **kwargs_istft, **kwarg_len)
+    wave = librosa.istft(stft_matrix=spec, **kwargs_istft, **kwarg_len)
     return wave
 
 

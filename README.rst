@@ -49,6 +49,7 @@ Key Features
         * Supports CTC and Transducer/RNNT losses/decoders
         * Beam Search decoding
         * `Language Modelling for ASR <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
+        * Streaming and Buffered ASR (CTC/Transdcer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/main/examples/asr/asr_chunked_inference>`_
     * `Speech Classification and Speech Command Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (Command Recognition)
     * `Voice activity Detection (VAD) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/speech_classification/models.html#marblenet-vad>`_: MarbleNet
     * `Speaker Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html>`_: TitaNet, ECAPA_TDNN, SpeakerNet
@@ -134,6 +135,10 @@ Use this installation mode if you want the latest released version.
     pip install Cython
     pip install nemo_toolkit['all']
 
+.. note::
+
+    Depending on the shell used, you may need to use ``"nemo_toolkit[all]"`` instead in the above command.
+
 Pip from source
 ~~~~~~~~~~~~~~~
 Use this installation mode if you want the a version from particular GitHub branch (e.g main).
@@ -155,6 +160,11 @@ Use this installation mode if you are contributing to NeMo.
     git clone https://github.com/NVIDIA/NeMo
     cd NeMo
     ./reinstall.sh
+
+.. note::
+
+    If you only want the toolkit without additional conda-based dependencies, you may replace ``reinstall.sh``
+    with ``pip install -e .`` when your PWD is the root of the NeMo repository.
 
 RNNT
 ~~~~

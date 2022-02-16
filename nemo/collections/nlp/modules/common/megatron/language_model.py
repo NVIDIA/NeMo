@@ -17,7 +17,6 @@ import math
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.nn.init as init
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -35,22 +34,6 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
-
-def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
-    """LM logits using word embedding weights."""
-    # Parallel logits.
-    input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
-    # Matrix multiply.
-    if bias is None:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
-    else:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
-    # Gather if needed.
-    if parallel_output:
-        return logits_parallel
-
-    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
 
 
 def get_language_model(
@@ -80,6 +63,7 @@ def get_language_model(
     activations_checkpoint_num_layers=1,
     layernorm_epsilon=1e-5,
     bias_gelu_fusion=True,
+    masked_softmax_fusion=True,
     persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
@@ -128,6 +112,7 @@ def get_language_model(
         activations_checkpoint_num_layers=activations_checkpoint_num_layers,
         layernorm_epsilon=layernorm_epsilon,
         bias_gelu_fusion=bias_gelu_fusion,
+        masked_softmax_fusion=masked_softmax_fusion,
         persist_layer_norm=persist_layer_norm,
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
@@ -546,6 +531,7 @@ class TransformerLanguageModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         bias_gelu_fusion=True,
+        masked_softmax_fusion=True,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
@@ -624,6 +610,7 @@ class TransformerLanguageModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            masked_softmax_fusion=masked_softmax_fusion,
         )
         self._encoder_key = 'encoder'
 
@@ -656,6 +643,7 @@ class TransformerLanguageModel(MegatronModule):
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
+                masked_softmax_fusion=masked_softmax_fusion,
             )
             self._decoder_key = 'decoder'
 
@@ -667,7 +655,12 @@ class TransformerLanguageModel(MegatronModule):
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
-        self.encoder.set_input_tensor(input_tensor)
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+
+        self.encoder.set_input_tensor(input_tensor[0])
 
     def forward(
         self,
