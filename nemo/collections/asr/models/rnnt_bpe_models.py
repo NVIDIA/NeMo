@@ -213,7 +213,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             new_tokenizer_type: Type of tokenizer. Can be either `bpe` or `wpe`.
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
-
+            new_tokenizer_cfg: A config for the new tokenizer. if provided, pre-empts the dir and type
         Returns: None
 
         """
