@@ -171,11 +171,20 @@ class NLPDDPPlugin(DDPPlugin):
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
         # half-precision module wrapper module.
+        # TODO: Refactor this to be more generic.
+        model_key = None
+        model_attr = None
         if hasattr(self.lightning_module, 'model'):
-            if isinstance(self.lightning_module.model, Float16Module):
+            model_key = 'model'
+            model_attr = self.lightning_module.model
+        elif hasattr(self.lightning_module, 'enc_dec_model'):
+            model_key = 'enc_dec_model'
+            model_attr = self.lightning_module.enc_dec_model
+        if model_key is not None:
+            if isinstance(model_attr, Float16Module):
                 new_state_dict = {}
                 for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_key = key.replace(f'{model_key}.', f'{model_key}.module.', 1)
                     new_state_dict[new_key] = checkpoint['state_dict'][key]
                 checkpoint['state_dict'] = new_state_dict
 

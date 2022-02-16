@@ -1500,7 +1500,7 @@ class BucketingDataset(IterableDataset):
         ).__iter__()
 
     def __len__(self):
-        return int(math.ceil(len(self.wrapped_dataset.collection) / float(self.bucketing_batch_size)))
+        return int(math.ceil(len(self.wrapped_dataset) / float(self.bucketing_batch_size)))
 
 
 class BucketingIterator:
