@@ -131,10 +131,10 @@ def get_args():
         "--output_ckpt_file_path", type=str, default=None, required=False, help="Path to output .ckpt file."
     )
 
-    parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
+    parser.add_argument("--gpus_per_node", type=int, required=False, default=1)
 
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
+    parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
 
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
 
@@ -339,7 +339,8 @@ def load_from_checkpoint(
             steps = old_checkpoint['iteration']
     finally:
         cls._set_model_restore_state(is_being_restored=False)
-    return checkpoint, consumed, steps
+    logging.warning(f"the checkpoint version is {check_point_version}")
+    return checkpoint, consumed, steps, check_point_version
 
 
 def convert(local_rank, rank, world_size, args):
@@ -389,7 +390,7 @@ def convert(local_rank, rank, world_size, args):
         name_translate['.attention.'] = '.self_attention.'
         # nemo megatron doesn't have _for_head key
         name_translate['word_embeddings_for_head'] = 'word_embeddings'
-        checkpoint, consumed, steps = load_from_checkpoint(
+        checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronGPTModel,
             checkpoint_path,
             hparams_file=args.hparams_file,
@@ -404,7 +405,7 @@ def convert(local_rank, rank, world_size, args):
         name_translate['.attention.'] = '.self_attention.'
         # nemo megatron doesn't have _for_head key
         name_translate['word_embeddings_for_head'] = 'word_embeddings'
-        checkpoint, consumed, steps = load_from_checkpoint(
+        checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronBertModel,
             checkpoint_path,
             hparams_file=args.hparams_file,
@@ -439,39 +440,9 @@ def convert(local_rank, rank, world_size, args):
 
     if args.nemo_file_path:
         if args.model_type == 'gpt':
-            ## this dictionary is used to rename the model parameters
-            name_translate = {}
-            name_translate['transformer'] = 'encoder'
-            name_translate['.attention.'] = '.self_attention.'
-            # nemo megatron doesn't have _for_head key
-            name_translate['word_embeddings_for_head'] = 'word_embeddings'
-            name_translate['language_model'] = 'module.language_model'
-            checkpoint, consumed, steps = load_from_checkpoint(
-                MegatronGPTModel,
-                checkpoint_path,
-                hparams_file=args.hparams_file,
-                trainer=trainer,
-                translator=name_translate,
-                strict=False,
-            )
             model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
         elif args.model_type == 'bert':
-            ## this dictionary is used to rename the model parameters
-            name_translate = {}
-            name_translate['transformer'] = 'encoder'
-            name_translate['.attention.'] = '.self_attention.'
-            # nemo megatron doesn't have _for_head key
-            name_translate['word_embeddings_for_head'] = 'word_embeddings'
-            name_translate['language_model'] = 'module.language_model'
-            checkpoint, consumed, steps = load_from_checkpoint(
-                MegatronBertModel,
-                checkpoint_path,
-                hparams_file=args.hparams_file,
-                trainer=trainer,
-                translator=name_translate,
-                strict=False,
-            )
-            model = load_model(MegatronBertModel, checkpoint, struct=False, trainer=trainer)
+            model = load_model(MegatronBertModel, checkpoint, strict=False, trainer=trainer)
         else:
             raise NotImplemented("{} is not supported".format(args.model_type))
 
