@@ -135,5 +135,5 @@ oh point oh oh four
 Henry three.
 Henry the third.
 ~340 A.D.
-three hundred and forty a d
-three forty a d
+three hundred and forty AD
+three forty AD

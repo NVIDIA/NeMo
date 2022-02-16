@@ -25,6 +25,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     convert_space,
     delete_space,
     insert_space,
+    NEMO_UPPER
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
 from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats
@@ -269,9 +270,9 @@ class MeasureFst(GraphFst):
         address_words = get_formats(get_abs_path("data/address/address_words.tsv"))
         address_words = (
             pynini.accep(NEMO_SPACE)
-            + (pynini.closure(ordinal_num, 0, 1) | pynini.closure(NEMO_ALPHA, 1))
+            + (pynini.closure(ordinal_num, 0, 1) | NEMO_UPPER + pynini.closure(NEMO_ALPHA, 1))
             + NEMO_SPACE
-            + pynini.closure(NEMO_ALPHA | NEMO_SPACE)
+            + pynini.closure(NEMO_UPPER + pynini.closure(NEMO_ALPHA) + NEMO_SPACE)
             + address_words
         )
 
