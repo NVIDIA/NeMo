@@ -2,7 +2,7 @@ name: megatron_t5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  gpus: 2
+  gpus: 1
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -40,7 +40,7 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 4
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
 
   # model architecture
