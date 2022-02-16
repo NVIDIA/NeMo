@@ -915,9 +915,6 @@ class MegatronGPTModel(NLPModel):
                     )
 
                 # get output tensor
-                # No labels during inference. Still need masks to not attend to the right
-                # output_tensor = self(tokens, position_ids, attention_mask, prompt_tags=prompt_tags, labels=None)
-                # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 if parallel_state.is_pipeline_last_stage():
                     output_tensor = output_tensor[0]['logits']
                     output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
