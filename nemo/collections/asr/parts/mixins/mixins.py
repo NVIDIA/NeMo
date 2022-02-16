@@ -51,7 +51,7 @@ class ASRBPEMixin(ABC):
 
         # preserve these until the _make_tokenizer call
         if 'dir' in self.tokenizer_cfg.keys():
-            self.tokenizer_dir = self.tokenizer_cfg.get('dir') 
+            self.tokenizer_dir = self.tokenizer_cfg.get('dir')
         self.tokenizer_type = self.tokenizer_cfg.get('type').lower()
         self.hf_tokenizer_kwargs = self.tokenizer_cfg.get("hf_kwargs", {})
 
@@ -71,21 +71,20 @@ class ASRBPEMixin(ABC):
             )
 
         if self.tokenizer_type == 'agg':
-          logging.debug("_setup_tokenizer: detected an aggregate tokenizer")
-          tokenizers_dict = {}
-          for lang, tokenizer_cfg in tokenizer_cfg.tokenizers.items():
-              tokenizer, model_path, vocab_path, spe_vocab_path = self._make_tokenizer(tokenizer_cfg)
-              tokenizers_dict[lang] = tokenizer
-              if model_path is not None:
-                  self.register_artifact('tokenizer.tokenizers.' + lang + '.model_path', model_path)
-              if spe_vocab_path is not None:
-                  self.register_artifact('tokenizer.tokenizers.' + lang + '.vocab_path', vocab_path)
-              if spe_vocab_path is not None:
-                  self.register_artifact('tokenizer.tokenizers.' + lang + '.spe_tokenizer_vocab', spe_vocab_path)
+            logging.debug("_setup_tokenizer: detected an aggregate tokenizer")
+            tokenizers_dict = {}
+            for lang, tokenizer_cfg in tokenizer_cfg.tokenizers.items():
+                tokenizer, model_path, vocab_path, spe_vocab_path = self._make_tokenizer(tokenizer_cfg)
+                tokenizers_dict[lang] = tokenizer
+                if model_path is not None:
+                    self.register_artifact('tokenizer.tokenizers.' + lang + '.model_path', model_path)
+                if spe_vocab_path is not None:
+                    self.register_artifact('tokenizer.tokenizers.' + lang + '.vocab_path', vocab_path)
+                if spe_vocab_path is not None:
+                    self.register_artifact('tokenizer.tokenizers.' + lang + '.spe_tokenizer_vocab', spe_vocab_path)
 
-
-          self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
-          # need to register some artifacts here
+            self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
+            # need to register some artifacts here
         else:
             logging.debug("_setup_tokenizer: detected a monolingual tokenizer")
             self.tokenizer, model_path, vocab_path, spe_vocab_path = self._make_tokenizer(tokenizer_cfg)
@@ -103,7 +102,6 @@ class ASRBPEMixin(ABC):
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
         self.hf_tokenizer_kwargs = self.tokenizer_cfg.pop("hf_kwargs", {})  # Remove HF tokenizer kwargs
-            
 
     def _make_tokenizer(self, tokenizer_cfg: DictConfig):
 
@@ -115,7 +113,7 @@ class ASRBPEMixin(ABC):
                 "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
                 "`wpe` for BERT based tokenizer"
             )
-    
+
         # defaults
         model_path = None
         vocab_path = None
@@ -192,9 +190,7 @@ class ASRBPEMixin(ABC):
             )
 
         logging.info(
-            "Tokenizer {} initialized with {} tokens".format(
-                tokenizer.__class__.__name__, self.tokenizer.vocab_size
-            )
+            "Tokenizer {} initialized with {} tokens".format(tokenizer.__class__.__name__, self.tokenizer.vocab_size)
         )
 
         return tokenizer, model_path, vocab_path, spe_vocab_path
