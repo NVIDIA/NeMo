@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ from nemo.utils import logging
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="speaker_identification_infer.yaml")
+@hydra_runner(config_path="conf", config_name="speaker_identification_infer")
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
@@ -97,9 +97,6 @@ def main(cfg):
             speaker_model, test_manifest, batch_size, sample_rate, device=device,
         )
         matched_labels = test_logits.argmax(axis=-1)
-        import ipdb
-
-        ipdb.set_trace()
 
     with open(test_manifest, 'rb') as f1, open(out_manifest, 'w', encoding='utf-8') as f2:
         lines = f1.readlines()

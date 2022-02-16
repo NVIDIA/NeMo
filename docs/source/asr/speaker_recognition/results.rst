@@ -30,22 +30,24 @@ Where the model base class is the ASR model class of the original checkpoint, or
 Speaker Label Inference
 ------------------------
 
-Speaker label Inference, is to infer speaker labels from a pretrained speaker model with known speaker labels. We provide `speaker_reco_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
+Speaker label Inference, is to infer speaker labels using speaker model with known speaker labels from enrollment set. We provide `speaker_identification_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
+Currently supported backends are cosine_similarity and neural classifier.
 
 The audio files should be 16KHz mono channel wav files.
 
-Write audio files to a ``manifest.json`` file with lines as in format:
+Script takes two manifest files: 
 
-.. code-block:: json
-    
-    {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "UNK"}
-      
-This python call will use the pretrain model and infer labels on provided test set using labels from trained manifest file
+* enrollment_manifest : This manifest contains enrollment data with known speaker labels.
+* test_manifest: This manifest contains test data for which we map speaker labels captured from enrollment manifest using one of provided backend
+
+sample format for each of these manifests is provided in `<NeMo_root>/examples/speaker_tasks/recognition/conf/speaker_identification_infer.yaml` config file.
+
+To infer speaker labels using cosine_similarity backend
 
 .. code-block:: bash
   
-    python speaker_reco_infer.py --spkr_model='/path/to/.nemo/file' --train_manifest='/path/to/train/manifest/file'
-    --test_manifest=/path/to/train/manifest/file' --batch_size=32
+    python speaker_identification_infer.py data.enrollment_manifest=<path/to/enrollment_manifest> data.test_manifest=<path/to/test_manifest> backend.backend_model=cosine_similarity
+
     
 Speaker Embedding Extraction
 -----------------------------
