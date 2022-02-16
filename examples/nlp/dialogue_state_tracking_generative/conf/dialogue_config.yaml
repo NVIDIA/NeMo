@@ -35,6 +35,9 @@ model:
   tensor_model_parallel_size: 1
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   library: huggingface # huggingface or megatron
+  new_prompt_tags: [] # brief short name (each element is a string "<tag>")
+  new_prompt_init_methods: [] # text (preferably) or random
+  new_prompt_init_text: [] # long descriptive text to init
   tokenizer:
       tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
       vocab_file: null # path to vocab file
@@ -54,6 +57,10 @@ model:
 
   dataset:
     task: sgd
+    field: intent # intemt, slots, service
+    prompt_template: default # default, prompt_tuning, i_want_to
+    target_template: default # default, with_description, with_slots
+    debug_mode: false # small number of examples for debugging
     eval_mode: ranking # ranking or generation or binary_score
     max_seq_length: 128 # the maximum length BERT supports is 512
     max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 

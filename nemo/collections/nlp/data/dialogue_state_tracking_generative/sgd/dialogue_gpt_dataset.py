@@ -43,23 +43,32 @@ class DialogueGPTDataset(Dataset):
             dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
         """
-        self.label_type = "intent"
+        self.cfg = cfg
+
+        if self.cfg.target_template == "with_slots" and self.cfg.eval_mode != "generation":
+            raise ValueError("slot-filling is not supported by eval_mode {}".format(self.cfg.eval_mode))
+        if self.cfg.target_template != "with_slots" and self.cfg.field == "slots":
+            raise ValueError("please set model.dataset.target_template='with_slots' if model.dataset.field='slots'")
+        self.label_type = self.cfg.field
+        if self.cfg.target_template == "with_description":
+            self.label_to_description = defaultdict(str)
         self.all_possible_labels = set()
         self.tokenizer = tokenizer
-        self.cfg = cfg
         self.max_candidates = 2
-        self.label_to_description = defaultdict(str)
         if not isinstance(dataset_split, str):
             dataset_split = dataset_split[0]
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         for idx in range(len(self.features)):
             self.preprocess_feature(idx)
+        if self.cfg.debug_mode:
+            self.features = self.features[:16]
 
     def transform(self, label):
         if self.cfg.task == "sgd":
             label = self.convert_camelcase_to_lower(label)
         elif self.cfg.task == "assistant":
-            label = label.replace('_', ' ')
+            pass
+            # label = label.replace('_', ' ') #comment out to fit prompt tuning
         return label
 
     def convert_camelcase_to_lower(self, label):
@@ -90,9 +99,9 @@ class DialogueGPTDataset(Dataset):
 
         self.features[idx].data["labels"][self.label_type] = label
         self.features[idx].data["possible_labels"][self.label_type] = candidates
-        # description = ex["description"][self.label_type]
-        # self.label_to_description[label] = description
-
+        if self.cfg.target_template == "with_description":
+            description = ex["description"][self.label_type]
+            self.label_to_description[label] = description
         for candidate in candidates:
             self.all_possible_labels.add(candidate)
         self.max_candidates = max(self.max_candidates, len(candidates) * 2)
@@ -105,6 +114,38 @@ class DialogueGPTDataset(Dataset):
         attn_masks = torch.squeeze(encodings_dict['attention_mask'])
         return encodings_dict, input_ids, attn_masks
 
+    def linearize_slots(self, slots):
+        if not slots:
+            return "None"
+        return ", ".join(
+            ["{}({})".format(slot, value if isinstance(value, str) else value[0]) for slot, value in slots.items()]
+        )
+
+    def format_target(self, target, slots=None):
+        # this function formats the back part of the training ex, after the base_template
+        # for instance, "restaurant" in  "<utterance> service: restaurant"
+        # or "set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)" in \
+        # "<utterance>\nintent: set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)"
+        if self.cfg.target_template == "with_description":
+            return target + ' (' + self.label_to_description[target] + ')'
+        elif self.cfg.target_template == "default":
+            return target
+        elif self.cfg.target_template == "with_slots" and slots is not None and self.cfg.field == "intent":
+            return target + '\nslots: ' + self.linearize_slots(slots)
+        elif self.cfg.target_template == "with_slots" and slots is not None and self.cfg.field == "slots":
+            return self.linearize_slots(slots)
+        else:
+            raise ValueError("Please choose a target format from {default, with_description, with_slots}")
+
+    def format_prompt(self, utterance):
+        if self.cfg.prompt_template == "default":
+            base_template = utterance + ' ' + self.label_type + ':'
+        elif self.cfg.prompt_template == "i_want_to":
+            base_template = utterance + ' ' + 'I want to'
+        elif self.cfg.prompt_template == "prompt_tuning":
+            base_template = utterance + '\n' + self.label_type + ':'
+        return base_template
+
     def __getitem__(self, idx: int):
 
         '''
@@ -114,25 +155,27 @@ class DialogueGPTDataset(Dataset):
 
         Training example: 
             e.g. <utterance> service: restaurant
-            e.g. <task description> <utterance> detected service: restaurant
+            e.g. <task description> <utterance> service: restaurant
+            e.g. <utterance>\nintent: set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)
 
-        Inference example:
+        Generation example:
             e.g. <utterance> service: 
+
         '''
         ex = self.features[idx].data
 
         utterance = ex["utterance"]
+        utterance_length = self.get_n_tokens_in_sentence(utterance)
+
         label = ex["labels"][self.label_type]
         candidates = ex["possible_labels"][self.label_type]
 
-        base_template = utterance + ' ' + self.label_type + ':'
-        # base_template = utterance + ' ' + 'I want to'
+        slots = ex["labels"]["slots"] if self.cfg.target_template == "with_slots" else None
 
-        utterance_length = self.get_n_tokens_in_sentence(utterance)
-
+        base_template = self.format_prompt(utterance)
         sentence_without_answer = base_template
 
-        sentence = base_template + ' ' + label  # + ' (' + self.label_to_description[label] + ')'
+        sentence = base_template + ' ' + self.format_target(label, slots=slots)
 
         if self.cfg.eval_mode == "binary_score":
             candidate_sentences = []
@@ -149,8 +192,7 @@ class DialogueGPTDataset(Dataset):
         else:
             correct_candidate = 0
             candidate_sentences = [
-                base_template + ' ' + candidate  # + ' (' + self.label_to_description[candidate] + ')'
-                for candidate in candidates
+                base_template + ' ' + self.format_target(candidate, slots=slots) for candidate in candidates
             ]
 
         self.tokenizer.tokenizer.padding_side = "right"
@@ -160,6 +202,8 @@ class DialogueGPTDataset(Dataset):
         candidate_tokenized_sentences = [
             self.default_encode(candidate_sentence) for candidate_sentence in candidate_sentences
         ]
+
+        # ensure all samples have the same number of candidates for collating into tensor
         while len(candidate_tokenized_sentences) < self.max_candidates:
             candidate_tokenized_sentences.append(candidate_tokenized_sentences[0])
 
@@ -187,6 +231,7 @@ class DialogueGPTDataset(Dataset):
 
         generate_input_ids = torch.squeeze(encodings_dict_without_answer['input_ids'])
         generate_attn_masks = torch.squeeze(encodings_dict_without_answer['attention_mask'])
+
         return (
             input_ids,
             attn_masks,

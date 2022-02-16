@@ -19,12 +19,13 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 '''
 
 import collections
+import json
 import os
 from typing import Dict, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
@@ -54,14 +55,32 @@ class DialogueGPTModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
     ):
+        self.cfg = cfg
         self.data_prepared = False
+
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        if cfg.library == "huggingface":
+        if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
-        elif cfg.library == "megatron":
+        elif self.cfg.library == "megatron":
             self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
+            self.prompt_tags = (
+                sorted(list(self.language_model.prompt_table)) if 'prompt_table' in dir(self.language_model) else []
+            )
+            """
+            # Init all new prompts
+            for idx, tag in enumerate(cfg.new_prompt_tags):
+                self.prompt_tags.append(tag)
+                init_method = cfg.new_prompt_init_methods[idx]
+                if init_method == "text":
+                    init_text = cfg.new_prompt_init_text[idx]
+                    self.language_model.init_prompt_from_text(tag, init_text)
+                elif init_method == 'random':
+                    self.language_model.init_prompt_from_random(tag)
+                else:
+                    raise ValueError(f'\n Soft prompt init method {init_method} is not recognized, please use text or random')
+            """
 
         all_labels = list(
             self._train_dl.dataset.all_possible_labels.union(
@@ -80,9 +99,10 @@ class DialogueGPTModel(NLPModel):
             num_classes=len(self.label_to_ids) + 1, mode='micro', label_ids=self.label_to_ids, dist_sync_on_step=True
         )
         self.eval_mode = cfg.eval_mode
-        self.cfg = cfg
 
     def training_step(self, batch, batch_idx):
+        if self.cfg.library == "megatron":
+            raise NotImplementedError
         (
             input_ids,
             attn_masks,
@@ -122,16 +142,144 @@ class DialogueGPTModel(NLPModel):
     def test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, mode='test')
 
+    def get_slot_filling_metrics(self, generated_slots, ground_truth_slots):
+        all_recall = []
+        all_precision = []
+        all_joint_goal_accuracy = []
+
+        for i in range(len(generated_slots)):
+            # depulicate and sort
+            ground_truth = sorted(list(set(ground_truth_slots[i])))
+            predicted = sorted(list(set(generated_slots[i])))
+            correct = [item for item in predicted if item in ground_truth]
+            recall = len(correct) / len(ground_truth) if len(ground_truth) > 0 else 0
+            precision = len(correct) / len(predicted) if len(predicted) > 0 else 0
+            joint_goal_accuracy = int(ground_truth == predicted)
+            all_recall.append(recall)
+            all_precision.append(precision)
+            all_joint_goal_accuracy.append(joint_goal_accuracy)
+
+        avg_joint_goal_accuracy = np.mean(all_joint_goal_accuracy)
+        avg_precision = np.mean(all_precision)
+        avg_recall = np.mean(all_recall)
+        avg_f1 = 2 * (avg_recall * avg_precision) / (avg_recall + avg_precision)
+
+        return avg_precision, avg_recall, avg_f1, avg_joint_goal_accuracy
+
+    def split_label_and_slots(self, fields):
+        labels = []
+        slots_list = []
+        for field in fields:
+            if self.cfg.dataset.target_template == "with_slots":
+                combo = [i.strip() for i in field.split('slots:')]
+                if len(combo) == 2:
+                    label, slots = combo
+                elif len(combo) == 1:
+                    slots = combo
+                    label = None
+                slots = slots.split(', ')
+            else:
+                label = field
+                slots = []
+            slots_list.append(slots)
+            labels.append(label)
+
+        return labels, slots_list
+
     def eval_epoch_end(self, outputs, mode='val'):
+
+        generated_field = []
+        ground_truth_field = []
+        inputs = []
+        for output in outputs:
+            generated_field += output["generated_field"]
+            ground_truth_field += output["ground_truth_field"]
+            inputs += output["input"]
+
+        # for i in range(len(generated_field)):
+        #     print("Input: {}".format(inputs[i]))
+        #     print("Generated: {}".format(generated_field[i]))
+        #     print("Ground truth: {}".format(ground_truth_field[i]))
+        #     print("_"*20)
+
+        generated_labels, generated_slots = self.split_label_and_slots(generated_field)
+        ground_truth_labels, ground_truth_slots = self.split_label_and_slots(ground_truth_field)
+
+        os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
+        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions.jsonl")
+
+        self.save_predictions(
+            filename,
+            generated_labels,
+            generated_slots,
+            ground_truth_labels,
+            ground_truth_slots,
+            generated_field,
+            ground_truth_field,
+            inputs,
+        )
+
+        label_acc = np.mean(
+            [int(generated_labels[i].strip() == ground_truth_labels[i].strip()) for i in range(len(generated_labels))]
+        )
+
+        # print("labels", generated_labels, ground_truth_labels)
+        # print("slots", generated_slots, ground_truth_slots)
+
+        generated_field_ids = torch.tensor(
+            [self.label_to_ids[label.strip()] for label in generated_labels], dtype=int
+        ).to(self.classification_report.device)
+
+        ground_truth_field_ids = torch.tensor(
+            [self.label_to_ids[label.strip()] for label in ground_truth_labels], dtype=int
+        ).to(self.classification_report.device)
+
+        tp, fn, fp, _ = self.classification_report(generated_field_ids, ground_truth_field_ids)
+
         precision, recall, f1, report = self.classification_report.compute()
 
-        logging.info(report)
-        acc = np.mean([output["acc"] for output in outputs])
+        slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy = self.get_slot_filling_metrics(
+            generated_slots, ground_truth_slots
+        )
 
-        self.log('precision', precision)
-        self.log('f1', f1)
-        self.log('recall', recall)
-        self.log('{}_accuracy'.format(mode), acc * 100)
+        logging.info(report)
+
+        self.log('{}_precision'.format(self.cfg.dataset.field), precision)
+        self.log('{}_f1'.format(self.cfg.dataset.field), f1)
+        self.log('{}_recall'.format(self.cfg.dataset.field), recall)
+        self.log('{}_{}_accuracy'.format(mode, self.cfg.dataset.field), label_acc * 100)
+        self.log('slot_precision', slot_precision)
+        self.log('slot_recall', slot_recall)
+        self.log('slot_f1', slot_f1)
+        self.log('slot_joint_goal_accuracy', slot_joint_goal_accuracy)
+
+    def save_predictions(
+        self,
+        filename,
+        generated_labels,
+        generated_slots,
+        ground_truth_labels,
+        ground_truth_slots,
+        generated_field,
+        ground_truth_field,
+        inputs,
+    ):
+        docs = []
+        for i in range(len(generated_labels)):
+            docs.append(
+                {
+                    "input": inputs[i],
+                    "ground_truth": ground_truth_field[i],
+                    "ground_truth_slots": ground_truth_slots[i],
+                    "ground_truth_labels": ground_truth_labels[i],
+                    "generated": generated_field[i],
+                    "generated_slots": generated_slots[i],
+                    "generated_labels": generated_labels[i],
+                }
+            )
+        with open(filename, 'w', encoding="UTF-8") as f:
+            for item in docs:
+                f.write(json.dumps(item) + "\n")
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
@@ -149,11 +297,11 @@ class DialogueGPTModel(NLPModel):
         elif self.cfg.library == "megatron":
             position_ids = torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
-            unmasked_unreduced_loss = self.language_model(
-                input_ids, position_ids, attention_mask=attention_mask > 0, labels=labels
-            )
+            prompt_tags = [self.prompt_tags[0]] * input_ids.size(0) if self.prompt_tags else None
 
-            # labels_mask = torch.tensor([0 if (i == -100 or i == self.tokenizer.tokenizer.pad_token_id) else 1 for i in labels])
+            unmasked_unreduced_loss = self.language_model(
+                input_ids, position_ids, attention_mask=attention_mask > 0, labels=labels, prompt_tags=prompt_tags
+            )
             filler = torch.zeros_like(labels)
             labels_mask_0 = torch.where(labels != -100, labels, filler)
             labels_mask_1 = torch.abs(torch.where(labels != self.tokenizer.tokenizer.pad_token_id, labels, filler))
@@ -285,7 +433,51 @@ class DialogueGPTModel(NLPModel):
         )
         return generated_field, ground_truth_field
 
-    def generate_candidates(self, generate_input_ids, generate_attn_masks, labels):
+    def prepare_megatron_generation(self, labels, input_ids, template_length):
+        batch_size = labels.size(0)
+        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_tags else None
+        batch_tokens = input_ids.tolist()
+
+        # unpad tokens
+        lens = template_length
+        indxs = [index for index in range(batch_size)]
+        for lenn, index in zip(lens, indxs):
+            batch_tokens[index] = batch_tokens[index][:lenn]
+
+        # chunk tokens by same length
+        pre_buckets, lens = [], list(set(lens.tolist()))
+        for lenn in lens:
+            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
+
+        buckets, positions, bucket_prompt_tags = [], [], []
+
+        # get buckets and prompts initial positions
+        for bucket in pre_buckets:
+            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
+            positions.append([item[1] for item in bucket])
+
+            # bucket prompt tags identically to their corresponding examples
+            if prompt_tags:
+                bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
+
+        # Flatten position list
+        positions = [item for sublist in positions for item in sublist]
+
+        request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
+
+        return positions, request
+
+    def post_process_megatron_generation(self, outputs):
+        text_outputs = [output[0] for output in outputs]
+        generated_tokens = self.tokenizer.tokenizer(text_outputs, padding=True, return_tensors="pt").data["input_ids"]
+        # max_generated_tokens_length = max([len(i) for i in generated_tokens])
+        # generated_tokens = [i + [self.tokenizer.tokenizer.pad_token_id] * (max_generated_tokens_length - len(i)) for i in generated_tokens]
+        # generated_tokens = torch.tensor(generated_tokens)
+        # print(generated_tokens)
+        return generated_tokens
+
+    def generate_candidates(self, generate_input_ids, generate_attn_masks, labels, template_length, input_ids):
+
         if self.cfg.library == "huggingface":
             param_dict = {
                 "input_ids": generate_input_ids,
@@ -293,11 +485,17 @@ class DialogueGPTModel(NLPModel):
                 "max_length": self._cfg.dataset.max_seq_length + 32,
                 "pad_token_id": self.tokenizer.tokenizer.pad_token_id,
             }
-
             generated_tokens = self.language_model.generate(**param_dict)
+            generated_field, ground_truth_field = self.process_into_structured_fields(generated_tokens, labels)
+
         elif self.cfg.library == "megatron":
-            raise NotImplementedError()
-        generated_field, ground_truth_field = self.process_into_structured_fields(generated_tokens, labels)
+            tokens_to_generate = 32
+            positions, request = self.prepare_megatron_generation(labels, input_ids, template_length)
+            outputs = self.language_model.complete(request, positions, tokens_to_generate)
+            generated_tokens = self.post_process_megatron_generation(outputs)
+            generated_field, ground_truth_field = self.process_into_structured_fields(
+                generated_tokens, labels, left_padding=False, template_length=template_length
+            )
 
         return generated_field, ground_truth_field
 
@@ -315,10 +513,9 @@ class DialogueGPTModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        loss = self(input_ids, attn_masks, labels)
-
-        self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-
+        # loss = self(input_ids, attn_masks, labels)
+        # self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        loss = torch.tensor(0.0).to(labels.device)
         # ranking using perplexity of candidates
         if self.eval_mode == "ranking":
             generated_field, ground_truth_field = self.rank_candidates(
@@ -327,7 +524,7 @@ class DialogueGPTModel(NLPModel):
         # generate candidates (possibly with constraint)
         elif self.eval_mode == "generation":
             generated_field, ground_truth_field = self.generate_candidates(
-                generate_input_ids, generate_attn_masks, labels
+                generate_input_ids, generate_attn_masks, labels, template_length, input_ids,
             )
         elif self.eval_mode == "binary_score":
             generated_field, ground_truth_field = self.binary_score_candidates(
@@ -339,27 +536,17 @@ class DialogueGPTModel(NLPModel):
                 "{} is not among supported options (ranking, generation, binary_score)".format(self.eval_mode)
             )
 
-        generated_field_ids = torch.tensor(
-            [self.label_to_ids[label.strip()] for label in generated_field], dtype=int
-        ).to(labels.device)
-        ground_truth_field_ids = torch.tensor(
-            [self.label_to_ids[label.strip()] for label in ground_truth_field], dtype=int
-        ).to(labels.device)
-
-        tp, fn, fp, _ = self.classification_report(generated_field_ids, ground_truth_field_ids)
-
-        acc = np.mean(
-            [int(generated_field[i].strip() == ground_truth_field[i].strip()) for i in range(len(generated_field))]
-        )
+        # for i in range(len(generated_field)):
+        #     print("Input: {}".format(self.tokenizer.tokenizer.decode(input_ids[i], skip_special_tokens=True)))
+        #     print("Generated: {}".format(generated_field[i]))
+        #     print("Ground truth: {}".format(ground_truth_field[i]))
+        #     print("_"*20)
 
         return {
             'loss': loss,
+            'input': self.tokenizer.tokenizer.batch_decode(input_ids, skip_special_tokens=True),
             'generated_field': generated_field,
             'ground_truth_field': ground_truth_field,
-            'tp': tp,
-            'fn': fn,
-            'fp': fp,
-            'acc': acc,
         }
 
     def process_into_structured_fields(self, generated_tokens, labels, left_padding=True, template_length=None):
@@ -381,8 +568,14 @@ class DialogueGPTModel(NLPModel):
             # this is to account for the tokens ' Answer: ' + 'yes'/'no'/'true'/'false'
             if self.eval_mode == "binary_score":
                 stop_point -= 3
+
             generated_field.append(self.decode(generated_tokens[i, start_point:stop_point]).strip())
 
+        ground_truth_field = self.process_ground_truth_field(labels)
+
+        return generated_field, ground_truth_field
+
+    def process_ground_truth_field(self, labels):
         ground_truth_field = []
 
         for i in range(labels.size(0)):
@@ -391,7 +584,7 @@ class DialogueGPTModel(NLPModel):
             )
             ground_truth_field.append(self.decode(correct_label).strip())
 
-        return generated_field, ground_truth_field
+        return ground_truth_field
 
     def prepare_data(self):
         """
