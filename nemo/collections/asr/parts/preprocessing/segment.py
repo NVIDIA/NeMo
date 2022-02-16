@@ -72,10 +72,10 @@ class AudioSegment(object):
         """
         samples = self._convert_samples_to_float32(samples)
         if target_sr is not None and target_sr != sample_rate:
-            samples = librosa.core.resample(samples, sample_rate, target_sr)
+            samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
             sample_rate = target_sr
         if trim:
-            samples, _ = librosa.effects.trim(samples, trim_db)
+            samples, _ = librosa.effects.trim(samples, top_db=trim_db)
         self._samples = samples
         self._sample_rate = sample_rate
         if self._samples.ndim >= 2:
