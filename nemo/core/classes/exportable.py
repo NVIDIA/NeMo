@@ -98,10 +98,12 @@ class Exportable(ABC):
                 my_args.pop('output')
                 my_args.pop('input_example')
 
-                # Run (posibly overridden) prepare methods before calling forward()
-                for ex in exportables:
-                    ex._prepare_for_export(**my_args, noreplace=True)
                 self._prepare_for_export(output=output, input_example=input_example, **my_args)
+                # Run (posibly overridden) prepare methods before calling forward()
+                my_args.update({"noreplace": True})
+                for ex in exportables:
+                    ex._prepare_for_export(**my_args)
+
 
                 input_list, input_dict = parse_input_example(input_example)
                 input_names = self.input_names

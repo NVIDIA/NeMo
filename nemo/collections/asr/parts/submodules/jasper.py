@@ -169,36 +169,6 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
 
     return (left_context, right_context)
 
-
-@torch.jit.script
-def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch.Tensor):
-    """
-    Calculates the masked average over padded limited context segment during inference mode.
-
-    Args:
-        x: Input tensor. Shape = [B, C, T]
-        context_window: Integer context window, must be 0 or greater.
-        mask: Mask tensor, 1 represents value index, 0 represents padded index. Shape = [B, 1, T].
-
-    Returns:
-        A tensor reduced via masked average pool over some limited context. Shape = [B, C, 1]
-    """
-    timesteps = x.shape[-1]
-    if timesteps < context_window:
-        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
-    else:
-        # << During inference prefer to use entire context >>
-        # x = x[:, :, :context_window]  # [B, C, context_window]
-        # mask = mask[:, :, :context_window]  # [B, 1, context_window]
-        #
-        # mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
-        # y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
-        # y = y / (mask + 1e-8)  # [B, C, 1]
-        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
-
-    return y
-
-
 @torch.jit.script
 def _se_pool_step_script_train(x: torch.Tensor, context_window: int, mask: torch.Tensor):
     """
@@ -462,24 +432,25 @@ class SqueezeExcite(nn.Module):
         self.change_context_window(context_window=context_window)
 
         # Set default max sequence length
-        self.set_max_len(1)
+        self.max_len = 0
 
     def forward(self, x, lengths):
-        return self.forward_for_export(x, lengths)
-
-    def forward_for_export(self, x, lengths):
+        dtype = x.dtype
+        max_len = x.size(-1)
+        self.set_max_len(max_len)
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
+        # Create sample mask - 1 represents value, 0 represents pad
+        mask = self.make_pad_mask(lengths, max_len)
+        mask = ~mask  # 0 represents value, 1 represents pad
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
-            # Create sample mask - 1 represents value, 0 represents pad
-            mask = self.make_pad_mask(lengths, max_audio_length=x.shape[-1], device=x.device)
-            mask = ~mask  # 0 represents value, 1 represents pad
-            x = x.float()  # For stable AMP, SE must be computed at fp32.
-            x.masked_fill_(mask, 0.0)  # mask padded values explicitly to 0
-            y = self._se_pool_step(x, mask)  # [B, C, 1]
-            y = y.transpose(1, -1)  # [B, 1, C]
-            y = self.fc(y)  # [B, 1, C]
-            y = y.transpose(1, -1)  # [B, C, 1]
+            # masked_fill needs to be here because of TRT issue with Where()
+            x = x.float().masked_fill(mask, 0.0)  # mask padded values explicitly to 0
+            y = self._se_pool_step(x, mask).to(x.dtype)
+
+        y = y.transpose(1, -1)  # [B, 1, C]
+        y = self.fc(y)  # [B, 1, C]            
+        y = y.transpose(1, -1)  # [B, C, 1]
 
         # Note: Keep for future, in case we improve WER from doing so.
         # if self.context_window >= 0:
@@ -487,47 +458,40 @@ class SqueezeExcite(nn.Module):
 
         y = torch.sigmoid(y)
         y = x * y
-        return y, lengths
 
+        return y, lengths
+    
     def _se_pool_step(self, x, mask):
         # Negate mask back to represent 1 for signal and 0 for padded timestep.
         mask = ~mask
-
-        if self.context_window < 0:
+        if self.context_window < 0 or not self.training:
             # [B, C, 1] - Masked Average over value + padding.
-            y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).type(x.dtype)
+            y = torch.sum(x, dim=-1, keepdim=True).div(mask.sum(dim=-1, keepdim=True).to(x.dtype))
         else:
             # [B, C, 1] - Masked Average over value + padding with limited context.
             # During training randomly subsegments a context_window chunk of timesteps.
             # During inference selects only the first context_window chunk of timesteps.
-            if self.training:
-                y = _se_pool_step_script_train(x, self.context_window, mask)
-            else:
-                y = _se_pool_step_script_infer(x, self.context_window, mask)
+            y = _se_pool_step_script_train(x, self.context_window, mask)
         return y
 
     def set_max_len(self, max_len):
         """ Sets maximum input length.
             Pre-calculates internal seq_range mask.
         """
+        if (self.max_len > max_len):
+            return
         self.max_len = max_len
         device = next(self.parameters()).device
         seq_range = torch.arange(0, self.max_len, device=device)
-        self.register_buffer('seq_range', seq_range, persistent=False)
+        if hasattr(self, 'seq_range'):
+            self.seq_range = seq_range
+        else:
+            self.register_buffer('seq_range', seq_range, persistent=False)
 
-    def make_pad_mask(self, seq_lens, max_audio_length, device=None):
+    def make_pad_mask(self, seq_lens, max_audio_length):
         """Make masking for padding."""
-        if device and self.seq_range.device != device:
-            self.seq_range = self.seq_range.to(device)
-
-        if self.seq_range.device != seq_lens.device:
-            seq_lens = seq_lens.to(self.seq_range.device)
-
-        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)  # [B, T]; bool
+        mask = self.seq_range[:max_audio_length].repeat(seq_lens.size(0),1) < seq_lens.unsqueeze(-1)  # [B, T]; bool
         mask = mask.unsqueeze(1)  # [B, 1, T]
-
-        if device and mask.device != device:
-            mask = mask.to(device)
         return mask
 
     def change_context_window(self, context_window: int):
@@ -574,7 +538,7 @@ class JasperBlock(nn.Module):
         planes: Number of output channels.
         repeat: Number of repeated sub-blocks (R) for this block.
         kernel_size: Convolution kernel size across all repeated sub-blocks.
-        kernel_size_factor: Floating point scale value that is multiplied with kernel size,
+        kernel_size_factor: Floaitng point scale value that is multiplied with kernel size,
             then rounded down to nearest odd integer to compose the kernel size. Defaults to 1.0.
         stride: Stride of the convolutional layers.
         dilation: Integer which defined dilation factor of kernel. Note that when dilation > 1, stride must

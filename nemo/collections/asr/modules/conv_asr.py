@@ -69,15 +69,13 @@ class ConvASREncoder(NeuralModule, Exportable):
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
-
-            if isinstance(m, MaskedConv1d):
                 if m.conv.stride[0] > 1 and 'mconv' in name:
                     stride = stride * m.conv.stride[0]
 
-            if isinstance(m, SqueezeExcite):
-                m.set_max_len(int(one_hour // stride))  # One hour divided by current stride level
-
-        Exportable._prepare_for_export(self, **kwargs)
+        # We pass in Noreplace as normalizations seem to not have any issues with FP16 for this net
+        my_args = kwargs.copy()
+        my_args["noreplace"] = True
+        Exportable._prepare_for_export(self, **my_args)
         logging.warning(f"Turned off {m_count} masked convolutions")
 
     def input_example(self, max_batch=1, max_dim=8192):
@@ -241,10 +239,6 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
-
-            if isinstance(m, SqueezeExcite):
-                m.set_max_len(8192)
-
         logging.warning(f"Turned off {m_count} masked convolutions")
 
     def input_example(self, max_batch=1, max_dim=256):
