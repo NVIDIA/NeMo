@@ -169,21 +169,6 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(whitelist_graph, 1.01)
             ).optimize()
 
-            # classify = (
-            #         pynutil.add_weight(whitelist_graph, 1.01)
-            #         | pynutil.add_weight(time_graph, 1.1)
-            #         | pynutil.add_weight(decimal_graph, 1.1)
-            #         | pynutil.add_weight(measure_graph, 1.1)
-            #         | pynutil.add_weight(cardinal_graph, 1.1)
-            #         | pynutil.add_weight(ordinal_graph, 1.1)
-            #         | pynutil.add_weight(telephone_graph, 1.1)
-            #         | pynutil.add_weight(electronic_graph, 1.1)
-            #         | pynutil.add_weight(fraction_graph, 1.1)
-            #         | pynutil.add_weight(money_graph, 1.1)
-            #         | pynutil.add_weight(date_graph, 1.09)
-            # ).optimize()
-            # classify_and_verbalize = classify
-
             roman_graph = RomanFst(deterministic=deterministic).fst
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 98)
