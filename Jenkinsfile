@@ -2304,7 +2304,9 @@ pipeline {
             model.input_fft.n_layer=2 \
             model.output_fft.d_inner=384 \
             model.output_fft.n_layer=2 \
-            ~trainer.check_val_every_n_epoch'
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
           }
         }
         stage('Mixer-TTS') {
@@ -2320,7 +2322,9 @@ pipeline {
             model.train_ds.dataloader_params.num_workers=1 \
             model.validation_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.num_workers=1 \
-            ~trainer.check_val_every_n_epoch'
+            ~trainer.check_val_every_n_epoch \
+            ~model.text_normalizer \
+            ~model.text_normalizer_call_kwargs'
           }
         }
         stage('Hifigan') {
