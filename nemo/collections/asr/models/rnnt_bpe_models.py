@@ -196,7 +196,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
     def change_vocabulary(
-        self, new_tokenizer_dir: str, new_tokenizer_type: str, decoding_cfg: Optional[DictConfig] = None
+        self,
+        new_tokenizer_dir: str,
+        new_tokenizer_type: str,
+        new_tokenizer_cfg: Optional[DictConfig] = None,
+        decoding_cfg: Optional[DictConfig] = None,
     ):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
@@ -213,15 +217,18 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Returns: None
 
         """
-        if not os.path.isdir(new_tokenizer_dir):
-            raise NotADirectoryError(
-                f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
-            )
+        if new_tokenizer_cfg is not None:
+            tokenizer_cfg = new_tokenizer_cfg
+        else:
+            if not os.path.isdir(new_tokenizer_dir):
+                raise NotADirectoryError(
+                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                )
 
-        if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-            raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
+                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
 
-        tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
