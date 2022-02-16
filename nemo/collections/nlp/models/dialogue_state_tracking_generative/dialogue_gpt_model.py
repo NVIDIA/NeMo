@@ -55,11 +55,13 @@ class DialogueGPTModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
     ):
+
         self.cfg = cfg
         self.data_prepared = False
 
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
+        
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
@@ -81,7 +83,6 @@ class DialogueGPTModel(NLPModel):
                 else:
                     raise ValueError(f'\n Soft prompt init method {init_method} is not recognized, please use text or random')
             """
-
         all_labels = list(
             self._train_dl.dataset.all_possible_labels.union(
                 self._validation_dl.dataset.all_possible_labels, self._test_dl.dataset.all_possible_labels
@@ -99,6 +100,7 @@ class DialogueGPTModel(NLPModel):
             num_classes=len(self.label_to_ids) + 1, mode='micro', label_ids=self.label_to_ids, dist_sync_on_step=True
         )
         self.eval_mode = cfg.eval_mode
+        self.cfg = cfg
 
     def training_step(self, batch, batch_idx):
         if self.cfg.library == "megatron":
@@ -297,6 +299,7 @@ class DialogueGPTModel(NLPModel):
         elif self.cfg.library == "megatron":
             position_ids = torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
+
             prompt_tags = [self.prompt_tags[0]] * input_ids.size(0) if self.prompt_tags else None
 
             unmasked_unreduced_loss = self.language_model(
@@ -513,9 +516,9 @@ class DialogueGPTModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        # loss = self(input_ids, attn_masks, labels)
-        # self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        loss = torch.tensor(0.0).to(labels.device)
+        loss = self(input_ids, attn_masks, labels)
+        self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        
         # ranking using perplexity of candidates
         if self.eval_mode == "ranking":
             generated_field, ground_truth_field = self.rank_candidates(
