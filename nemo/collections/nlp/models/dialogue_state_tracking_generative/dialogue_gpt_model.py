@@ -27,6 +27,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
+from transformers import AutoModelWithLMHead
 
 from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
     DialogueGPTDataset,
@@ -37,8 +38,9 @@ from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.assistant_
     DialogueAssistantDataProcessor,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -49,18 +51,17 @@ NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
 
 
 class DialogueGPTModel(NLPModel):
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(
+        self, cfg: DictConfig, trainer: Trainer = None,
+    ):
         self.data_prepared = False
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.language_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-        )
-        self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
+        if cfg.library == "huggingface":
+            self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
+            self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
+        elif cfg.library == "megatron":
+            self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
         all_labels = list(
             self._train_dl.dataset.all_possible_labels.union(
@@ -79,6 +80,7 @@ class DialogueGPTModel(NLPModel):
             num_classes=len(self.label_to_ids) + 1, mode='micro', label_ids=self.label_to_ids, dist_sync_on_step=True
         )
         self.eval_mode = cfg.eval_mode
+        self.cfg = cfg
 
     def training_step(self, batch, batch_idx):
         (
@@ -107,9 +109,9 @@ class DialogueGPTModel(NLPModel):
             attn_masks = torch.stack(new_attn_masks)
             labels = self.get_binary_score_labels(input_ids)
 
-        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attn_masks, labels=labels)
+        loss = self(input_ids, attn_masks, labels)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        return {'loss': loss, 'logits': logits}
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch)
@@ -136,12 +138,33 @@ class DialogueGPTModel(NLPModel):
 
     # for inference only
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        # return self.model(batch)
+        # return self(batch)
         raise NotImplementedError()
 
-    def forward(self, input_ids, token_type_ids, attention_mask, labels):
-        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-        return loss, logits
+    def forward(self, input_ids, attention_mask, labels):
+
+        if self.cfg.library == "huggingface":
+            output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            loss = output['loss']
+        elif self.cfg.library == "megatron":
+            position_ids = torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
+            unmasked_unreduced_loss = self.language_model(
+                input_ids, position_ids, attention_mask=attention_mask > 0, labels=labels
+            )
+
+            # labels_mask = torch.tensor([0 if (i == -100 or i == self.tokenizer.tokenizer.pad_token_id) else 1 for i in labels])
+            filler = torch.zeros_like(labels)
+            labels_mask_0 = torch.where(labels != -100, labels, filler)
+            labels_mask_1 = torch.abs(torch.where(labels != self.tokenizer.tokenizer.pad_token_id, labels, filler))
+            # labels_mask is where labels is neither -100 nor the pad token id
+            labels_mask_with_id = torch.minimum(labels_mask_0, labels_mask_1)
+            labels_mask = labels_mask_with_id > 0
+
+            loss = self.language_model.loss_func(labels_mask, unmasked_unreduced_loss)
+            loss = average_losses_across_data_parallel_group([loss])
+
+        return loss
 
     def decode(self, tokens):
         if tokens not in self.token_to_words:
@@ -172,10 +195,10 @@ class DialogueGPTModel(NLPModel):
 
                 start_yes = j if j // 2 == correct_candidate[i].item() else j + 1
 
-                cand_loss, _ = self.language_model(
-                    input_ids=candidate_input_ids[i, start_yes : start_yes + 1, :],
-                    attention_mask=candidate_attn_masks[i, start_yes : start_yes + 1, :],
-                    labels=self.get_binary_score_labels(candidate_input_ids[i, start_yes : start_yes + 1, :]),
+                cand_loss = self(
+                    candidate_input_ids[i, start_yes : start_yes + 1, :],
+                    candidate_attn_masks[i, start_yes : start_yes + 1, :],
+                    self.get_binary_score_labels(candidate_input_ids[i, start_yes : start_yes + 1, :]),
                 )
 
                 considered_loss = cand_loss.item()
@@ -183,10 +206,10 @@ class DialogueGPTModel(NLPModel):
                 if minus_negative:
                     start_no = j + 1 if j // 2 == correct_candidate[i].item() else j
 
-                    negative_cand_loss, _ = self.language_model(
-                        input_ids=candidate_input_ids[i, start_no : start_no + 1, :],
-                        attention_mask=candidate_attn_masks[i, start_no : start_no + 1, :],
-                        labels=self.get_binary_score_labels(candidate_input_ids[i, start_no : start_no + 1, :]),
+                    negative_cand_loss = self(
+                        candidate_input_ids[i, start_no : start_no + 1, :],
+                        candidate_attn_masks[i, start_no : start_no + 1, :],
+                        self.get_binary_score_labels(candidate_input_ids[i, start_no : start_no + 1, :]),
                     )
                     considered_loss -= negative_cand_loss.item()
 
@@ -234,19 +257,19 @@ class DialogueGPTModel(NLPModel):
                 ):
                     break
 
-                cand_loss, _ = self.language_model(
-                    input_ids=candidate_input_ids[i, j : j + 1, :],
-                    attention_mask=candidate_attn_masks[i, j : j + 1, :],
-                    labels=candidate_input_ids[i, j : j + 1, :],
+                cand_loss = self(
+                    candidate_input_ids[i, j : j + 1, :],
+                    candidate_attn_masks[i, j : j + 1, :],
+                    candidate_input_ids[i, j : j + 1, :],
                 )
 
                 considered_loss = cand_loss.item()
 
                 if minus_prior:
-                    utterance_free_cand_loss, _ = self.language_model(
-                        input_ids=candidate_input_ids[i, j : j + 1, utterance_end:],
-                        attention_mask=candidate_attn_masks[i, j : j + 1, utterance_end:],
-                        labels=candidate_input_ids[i, j : j + 1, utterance_end:],
+                    utterance_free_cand_loss = self(
+                        candidate_input_ids[i, j : j + 1, utterance_end:],
+                        candidate_attn_masks[i, j : j + 1, utterance_end:],
+                        candidate_input_ids[i, j : j + 1, utterance_end:],
                     )
                     considered_loss -= utterance_free_cand_loss.item()
 
@@ -263,14 +286,17 @@ class DialogueGPTModel(NLPModel):
         return generated_field, ground_truth_field
 
     def generate_candidates(self, generate_input_ids, generate_attn_masks, labels):
-        param_dict = {
-            "input_ids": generate_input_ids,
-            "attention_masks": generate_attn_masks,
-            "max_length": self._cfg.dataset.max_seq_length + 32,
-            "pad_token_id": self.tokenizer.tokenizer.pad_token_id,
-        }
+        if self.cfg.library == "huggingface":
+            param_dict = {
+                "input_ids": generate_input_ids,
+                "attention_masks": generate_attn_masks,
+                "max_length": self._cfg.dataset.max_seq_length + 32,
+                "pad_token_id": self.tokenizer.tokenizer.pad_token_id,
+            }
 
-        generated_tokens = self.language_model.generate(**param_dict)
+            generated_tokens = self.language_model.generate(**param_dict)
+        elif self.cfg.library == "megatron":
+            raise NotImplementedError()
         generated_field, ground_truth_field = self.process_into_structured_fields(generated_tokens, labels)
 
         return generated_field, ground_truth_field
@@ -289,7 +315,7 @@ class DialogueGPTModel(NLPModel):
             correct_candidate,
         ) = batch
 
-        loss, logits = self.language_model(input_ids=input_ids, attention_mask=attn_masks, labels=labels)
+        loss = self(input_ids, attn_masks, labels)
 
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
@@ -309,7 +335,9 @@ class DialogueGPTModel(NLPModel):
             )
 
         else:
-            raise ValueError("{} is not among supported options (ranking, generation)".format(self.eval_mode))
+            raise ValueError(
+                "{} is not among supported options (ranking, generation, binary_score)".format(self.eval_mode)
+            )
 
         generated_field_ids = torch.tensor(
             [self.label_to_ids[label.strip()] for label in generated_field], dtype=int
