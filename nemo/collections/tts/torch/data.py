@@ -226,7 +226,7 @@ class TTSDataset(Dataset):
         self.hop_len = self.hop_length or self.n_fft // 4
         self.fb = torch.tensor(
             librosa.filters.mel(
-                self.sample_rate, self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
+                sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
             ),
             dtype=torch.float,
         ).unsqueeze(0)
