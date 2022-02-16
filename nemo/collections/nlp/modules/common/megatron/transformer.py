@@ -87,7 +87,7 @@ class ParallelMLP(MegatronModule):
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
             hidden_size,
-            ffn_hidden_size, # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+            ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
@@ -99,7 +99,7 @@ class ParallelMLP(MegatronModule):
             # Source: https://github.com/huggingface/transformers/blob/bee361c6f1f7704f8c688895f2f86f6e5ff84727/src/transformers/models/t5/modeling_t5.py#L292
             self.dense_h_to_4h_2 = tensor_parallel.ColumnParallelLinear(
                 hidden_size,
-                ffn_hidden_size, # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+                ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
                 gather_output=False,
                 init_method=init_method,
                 skip_bias_add=True,
@@ -109,7 +109,7 @@ class ParallelMLP(MegatronModule):
         self.bias_gelu_fusion = bias_gelu_fusion
         self.activation_func = F.gelu
         if activation == 'geglu':
-            self.activation_func = 'geglu' # Implemented using F.gelu
+            self.activation_func = 'geglu'  # Implemented using F.gelu
             if bias_gelu_fusion:
                 logging.warning("Bias Gelu Fusion is not supported for GEGLU activation. Running with pytorch F.gelu")
         if openai_gelu:
@@ -136,7 +136,9 @@ class ParallelMLP(MegatronModule):
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
         if self.activation == 'geglu':
-            intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (intermediate_parallel_2 + bias_parallel_2)
+            intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (
+                intermediate_parallel_2 + bias_parallel_2
+            )
         elif self.bias_gelu_fusion and self.activation == 'gelu':
             intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
@@ -661,7 +663,7 @@ class ParallelTransformer(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu'
+        activation='gelu',
     ):
         super(ParallelTransformer, self).__init__()
 
