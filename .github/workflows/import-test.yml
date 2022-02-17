@@ -17,8 +17,8 @@ jobs:
 
     - name: Update base dependencies
       run: |
-        apt-get update
-        apt-get install -y libsndfile1
+        apt-get update & apt-get install -y --reinstall build-essential
+        apt-get install -y libsndfile1 make
 
     - name: Install nemo dependencies
       id: nemo-wheel
