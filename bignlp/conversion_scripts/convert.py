@@ -4,6 +4,7 @@ import subprocess
 
 import hydra
 import omegaconf
+from bignlp.bignlp_utils import add_container_mounts
 
 
 def create_slurm_file(
@@ -43,7 +44,7 @@ def create_slurm_file(
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} --ntasks={ntasks_per_node} sh -c "{convert_cmd}"\n\n')
+        f.writelines(f'srun {flags} sh -c "{convert_cmd}"\n\n')
         f.writelines("set +x\n")
 
 
@@ -77,7 +78,6 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     nodes = run_cfg.nodes
     time_limit = run_cfg.time_limit
     ntasks_per_node = run_cfg.ntasks_per_node
-    gpus_per_task = run_cfg.gpus_per_task
     convert_name = run_cfg.convert_name
     model_train_name = run_cfg.model_train_name
     results_dir = run_cfg.results_dir
@@ -89,22 +89,22 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
 
     new_script_path = os.path.join(bignlp_path, f"bignlp/conversion_scripts/{model_train_name}.sh")
     code_path = os.path.join(bignlp_path, "bignlp/conversion_scripts/convert_ckpt.py")
-    cmd_str = f"python3 -u {code_path} {hydra_args}"
-    
+
+    hydra_args = hydra_args.replace(" ", " \\\n  ")
+    cmd_str = f"python3 -u {code_path} \\\n  {hydra_args}"
+
     if cfg.cluster_type == "bcm":
         # BCM parameters
         partition = cfg.cluster.partition
         account = cfg.cluster.account
         exclusive = cfg.cluster.exclusive
         job_name_prefix = cfg.cluster.job_name_prefix
+        gpus_per_task = cfg.cluster.gpus_per_task
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-        if container_mounts is not None:
-            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
-            for mount in container_mounts:
-                if mount is not None and isinstance(mount, str):
-                    mounts_str += f",{mount}:{mount}"
+        mounts_str += add_container_mounts(container_mounts)
+
         flags = (
             f"--no-container-mount-home "
             f"--container-image {container} "

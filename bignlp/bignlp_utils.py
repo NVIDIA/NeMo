@@ -39,3 +39,13 @@ def fake_submit(*args, **kwargs):
     print(args, kwargs)
     fake_id = 123456
     return str(fake_id).encode()
+
+
+def add_container_mounts(container_mounts):
+    mounts_str = ""
+    if container_mounts is not None:
+        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        for mount in container_mounts:
+            if mount is not None and isinstance(mount, str):
+                mounts_str += f",{mount}"  # TODO: change it back
+    return mounts_str

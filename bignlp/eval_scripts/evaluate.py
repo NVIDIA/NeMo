@@ -4,6 +4,7 @@ import subprocess
 
 import hydra
 import omegaconf
+from bignlp.bignlp_utils import add_container_mounts
 
 
 def create_slurm_file(
@@ -110,11 +111,7 @@ def run_evaluation(cfg, dependency=None):
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-        if container_mounts is not None:
-            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
-            for mount in container_mounts:
-                if mount is not None and isinstance(mount, str):
-                    mounts_str += f",{mount}:{mount}"
+        mounts_str += add_container_mounts(container_mounts)
 
         flags = (
             f"--no-container-mount-home "

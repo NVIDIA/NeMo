@@ -4,7 +4,7 @@ import subprocess
 
 import hydra
 import omegaconf
-from bignlp.bignlp_utils import convert_to_cli
+from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
 from bignlp.train_scripts.train_utils import generate_mt5_data_blend
 
 
@@ -119,11 +119,7 @@ def run_training(cfg, hydra_args="", dependency=None):
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-        if container_mounts is not None:
-            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
-            for mount in container_mounts:
-                if mount is not None and isinstance(mount, str):
-                    mounts_str += f",{mount}:{mount}"
+        mounts_str += add_container_mounts(container_mounts)
 
         flags = (
             f"--container-image {container} "
