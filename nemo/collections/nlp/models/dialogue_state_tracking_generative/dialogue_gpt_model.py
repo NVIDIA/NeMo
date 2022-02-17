@@ -198,12 +198,6 @@ class DialogueGPTModel(NLPModel):
             ground_truth_field += output["ground_truth_field"]
             inputs += output["input"]
 
-        # for i in range(len(generated_field)):
-        #     print("Input: {}".format(inputs[i]))
-        #     print("Generated: {}".format(generated_field[i]))
-        #     print("Ground truth: {}".format(ground_truth_field[i]))
-        #     print("_"*20)
-
         generated_labels, generated_slots = self.split_label_and_slots(generated_field)
         ground_truth_labels, ground_truth_slots = self.split_label_and_slots(ground_truth_field)
 
@@ -224,9 +218,6 @@ class DialogueGPTModel(NLPModel):
         label_acc = np.mean(
             [int(generated_labels[i].strip() == ground_truth_labels[i].strip()) for i in range(len(generated_labels))]
         )
-
-        # print("labels", generated_labels, ground_truth_labels)
-        # print("slots", generated_slots, ground_truth_slots)
 
         generated_field_ids = torch.tensor(
             [self.label_to_ids[label.strip()] for label in generated_labels], dtype=int
