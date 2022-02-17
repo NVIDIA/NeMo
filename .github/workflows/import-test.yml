@@ -16,6 +16,7 @@ jobs:
 
     - name: Update base dependencies
       run: |
+        apt-get update && apt-get install -y build-essential
         apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg
 
     - name: Install nemo dependencies
