@@ -15,10 +15,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-#    - name: Update base dependencies
-#      run: |
-#        apt-get update && apt-get install -y build-essential
-#        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg
+    - name: Update base dependencies
+      run: |
+        apt-get update
+        apt-get install -y libsndfile1
 
     - name: Install nemo dependencies
       id: nemo-wheel
