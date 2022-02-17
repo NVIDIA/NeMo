@@ -17,9 +17,7 @@ def convert_to_cli(cfg):
             result += f"{k}={str(v).replace(' ', '')} "
         elif isinstance(v, str) and "{" in v:
             continue
-        elif k == "splits_string":
-            result += f"{k}=\\'{v}\\' "
-        elif k == "file_numbers":
+        elif k in ["splits_string", "file_numbers", "languages"]:
             result += f"{k}=\\'{v}\\' "
         elif k == "checkpoint_name":
             v = v.replace('=', '\=')
