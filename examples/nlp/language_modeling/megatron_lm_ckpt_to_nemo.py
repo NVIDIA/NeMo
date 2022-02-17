@@ -190,23 +190,24 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint, megatron_amp_o2=True):
         new_checkpoint[NEW_STEP_KEY] = lm_checkpoint[STEP_KEY]
         new_checkpoint['epoch'] = 1  # always one epoch
     if LR_SCHEDULER in lm_checkpoint:
+        gbs = lm_checkpoint['args'].global_batch_size
         sched = lm_checkpoint[LR_SCHEDULER]
         content = OrderedDict()
-        content['max_steps'] = int(sched['decay_steps'])
-        content['warmup_steps'] = int(sched['warmup_steps'])
+        content['max_steps'] = int(sched['decay_steps']) // gbs + sched['warmup_steps'] // gbs
+        content['warmup_steps'] = int(sched['warmup_steps']) // gbs
         content['constant_steps'] = 0  # no such conf in lm checkpoint
-        content['decay_steps'] = content['max_steps'] - content['warmup_steps']
+        content['decay_steps'] = int(sched['decay_steps']) // gbs
         content['min_lr'] = sched['min_lr']
         if OPTIMIZER_KEY in lm_checkpoint:
             content['base_lrs'] = [
                 i['initial_lr'] for i in new_checkpoint['optimizer_states'][0]['optimizer']['param_groups']
             ]
-            content['last_epoch'] = int(sched['num_steps'])
+            content['last_epoch'] = int(sched['num_steps']) // gbs
             content['_last_lr'] = [i['lr'] for i in new_checkpoint['optimizer_states'][0]['optimizer']['param_groups']]
         else:
             content['base_lrs'] = [sched['max_lr']]
-            content['last_epoch'] = int(sched['num_steps'])
-        content['_step_count'] = int(sched['num_steps'])
+            content['last_epoch'] = int(sched['num_steps']) // gbs
+        content['_step_count'] = int(sched['num_steps']) // gbs
         content['verbose'] = False
         content['_get_lr_called_within_step'] = False
         new_checkpoint[NEW_LR_SCHEDULER] = [content]
