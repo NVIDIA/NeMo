@@ -224,11 +224,9 @@ class ConvASREncoder(NeuralModule, Exportable):
             # Update all submodules
             for name, m in self.named_modules():
                 if isinstance(m, MaskedConv1d):
-                    m.max_len = self.max_audio_length
-                    m.lens = self.seq_range
-                if isinstance(m, SqueezeExcite):
-                    m.max_len = self.max_audio_length
-                    m.seq_range = self.seq_range
+                    m.update_masked_length(self.max_audio_length, seq_range=self.seq_range)
+                elif isinstance(m, SqueezeExcite):
+                    m.set_max_len(self.max_audio_length, seq_range=self.seq_range)
 
 
 class ParallelConvASREncoder(NeuralModule, Exportable):

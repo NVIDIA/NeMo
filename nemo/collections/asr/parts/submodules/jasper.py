@@ -374,9 +374,13 @@ class MaskedConv1d(nn.Module):
 
         return out, lens
 
-    def update_masked_length(self, max_len, device):
-        self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
-        self.lens = self.lens.to(device)
+    def update_masked_length(self, max_len, seq_range=None, device=None):
+        if seq_range is None:
+            self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
+            self.lens = self.lens.to(device)
+        else:
+            self.lens = seq_range
+            self.max_len = max_len
 
     def mask_input(self, x, lens):
         max_len = x.size(2)
@@ -491,7 +495,7 @@ class SqueezeExcite(nn.Module):
 
             y = torch.sigmoid(y)
             y = x * y
-        return y.to(dtype=dtype), lengths
+        return y, lengths
 
     def _se_pool_step(self, x, mask):
         # Negate mask back to represent 1 for signal and 0 for padded timestep.
@@ -510,13 +514,14 @@ class SqueezeExcite(nn.Module):
                 y = _se_pool_step_script_infer(x, self.context_window, mask)
         return y
 
-    def set_max_len(self, max_len):
+    def set_max_len(self, max_len, seq_range=None):
         """ Sets maximum input length.
             Pre-calculates internal seq_range mask.
         """
         self.max_len = max_len
-        device = next(self.parameters()).device
-        seq_range = torch.arange(0, self.max_len, device=device)
+        if seq_range is None:
+            device = next(self.parameters()).device
+            seq_range = torch.arange(0, self.max_len, device=device)
         if hasattr(self, 'seq_range'):
             self.seq_range = seq_range
         else:
@@ -526,6 +531,8 @@ class SqueezeExcite(nn.Module):
         """Make masking for padding."""
         if device and self.seq_range.device != device:
             self.seq_range = self.seq_range.to(device)
+        if self.seq_range.device != seq_lens.device:
+            seq_lens = seq_lens.to(self.seq_range.device)
 
         mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)  # [B, T]; bool
         mask = mask.unsqueeze(1)  # [B, 1, T]
