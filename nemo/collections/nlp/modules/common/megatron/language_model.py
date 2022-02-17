@@ -25,6 +25,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
+    ApexGuardDefaults,
 )
 
 try:
@@ -34,6 +35,9 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 def get_language_model(
