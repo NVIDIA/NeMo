@@ -12,11 +12,11 @@ trainer:
   max_epochs: null
   max_steps: 700 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 4
+  val_check_interval: 50
   limit_val_batches: 50
   limit_test_batches: 500
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
-  gradient_clip_val: 1.0
+  gradient_clip_val: null
 
 exp_manager:
   explicit_log_dir: null
@@ -42,8 +42,8 @@ exp_manager:
 model:
   # specify micro_batch_size, global_batch_size, and model parallelism
   # gradient accumulation will be done automatically based on data_parallel_size
-  micro_batch_size: 6 # limited by GPU memory
-  global_batch_size: 18 # will use more micro batches to reach global batch size
+  micro_batch_size: 4 # limited by GPU memory
+  global_batch_size: 32 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
 
@@ -78,7 +78,7 @@ model:
   new_prompt_tags: ['boolq']
   new_prompt_init_text: ['disambiguate pronoun noun names pick correct name fill blank']
   new_prompt_init_methods: ['text']
-  calc_loss_on_answer_only: False
+  calc_loss_on_answer_only: True
 
 
   # precision
@@ -110,8 +110,8 @@ model:
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
     data_prefix: None
-    train_ds: 'data/boolq_gpt3_format_test.jsonl'
-    valid_ds: 'data/boolq_gpt3_format_test.jsonl'
+    train_ds: 'data/boolq_gpt3_format_train.jsonl'
+    valid_ds: 'data/boolq_gpt3_format_val.jsonl'
     data_impl: mmap
     splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}

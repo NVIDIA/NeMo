@@ -612,8 +612,10 @@ class MegatronGPTModel(NLPModel):
             batch_size=self.cfg.global_batch_size,
             collate_fn=dataset.collate_fn,
             num_workers=self.cfg.data.num_workers,
+            drop_last=True,
+            shuffle=True,
             pin_memory=True,
-            drop_last=True
+            
         )
 
         return dataset, dataloader

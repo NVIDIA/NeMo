@@ -16,18 +16,18 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
-from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
-    NLPDataConnector,
     NLPDDPPlugin,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 """
@@ -147,7 +147,7 @@ python megatron_gpt_prompt_tuning.py \
 """
 
 
-@hydra_runner(config_path="conf", config_name="megatron_prompt_tuning_gpt_cfg")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_tuning_cfg")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
@@ -178,6 +178,21 @@ def main(cfg) -> None:
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
     exp_manager(trainer, cfg.exp_manager)
+
+    app_state = AppState()
+    if cfg.model.tensor_model_parallel_size > 1 or cfg.model.pipeline_model_parallel_size > 1:
+        app_state.model_parallel_size = cfg.model.tensor_model_parallel_size * cfg.model.pipeline_model_parallel_size
+        (
+            app_state.tensor_model_parallel_rank,
+            app_state.pipeline_model_parallel_rank,
+            app_state.model_parallel_size,
+            _,
+        ) = fake_initialize_model_parallel(
+            world_size=app_state.model_parallel_size,
+            rank=trainer.global_rank,
+            tensor_model_parallel_size_=cfg.model.tensor_model_parallel_size,
+            pipeline_model_parallel_size_=cfg.model.pipeline_model_parallel_size,
+        )
 
     # Override timer callback to a stateless one
     for idx, callback in enumerate(trainer.callbacks):
