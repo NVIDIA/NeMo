@@ -14,6 +14,9 @@
 
 from operator import itemgetter
 from typing import Any, Optional
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import MegatronLMEncoderDecoderModel
+from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
+from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -29,6 +32,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -50,6 +54,7 @@ class MegatronT5FineTuneModel(NLPModel):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
         super().__init__(cfg, trainer)
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
         t5_cfg = MegatronT5Model.restore_from(
@@ -64,6 +69,7 @@ class MegatronT5FineTuneModel(NLPModel):
             trainer=trainer,
             override_config_path=t5_cfg,
         )
+        self.setup_optimizer_param_groups()
 
     def training_step(self, batch, batch_idx):
         pass
@@ -95,11 +101,44 @@ class MegatronT5FineTuneModel(NLPModel):
     def setup_test_data(self):
         pass
 
-    def on_before_optimizer_step(self, optimizer, optimizer_idx):
-        """PTL hook that is called after unscaling gradients when using native amp.
-           We use gradient clipping implementation from megatron-lm.
-        """
-        pass
+    def configure_optimizers(self):
+        self.setup_optimization()
+
+        # Wrap the baseline optimizer with the optimizer class with master parameters
+        if self.megatron_amp_o2 and self._optimizer is not None:
+            if self.cfg.precision == 'bf16':
+                fp32_grad_accum = True
+                contiguous_grad_bucket = True
+                async_grad_allreduce = True
+
+            elif self.cfg.precision == 16:
+                fp32_grad_accum = False
+                # TODO: contiguous grad bucket for fp16 is also planned to be supported
+                contiguous_grad_bucket = False
+                async_grad_allreduce = False
+
+            self._optimizer = MainParamsOptimizerWrapper(
+                self._optimizer,
+                fp32_grad_accum=fp32_grad_accum,
+                contiguous_grad_bucket=contiguous_grad_bucket,
+                async_grad_allreduce=async_grad_allreduce,
+            )
+            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
+            if hasattr(self._cfg.optim, 'sched'):
+                sched_config = self._cfg.optim.sched
+                sched_config['max_steps'] = self._trainer.max_steps
+                self._scheduler = prepare_lr_scheduler(
+                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+                )
+
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model.enc_dec_model])
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         return self.model.prediction_step(batch, batch_idx, dataloader_idx)

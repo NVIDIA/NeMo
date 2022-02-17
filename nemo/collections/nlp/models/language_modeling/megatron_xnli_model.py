@@ -11,60 +11,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import os
-from collections import Counter
-from typing import Any, Dict, Optional, Union
-
 import torch
+
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
+from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextGLUEDataset,
-    TextToTextXNliDataset,
+    TextToTextXNlIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
 
-try:
-    from apex.transformer import tensor_parallel
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-
 __all__ = ['MegatronXNliModel']
 
 
-class MegatronXNliModel(MegatronT5GLUEModel):
+class MegatronXNlIModel(MegatronT5GLUEModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
-        self.acc_metric = ExactStringPerCategoryMatchMetric(cfg.categories)
+        self.acc_metrics = torch.nn.ModuleDict(
+            {lang: ExactStringMatchMetric() for lang in self.cfg.eval_languages}
+        )
 
     def process_batch(self, batch):
         """Build the batch."""
-
-        keys = ['text_enc', 'text_dec', 'labels', 'loss_mask', 'enc_mask', 'dec_mask']
-        datatype = torch.int64
-
-        data = batch
-        data_b = tensor_parallel.broadcast_data(keys, data, datatype)
-
-        # Unpack.
-        tokens_enc = data_b['text_enc'].long()
-        tokens_dec = data_b['text_dec'].long()
-        labels = data_b['labels'].long()
-        loss_mask = data_b['loss_mask'].float()
-
-        enc_mask = data_b['enc_mask']
-        dec_mask = data_b['dec_mask']
-
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = super().process_batch(batch)
         if 'lang' in batch:
             lang = batch['lang']
             return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, lang
@@ -93,20 +67,26 @@ class MegatronXNliModel(MegatronT5GLUEModel):
                 label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
             pred = self.model.tokenizer.ids_to_text(pred)
             label = self.model.tokenizer.ids_to_text(label)
-            _ = self.acc_metric(pred, label, lang)
+            _ = self.acc_metrics[lang](pred, label)
 
         return {'loss': loss}
 
     def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
         averaged_loss = average_losses_across_data_parallel_group(losses)
-        val_acc = self.acc_metric.compute()
+        val_accs = {}
+        for lang, metric in self.acc_metrics.items():
+            accuracy = metric.compute()
+            val_accs[lang] = accuracy
+        average_acc = sum(val_accs.values()) / len(val_accs)
+        val_accs['acc'] = average_acc
         self.log('validation_loss', averaged_loss)
-        self.log('validation_acc', val_acc['acc'])
-        for category in self.cfg.categories:
-            self.log(f'{category}_acc', val_acc[category])
-        self.acc_metric.reset()
-        return averaged_loss[0], val_acc
+        self.log('validation_acc', average_acc)
+        for lang in self.cfg.eval_languages:
+            self.log(f'{lang}_acc', val_accs[lang])
+        for _, metric in self.acc_metrics.items():
+            metric.reset()
+        return averaged_loss[0], val_accs
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
@@ -136,8 +116,8 @@ class MegatronXNliModel(MegatronT5GLUEModel):
         val_loss, val_acc = self.inference_epoch_end(outputs)
         self.log('val_loss', val_loss, prog_bar=True)
         self.log('val_acc', val_acc['acc'], prog_bar=True)
-        for category in self.cfg.categories:
-            logging.info(f"Validation {category} accuracy: {val_acc[category]} total: {val_acc[category+'_total']}")
+        for lang in self.cfg.eval_languages:
+            logging.info(f"Validation {lang} accuracy: {val_acc[lang]}")
         logging.info(f'Validation loss: {val_loss}')
         logging.info(f"Validation accuracy: {val_acc['acc']}")
 
@@ -145,18 +125,19 @@ class MegatronXNliModel(MegatronT5GLUEModel):
         test_loss, test_acc = self.inference_epoch_end(outputs)
         self.log('test_loss', test_loss, prog_bar=True)
         self.log('test_acc', test_acc['acc'], prog_bar=True)
-        for category in self.cfg.categories:
-            logging.info(f"Test {category} accuracy: {test_acc[category]} total: {test_acc[category+'_total']}")
+        for lang in self.cfg.eval_languages:
+            logging.info(f"Validation {lang} accuracy: {test_acc[lang]}")
         logging.info(f'Test loss: {test_loss}')
         logging.info(f"Test accuracy: {test_acc['acc']}")
 
     def build_train_valid_test_datasets(self, test_only=False):
         logging.info('Building GLUE datasets.')
-        self._test_ds = TextToTextXNliDataset(
+        self._test_ds = TextToTextXNlIDataset(
             self.cfg.data.test_ds.file_path,
             task_name=self.cfg.data.test_ds.task_name,
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.test_ds.max_seq_length,
+            lang_list=self.cfg.eval_languages
         )
         if test_only:
             return None, None, self._test_ds
@@ -166,11 +147,12 @@ class MegatronXNliModel(MegatronT5GLUEModel):
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.train_ds.max_seq_length,
         )
-        self._validation_ds = TextToTextXNliDataset(
+        self._validation_ds = TextToTextXNlIDataset(
             self.cfg.data.validation_ds.file_path,
             task_name=self.cfg.data.validation_ds.task_name,
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.validation_ds.max_seq_length,
+            lang_list=self.cfg.eval_languages
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
