@@ -14,7 +14,6 @@
 
 import os
 import re
-from tkinter import W
 from typing import Any, Dict, List, Optional
 
 import torch
