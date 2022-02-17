@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,10 @@ Conversion script to convert Megatron_LM checkpoints into nemo checkpoint.
      --tensor_model_parallel_size <tensor_model_parallel_size>
      --pipeline_model_parallel_size <pipeline_model_parallel_size>
      --gpus_per_node  <gpus per node>
+To resume the training from converted MegatronLM checkpoint, make sure to set the 
+`trainer.max_steps=round(lr-warmup-fraction * lr-decay-iters + lr-decay-iters)`
+where  `lr-warmup-fraction` and `lr-decay-iters` are arguments from MegatronLM training
+so the learning rate scheduler will follow the same curve.
 """
 
 import importlib
