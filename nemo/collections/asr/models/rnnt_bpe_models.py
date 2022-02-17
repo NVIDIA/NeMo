@@ -149,7 +149,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         cfg = model_utils.maybe_update_config_version(cfg)
 
         # Tokenizer is necessary for this model
-        if 'tokenizer' not in cfg:
+        if "tokenizer" not in cfg:
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
 
         if not isinstance(cfg, DictConfig):
@@ -185,8 +185,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         self.wer = RNNTBPEWER(
             decoding=self.decoding,
             batch_dim_index=0,
-            use_cer=self._cfg.get('use_cer', False),
-            log_prediction=self._cfg.get('log_prediction', True),
+            use_cer=self._cfg.get("use_cer", False),
+            log_prediction=self._cfg.get("log_prediction", True),
             dist_sync_on_step=True,
         )
 
@@ -222,13 +222,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         else:
             if not os.path.isdir(new_tokenizer_dir):
                 raise NotADirectoryError(
-                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                    f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
                 )
 
-            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+            if new_tokenizer_type.lower() not in ("bpe", "wpe"):
+                raise ValueError(f"New tokenizer type must be either `bpe` or `wpe`")
 
-            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            tokenizer_cfg = OmegaConf.create({"dir": new_tokenizer_dir, "type": new_tokenizer_type})
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
@@ -238,8 +238,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         joint_config = self.joint.to_config_dict()
         new_joint_config = copy.deepcopy(joint_config)
-        new_joint_config['vocabulary'] = ListConfig(list(vocabulary.keys()))
-        new_joint_config['num_classes'] = len(vocabulary)
+
+        if self.tokenizer_type == "agg":
+            new_joint_config["vocabulary"] = ListConfig(vocabulary)
+        else:
+            new_joint_config["vocabulary"] = ListConfig(list(vocabulary.keys()))
+
+        new_joint_config["num_classes"] = len(vocabulary)
         del self.joint
         self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
 
@@ -336,17 +341,17 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
 
-        shuffle = config['shuffle']
+        shuffle = config["shuffle"]
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+        if config.get("is_tarred", False):
+            if ("tarred_audio_filepaths" in config and config["tarred_audio_filepaths"] is None) or (
+                "manifest_filepath" in config and config["manifest_filepath"] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` was None or "
@@ -354,7 +359,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 )
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            shuffle_n = config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
             dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
@@ -365,7 +370,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             )
             shuffle = False
         else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+            if "manifest_filepath" in config and config["manifest_filepath"] is None:
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
@@ -373,22 +378,22 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
-        if hasattr(dataset, 'collate_fn'):
+        if hasattr(dataset, "collate_fn"):
             collate_fn = dataset.collate_fn
         else:
             collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=config["batch_size"],
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(self, config: Dict) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided audio file.
 
@@ -404,15 +409,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        batch_size = min(config["batch_size"], len(config["paths2audio_files"]))
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
-            'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': batch_size,
-            'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-            'pin_memory': True,
-            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
+            "manifest_filepath": os.path.join(config["temp_dir"], "manifest.json"),
+            "sample_rate": self.preprocessor._sample_rate,
+            "batch_size": batch_size,
+            "shuffle": False,
+            "num_workers": config.get("num_workers", min(batch_size, os.cpu_count() - 1)),
+            "pin_memory": True,
+            "use_start_end_token": self.cfg.validation_ds.get("use_start_end_token", False),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
