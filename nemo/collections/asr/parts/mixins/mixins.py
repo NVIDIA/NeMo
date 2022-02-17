@@ -44,23 +44,26 @@ class ASRBPEMixin(ABC):
         if "TOKENIZERS_PARALLELISM" not in os.environ:
             os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-        self.tokenizer_cfg = OmegaConf.to_container(
-            tokenizer_cfg, resolve=True
-        )  # type: dict
+        self.tokenizer_cfg = OmegaConf.to_container(tokenizer_cfg, resolve=True)  # type: dict
 
-        # the aggregate tokenizer does not have an overarching tokenizer_dit
+        # the aggregate tokenizer does not have one tokenizer_dir but multiple ones
         self.tokenizer_dir = None
 
-        # preserve these until the _make_tokenizer call
-        if "dir" in self.tokenizer_cfg.keys():
+        # not popping these variables yet because we need them for processing
+        if "dir" in self.tokenizer_cfg:
             self.tokenizer_dir = self.tokenizer_cfg.get("dir")
+
         self.tokenizer_type = self.tokenizer_cfg.get("type").lower()
         self.hf_tokenizer_kwargs = self.tokenizer_cfg.get("hf_kwargs", {})
 
         # Preserve config
         if hasattr(self, "cfg") and "tokenizer" in self.cfg:
-            self.cfg.tokenizer.dir = self.tokenizer_dir
-            self.cfg.tokenizer.type = self.tokenizer_type
+            with open_dict(self.cfg):
+                if self.tokenizer_dir is not None:
+                    self.cfg.tokenizer.dir = self.tokenizer_dir
+                else:
+                    self.cfg.tokenizer.pop("dir", None)
+                self.cfg.tokenizer.type = self.tokenizer_type
 
             if "hf_kwargs" in tokenizer_cfg:
                 with open_dict(self.cfg.tokenizer):
@@ -74,40 +77,55 @@ class ASRBPEMixin(ABC):
 
         if self.tokenizer_type == "agg":
             logging.debug("_setup_tokenizer: detected an aggregate tokenizer")
+            # need to de-register any old artifacts
+            if hasattr(self, "cfg"):
+                with open_dict(self.cfg):
+                    self.cfg.tokenizer.pop("model_path", None)
+                    self.cfg.tokenizer.pop("vocab_path", None)
+                    self.cfg.tokenizer.pop("spe_tokenizer_vocab", None)
+            if hasattr(self, "artifacts"):
+                self.artifacts.pop("tokenizer.model_path", None)
+                self.artifacts.pop("tokenizer.vocab_path", None)
+                self.artifacts.pop("tokenizer.spe_tokenizer_vocab", None)
+                for akey in list(self.artifacts.keys()):
+                    if akey.startswith("tokenizer.tokenizers."):
+                        self.artifacts.pop(akey)
+
             tokenizers_dict = {}
-            for lang, tokenizer_cfg in tokenizer_cfg.tokenizers.items():
-                (
-                    tokenizer,
-                    model_path,
-                    vocab_path,
-                    spe_vocab_path,
-                ) = self._make_tokenizer(tokenizer_cfg, lang)
+            for lang, tcfg in self.tokenizer_cfg["tokenizers"].items():
+                (tokenizer, model_path, vocab_path, spe_vocab_path,) = self._make_tokenizer(tcfg, lang)
                 tokenizers_dict[lang] = tokenizer
+                if hasattr(self, "cfg"):
+                    with open_dict(self.cfg):
+                        self.cfg.tokenizer.tokenizers[lang]["dir"] = self.tokenizer_cfg["tokenizers"][lang]["dir"]
+                        self.cfg.tokenizer.tokenizers[lang]["type"] = self.tokenizer_cfg["tokenizers"][lang]["type"]
+
+                # pop these now that we don't need them
+                if "dir" in tcfg:
+                    self.tokenizer_cfg["tokenizers"][lang].pop("dir")
+                self.tokenizer_cfg["tokenizers"][lang].pop("type")
+                self.tokenizer_cfg["tokenizers"][lang].pop("hf_kwargs", {})
 
             self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
-            # need to register some artifacts here
         else:
             logging.debug("_setup_tokenizer: detected a monolingual tokenizer")
-            (
-                self.tokenizer,
-                self.model_path,
-                self.vocab_path,
-                self.spe_vocab_path,
-            ) = self._make_tokenizer(tokenizer_cfg)
+            # need to de-register any old artifacts
+            if hasattr(self, "cfg"):
+                with open_dict(self.cfg):
+                    self.cfg.tokenizer.pop("tokenizers", None)
+            if hasattr(self, "artifacts"):
+                for akey in list(self.artifacts.keys()):
+                    if akey.startswith("tokenizer.tokenizers."):
+                        self.artifacts.pop(akey)
+            (self.tokenizer, self.model_path, self.vocab_path, self.spe_vocab_path,) = self._make_tokenizer(
+                self.tokenizer_cfg
+            )
 
-        # can remove these now that they have been used
-        if "dir" in self.tokenizer_cfg.keys():
-            self.tokenizer_dir = self.tokenizer_cfg.pop(
-                "dir"
-            )  # Remove tokenizer directory if exists
-
-        self.tokenizer_type = self.tokenizer_cfg.pop(
-            "type"
-        ).lower()  # Remove tokenizer_type
-
-        self.hf_tokenizer_kwargs = self.tokenizer_cfg.pop(
-            "hf_kwargs", {}
-        )  # Remove HF tokenizer kwargs
+            # can safely pop now
+            if "dir" in self.tokenizer_cfg:
+                self.tokenizer_cfg.pop("dir")
+            self.tokenizer_cfg.pop("type")
+            self.tokenizer_cfg.pop("hf_kwargs", {})
 
     def _make_tokenizer(self, tokenizer_cfg: DictConfig, lang=None):
 
@@ -132,9 +150,7 @@ class ASRBPEMixin(ABC):
             else:
                 model_path = os.path.join(tokenizer_dir, "tokenizer.model")
             if lang is not None:
-                model_path = self.register_artifact(
-                    "tokenizer.tokenizers." + lang + ".model_path", model_path
-                )
+                model_path = self.register_artifact("tokenizer.tokenizers." + lang + ".model_path", model_path)
             else:
                 model_path = self.register_artifact("tokenizer.model_path", model_path)
 
@@ -142,9 +158,7 @@ class ASRBPEMixin(ABC):
                 special_tokens = tokenizer_cfg["special_tokens"]
 
                 if special_tokens is not None:
-                    raise ValueError(
-                        "`special_tokens` are no longer supported for SentencePiece based tokenizers."
-                    )
+                    raise ValueError("`special_tokens` are no longer supported for SentencePiece based tokenizers.")
 
             # Update special tokens
             tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path)
@@ -155,27 +169,22 @@ class ASRBPEMixin(ABC):
                 vocab_path = os.path.join(tokenizer_dir, "vocab.txt")
 
             if lang is not None:
-                vocab_path = self.register_artifact(
-                    "tokenizer.tokenizers." + lang + ".vocab_path", model_path
-                )
+                vocab_path = self.register_artifact("tokenizer.tokenizers." + lang + ".vocab_path", vocab_path)
             else:
-                vocab_path = self.register_artifact("tokenizer.vocab_path", model_path)
+                vocab_path = self.register_artifact("tokenizer.vocab_path", vocab_path)
 
             try:
                 if "spe_tokenizer_vocab" in tokenizer_cfg:
                     spe_vocab_path = tokenizer_cfg.get("spe_tokenizer_vocab")
                 else:
-                    spe_vocab_path = os.path.join(self.tokenizer_dir, "tokenizer.vocab")
+                    spe_vocab_path = os.path.join(tokenizer_dir, "tokenizer.vocab")
 
                 if lang is not None:
                     spe_vocab_path = self.register_artifact(
-                        "tokenizer.tokenizers." + lang + ".spe_tokenizer_vocab",
-                        model_path,
+                        "tokenizer.tokenizers." + lang + ".spe_tokenizer_vocab", spe_vocab_path,
                     )
                 else:
-                    spe_vocab_path = self.register_artifact(
-                        "tokenizer.spe_tokenizer_vocab", model_path
-                    )
+                    spe_vocab_path = self.register_artifact("tokenizer.spe_tokenizer_vocab", spe_vocab_path)
 
             except FileNotFoundError:
                 # fallback case for older checkpoints that did not preserve the tokenizer.vocab
@@ -205,9 +214,7 @@ class ASRBPEMixin(ABC):
                 vocab_path = os.path.join(tokenizer_dir, "vocab.txt")
 
             if lang is not None:
-                vocab_path = self.register_artifact(
-                    "tokenizer.tokenizers." + lang + ".vocab_path", model_path
-                )
+                vocab_path = self.register_artifact("tokenizer.tokenizers." + lang + ".vocab_path", model_path)
             else:
                 vocab_path = self.register_artifact("tokenizer.vocab_path", model_path)
 
@@ -229,9 +236,7 @@ class ASRBPEMixin(ABC):
             )
 
         logging.info(
-            "Tokenizer {} initialized with {} tokens".format(
-                tokenizer.__class__.__name__, self.tokenizer.vocab_size
-            )
+            "Tokenizer {} initialized with {} tokens".format(tokenizer.__class__.__name__, tokenizer.vocab_size)
         )
 
         return tokenizer, model_path, vocab_path, spe_vocab_path
@@ -246,9 +251,7 @@ class ASRModuleMixin(ABC):
     functionality if the corresponding module is present.
     """
 
-    def change_conv_asr_se_context_window(
-        self, context_window: int, update_config: bool = True
-    ):
+    def change_conv_asr_se_context_window(self, context_window: int, update_config: bool = True):
         """
         Update the context window of the SqueezeExcitation module if the provided model contains an
         `encoder` which is an instance of `ConvASREncoder`.

@@ -32,7 +32,7 @@ class _Collection(collections.UserList):
 class Text(_Collection):
     """Simple list of preprocessed text entries, result in list of tokens."""
 
-    OUTPUT_TYPE = collections.namedtuple('TextEntity', 'tokens')
+    OUTPUT_TYPE = collections.namedtuple("TextEntity", "tokens")
 
     def __init__(self, texts: List[str], parser: parsers.CharParser):
         """Instantiates text manifest and do the preprocessing step.
@@ -73,15 +73,15 @@ class FromFileText(Text):
     @staticmethod
     def __parse_texts(file: str) -> List[str]:
         if not os.path.exists(file):
-            raise ValueError('Provided texts file does not exists!')
+            raise ValueError("Provided texts file does not exists!")
 
         _, ext = os.path.splitext(file)
-        if ext == '.csv':
-            texts = pd.read_csv(file)['transcript'].tolist()
-        elif ext == '.json':  # Not really a correct json.
-            texts = list(item['text'] for item in manifest.item_iter(file))
+        if ext == ".csv":
+            texts = pd.read_csv(file)["transcript"].tolist()
+        elif ext == ".json":  # Not really a correct json.
+            texts = list(item["text"] for item in manifest.item_iter(file))
         else:
-            with open(file, 'r') as f:
+            with open(file, "r") as f:
                 texts = f.readlines()
 
         return texts
@@ -91,8 +91,8 @@ class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioTextEntity',
-        field_names='id audio_file duration text_tokens offset text_raw speaker orig_sr lang',
+        typename="AudioTextEntity",
+        field_names="id audio_file duration text_tokens offset text_raw speaker orig_sr lang",
     )
 
     def __init__(
@@ -136,7 +136,7 @@ class AudioText(_Collection):
             self.mapping = {}
 
         for id_, audio_file, duration, offset, text, speaker, orig_sr, lang in zip(
-            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, langs
+            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, langs,
         ):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
@@ -149,8 +149,11 @@ class AudioText(_Collection):
                 num_filtered += 1
                 continue
 
-            if lang is not None and parser.is_aggregate:
-                text_tokens = parser(text, lang)
+            if parser.is_aggregate:
+                if lang is not None:
+                    text_tokens = parser(text, lang)
+                else:
+                    raise ValueError("lang required in manifest when using aggregate tokenizers")
             else:
                 text_tokens = parser(text)
 
@@ -161,7 +164,7 @@ class AudioText(_Collection):
 
             total_duration += duration
 
-            data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
+            data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang,))
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 self.mapping[file_id] = len(data) - 1
@@ -176,8 +179,12 @@ class AudioText(_Collection):
             else:
                 data.sort(key=lambda entity: entity.duration)
 
-        logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
-        logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
+        logging.info(
+            "Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600,
+        )
+        logging.info(
+            "%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600,
+        )
 
         super().__init__(data)
 
@@ -195,24 +202,35 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs = [], [], [], [], [], [], [], []
+        ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
         for item in manifest.item_iter(manifests_files):
-            ids.append(item['id'])
-            audio_files.append(item['audio_file'])
-            durations.append(item['duration'])
-            texts.append(item['text'])
-            offsets.append(item['offset'])
-            speakers.append(item['speaker'])
-            orig_srs.append(item['orig_sr'])
-            langs.append(item['lang'])
+            ids.append(item["id"])
+            audio_files.append(item["audio_file"])
+            durations.append(item["duration"])
+            texts.append(item["text"])
+            offsets.append(item["offset"])
+            speakers.append(item["speaker"])
+            orig_srs.append(item["orig_sr"])
+            langs.append(item["lang"])
 
-        super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs, *args, **kwargs)
+        super().__init__(
+            ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs, *args, **kwargs,
+        )
 
 
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label offset',)
+    OUTPUT_TYPE = collections.namedtuple(typename="SpeechLabelEntity", field_names="audio_file duration label offset",)
 
     def __init__(
         self,
@@ -282,7 +300,9 @@ class SpeechLabel(_Collection):
 class ASRSpeechLabel(SpeechLabel):
     """`SpeechLabel` collector from structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], is_regression_task=False, *args, **kwargs):
+    def __init__(
+        self, manifests_files: Union[str, List[str]], is_regression_task=False, *args, **kwargs,
+    ):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -295,14 +315,14 @@ class ASRSpeechLabel(SpeechLabel):
         audio_files, durations, labels, offsets = [], [], [], []
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
-            audio_files.append(item['audio_file'])
-            durations.append(item['duration'])
+            audio_files.append(item["audio_file"])
+            durations.append(item["duration"])
             if not is_regression_task:
-                labels.append(item['label'])
+                labels.append(item["label"])
             else:
-                labels.append(float(item['label']))
+                labels.append(float(item["label"]))
 
-            offsets.append(item['offset'])
+            offsets.append(item["offset"])
 
         super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)
 
@@ -310,35 +330,35 @@ class ASRSpeechLabel(SpeechLabel):
         item = json.loads(line)
 
         # Audio file
-        if 'audio_filename' in item:
-            item['audio_file'] = item.pop('audio_filename')
-        elif 'audio_filepath' in item:
-            item['audio_file'] = item.pop('audio_filepath')
+        if "audio_filename" in item:
+            item["audio_file"] = item.pop("audio_filename")
+        elif "audio_filepath" in item:
+            item["audio_file"] = item.pop("audio_filepath")
         else:
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
-        item['audio_file'] = os.path.expanduser(item['audio_file'])
+        item["audio_file"] = os.path.expanduser(item["audio_file"])
 
         # Duration.
-        if 'duration' not in item:
+        if "duration" not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
 
         # Label.
-        if 'command' in item:
-            item['label'] = item.pop('command')
-        elif 'target' in item:
-            item['label'] = item.pop('target')
-        elif 'label' in item:
+        if "command" in item:
+            item["label"] = item.pop("command")
+        elif "target" in item:
+            item["label"] = item.pop("target")
+        elif "label" in item:
             pass
         else:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper label key.")
 
         item = dict(
-            audio_file=item['audio_file'],
-            duration=item['duration'],
-            label=item['label'],
-            offset=item.get('offset', None),
+            audio_file=item["audio_file"],
+            duration=item["duration"],
+            label=item["label"],
+            offset=item.get("offset", None),
         )
 
         return item
@@ -347,7 +367,7 @@ class ASRSpeechLabel(SpeechLabel):
 class FeatureSequenceLabel(_Collection):
     """List of feature sequence of label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='FeatureSequenceLabelEntity', field_names='feature_file seq_label',)
+    OUTPUT_TYPE = collections.namedtuple(typename="FeatureSequenceLabelEntity", field_names="feature_file seq_label",)
 
     def __init__(
         self,
@@ -398,7 +418,7 @@ class FeatureSequenceLabel(_Collection):
         super().__init__(data)
 
     def relative_speaker_parser(self, seq_label):
-        """ Convert sequence of speaker labels to relative labels.
+        """Convert sequence of speaker labels to relative labels.
         Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
         In this seq of label , if label do not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
         Args:
@@ -443,8 +463,8 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
 
         feature_files, seq_labels = [], []
         for item in manifest.item_iter(manifests_files, parse_func=self._parse_item):
-            feature_files.append(item['feature_file'])
-            seq_labels.append(item['seq_label'])
+            feature_files.append(item["feature_file"])
+            seq_labels.append(item["seq_label"])
 
         super().__init__(feature_files, seq_labels, max_number, index_by_file_id)
 
@@ -452,24 +472,24 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
         item = json.loads(line)
 
         # Feature file
-        if 'feature_filename' in item:
-            item['feature_file'] = item.pop('feature_filename')
-        elif 'feature_filepath' in item:
-            item['feature_file'] = item.pop('feature_filepath')
+        if "feature_filename" in item:
+            item["feature_file"] = item.pop("feature_filename")
+        elif "feature_filepath" in item:
+            item["feature_file"] = item.pop("feature_filepath")
         else:
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper feature file key."
             )
-        item['feature_file'] = os.path.expanduser(item['feature_file'])
+        item["feature_file"] = os.path.expanduser(item["feature_file"])
 
         # Seq of Label.
-        if 'seq_label' in item:
-            item['seq_label'] = item.pop('seq_label')
+        if "seq_label" in item:
+            item["seq_label"] = item.pop("seq_label")
         else:
             raise ValueError(
                 f"Manifest file has invalid json line " f"structure: {line} without proper seq_label key."
             )
 
-        item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
+        item = dict(feature_file=item["feature_file"], seq_label=item["seq_label"],)
 
         return item
