@@ -61,7 +61,7 @@ class DialogueGPTModel(NLPModel):
 
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        
+
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
@@ -509,7 +509,7 @@ class DialogueGPTModel(NLPModel):
 
         loss = self(input_ids, attn_masks, labels)
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        
+
         # ranking using perplexity of candidates
         if self.eval_mode == "ranking":
             generated_field, ground_truth_field = self.rank_candidates(
