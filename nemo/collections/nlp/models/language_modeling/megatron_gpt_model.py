@@ -787,9 +787,8 @@ class MegatronGPTModel(NLPModel):
         for prompt_tag in self.model.language_model.prompt_table.prompt_table.keys():
             if prompt_tag in self.prompts_to_tune:
                 for params in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
-                    param.requires_grad = True
+                    params.requires_grad = True
                     weight_decay_params['params'].append(params)
-                    self.prompt_tuning_params.append(params)
             else:
                 for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = False
