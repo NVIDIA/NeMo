@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
@@ -45,6 +51,7 @@ class ElectronicFst(GraphFst):
 
         graph_digit = graph_digit_no_zero | graph_zero
         graph_symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).optimize()
+        chars = pynini.difference(NEMO_NOT_QUOTE, pynini.project(graph_symbols, "input"))
         user_name = (
             pynutil.delete("username:")
             + delete_space
@@ -52,8 +59,8 @@ class ElectronicFst(GraphFst):
             + (
                 pynini.closure(
                     pynutil.add_weight(graph_digit + insert_space, 1.09)
-                    | pynutil.add_weight(pynini.closure(graph_symbols + pynutil.insert(" ")), 1.09)
-                    | pynutil.add_weight(NEMO_NOT_QUOTE + insert_space, 1.1)
+                    | pynutil.add_weight(pynini.closure(graph_symbols + insert_space), 1.09)
+                    | pynutil.add_weight(chars + insert_space, 1.1)
                 )
             )
             + pynutil.delete("\"")
@@ -63,15 +70,13 @@ class ElectronicFst(GraphFst):
         domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 
         convert_defaults = (
-            NEMO_NOT_QUOTE | pynutil.add_weight(domain_common, -0.1) | pynutil.add_weight(server_common, -0.1)
+            chars
+            | pynutil.add_weight(graph_symbols, -0.1)
+            | pynutil.add_weight(domain_common, -0.1)
+            | pynutil.add_weight(server_common, -0.1)
         )
-        domain = convert_defaults + pynini.closure(pynutil.insert(" ") + convert_defaults)
-        domain = pynini.compose(
-            domain,
-            pynini.closure(
-                pynutil.add_weight(graph_symbols, -0.1) | pynutil.add_weight(graph_digit, -0.1) | NEMO_NOT_QUOTE
-            ),
-        )
+        domain = convert_defaults + pynini.closure(insert_space + convert_defaults)
+        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.1), "", "", NEMO_SIGMA)
 
         domain = (
             pynutil.delete("domain:")

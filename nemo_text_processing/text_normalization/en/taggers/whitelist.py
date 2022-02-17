@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_NOT_SPACE,
+    NEMO_UPPER,
+    SINGULAR_TO_PLURAL,
+    GraphFst,
+    convert_space,
+)
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
@@ -57,6 +64,7 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
+
         is_default = not lm
         if deterministic:
             graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
@@ -64,9 +72,31 @@ class WhiteListFst(GraphFst):
             graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"), is_default=is_default)
             graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"), is_default=is_default)
 
+        if lm:
+            # TODO add boundaries
+            for x in [".", ". "]:
+                graph |= (
+                    NEMO_UPPER
+                    + pynini.closure(pynutil.delete(x) + NEMO_UPPER, 2)
+                    + pynini.closure(pynutil.delete("."), 0, 1)
+                )
+        else:
+            for x in [".", ". "]:
+                graph |= (
+                    NEMO_UPPER
+                    + pynini.closure(pynutil.delete(x) + NEMO_UPPER, 2)
+                    + pynini.closure(pynutil.delete("."), 0, 1)
+                )
+
+
+        if not deterministic:
             multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"), is_default=is_default)
             graph |= multiple_forms_whitelist_graph
 
+            graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+            graph_unit_plural = graph_unit @ SINGULAR_TO_PLURAL
+            units_graph = pynini.compose(NEMO_CHAR ** (3, ...), convert_space(graph_unit | graph_unit_plural))
+            graph |= units_graph
             # convert to states only if comma is present before the abbreviation to avoid converting all caps words,
             # e.g. "IN", "OH", "OK"
             # TODO or only exclude above?

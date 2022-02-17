@@ -19,13 +19,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NON_BREAKING_SPACE,
     NEMO_SIGMA,
     NEMO_SPACE,
+    NEMO_UPPER,
     SINGULAR_TO_PLURAL,
     TO_LOWER,
     GraphFst,
     convert_space,
     delete_space,
     insert_space,
-    NEMO_UPPER
 )
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst as OrdinalTagger
 from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats
@@ -63,7 +63,7 @@ class MeasureFst(GraphFst):
         cardinal_graph = cardinal.graph
 
         if not deterministic:
-            cardinal_graph |= cardinal.range_graph
+            cardinal_graph = cardinal.graph | cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit).optimize()
@@ -203,15 +203,15 @@ class MeasureFst(GraphFst):
         delimiter = pynini.accep(" ") | pynutil.insert(" ")
 
         math = (
-            cardinal_graph
+            (cardinal_graph | NEMO_ALPHA)
             + delimiter
             + math_operations
-            + delimiter
+            + (delimiter | NEMO_ALPHA)
             + cardinal_graph
             + delimiter
             + pynini.cross("=", "equals")
             + delimiter
-            + cardinal_graph
+            + (cardinal_graph | NEMO_ALPHA)
         )
         math = (
             pynutil.insert("units: \"math\" cardinal { integer: \"")
