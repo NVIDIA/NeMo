@@ -8,16 +8,17 @@ jobs:
   ci-import-check:
     runs-on: ubuntu-latest
 
+    # Check https://hub.docker.com/r/pytorch/pytorch/tags for latest tags
     container:
-      image: pytorch/pytorch:latest
+      image: pytorch/pytorch:1.10.0-cuda11.3-cudnn8-runtime
 
     steps:
     - uses: actions/checkout@v2
 
-    - name: Update base dependencies
-      run: |
-        apt-get update && apt-get install -y build-essential
-        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg
+#    - name: Update base dependencies
+#      run: |
+#        apt-get update && apt-get install -y build-essential
+#        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg
 
     - name: Install nemo dependencies
       id: nemo-wheel
@@ -26,6 +27,8 @@ jobs:
         pip install -r requirements/requirements_test.txt
         pip install build
         python -m build
+        ls -a
+        pwd
         python -m build --no-isolation --wheel
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
