@@ -25,14 +25,37 @@ jobs:
       run:  |
         # install test requirements
         pip install -r requirements/requirements_test.txt
+        # Build nemo as a wheel
         pip install build
         python -m build --no-isolation --wheel
+        # Preserve wheel location
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
 
     - name: Test ASR Domain Imports
       run: |
-        # Install NeMo
+        # Install NeMo Domain
         pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[asr]"
+        # Run import checks
         python tests/core_ptl/check_imports.py --domain "asr"
+        # Uninstall NeMo
+        pip uninstall -y nemo_toolkit
+
+    - name: Test TTS Domain Imports
+      run: |
+        # Install NeMo Domain
+        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[tts]"
+        # Run import checks
+        python tests/core_ptl/check_imports.py --domain "tts"
+        # Uninstall NeMo
+        pip uninstall -y nemo_toolkit
+
+    - name: Test NLP Domain Imports
+      run: |
+        # Install NeMo Domain
+        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[asr]"
+        # Run import checks
+        python tests/core_ptl/check_imports.py --domain "asr"
+        # Uninstall NeMo
+        pip uninstall -y nemo_toolkit
 
