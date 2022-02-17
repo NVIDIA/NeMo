@@ -1,0 +1,37 @@
+name: CI-Import-Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci-import-check:
+    runs-on: ubuntu-latest
+
+    container:
+      image: conda/miniconda3
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Update base dependencies
+      run: |
+        apt-get install -y make libsndfile1 sox libfreetype6 ffmpeg
+
+    - name: Install nemo dependencies
+      id: nemo-wheel
+      run:  |
+        # install test requirements
+        pip install -r requirements/requirements_test.txt
+        pip install build
+        python -m build
+        python -m build --no-isolation --wheel
+        DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
+        echo "::set-output name=DIST_FILE::${DIST_FILE}"
+
+    - name: Test ASR Domain Imports
+      run: |
+        # Install NeMo
+        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[asr]"
+        python tests/core_ptl/check_imports.py --domain "asr"
+
