@@ -85,8 +85,8 @@ def run_training(cfg, hydra_args="", dependency=None):
         os.makedirs(results_dir)
     
     # Shared between BCP and BCM 
-    new_script_path = os.path.join(bignlp_path, f"train_scripts/{name}.sh")
-    code_path = os.path.join(bignlp_path, "train_scripts/pretrain_gpt.py")
+    new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
+    code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
     train_cmd = f"python3 -u {code_path} {hydra_args}"
 
     nodes = train_cfg.trainer.num_nodes

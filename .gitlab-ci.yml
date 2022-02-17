@@ -31,4 +31,4 @@ test:bignlp_scripts:
     - pip install -r requirements.txt
     - pip install 'pytest>=3'
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
-    - pytest data_preparation/dataprep_scripts/test_*
+    - pytest tests

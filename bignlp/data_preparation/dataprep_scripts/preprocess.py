@@ -7,7 +7,7 @@ import hydra
 import utils
 
 
-@hydra.main(config_path="../../conf", config_name="config")
+@hydra.main(config_path="../../../conf", config_name="config")
 def main(cfg):
     bignlp_path = cfg.bignlp_path
     data_cfg = cfg.data_preparation
