@@ -184,9 +184,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
                 cache_next = cache_next[self._cache_id]
-            q_length = query.size()[1]
+            q_length = query.size(1)
             # cache_length = cache.size()[1]
-            cache_next_length = cache_next.size()[1]
+            cache_next_length = cache_next.size(1)
             q_input = query
             key = value = torch.cat((cache, key), dim=1)
 

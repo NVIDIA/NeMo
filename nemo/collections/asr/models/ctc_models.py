@@ -31,7 +31,7 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType, ChannelType
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModel']
@@ -529,6 +529,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+            "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
         }
 
     @property
@@ -537,11 +539,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
+            "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+            "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
         }
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None, cache_last_channel=None, cache_last_time=None
     ):
         """
         Forward pass of the model.
@@ -579,11 +583,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length, cache_last_channel=cache_last_channel, cache_last_time=cache_last_time)
+        encoded = encoder_output[0]
+        encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-
-        return log_probs, encoded_len, greedy_predictions
+        if len(encoder_output) == 2:
+            return log_probs, encoded_len, greedy_predictions,
+        else:
+            return log_probs, encoded_len, greedy_predictions, encoder_output[2], encoder_output[3]
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):

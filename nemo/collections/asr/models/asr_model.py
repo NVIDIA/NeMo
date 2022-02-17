@@ -81,16 +81,28 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    def forward_for_export(self, input, length=None):
+    def forward_for_export(self, input, length=None, cache_last_channel=None, cache_last_time=None):
         if hasattr(self.input_module, 'forward_for_export'):
-            encoder_output = self.input_module.forward_for_export(input, length)
+            if cache_last_channel is None and cache_last_time is None:
+                encoder_output = self.input_module.forward_for_export(input, length)
+            else:
+                encoder_output = self.input_module.forward_for_export(input, length, cache_last_channel, cache_last_time)
         else:
-            encoder_output = self.input_module(input, length)
+            if cache_last_channel is None and cache_last_time is None:
+                encoder_output = self.input_module(input, length)
+            else:
+                encoder_output = self.input_module(input, length, cache_last_channel, cache_last_time)
         if isinstance(encoder_output, tuple):
             decoder_input = encoder_output[0]
         else:
             decoder_input = encoder_output
         if hasattr(self.output_module, 'forward_for_export'):
-            return self.output_module.forward_for_export(decoder_input)
+            if cache_last_channel is None and cache_last_time is None:
+                return self.output_module.forward_for_export(decoder_input)
+            else:
+                return self.output_module.forward_for_export(decoder_input), encoder_output[2], encoder_output[3]
         else:
-            return self.output_module(decoder_input)
+            if cache_last_channel is None and cache_last_time is None:
+                return self.output_module(decoder_input)
+            else:
+                return self.output_module(decoder_input), encoder_output[2], encoder_output[3]

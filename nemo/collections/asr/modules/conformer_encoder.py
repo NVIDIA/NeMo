@@ -27,6 +27,12 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
 
+from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
+from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    MultiHeadAttention,
+    RelPositionMultiHeadAttention,
+)
+
 __all__ = ['ConformerEncoder']
 
 
@@ -75,7 +81,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def input_example(self, max_batch=1, max_dim=256, max_cache=256):
+    def input_example(self, max_batch=1, max_dim=1024, max_cache=256):
         """
         Generates input examples for tracing etc.
         Returns:
@@ -88,10 +94,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         if self.is_causal:
             cache_last_channel = torch.randn(self.n_layers, max_batch, max_cache, self.d_model).to(dev)
             cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_cache).to(dev)
-            all_input_example = {"audio_signal": input_example,
-                                 "length": input_example_length,
-                                 "cache_last_channel": cache_last_channel,
-                                 "cache_last_time": cache_last_time}
+            all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
         else:
             all_input_example = tuple([input_example, input_example_length])
         return all_input_example
@@ -142,20 +145,22 @@ class ConformerEncoder(NeuralModule, Exportable):
         pos_emb_max_len=5000,
         conv_kernel_size=31,
         conv_norm_type='batch_norm',
-        conv_context_size=[-1, -1],
+        conv_context_size=None,
         dropout=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
     ):
         super().__init__()
         self.cache_drop_size = None
+        self.lookahead_steps = None
         self.is_causal = is_causal
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
         self.n_layers = n_layers
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
-        # self.att_context_style = att_context_style
+        self.att_context_style = att_context_style
+        self.conv_kernel_size = conv_kernel_size
 
         if att_context_size:
             self.att_context_size = att_context_size
@@ -306,7 +311,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward_for_export(
-        self, audio_signal, length, cache_last_channel, cache_last_time
+        self, audio_signal, length, cache_last_channel=None, cache_last_time=None
     ):
         max_audio_length: int = audio_signal.size(-1)
         length = length.to(audio_signal.device)
@@ -423,3 +428,30 @@ class ConformerEncoder(NeuralModule, Exportable):
         mask = self.use_pad_mask
         self.use_pad_mask = on
         return mask
+
+    def set_streaming_params(self):
+        conv_context_size = self.conv_context_size if self.conv_context_size is not None else [self.conv_kernel_size - 1, 0]
+        if self.att_context_style == "chunked_limited":
+            self.lookahead_steps = self.att_context_size[1] + 1
+            self.cache_drop_size = 0
+        else:
+            lookahead_steps_att = self.att_context_size[1] * self.n_layers
+            lookahead_steps_conv = conv_context_size[1] * self.n_layers
+            self.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
+            self.cache_drop_size = self.lookahead_steps
+
+        last_channel_num = 0
+        last_time_num = 0
+        for m in self.layers.modules():
+            if hasattr(m, "_max_cache_len"):  # and m._max_cache_len > 0:
+                if type(m) == RelPositionMultiHeadAttention:  # or type(m) == RelPositionMultiHeadAttention:
+                    m._cache_id = last_channel_num
+                    last_channel_num += 1
+                    m.cache_drop_size = self.cache_drop_size
+
+                if type(m) == CausalConv1D:
+                    m._cache_id = last_time_num
+                    last_time_num += 1
+                    m.cache_drop_size = self.cache_drop_size
+
+        return last_channel_num, last_time_num

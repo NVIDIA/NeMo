@@ -109,6 +109,9 @@ def nemo_export(argv):
         sys.exit(1)
     typecheck.set_typecheck_enabled(enabled=False)
 
+    if hasattr(model.encoder, "set_streaming_params"):
+        model.encoder.set_streaming_params()
+
     try:
         #
         #  Add custom export parameters here
