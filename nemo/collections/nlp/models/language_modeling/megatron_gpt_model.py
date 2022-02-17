@@ -404,9 +404,14 @@ class MegatronGPTModel(NLPModel):
     def get_forward_output_only_func(self):
         def fwd_output_only_func(batch, model):
             batch = [x.cuda() for x in batch]
-            tokens, attention_mask, position_ids = batch
-            attention_mask = attention_mask[0:1]
-            output_tensor = model(tokens, position_ids, attention_mask)
+
+            if self.use_soft_prompts:
+                tokens, attention_mask, position_ids, prompt_ids = batch
+                output_tensor = model(tokens, position_ids, attention_mask, prompt_ids=prompt_ids)
+            else:
+                tokens, attention_mask, position_ids = batch
+                attention_mask = attention_mask[0:1]
+                output_tensor = model(tokens, position_ids, attention_mask)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -898,8 +903,10 @@ class MegatronGPTModel(NLPModel):
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                     raise ValueError('complete method is not yet supported for pipeline with soft prompts')
                 prompt_tags = request["prompt_tags"][idx]
+                prompt_tags_to_ids = dict(self.prompt_table)
+                prompt_ids = torch.tensor([prompt_tags_to_ids[tag] for tag in prompt_tags])
             else:
-                prompt_tags = None
+                prompt_ids = None
 
             logsoftmaxlayer = torch.nn.LogSoftmax(dim=-1)
 
@@ -928,8 +935,10 @@ class MegatronGPTModel(NLPModel):
                         reset_attention_mask=self.cfg.get('reset_attention_mask', False),
                         eod_mask_loss=self.cfg.get('eod_mask_loss', False),
                     )
-
-                batch = [tokens, attention_mask, position_ids]
+                if self.use_soft_prompts:
+                    batch = [tokens, attention_mask, position_ids, prompt_ids]
+                else:
+                    batch = [tokens, attention_mask, position_ids]
                 tensor_shape = [tokens.shape[1], 1, self.cfg.hidden_size]
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                     output_tensor = forward_backward_pipelining_without_interleaving(
@@ -1018,8 +1027,10 @@ class MegatronGPTModel(NLPModel):
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                     raise ValueError('compute_logprobs method is not yet supported for pipeline with soft prompts')
                 prompt_tags = request["prompt_tags"][idx]
+                prompt_tags_to_ids = dict(self.prompt_table)
+                prompt_ids = torch.tensor([prompt_tags_to_ids[tag] for tag in prompt_tags])
             else:
-                prompt_tags = None
+                prompt_ids = None
 
             if self.use_soft_prompts:
                 batch_size = len(tokens_cut)
@@ -1044,7 +1055,10 @@ class MegatronGPTModel(NLPModel):
                     eod_mask_loss=self.cfg.get('eod_mask_loss', False),
                 )
 
-            batch = [tokens_cut, attention_mask, position_ids]
+            if self.use_soft_prompts:
+                batch = [tokens, attention_mask, position_ids, prompt_ids]
+            else:
+                batch = [tokens, attention_mask, position_ids]
             tensor_shape = [tokens_cut.shape[1], 1, self.cfg.hidden_size]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(

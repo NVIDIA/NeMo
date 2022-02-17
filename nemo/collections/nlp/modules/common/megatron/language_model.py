@@ -356,16 +356,18 @@ class PromptEmbedding(MegatronModule):
         self._position_embeddings_key = 'position_embeddings'
 
         # Set ids needed for forward pass and broadcast them
-        ids = {'ids': torch.arange(self.num_prompt_tokens, dtype=torch.int64)}
-        ids_b = tensor_parallel.broadcast_data(['ids'], ids, torch.int64)
-        self.ids = ids_b['ids'].long()
+        # ids = {'ids': torch.arange(self.num_prompt_tokens, dtype=torch.int64)}
+        # ids_b = tensor_parallel.broadcast_data(['ids'], ids, torch.int64)
+        # self.ids = ids_b['ids'].long()
+        self.ids = torch.arange(self.num_prompt_tokens, dtype=torch.int64)
 
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
     def forward(self, tokentype_ids=None):
         # Embeddings.
-        prompt_embeddings = self.prompt_embeddings(self.ids)
-        position_embeddings = self.position_embeddings(self.ids)
+        device = next(self.prompt_embeddings.parameters()).device
+        prompt_embeddings = self.prompt_embeddings(self.ids.to(device))
+        position_embeddings = self.position_embeddings(self.ids.to(device))
         embeddings = prompt_embeddings + position_embeddings
 
         # Dropout.
