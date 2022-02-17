@@ -27,10 +27,12 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+
 class ApexGuardDefaults(object):
     """
     This class can be used to replace missing classes when apex is missing.
     """
+
     def __init__(self):
         super().__init__()
 
