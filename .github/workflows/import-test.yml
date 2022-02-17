@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: conda/miniconda3
+      image: pytorch/pytorch:latest
 
     steps:
     - uses: actions/checkout@v2
