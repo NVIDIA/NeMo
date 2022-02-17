@@ -49,7 +49,7 @@ def build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
-    eos_id,
+    tokenizer,
 ):
     """Build train, valid, and test datasets."""
 
@@ -65,7 +65,7 @@ def build_train_valid_test_datasets(
             seq_length,
             seed,
             skip_warmup,
-            eos_id,
+            tokenizer,
         )
 
     # Blending dataset.
@@ -88,7 +88,7 @@ def build_train_valid_test_datasets(
             seq_length,
             seed,
             skip_warmup,
-            eos_id,
+            tokenizer,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -121,7 +121,7 @@ def _build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
-    eos_id
+    tokenizer,
 ):
     """Build train, valid, and test datasets."""
 
@@ -152,6 +152,7 @@ def _build_train_valid_test_datasets(
             dataset = GPTDataset(
                 cfg,
                 trainer,
+                tokenizer,
                 name,
                 data_prefix,
                 documents,
@@ -159,7 +160,6 @@ def _build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
-                eos_id,
             )
         return dataset
 
@@ -187,6 +187,7 @@ class GPTDataset(MegatronDataset):
         self,
         cfg,
         trainer,
+        tokenizer,
         name,
         data_prefix,
         documents,
@@ -194,7 +195,6 @@ class GPTDataset(MegatronDataset):
         num_samples,
         seq_length,
         seed,
-        eos_id,
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -212,7 +212,7 @@ class GPTDataset(MegatronDataset):
         self.reset_position_ids = cfg.data.get('reset_position_ids', False)
         self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
         self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
-        self.eos_id = eos_id
+        self.eos_id = tokenizer.eos_id
 
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
@@ -224,7 +224,8 @@ class GPTDataset(MegatronDataset):
         #    sample i --> [sample_idx[i], sample_idx[i+1])
         return self.sample_idx.shape[0] - 1
 
-    def __getitem__(self, idx):
+    def _get_text(self, idx: int) -> np.ndarray:
+
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
         # Start and end documents and offsets.
@@ -246,8 +247,10 @@ class GPTDataset(MegatronDataset):
             # And finally add the relevant portion of last document.
             sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
             sample = np.concatenate(sample_list)
+        return sample.astype(np.int64)
 
-        text = torch.from_numpy(sample.astype(np.int64))
+    def __getitem__(self, idx):
+        text = self._get_text(idx)
         tokens = text[:-1].contiguous()
         labels = text[1:].contiguous()
         attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(

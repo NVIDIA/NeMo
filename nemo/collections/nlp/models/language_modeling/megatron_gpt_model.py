@@ -583,7 +583,7 @@ class MegatronGPTModel(NLPModel):
             seq_length=self.cfg.data.seq_length,
             seed=self.cfg.seed,
             skip_warmup=self.cfg.data.get('skip_warmup', True),
-            eos_id=self.tokenizer.eos_id,
+            tokenizer=self.tokenizer,
         )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
