@@ -22,10 +22,10 @@ import torch.nn.init as init
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
-    ApexGuardDefaults,
 )
 
 try:
