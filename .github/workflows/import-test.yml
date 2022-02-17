@@ -26,9 +26,6 @@ jobs:
         # install test requirements
         pip install -r requirements/requirements_test.txt
         pip install build
-        python -m build
-        ls -a
-        pwd
         python -m build --no-isolation --wheel
         DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
         echo "::set-output name=DIST_FILE::${DIST_FILE}"
