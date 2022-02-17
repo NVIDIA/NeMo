@@ -401,7 +401,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if cache_last_channel is not None:
-            return audio_signal, length, cache_last_channel_next, cache_last_time_next  # , cache_pre_encode_next
+            return audio_signal, length, cache_last_channel_next, cache_last_time_next
         else:
             return audio_signal, length
 
