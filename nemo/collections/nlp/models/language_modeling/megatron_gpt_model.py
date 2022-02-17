@@ -116,10 +116,12 @@ class MegatronGPTModel(NLPModel):
         self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
 
         # Prompt tuning initialization
-        self.use_soft_prompts = False
+        self.use_soft_prompts = self.cfg.get('use_soft_prompts', False)
 
-        if self.cfg.get('use_soft_prompts', False):
-            self.use_soft_prompts = True
+        if self.use_soft_prompts:
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                raise NotImplementedError("Prompt tuning is not yet supported for pipeline parallel > 1")
+
             self.prompts_to_tune = set([])
             self.prompt_table = set([])
             self.next_prompt_id = 0
@@ -130,7 +132,7 @@ class MegatronGPTModel(NLPModel):
                 self.prompt_table = set(self.cfg.existing_prompt_tags)
 
                 # Get max prompt id from table for starting point of new prompt ids
-                self.next_prompt_id = max(self.prompt_table, key=lambda x:x[1])[1]
+                self.next_prompt_id = max(self.prompt_table, key=lambda x: x[1])[1]
 
         self.setup_optimizer_param_groups()
 
@@ -237,7 +239,7 @@ class MegatronGPTModel(NLPModel):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
-        
+
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -269,7 +271,7 @@ class MegatronGPTModel(NLPModel):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
                 self.log('loss_scale', loss_scale)
-            
+
         self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
@@ -442,7 +444,7 @@ class MegatronGPTModel(NLPModel):
         else:
             # we're not on the last pipeline stage so no losses
             loss_mean = []
-        
+
         return loss_mean
 
     def validation_epoch_end(self, outputs):
@@ -615,7 +617,6 @@ class MegatronGPTModel(NLPModel):
             drop_last=True,
             shuffle=True,
             pin_memory=True,
-            
         )
 
         return dataset, dataloader
@@ -627,21 +628,10 @@ class MegatronGPTModel(NLPModel):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
+        # Initalize soft prompts before loading datasets and training
         if self.use_soft_prompts:
-            # Initalize soft prompts before loading datasets and training
-            for idx, tag in enumerate(self.cfg.new_prompt_tags):
-                init_method = self.cfg.new_prompt_init_methods[idx]
+            self.init_new_prompts()
 
-                if init_method == "text":
-                    init_text = self.cfg.new_prompt_init_text[idx]
-                    self.init_prompt_from_text(tag, init_text)
-
-                elif init_method == 'random':
-                    self.init_prompt_from_random(tag)
-
-                else:
-                    raise AttributeError(f'\n Soft prompt init method {init_method} is not recognized\
-                                            please use text or random')
         if stage == 'predict':
             return
         else:
@@ -664,7 +654,7 @@ class MegatronGPTModel(NLPModel):
                 raise AttributeError('No prompt tuning train dataset was specified in the cfg file')
 
             # Freeze all weights except prompt embeddings and setup optimizer with prompt embedding params
-            self.prompt_tuning_param_optimizer_setup_and_freeze()
+            self.prompt_tuning_param_freeze_and_optimizer_setup()
 
         elif hasattr(self, '_train_ds'):
             resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
@@ -771,12 +761,12 @@ class MegatronGPTModel(NLPModel):
             parameters = self._optimizer.get_parameters()
         else:
             parameters = self.get_parameters()
-            
+
         grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True)
 
-    def prompt_tuning_param_optimizer_setup_and_freeze(self):
+    def prompt_tuning_param_freeze_and_optimizer_setup(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
         """
         weight_decay_params = {'params': []}
@@ -794,7 +784,7 @@ class MegatronGPTModel(NLPModel):
             else:
                 for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = False
-        
+
         self._optimizer_param_groups = weight_decay_params, no_weight_decay_params
 
     @classmethod
@@ -1017,6 +1007,23 @@ class MegatronGPTModel(NLPModel):
             response[index] = item
 
         return response
+
+    def init_new_prompts(self):
+        for idx, tag in enumerate(self.cfg.new_prompt_tags):
+            init_method = self.cfg.new_prompt_init_methods[idx]
+
+            if init_method == "text":
+                init_text = self.cfg.new_prompt_init_text[idx]
+                self.init_prompt_from_text(tag, init_text)
+
+            elif init_method == 'random':
+                self.init_prompt_from_random(tag)
+
+            else:
+                raise AttributeError(
+                    f'\n Soft prompt init method {init_method} is not recognized\
+                                        please use text or random'
+                )
 
     def init_prompt_from_random(self, prompt_tag):
         prompt_id = self._get_next_prompt_id()

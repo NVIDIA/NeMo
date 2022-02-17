@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -228,7 +228,7 @@ class Embedding(MegatronModule):
         words_embeddings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
 
-        # Want word embeddings and position embeddings before addition for soft prompt initalization 
+        # Want word embeddings and position embeddings before addition for soft prompt initalization
         if separate_embeddings:
             return words_embeddings, position_embeddings
 
@@ -351,7 +351,7 @@ class PromptEmbedding(MegatronModule):
         self._prompt_embeddings_key = 'prompt_embeddings'
         self._position_embeddings_key = 'position_embeddings'
 
-        # Set ids needed for forward pass and broadcast them 
+        # Set ids needed for forward pass and broadcast them
         ids = {'ids': torch.arange(self.num_prompt_tokens, dtype=torch.int64)}
         ids_b = tensor_parallel.broadcast_data(['ids'], ids, torch.int64)
         self.ids = ids_b['ids'].long()
@@ -426,6 +426,7 @@ class PromptTable(torch.nn.Module):
                     hidden_size=self.hidden_size,
                     num_prompt_tokens=self.num_prompt_tokens,
                 )
+
     def forward(self, prompt_id):
         prompt_id = prompt_id.item()
         prompt_tag = self.prompt_id_to_tag[prompt_id]
@@ -441,7 +442,7 @@ class PromptTable(torch.nn.Module):
             if value == prompt_tag:
                 prompt_id = key
                 break
-        
+
         del self.prompt_id_to_tag[prompt_id]
         del self.prompt_table[prompt_tag]
 
@@ -452,9 +453,7 @@ class PromptTable(torch.nn.Module):
         """
         # Initalize prompt embeddings from a pytorch random init method
         prompt_embeddings = PromptEmbedding(
-            init_from_prompt_text=False,
-            hidden_size=self.hidden_size,
-            num_prompt_tokens=self.num_prompt_tokens,
+            init_from_prompt_text=False, hidden_size=self.hidden_size, num_prompt_tokens=self.num_prompt_tokens,
         )
 
         self.prompt_table[prompt_tag] = prompt_embeddings
@@ -475,7 +474,6 @@ class PromptTable(torch.nn.Module):
             num_reps = math.ceil(num_prompt_tokens / num_text_tokens)
             init_token_ids = init_token_ids * num_reps
 
-
         # Set dictionary item keys and datatypes for broadcasting
         keys = ['text']
         datatype = torch.int64
@@ -488,11 +486,7 @@ class PromptTable(torch.nn.Module):
         init_position_ids = torch.arange(self.num_prompt_tokens, dtype=torch.long, device=init_token_ids.device)
 
         # Use a copy of token embedding weights to initalize the prompt embeddings
-        word_embeddings, position_embeddings = embeddings(
-                init_token_ids,
-                init_position_ids,
-                separate_embeddings=True
-        )
+        word_embeddings, position_embeddings = embeddings(init_token_ids, init_position_ids, separate_embeddings=True)
 
         word_embeddings = word_embeddings.detach().clone()
         position_embeddings = position_embeddings.detach().clone()
@@ -613,8 +607,8 @@ class TransformerLanguageModel(MegatronModule):
         # Soft Prompts
         if self.use_soft_prompts:
             self.prompt_table = PromptTable(
-                existing_prompt_tags=self.existing_prompt_tags, 
-                num_prompt_tokens=self.num_prompt_tokens, 
+                existing_prompt_tags=self.existing_prompt_tags,
+                num_prompt_tokens=self.num_prompt_tokens,
                 hidden_size=self.hidden_size,
             )
             self._prompt_table_key = 'prompt_table'
@@ -854,24 +848,21 @@ class TransformerLanguageModel(MegatronModule):
            Intialize prompt weights using pytorch init method
 
         """
+        if self.pre_process:
+            if not hasattr(self, 'prompt_table'):
+                raise AttributeError('Please set "use_soft_prompts" in the config to True')
 
-        if not hasattr(self, 'prompt_table'):
-            raise AttributeError('Please set "use_soft_prompts" in the config to True')
-
-        self.prompt_table.init_prompt_from_random(prompt_tag, prompt_id, embeddings=self.embedding)
+            self.prompt_table.init_prompt_from_random(prompt_tag, prompt_id, embeddings=self.embedding)
 
     def _init_prompt_from_text(self, prompt_tag, prompt_id, init_token_ids):
         """Add new soft prompt to be tuned.
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
         """
+        if self.pre_process:
+            if not hasattr(self, 'prompt_table'):
+                raise AttributeError('Please set "use_soft_prompts" in the config to True')
 
-        if not hasattr(self, 'prompt_table'):
-            raise AttributeError('Please set "use_soft_prompts" in the config to True')
-
-        self.prompt_table.init_prompt_from_text(
-            prompt_tag,
-            prompt_id,
-            init_token_ids,
-            embeddings=self.embedding,
-        )
+            self.prompt_table.init_prompt_from_text(
+                prompt_tag, prompt_id, init_token_ids, embeddings=self.embedding,
+            )

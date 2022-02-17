@@ -43,7 +43,7 @@ class GPTPromptTuningDataset(Dataset):
         min_seq_length: int = 1,
         add_bos: bool = False,
         add_eos: bool = True,
-        calc_loss_on_answer_only = False,
+        calc_loss_on_answer_only=False,
     ):
         self.tokenizer = tokenizer
         self.prompt_tag_to_id = dict(prompt_table)
@@ -87,7 +87,6 @@ class GPTPromptTuningDataset(Dataset):
                 sent_ids = sent_ids + [tokenizer.eos_id]
                 answer_len += 1  # To account for EOS token
 
-
             # Need to leave space for prompt tokens in sequence
             if self.min_seq_length <= len(sent_ids) <= self.max_sent_length:
                 prompt_id = self.prompt_tag_to_id[prompt_tag]
@@ -111,8 +110,7 @@ class GPTPromptTuningDataset(Dataset):
 
         # Prepare global batch
         tokens, labels, loss_mask, attention_mask, text_position_ids = self.process_global_batch(
-                input_ids,
-                answer_lens,
+            input_ids, answer_lens,
         )
 
         return tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids
@@ -134,7 +132,7 @@ class GPTPromptTuningDataset(Dataset):
         tokens = tokens[:, :-1].contiguous()
         text_position_ids, attention_mask = self.get_ltor_attention_mask_and_position_ids(batch_size, tokens)
 
-        return tokens, labels, loss_mask, attention_mask, text_position_ids 
+        return tokens, labels, loss_mask, attention_mask, text_position_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, answer_lens, batch_max):
         """ Pad tokens in batch to max batch length while building loss mask """
@@ -181,9 +179,7 @@ class GPTPromptTuningDataset(Dataset):
         full_seq_length = len(tokens[0]) + self.num_prompt_tokens
 
         # Position ids for text
-        text_position_ids = torch.arange(
-                start=self.num_prompt_tokens, end=full_seq_length, dtype=torch.long,
-        )
+        text_position_ids = torch.arange(start=self.num_prompt_tokens, end=full_seq_length, dtype=torch.long,)
         text_position_ids = text_position_ids.unsqueeze(0).expand_as(tokens).clone()
 
         # Attention mask (lower triangular) starting with prompt tokens
