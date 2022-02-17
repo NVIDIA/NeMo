@@ -27,7 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -39,6 +39,8 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+    # fake missing classes with None attributes
+    AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -421,7 +423,8 @@ class ParallelTransformerLayer_(MegatronModule):
         self.layer_number = layer_number
         self.layer_type = layer_type
 
-        self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm  # if true apply residual connection post layer norm (like original bert)
+        # if true apply residual connection post layer norm (like original bert)
+        self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm
 
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
@@ -623,6 +626,7 @@ class ParallelTransformer(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
         use_cpu_initialization=False,
         bias_gelu_fusion=True,
         masked_softmax_fusion=True,
@@ -671,6 +675,7 @@ class ParallelTransformer(MegatronModule):
                 fp32_residual_connection=fp32_residual_connection,
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
+                attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_gelu_fusion=bias_gelu_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
