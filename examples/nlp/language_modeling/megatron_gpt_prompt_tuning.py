@@ -148,7 +148,7 @@ python megatron_gpt_prompt_tuning.py \
 """
 
 
-@hydra_runner(config_path="conf", config_name="test_tensor_parallel_2")
+@hydra_runner(config_path="conf", config_name="megatron_prompt_tuning_gpt")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
