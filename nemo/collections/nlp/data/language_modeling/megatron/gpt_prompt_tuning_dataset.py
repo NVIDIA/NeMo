@@ -115,16 +115,6 @@ class GPTPromptTuningDataset(Dataset):
                 answer_lens,
         )
 
-        # Split into micro batchs
-        #tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids = self.split_into_micro_batches(
-        #        tokens,
-        #        labels,
-        #        loss_mask,
-        #        attention_mask,
-        #        text_position_ids,
-        #        prompt_ids,
-        #)
-
         return tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids
 
     def process_global_batch(self, input_ids, answer_lens):
@@ -145,19 +135,6 @@ class GPTPromptTuningDataset(Dataset):
         text_position_ids, attention_mask = self.get_ltor_attention_mask_and_position_ids(batch_size, tokens)
 
         return tokens, labels, loss_mask, attention_mask, text_position_ids 
-
-    def split_into_micro_batches(self, tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids):
-        """ Now that the global batch sequences have been padded, split into micro batches """
-
-        tokens = torch.cat(torch.split(tokens, self.micro_batch_size))
-        labels = torch.cat(torch.split(labels, self.micro_batch_size))
-        loss_mask = torch.cat(torch.split(loss_mask, self.micro_batch_size))
-        attention_mask = torch.cat(torch.split(attention_mask, self.micro_batch_size))
-        text_position_ids = torch.cat(torch.split(text_position_ids, self.micro_batch_size))
-        prompt_ids = torch.cat(torch.split(prompt_ids, self.micro_batch_size))
-
-        return tokens, labels, loss_mask, attention_mask, text_position_ids, prompt_ids
-
 
     def pad_batch_and_build_loss_mask(self, input_ids, answer_lens, batch_max):
         """ Pad tokens in batch to max batch length while building loss mask """

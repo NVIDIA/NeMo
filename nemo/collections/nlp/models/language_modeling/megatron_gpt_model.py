@@ -14,6 +14,7 @@
 
 import os
 import re
+from tkinter import W
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -236,7 +237,7 @@ class MegatronGPTModel(NLPModel):
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
-        parameters = self.get_parameters()
+        
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
@@ -280,7 +281,7 @@ class MegatronGPTModel(NLPModel):
             prog_bar=True,
             rank_zero_only=True,
         )
-        print(f"MEAN LOSS: {loss_mean}")
+        print(f"Train Loss: {loss_mean}")
         return loss_mean
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
@@ -340,7 +341,6 @@ class MegatronGPTModel(NLPModel):
         """
         # Bucketize and all-reduce
         buckets = {}
-        # Pack the buckets.
         for param in self.parameters():
             if param.requires_grad and param.grad is not None:
                 tp = param.data.type()
@@ -382,11 +382,7 @@ class MegatronGPTModel(NLPModel):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda() for x in batch]
 
-            # If using soft prompts the batch length will be 6 otherwise it will be 5
-            # TODO: Think of better way to do this without magic numbers
-            SOFT_PROMPT_BATCH_LENGTH = 6
-
-            if len(batch) == SOFT_PROMPT_BATCH_LENGTH:
+            if self.use_soft_prompts:
                 tokens, labels, loss_mask, attention_mask, position_ids, prompt_ids = batch
                 output_tensor = model(tokens, position_ids, attention_mask, labels, prompt_ids=prompt_ids)
             else:
@@ -446,7 +442,7 @@ class MegatronGPTModel(NLPModel):
         else:
             # we're not on the last pipeline stage so no losses
             loss_mean = []
-
+        print(f"\n\nVal Loss: {loss_mean}")
         return loss_mean
 
     def validation_epoch_end(self, outputs):
@@ -768,9 +764,14 @@ class MegatronGPTModel(NLPModel):
 
         if self.megatron_amp_o2:
             # grep fp32 master parameters for gradient clipping
+            if self.use_soft_prompts:
+                raise NotImplementedError("Prompt tuning is not implemented for amp_o2")
             parameters = self._optimizer.get_parameters()
         else:
-            parameters = self.get_parameters()
+            if self.use_soft_prompts:
+                parameters = self.prompt_tuning_parameters
+            else:
+                parameters = self.get_parameters()
 
         grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
@@ -782,11 +783,13 @@ class MegatronGPTModel(NLPModel):
         for param in self.model.parameters():
             param.requires_grad = False
 
+        self.prompt_tuning_parameters = []
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
         for prompt_tag in self.model.language_model.prompt_table.prompt_table.keys():
             if prompt_tag in self.prompts_to_tune:
                 for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = True
+                    self.prompt_tuning_parameters.append(param)
             else:
                 for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = False
