@@ -16,12 +16,12 @@ import random
 
 import numpy as np
 import torch
-from apex.transformer.utils import ensure_divisibility
 
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import tensor_parallel
+    from apex.transformer.log_util import set_logging_level
     from apex.transformer.parallel_state import (
         get_pipeline_model_parallel_rank,
         set_pipeline_model_parallel_rank,
@@ -29,7 +29,6 @@ try:
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
     )
-    from apex.transformer.log_util import set_logging_level
     from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
     from apex.transformer.utils import ensure_divisibility
 
