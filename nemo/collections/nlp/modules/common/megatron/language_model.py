@@ -426,10 +426,9 @@ class PromptTable(torch.nn.Module):
                     hidden_size=self.hidden_size,
                     num_prompt_tokens=self.num_prompt_tokens,
                 )
-    # def forward(self, prompt_id):
-    #     prompt_id = prompt_id.item()
-    #     prompt_tag = self.prompt_id_to_tag[prompt_id]
-    def forward(self, prompt_tag):
+    def forward(self, prompt_id):
+        prompt_id = prompt_id.item()
+        prompt_tag = self.prompt_id_to_tag[prompt_id]
         return self.prompt_table[prompt_tag]()
 
     def remove_prompt(self, prompt_tag):
@@ -494,6 +493,9 @@ class PromptTable(torch.nn.Module):
                 init_position_ids,
                 separate_embeddings=True
         )
+
+        word_embeddings = word_embeddings.detach().clone()
+        position_embeddings = position_embeddings.detach().clone()
 
         prompt_embeddings = PromptEmbedding(
             init_from_prompt_text=True,
@@ -717,8 +719,7 @@ class TransformerLanguageModel(MegatronModule):
 
             # Soft prompts
             if self.use_soft_prompts and prompt_ids != None:
-                #prompt_embeddings = [self.prompt_table(prompt_id) for prompt_id in prompt_ids]
-                prompt_embeddings = [self.prompt_table('boolq') for prompt_id in prompt_ids]
+                prompt_embeddings = [self.prompt_table(prompt_id) for prompt_id in prompt_ids]
                 prompt_embeddings = torch.stack(prompt_embeddings)
                 encoder_input = torch.cat((prompt_embeddings, embedding_output), dim=1)
             else:

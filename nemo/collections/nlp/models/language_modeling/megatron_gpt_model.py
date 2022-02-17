@@ -281,7 +281,7 @@ class MegatronGPTModel(NLPModel):
             prog_bar=True,
             rank_zero_only=True,
         )
-        print(f"Train Loss: {loss_mean}")
+
         return loss_mean
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
@@ -442,7 +442,7 @@ class MegatronGPTModel(NLPModel):
         else:
             # we're not on the last pipeline stage so no losses
             loss_mean = []
-        print(f"\n\nVal Loss: {loss_mean}")
+        
         return loss_mean
 
     def validation_epoch_end(self, outputs):
@@ -611,9 +611,9 @@ class MegatronGPTModel(NLPModel):
             dataset,
             batch_size=self.cfg.global_batch_size,
             collate_fn=dataset.collate_fn,
-            num_workers=5,
-            #num_workers=self.cfg.data.num_workers,
+            num_workers=self.cfg.data.num_workers,
             pin_memory=True,
+            drop_last=True
         )
 
         return dataset, dataloader
@@ -661,8 +661,8 @@ class MegatronGPTModel(NLPModel):
             else:
                 raise AttributeError('No prompt tuning train dataset was specified in the cfg file')
 
-            # Freeze all weights except prompt embeddings
-            self.prompt_tuning_freeze()
+            # Freeze all weights except prompt embeddings and setup optimizer with prompt embedding params
+            self.prompt_tuning_param_optimizer_setup_and_freeze()
 
         elif hasattr(self, '_train_ds'):
             resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
@@ -768,31 +768,33 @@ class MegatronGPTModel(NLPModel):
                 raise NotImplementedError("Prompt tuning is not implemented for amp_o2")
             parameters = self._optimizer.get_parameters()
         else:
-            if self.use_soft_prompts:
-                parameters = self.prompt_tuning_parameters
-            else:
-                parameters = self.get_parameters()
-
+            parameters = self.get_parameters()
+            
         grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True)
 
-    def prompt_tuning_freeze(self):
+    def prompt_tuning_param_optimizer_setup_and_freeze(self):
         """Freeze weights of word embeddings and decoder, leaving only prompt embeddings unfrozen
         """
+        weight_decay_params = {'params': []}
+        no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+
         for param in self.model.parameters():
             param.requires_grad = False
 
-        self.prompt_tuning_parameters = []
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
         for prompt_tag in self.model.language_model.prompt_table.prompt_table.keys():
             if prompt_tag in self.prompts_to_tune:
-                for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
+                for params in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = True
-                    self.prompt_tuning_parameters.append(param)
+                    weight_decay_params['params'].append(params)
+                    self.prompt_tuning_params.append(params)
             else:
                 for param in self.model.language_model.prompt_table.prompt_table[prompt_tag].parameters():
                     param.requires_grad = False
+        
+        self._optimizer_param_groups = weight_decay_params, no_weight_decay_params
 
     @classmethod
     def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
