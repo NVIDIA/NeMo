@@ -53,9 +53,9 @@ jobs:
     - name: Test NLP Domain Imports
       run: |
         # Install NeMo Domain
-        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[asr]"
+        pip install "${{ steps.nemo-wheel.outputs.DIST_FILE }}[nlp]"
         # Run import checks
-        python tests/core_ptl/check_imports.py --domain "asr"
+        python tests/core_ptl/check_imports.py --domain "nlp"
         # Uninstall NeMo
         pip uninstall -y nemo_toolkit
 

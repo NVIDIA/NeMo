@@ -13,8 +13,9 @@
 # limitations under the License.
 import inspect
 import argparse
+import wrapt
 
-from nemo.core import ModelPT
+from nemo.core import Model
 from nemo.utils import model_utils
 
 DOMAINS = ['asr', 'tts', 'nlp']
@@ -41,10 +42,33 @@ def _get_class_from_path(domain, imp):
     class_ = model_utils.import_class_by_path(path)
 
     result = None
-    if inspect.isclass(class_) and issubclass(class_, ModelPT):
-        result = class_
+    if inspect.isclass(class_):
+        if isinstance(class_, wrapt.FunctionWrapper):
+            class_ = class_.__wrapped__
+        if issubclass(class_, Model):
+            result = class_
+    else:
+        class_ = None
 
-    return result
+    return class_, result
+
+
+def _test_domain_module_imports(module, domain):
+    module_list = []
+    failed_list = []
+
+    for imp in dir(module.models):
+        class_, result = _get_class_from_path(domain, imp)
+        if result is not None:
+            module_list.append(class_)
+        elif class_ is not None:
+            failed_list.append(class_)
+
+    for module in module_list:
+        print("Module successfully imported :", module)
+
+    for module in failed_list:
+        print("Module FAILED to load :", module)
 
 
 ###############################
@@ -53,40 +77,19 @@ def _get_class_from_path(domain, imp):
 def test_domain_asr(args):
     import nemo.collections.asr as nemo_asr
 
-    module_list = []
-    for imp in dir(nemo_asr.models):
-        class_ = _get_class_from_path(args.domain, imp)
-        if class_ is not None:
-            module_list.append(class_)
-
-    for module in module_list:
-        print("Module successfully imported :", module)
+    _test_domain_module_imports(nemo_asr, domain=args.domain)
 
 
 def test_domain_nlp(args):
     import nemo.collections.nlp as nemo_nlp
 
-    module_list = []
-    for imp in dir(nemo_nlp.models):
-        class_ = _get_class_from_path(args.domain, imp)
-        if class_ is not None:
-            module_list.append(class_)
-
-    for module in module_list:
-        print("Module successfully imported :", module)
+    _test_domain_module_imports(nemo_nlp, domain=args.domain)
 
 
 def test_domain_tts(args):
     import nemo.collections.tts as nemo_tts
 
-    module_list = []
-    for imp in dir(nemo_tts.models):
-        class_ = _get_class_from_path(args.domain, imp)
-        if class_ is not None:
-            module_list.append(class_)
-
-    for module in module_list:
-        print("Module successfully imported :", module)
+    _test_domain_module_imports(nemo_tts, domain=args.domain)
 
 
 ###############################
