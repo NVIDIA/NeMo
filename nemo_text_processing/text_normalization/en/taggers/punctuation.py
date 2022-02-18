@@ -16,15 +16,9 @@
 import sys
 from unicodedata import category
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = False
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class PunctuationFst(GraphFst):

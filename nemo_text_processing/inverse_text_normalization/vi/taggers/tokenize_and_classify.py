@@ -15,6 +15,7 @@
 
 import os
 
+import pynini
 from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
     GraphFst,
     delete_extra_space,
@@ -34,16 +35,9 @@ from nemo_text_processing.inverse_text_normalization.vi.taggers.telephone import
 from nemo_text_processing.inverse_text_normalization.vi.taggers.time import TimeFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.whitelist import WhiteListFst
 from nemo_text_processing.inverse_text_normalization.vi.taggers.word import WordFst
+from pynini.lib import pynutil
 
 from nemo.utils import logging
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 
 class ClassifyFst(GraphFst):

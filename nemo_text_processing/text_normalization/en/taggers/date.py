@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
@@ -24,23 +25,11 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
+from pynini.lib import pynutil
 
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    graph_teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv"))).optimize()
-    graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
-    ties_graph = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv"))).optimize()
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    # Add placeholders for global variables
-    graph_teen = None
-    graph_digit = None
-    ties_graph = None
-
-    PYNINI_AVAILABLE = True
+graph_teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv"))).optimize()
+graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
+ties_graph = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv"))).optimize()
 
 
 def get_ties_graph(deterministic: bool = True):

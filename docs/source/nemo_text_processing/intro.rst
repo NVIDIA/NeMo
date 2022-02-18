@@ -5,8 +5,6 @@ Text Processing
 
 See :doc:`NeMo Introduction <../starthere/intro>` for installation details.
 
-Additional requirements can be found in `setup.sh <https://github.com/NVIDIA/NeMo/blob/stable/nemo_text_processing/setup.sh>`_.
-
 .. toctree::
    :maxdepth: 1
 
