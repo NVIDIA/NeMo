@@ -31,11 +31,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
-<<<<<<< HEAD
         self.acc_metrics = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
-=======
-        self.acc_metrics = torch.nn.ModuleDict({lang: ExactStringMatchMetric() for lang in self.cfg.eval_languages})
->>>>>>> 97eecd8a844ec39f61c1e11da40a907d55565731
 
     def process_batch(self, batch):
         """Build the batch."""
