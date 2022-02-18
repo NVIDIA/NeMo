@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
-
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -32,7 +31,11 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
+<<<<<<< HEAD
         self.acc_metrics = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
+=======
+        self.acc_metrics = torch.nn.ModuleDict({lang: ExactStringMatchMetric() for lang in self.cfg.eval_languages})
+>>>>>>> 97eecd8a844ec39f61c1e11da40a907d55565731
 
     def process_batch(self, batch):
         """Build the batch."""
@@ -129,7 +132,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
             task_name=self.cfg.data.test_ds.task_name,
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.test_ds.max_seq_length,
-            lang_list=self.cfg.eval_languages
+            lang_list=self.cfg.eval_languages,
         )
         if test_only:
             return None, None, self._test_ds
@@ -144,7 +147,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
             task_name=self.cfg.data.validation_ds.task_name,
             tokenizer=self.model.tokenizer,
             max_seq_length=self.cfg.data.validation_ds.max_seq_length,
-            lang_list=self.cfg.eval_languages
+            lang_list=self.cfg.eval_languages,
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')

@@ -30,7 +30,7 @@ __all__ = [
     'QnliProcessor',
     'RteProcessor',
     'WnliProcessor',
-    'XNlIProcessor'
+    'XNlIProcessor',
 ]
 
 
