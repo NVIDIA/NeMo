@@ -202,26 +202,6 @@ class NormalizerWithAudio(Normalizer):
             except pynini.lib.rewrite.Error:
                 continue
 
-    def remove_punctuation(self, text: str, remove_spaces=True, do_lower=True, lang="en", exclude=None):
-        all_punct_marks = string.punctuation
-
-        if exclude is not None:
-            for p in exclude:
-                all_punct_marks = all_punct_marks.replace(p, "")
-        text = re.sub("[" + all_punct_marks + "]", " ", text)
-
-        if lang == "en":
-            # remove things like \x94 and \x93
-            text = re.sub(r"[^\x00-\x7f]", r" ", text)
-
-        text = re.sub(r" +", " ", text)
-        if remove_spaces:
-            text = text.replace(" ", "").replace("\u00A0", "").strip()
-
-        if do_lower:
-            text = text.lower()
-        return text.strip()
-
     def select_best_match(
         self,
         normalized_texts: List[str],
