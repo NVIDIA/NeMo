@@ -67,7 +67,7 @@ class MeasureFst(GraphFst):
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit |= pynini.compose(
-            pynini.closure(TO_LOWER, 1) + NEMO_ALPHA + pynini.closure(NEMO_ALPHA), graph_unit
+            pynini.closure(TO_LOWER, 1) + (NEMO_ALPHA | TO_LOWER) + pynini.closure(NEMO_ALPHA | TO_LOWER), graph_unit
         ).optimize()
 
         graph_unit_no_degrees = pynini.compose(

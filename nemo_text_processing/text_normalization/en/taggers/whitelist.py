@@ -124,7 +124,7 @@ class WhiteListFst(GraphFst):
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
 
 
-def get_formats(input_f, input_case="cased", is_default=False):
+def get_formats(input_f, input_case="cased", is_default=True):
     """
     Adds various abbreviation format options to the list of acceptable input forms
     """

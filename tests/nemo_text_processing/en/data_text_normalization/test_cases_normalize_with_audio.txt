@@ -54,8 +54,8 @@ W two six s
 ~5-3-Ws
 five-three-Ws
 ~401-ks
-four oh one-k s
-four hundred one-k s
+four oh one-ks
+four hundred one-ks
 ~The box was 25 x 7 m.
 The box was twenty five by seven meters.
 The box was twenty five by seven m.
