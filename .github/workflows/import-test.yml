@@ -2,7 +2,6 @@ name: CI-Import-Check
 
 on:
   push:
-  pull_request:
 
 jobs:
   ci-import-check:
