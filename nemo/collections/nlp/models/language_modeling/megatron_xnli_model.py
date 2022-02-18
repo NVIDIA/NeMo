@@ -16,7 +16,7 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
+from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextGLUEDataset,
     TextToTextXNlIDataset,
@@ -32,9 +32,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
-        self.acc_metrics = torch.nn.ModuleDict(
-            {lang: ExactStringMatchMetric() for lang in self.cfg.eval_languages}
-        )
+        self.acc_metrics = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
 
     def process_batch(self, batch):
         """Build the batch."""
@@ -67,26 +65,20 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
                 label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
             pred = self.model.tokenizer.ids_to_text(pred)
             label = self.model.tokenizer.ids_to_text(label)
-            _ = self.acc_metrics[lang](pred, label)
+            _ = self.acc_metrics(pred, label, lang)
 
         return {'loss': loss}
 
     def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
         averaged_loss = average_losses_across_data_parallel_group(losses)
-        val_accs = {}
-        for lang, metric in self.acc_metrics.items():
-            accuracy = metric.compute()
-            val_accs[lang] = accuracy
-        average_acc = sum(val_accs.values()) / len(val_accs)
-        val_accs['acc'] = average_acc
+        acc_result = self.acc_metrics.compute()
         self.log('validation_loss', averaged_loss)
-        self.log('validation_acc', average_acc)
+        self.log('validation_acc', acc_result['acc'])
         for lang in self.cfg.eval_languages:
-            self.log(f'{lang}_acc', val_accs[lang])
-        for _, metric in self.acc_metrics.items():
-            metric.reset()
-        return averaged_loss[0], val_accs
+            self.log(f'{lang}_acc', acc_result[lang])
+        self.acc_metrics.reset()
+        return averaged_loss[0], acc_result
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
@@ -117,7 +109,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
         self.log('val_loss', val_loss, prog_bar=True)
         self.log('val_acc', val_acc['acc'], prog_bar=True)
         for lang in self.cfg.eval_languages:
-            logging.info(f"Validation {lang} accuracy: {val_acc[lang]}")
+            logging.info(f"Validation {lang} accuracy: {val_acc[lang]} total: {val_acc[lang+'_total']}")
         logging.info(f'Validation loss: {val_loss}')
         logging.info(f"Validation accuracy: {val_acc['acc']}")
 
@@ -126,7 +118,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
         self.log('test_loss', test_loss, prog_bar=True)
         self.log('test_acc', test_acc['acc'], prog_bar=True)
         for lang in self.cfg.eval_languages:
-            logging.info(f"Validation {lang} accuracy: {test_acc[lang]}")
+            logging.info(f"Test {lang} accuracy: {test_acc[lang]} total: {test_acc[lang+'_total']}")
         logging.info(f'Test loss: {test_loss}')
         logging.info(f"Test accuracy: {test_acc['acc']}")
 

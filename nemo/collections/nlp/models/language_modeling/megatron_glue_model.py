@@ -23,7 +23,7 @@ from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
+from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
@@ -156,7 +156,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             )
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
-        self.acc_metric = ExactStringMatchMetric()
+        self.acc_metric = ExactStringPerCategoryMatchMetric()
 
     def training_step(self, batch, batch_idx):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
@@ -214,7 +214,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         averaged_loss = average_losses_across_data_parallel_group(losses)
         val_acc = self.acc_metric.compute()
         self.log('validation_loss', averaged_loss)
-        self.log('validation_acc', val_acc)
+        self.log('validation_acc', val_acc['acc'])
         self.acc_metric.reset()
         return averaged_loss[0], val_acc
 

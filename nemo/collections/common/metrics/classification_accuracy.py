@@ -153,26 +153,10 @@ def compute_topk_accuracy(correct_counts_k, total_counts_k):
     return top_k_scores
 
 
-class ExactStringMatchMetric(Metric):
-    def __init__(self, dist_sync_on_step=False):
-        super().__init__(dist_sync_on_step=dist_sync_on_step)
-
-        self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
-        self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
-
-    def update(self, pred: str, target: str):
-        if pred == target:
-            self.correct += 1
-        self.total += 1
-
-    def compute(self):
-        return self.correct.float() / self.total
-
-
 class ExactStringPerCategoryMatchMetric(Metric):
-    def __init__(self, categories, dist_sync_on_step=False):
+    def __init__(self, categories=[], dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
-        self.categories = categories
+        self.categories = set(categories)
 
         self.add_state("correct", default=torch.tensor(0), dist_reduce_fx="sum")
         self.add_state("total", default=torch.tensor(0), dist_reduce_fx="sum")
@@ -180,7 +164,7 @@ class ExactStringPerCategoryMatchMetric(Metric):
             self.add_state(f"{category}_total", default=torch.tensor(0), dist_reduce_fx="sum")
             self.add_state(f"{category}_correct", default=torch.tensor(0), dist_reduce_fx="sum")
 
-    def update(self, pred: str, target: str, category: str):
+    def update(self, pred: str, target: str, category: str = None):
         if pred == target:
             self.correct += 1
         self.total += 1

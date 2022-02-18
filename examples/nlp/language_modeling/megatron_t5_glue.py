@@ -29,7 +29,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="megatron_t5_config_finetune")
+@hydra_runner(config_path="conf", config_name="megatron_t5_config_finetune_glue_mnli")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
