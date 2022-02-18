@@ -66,7 +66,7 @@ class MeasureFst(GraphFst):
             cardinal_graph = cardinal.graph | cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
-        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit).optimize()
+        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + NEMO_ALPHA + pynini.closure(NEMO_ALPHA), graph_unit).optimize()
 
         graph_unit_no_degrees = pynini.compose(
             graph_unit, pynini.difference(NEMO_SIGMA, pynini.union("degree Celsius", "degree Fahrenheit"))

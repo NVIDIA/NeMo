@@ -64,12 +64,13 @@ class WhiteListFst(GraphFst):
             graph = pynini.string_map(whitelist)
             return graph
 
+        graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
+
+        if lm:
+            graph = pynutil.insert("< ") + graph + pynutil.insert(" >")
 
         is_default = not lm
-        if deterministic:
-            graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
-        else:
-            graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"), is_default=is_default)
+        if not deterministic:
             graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"), is_default=is_default)
 
         if lm:
