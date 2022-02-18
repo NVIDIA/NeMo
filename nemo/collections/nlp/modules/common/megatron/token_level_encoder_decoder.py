@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     build_position_ids,
     init_method_normal,
     parallel_lm_logits,
@@ -35,6 +36,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 __all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule"]
@@ -98,6 +101,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         bias_gelu_fusion=True,
         masked_softmax_fusion=True,
         openai_gelu=False,
+        activation='gelu',
         onnx_safe=False,
         hidden_steps=-1,
         hidden_blocks=1,
@@ -159,6 +163,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_blocks,
+            activation=activation,
         )
 
         decoder = get_decoder_model(
@@ -190,6 +195,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_blocks,
+            activation=activation,
         )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)

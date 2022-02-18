@@ -23,6 +23,7 @@ import torch.nn.init as init
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_encoder import MegatronTransformerEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
@@ -34,6 +35,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 __all__ = []
@@ -67,6 +70,7 @@ def get_encoder_model(
     masked_softmax_fusion=True,
     persist_layer_norm=False,
     openai_gelu=False,
+    activation="gelu",
     onnx_safe=False,
     hidden_steps=-1,
     hidden_blocks=1,
@@ -112,6 +116,7 @@ def get_encoder_model(
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            activation=activation,
         )
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")

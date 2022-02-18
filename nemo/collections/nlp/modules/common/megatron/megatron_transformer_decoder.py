@@ -16,7 +16,11 @@
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.utils import attn_mask_postprocess, build_attention_mask_3d
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    attn_mask_postprocess,
+    build_attention_mask_3d,
+)
 
 try:
     from apex.transformer.enums import AttnMaskType, LayerType
@@ -24,6 +28,9 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
+    LayerType = ApexGuardDefaults()
 
 
 __all__ = ["MegatronTransformerDecoderModule"]
@@ -59,6 +66,7 @@ class MegatronTransformerDecoderModule(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
+        activation='gelu',
     ):
         super(MegatronTransformerDecoderModule, self).__init__()
 
@@ -105,6 +113,7 @@ class MegatronTransformerDecoderModule(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            activation=activation,
         )
         self._model_key = 'model'
 
