@@ -125,11 +125,11 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(word_graph, 100)
             )
 
-            if not deterministic:
-                roman_graph = RomanFst(deterministic=deterministic).fst
-                # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-                classify |= pynutil.add_weight(roman_graph, 100)
+            roman_graph = RomanFst(deterministic=deterministic).fst
+            # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
+            classify |= pynutil.add_weight(roman_graph, 100)
 
+            if not deterministic:
                 abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst
                 classify |= pynutil.add_weight(abbreviation_graph, 100)
 
