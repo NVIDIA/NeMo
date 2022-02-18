@@ -14,7 +14,9 @@
 
 from operator import itemgetter
 from typing import Any, Optional
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import MegatronLMEncoderDecoderModel
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
+    MegatronLMEncoderDecoderModel,
+)
 from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
 from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 
