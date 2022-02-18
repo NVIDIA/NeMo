@@ -297,6 +297,28 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.register_buffer('seq_range', seq_range, persistent=False)
         self.pos_enc.extend_pe(max_audio_length, device)
 
+        att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
+        if self.chunk_size is None:
+            if self.att_context_size[0] >= 0:
+                att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
+            if self.att_context_size[1] >= 0:
+                att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+        else:
+            chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+            chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
+            diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
+            chunked_limited_mask = torch.logical_and(
+                torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
+            )
+            att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
+
+        #att_mask = ~att_mask
+
+        if hasattr(self, 'seq_range'):
+            self.att_mask = att_mask
+        else:
+            self.register_buffer('att_mask', att_mask, persistent=False)
+
     @typecheck()
     def forward(
         self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None
@@ -358,30 +380,37 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
 
         pad_mask = self.make_pad_mask(max_audio_length=max_audio_length, seq_lens=padding_length)
-        att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-        att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
 
-        pad_mask = ~pad_mask
+        # att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
+        # att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
+        # if self.chunk_size is None:
+        #     if self.att_context_size[0] >= 0:
+        #         att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
+        #     if self.att_context_size[1] >= 0:
+        #         att_mask = att_mask.tril(diagonal=self.att_context_size[1])
+        # else:
+        #     chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+        #     chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
+        #     diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
+        #     chunked_limited_mask = torch.logical_and(
+        #         torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
+        #     )
+        #     att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
+        # att_mask = ~att_mask
 
-        if self.chunk_size is None:
-            if self.att_context_size[0] >= 0:
-                att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
-            if self.att_context_size[1] >= 0:
-                att_mask = att_mask.tril(diagonal=self.att_context_size[1])
-        else:
-            chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
-            chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
-            diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
-            chunked_limited_mask = torch.logical_and(
-                torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
-            )
-            att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
-
-        att_mask = ~att_mask
+        pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
+        pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
+        att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
+        att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
 
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
             att_mask = att_mask[:, cache_len:]
+        # else:
+        #     att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
+
+        pad_mask = ~pad_mask
+        att_mask = ~att_mask
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
