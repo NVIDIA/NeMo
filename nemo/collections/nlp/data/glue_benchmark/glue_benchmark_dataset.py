@@ -136,6 +136,8 @@ class GLUEDataset(Dataset):
 
         # TODO: use a different variable to decide whether to trust the user provided filename. This is a temporary workaround for T5 GLUE and XNLI.
         if not compute_features:
+            if not os.path.exists(original_file_name):
+                raise ValueError(f"Could not find file : {original_file_name}")
             self.examples = processor.get_examples(original_file_name)
         else:
             self.examples = (

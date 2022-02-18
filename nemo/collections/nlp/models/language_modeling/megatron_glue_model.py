@@ -62,6 +62,7 @@ class MegatronT5FineTuneModel(NLPModel):
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
+            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
 
         self.model = MegatronT5Model.restore_from(
             self.register_artifact('t5_base_model', cfg.restore_from_path),
