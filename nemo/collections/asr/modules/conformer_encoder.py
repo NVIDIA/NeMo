@@ -383,6 +383,7 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         # att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         # att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
+        #
         # if self.chunk_size is None:
         #     if self.att_context_size[0] >= 0:
         #         att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
@@ -396,7 +397,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         #         torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
         #     )
         #     att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
-        # att_mask = ~att_mask
 
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
@@ -406,8 +406,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         if cache_last_channel is not None:
             pad_mask = pad_mask[:, cache_len:]
             att_mask = att_mask[:, cache_len:]
-        # else:
-        #     att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
 
         pad_mask = ~pad_mask
         att_mask = ~att_mask
