@@ -168,6 +168,8 @@ class ExactStringPerCategoryMatchMetric(Metric):
         if pred == target:
             self.correct += 1
         self.total += 1
+        if category is None:
+            return
         if category in self.categories:
             val = getattr(self, f"{category}_total")
             setattr(self, f"{category}_total", val + 1)

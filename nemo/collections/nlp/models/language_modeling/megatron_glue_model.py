@@ -22,9 +22,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
-    MegatronLMEncoderDecoderModel,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
@@ -94,13 +91,13 @@ class MegatronT5FineTuneModel(NLPModel):
     def setup(self, stage=None):
         pass
 
-    def setup_training_data(self):
+    def setup_training_data(self, train_data_config=None):
         pass
 
-    def setup_validation_data(self):
+    def setup_validation_data(self, validation_data_config=None):
         pass
 
-    def setup_test_data(self):
+    def setup_test_data(self, test_data_config=None):
         pass
 
     def configure_optimizers(self):
@@ -295,7 +292,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             return
         self.setup_training_data()
 
-    def setup_training_data(self):
+    def setup_training_data(self, train_data_config=None):
         self._train_dl = self.build_pretraining_data_loader(
             self._train_ds,
             self.cfg.data.train_ds.batch_size,
@@ -304,7 +301,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             pin_memory=self.cfg.data.train_ds.pin_memory,
         )
 
-    def setup_validation_data(self):
+    def setup_validation_data(self, validation_data_config=None):
         self._validation_dl = self.build_pretraining_data_loader(
             self._validation_ds,
             self.cfg.data.validation_ds.batch_size,

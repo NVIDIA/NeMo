@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -24,7 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_glue_model import Me
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
 
-__all__ = ['MegatronXNliModel']
+__all__ = ['MegatronXNlIModel']
 
 
 class MegatronXNlIModel(MegatronT5GLUEModel):
@@ -94,7 +93,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
         self.setup_validation_data()
         self.setup_training_data()
 
-    def setup_test_data(self):
+    def setup_test_data(self, test_data_config=None):
         self._test_dl = self.build_pretraining_data_loader(
             self._test_ds,
             self.cfg.data.validation_ds.batch_size,

@@ -493,6 +493,7 @@ class TextToTextXNlIDataset(TextToTextGLUEDataset):
         )
         if len(lang_list) <= 0 or lang_list is None:
             raise ValueError(f"Found an empty or None lang_list for {self.task_name}")
+        self.features = self.convert_xnli_examples_to_features()
 
     def __getitem__(self, idx):
         enc_query, dec_input, labels, lang = self.features[idx]
@@ -503,12 +504,12 @@ class TextToTextXNlIDataset(TextToTextGLUEDataset):
         base_batch['lang'] = [item['lang'] for item in batch]
         return base_batch
 
-    def convert_examples_to_features(self):
+    def convert_xnli_examples_to_features(self):
         """
         Converts examples into Text-to-Text batches to be used with a model like T5.
         Inputs are prefixed with a text prompt that indicates the task to perform.
         """
-        features = super().convert_examples_to_features()
+        features = self.features
         lang_filtered_features = []
         for ex_index, example in enumerate(self.examples):
             language = example.guid.split('-')[1]
