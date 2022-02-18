@@ -138,7 +138,9 @@ class GLUEDataset(Dataset):
         if not compute_features:
             self.examples = processor.get_examples(original_file_name)
         else:
-            self.examples = processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
+            self.examples = (
+                processor.get_dev_examples(data_dir) if evaluate else processor.get_train_examples(data_dir)
+            )
         processor_name = type(processor).__name__
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         if compute_features:
@@ -486,7 +488,9 @@ class TextToTextXNlIDataset(TextToTextGLUEDataset):
         lang_list: List[str] = None,
     ):
         self.lang_list = set(lang_list)
-        super().__init__(file_name, task_name, tokenizer, max_seq_length, max_seq_length_decoder, use_cache, prefix_override)
+        super().__init__(
+            file_name, task_name, tokenizer, max_seq_length, max_seq_length_decoder, use_cache, prefix_override
+        )
         if len(lang_list) <= 0 or lang_list is None:
             raise ValueError(f"Found an empty or None lang_list for {self.task_name}")
 
@@ -511,6 +515,7 @@ class TextToTextXNlIDataset(TextToTextGLUEDataset):
             if language in self.lang_list:
                 lang_filtered_features.append(features[ex_index] + [language])
         return lang_filtered_features
+
 
 class InputFeatures(object):
     """A single set of features of data.
