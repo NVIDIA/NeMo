@@ -31,7 +31,6 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 import wget
-from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio, normalize_manifest
 from omegaconf import OmegaConf
 from tqdm import tqdm
@@ -48,7 +47,7 @@ parser.add_argument("--num-workers", default=4, type=int)
 
 parser.add_argument("--normalization-source", default="dataset", type=str, choices=[None, "dataset", "nemo"])
 parser.add_argument("--num-workers-for-normalizer", default=12, type=int)
-
+parser.add_argument("--batch-size-for-normalizer", default=200, type=int)
 parser.add_argument("--save-google-normalization-separately", action="store_true", default=False)
 
 parser.add_argument("--pretrained-model", default="stt_en_citrinet_1024", type=str)
@@ -227,7 +226,6 @@ def _normalize_line(normalizer: NormalizerWithAudio, line: str):
     return line
 
 
-
 def __maybe_download_file(source_url, destination_path):
     if not destination_path.exists():
         tmp_file_path = destination_path.with_suffix('.tmp')
@@ -274,58 +272,63 @@ def __process_data(
     manifest_file,
     num_workers,
     num_workers_for_normalizer,
+    batch_size_for_normalizer,
     normalization_source="dataset",
     normalizer=None,
     pretrained_model=None,
     save_google_normalization_separately=False,
 ):
-    files = []
-    entries = []
+    if not os.path.exists(manifest_file):
+        files = []
+        entries = []
 
-    for root, dirnames, filenames in os.walk(data_folder):
-        for filename in fnmatch.filter(filenames, '*.original.txt'):
-            files.append(os.path.join(root, filename))
+        for root, dirnames, filenames in os.walk(data_folder):
+            for filename in fnmatch.filter(filenames, '*.original.txt'):
+                files.append(os.path.join(root, filename))
 
-    with multiprocessing.Pool(num_workers) as p:
-        processing_func = functools.partial(__process_transcript, normalization_source=normalization_source)
-        results = p.imap(processing_func, files)
-        for result in tqdm(results, total=len(files)):
-            entries.extend(result)
+        with multiprocessing.Pool(num_workers) as p:
+            processing_func = functools.partial(__process_transcript, normalization_source=normalization_source)
+            results = p.imap(processing_func, files)
+            for result in tqdm(results, total=len(files)):
+                entries.extend(result)
 
-    with open(manifest_file, 'w') as fout:
-        for m in entries:
-            fout.write(json.dumps(m) + '\n')
+        with open(manifest_file, 'w') as fout:
+            for m in entries:
+                fout.write(json.dumps(m) + '\n')
 
     if save_google_normalization_separately:
         google_manifest_file = Path(manifest_file).parent / f"{Path(manifest_file).stem}_google.json"
-        entries = []
-        for p in files:
-            with open(p.replace("original.txt", "normalized.txt"), encoding="utf-8") as fin:
-                norm_text = fin.readlines()[0].strip()
+        if not os.path.exists(google_manifest_file):
+            entries = []
+            for p in files:
+                with open(p.replace("original.txt", "normalized.txt"), encoding="utf-8") as fin:
+                    norm_text = fin.readlines()[0].strip()
 
-            entity = {
-                'audio_filepath': os.path.abspath(p.replace(".original.txt", ".wav")),
-                'normalized_text': norm_text,
-            }
-            entries.append(entity)
+                entity = {
+                    'audio_filepath': os.path.abspath(p.replace(".original.txt", ".wav")),
+                    'normalized_text': norm_text,
+                }
+                entries.append(entity)
 
-        with open(google_manifest_file, 'w') as fout:
-            for m in entries:
-                fout.write(json.dumps(m) + '\n')
+            with open(google_manifest_file, 'w') as fout:
+                for m in entries:
+                    fout.write(json.dumps(m) + '\n')
 
     if normalization_source == "nemo":
         # TODO(oktai15): flags
         output_filename = manifest_file.replace('.json', f'_{pretrained_model}.json')
-        cfg = TranscriptionConfig(
-            pretrained_name=pretrained_model,
-            dataset_manifest=manifest_file,
-            output_filename=output_filename,
-            num_workers=num_workers,
-            cuda=0,
-            amp=True,
-            overwrite_transcripts=False,
-        )
-        transcribe_manifest(cfg)
+
+        if not os.path.exists(output_filename):
+            cfg = TranscriptionConfig(
+                pretrained_name=pretrained_model,
+                dataset_manifest=manifest_file,
+                output_filename=output_filename,
+                num_workers=num_workers,
+                cuda=0,
+                amp=True,
+                overwrite_transcripts=False,
+            )
+            transcribe_manifest(cfg)
 
         normalize_manifest(
             normalizer,
@@ -334,7 +337,7 @@ def __process_data(
             n_tagged=100,
             remove_punct=True,
             punct_post_process=True,
-            lm=True,
+            batch_size=batch_size_for_normalizer,
         )
 
 
@@ -390,6 +393,7 @@ def main():
             manifest_file=str(data_root / f"{data_set}.json"),
             num_workers=num_workers,
             num_workers_for_normalizer=num_workers_for_normalizer,
+            batch_size_for_normalizer=args.batch_size_for_normalizer,
             normalization_source=args.normalization_source,
             normalizer=normalizer,
             pretrained_model=args.pretrained_model,

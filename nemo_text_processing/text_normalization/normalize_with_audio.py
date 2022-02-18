@@ -13,19 +13,17 @@
 # limitations under the License.
 
 import json
-import math
 import os
 import re
 import string
 import time
 from argparse import ArgumentParser
+from glob import glob
 from typing import List, Tuple
 
-import torch
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
-from transformers import AutoModelWithLMHead, AutoTokenizer
 
 try:
     from nemo.collections.asr.metrics.wer import word_error_rate
@@ -34,7 +32,6 @@ try:
     ASR_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
-
 
 try:
     import pynini
@@ -225,21 +222,6 @@ class NormalizerWithAudio(Normalizer):
             text = text.lower()
         return text.strip()
 
-    def get_lm_score(self, text, model, tokenizer):
-        try:
-            input_ids = tokenizer(text, return_tensors="pt")
-            if torch.cuda.is_available():
-                input_ids = input_ids.to("cuda")
-            input_ids = input_ids["input_ids"]
-            with torch.no_grad():
-                loss = model(input_ids, labels=input_ids)["loss"]
-            score = math.exp(loss.item())
-        except Exception as e:
-            print(e)
-            print(f"Scoring error: {text}")
-            score = math.inf
-        return score
-
     def select_best_match(
         self,
         normalized_texts: List[str],
@@ -247,8 +229,6 @@ class NormalizerWithAudio(Normalizer):
         pred_text: str,
         verbose: bool = False,
         remove_punct: bool = False,
-        model=None,
-        tokenizer=None,
     ):
         """
         Selects the best normalization option based on the lowest CER
@@ -269,20 +249,6 @@ class NormalizerWithAudio(Normalizer):
         normalized_texts_cer = calculate_cer(normalized_texts, pred_text, remove_punct)
         normalized_texts_cer = sorted(normalized_texts_cer, key=lambda x: x[1])
         normalized_text, cer = normalized_texts_cer[0]
-
-        if model is not None and tokenizer is not None:
-            # group similar options
-            reduced = {}
-            for option in normalized_texts:
-                opt_no_punct = self.remove_punctuation(option, remove_spaces=False, lang=self.lang)
-                if opt_no_punct in reduced:
-                    reduced[opt_no_punct].add(option)
-                else:
-                    reduced[opt_no_punct] = set([option])
-
-            similar_options = reduced[self.remove_punctuation(normalized_text, remove_spaces=False, lang=self.lang)]
-            lm_scores = {option: self.get_lm_score(option.lower(), model, tokenizer) for option in similar_options}
-            normalized_text = [k for k, v in sorted(lm_scores.items(), key=lambda item: item[1])][0]
 
         if verbose:
             print('-' * 30)
@@ -364,34 +330,24 @@ def parse_args():
         type=str,
     )
     parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
-    parser.add_argument("--lm", action="store_true", help="Set to True to use LM to reduce the number of WFST options")
+    parser.add_argument("--batch_size", default=200, type=int, help="Number of examples for each process")
     return parser.parse_args()
 
 
-def _normalize_line(
-    normalizer: NormalizerWithAudio,
-    n_tagged,
-    verbose,
-    line: str,
-    remove_punct,
-    punct_post_process,
-    model=None,
-    tokenizer=None,
-):
+def _normalize_line(normalizer: NormalizerWithAudio, n_tagged, verbose, line: str, remove_punct, punct_post_process):
     line = json.loads(line)
     pred_text = line["pred_text"]
 
     normalized_texts = normalizer.normalize(
         text=line["text"], verbose=verbose, n_tagged=n_tagged, punct_post_process=punct_post_process,
     )
+
     normalized_text, cer = normalizer.select_best_match(
         normalized_texts=normalized_texts,
         input_text=line["text"],
         pred_text=pred_text,
         verbose=verbose,
         remove_punct=remove_punct,
-        model=model,
-        tokenizer=tokenizer,
     )
     line["nemo_normalized"] = normalized_text
     line["CER_nemo_normalized"] = cer
@@ -404,49 +360,58 @@ def normalize_manifest(
     n_jobs: int,
     n_tagged: int,
     remove_punct: bool,
-    punct_post_process,
-    language: str = "en",
-    lm: bool = False,
+    punct_post_process: bool,
+    batch_size: int,
 ):
     """
     Args:
         args.audio_data: path to .json manifest file.
     """
-    if language == "en" and lm:
-        model_name = "distilgpt2"
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelWithLMHead.from_pretrained(model_name)
-        if torch.cuda.is_available():
-            model = model.to("cuda")
-    else:
-        model, tokenizer = None, None
+
+    def __process_batch(batch_idx, batch, dir_name):
+        normalized_lines = [
+            _normalize_line(
+                normalizer,
+                n_tagged,
+                verbose=False,
+                line=line,
+                remove_punct=remove_punct,
+                punct_post_process=punct_post_process,
+            )
+            for line in tqdm(batch)
+        ]
+
+        with open(f"{dir_name}/{batch_idx}.json", "w") as f_out:
+            for line in normalized_lines:
+                f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+
+        print(f"Batch -- {batch_idx} -- is complete")
+        return normalized_lines
 
     manifest_out = audio_data.replace('.json', '_normalized.json')
     with open(audio_data, 'r') as f:
         lines = f.readlines()
 
-        print(f'Normalizing {len(lines)}lines of {audio_data}...')
-        with open(manifest_out, 'w') as f_out:
-            # to save intermediate results to a file
-            batch = max(round(len(lines) / 10), 1000)
-            for batch_idx, i in enumerate(range(0, len(lines), batch)):
-                print(f'Processing batch {batch_idx} out of {round(len(lines)/batch)}.')
-                normalized_lines = Parallel(n_jobs=n_jobs)(
-                    delayed(_normalize_line)(
-                        normalizer,
-                        n_tagged,
-                        verbose=False,
-                        line=line,
-                        remove_punct=remove_punct,
-                        punct_post_process=punct_post_process,
-                        model=model,
-                        tokenizer=tokenizer,
-                    )
-                    for line in tqdm(lines[i : i + batch])
-                )
+    print(f'Normalizing {len(lines)} lines of {audio_data}...')
 
-                for line in normalized_lines:
-                    f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
+    # to save intermediate results to a file
+    batch = min(len(lines), batch_size)
+
+    tmp_dir = manifest_out.replace(".json", "_parts")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    Parallel(n_jobs=n_jobs)(
+        delayed(__process_batch)(idx, lines[i : i + batch], tmp_dir)
+        for idx, i in enumerate(range(0, len(lines), batch))
+    )
+
+    # aggregate all intermediate files
+    with open(manifest_out, "w") as f_out:
+        for batch_f in sorted(glob(f"{tmp_dir}/*.json")):
+            with open(batch_f, "r") as f_in:
+                lines = f_in.read()
+            f_out.write(lines)
+
     print(f'Normalized version saved at {manifest_out}')
 
 
@@ -503,14 +468,13 @@ if __name__ == "__main__":
             whitelist=args.whitelist,
         )
         normalize_manifest(
-            normalizer,
-            args.audio_data,
-            args.n_jobs,
-            args.n_tagged,
-            args.remove_punct,
-            not args.no_punct_post_process,
-            args.language,
-            args.lm,
+            normalizer=normalizer,
+            audio_data=args.audio_data,
+            n_jobs=args.n_jobs,
+            n_tagged=args.n_tagged,
+            remove_punct=args.remove_punct,
+            punct_post_process=not args.no_punct_post_process,
+            batch_size=args.batch_size,
         )
     else:
         raise ValueError(
