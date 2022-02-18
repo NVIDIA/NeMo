@@ -37,7 +37,7 @@ RUN pip uninstall -y sacrebleu torchtext
 
 # build torchaudio (change latest release version to match pytorch)
 WORKDIR /tmp/torchaudio_build
-RUN git clone --depth 1 --branch release/0.10 https://github.com/pytorch/audio.git && \
+RUN git clone --depth 1 --branch release/0.11 https://github.com/pytorch/audio.git && \
     cd audio && \
     git submodule update --init --recursive && \
     BUILD_SOX=1 python setup.py install && \
@@ -81,9 +81,9 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
     python -c "import nemo.collections.tts as nemo_tts" && \
     python -c "import nemo_text_processing.text_normalization as text_normalization"
 
-# TODO: Try to remove once 21.07 container is the base container
+# TODO: Update to newer numba 0.56.0RC1 for 22.02 container
 # install pinned numba version
-RUN conda install -c conda-forge numba=0.54.1
+# RUN conda install -c conda-forge numba==0.54.1
 
 # copy scripts/examples/tests into container for end user
 WORKDIR /workspace/nemo
