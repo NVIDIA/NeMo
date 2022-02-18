@@ -30,6 +30,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
+    LayerType = ApexGuardDefaults()
 
 
 __all__ = ["MegatronTransformerDecoderModule"]
