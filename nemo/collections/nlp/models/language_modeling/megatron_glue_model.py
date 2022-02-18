@@ -14,11 +14,6 @@
 
 from operator import itemgetter
 from typing import Any, Optional
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
-    MegatronLMEncoderDecoderModel,
-)
-from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
-from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 
 import torch
 from omegaconf import OmegaConf, open_dict
@@ -27,9 +22,14 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
+    MegatronLMEncoderDecoderModel,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
+from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 from nemo.utils import logging
 
 try:
