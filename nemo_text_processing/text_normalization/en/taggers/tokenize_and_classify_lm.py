@@ -166,6 +166,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.1)
+                | pynutil.add_weight(whitelist_graph, 1.1)
             ).optimize()
 
             roman_graph = RomanFst(deterministic=deterministic).fst
@@ -179,7 +180,7 @@ class ClassifyFst(GraphFst):
             v_range_graph = vRangeFst(deterministic=deterministic).fst
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.5)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
-            classify_and_verbalize |= pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.1)
+            classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
 
             punct_only = pynutil.add_weight(punct_graph, weight=0.1)
             punct = pynini.closure(

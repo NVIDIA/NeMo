@@ -66,32 +66,26 @@ class WhiteListFst(GraphFst):
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
 
-        if lm:
-            graph = pynutil.insert("< ") + graph + pynutil.insert(" >")
+        # if lm:
+        #     graph = pynutil.insert("< ") + graph + pynutil.insert(" >")
 
-        is_default = not lm
+        is_default = True  # not lm
         if not deterministic:
-            graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"), is_default=is_default)
+            graph |= _get_whitelist_graph(
+                input_case, get_abs_path("data/whitelist_alternatives.tsv"), is_default=is_default
+            )
 
-        if lm:
-            # TODO add boundaries
-            for x in [".", ". "]:
-                graph |= (
-                    NEMO_UPPER
-                    + pynini.closure(pynutil.delete(x) + NEMO_UPPER, 2)
-                    + pynini.closure(pynutil.delete("."), 0, 1)
-                )
-        else:
-            for x in [".", ". "]:
-                graph |= (
-                    NEMO_UPPER
-                    + pynini.closure(pynutil.delete(x) + NEMO_UPPER, 2)
-                    + pynini.closure(pynutil.delete("."), 0, 1)
-                )
-
+        for x in [".", ". "]:
+            graph |= (
+                NEMO_UPPER
+                + pynini.closure(pynutil.delete(x) + NEMO_UPPER, 2)
+                + pynini.closure(pynutil.delete("."), 0, 1)
+            )
 
         if not deterministic:
-            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"), is_default=is_default)
+            multiple_forms_whitelist_graph = get_formats(
+                get_abs_path("data/whitelist_alternatives_all_format.tsv"), is_default=is_default
+            )
             graph |= multiple_forms_whitelist_graph
 
             graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
@@ -142,8 +136,6 @@ def get_formats(input_f, input_case="cased", is_default=False):
         additional_options.append((f"{x}.", y))  # default "dr" -> doctor, this includes period "dr." -> doctor
         additional_options.append((f"{x[0].upper() + x[1:]}", f"{y[0].upper() + y[1:]}"))  # "Dr" -> Doctor
         additional_options.append((f"{x[0].upper() + x[1:]}.", f"{y[0].upper() + y[1:]}"))  # "Dr." -> Doctor
-        additional_options.append((f"{x.upper()}", f"{y[0].upper() + y[1:]}"))  # DR -> Doctor
-        additional_options.append((f"{x.upper()}.", f"{y[0].upper() + y[1:]}"))  # DR. -> Doctor
     multiple_formats.extend(additional_options)
 
     if not is_default:
