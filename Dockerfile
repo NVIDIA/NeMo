@@ -56,10 +56,6 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# install nemo_text_processing dependencies
-COPY nemo_text_processing /tmp/nemo/nemo_text_processing/
-RUN /bin/bash /tmp/nemo/nemo_text_processing/setup.sh
-
 # copy nemo source into a scratch image
 FROM scratch as nemo-src
 COPY . .
