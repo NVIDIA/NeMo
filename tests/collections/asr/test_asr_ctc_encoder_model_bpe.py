@@ -30,43 +30,46 @@ from nemo.utils.config_utils import assert_dataclass_signature_match
 
 @pytest.fixture()
 def asr_model(test_data_dir):
-    preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
+    preprocessor = {"_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"}
     encoder = {
-        '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
-        'feat_in': 64,
-        'activation': 'relu',
-        'conv_mask': True,
-        'jasper': [
+        "_target_": "nemo.collections.asr.modules.ConvASREncoder",
+        "feat_in": 64,
+        "activation": "relu",
+        "conv_mask": True,
+        "jasper": [
             {
-                'filters': 1024,
-                'repeat': 1,
-                'kernel': [1],
-                'stride': [1],
-                'dilation': [1],
-                'dropout': 0.0,
-                'residual': False,
-                'separable': True,
-                'se': True,
-                'se_context_size': -1,
+                "filters": 1024,
+                "repeat": 1,
+                "kernel": [1],
+                "stride": [1],
+                "dilation": [1],
+                "dropout": 0.0,
+                "residual": False,
+                "separable": True,
+                "se": True,
+                "se_context_size": -1,
             }
         ],
     }
 
     decoder = {
-        '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'feat_in': 1024,
-        'num_classes': -1,
-        'vocabulary': None,
+        "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+        "feat_in": 1024,
+        "num_classes": -1,
+        "vocabulary": None,
     }
 
-    tokenizer = {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'}
+    tokenizer = {
+        "dir": os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+        "type": "wpe",
+    }
 
     modelConfig = DictConfig(
         {
-            'preprocessor': DictConfig(preprocessor),
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'tokenizer': DictConfig(tokenizer),
+            "preprocessor": DictConfig(preprocessor),
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "tokenizer": DictConfig(tokenizer),
         }
     )
 
@@ -101,7 +104,7 @@ class TestEncDecCTCModel:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 logprobs_ins, _, _ = asr_model.forward(
-                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1],
                 )
                 logprobs_instance.append(logprobs_ins)
                 print(len(logprobs_ins))
@@ -120,13 +123,13 @@ class TestEncDecCTCModel:
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
         with tempfile.TemporaryDirectory() as tmpdir:
-            save_path = os.path.join(tmpdir, 'ctc_bpe.nemo')
+            save_path = os.path.join(tmpdir, "ctc_bpe.nemo")
             asr_model.train()
             asr_model.save_to(save_path)
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
-            assert new_model.vocab_path.endswith('_vocab.txt')
+            assert new_model.vocab_path.endswith("_vocab.txt")
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
@@ -135,21 +138,44 @@ class TestEncDecCTCModel:
     def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
         with tempfile.TemporaryDirectory() as tmpdir:
             tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
-            asr_model.change_vocabulary(new_tokenizer_dir=tokenizer_dir, new_tokenizer_type='bpe')
+            asr_model.change_vocabulary(new_tokenizer_dir=tokenizer_dir, new_tokenizer_type="bpe")
 
-            save_path = os.path.join(tmpdir, 'ctc_bpe.nemo')
+            save_path = os.path.join(tmpdir, "ctc_bpe.nemo")
             asr_model.train()
             asr_model.save_to(save_path)
 
             new_model = EncDecCTCModelBPE.restore_from(save_path)
             assert isinstance(new_model, type(asr_model))
             assert isinstance(new_model.tokenizer, tokenizers.SentencePieceTokenizer)
-            assert new_model.model_path.endswith('_tokenizer.model')
-            assert new_model.vocab_path.endswith('_vocab.txt')
-            assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
+            assert new_model.model_path.endswith("_tokenizer.model")
+            assert new_model.vocab_path.endswith("_vocab.txt")
+            assert new_model.spe_vocab_path.endswith("_tokenizer.vocab")
 
             assert new_model.tokenizer.tokenizer.vocab_size == 128
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_save_restore_artifact_agg(self, asr_model, test_data_dir):
+        tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
+        tok_en = {"dir": tokenizer_dir, "type": "wpe"}
+        # the below is really an english tokenizer but we pretend it is spanish
+        tok_es = {"dir": tokenizer_dir, "type": "wpe"}
+        tcfg = DictConfig({"type": "agg", "tokenizers": {"en": tok_en, "es": tok_es}})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            asr_model.change_vocabulary(new_tokenizer_dir=None, new_tokenizer_type="agg", new_tokenizer_cfg=tcfg)
+
+            save_path = os.path.join(tmpdir, "ctc_agg.nemo")
+            asr_model.train()
+            asr_model.save_to(save_path)
+
+            new_model = EncDecCTCModelBPE.restore_from(save_path)
+            assert isinstance(new_model, type(asr_model))
+            assert isinstance(new_model.tokenizer, tokenizers.AggregateTokenizer)
+
+            # should be double
+            assert new_model.tokenizer.tokenizer.vocab_size == 254
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -157,28 +183,28 @@ class TestEncDecCTCModel:
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
 
         with tempfile.TemporaryDirectory() as save_dir:
-            save_path = os.path.join(save_dir, 'temp.nemo')
+            save_path = os.path.join(save_dir, "temp.nemo")
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 old_tmpdir_path = tmpdir
 
-                old_tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
-                new_tokenizer_dir = os.path.join(tmpdir, 'tokenizer')
+                old_tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", "vocab.txt")
+                new_tokenizer_dir = os.path.join(tmpdir, "tokenizer")
 
                 os.makedirs(new_tokenizer_dir, exist_ok=True)
                 shutil.copy2(old_tokenizer_dir, new_tokenizer_dir)
 
                 nw1 = asr_model.num_weights
-                asr_model.change_vocabulary(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type='wpe')
+                asr_model.change_vocabulary(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type="wpe")
                 # No change
                 assert nw1 == asr_model.num_weights
 
-                with open(os.path.join(new_tokenizer_dir, 'vocab.txt'), 'a+') as f:
+                with open(os.path.join(new_tokenizer_dir, "vocab.txt"), "a+") as f:
                     f.write("!\n")
-                    f.write('$\n')
-                    f.write('@\n')
+                    f.write("$\n")
+                    f.write("@\n")
 
-                asr_model.change_vocabulary(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type='wpe')
+                asr_model.change_vocabulary(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type="wpe")
                 # fully connected + bias
                 assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
 
@@ -191,11 +217,11 @@ class TestEncDecCTCModel:
                 # delete copied version of the vocabulary from nested tmpdir (by scope)
 
             # assert copied vocab no longer exists
-            assert not os.path.exists(os.path.join(old_tmpdir_path, 'tokenizer', 'vocab.txt'))
+            assert not os.path.exists(os.path.join(old_tmpdir_path, "tokenizer", "vocab.txt"))
 
             # make a copy of the tokenizer before renaming
             try:
-                os.rename(old_tokenizer_dir, old_tokenizer_dir + '.bkp')
+                os.rename(old_tokenizer_dir, old_tokenizer_dir + ".bkp")
                 assert not os.path.exists(old_tokenizer_dir)
 
                 # restore model from .nemo
@@ -206,11 +232,11 @@ class TestEncDecCTCModel:
                 assert asr_model.tokenizer.tokenizer.vocab_size == asr_model2.tokenizer.tokenizer.vocab_size
 
                 # Make a copy of the tokenizer
-                new_tokenizer_dir = os.path.join(save_dir, 'tokenizer')
+                new_tokenizer_dir = os.path.join(save_dir, "tokenizer")
 
                 os.makedirs(new_tokenizer_dir, exist_ok=True)
-                new_tokenizer_path = os.path.join(new_tokenizer_dir, 'vocab.txt')
-                with open(new_tokenizer_path, 'w') as f:
+                new_tokenizer_path = os.path.join(new_tokenizer_dir, "vocab.txt")
+                with open(new_tokenizer_path, "w") as f:
                     for v in asr_model2.tokenizer.tokenizer.get_vocab():
                         f.write(f"{v}\n")
 
@@ -222,10 +248,10 @@ class TestEncDecCTCModel:
                 assert os.path.exists(new_tokenizer_path)
 
                 # change vocabulary
-                asr_model2.change_vocabulary(new_tokenizer_dir, new_tokenizer_type='wpe')
+                asr_model2.change_vocabulary(new_tokenizer_dir, new_tokenizer_type="wpe")
                 assert asr_model.tokenizer.vocab_size != asr_model2.tokenizer.vocab_size
 
-                new_save_path = os.path.join(save_dir, 'temp2.nemo')
+                new_save_path = os.path.join(save_dir, "temp2.nemo")
                 asr_model2.save_to(new_save_path)
 
                 asr_model3 = EncDecCTCModelBPE.restore_from(new_save_path)
@@ -239,33 +265,33 @@ class TestEncDecCTCModel:
                 assert len(asr_model2.artifacts) == 1
 
             finally:
-                os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
+                os.rename(old_tokenizer_dir + ".bkp", old_tokenizer_dir)
 
     @pytest.mark.unit
     def test_ASRDatasetConfig_for_AudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
-            'is_tarred',
-            'num_workers',
-            'batch_size',
-            'tarred_audio_filepaths',
-            'shuffle',
-            'pin_memory',
-            'drop_last',
-            'tarred_shard_strategy',
-            'shuffle_n',
-            'parser',
-            'normalize',
-            'unk_index',
-            'pad_id',
-            'bos_id',
-            'eos_id',
-            'blank_index',
-            'bucketing_batch_size',
-            'bucketing_strategy',
+            "is_tarred",
+            "num_workers",
+            "batch_size",
+            "tarred_audio_filepaths",
+            "shuffle",
+            "pin_memory",
+            "drop_last",
+            "tarred_shard_strategy",
+            "shuffle_n",
+            "parser",
+            "normalize",
+            "unk_index",
+            "pad_id",
+            "bos_id",
+            "eos_id",
+            "blank_index",
+            "bucketing_batch_size",
+            "bucketing_strategy",
         ]
 
-        REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
+        REMAP_ARGS = {"trim_silence": "trim", "labels": "tokenizer"}
 
         result = assert_dataclass_signature_match(
             audio_to_text.AudioToBPEDataset, configs.ASRDatasetConfig, ignore_args=IGNORE_ARGS, remap_args=REMAP_ARGS,
@@ -280,31 +306,31 @@ class TestEncDecCTCModel:
     def test_ASRDatasetConfig_for_TarredAudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
-            'is_tarred',
-            'num_workers',
-            'batch_size',
-            'shuffle',
-            'pin_memory',
-            'drop_last',
-            'parser',
-            'normalize',
-            'unk_index',
-            'pad_id',
-            'bos_id',
-            'eos_id',
-            'blank_index',
-            'global_rank',
-            'world_size',
-            'bucketing_batch_size',
-            'bucketing_strategy',
+            "is_tarred",
+            "num_workers",
+            "batch_size",
+            "shuffle",
+            "pin_memory",
+            "drop_last",
+            "parser",
+            "normalize",
+            "unk_index",
+            "pad_id",
+            "bos_id",
+            "eos_id",
+            "blank_index",
+            "global_rank",
+            "world_size",
+            "bucketing_batch_size",
+            "bucketing_strategy",
         ]
 
         REMAP_ARGS = {
-            'trim_silence': 'trim',
-            'tarred_audio_filepaths': 'audio_tar_filepaths',
-            'tarred_shard_strategy': 'shard_strategy',
-            'shuffle_n': 'shuffle',
-            'labels': 'tokenizer',
+            "trim_silence": "trim",
+            "tarred_audio_filepaths": "audio_tar_filepaths",
+            "tarred_shard_strategy": "shard_strategy",
+            "shuffle_n": "shuffle",
+            "labels": "tokenizer",
         }
 
         result = assert_dataclass_signature_match(
