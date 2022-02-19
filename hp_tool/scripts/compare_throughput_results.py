@@ -11,14 +11,16 @@ from tensorboard.backend.event_processing import event_accumulator
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg):
-    #model_size = sys.argv[1]
+    # model_size = sys.argv[1]
 
     bignlp_path = cfg.bignlp_path
     hp_cfg = cfg.search_train_config
     settings_cfg = hp_cfg.settings
     model_size = settings_cfg.model_size_in_b
     candidate_log_dir = os.path.join(settings_cfg.candidate_logs, f"{model_size}b")
-    candidate_config_dir = os.path.join(settings_cfg.candidate_configs, f"{model_size}b")
+    candidate_config_dir = os.path.join(
+        settings_cfg.candidate_configs, f"{model_size}b"
+    )
 
     min_avg_time = float("inf")
     best_model = []
@@ -33,21 +35,28 @@ def main(cfg):
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 timing_list = ea.Scalars("train_step_timing")
-                half_timing_list = timing_list[len(timing_list)//2:]
+                half_timing_list = timing_list[len(timing_list) // 2 :]
                 avg_step_time = calculate_average(half_timing_list)
                 grad_accumul_steps = config.trainer.accumulate_grad_batches
                 avg_global_step_time = avg_step_time * grad_accumul_steps
                 if avg_global_step_time < min_avg_time:
                     min_avg_time = avg_global_step_time
                     best_model = [candidate_dir, min_avg_time]
-                print(f"Config {candidate_dir} achieves {avg_global_step_time}s per global step.")
+                print(
+                    f"Config {candidate_dir} achieves {avg_global_step_time}s per global step."
+                )
 
     print("\n==================================================")
     print(f"Optimal config: {best_model[0]} with {best_model[1]}s per global step.")
     print(f"Saving config to search_train_config/optimal_config_{model_size}b.yaml.")
     print("==================================================\n")
-    
-    copyfile(os.path.join(candidate_config_dir, f"{best_model[0]}.yaml"), os.path.join(f"{bignlp_path}/search_train_config/optimal_config_{model_size}b.yaml"))
+
+    copyfile(
+        os.path.join(candidate_config_dir, f"{best_model[0]}.yaml"),
+        os.path.join(
+            f"{bignlp_path}/search_train_config/optimal_config_{model_size}b.yaml"
+        ),
+    )
 
 
 def calculate_average(ea_timing):
@@ -60,5 +69,3 @@ def calculate_average(ea_timing):
 
 if __name__ == "__main__":
     main()
-
-

@@ -5,32 +5,26 @@ import copy
 import yaml
 
 
-def model_size_from_constraints(gpu_count, max_training_days, tflops_per_gpu=140, num_tokens=3e11):
-    """
-    Estimates a model size to be trained given the constraints.
-    Example: output 5B params to train for 7 days on 120 GPUs.
-    Arguments:
-        gpu_count: int, number of gpus to use (num_nodes * gpus_per_node).
-        max_training_days: float, number of days to train the model for.
-        tflops_per_gpu: float, estimated number of TFLOPS/s per GPU.
-        num_tokens: int, number of tokens to train the model for.
-    Output:
-        model_size: int, number of parameters to use for training.
-    """
-    assert num_tokens != 0, "num_tokens cannot be zero."
-    model_size = round((max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12) / (8 * num_tokens) / 1e9, 2)
-    print(f"You can train a {model_size} parameter model in {max_training_days} days using {gpu_count} GPUs.")
-    time.sleep(2)
+def _calculate_model_size(
+    vocab_size=None, seq_length=None, hidden_size=None, num_layers=None
+):
+    model_size = (
+        12
+        * num_layers
+        * hidden_size**2
+        * (
+            1
+            + (13 / (12 * hidden_size))
+            + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))
+        )
+        / 1e9
+    )
     return model_size
 
 
-def _calculate_model_size(vocab_size=None, seq_length=None, hidden_size=None, num_layers=None):
-    model_size = 12 * num_layers * hidden_size ** 2 * (
-            1 + (13 / (12 * hidden_size)) + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))) / 1e9
-    return model_size
-
-
-def calculate_num_layers_hidden_size_learning_rate(model_size, seq_length=2048, vocab_size=51200):
+def calculate_num_layers_hidden_size_learning_rate(
+    model_size, seq_length=2048, vocab_size=51200
+):
     if model_size < 0.25:
         hidden_size, att_heads, lr = 768, 12, 6e-4
     elif model_size < 0.5:
@@ -55,15 +49,25 @@ def calculate_num_layers_hidden_size_learning_rate(model_size, seq_length=2048, 
     margin = 0.02
     for attempt in range(0, 10):
         for num_layers in range(1, 100):
-            out_model_size = _calculate_model_size(vocab_size, seq_length, hidden_size, num_layers)
-            if model_size*(1.0-margin) < out_model_size < model_size*(1.0+margin):
+            out_model_size = _calculate_model_size(
+                vocab_size, seq_length, hidden_size, num_layers
+            )
+            if (
+                model_size * (1.0 - margin)
+                < out_model_size
+                < model_size * (1.0 + margin)
+            ):
                 return num_layers, hidden_size, att_heads, lr
         margin += 0.03
     raise Exception("Number of layers not found, config is not possible.")
 
 
-def estimate_training_time(model_size=None, num_tokens=None, num_gpus=None, tflops_per_gpu=None):
-    training_time = (8 * num_tokens * 1e9 * model_size * 1e9) / (num_gpus * tflops_per_gpu * 1e12 * 3600 * 24)
+def estimate_training_time(
+    model_size=None, num_tokens=None, num_gpus=None, tflops_per_gpu=None
+):
+    training_time = (8 * num_tokens * 1e9 * model_size * 1e9) / (
+        num_gpus * tflops_per_gpu * 1e12 * 3600 * 24
+    )
     return training_time
 
 
@@ -208,7 +212,7 @@ def modify_cfg(base_cfg, gbs, act_layers, tp, mbs, max_mins, model_size):
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / tp
     num_gpus = new_cfg["slurm"]["nodes"] * new_cfg["slurm"]["ntasks_per_node"]
-    
+
     # Set accumulate_grad_batches accordingly
     mod_gbs = gbs % (mbs * num_gpus / tp)
     mod_att_heads = att_heads % tp
@@ -219,18 +223,27 @@ def modify_cfg(base_cfg, gbs, act_layers, tp, mbs, max_mins, model_size):
         new_cfg["slurm"]["nodes"] = 1  # Necessary for short single-node test.
         days = max_mins // 3600
         hours = (max_mins % 3600) // 60
-        mins = ((max_mins % 3600) % 60)
+        mins = (max_mins % 3600) % 60
         new_cfg["slurm"]["time_limit"] = f"{days}-{hours}:{mins}:00"
-        new_cfg["slurm"]["job_name"] = f"{new_cfg['slurm']['job_name']}_tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}"
-        new_cfg["run"]["log_dir"] = f"{new_cfg['run']['log_dir']}/tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}"
-        print(f"I: Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, num_gpus={num_gpus}, act_ckpt_layers={act_layers}. Adding to directory.")
+        new_cfg["slurm"][
+            "job_name"
+        ] = f"{new_cfg['slurm']['job_name']}_tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}"
+        new_cfg["run"][
+            "log_dir"
+        ] = f"{new_cfg['run']['log_dir']}/tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}"
+        print(
+            f"I: Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, num_gpus={num_gpus}, act_ckpt_layers={act_layers}. Adding to directory."
+        )
         return new_cfg
     elif mod_gbs != 0:
-        print(f"W: Invalid config: GBS={gbs}, MBS={mbs}, TP={tp}, num_gpus={num_gpus}, act_ckpt_layers={act_layers}. GBS must be a multiple of MBS * data_parallelism.")
+        print(
+            f"W: Invalid config: GBS={gbs}, MBS={mbs}, TP={tp}, num_gpus={num_gpus}, act_ckpt_layers={act_layers}. GBS must be a multiple of MBS * data_parallelism."
+        )
     elif mod_att_heads != 0:
-        print(f"W: Invalid config: TP={tp}, num_attention_heads={att_heads}. num_attention_heads must be a multiple of TP.")
+        print(
+            f"W: Invalid config: TP={tp}, num_attention_heads={att_heads}. num_attention_heads must be a multiple of TP."
+        )
     return None
-
 
 
 def create_slurm_file(
@@ -271,5 +284,3 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --time={time}\n\n")
         f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
-
-
