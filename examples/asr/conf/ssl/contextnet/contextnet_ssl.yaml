@@ -24,7 +24,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16  # Can be increased if memory allows or when using smaller model
     trim_silence: false
-    max_duration: 35.0
+    max_duration: 16.7
     min_duration: 8.0
     shuffle: true
     use_start_end_token: false
@@ -372,7 +372,7 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
-    feat_in: ${model.encoder.d_model}
+    feat_in: ${model.model_defaults.enc_final}
     feat_hidden: 128
     feat_out: ${model.model_defaults.decoder_out_channels}
     stride_layers: 1
