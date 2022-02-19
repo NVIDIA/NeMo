@@ -71,8 +71,10 @@ def estimate_training_time(
 def generic_base_config(cfg):
     inp = """\
     run:
-      name: "126m"
-      log_dir: ${bignlp_path}/train_config_generator/logs/126m
+      name: 126m
+      results_dir: ${base_results_dir}/${.name}
+      time_limit: "1-12:00:00"
+      dependency: "singleton"
 
     trainer:
       gpus: 8
@@ -110,16 +112,16 @@ def generic_base_config(cfg):
         mode: min
         always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
         filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
-        model_parallel_size: ${training.model.tensor_model_parallel_size}
+        model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
       log_step_timing: True
       step_timing_kwargs:
         sync_cuda: True
         buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
 
-
     model:
       micro_batch_size: 4
       tensor_model_parallel_size: 1
+      pipeline_model_parallel_size: 1
       encoder_seq_length: 2048
       max_position_embeddings: 2048
       num_layers: 12
@@ -134,6 +136,8 @@ def generic_base_config(cfg):
       make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
       pre_process: True # add embedding
       post_process: True # add pooler
+      persist_layer_norm: True
+      gradient_as_bucket_view: True
       activations_checkpoint_method: block
       activations_checkpoint_num_layers: 0
 
@@ -146,10 +150,10 @@ def generic_base_config(cfg):
 
       native_amp_init_scale: 4294967296 # 2 ** 32
       native_amp_growth_interval: 1000
-      fused_fp16: True # False if using fp32 or bf16
-      fused_bf16: False # True if using bf16
+      hysteresis: 2
       fp32_residual_connection: False # Move residual connections to fp32
       fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+      megatron_amp_O2: True
 
       seed: 1234
       use_cpu_initialization: False # Init weights on the CPU (slow for large models)
@@ -186,46 +190,36 @@ def generic_base_config(cfg):
     return base_cfg
 
 
-def modify_cfg(base_cfg, gbs, act_layers, tp, mbs, max_mins, model_size):
+def modify_cfg(base_cfg, act, tp, pp, mbs):
     new_cfg = copy.deepcopy(base_cfg)
-    new_cfg["model"]["activations_checkpoint_num_layers"] = act_layers
+    new_cfg["model"]["activations_checkpoint_num_layers"] = act
     new_cfg["model"]["tensor_model_parallel_size"] = tp
+    new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
     att_heads = new_cfg["model"]["num_attention_heads"]
+    num_layers = new_cfg["model"]["num_layers"]
 
-    # gbs = mbs * num_gpus * accumulate_grad_batches / tp
+    # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = new_cfg["slurm"]["nodes"] * new_cfg["slurm"]["ntasks_per_node"]
 
-    # Set accumulate_grad_batches accordingly
-    mod_gbs = gbs % (mbs * num_gpus / tp)
+    mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
-    if mod_gbs == 0 and mod_att_heads == 0:
+    mod_layers = num_layers % pp
+    if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        accum = gbs / (mbs * num_gpus / tp)
-        new_cfg["trainer"]["accumulate_grad_batches"] = int(accum)
         new_cfg["slurm"]["nodes"] = 1  # Necessary for short single-node test.
         days = max_mins // 3600
         hours = (max_mins % 3600) // 60
         mins = (max_mins % 3600) % 60
         new_cfg["slurm"]["time_limit"] = f"{days}-{hours}:{mins}:00"
-        new_cfg["slurm"][
-            "job_name"
-        ] = f"{new_cfg['slurm']['job_name']}_tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}"
-        new_cfg["run"][
-            "log_dir"
-        ] = f"{new_cfg['run']['log_dir']}/tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}"
+        new_cfg["slurm"]["job_name"] = \
+                f"{new_cfg['slurm']['job_name']}_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
+        new_cfg["run"]["log_dir"] = \
+                f"{new_cfg['run']['log_dir']}/tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
         print(
-            f"I: Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, num_gpus={num_gpus}, act_ckpt_layers={act_layers}. Adding to directory."
+            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, num_gpus={num_gpus}, act_ckpt_layers={act}. Adding to directory."
         )
         return new_cfg
-    elif mod_gbs != 0:
-        print(
-            f"W: Invalid config: GBS={gbs}, MBS={mbs}, TP={tp}, num_gpus={num_gpus}, act_ckpt_layers={act_layers}. GBS must be a multiple of MBS * data_parallelism."
-        )
-    elif mod_att_heads != 0:
-        print(
-            f"W: Invalid config: TP={tp}, num_attention_heads={att_heads}. num_attention_heads must be a multiple of TP."
-        )
     return None
 
 

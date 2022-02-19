@@ -160,46 +160,78 @@ def generate_base_config(
     return base_cfg
 
 
-def generate_grid_search_configs(base_cfg, gbs, model_size, cfg):
-    if model_size <= 1.0:
-        tensor_parallel = [1, 2, 4, 8]
-    elif model_size <= 4.0:
-        tensor_parallel = [1, 2, 4, 8]
-    elif model_size <= 8.0:
-        tensor_parallel = [2, 4, 8]
-    elif model_size <= 13.0:
-        tensor_parallel = [4, 8]
-    else:
-        tensor_parallel = [8]
-    micro_batch_size = [1, 2, 4, 8]
+def calculate_tp_pp_mbs_grid(model_size_in_b):
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 4, 8]
+    if 4.0 < model_size_in_b <= 8.0:
+        tp = [2, 4, 8]
+    elif 8.0 < model_size_in_b <= 13.0:
+        tp = [4, 8]
+    elif 13.0 < model_size_in_b <= 23.0:
+        tp = [8]
+        pp = [1, 2]
+    elif 23.0 < model_size_in_b <= 45.0:
+        tp = [8]
+        pp = [2, 4]
+    elif 45.0 < model_size_in_b <= 95:
+        tp = [8]
+        pp = [4, 6, 8]
+        mbs = [1, 2, 4]
+    elif 95.0 < model_size_in_b <= 130.0:
+        tp = [8]
+        pp = [6, 8, 10, 12, 16]
+        mbs = [1, 2, 4]
+    elif 130.0 < model_size_in_b <= 195.0:
+        tp = [8]
+        pp = [8, 10, 12, 16, 20]
+        mbs = [1, 2]
+    elif 195.0 < model_size_in_b <= 395.0:
+        tp = [8]
+        pp = [16, 20, 24, 32, 40, 50]
+        mbs = [1, 2]
+    elif 395.0 < model_size_in_b <= 790.0:
+        tp = [8]
+        pp = [24, 32, 40, 50, 64]
+        mbs = [1, 2]
+    elif 790.0 < model_size_in_b <= 1100.0:
+        tp = [8]
+        pp = [32, 40, 50, 64, 72, 80]
+        mbs = [1, 2]
+    return tp, pp, mbs
+
+
+def generate_grid_search_configs(base_cfg, model_size_in_b, cfg):
+    tp_list, pp_list, mbs_list = calculate_tp_pp_grid(model_size_in_b=model_size_in_b)
+
     num_layers = base_cfg["model"]["num_layers"]
-    act_ckpt_layers = [x for x in range(num_layers + 1)]
 
     results_cfgs = [[] for _ in range(num_layers + 1)]
 
-    base_dir = f"{cfg.bignlp_path}/search_train_config/candidate_configs/{model_size}b"
+    base_dir = f"{cfg.search_config.candidate_configs}/{model_size}b"
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
-    max_mins = cfg.search_train_config.settings.max_mins_per_run
+
+    max_minutes = cfg.search_train_config.train_settings.max_minutes_per_run
     # Generate Grid Search configs.
-    for act_layers in act_ckpt_layers:
-        for tp in tensor_parallel:
-            for mbs in micro_batch_size:
-                new_cfg = utils.modify_cfg(
-                    base_cfg, gbs, act_layers, tp, mbs, max_mins, model_size
-                )
-                if new_cfg:  # Save candidate cfg.
-                    file_name = f"tp_{tp}_mbs_{mbs}_act_ckpt_{act_layers}.yaml"
-                    first = cfg["search_train_config"]["slurm"]["job_name"].split(":")[
-                        0
-                    ]
-                    second = new_cfg["slurm"]["job_name"].split(":")[-1]
-                    new_cfg["slurm"]["job_name"] = f"{first}:{second}"
-                    if new_cfg["slurm"]["gpus_per_task"] == "null":
-                        del new_cfg["slurm"]["gpus_per_task"]
-                    results_cfgs[act_layers].append(file_name)
-                    with open(f"{base_dir}/{file_name}", "w") as f:
-                        yaml.dump(new_cfg, f)
+    for tp in tp_list:
+        for pp in pp_list:
+            act_ckpt_layers = [x for x in range(num_layers//pp + 1)]
+            for act in act_ckpt_layers:
+                for mbs in mbs_list:
+                    new_cfg = utils.modify_cfg(base_cfg, act, tp, pp, mbs)
+                    if new_cfg:  # Save candidate cfg.
+                        file_name = f"tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
+                        first = cfg["search_train_config"]["slurm"]["job_name"].split(":")[
+                            0
+                        ]
+                        second = new_cfg["slurm"]["job_name"].split(":")[-1]
+                        new_cfg["slurm"]["job_name"] = f"{first}:{second}"
+                        if new_cfg["slurm"]["gpus_per_task"] == "null":
+                            del new_cfg["slurm"]["gpus_per_task"]
+                        results_cfgs[act].append(file_name)
+                        with open(f"{base_dir}/{file_name}", "w") as f:
+                            yaml.dump(new_cfg, f)
     print("\nAll candidate configurations created correctly.\n")
     return base_dir, results_cfgs
 
