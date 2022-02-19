@@ -24,7 +24,8 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16  # Can be increased if memory allows or when using smaller model
     trim_silence: false
-    max_duration: 16.7
+    max_duration: 35.0
+    min_duration: 8.0
     shuffle: true
     use_start_end_token: false
     num_workers: 16
@@ -46,6 +47,7 @@ model:
     use_start_end_token: false
     num_workers: 16
     pin_memory: true
+    min_duration: 8.0
 
   model_defaults:
     filters: 1024
@@ -73,11 +75,11 @@ model:
     stft_conv: false
 
   spec_augment:
-    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    freq_masks: 4
-    time_masks: 10  # can be 5 for small-med models, 10 for larger models.
-    freq_width: 27
-    time_width: 0.05
+    _target_: nemo.collections.asr.modules.MaskedPatchAugmentation
+    freq_masks: 3
+    freq_width: 20
+    patch_size: 48
+    mask_patches: 10
 
   encoder:
     _target_: nemo.collections.asr.modules.ConvASREncoder
@@ -370,17 +372,20 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
-    feat_in: ${model.model_defaults.enc_hidden}
+    feat_in: ${model.encoder.d_model}
     feat_hidden: 128
     feat_out: ${model.model_defaults.decoder_out_channels}
     stride_layers: 1
+    non_stride_layers: 0
 
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *n_mels
     proj_dim: ${model.model_defaults.decoder_out_channels}
     combine_time_steps: 4
-    codebook_size: 1200
+    quantized_targets: false
+    sample_from_same_utterance_only: true
+    sample_from_non_masked: false
 
   optim:
     name: novograd

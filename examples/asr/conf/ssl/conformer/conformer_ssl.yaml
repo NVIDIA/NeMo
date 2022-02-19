@@ -122,7 +122,6 @@ model:
     stride_layers: 0
     non_stride_layers: 0
 
-
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *n_mels
@@ -130,6 +129,7 @@ model:
     combine_time_steps: 4
     quantized_targets: false
     sample_from_same_utterance_only: true
+    sample_from_non_masked: false
 
   optim:
     name: adamw
@@ -141,10 +141,10 @@ model:
     # scheduler setup
     sched:
       name: NoamAnnealing
-      #d_model: ${model.encoder.d_model}
+      d_model: ${model.encoder.d_model}
       # scheduler config override
       warmup_steps: 10000
-      #warmup_ratio: null
+      warmup_ratio: null
       min_lr: 1e-6
 
 trainer:
