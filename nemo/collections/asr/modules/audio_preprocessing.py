@@ -518,7 +518,20 @@ class SpectrogramAugmentation(NeuralModule):
         return augmented_spec
 
 class MaskedPatchAugmentation(NeuralModule):
-
+    """
+        Zeroes out fixed size time patches of the spectrogram.
+        All samples in batch are guaranteed to have the same amount of masked time steps.
+        Optionally also performs frequency masking in the same way as SpecAugment.
+        Args:
+            patch_size (int): up to how many time steps does one patch consist of.
+            Defaults to 48.
+            mask_patches (int): how many patches should be masked in each sample.
+            Defaults to 10.
+            freq_masks (int): how many frequency segments should be cut.
+            Defaults to 0.
+            freq_width (int): maximum number of frequencies to be cut in a segment.
+            Defaults to 0.
+    """
     @property
     def input_types(self):
         """Returns definitions of module input types
@@ -536,7 +549,7 @@ class MaskedPatchAugmentation(NeuralModule):
 
     def __init__(
         self,
-        patch_size=64,
+        patch_size=48,
         mask_patches=10,
         freq_masks=0,
         freq_width=0,
