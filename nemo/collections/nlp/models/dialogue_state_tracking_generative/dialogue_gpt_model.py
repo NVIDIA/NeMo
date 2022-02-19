@@ -21,6 +21,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import collections
 import json
 import os
+import random
 from typing import Dict, Optional, Union
 
 import numpy as np
@@ -39,6 +40,7 @@ from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.assistant_
     DialogueAssistantDataProcessor,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_metrics import IntentSlotMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
@@ -104,7 +106,7 @@ class DialogueGPTModel(NLPModel):
 
     def training_step(self, batch, batch_idx):
         if self.cfg.library == "megatron":
-            raise NotImplementedError
+            raise ValueError("Megatron is not support for training yet")
         (
             input_ids,
             attn_masks,
@@ -122,11 +124,28 @@ class DialogueGPTModel(NLPModel):
             new_input_ids = []
             new_attn_masks = []
             for i in range(candidate_input_ids.size(0)):
-                for j in range(0, candidate_input_ids.size(1), 2):
-                    if j > 0 and torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
-                        break
-                    new_input_ids.append(candidate_input_ids[i, j, :])
-                    new_attn_masks.append(candidate_attn_masks[i, j, :])
+                if self.cfg.dataset.binary_score_subsample:
+                    new_input_ids.append(candidate_input_ids[i, 2 * correct_candidate[i].item(), :])
+                    new_attn_masks.append(candidate_attn_masks[i, 2 * correct_candidate[i].item(), :])
+                    possible_negatives = []
+                    for j in range(0, candidate_input_ids.size(1), 2):
+                        if j > 0 and torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
+                            break
+                        if j != 2 * correct_candidate[i].item():
+                            possible_negatives.append(j)
+                    negative_samples = random.choices(
+                        possible_negatives, k=int(self.cfg.dataset.binary_score_subsample_ratio)
+                    )
+                    for negative_sample in negative_samples:
+                        new_input_ids.append(candidate_input_ids[i, negative_sample, :])
+                        new_attn_masks.append(candidate_attn_masks[i, negative_sample, :])
+
+                else:
+                    for j in range(0, candidate_input_ids.size(1), 2):
+                        if j > 0 and torch.equal(candidate_input_ids[i, j, :], candidate_input_ids[i, 0, :]):
+                            break
+                        new_input_ids.append(candidate_input_ids[i, j, :])
+                        new_attn_masks.append(candidate_attn_masks[i, j, :])
             input_ids = torch.stack(new_input_ids)
             attn_masks = torch.stack(new_attn_masks)
             labels = self.get_binary_score_labels(input_ids)
@@ -144,50 +163,6 @@ class DialogueGPTModel(NLPModel):
     def test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, mode='test')
 
-    def get_slot_filling_metrics(self, generated_slots, ground_truth_slots):
-        all_recall = []
-        all_precision = []
-        all_joint_goal_accuracy = []
-
-        for i in range(len(generated_slots)):
-            # depulicate and sort
-            ground_truth = sorted(list(set(ground_truth_slots[i])))
-            predicted = sorted(list(set(generated_slots[i])))
-            correct = [item for item in predicted if item in ground_truth]
-            recall = len(correct) / len(ground_truth) if len(ground_truth) > 0 else 0
-            precision = len(correct) / len(predicted) if len(predicted) > 0 else 0
-            joint_goal_accuracy = int(ground_truth == predicted)
-            all_recall.append(recall)
-            all_precision.append(precision)
-            all_joint_goal_accuracy.append(joint_goal_accuracy)
-
-        avg_joint_goal_accuracy = np.mean(all_joint_goal_accuracy)
-        avg_precision = np.mean(all_precision)
-        avg_recall = np.mean(all_recall)
-        avg_f1 = 2 * (avg_recall * avg_precision) / (avg_recall + avg_precision)
-
-        return avg_precision, avg_recall, avg_f1, avg_joint_goal_accuracy
-
-    def split_label_and_slots(self, fields):
-        labels = []
-        slots_list = []
-        for field in fields:
-            if self.cfg.dataset.target_template == "with_slots":
-                combo = [i.strip() for i in field.split('slots:')]
-                if len(combo) == 2:
-                    label, slots = combo
-                elif len(combo) == 1:
-                    slots = combo
-                    label = None
-                slots = slots.split(', ')
-            else:
-                label = field
-                slots = []
-            slots_list.append(slots)
-            labels.append(label)
-
-        return labels, slots_list
-
     def eval_epoch_end(self, outputs, mode='val'):
 
         generated_field = []
@@ -198,13 +173,19 @@ class DialogueGPTModel(NLPModel):
             ground_truth_field += output["ground_truth_field"]
             inputs += output["input"]
 
-        generated_labels, generated_slots = self.split_label_and_slots(generated_field)
-        ground_truth_labels, ground_truth_slots = self.split_label_and_slots(ground_truth_field)
+        with_slots = self.cfg.dataset.target_template == "with_slots"
+
+        generated_labels, generated_slots = IntentSlotMetrics.split_label_and_slots(
+            generated_field, with_slots=with_slots
+        )
+        ground_truth_labels, ground_truth_slots = IntentSlotMetrics.split_label_and_slots(
+            ground_truth_field, with_slots=with_slots
+        )
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions.jsonl")
 
-        self.save_predictions(
+        IntentSlotMetrics.save_predictions(
             filename,
             generated_labels,
             generated_slots,
@@ -215,23 +196,22 @@ class DialogueGPTModel(NLPModel):
             inputs,
         )
 
-        label_acc = np.mean(
-            [int(generated_labels[i].strip() == ground_truth_labels[i].strip()) for i in range(len(generated_labels))]
+        label_acc = np.mean([int(generated_labels[i] == ground_truth_labels[i]) for i in range(len(generated_labels))])
+
+        generated_field_ids = torch.tensor([self.label_to_ids[label] for label in generated_labels], dtype=int).to(
+            self.classification_report.device
         )
 
-        generated_field_ids = torch.tensor(
-            [self.label_to_ids[label.strip()] for label in generated_labels], dtype=int
-        ).to(self.classification_report.device)
-
         ground_truth_field_ids = torch.tensor(
-            [self.label_to_ids[label.strip()] for label in ground_truth_labels], dtype=int
+            [self.label_to_ids[label] for label in ground_truth_labels], dtype=int
         ).to(self.classification_report.device)
 
         tp, fn, fp, _ = self.classification_report(generated_field_ids, ground_truth_field_ids)
 
         precision, recall, f1, report = self.classification_report.compute()
+        self.classification_report.reset()
 
-        slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy = self.get_slot_filling_metrics(
+        slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy = IntentSlotMetrics.get_slot_filling_metrics(
             generated_slots, ground_truth_slots
         )
 
@@ -245,34 +225,6 @@ class DialogueGPTModel(NLPModel):
         self.log('slot_recall', slot_recall)
         self.log('slot_f1', slot_f1)
         self.log('slot_joint_goal_accuracy', slot_joint_goal_accuracy)
-
-    def save_predictions(
-        self,
-        filename,
-        generated_labels,
-        generated_slots,
-        ground_truth_labels,
-        ground_truth_slots,
-        generated_field,
-        ground_truth_field,
-        inputs,
-    ):
-        docs = []
-        for i in range(len(generated_labels)):
-            docs.append(
-                {
-                    "input": inputs[i],
-                    "ground_truth": ground_truth_field[i],
-                    "ground_truth_slots": ground_truth_slots[i],
-                    "ground_truth_labels": ground_truth_labels[i],
-                    "generated": generated_field[i],
-                    "generated_slots": generated_slots[i],
-                    "generated_labels": generated_labels[i],
-                }
-            )
-        with open(filename, 'w', encoding="UTF-8") as f:
-            for item in docs:
-                f.write(json.dumps(item) + "\n")
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
@@ -292,9 +244,10 @@ class DialogueGPTModel(NLPModel):
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
             prompt_tags = [self.prompt_tags[0]] * input_ids.size(0) if self.prompt_tags else None
+            attn_mask = attention_mask > 0
 
             unmasked_unreduced_loss = self.language_model(
-                input_ids, position_ids, attention_mask=attention_mask > 0, labels=labels, prompt_tags=prompt_tags
+                input_ids, position_ids, attn_mask, labels, prompt_tags=prompt_tags
             )
             filler = torch.zeros_like(labels)
             labels_mask_0 = torch.where(labels != -100, labels, filler)
@@ -428,6 +381,9 @@ class DialogueGPTModel(NLPModel):
         return generated_field, ground_truth_field
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
+        """
+        # adapted from MegatronGPTModel._bucketize_gpt_inference 
+        """
         batch_size = labels.size(0)
         prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_tags else None
         batch_tokens = input_ids.tolist()
@@ -447,7 +403,7 @@ class DialogueGPTModel(NLPModel):
 
         # get buckets and prompts initial positions
         for bucket in pre_buckets:
-            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
+            buckets.append(torch.tensor([item[0] for item in bucket]).to(device=labels.device))
             positions.append([item[1] for item in bucket])
 
             # bucket prompt tags identically to their corresponding examples
@@ -464,10 +420,6 @@ class DialogueGPTModel(NLPModel):
     def post_process_megatron_generation(self, outputs):
         text_outputs = [output[0] for output in outputs]
         generated_tokens = self.tokenizer.tokenizer(text_outputs, padding=True, return_tensors="pt").data["input_ids"]
-        # max_generated_tokens_length = max([len(i) for i in generated_tokens])
-        # generated_tokens = [i + [self.tokenizer.tokenizer.pad_token_id] * (max_generated_tokens_length - len(i)) for i in generated_tokens]
-        # generated_tokens = torch.tensor(generated_tokens)
-        # print(generated_tokens)
         return generated_tokens
 
     def generate_candidates(self, generate_input_ids, generate_attn_masks, labels, template_length, input_ids):
@@ -510,16 +462,18 @@ class DialogueGPTModel(NLPModel):
         loss = self(input_ids, attn_masks, labels)
         self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
-        # ranking using perplexity of candidates
+        # ranking using perplexity of candidates following the "<utterance> <label_type>:"
         if self.eval_mode == "ranking":
             generated_field, ground_truth_field = self.rank_candidates(
                 candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length
             )
-        # generate candidates (possibly with constraint)
+        # autoregressively generate candidates (possibly with constraint)
         elif self.eval_mode == "generation":
             generated_field, ground_truth_field = self.generate_candidates(
                 generate_input_ids, generate_attn_masks, labels, template_length, input_ids,
             )
+        # comparing likelihood based on the perplexity of generating " Answer: yes" after "<utterance> <label_type>: <candidate_label>"
+        # (optionally, the difference of that with " Answer: no" using the flag minus_negative=True)
         elif self.eval_mode == "binary_score":
             generated_field, ground_truth_field = self.binary_score_candidates(
                 candidate_input_ids, candidate_attn_masks, utterance_length, labels, template_length, correct_candidate
@@ -529,12 +483,6 @@ class DialogueGPTModel(NLPModel):
             raise ValueError(
                 "{} is not among supported options (ranking, generation, binary_score)".format(self.eval_mode)
             )
-
-        # for i in range(len(generated_field)):
-        #     print("Input: {}".format(self.tokenizer.tokenizer.decode(input_ids[i], skip_special_tokens=True)))
-        #     print("Generated: {}".format(generated_field[i]))
-        #     print("Ground truth: {}".format(ground_truth_field[i]))
-        #     print("_"*20)
 
         return {
             'loss': loss,
@@ -610,15 +558,13 @@ class DialogueGPTModel(NLPModel):
                 schema_config=schema_config,
                 subsample=self._cfg.dataset.subsample,
             )
+            if is_global_rank_zero():
+                overwrite_dial_files = not self._cfg.dataset.use_cache
+                self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
         elif self._cfg.dataset.task == 'assistant':
             self.dialogues_processor = DialogueAssistantDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
-
-        if is_global_rank_zero():
-            overwrite_dial_files = not self._cfg.dataset.use_cache
-            if self._cfg.dataset.task == 'sgd':
-                self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
         self.data_prepared = True
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):

@@ -62,6 +62,8 @@ model:
     target_template: default # default, with_description, with_slots
     debug_mode: false # small number of examples for debugging
     eval_mode: ranking # ranking or generation or binary_score
+    binary_score_subsample: false # subsample negative examples for binary score training
+    binary_score_subsample_ratio: 2 # number of negative examples per postive example
     max_seq_length: 128 # the maximum length BERT supports is 512
     max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
     max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
