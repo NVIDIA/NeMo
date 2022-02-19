@@ -215,6 +215,7 @@ def build_training_sample(
         cls_id=cls_id,
         sep_id=sep_id,
         mask_id=mask_id,
+        bos_id=bos_id,
         max_predictions_per_seq=max_predictions_per_seq,
         np_rng=np_rng,
         max_ngram_size=max_ngram_size,

@@ -162,6 +162,7 @@ def create_tokens_and_tokentypes(tokens_a, tokens_b, cls_id, sep_id):
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
 
 
+'''
 def is_start_piece(piece, tokenizer_type='wordpiece'):
     """Check if the current word piece is the starting piece. (BERT)"""
     # When a word has been split into
@@ -174,7 +175,16 @@ def is_start_piece(piece, tokenizer_type='wordpiece'):
         return piece.startswith('▁')
     else:
         raise ValueError(f"Tokenizer type {tokenizer_type} is not supported.")
+'''
 
+# TODO: Figure out what is going on with SPM and Whole word masking ?!?!
+def is_start_piece(piece, tokenizer_type='wordpiece'):
+    """Check if the current word piece is the starting piece. (BERT)"""
+    # When a word has been split into
+    # WordPieces, the first token does not have any marker and any subsequence
+    # tokens are prefixed with ##. So whenever we see the ## token, we
+    # append it to the previous set of word indexes.
+    return not piece.startswith("##")
 
 def create_masked_lm_predictions(
     tokens,
@@ -184,6 +194,7 @@ def create_masked_lm_predictions(
     cls_id,
     sep_id,
     mask_id,
+    bos_id,
     max_predictions_per_seq,
     np_rng,
     max_ngram_size=3,
@@ -208,7 +219,7 @@ def create_masked_lm_predictions(
     token_boundary = [0] * len(tokens)
 
     for (i, token) in enumerate(tokens):
-        if token == cls_id or token == sep_id:
+        if token == cls_id or token == sep_id or token == bos_id:
             token_boundary[i] = 1
             continue
         # Whole Word Masking means that if we mask all of the wordpieces

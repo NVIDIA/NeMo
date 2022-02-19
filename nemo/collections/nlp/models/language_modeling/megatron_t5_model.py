@@ -58,7 +58,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
             # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
             if not hasattr(self.tokenizer, 'pad_token'):
-                if hasattr(self.tokenizer.tokenizer, 'pad_id') and self.tokenizer.tokenizer.pad_id() > 0:
+                if hasattr(self.tokenizer.tokenizer, 'pad_id') and self.tokenizer.tokenizer.pad_id() >= 0: # Pad id is 0, so make sure check is >= 0.
                     self.tokenizer.pad_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.pad_id())
                 else:
                     self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -66,7 +66,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
             if not hasattr(self.tokenizer, 'bos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'bos_id') and self.tokenizer.tokenizer.bos_id() > 0:
+                if hasattr(self.tokenizer.tokenizer, 'bos_id') and self.tokenizer.tokenizer.bos_id() >= 0:
                     self.tokenizer.bos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.bos_id())
                 else:
                     self.tokenizer.add_special_tokens({'bos_token': '<bos>'})
@@ -74,7 +74,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 self.tokenizer.add_special_tokens({'bos_token': '<s>'})
 
             if not hasattr(self.tokenizer, 'eos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'eos_id') and self.tokenizer.tokenizer.eos_id() > 0:
+                if hasattr(self.tokenizer.tokenizer, 'eos_id') and self.tokenizer.tokenizer.eos_id() >= 0:
                     self.tokenizer.eos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.eos_id())
                 else:
                     self.tokenizer.add_special_tokens({'eos_token': '<eos>'})

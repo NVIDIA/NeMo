@@ -167,6 +167,7 @@ def build_training_sample(
         cls_id,
         sep_id,
         mask_id,
+        cls_id, # Pass cls_id here again because for BERT its the same bas bos_id, but T5 needs a separate bos_id.
         max_predictions_per_seq,
         np_rng,
     )
