@@ -9,12 +9,9 @@ def _calculate_model_size(
     vocab_size=None, seq_length=None, hidden_size=None, num_layers=None
 ):
     model_size = (
-        12
-        * num_layers
-        * hidden_size**2
+        12 * num_layers * hidden_size**2
         * (
-            1
-            + (13 / (12 * hidden_size))
+            1 + (13 / (12 * hidden_size))
             + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))
         )
         / 1e9
@@ -73,26 +70,13 @@ def estimate_training_time(
 
 def generic_base_config(cfg):
     inp = """\
-    slurm:
-      partition: ???
-      account: "null"
-      time_limit: "1-00:00:00"
-      nodes: 8
-      exclusive: True
-      mem: 0
-      overcommit: True
-      ntasks_per_node: 8
-      gpus_per_task: "null"
-      dependency: "singleton"
-      job_name: "bignlp-gpt3:126m"
-
     run:
       name: "126m"
       log_dir: ${bignlp_path}/train_config_generator/logs/126m
 
     trainer:
-      gpus: ${training.slurm.ntasks_per_node}
-      num_nodes: ${training.slurm.nodes}
+      gpus: 8
+      num_nodes: 8
       accelerator: ddp
       precision: 16
       amp_backend: native
@@ -199,7 +183,6 @@ def generic_base_config(cfg):
           - ${data_dir}/my-gpt3_00_text_document
     """
     base_cfg = yaml.safe_load(inp)
-    base_cfg["slurm"] = dict(cfg["slurm"])
     return base_cfg
 
 

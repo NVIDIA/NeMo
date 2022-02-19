@@ -5,9 +5,9 @@ train_settings:
   max_minutes_per_run: 15 # 20 minute default running time.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
-  candidate_logs: ${results_dir}/search_train_config/candidate_logs
-  candidate_configs: ${results_dir}/search_train_config/candidate_configs
-  final_result_logs: ${results_dir}/search_train_config/result_logs
+  candidate_logs: ${base_results_dir}/candidate_logs
+  candidate_configs: ${base_results_dir}/candidate_configs
+  final_result_logs: ${base_results_dir}/result_logs
  
 inference_settings:
   vocab_size: 51200

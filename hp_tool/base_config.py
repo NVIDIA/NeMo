@@ -114,59 +114,35 @@ def _calculate_gbs_tp_pp(model_size_in_b):
 
 
 def generate_base_config(
-    model_size_in_b, nodes, gpus_per_node, max_training_days, cfg
+    model_size_in_b, nodes, gpus_per_node, max_training_days, num_tokens_in_b, cfg
 ):
     # GBS: global batch size
     gbs, tp, pp = _calculate_gbs_tp_pp(model_size_in_b=model_size_in_b)
 
     base_cfg = utils.generic_base_config(cfg.search_config)
 
-    # SLURM
-    base_cfg["slurm"]["nodes"] = int(nodes)
-    base_cfg["slurm"]["ntasks_per_node"] = int(gpus_per_node)
-    base_cfg["slurm"]["job_name"] = f"bignlp-gpt3:{model_size}b"
-    base_cfg["slurm"][
-        "time_limit"
-    ] = f"{int(max_training_days)}-{int(24 * (max_training_days - int(max_training_days)))}:00:00"
-
     # RUN
-    base_cfg["run"]["name"] = f"{model_size}b"
-    base_cfg["run"][
-        "log_dir"
-    ] = f"${{bignlp_path}}/search_train_config/candidate_logs/{model_size}b"
+    base_cfg["run"]["name"] = f"{model_size_in_b}b"
+    base_cfg["run"]["results_dir"] = "${base_results_dir}/${.name}"
+    base_cfg["run"]["time_limit"] = (
+        f"{int(max_training_days)}-"
+        f"{int(24 * (max_training_days - int(max_training_days)))}:00:00"
+    )
 
     # TRAINER
-    if model_size <= 5.5:
-        base_cfg["trainer"]["precision"] = 16
-        base_cfg["model"]["fused_fp16"] = True
-        base_cfg["model"]["fused_bf16"] = False
-    else:
-        base_cfg["trainer"]["precision"] = "bf16"
-        base_cfg["model"]["fused_fp16"] = False
-        base_cfg["model"]["fused_bf16"] = True
+    base_cfg["trainer"]["precision"] = 16 if model_size_in_b <= 5.5 else "bf16"
     mbs = base_cfg["model"]["micro_batch_size"]
     seq_length = base_cfg["model"]["data"]["seq_length"]
-    base_cfg["trainer"]["accumulate_grad_batches"] = int(
-        gbs // (mbs * nodes * gpus_per_node / tp)
-    )  # 360 / (8 * 8 / 1)
-    accumulate_grad_batches = base_cfg["trainer"]["accumulate_grad_batches"]
-    base_cfg["trainer"]["max_steps"] = int(
-        (3e11 / seq_length)
-        // (mbs * nodes * gpus_per_node * accumulate_grad_batches / tp)
+    base_cfg["trainer"]["max_steps"] = int((num_tokens_in_b * 1e9) / (seq_length * gbs))
+    base_cfg["trainer"]["max_time"] = (
+        f"{int(max_training_days)}:"
+        f"{int(24 * (max_training_days - int(max_training_days))) - 1}:40:00"
     )
-    base_cfg["trainer"][
-        "max_time"
-    ] = f"{int(max_training_days)}:{int(24 * (max_training_days - int(max_training_days))) - 1}:40:00"
 
     # MODEL
-    (
-        num_layers,
-        hidden_size,
-        att_heads,
-        lr,
-    ) = utils.calculate_num_layers_hidden_size_learning_rate(model_size)
-    base_cfg["model"]["num_layers"] = int(num_layers)
-    base_cfg["model"]["hidden_size"] = int(hidden_size)
+    layers, hs, att_heads, lr = utils.calculate_layers_hs_lr(model_size)
+    base_cfg["model"]["num_layers"] = int(layers)
+    base_cfg["model"]["hidden_size"] = int(hs)
     base_cfg["model"]["num_attention_heads"] = int(att_heads)
     base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hidden_size), 6)
     base_cfg["model"]["optim"]["lr"] = lr
@@ -178,12 +154,10 @@ def generate_base_config(
         0.166 * base_cfg["trainer"]["max_steps"]
     )
 
-    with open(
-        f"{cfg.bignlp_path}/search_train_config/base_cfg_{model_size}b.yaml", "w"
-    ) as f:
+    with open(f"{cfg.base_results_dir}/base_cfg_{model_size}b.yaml", "w") as f:
         yaml.dump(base_cfg, f)
 
-    return base_cfg, gbs
+    return base_cfg
 
 
 def generate_grid_search_configs(base_cfg, gbs, model_size, cfg):
