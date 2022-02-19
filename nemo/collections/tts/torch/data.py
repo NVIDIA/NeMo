@@ -841,13 +841,13 @@ class VocoderDataset(Dataset):
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
             if Path(sample["mel_filepath"]).suffix == ".npy":
-                mel = np.load(sample["mel_filepath"])
+                mel = torch.from_numpy(np.load(sample["mel_filepath"]))
             else:
                 mel = torch.load(sample["mel_filepath"])
             frames = math.ceil(self.n_segments / self.hop_length)
 
-            if len(audio) > self.n_segments:
-                start = random.randint(0, mel.shape[1] - frames - 2)
+            if len(audio) >= self.n_segments:
+                start = random.randint(0, mel.shape[1] - frames - 1)
                 mel = mel[:, start : start + frames]
                 audio = audio[start * self.hop_length : (start + frames) * self.hop_length]
             else:
