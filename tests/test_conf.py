@@ -89,7 +89,7 @@ class TestTrainingConfig:
             always_save_nemo: False
             save_nemo_on_train_end: False
             filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
-            model_parallel_size: ${training.model.tensor_model_parallel_size}
+            model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
@@ -99,6 +99,7 @@ class TestTrainingConfig:
           # model parallelism 
           micro_batch_size: 4
           tensor_model_parallel_size: 1
+          pipeline_model_parallel_size: 1
 
           # model architecture
           encoder_seq_length: 2048
@@ -136,9 +137,6 @@ class TestTrainingConfig:
           
           # Megatron O2-style half-precision
           megatron_amp_O2: True
-          fp32_grad_accum: False
-          contiguous_grad_bucket: False
-          async_grad_allreduce: False
 
           # miscellaneous
           seed: 1234
@@ -279,7 +277,7 @@ class TestTrainingConfig:
             always_save_nemo: False
             save_nemo_on_train_end: False
             filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
-            model_parallel_size: ${training.model.tensor_model_parallel_size}
+            model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
@@ -289,6 +287,7 @@ class TestTrainingConfig:
           # model parallelism: MBS=2, TPS=2, AGB=9 for 80GB nodes.
           micro_batch_size: 2
           tensor_model_parallel_size: 2
+          pipeline_model_parallel_size: 1
 
           # model architecture
           encoder_seq_length: 2048
@@ -326,9 +325,6 @@ class TestTrainingConfig:
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
-          fp32_grad_accum: False
-          contiguous_grad_bucket: False
-          async_grad_allreduce: False
 
           # miscellaneous
           seed: 1234
@@ -470,7 +466,7 @@ class TestTrainingConfig:
             always_save_nemo: False
             save_nemo_on_train_end: False
             filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
-            model_parallel_size: ${training.model.tensor_model_parallel_size}
+            model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
@@ -481,6 +477,7 @@ class TestTrainingConfig:
           # model parallelism
           micro_batch_size: 2
           tensor_model_parallel_size: 8
+          pipeline_model_parallel_size: 1
 
           # model architecture
           encoder_seq_length: 2048
@@ -518,9 +515,6 @@ class TestTrainingConfig:
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
-          fp32_grad_accum: True
-          contiguous_grad_bucket: True
-          async_grad_allreduce: True
 
           # miscellaneous
           seed: 1234

@@ -42,7 +42,7 @@ exp_manager:
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
     filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
-    model_parallel_size: ${training.model.tensor_model_parallel_size}
+    model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
   log_step_timing: True
   step_timing_kwargs:
     sync_cuda: True
@@ -52,6 +52,7 @@ model:
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
 
   # model architecture
   encoder_seq_length: 2048
@@ -89,9 +90,6 @@ model:
   
   # Megatron O2-style half-precision
   megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
-  fp32_grad_accum: False # Execute gradient accumulation and  all-reduce in fp32.
-  contiguous_grad_bucket: False # Allocate master gradients in the contiguous memory space
-  async_grad_allreduce: False # Asynchronous master gradient all-reduce with a training step
 
   # miscellaneous
   seed: 1234
