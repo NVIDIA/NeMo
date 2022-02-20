@@ -32,7 +32,6 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     write_rttm2manifest,
 )
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 try:
     import arpa
@@ -567,7 +566,6 @@ class ASR_DIAR_OFFLINE(object):
         word_pos = word_pos + self.word_ts_anchor_offset
         return word_pos
 
-    @experimental
     def realign_words_with_lm(self, word_dict_seq_list: List[Dict[str, float]]):
         """
         Realign the mapping between speaker labels and words using a language model.

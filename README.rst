@@ -49,10 +49,11 @@ Key Features
         * Supports CTC and Transducer/RNNT losses/decoders
         * Beam Search decoding
         * `Language Modelling for ASR <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html>`_: N-gram LM in fusion with Beam Search decoding, Neural Rescoring with Transformer
+        * Streaming and Buffered ASR (CTC/Transdcer) - `Chunked Inference Examples <https://github.com/NVIDIA/NeMo/tree/main/examples/asr/asr_chunked_inference>`_
     * `Speech Classification and Speech Command Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speech_classification/intro.html>`_: MatchboxNet (Command Recognition)
     * `Voice activity Detection (VAD) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/speech_classification/models.html#marblenet-vad>`_: MarbleNet
     * `Speaker Recognition <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html>`_: TitaNet, ECAPA_TDNN, SpeakerNet
-    * `Speaker Diarization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html>`_: TitaNet, ECAPA_TDNN SpeakerNet
+    * `Speaker Diarization <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html>`_: TitaNet, ECAPA_TDNN, SpeakerNet
     * `Pretrained models on different languages. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_: English, Spanish, German, Russian, Chinese, French, Italian, Polish, ...
     * `NGC collection of pre-trained speech processing models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_asr>`_
 * Natural Language Processing
@@ -73,7 +74,7 @@ Key Features
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
-    * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN
+    * Vocoders: WaveGlow, SqueezeWave, UniGlow, MelGAN, HiFiGAN, UnivNet
     * End-to-end speech generation: FastPitch_HifiGan_E2E, FastSpeech2_HifiGan_E2E
     * `NGC collection of pre-trained TTS models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_tts>`_
 * `Tools <https://github.com/NVIDIA/NeMo/tree/main/tools>`_

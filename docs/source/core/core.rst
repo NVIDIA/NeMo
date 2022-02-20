@@ -391,17 +391,17 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
     
         # scheduler setup
         sched:
-        name: CosineAnnealing
+            name: CosineAnnealing
     
-        # Optional arguments
-        max_steps: null # computed at runtime or explicitly set here
-        monitor: val_loss
-        reduce_on_plateau: false
+            # Optional arguments
+            max_steps: null # computed at runtime or explicitly set here
+            monitor: val_loss
+            reduce_on_plateau: false
     
-        # scheduler config override
-        warmup_steps: 1000
-        warmup_ratio: null
-        min_lr: 1e-9:
+            # scheduler config override
+            warmup_steps: 1000
+            warmup_ratio: null
+            min_lr: 1e-9:
 
 .. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ has optimizer and scheduler configurations for
 every NeMo model. 

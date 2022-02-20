@@ -20,17 +20,20 @@ from transformers import (
     ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
     BertConfig,
     DistilBertConfig,
+    GPT2Config,
     RobertaConfig,
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
+from nemo.collections.nlp.modules.common.huggingface.gpt2 import GPT2Encoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
 
@@ -62,6 +65,12 @@ HUGGINGFACE_MODELS = {
         "config": AlbertConfig,
         "pretrained_model_list": ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
+    "GPT2Model": {
+        "default": "gpt2",
+        "class": GPT2Encoder,
+        "config": GPT2Config,
+        "pretrained_model_list": GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
 }
 
 VOCAB_FILE_NAME = {
@@ -69,6 +78,7 @@ VOCAB_FILE_NAME = {
     'RobertaTokenizer': "vocab.json",
     'BertTokenizer': "vocab.txt",
     'DistilBertTokenizer': "vocab.txt",
+    "GPT2Tokenizer": "vocab.json",
 }
 
 
@@ -94,6 +104,7 @@ def get_huggingface_lm_model(
         raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
 
     model_type = type(automodel).__name__
+
     if model_type in HUGGINGFACE_MODELS:
         model_class = HUGGINGFACE_MODELS[model_type]["class"]
         if config_file:
@@ -110,7 +121,7 @@ def get_huggingface_lm_model(
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
-        raise ValueError(f"Use HuffingFace API directly in NeMo for {pretrained_model_name}")
+        raise ValueError(f"Use HuggingFace API directly in NeMo for {pretrained_model_name}")
 
 
 def get_huggingface_pretrained_lm_models_list(include_external: bool = False,) -> List[str]:
