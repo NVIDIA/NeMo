@@ -517,6 +517,7 @@ class SpectrogramAugmentation(NeuralModule):
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
         return augmented_spec
 
+
 class MaskedPatchAugmentation(NeuralModule):
     """
         Zeroes out fixed size time patches of the spectrogram.
@@ -532,6 +533,7 @@ class MaskedPatchAugmentation(NeuralModule):
             freq_width (int): maximum number of frequencies to be cut in a segment.
             Defaults to 0.
     """
+
     @property
     def input_types(self):
         """Returns definitions of module input types
@@ -548,23 +550,14 @@ class MaskedPatchAugmentation(NeuralModule):
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
-        self,
-        patch_size=48,
-        mask_patches=10,
-        freq_masks=0,
-        freq_width=0,
+        self, patch_size: int = 48, mask_patches: int = 10, freq_masks: int = 0, freq_width: int = 0,
     ):
         super().__init__()
         self.patch_size = patch_size
         self.mask_patches = mask_patches
 
         if freq_masks > 0:
-            self.spec_augment = SpecAugment(
-                freq_masks=freq_masks,
-                time_masks=0,
-                freq_width=freq_width,
-                time_width=0,
-            )
+            self.spec_augment = SpecAugment(freq_masks=freq_masks, time_masks=0, freq_width=freq_width, time_width=0,)
         else:
             self.spec_augment = None
 
@@ -583,7 +576,7 @@ class MaskedPatchAugmentation(NeuralModule):
             masked_patches = random.sample(patches, mask_patches)
 
             for mp in masked_patches:
-                augmented_spec[idx, :, mp * self.patch_size: (mp + 1) * self.patch_size] = 0.
+                augmented_spec[idx, :, mp * self.patch_size : (mp + 1) * self.patch_size] = 0.0
 
         if self.spec_augment is not None:
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)

@@ -43,25 +43,25 @@ class ContrastiveLoss(Loss):
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
-            self,
-            in_dim: int,
-            proj_dim: int = 128,
-            combine_time_steps: int = 1,
-            num_negatives: int = 100,
-            quantized_targets: bool = False,
-            codebook_size: int = 320,
-            prob_ppl_weight: float = 0.1,
-            logit_temp: float = 0.1,
-            reduce: str = "sum",
-            sample_from_same_utterance_only: bool = True,
-            sample_from_non_masked: bool = False,
-            sample_from_codebook: bool = False,
-            group_loss: bool = False,
-            num_groups: int = 2,
-            quantizer_temp_start: float = 2,
-            quantizer_temp_min: float = 0.5,
-            quantizer_temp_decay: float = 0.999995,
-            mask_threshold: float = 0.8,
+        self,
+        in_dim: int,
+        proj_dim: int = 128,
+        combine_time_steps: int = 1,
+        num_negatives: int = 100,
+        quantized_targets: bool = False,
+        codebook_size: int = 320,
+        prob_ppl_weight: float = 0.1,
+        logit_temp: float = 0.1,
+        reduce: str = "sum",
+        sample_from_same_utterance_only: bool = True,
+        sample_from_non_masked: bool = False,
+        sample_from_codebook: bool = False,
+        group_loss: bool = False,
+        num_groups: int = 2,
+        quantizer_temp_start: float = 2,
+        quantizer_temp_min: float = 0.5,
+        quantizer_temp_decay: float = 0.999995,
+        mask_threshold: float = 0.8,
     ):
         """
         Loss function representing the contrastive task of identifying the true latent speech representation of
@@ -165,13 +165,11 @@ class ContrastiveLoss(Loss):
             if self.sample_from_non_masked:
                 # sample from all steps in utterance
                 negatives, _ = self.sample_negatives(
-                    targets.transpose(0, 1),  # TxBxC
-                    targets_masked_only.size(0),  # T'
+                    targets.transpose(0, 1), targets_masked_only.size(0),  # TxBxC  # T'
                 )
             else:
                 # only sample from masked steps in utterance
-                negatives, _ = self.sample_negatives(targets_masked_only,  # T'xBxC
-                                                     targets_masked_only.size(0))  # T'
+                negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xBxC  # T'
             # NxT'xBxC
 
             out_masked_only = out_masked_only.reshape(-1, out_masked_only.shape[-1])
