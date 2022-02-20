@@ -185,6 +185,7 @@ class TestEncDecRNNTBPEModel:
             assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
     @pytest.mark.with_downloads()
+<<<<<<< HEAD
     @pytest.mark.unit
     def test_save_restore_artifact_agg(self, asr_model, test_data_dir):
         tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
@@ -208,6 +209,8 @@ class TestEncDecRNNTBPEModel:
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
 
     @pytest.mark.with_downloads()
+=======
+>>>>>>> a9bce7f4dc47d9e946a8c2a33e64698c17fde3c9
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
