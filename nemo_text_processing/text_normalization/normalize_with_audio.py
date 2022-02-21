@@ -297,7 +297,11 @@ def parse_args():
         help="number of tagged options to consider, -1 - return all possible tagged options",
     )
     parser.add_argument("--verbose", help="print info for debugging", action="store_true")
-    parser.add_argument("--remove_punct", help="remove punctuation before calculating cer", action="store_true")
+    parser.add_argument(
+        "--no_remove_punct_for_cer",
+        help="Set to True to NOT remove punctuation before calculating CER",
+        action="store_true",
+    )
     parser.add_argument(
         "--no_punct_post_process", help="set to True to disable punctuation post processing", action="store_true"
     )
@@ -429,7 +433,7 @@ if __name__ == "__main__":
                 pred_text=pred_text,
                 input_text=args.text,
                 verbose=args.verbose,
-                remove_punct=args.remove_punct,
+                remove_punct=not args.no_remove_punct_for_cer,
             )
             print(f"Transcript: {pred_text}")
             print(f"Normalized: {normalized_text}")
@@ -452,7 +456,7 @@ if __name__ == "__main__":
             audio_data=args.audio_data,
             n_jobs=args.n_jobs,
             n_tagged=args.n_tagged,
-            remove_punct=args.remove_punct,
+            remove_punct=not args.no_remove_punct_for_cer,
             punct_post_process=not args.no_punct_post_process,
             batch_size=args.batch_size,
         )

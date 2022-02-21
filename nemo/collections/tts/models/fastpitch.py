@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
@@ -195,13 +197,19 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return self._parser
 
     def parse(self, str_input: str, normalize=True) -> torch.tensor:
-        if str_input[-1] not in [".", "!", "?"]:
-            str_input = str_input + "."
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
 
         if normalize and self.text_normalizer_call is not None:
             str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_kwargs)
 
-        tokens = self.parser(str_input)
+        if self.learn_alignment:
+            # Disable mixed g2p representation
+            with self.vocab.set_phone_prob(prob=1.0):
+                tokens = self.parser(str_input)
+        else:
+            # TODO(Oktai15): remove it in 1.8.0 version
+            tokens = self.parser(str_input)
 
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x
@@ -211,7 +219,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "text": NeuralType(('B', 'T_text'), TokenIndex()),
             "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
             "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
-            "speaker": NeuralType(('B'), Index()),
+            "speaker": NeuralType(('B'), Index(), optional=True),
             "pace": NeuralType(optional=True),
             "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
@@ -225,7 +233,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         text,
         durs=None,
         pitch=None,
-        speaker=0,
+        speaker=None,
         pace=1.0,
         spec=None,
         attn_prior=None,
@@ -245,9 +253,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
-    def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
-        # FIXME: return masks as well?
-        self.eval()
+    def generate_spectrogram(
+        self, tokens: 'torch.tensor', speaker: Optional[int] = None, pace: float = 1.0
+    ) -> torch.tensor:
+        if self.training:
+            logging.warning("generate_spectrogram() is meant to be called in eval mode.")
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
@@ -312,20 +322,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             self.tb_logger.add_image(
                 "train_mel_target",
-                plot_spectrogram_to_numpy(mels[0].data.cpu().numpy()),
+                plot_spectrogram_to_numpy(mels[0].data.cpu().float().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = mels_pred[0].data.cpu().numpy()
+            spec_predict = mels_pred[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
             if self.learn_alignment:
-                attn = attn_hard[0].data.cpu().numpy().squeeze()
+                attn = attn_hard[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
                     "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
                 )
-                soft_attn = attn_soft[0].data.cpu().numpy().squeeze()
+                soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
                     "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
                 )
@@ -396,11 +406,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
                 "val_mel_target",
-                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = spec_predict[0].data.cpu().numpy()
+            spec_predict = spec_predict[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
@@ -428,12 +438,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
             dataset = instantiate(cfg.dataset, parser=self.parser)
         elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
-            dataset = instantiate(
-                cfg.dataset,
-                text_normalizer=self.normalizer,
-                text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
-                text_tokenizer=self.vocab,
-            )
+            with self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability):
+                dataset = instantiate(
+                    cfg.dataset,
+                    text_normalizer=self.normalizer,
+                    text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+                    text_tokenizer=self.vocab,
+                )
         else:
             # TODO(Oktai15): remove it in 1.8.0 version
             dataset = instantiate(cfg.dataset)
