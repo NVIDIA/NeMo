@@ -197,7 +197,11 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         # Set the new vocabulary
         with open_dict(cfg):
-            cfg.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
+            # sidestepping the potential overlapping tokens issue in aggregate tokenizers
+            if self.tokenizer_type == "agg":
+                cfg.decoder.vocabulary = ListConfig(vocabulary)
+            else:
+                cfg.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
 
         # Override number of classes if placeholder provided
         num_classes = cfg.decoder["num_classes"]
@@ -319,7 +323,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def change_vocabulary(self, new_tokenizer_dir: str, new_tokenizer_type: str):
+    def change_vocabulary(self, new_tokenizer_dir: str, new_tokenizer_type: str, new_tokenizer_cfg: Optional[DictConfig] = None):
         """
         Changes vocabulary of the tokenizer used during CTC decoding process.
         Use this method when fine-tuning on from pre-trained model.
@@ -331,19 +335,24 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             new_tokenizer_dir: Path to the new tokenizer directory.
             new_tokenizer_type: Either `bpe` or `wpe`. `bpe` is used for SentencePiece tokenizers,
                 whereas `wpe` is used for `BertTokenizer`.
+            new_tokenizer_cfg: A config for the new tokenizer. if provided, pre-empts the dir and type
 
         Returns: None
 
         """
-        if not os.path.isdir(new_tokenizer_dir):
-            raise NotADirectoryError(
+        if new_tokenizer_cfg is not None:
+            tokenizer_cfg = new_tokenizer_cfg
+        else:
+            if not os.path.isdir(new_tokenizer_dir):
+                raise NotADirectoryError(
                 f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
-            )
+                    f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
+                )
 
-        if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-            raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
+                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
 
-        tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
