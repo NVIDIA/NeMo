@@ -60,7 +60,6 @@ class RomanFst(GraphFst):
         graph = pynini.compose(pynini.closure(NEMO_CHAR, 2), graph) | pynutil.add_weight(
             pynini.compose(NEMO_CHAR, graph), 101
         )
-        graph = graph.optimize() + pynini.closure(pynutil.delete("."), 0, 1)
 
         graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
