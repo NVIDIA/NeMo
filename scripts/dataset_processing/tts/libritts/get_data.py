@@ -284,9 +284,11 @@ def __process_transcript(file_path: str, normalization_source="dataset"):
     wav_file = file_path.replace(".original.txt", ".wav")
     assert os.path.exists(wav_file), f"{wav_file} not found!"
 
+    speaker_id = file_path.split('/')[-3]
     duration = subprocess.check_output(f"soxi -D {wav_file}", shell=True)
 
-    entity = {'audio_filepath': os.path.abspath(wav_file), 'duration': float(duration), 'text': original_text}
+    entity = {'audio_filepath': os.path.abspath(wav_file), 'duration': float(duration), 'text': original_text, 'speaker': int(speaker_id)}
+
     if norm_text is not None:
         entity['normalized_text'] = norm_text
 
