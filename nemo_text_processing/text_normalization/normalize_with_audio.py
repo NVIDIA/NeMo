@@ -14,8 +14,6 @@
 
 import json
 import os
-import re
-import string
 import time
 from argparse import ArgumentParser
 from glob import glob
