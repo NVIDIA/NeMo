@@ -189,7 +189,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
     def change_vocabulary(
-        self, new_tokenizer_dir: str, new_tokenizer_type: str, decoding_cfg: Optional[DictConfig] = None
+        self, new_tokenizer_dir: str, new_tokenizer_type: str, new_tokenizer_cfg: Optional[DictConfig] = None, decoding_cfg: Optional[DictConfig] = None
     ):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
@@ -200,21 +200,25 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Args:
             new_tokenizer_dir: Directory path to tokenizer.
             new_tokenizer_type: Type of tokenizer. Can be either `bpe` or `wpe`.
+            new_tokenizer_cfg: An optional config for a new tokenizer; pre-empts the dir and type.
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
 
         Returns: None
 
         """
-        if not os.path.isdir(new_tokenizer_dir):
-            raise NotADirectoryError(
-                f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
-            )
+        if new_tokenizer_cfg is not None:
+            tokenizer_cfg = new_tokenizer_cfg
+        else:
+            if not os.path.isdir(new_tokenizer_dir):
+                raise NotADirectoryError(
+                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                )
 
-        if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-            raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
+                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
 
-        tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
@@ -224,7 +228,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         joint_config = self.joint.to_config_dict()
         new_joint_config = copy.deepcopy(joint_config)
-        new_joint_config['vocabulary'] = ListConfig(list(vocabulary.keys()))
+        if self.tokenizer_type == "agg":
+            new_joint_config["vocabulary"] = ListConfig(vocabulary)
+        else:
+            new_joint_config["vocabulary"] = ListConfig(list(vocabulary.keys()))
+
         new_joint_config['num_classes'] = len(vocabulary)
         del self.joint
         self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
