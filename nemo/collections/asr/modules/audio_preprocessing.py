@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -35,7 +36,6 @@ from nemo.core.neural_types import (
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils import logging
-import random
 
 try:
     import torchaudio

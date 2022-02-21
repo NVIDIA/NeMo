@@ -16,8 +16,8 @@ from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessor,
     AudioToMFCCPreprocessor,
     CropOrPadSpectrogramAugmentation,
-    SpectrogramAugmentation,
     MaskedPatchAugmentation,
+    SpectrogramAugmentation,
 )
 from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
