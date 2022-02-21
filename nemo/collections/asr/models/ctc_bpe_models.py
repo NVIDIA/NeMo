@@ -364,7 +364,11 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
 
         # Set the new vocabulary
         decoder_config = copy.deepcopy(self.decoder.to_config_dict())
-        decoder_config.vocabulary = ListConfig(list(vocabulary.keys()))
+        # sidestepping the potential overlapping tokens issue in aggregate tokenizers
+        if self.tokenizer_type == "agg":
+            decoder_config.vocabulary = ListConfig(vocabulary)
+        else:
+            decoder_config.vocabulary = ListConfig(list(vocabulary.keys()))
 
         decoder_num_classes = decoder_config['num_classes']
 
