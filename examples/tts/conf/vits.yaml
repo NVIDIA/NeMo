@@ -12,27 +12,6 @@ validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
 sup_data_path: null
 sup_data_types: null
 
-# Default values from librosa.pyin
-pitch_fmin: 65.40639132514966
-pitch_fmax: 2093.004522404789
-
-# LJSpeech stats (per frame), train
-pitch_mean: 212.35873413085938
-pitch_std: 68.52806091308594
-
-# default values for sample_rate=22050
-sample_rate: 22050
-n_mel_channels: 80
-n_window_size: 1024
-n_window_stride: 256
-n_fft: 1024
-lowfreq: 0
-highfreq: 8000
-window: hann
-
-pitch_loss_scale: 0.1
-durs_loss_scale: 0.1
-mel_loss_scale: 1.0
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
@@ -42,17 +21,17 @@ filter_channels: 768
 filter_length: 1024
 
 model:
-  pitch_fmin: ${pitch_fmin}
-  pitch_fmax: ${pitch_fmax}
+  pitch_fmin: 65.40639132514966
+  pitch_fmax: 2093.004522404789
 
-  sample_rate: ${sample_rate}
-  n_mel_channels: ${n_mel_channels}
-  n_window_size: ${n_window_size}
-  n_window_stride: ${n_window_stride}
-  n_fft: ${n_fft}
-  lowfreq: ${lowfreq}
-  highfreq: ${highfreq}
-  window: ${window}
+  sample_rate: 22050
+  n_mel_channels: 80
+  n_window_size: 1024
+  n_window_stride: 256
+  n_fft: 1024
+  lowfreq: 0
+  highfreq: 8000
+  window: hann
 
   splice_length: 64
   lr: 2e-4
@@ -94,16 +73,21 @@ model:
     punct_post_process: true
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    _target_: nemo.collections.tts.torch.tts_tokenizers.IPAPhonemesTokenizer
     punct: true
     stresses: true
     chars: true
     apostrophe: true
     pad_with_space: true
-    g2p:
-      _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
-      phoneme_dict: ${phoneme_dict_path}
-      heteronyms: ${heteronyms_path}
+    g2p: null
+      # _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+      # phoneme_dict: ${phoneme_dict_path}
+      # heteronyms: ${heteronyms_path}
+  # text_tokenizer:
+  #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer
+  #   punct: true
+  #   apostrophe: true
+  #   pad_with_space: true
 
   train_ds:
     dataset:
@@ -135,7 +119,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-      batch_size: 32
+      batch_size: 128
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -206,7 +190,7 @@ model:
 
 trainer:
   num_nodes: 1
-  devices: 2
+  devices: 1
   accelerator: gpu
   strategy: ddp
   precision: 16
@@ -215,12 +199,12 @@ trainer:
   # gradient_clip_val: 1000.0
   checkpoint_callback: false # Provided by exp_manager
   logger: false # Provided by exp_manager
-  log_every_n_steps: 20
+  log_every_n_steps: 50
   flush_logs_every_n_steps: 1000
   check_val_every_n_epoch: 2
 
 exp_manager:
-  exp_dir: ../local_exps/vits_ddp
+  exp_dir: vits_char
   name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true
@@ -229,8 +213,8 @@ exp_manager:
     mode: min
   create_wandb_logger: false
   wandb_logger_kwargs:
-    name: VITS_chars
+    name: VITS_char
     project: ${name}
-    entity: treacker
+    entity: treacker15
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

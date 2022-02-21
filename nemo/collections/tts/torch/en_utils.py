@@ -24,6 +24,29 @@ _synoglyphs = {
 }
 SYNOGLYPH2ASCII = {g: asc for asc, glyphs in _synoglyphs.items() for g in glyphs}
 
+# List of (regular expression, replacement) pairs for abbreviations:
+_abbreviations = [(re.compile('\\b%s\\.' % x[0], re.IGNORECASE), x[1]) for x in [
+  ('mrs', 'misess'),
+  ('mr', 'mister'),
+  ('dr', 'doctor'),
+  ('st', 'saint'),
+  ('co', 'company'),
+  ('jr', 'junior'),
+  ('maj', 'major'),
+  ('gen', 'general'),
+  ('drs', 'doctors'),
+  ('rev', 'reverend'),
+  ('lt', 'lieutenant'),
+  ('hon', 'honorable'),
+  ('sgt', 'sergeant'),
+  ('capt', 'captain'),
+  ('esq', 'esquire'),
+  ('ltd', 'limited'),
+  ('col', 'colonel'),
+  ('ft', 'fort'),
+]]
+
+
 # Example of parsing by groups via _WORDS_RE.
 # Groups:
 # 1st group -- valid english words,
@@ -33,15 +56,23 @@ SYNOGLYPH2ASCII = {g: asc for asc, glyphs in _synoglyphs.items() for g in glyphs
 # config file must contain |EY1 EY1|, B, C, D, E, F, and G.
 # 111111311113111131111111322222222233133133133133133111313
 _WORDS_RE = re.compile("([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
+_whitespace_re = re.compile(r'\s+')
 
+def expand_abbreviations(text):
+  for regex, replacement in _abbreviations:
+    text = re.sub(regex, replacement, text)
+  return text
 
-def english_text_preprocessing(text, lower=True):
+def english_text_preprocessing(text, lower=True, abbreviations=True):
     text = unicode(text)
     text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
     text = ''.join(char if char not in SYNOGLYPH2ASCII else SYNOGLYPH2ASCII[char] for char in text)
 
     if lower:
         text = text.lower()
+
+    if abbreviations:
+        text = expand_abbreviations(text)
 
     return text
 

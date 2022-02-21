@@ -136,7 +136,7 @@ class VitsModel(TextToWaveform):
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
-        if "g2p" in cfg.text_tokenizer:
+        if "g2p" in cfg.text_tokenizer and cfg.text_tokenizer.g2p is not None:
             g2p_kwargs = {}
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:

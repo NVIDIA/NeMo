@@ -16,11 +16,14 @@ import abc
 import itertools
 import string
 from typing import List
+from phonemizer import phonemize
+import re
 
 from nemo.collections.tts.torch.de_utils import german_text_preprocessing
 from nemo.collections.tts.torch.en_utils import english_text_preprocessing
 from nemo.utils import logging
 
+_whitespace_re = re.compile(r'\s+')
 
 class BaseTokenizer(abc.ABC):
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
@@ -322,6 +325,117 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
         text = self.text_preprocessing_func(text)
         g2p_text = self.g2p(text)
+
+        for p in g2p_text:  # noqa
+            # Remove stress
+            if p.isalnum() and len(p) == 3 and not self.stresses:
+                p = p[:2]
+
+            # Add space if last one isn't one
+            if p == space and len(ps) > 0 and ps[-1] != space:
+                ps.append(p)
+            # Add next phoneme or char (if chars=True)
+            elif (p.isalnum() or p == "'") and p in tokens:
+                ps.append(p)
+            # Add punct
+            elif (p in self.PUNCT_LIST) and self.punct:
+                ps.append(p)
+            # Warn about unknown char/phoneme
+            elif p != space:
+                logging.warning(
+                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped."
+                )
+
+        # Remove trailing spaces
+        while ps[-1] == space:
+            ps.pop()
+
+        if self.pad_with_space:
+            ps = [space] + ps + [space]
+
+        return [self._token2id[p] for p in ps]
+
+
+class IPAPhonemesTokenizer(BaseTokenizer):
+    # fmt: off
+
+    _punctuation = ';:,.!?¡¿—…"«»“”#()-~[]|/'
+    _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    _letters_ipa = "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴøɵɸθœɶʘɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑʼʴʰʱʲʷˠˤ˞↓↑→↗↘'̩'ᵻàãäåèéíîôõúûüăēĕĝğĩĭŏŝšũŭžǐǝǧʻˀ˥˦˧˨˩̝̞̠̥̪̃̆̊̍̚εابرسشصفلمهوᵐᵑᵝṣẽ​‍‎’⁠ⁿっゎッヮヶ�"
+    PAD = '_'
+    # fmt: on
+
+    PUNCT_LIST = [p for p in _punctuation]
+
+    def __init__(
+        self,
+        g2p,
+        punct=True,
+        non_default_punct_list=None,
+        stresses=False,
+        chars=False,
+        *,
+        space=' ',
+        silence=None,
+        apostrophe=True,
+        oov=BaseTokenizer.OOV,
+        sep='|',  # To be able to distinguish between 2/3 letters codes.
+        add_blank_at=None,
+        pad_with_space=False,
+        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
+    ):
+        """English phoneme-based tokenizer.
+        Args:
+            g2p: Grapheme to phoneme module.
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            stresses: Whether to use phonemes codes with stresses (0-2) or not.
+            chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
+            space: Space token as string.
+            silence: Silence token as string (will be disabled if it is None).
+            apostrophe: Whether to use apostrophe or not.
+            oov: OOV token as string.
+            sep: Separation token as string.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Basically, it replaces all non-unicode characters with unicode ones.
+             Note that lower() function shouldn't applied here, because text can contains phonemes (it will be handled by g2p).
+        """
+
+        tokens = []
+        self.space, tokens = len(tokens), tokens + [space]  # Space
+
+        if silence is not None:
+            self.silence, tokens = len(tokens), tokens + [silence]  # Silence
+
+        tokens.extend([l for l in self._letters_ipa])
+        tokens.extend([l for l in self._letters])
+
+        if punct:
+            tokens.extend(self.PUNCT_LIST)
+
+        super().__init__(tokens, oov=oov, pad=self.PAD, sep=sep, add_blank_at=add_blank_at)
+
+        self.chars = chars
+        self.punct = punct
+        self.stresses = stresses
+        self.pad_with_space = pad_with_space
+
+        self.text_preprocessing_func = text_preprocessing_func
+        self.g2p = g2p
+
+    def encode(self, text):
+        """See base class."""
+        ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
+        if self.g2p is None:
+            g2p_text = phonemize(text, language='en-us', backend='espeak', strip=True, preserve_punctuation=True, with_stress=self.stresses)
+            g2p_text = re.sub(_whitespace_re, ' ', g2p_text)
+        else:
+            g2p_text = self.g2p(text)
 
         for p in g2p_text:  # noqa
             # Remove stress
