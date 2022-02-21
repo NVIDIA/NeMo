@@ -134,8 +134,7 @@ class ASRBPEMixin(ABC):
 
         if tokenizer_type not in ['bpe', 'wpe']:
             raise ValueError(
-                '`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or' 
-                '`wpe` for BERT based tokenizer'
+                '`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or' '`wpe` for BERT based tokenizer'
             )
 
         # defaults

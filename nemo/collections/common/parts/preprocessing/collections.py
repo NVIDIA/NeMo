@@ -91,7 +91,8 @@ class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioTextEntity', field_names='id audio_file duration text_tokens offset text_raw speaker orig_sr lang',
+        typename='AudioTextEntity',
+        field_names='id audio_file duration text_tokens offset text_raw speaker orig_sr lang',
     )
 
     def __init__(

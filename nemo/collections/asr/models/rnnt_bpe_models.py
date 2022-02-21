@@ -189,7 +189,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
     def change_vocabulary(
-        self, new_tokenizer_dir: str, new_tokenizer_type: str, new_tokenizer_cfg: Optional[DictConfig] = None, decoding_cfg: Optional[DictConfig] = None
+        self,
+        new_tokenizer_dir: str,
+        new_tokenizer_type: str,
+        new_tokenizer_cfg: Optional[DictConfig] = None,
+        decoding_cfg: Optional[DictConfig] = None,
     ):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.

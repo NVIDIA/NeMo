@@ -323,7 +323,9 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def change_vocabulary(self, new_tokenizer_dir: str, new_tokenizer_type: str, new_tokenizer_cfg: Optional[DictConfig] = None):
+    def change_vocabulary(
+        self, new_tokenizer_dir: str, new_tokenizer_type: str, new_tokenizer_cfg: Optional[DictConfig] = None
+    ):
         """
         Changes vocabulary of the tokenizer used during CTC decoding process.
         Use this method when fine-tuning on from pre-trained model.
@@ -345,7 +347,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         else:
             if not os.path.isdir(new_tokenizer_dir):
                 raise NotADirectoryError(
-                f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
                     f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
                 )
 
