@@ -16,14 +16,13 @@ import abc
 import itertools
 import string
 from typing import List
-from phonemizer import phonemize
+
 import re
 
 from nemo.collections.tts.torch.de_utils import german_text_preprocessing
 from nemo.collections.tts.torch.en_utils import english_text_preprocessing
 from nemo.utils import logging
 
-_whitespace_re = re.compile(r'\s+')
 
 class BaseTokenizer(abc.ABC):
     PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
@@ -428,40 +427,16 @@ class IPAPhonemesTokenizer(BaseTokenizer):
 
     def encode(self, text):
         """See base class."""
-        ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
         text = self.text_preprocessing_func(text)
-        if self.g2p is None:
-            g2p_text = phonemize(text, language='en-us', backend='espeak', strip=True, preserve_punctuation=True, with_stress=self.stresses)
-            g2p_text = re.sub(_whitespace_re, ' ', g2p_text)
-        else:
-            g2p_text = self.g2p(text)
 
-        for p in g2p_text:  # noqa
-            # Remove stress
-            if p.isalnum() and len(p) == 3 and not self.stresses:
-                p = p[:2]
-
-            # Add space if last one isn't one
-            if p == space and len(ps) > 0 and ps[-1] != space:
-                ps.append(p)
-            # Add next phoneme or char (if chars=True)
-            elif (p.isalnum() or p == "'") and p in tokens:
-                ps.append(p)
-            # Add punct
-            elif (p in self.PUNCT_LIST) and self.punct:
-                ps.append(p)
-            # Warn about unknown char/phoneme
-            elif p != space:
-                logging.warning(
-                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped."
-                )
+        g2p_text = self.g2p(text)
 
         # Remove trailing spaces
-        while ps[-1] == space:
-            ps.pop()
+        # while ps[-1] == space:
+        #     ps.pop()
 
         if self.pad_with_space:
-            ps = [space] + ps + [space]
+            g2p_text = self.tokens[self.space] + g2p_text + self.tokens[self.space]
 
-        return [self._token2id[p] for p in ps]
+        return [self._token2id[p] for p in g2p_text]

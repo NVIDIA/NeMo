@@ -17,8 +17,6 @@ phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
-filter_channels: 768
-filter_length: 1024
 
 model:
   pitch_fmin: 65.40639132514966
@@ -51,8 +49,8 @@ model:
   c_kl: 1.
   inter_channels: 192
   hidden_channels: 192
-  filter_channels: ${filter_channels}
-  filter_length: ${filter_length}
+  filter_channels: 768
+  filter_length: 1024
   n_heads: 2
   p_dropout: 0.1
   n_layers_q: 3
@@ -79,8 +77,9 @@ model:
     chars: true
     apostrophe: true
     pad_with_space: true
-    g2p: null
-      # _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+    g2p:
+      _target_: nemo.collections.tts.torch.g2ps.IPAG2p
+      strip: true
       # phoneme_dict: ${phoneme_dict_path}
       # heteronyms: ${heteronyms_path}
   # text_tokenizer:
@@ -119,7 +118,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-      batch_size: 128
+      batch_size: 32
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -199,21 +198,21 @@ trainer:
   # gradient_clip_val: 1000.0
   checkpoint_callback: false # Provided by exp_manager
   logger: false # Provided by exp_manager
-  log_every_n_steps: 50
+  log_every_n_steps: 200
   flush_logs_every_n_steps: 1000
   check_val_every_n_epoch: 2
 
 exp_manager:
-  exp_dir: vits_char
+  exp_dir: vits_ipa_ngc
   name: ${name}
-  create_tensorboard_logger: true
+  create_tensorboard_logger: false
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: loss_gen_all
     mode: min
-  create_wandb_logger: false
+  create_wandb_logger: true
   wandb_logger_kwargs:
-    name: VITS_char
+    name: VITS_ipa_ngc
     project: ${name}
     entity: treacker15
   resume_if_exists: false
