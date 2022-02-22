@@ -1084,9 +1084,9 @@ class MegatronGPTModel(NLPModel):
                 )
 
             if self.use_soft_prompts:
-                batch = [tokens, attention_mask, position_ids, prompt_ids]
+                batch = [tokens_cut, attention_mask, position_ids, prompt_ids]
             else:
-                batch = [tokens, attention_mask, position_ids]
+                batch = [tokens_cut, attention_mask, position_ids]
             tensor_shape = [tokens_cut.shape[1], 1, self.cfg.hidden_size]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
