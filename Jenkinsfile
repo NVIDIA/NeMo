@@ -755,7 +755,6 @@ pipeline {
             model.tokenizer.tokenizer_name=gpt2 \
             model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
             model.language_model.pretrained_model_name=/home/TestData/nlp/gpt2 \
-            trainer.strategy=ddp \
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_gen_outputs'
@@ -778,7 +777,6 @@ pipeline {
             trainer.devices=[1] \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-cased \
-            trainer.strategy=ddp \
             trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_gen_bert_outputs && TRANSFORMERS_OFFLINE=1'
