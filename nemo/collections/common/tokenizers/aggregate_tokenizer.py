@@ -67,8 +67,15 @@ class AggregateTokenizer(TokenizerSpec):
         # for compatibility purposes only
         self.tokenizer = DummyTokenizer(self.vocabulary)
 
-        # lookup tables to speed up token to text
-        self.offset_token_ids_by_token_id, self.tokenizers_by_token_id = self._calculate_offsets()
+        # lookup tables to speed up token to text operations
+        # if there are two tokenizers, [0,1] each with 128 tokens, the aggregate tokenizer
+        # token range will be [0,255]. The below method provides two look up tables:
+        # one, to convert the incoming token id -- e.g. 200 into its real id (200-127 = 73)
+        # and to compute the tokenizer id that should process that token (1)
+        offset_token_ids_by_token_id, tokenizers_by_token_id = self._calculate_offsets()
+
+        self.offset_token_ids_by_token_id = offset_token_ids_by_token_id
+        self.tokenizers_by_token_id = tokenizers_by_token_id
 
     def _calculate_offsets(self):
         offsets = {}
