@@ -119,15 +119,15 @@ class ContrastiveLoss(Loss):
             self.target_proj = nn.Linear(in_dim * combine_time_steps, proj_dim)
 
     def sample_negatives(self, y, num):
-        # y - T'x...
+        # y - T'xBxC or T'xC
 
         high = y.shape[0]
-        neg_idxs = torch.multinomial(torch.ones(num, high), self.num_negatives).to(device=y.device)
+        neg_idxs = torch.multinomial(torch.ones(num, high).to(device=y.device), self.num_negatives)
 
         negs = y[neg_idxs.view(-1)]
         negs = negs.view((num, self.num_negatives) + y.shape[1:])
         negs = negs.transpose(0, 1)
-        # negs - NxT'x...
+        # negs - NxT'xBxC or NxT'xC
 
         return negs, neg_idxs
 
