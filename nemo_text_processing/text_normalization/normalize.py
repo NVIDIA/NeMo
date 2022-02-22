@@ -66,11 +66,18 @@ class Normalizer:
         overwrite_cache: bool = False,
         whitelist: str = None,
         lm: bool = False,
+        baseline: bool = False,
     ):
         assert input_case in ["lower_cased", "cased"]
 
         if lang == 'en' and deterministic:
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+
+            if baseline:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_baseline import (
+                    ClassifyFst,
+                )
+            else:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'en' and not deterministic:
             if lm:
@@ -381,6 +388,7 @@ def parse_args():
         default=None,
         type=str,
     )
+    parser.add_argument("--baseline", action="store_true", help="Set to True for WFST baseline")
     return parser.parse_args()
 
 
@@ -393,6 +401,7 @@ if __name__ == "__main__":
         overwrite_cache=args.overwrite_cache,
         whitelist=whitelist,
         lang=args.language,
+        baseline=args.baseline,
     )
     print(
         normalizer.normalize(

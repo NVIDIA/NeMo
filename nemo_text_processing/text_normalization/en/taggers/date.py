@@ -139,7 +139,7 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False):
+    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False, baseline: bool = False):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
@@ -185,6 +185,15 @@ class DateFst(GraphFst):
                 + pynutil.insert("\"")
             )
 
+        if baseline:
+            year_graph_standalone |= (
+                pynutil.insert("year: \"")
+                + get_hundreds_graph(deterministic=deterministic)
+                + pynutil.delete(pynini.closure(pynini.accep(" ")))
+                + insert_space
+                + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
+                + pynutil.insert("\"")
+            )
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_labels + pynutil.insert("\"")
 

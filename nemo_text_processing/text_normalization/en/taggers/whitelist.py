@@ -49,7 +49,14 @@ class WhiteListFst(GraphFst):
         input_file: path to a file with whitelist replacements
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None, lm: bool = False):
+    def __init__(
+        self,
+        input_case: str,
+        deterministic: bool = True,
+        input_file: str = None,
+        lm: bool = False,
+        baseline: bool = False,
+    ):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
         def _get_whitelist_graph(input_case, file, is_default=True):
@@ -65,9 +72,6 @@ class WhiteListFst(GraphFst):
             return graph
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
-
-        # if lm:
-        #     graph = pynutil.insert("< ") + graph + pynutil.insert(" >")
 
         is_default = True  # not lm
         if not deterministic:
