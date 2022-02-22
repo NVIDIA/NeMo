@@ -18,7 +18,6 @@ from typing import Any, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 
 from nemo.utils import logging
 
