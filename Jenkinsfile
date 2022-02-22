@@ -2058,7 +2058,7 @@ pipeline {
       failFast true
       steps {
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.gpus=2 \
+        trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=10 \
         trainer.limit_val_batches=2 \
@@ -2086,7 +2086,7 @@ pipeline {
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document]"
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        trainer.gpus=2 \
+        trainer.devices=2 \
         trainer.log_every_n_steps=1 \
         trainer.val_check_interval=10 \
         trainer.limit_val_batches=2 \
