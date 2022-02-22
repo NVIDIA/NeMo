@@ -19,6 +19,7 @@ import os
 import random
 
 import librosa as l
+import numpy as np
 from sklearn.model_selection import StratifiedShuffleSplit
 from tqdm import tqdm
 
@@ -56,7 +57,7 @@ def filter_manifest_line(manifest_line, signal, sr=16000):
         remaining_dur = remaining_dur - temp_dur
         while remaining_dur >= 0:
             segment_audio = signal[int(start * sr) : int(start * sr + temp_dur * sr)]
-            if l.feature.rms(segment_audio).mean() > 0.01:
+            if l.feature.rms(y=segment_audio).mean() > 0.01:
                 meta = {'audio_filepath': audio_path, 'offset': start, 'duration': temp_dur, 'label': SPKR}
                 split_manifest.append(meta)
                 speakers.append(SPKR)
@@ -68,6 +69,28 @@ def filter_manifest_line(manifest_line, signal, sr=16000):
     return split_manifest, speakers
 
 
+def count_and_consider_only(speakers, lines, min_count=10):
+    """
+    consider speakers only if samples per speaker is atleast min_count
+    """
+    uniq_speakers, indices, counts = np.unique(speakers, return_index=True, return_counts=True)
+    logging.info("speaker count before filtering minimum number of speaker counts: ", len(uniq_speakers))
+    required_speakers = {}
+    for idx, count in enumerate(counts):
+        if count >= min_count:
+            required_speakers[uniq_speakers[idx]] = count
+
+    logging.info("speaker count after filtering minimum number of speaker counts: ", len(required_speakers))
+    required_lines = []
+    speakers_only = []
+    for idx, speaker in enumerate(speakers):
+        if speaker in required_speakers:
+            required_lines.append(lines[idx])
+            speakers_only.append(speaker)
+
+    return speakers_only, required_lines
+
+
 def write_file(name, lines, idx):
     with open(name, 'w') as fout:
         for i in idx:
@@ -77,7 +100,7 @@ def write_file(name, lines, idx):
     logging.info("wrote", name)
 
 
-def main(scp, id, out, split=False, create_chunks=False):
+def main(scp, id, out, split=False, create_chunks=False, min_count=10):
     if os.path.exists(out):
         os.remove(out)
     scp_file = open(scp, 'r').readlines()
@@ -98,6 +121,9 @@ def main(scp, id, out, split=False, create_chunks=False):
             meta, speaker = filter_manifest_line(meta[0], signal=y, sr=sr)
         lines.extend(meta)
         speakers.extend(speaker)
+
+    if min_count:
+        speakers, lines = count_and_consider_only(speakers, lines, min_count)
 
     write_file(out, lines, range(len(lines)))
     path = os.path.dirname(out)
