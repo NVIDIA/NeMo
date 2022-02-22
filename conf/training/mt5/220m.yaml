@@ -1,8 +1,11 @@
 run:
-  name: t5_220m
+  name: mt5_220m
   results_dir: ${base_results_dir}/${.name}
   time_limit: "1-12:00:00"
   dependency: "singleton"
+
+name: megatron_mt5
+restore_from_path: null # used when starting from a .nemo file
 
 trainer:
   num_nodes: 16
@@ -27,10 +30,10 @@ trainer:
 exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
-  name: megatron_t5
+  name: megatron_mt5
   create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_t5
+    project: nemo_mt5
     name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -41,7 +44,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_mt5--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${training.model.tensor_model_parallel_size}
   log_step_timing: True
   step_timing_kwargs:
@@ -52,13 +55,14 @@ model:
   # model parallelism
   micro_batch_size: 16
   tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1 # PP is not supported yet. Use 1 for now.
 
   # model architecture TODO: modify for O2
   seq_length: 512
   max_position_embeddings: ${.seq_length}
   num_layers: 12
   hidden_size: 768
-  ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
+  ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 12
   init_method_std: 0.02  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -66,22 +70,23 @@ model:
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+
   pre_process: True # add embedding
   post_process: True # add pooler
   activations_checkpoint_method: null
   activations_checkpoint_num_layers: 1
 
 
-  #TODO modify this
   tokenizer:
-    library: 'megatron'
-    type: 'BertWordPieceCase'
-    model: null
-    vocab_file: ${data_dir}/c4/bpe/vocab.txt
+    library: 'sentencepiece'
+    type: null
+    model: ${data_dir}/mc4/bpe/mt5_tokenizer.model
+    vocab_file: null
     merge_file: null
     num_sentinel_tokens: 100
 
   # precision
+  megatron_amp_O2: True
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   fp32_residual_connection: False # Move residual connections to fp32
@@ -110,8 +115,9 @@ model:
 # TODO: Add mt5 specific values
   data:
     data_impl: mmap
-    splits_string: "949,45,5"
+    splits_string: "999982,9,9"
     seq_length: ${training.model.seq_length}
+    seq_length_dec: 128
     skip_warmup: True
     num_workers: 4
     dataloader_type: single # cyclic

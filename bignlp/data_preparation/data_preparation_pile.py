@@ -3,7 +3,7 @@ import subprocess
 
 import omegaconf
 
-from pile_dataprep_scripts import utils
+from .pile_dataprep_scripts import utils
 from bignlp.bignlp_utils import add_container_mounts
 
 
@@ -80,7 +80,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     if download_vocab_url is not None:
         assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
         utils.download_single_file(
-            url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
+            url=download_vocab_url,
+            save_dir=vocab_save_dir,
+            file_name="vocab.json" if download_vocab_url.endswith("json") else "vocab.txt"
         )
 
     # Download merges
@@ -92,9 +94,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
-    download_code_path = os.path.join(bignlp_path, "data_preparation/gpt_dataprep_scripts/download.py")
-    extract_code_path = os.path.join(bignlp_path, "data_preparation/gpt_dataprep_scripts/extract.py")
-    preprocess_code_path = os.path.join(bignlp_path, "data_preparation/gpt_dataprep_scripts/preprocess.py")
+    download_code_path = os.path.join(bignlp_path, "data_preparation/pile_dataprep_scripts/download.py")
+    extract_code_path = os.path.join(bignlp_path, "data_preparation/pile_dataprep_scripts/extract.py")
+    preprocess_code_path = os.path.join(bignlp_path, "data_preparation/pile_dataprep_scripts/preprocess.py")
     
     # BCM config
     if cfg.cluster_type == "bcm":

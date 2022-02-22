@@ -4,6 +4,9 @@ run:
   time_limit: "1-12:00:00"
   dependency: "singleton"
 
+name: megatron_t5
+restore_from_path: null # used when starting from a .nemo file
+
 trainer:
   num_nodes: 16
   gpus: 8
@@ -58,7 +61,7 @@ model:
   max_position_embeddings: ${.seq_length}
   num_layers: 12
   hidden_size: 768
-  ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
+  ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 12
   init_method_std: 0.02  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -107,13 +110,72 @@ model:
 
   data:
     data_impl: mmap
-    splits_string: "949,45,5"
+    splits_string: "999982,9,9"
     seq_length: ${training.model.seq_length}
+    seq_length_dec: 128
     skip_warmup: True
     num_workers: 4
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     short_seq_prob: 0.1
     data_prefix: # Should be weight path weight path... for a blended dataset
-      - 1.0
-      - ${data_dir}/my-gpt3_00_text_document #TODO
+      - .0333
+      - ${data_dir}/my-gpt3_00_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_01_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_02_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_03_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_04_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_05_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_06_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_07_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_08_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_09_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_10_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_11_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_12_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_13_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_14_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_15_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_16_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_17_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_18_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_19_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_20_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_21_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_22_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_23_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_24_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_25_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_26_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_27_text_document
+      - .0333
+      - ${data_dir}/my-gpt3_28_text_document
+      - .0334
+      - ${data_dir}/my-gpt3_29_text_document

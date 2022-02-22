@@ -9,6 +9,7 @@ import numpy as np
 
 from lm_eval.metrics import mean, perplexity, weighted_perplexity, weighted_mean
 
+
 def _SPACY_NLP(*args, **kwargs):
     global _SPACY_NLP
     nlp = spacy.load("en_core_web_sm")
@@ -23,7 +24,7 @@ class LM(abc.ABC):
     @abc.abstractmethod
     def loglikelihood(self, requests):
         """Compute log-likelihood of generating a continuation from a context.
-        Downstream tasks should attempt to use loglikelihood instead of other
+        Downstream tasks should attempt to use loglikelihoodikelihood instead of other
         LM calls whenever possible.
 
         :param requests: list
@@ -213,8 +214,9 @@ class Task(abc.ABC):
         """
         if self._training_docs is None:
             self._training_docs = list(self.training_docs())
-            self._examples = list(zip(range(len(self._training_docs)), self._training_docs))  # NOTE: compute each time if necessary to save memory
-        
+            self._examples = list(zip(range(len(self._training_docs)),
+                                      self._training_docs))  # NOTE: compute each time if necessary to save memory
+
         if filter_func is not None:
             examples = filter_func(self._examples)
         else:
@@ -254,7 +256,8 @@ class Task(abc.ABC):
             The results of the requests created in construct_requests.
         """
         if mode not in ResultPreprocessing:
-            raise ValueError(f'Invalid mode, expected type {ResultPreprocessing.__name__} but got {type(mode).__name__}')
+            raise ValueError(
+                f'Invalid mode, expected type {ResultPreprocessing.__name__} but got {type(mode).__name__}')
 
         if mode is ResultPreprocessing.NONE:
             preprocessed = results
@@ -331,7 +334,8 @@ class Task(abc.ABC):
 
         :return: iterable of tuples (doc_id, doc): filtered iterable of shot examples
         """
-        raise(NotImplementedError('`filter_shots` must be implemented in child Task in order to use `filter_shot_examples=True`'))
+        raise (NotImplementedError(
+            '`filter_shots` must be implemented in child Task in order to use `filter_shot_examples=True`'))
 
     def fewshot_context(self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs):
         """Construct and format full prompt string for a given sample, optionally including description and shot examples
@@ -354,18 +358,20 @@ class Task(abc.ABC):
             # for sets with no training docs, draw from other set *but ensure no overlap with current doc*
             if self.has_training_docs():
                 if filter_shot_examples:
-                    fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd, filter_func=partial(self.filter_shots, doc=doc), **kwargs)
+                    fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd,
+                                                      filter_func=partial(self.filter_shots, doc=doc), **kwargs)
                 else:
                     fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd, **kwargs)
             else:
                 if self._fewshot_docs is None:
-                    self._fewshot_docs = list(self.validation_docs() if self.has_validation_docs() else self.test_docs())
+                    self._fewshot_docs = list(
+                        self.validation_docs() if self.has_validation_docs() else self.test_docs())
                     self._fewshot_docs = list(zip(range(len(self._fewshot_docs)), self._fewshot_docs))
                 if filter_shot_examples:
                     fewshotex = self.filter_shots(self._fewshot_docs, doc)
                 else:
                     fewshotex = self._fewshot_docs
-                
+
                 fewshotex = self.sample_examples(fewshotex, num_fewshot + 1, rnd, **kwargs)
 
                 # get rid of the doc that's the one we're evaluating, if it's in the fewshot
@@ -388,12 +394,12 @@ class MultipleChoiceTask(Task):
 
     def construct_requests(self, doc, ctx):
         lls = [
-                rf.loglikelihood(ctx, " {}".format(choice))[0]
-                for choice in doc['choices']  # get likelihoods
-            ] + [
-                rf.loglikelihood(ctx, " {}".format(choice))[2]
-                for choice in doc['choices']  # get tokens
-            ]
+                  rf.loglikelihood(ctx, " {}".format(choice))[0]
+                  for choice in doc['choices']  # get likelihoods
+              ] + [
+                  rf.loglikelihood(ctx, " {}".format(choice))[2]
+                  for choice in doc['choices']  # get tokens
+              ]
         return lls
 
     def process_results(self, doc, results):
@@ -527,6 +533,7 @@ import json
 import hashlib
 from sqlitedict import SqliteDict
 
+
 def hash_args(attr, args):
     dat = json.dumps([attr] + list(args))
     return hashlib.sha256(dat.encode('utf-8')).hexdigest()
@@ -591,6 +598,7 @@ class CachingLM:
             self.dbdict.commit()
 
             return res
+
         return fn
 
     def get_cache_hook(self):
@@ -624,10 +632,12 @@ class Request:
     def __repr__(self):
         return f"Req_{self.type}{self.args}[{self.index}]\n"
 
+
 class RequestFactory:
     def __getattr__(self, attr):
         def fn(*args):
             return Request(attr, args)
+
         return fn
 
 

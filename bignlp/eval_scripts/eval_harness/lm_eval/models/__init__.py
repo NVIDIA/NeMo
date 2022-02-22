@@ -1,11 +1,13 @@
 from lm_eval.base import LM
 from . import nemo_gpt3
 from . import nemo_gpt3_tp
+from . import nemo_gpt3_tp_pp
 from . import dummy
 
 MODEL_REGISTRY = {
     "nemo-gpt3": nemo_gpt3.NeMo_GPT3LM,
     "nemo-gpt3-tp": nemo_gpt3_tp.NeMo_GPT3LM_TP,
+    "nemo-gpt3-tp-pp": nemo_gpt3_tp_pp.NeMo_GPT3LM_TP_PP,
     "dummy": dummy.DummyLM,
 }
 

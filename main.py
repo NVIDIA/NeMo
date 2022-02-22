@@ -9,6 +9,7 @@ import subprocess
 from bignlp.bignlp_utils import convert_to_cli, fake_submit
 from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
+from bignlp.finetune_scripts import finetune
 from bignlp.eval_scripts import evaluate
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
@@ -27,6 +28,7 @@ def main(cfg):
     run_data_preparation = cfg.run_data_preparation
     run_training = cfg.run_training
     run_conversion = cfg.run_conversion
+    run_finetuning = cfg.run_finetuning
     run_evaluation = cfg.run_evaluation
 
     # TODO: build a mapping from dataset name to modules
@@ -53,6 +55,11 @@ def main(cfg):
         dependency = convert.convert_ckpt(cfg, hydra_args=hydra_args, dependency=dependency)
     else:
         cfg_copy._content.pop("conversion")
+
+    if run_finetuning:
+        dependency = finetune.run_finetuning(cfg, hydra_args=hydra_args, dependency=dependency)
+    else:
+        cfg_copy._content.pop("finetuning")
 
     if run_evaluation:
         dependency = evaluate.run_evaluation(cfg, dependency=dependency)
