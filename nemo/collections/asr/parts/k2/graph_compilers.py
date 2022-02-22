@@ -144,7 +144,7 @@ class MmiGraphCompiler(CtcNumGraphCompiler):
 
     def compile(
         self, targets: torch.Tensor, target_lengths: torch.Tensor, aux_graph: Optional['k2.Fsa'] = None,
-    ) -> Tuple[k2.Fsa, 'k2.Fsa']:
+    ) -> Tuple['k2.Fsa', 'k2.Fsa']:
         num_graphs = super().compile(targets, target_lengths, aux_graph)
         if aux_graph is None and self.den_graph is None:
             raise ValueError(

@@ -18,13 +18,48 @@ from typing import Optional
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.k2.grad_utils import PartialGrad
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
 
 class LatticeLoss(Loss):
-    """TBD
+    """Family of loss functions based on various lattice scores.
+
+    Note:
+        Requires k2 v1.11 or later to be installed to use this loss function.
+
+    Losses can be selected via the config, and optionally be passed keyword arguments as follows.
+
+    Examples:
+        .. code-block:: yaml
+
+            model:  # Model config
+                ...
+                graph_module_cfg:  # Config for graph modules, e.g. LatticeLoss
+                    criterion_type: "map"
+                    split_batch_size: 0
+                    backend_cfg:
+                        loss_type: "mmi"
+                        topo_type: "default"       # other options: "compact", "shared_blank", "minimal"
+                        topo_with_self_loops: true
+                        token_lm: <token_lm_path>  # must be provided for criterion_type: "map"
+
+    Args:
+        num_classes: Number of target classes for the decoder network to predict.
+            (Excluding the blank token).
+
+        reduction: Type of reduction to perform on loss. Possible values are `mean_batch`, `mean`, `sum`, or None.
+            None will return a torch vector comprising the individual loss values of the batch.
+
+        backend: Which backend to use for loss calculation. Currently only `k2` is supported.
+
+        criterion_type: Type of criterion to use. Choices: `ml` and `map`, 
+            with `ml` standing for Maximum Likelihood and `map` for Maximum A Posteriori Probability.
+
+        split_batch_size: Local batch size. Used for memory consumption reduction at the cost of speed performance.
+            Effective if complies 0 < split_batch_size < batch_size.
+
+        graph_module_cfg: Optional Dict of (str, value) pairs that are passed to the backend loss function.
     """
 
     @property
@@ -90,9 +125,14 @@ class LatticeLoss(Loss):
         self.criterion_type = criterion_type
 
         if self.split_batch_size > 0:
+            # don't need to guard grad_utils
+            from nemo.collections.asr.parts.k2.grad_utils import PartialGrad
+
             self._partial_loss = PartialGrad(self._loss)
 
     def update_graph(self, graph):
+        """Updates graph of the backend loss function.
+        """
         if self.criterion_type != "ml":
             self._loss.update_graph(graph)
 

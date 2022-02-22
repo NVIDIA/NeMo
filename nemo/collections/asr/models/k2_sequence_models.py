@@ -20,21 +20,16 @@ from pytorch_lightning import Trainer
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.k2.classes import ASRK2Mixin
-from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 
-# use k2 import guard
-# fmt: off
-from nemo.core.utils.k2_utils import k2_import_guard # isort:skip
-k2_import_guard()
-# fmt: on
 
-
-class EncDecK2SeqModel(ASRK2Mixin, EncDecCTCModel):
+class EncDecK2SeqModel(EncDecCTCModel, ASRK2Mixin):
     """Encoder decoder models with various lattice losses."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
+        self._init_k2()
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -66,21 +61,55 @@ class EncDecK2SeqModel(ASRK2Mixin, EncDecCTCModel):
 
         if self.use_graph_lm:
             self.token_lm = None
-            self.token_lm_cache_dict = None
-            self.token_lm_path = None
             logging.warning(
-                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
-                            either a new token_lm or a token_lm_path has to be set manually."""
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`, 
+                a new token_lm has to be set manually: call .update_k2_modules(new_cfg) 
+                or update .graph_module_cfg.backend_cfg.token_lm before calling this method."""
             )
 
-        self._update_k2_modules(self.graph_module_cfg)
+        self.update_k2_modules(self.graph_module_cfg)
+
+    @typecheck()
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+    ):
+        """
+        Forward pass of the model.
+
+        Args:
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+                sequences.
+            processed_signal: Tensor that represents a batch of processed audio signals,
+                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+            processed_signal_length: Vector of length B, that contains the individual lengths of the
+                processed audio sequences.
+
+        Returns:
+            A tuple of 3 elements -
+            1) The log probabilities tensor of shape [B, T, D].
+            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+            3) The greedy token predictions of the model of shape [B, T] (via argmax)
+        """
+        log_probs, encoded_len, greedy_predictions = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
+        return self._forward_k2_post_processing(
+            log_probs=log_probs, encoded_length=encoded_len, greedy_predictions=greedy_predictions
+        )
 
 
-class EncDecK2SeqModelBPE(ASRK2Mixin, EncDecCTCModelBPE):
+class EncDecK2SeqModelBPE(EncDecCTCModelBPE, ASRK2Mixin):
     """Encoder decoder models with Byte Pair Encoding and various lattice losses."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
+        self._init_k2()
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
@@ -112,11 +141,44 @@ class EncDecK2SeqModelBPE(ASRK2Mixin, EncDecCTCModelBPE):
 
         if self.use_graph_lm:
             self.token_lm = None
-            self.token_lm_cache_dict = None
-            self.token_lm_path = None
             logging.warning(
-                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`,
-                            either a new token_lm or a token_lm_path has to be set manually."""
+                f"""With .change_vocabulary() call for a model with criterion_type=`{self.loss.criterion_type}`, 
+                a new token_lm has to be set manually: call .update_k2_modules(new_cfg) 
+                or update .graph_module_cfg.backend_cfg.token_lm before calling this method."""
             )
 
-        self._update_k2_modules(self.graph_module_cfg)
+        self.update_k2_modules(self.graph_module_cfg)
+
+    @typecheck()
+    def forward(
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
+    ):
+        """
+        Forward pass of the model.
+
+        Args:
+            input_signal: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
+                `self.sample_rate` number of floating point values.
+            input_signal_length: Vector of length B, that contains the individual lengths of the audio
+                sequences.
+            processed_signal: Tensor that represents a batch of processed audio signals,
+                of shape (B, D, T) that has undergone processing via some DALI preprocessor.
+            processed_signal_length: Vector of length B, that contains the individual lengths of the
+                processed audio sequences.
+
+        Returns:
+            A tuple of 3 elements -
+            1) The log probabilities tensor of shape [B, T, D].
+            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+            3) The greedy token predictions of the model of shape [B, T] (via argmax)
+        """
+        log_probs, encoded_len, greedy_predictions = super().forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
+        )
+        return self._forward_k2_post_processing(
+            log_probs=log_probs, encoded_length=encoded_len, greedy_predictions=greedy_predictions
+        )

@@ -22,6 +22,53 @@ from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, Predic
 
 
 class ViterbiDecoderWithGraph(NeuralModule):
+    """Viterbi Decoder with WFSA (Weighted Finite State Automaton) graphs.
+
+    Note:
+        Requires k2 v1.11 or later to be installed to use this module.
+
+    Decoder can be set up via the config, and optionally be passed keyword arguments as follows.
+
+    Examples:
+        .. code-block:: yaml
+
+            model:  # Model config
+                ...
+                graph_module_cfg:  # Config for graph modules, e.g. ViterbiDecoderWithGraph
+                    split_batch_size: 0
+                    backend_cfg:
+                        topo_type: "default"       # other options: "compact", "shared_blank", "minimal"
+                        topo_with_self_loops: true
+                        token_lm: <token_lm_path>  # must be provided for criterion_type: "map"
+
+    Args:
+        num_classes: Number of target classes for the decoder network to predict.
+            (Excluding the blank token).
+
+        backend: Which backend to use for decoding. Currently only `k2` is supported.
+
+        dec_type: Type of decoding graph to use. Choices: `topo` and `token_lm`, 
+            with `topo` standing for the loss topology graph only 
+            and `token_lm` for the topology composed with a token_lm graph.
+
+        return_type: Type of output. Choices: `1best` and `lattice`.
+            `1best` is represented as a list of 1D tensors.
+            `lattice` can be of type corresponding to the backend (e.g. k2.Fsa).
+
+        return_ilabels: For return_type=`1best`.
+            Whether to return input labels of a lattice (otherwise output labels).
+
+        output_aligned: For return_type=`1best`.
+            Whether the tensors length will correspond to log_probs_length 
+            and the labels will be aligned to the frames of emission 
+            (otherwise there will be only the necessary labels).
+
+        split_batch_size: Local batch size. Used for memory consumption reduction at the cost of speed performance.
+            Effective if complies 0 < split_batch_size < batch_size.
+
+        graph_module_cfg: Optional Dict of (str, value) pairs that are passed to the backend graph decoder.
+    """
+
     @property
     def input_types(self):
         """Returns definitions of module input ports.
@@ -72,7 +119,7 @@ class ViterbiDecoderWithGraph(NeuralModule):
 
             if self.dec_type == "topo":
                 from nemo.collections.asr.parts.k2.graph_decoders import BaseDecoder as Decoder
-            elif self.dec_type == "tokenlm":
+            elif self.dec_type == "token_lm":
                 from nemo.collections.asr.parts.k2.graph_decoders import TokenLMDecoder as Decoder
             elif self.dec_type == "looseali":
                 raise NotImplementedError()
@@ -88,6 +135,8 @@ class ViterbiDecoderWithGraph(NeuralModule):
         super().__init__()
 
     def update_graph(self, graph):
+        """Updates graph of the backend graph decoder.
+        """
         self._decoder.update_graph(graph)
 
     def _forward_impl(self, log_probs, log_probs_length, targets=None, target_length=None):
@@ -162,6 +211,6 @@ class ViterbiDecoderWithGraph(NeuralModule):
             )
             for i, computed in enumerate(len_enough):
                 if not computed:
-                    results[0].insert(i, torch.Tensor().to(dtype=torch.int32))
-                    results[1].insert(i, torch.Tensor().to(dtype=torch.float))
+                    results[0].insert(i, torch.empty(0, dtype=torch.int32))
+                    results[1].insert(i, torch.empty(0, dtype=torch.float))
         return results

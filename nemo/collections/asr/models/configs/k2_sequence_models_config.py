@@ -15,7 +15,7 @@
 from dataclasses import dataclass
 
 from nemo.collections.asr.models.configs.asr_models_config import EncDecCTCConfig
-from nemo.collections.asr.parts.k2.classes import GraphModuleConfig as BackgroundConfig
+from nemo.collections.asr.parts.k2.classes import GraphModuleConfig as BackendConfig
 from nemo.core.config.modelPT import NemoConfig
 
 
@@ -25,7 +25,7 @@ class GraphModuleConfig:
     split_batch_size: int = 0
     dec_type: str = "topo"
     transcribe_training: bool = True
-    background_cfg: BackgroundConfig = BackgroundConfig()
+    backend_cfg: BackendConfig = BackendConfig()
 
 
 @dataclass

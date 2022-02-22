@@ -19,9 +19,9 @@
 # Arguments
 #    model: path to a nemo/PTL checkpoint file or name of a pretrained model
 #    predict_ds: config of the dataset/dataloader
-#    ali_args: aligner config
+#    aligner_args: aligner config
 #    output_path: path to store the predictions
-#    time_per_frame: how long a single output frame lasts in seconds. typical values are 0.04 and 0.08
+#    model_stride: model downsampling factor, 8 for Citrinet models and 4 for Conformer models
 #
 # Results of each GPU/worker is written into a file named 'predictions_{rank}.json, and aggregated results of all workers are written into 'predictions_all.json'
 
@@ -58,16 +58,15 @@ python align_speech_parallel.py \
     model=stt_en_conformer_ctc_small \
     ...
 
-You may control the aligner's config by setting the ali_args:
-    ali_args.alignment_type=argmax \
-    ali_args.word_output=False \
-    ali_args.cpu_decoding=True \
-    ali_args.decode_batch_size=8 \
-    ali_args.prob_suppress_index=-1 \
-    ali_args.prob_suppress_value=0.5 \
-    ali_args.post_process_n_jobs=4 \
-    ali_args.decoder_module_cfg.intersect_pruned=true \
-    ali_args.decoder_module_cfg.intersect_conf.search_beam=40 \
+You may control the aligner's config by setting the aligner_args:
+    aligner_args.alignment_type=argmax \
+    aligner_args.word_output=False \
+    aligner_args.cpu_decoding=True \
+    aligner_args.decode_batch_size=8 \
+    aligner_args.ctc_cfg.prob_suppress_index=-1 \
+    aligner_args.ctc_cfg.prob_suppress_value=0.5 \
+    aligner_args.decoder_module_cfg.intersect_pruned=true \
+    aligner_args.decoder_module_cfg.intersect_conf.search_beam=40 \
     ...
 
 """
@@ -96,17 +95,15 @@ from nemo.utils.get_rank import is_global_rank_zero
 class ParallelAlignmentConfig:
     model: Optional[str] = None  # name
     predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
-    ali_args: K2AlignerWrapperModelConfig = K2AlignerWrapperModelConfig()
+    aligner_args: K2AlignerWrapperModelConfig = K2AlignerWrapperModelConfig()
     output_path: str = MISSING
-    time_per_frame: float = MISSING
+    model_stride: int = 8
+
+    trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
 
     # there arguments will be ignored
     return_predictions: bool = False
     use_cer: bool = False
-
-    # decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
-    trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
 
 
 def match_train_config(predict_ds, train_ds):
@@ -156,7 +153,7 @@ def main(cfg: ParallelAlignmentConfig):
     cfg.predict_ds.return_sample_id = True
     cfg.return_predictions = False
     cfg.use_cer = False
-    cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
+    cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model._cfg.train_ds)
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
@@ -168,12 +165,12 @@ def main(cfg: ParallelAlignmentConfig):
         dataset=data_loader.dataset,
         output_file=output_file,
         output_ctm_dir=output_ctm_dir,
-        time_per_frame=cfg.time_per_frame,
+        time_per_frame=cfg.model_stride * model._cfg.preprocessor['window_stride'],
     )
     trainer.callbacks.extend([predictor_writer])
 
-    ali_wrapper = AlignerWrapperModel(model=model, cfg=cfg.ali_args)
-    trainer.predict(model=ali_wrapper, dataloaders=data_loader, return_predictions=cfg.return_predictions)
+    aligner_wrapper = AlignerWrapperModel(model=model, cfg=cfg.aligner_args)
+    trainer.predict(model=aligner_wrapper, dataloaders=data_loader, return_predictions=cfg.return_predictions)
     samples_num = predictor_writer.close_output_file()
 
     logging.info(

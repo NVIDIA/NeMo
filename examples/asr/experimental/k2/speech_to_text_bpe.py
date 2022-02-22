@@ -66,14 +66,13 @@ python speech_to_text_ctc_bpe.py \
     model.graph_module_cfg.split_batch_size=0 \
     model.graph_module_cfg.background_cfg.topo_type=<`default` or `compact` or `shared_blank` or `minimal`> \
     model.graph_module_cfg.background_cfg.topo_with_self_loops=True \
-    # If graph_module_cfg.criterion_type=`mle` \
-    model.graph_module_cfg.background_cfg.graph_type=<either `topo` or `token_lm`> \
-    # If graph_module_cfg.criterion_type=`map` \
+```
+
+# If graph_module_cfg.criterion_type=`map`, you can set the following parameters:
     model.graph_module_cfg.background_cfg.token_lm=<path to the token LM> \
     model.graph_module_cfg.background_cfg.loss_type=mmi \
     model.graph_module_cfg.background_cfg.intersect_pruned=False \
     model.graph_module_cfg.background_cfg.boost_coeff=0.0
-```
 """
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
@@ -85,7 +84,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="experimental/configs/", config_name="config_k2_bpe")
+@hydra_runner(config_path="experimental/k2/conf/citrinet", config_name="citrinet_mmi_1024.yaml")
 def main(cfg: EncDecK2SeqModelConfig):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 

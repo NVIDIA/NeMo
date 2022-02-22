@@ -18,13 +18,25 @@ from nemo.collections.asr.parts.k2.classes import GraphModuleConfig
 
 
 @dataclass
+class AlignerCTCConfig:
+    prob_suppress_index: int = -1
+    prob_suppress_value: float = 1.0
+
+
+@dataclass
+class AlignerRNNTConfig:
+    # Arguments will appear with RNNT support
+    pass
+
+
+@dataclass
 class AlignerWrapperModelConfig:
     alignment_type: str = "forced"
     word_output: bool = True
     cpu_decoding: bool = False
     decode_batch_size: int = 0
-    prob_suppress_index: int = -1
-    prob_suppress_value: float = 1.0
+    ctc_cfg: AlignerCTCConfig = AlignerCTCConfig()
+    rnnt_cfg: AlignerRNNTConfig = AlignerRNNTConfig()
 
 
 @dataclass

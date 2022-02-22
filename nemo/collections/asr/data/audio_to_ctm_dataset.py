@@ -14,14 +14,38 @@
 
 import json
 import os
-from collections import namedtuple
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Tuple
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.utils import logging
 
-FrameCtmUnit = namedtuple('FrameCtmUnit', ['label', 'start_frame', 'length', 'probability'])
+
+@dataclass
+class FrameCtmUnit:
+    """A container class for one CTM unit with start and length countable in frames.
+    """
+
+    label: str
+    start_frame: int
+    length: int
+    probability: float
+
+    def __repr__(self) -> str:
+        return f"{self.label}\t({self.probability:1.3f}): [{self.start_frame:6d}, {self.length:6d}]"
+
+    @property
+    def end_frame(self):
+        return self.start_frame + self.length
+
+    def to_ctm_str(self, time_per_frame: int) -> str:
+        """Represents the data as part of the CTM line.
+
+        The CTM line format is
+            <utterance_name> <channel> <start_time> <duration> <label_str> <probability>
+        This method prepares the last four entities."""
+        return f"{self.start_frame * time_per_frame :.3f} {self.length * time_per_frame :.3f} {self.label} {self.probability :1.3f}"
 
 
 class ASRCTMPredictionWriter(ASRPredictionWriter):
@@ -34,9 +58,7 @@ class ASRCTMPredictionWriter(ASRPredictionWriter):
     def write_ctm(self, name, filepath, frameCtmUnits):
         with open(filepath, "tw", encoding="utf-8") as f:
             for unit in frameCtmUnits:
-                f.write(
-                    f"{name} 1 {unit.start_frame * self.time_per_frame :.3f} {unit.length * self.time_per_frame :.3f} {unit.label} {unit.probability :1.2f}\n"
-                )
+                f.write(f"{name} 1 {unit.to_ctm_str(self.time_per_frame)}\n")
 
     def write_on_batch_end(
         self,
@@ -54,7 +76,7 @@ class ASRCTMPredictionWriter(ASRPredictionWriter):
             if len(units) == 0:
                 logging.warning(
                     f"""Do not producing CTM output for item `{sample.audio_file}`.
-                                Check if text is empty or if duration is too short: `{sample.text_raw}`, {sample.duration}"""
+                    Check if text is empty or if duration is too short: `{sample.text_raw}`, {sample.duration}"""
                 )
                 with_ctm = False
             item = {}

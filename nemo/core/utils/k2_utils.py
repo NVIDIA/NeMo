@@ -19,7 +19,7 @@ __K2_MINIMUM_MINOR_VERSION__ = 11
 
 K2_INSTALLATION_MESSAGE = (
     "Could not import `k2`.\n"
-    "Please install k2 in one of the following ways."
+    "Please install k2 in one of the following ways:\n"
     "1) Run `bash scripts/speech_recognition/k2/setup.sh`\n"
     "2) (not recommended) Use any approach from https://k2-fsa.github.io/k2/installation/index.html "
     "if your your cuda and pytorch versions are supported.\n"
