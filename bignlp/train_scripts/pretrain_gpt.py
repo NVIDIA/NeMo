@@ -3,7 +3,7 @@ import sys
 
 import hydra
 
-from train_utils import pause_and_prime_dns_connections, generate_cmd_prefix, numa_mapping, \
+from bignlp.train_scripts.train_utils import pause_and_prime_dns_connections, generate_cmd_prefix, numa_mapping, \
     convert_args_to_hydra_train_args
 
 

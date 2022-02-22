@@ -13,6 +13,7 @@ def main(cfg):
     data_cfg = cfg.data_preparation
     data_dir = cfg.data_dir
     rm_extracted = data_cfg.rm_extracted
+    tokenizer_type = data_cfg.tokenizer_type
     assert data_dir is not None, "data_dir must be a valid path"
 
     # Vocab
@@ -56,7 +57,7 @@ def main(cfg):
             f"--merge-file {merges_path} "
             f"--dataset-impl mmap "
             f"--tokenizer-library megatron "
-            f"--tokenizer-type GPT2BPETokenizer "
+            f"--tokenizer-type {tokenizer_type} "
             f"--workers $SLURM_CPUS_ON_NODE "
             f"--append-eod "
         )
