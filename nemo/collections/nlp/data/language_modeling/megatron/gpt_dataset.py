@@ -184,17 +184,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 class GPTDataset(MegatronDataset):
     def __init__(
-        self,
-        cfg,
-        trainer,
-        tokenizer,
-        name,
-        data_prefix,
-        documents,
-        indexed_dataset,
-        num_samples,
-        seq_length,
-        seed,
+        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed,
     ):
         if not HAVE_APEX:
             raise ImportError(
@@ -254,11 +244,7 @@ class GPTDataset(MegatronDataset):
         tokens = text[:-1].contiguous()
         labels = text[1:].contiguous()
         attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
-            tokens,
-            self.eos_id,
-            self.reset_position_ids,
-            self.reset_attention_mask,
-            self.eod_mask_loss,
+            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
         )
 
         return {
@@ -272,11 +258,7 @@ class GPTDataset(MegatronDataset):
 
 @torch.no_grad()
 def _create_ltor_masks_and_position_ids(
-    tokens: torch.Tensor,
-    eod_token: int,
-    reset_position_ids: bool,
-    reset_attention_mask: bool,
-    eod_mask_loss: bool,
+    tokens: torch.Tensor, eod_token: int, reset_position_ids: bool, reset_attention_mask: bool, eod_mask_loss: bool,
 ):
     """Modified version of get_ltor_masks_and_position_ids in nemo/collections/nlp/modules/common/megatron/utils.py"""  # NOQA
     assert tokens.ndim == 1
@@ -301,9 +283,9 @@ def _create_ltor_masks_and_position_ids(
         for j in range(eod_index.numel()):
             i = eod_index[j]
             if reset_attention_mask:
-                attention_mask[0, (i + 1):, :(i + 1)] = 0
+                attention_mask[0, (i + 1) :, : (i + 1)] = 0
             if reset_position_ids:
-                position_ids[(i + 1):] -= i + 1 - prev_index
+                position_ids[(i + 1) :] -= i + 1 - prev_index
                 prev_index = i + 1
     # Convert attention mask to binary.
     attention_mask = attention_mask < 0.5
