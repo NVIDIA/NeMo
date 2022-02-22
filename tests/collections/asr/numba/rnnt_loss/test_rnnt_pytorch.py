@@ -36,8 +36,6 @@ def wrap_and_call(fn, acts, labels, device):
 
     if not acts.requires_grad:
         acts.requires_grad = True
-    else:
-        print(acts.grad)
 
     lengths = [acts.shape[1]] * acts.shape[0]
     label_lengths = [len(l) for l in labels]
@@ -408,7 +406,7 @@ class TestRNNTLossPytorch:
 
         zero_grad()
 
-        assert np.allclose(pt_grads1, np_grads1)
+        assert np.allclose(pt_grads1, np_grads1, atol=1e-6)
 
         # run 2
         acts2 = torch.matmul(mid2, base_layer)  # [1, 4, 3, 5]
@@ -423,7 +421,7 @@ class TestRNNTLossPytorch:
 
         zero_grad()
 
-        assert np.allclose(pt_grads2, np_grads2)
+        assert np.allclose(pt_grads2, np_grads2, atol=1e-6)
 
         # run 1 + 2
         acts1 = torch.matmul(mid1, base_layer)  # [1, 4, 3, 5]
@@ -433,7 +431,7 @@ class TestRNNTLossPytorch:
         pt_cost2, _ = wrap_and_call(fn_pt, acts2, labels2, device)
         pt_grads1_p_2 = base_layer.grad.clone().cpu().numpy()
 
-        assert np.allclose(pt_grads1_p_2, np_grads1 + np_grads2)
+        assert np.allclose(pt_grads1_p_2, np_grads1 + np_grads2, atol=1e-6)
 
 
 if __name__ == "__main__":
