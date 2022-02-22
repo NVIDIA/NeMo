@@ -327,23 +327,31 @@ class IntentSlotClassificationModel(NLPModel):
 
         return slot_name_and_values
 
-    def get_unified_slot_metrics(self, outputs):
+    def get_unified_metrics(self, outputs):
         slot_preds = []
         slot_labels = []
         subtokens_mask = []
         inputs = []
+        intent_preds = []
+        intent_labels = []
 
         for output in outputs:
             slot_preds += output['slot_preds']
             slot_labels += output["slot_labels"]
             subtokens_mask += output["subtokens_mask"]
             inputs += output["input"]
+            intent_preds += output["intent_preds"]
+            intent_labels += output["intent_labels"]
+
+        ground_truth_labels = self.convert_intent_ids_to_intent_names(intent_labels)
+        generated_labels = self.convert_intent_ids_to_intent_names(intent_preds)
 
         predicted_slots = self.mask_unused_subword_slots(slot_preds, subtokens_mask)
         ground_truth_slots = self.mask_unused_subword_slots(slot_labels, subtokens_mask)
 
         all_generated_slots = []
         all_ground_truth_slots = []
+        all_utterances = []
 
         for i in range(len(predicted_slots)):
             utterance = self.tokenizer.tokenizer.decode(inputs[i], skip_special_tokens=True)
@@ -364,6 +372,21 @@ class IntentSlotClassificationModel(NLPModel):
 
             all_generated_slots.append(processed_predicted_slots)
             all_ground_truth_slots.append(processed_ground_truth_slots)
+            all_utterances.append(' '.join(utterance_tokens))
+
+        os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
+        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "predictions.jsonl")
+
+        IntentSlotMetrics.save_predictions(
+            filename,
+            generated_labels,
+            all_generated_slots,
+            ground_truth_labels,
+            all_ground_truth_slots,
+            ['' for i in range(len(generated_labels))],
+            ['' for i in range(len(generated_labels))],
+            all_utterances,
+        )
 
         slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy = IntentSlotMetrics.get_slot_filling_metrics(
             all_generated_slots, all_ground_truth_slots
@@ -429,7 +452,7 @@ class IntentSlotClassificationModel(NLPModel):
             unified_slot_recall,
             unified_slot_f1,
             unified_slot_joint_goal_accuracy,
-        ) = self.get_unified_slot_metrics(outputs)
+        ) = self.get_unified_metrics(outputs)
 
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
