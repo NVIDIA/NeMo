@@ -376,16 +376,18 @@ model:
     feat_hidden: 128
     feat_out: ${model.model_defaults.decoder_out_channels}
     stride_layers: 1
+    #if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
+    #be added to the decoder (here stride is 8 and combine_time_steps is 4, so 1 stride layer is added)
     non_stride_layers: 0
 
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
     in_dim: *n_mels
     proj_dim: ${model.model_defaults.decoder_out_channels}
-    combine_time_steps: 4
-    quantized_targets: false
-    sample_from_same_utterance_only: true
-    sample_from_non_masked: false
+    combine_time_steps: 4 #how many spectrogram time steps are used for one target/representation for contrastive task
+    quantized_targets: false #should quantizer or linear layer be used
+    sample_from_same_utterance_only: true #should negatives be sampled only from the same utterance
+    sample_from_non_masked: false #should negatives be sampled from non-masked steps
 
   optim:
     name: novograd
