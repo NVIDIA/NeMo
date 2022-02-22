@@ -21,7 +21,7 @@
 # Pre-trained models of Conformer-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 # The checkpoint of the large model trained on NeMo ASRSET with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large
 
-name: "Conformer-Transducer-BPE"
+name: "Conformer-Transducer-BPE-mla"
 
 model:
   sample_rate: &sample_rate 16000

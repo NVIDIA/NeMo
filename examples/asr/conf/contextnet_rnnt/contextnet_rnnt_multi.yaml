@@ -21,7 +21,7 @@
 #  | Large (145M)|   1024  |   10       |
 #  +-------------------------------------
 
-name: &name "ContextNet-8x-Stride-RNNT"
+name: &name "ContextNet-8x-Stride-RNNT-mla"
 
 model:
   sample_rate: &sample_rate 16000
