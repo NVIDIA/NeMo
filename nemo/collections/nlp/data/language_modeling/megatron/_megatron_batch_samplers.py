@@ -2,7 +2,6 @@ import abc
 
 import torch
 
-
 __all__ = [
     "MegatronPretrainingBatchSampler",
     "MegatronPretrainingRandomBatchSampler",
@@ -34,7 +33,6 @@ class BaseMegatronBatchSampler:
 
 
 class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
-
     def __init__(
         self,
         total_samples: int,
@@ -46,28 +44,30 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     ) -> None:
         # Sanity checks.
         if total_samples <= 0:
-            raise RuntimeError(
-                'no sample to consume: {}'.format(self.total_samples))
+            raise RuntimeError('no sample to consume: {}'.format(self.total_samples))
         if consumed_samples >= total_samples:
-            raise RuntimeError(
-                'no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
+            raise RuntimeError('no samples left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
         if num_micro_batch_times_micro_batch_size <= 0:
             raise RuntimeError(
-                f"num_micro_batch_times_micro_batch_size size must be greater than 0: {num_micro_batch_times_micro_batch_size}")
+                f"num_micro_batch_times_micro_batch_size size must be greater than 0: {num_micro_batch_times_micro_batch_size}"
+            )
         if data_parallel_size <= 0:
-            raise RuntimeError(
-                f"data parallel size must be greater than 0: {data_parallel_size}")
+            raise RuntimeError(f"data parallel size must be greater than 0: {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
             raise RuntimeError(
                 'data_parallel_rank should be smaller than data size: {}, {}'.format(
-                    self.data_parallel_rank, data_parallel_size))
+                    self.data_parallel_rank, data_parallel_size
+                )
+            )
         # Keep a copy of input params for later use.
         self.total_samples = total_samples
         self.consumed_samples = consumed_samples
         self._num_micro_batch_times_micro_batch_size = num_micro_batch_times_micro_batch_size
         self.data_parallel_rank = data_parallel_rank
         self.data_parallel_size = data_parallel_size
-        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = self._num_micro_batch_times_micro_batch_size * data_parallel_size
+        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = (
+            self._num_micro_batch_times_micro_batch_size * data_parallel_size
+        )
         self.drop_last = drop_last
 
     def __len__(self):
@@ -85,7 +85,9 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     @num_micro_batch_times_micro_batch_size.setter
     def num_micro_batch_times_micro_batch_size(self, new_num_micro_batch_times_micro_batch_size) -> None:
         self._num_micro_batch_times_micro_batch_size = new_num_micro_batch_times_micro_batch_size
-        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = self._num_micro_batch_times_micro_batch_size * self.data_parallel_size
+        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = (
+            self._num_micro_batch_times_micro_batch_size * self.data_parallel_size
+        )
 
     def __iter__(self):
         batch = []
@@ -126,7 +128,9 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         if total_samples <= 0:
             raise ValueError(f"no sample to consume: total_samples of {total_samples}")
         if num_micro_batch_times_micro_batch_size <= 0:
-            raise ValueError(f"Invalid num_micro_batch_times_micro_batch_size: {num_micro_batch_times_micro_batch_size}")
+            raise ValueError(
+                f"Invalid num_micro_batch_times_micro_batch_size: {num_micro_batch_times_micro_batch_size}"
+            )
         if data_parallel_size <= 0:
             raise ValueError(f"Invalid data_parallel_size: {data_parallel_size}")
         if data_parallel_rank >= data_parallel_size:
@@ -139,8 +143,12 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         self._num_micro_batch_times_micro_batch_size = num_micro_batch_times_micro_batch_size
         self.data_parallel_rank = data_parallel_rank
         self.data_parallel_size = data_parallel_size
-        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = self._num_micro_batch_times_micro_batch_size * self.data_parallel_size
-        self.last_batch_size = self.total_samples % self.num_micro_batch_times_micro_batch_size_times_data_parallel_size
+        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = (
+            self._num_micro_batch_times_micro_batch_size * self.data_parallel_size
+        )
+        self.last_batch_size = (
+            self.total_samples % self.num_micro_batch_times_micro_batch_size_times_data_parallel_size
+        )
 
     def __len__(self) -> int:
         return self.total_samples
@@ -152,7 +160,9 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
     @num_micro_batch_times_micro_batch_size.setter
     def num_micro_batch_times_micro_batch_size(self, new_num_micro_batch_times_micro_batch_size) -> None:
         self._num_micro_batch_times_micro_batch_size = new_num_micro_batch_times_micro_batch_size
-        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = self._num_micro_batch_times_micro_batch_size * self.data_parallel_size
+        self.num_micro_batch_times_micro_batch_size_times_data_parallel_size = (
+            self._num_micro_batch_times_micro_batch_size * self.data_parallel_size
+        )
 
     def __iter__(self):
         active_total_samples = self.total_samples - self.last_batch_size
@@ -162,7 +172,9 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         # assert current_epoch_samples % (self.data_parallel_size * apex.transformer.pipeline_parallel.utils.get_micro_batch_size()) == 0
 
         # data sharding and random sampling
-        bucket_size = (self.total_samples // self.num_micro_batch_times_micro_batch_size_times_data_parallel_size) * self._num_micro_batch_times_micro_batch_size
+        bucket_size = (
+            self.total_samples // self.num_micro_batch_times_micro_batch_size_times_data_parallel_size
+        ) * self._num_micro_batch_times_micro_batch_size
         bucket_offset = current_epoch_samples // self.data_parallel_size
         start_idx = self.data_parallel_rank * bucket_size
 
