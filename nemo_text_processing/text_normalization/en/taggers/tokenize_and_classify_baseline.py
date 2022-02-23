@@ -136,27 +136,6 @@ class ClassifyFst(GraphFst):
             whitelist_graph = whitelist.fst
             punct_graph = PunctuationFst(deterministic=True).fst
 
-            # # VERBALIZERS
-            # cardinal = vCardinal(deterministic=True)
-            # v_cardinal_graph = cardinal.fst
-            # decimal = vDecimal(cardinal=cardinal, deterministic=True)
-            # v_decimal_graph = decimal.fst
-            # ordinal = vOrdinal(deterministic=True)
-            # v_ordinal_graph = ordinal.fst
-            # fraction = vFraction(deterministic=True, baseline=True)
-            # v_fraction_graph = fraction.fst
-            # v_telephone_graph = vTelephone(deterministic=True).fst
-            # v_electronic_graph = vElectronic(deterministic=True).fst
-            # measure = vMeasure(decimal=decimal, cardinal=cardinal, fraction=fraction, deterministic=True)
-            # v_measure_graph = measure.fst
-            v_time_graph = vTime(deterministic=True).fst
-            # v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic, baseline=True).fst
-            # v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
-            # v_roman_graph = vRoman(deterministic=deterministic, baseline=True).fst
-
-            time_final = pynini.compose(time_graph, v_time_graph)
-            # cardinal_final = pynini.compose(cardinal_graph, v_cardinal_graph)
-
             classify = (
                 pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
@@ -167,8 +146,8 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(electronic_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(money_graph, 1.1)
-                | pynutil.add_weight(date_graph, 1.1)
-                | pynutil.add_weight(whitelist_graph, 1.1)
+                | pynutil.add_weight(date_graph, 1.09)
+                | pynutil.add_weight(whitelist_graph, 1.01)
             ).optimize()
 
             roman_graph = RomanFst(deterministic=deterministic).fst

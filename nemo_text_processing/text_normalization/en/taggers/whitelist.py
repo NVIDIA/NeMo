@@ -73,6 +73,8 @@ class WhiteListFst(GraphFst):
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
 
+        # if lm:
+        #     graph = pynutil.insert("< ") + graph + pynutil.insert(" >")
         is_default = True  # not lm
         if not deterministic:
             graph |= _get_whitelist_graph(
