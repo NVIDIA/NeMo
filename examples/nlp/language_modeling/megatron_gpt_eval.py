@@ -105,7 +105,7 @@ def main():
         "--pipeline_model_parallel_size", type=int, default=1, required=False,
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
-    parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
+    parser.add_argument("--batch_size", default=1, type=int, required=False, help="Evaluation batch_size")
     parser.add_argument(
         "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
     )
@@ -139,8 +139,6 @@ def main():
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
     model.freeze()
-
-    model.cfg.micro_batch_size = args.batch_size
 
     def pad_collate(batch):
         tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
