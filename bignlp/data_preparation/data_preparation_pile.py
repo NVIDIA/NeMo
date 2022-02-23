@@ -94,9 +94,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
-    download_code_path = os.path.join(bignlp_path, "data_preparation/pile_dataprep_scripts/download.py")
-    extract_code_path = os.path.join(bignlp_path, "data_preparation/pile_dataprep_scripts/extract.py")
-    preprocess_code_path = os.path.join(bignlp_path, "data_preparation/pile_dataprep_scripts/preprocess.py")
+    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/download.py")
+    extract_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/extract.py")
+    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/preprocess.py")
     
     # BCM config
     if cfg.cluster_type == "bcm":

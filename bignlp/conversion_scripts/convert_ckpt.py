@@ -57,9 +57,9 @@ def main(cfg):
     checkpoint = inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
     checkpoint_list = glob.glob(checkpoint)
     if len(checkpoint_list) > 1:
-        raise ValueError("Too many checkpoints fit the checkpoint name pattern in convert.yaml.")
+        raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
     if len(checkpoint_list) == 0:
-        raise ValueError("No checkpoint found with the checkpoint name pattern in convert.yaml.")
+        raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
     checkpoint_name = os.path.basename(checkpoint_list[0])
     checkpoint = checkpoint_list[0]
 

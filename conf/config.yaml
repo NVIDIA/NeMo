@@ -1,9 +1,9 @@
 defaults:
   - _self_
   - cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
-  - data_preparation: download_mc4
+  - data_preparation: download_t5_pile
   - training: t5/220m  # Must match training_config below.
-  - conversion: convert
+  - conversion: convert_t5
   - finetuning: t5/mnli
   - evaluation: gpt3/evaluate_all
   - override hydra/job_logging: stdout
