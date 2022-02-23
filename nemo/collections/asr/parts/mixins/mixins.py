@@ -108,7 +108,6 @@ class ASRBPEMixin(ABC):
 
             self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
         else:
-            logging.debug('_setup_tokenizer: detected a monolingual tokenizer')
             # need to de-register any old artifacts
             if hasattr(self, 'cfg'):
                 with open_dict(self.cfg):
