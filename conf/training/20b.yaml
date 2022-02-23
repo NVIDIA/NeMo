@@ -20,7 +20,7 @@ trainer:
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-  accumulate_grad_batches: 9
+  accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
 
@@ -52,6 +52,7 @@ exp_manager:
 model:
   # model parallelism 
   micro_batch_size: 2
+  global_batch_size: 1440
   tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
 
