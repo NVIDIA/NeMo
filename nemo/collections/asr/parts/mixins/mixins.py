@@ -58,7 +58,7 @@ class ASRBPEMixin(ABC):
 
         # Preserve config
         if hasattr(self, 'cfg') and 'tokenizer' in self.cfg:
-            with open_dict(self.cfg):
+            with open_dict(self.cfg.tokenizer):
                 if self.tokenizer_dir is not None:
                     self.cfg.tokenizer.dir = self.tokenizer_dir
                 else:
@@ -79,7 +79,7 @@ class ASRBPEMixin(ABC):
             logging.info('_setup_tokenizer: detected an aggregate tokenizer')
             # need to de-register any old artifacts
             if hasattr(self, 'cfg'):
-                with open_dict(self.cfg):
+                with open_dict(self.cfg.tokenizer):
                     self.cfg.tokenizer.pop('model_path', None)
                     self.cfg.tokenizer.pop('vocab_path', None)
                     self.cfg.tokenizer.pop('spe_tokenizer_vocab', None)
