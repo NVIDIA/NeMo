@@ -686,9 +686,13 @@ class MegatronGPTModel(NLPModel):
         """
         resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
-            init_consumed_samples = int(
-                float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-            )
+            try:
+                init_consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
+            except (ValueError, TypeError):
+                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+                init_consumed_samples = 0
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
