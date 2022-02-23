@@ -92,8 +92,8 @@ class ASRBPEMixin(ABC):
                         self.artifacts.pop(akey)
 
             tokenizers_dict = {}
-            for lang, tcfg in self.tokenizer_cfg['tokenizers'].items():
-                (tokenizer, model_path, vocab_path, spe_vocab_path,) = self._make_tokenizer(tcfg, lang)
+            for lang, tokenizer_config in self.tokenizer_cfg['tokenizers'].items():
+                (tokenizer, model_path, vocab_path, spe_vocab_path,) = self._make_tokenizer(tokenizer_config, lang)
                 tokenizers_dict[lang] = tokenizer
                 if hasattr(self, 'cfg'):
                     with open_dict(self.cfg):
