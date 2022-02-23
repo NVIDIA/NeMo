@@ -98,6 +98,7 @@ class TestTrainingConfig:
         model:
           # model parallelism 
           micro_batch_size: 4
+          global_batch_size: 256
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
 
@@ -256,7 +257,7 @@ class TestTrainingConfig:
           val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
           limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
           limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          accumulate_grad_batches: 9
+          accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
         exp_manager:
@@ -286,6 +287,7 @@ class TestTrainingConfig:
         model:
           # model parallelism: MBS=2, TPS=2, AGB=9 for 80GB nodes.
           micro_batch_size: 2
+          global_batch_size: 1440
           tensor_model_parallel_size: 2
           pipeline_model_parallel_size: 1
 
@@ -444,7 +446,7 @@ class TestTrainingConfig:
           val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
           limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
           limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          accumulate_grad_batches: 9
+          accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
 
@@ -476,6 +478,7 @@ class TestTrainingConfig:
         model:
           # model parallelism
           micro_batch_size: 2
+          global_batch_size: 1440
           tensor_model_parallel_size: 8
           pipeline_model_parallel_size: 1
 
