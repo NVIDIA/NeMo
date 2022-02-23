@@ -31,7 +31,7 @@ except (ImportError, ModuleNotFoundError):
 # x * 0.5 * (1.0 + torch.erf(x * 0.70710678))
 
 
-# @torch.jit.script
+@torch.jit.script
 def bias_gelu(bias, y):
     x = bias + y
     return x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))

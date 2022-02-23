@@ -140,6 +140,8 @@ def main():
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
     model.freeze()
 
+    model.cfg.micro_batch_size = args.batch_size
+
     def pad_collate(batch):
         tokens, tokens_to_generate = batch[0]['data'], batch[0]['tokens_to_generate']
         compute_logprobs = batch[0]['compute_logprobs']
@@ -163,7 +165,7 @@ def main():
     # defining type of request
     if args.path_to_file != "":
         request = []
-        prompts = open(args.path_to_file, 'r')
+        prompts = open(args.path_to_file, 'r', encoding='utf-8')
 
         for prompt in prompts.readlines():
             prompt = prompt.split('\n')[0]
