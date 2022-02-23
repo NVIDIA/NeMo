@@ -195,9 +195,9 @@ class _bootstrap_internal:
         return res
 
 
-def bootstrap_stderr(f, xs, iters):
+def bootstrap_stderr(f, xs, iters, workers=4):
     import multiprocessing as mp
-    pool = mp.Pool(mp.cpu_count())
+    pool = mp.Pool(workers)
     # this gives a biased estimate of the stderr (i.e w/ the mean, it gives something
     # equivalent to stderr calculated without Bessel's correction in the stddev. 
     # Unfortunately, I haven't been able to figure out what the right correction is

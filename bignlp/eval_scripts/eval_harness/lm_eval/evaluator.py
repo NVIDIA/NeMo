@@ -127,7 +127,7 @@ def evaluate(lm, task_dict, provide_description, num_fewshot, limit, bootstrap_i
             task = task_dict[task_name]
             results[task_name][metric] = task.aggregation()[metric](items)
 
-            stderr = None #lm_eval.metrics.stderr_for_metric(task.aggregation()[metric], bootstrap_iters=bootstrap_iters)
+            stderr = lm_eval.metrics.stderr_for_metric(task.aggregation()[metric], bootstrap_iters=bootstrap_iters)
             if stderr is not None:
                 results[task_name][metric + "_stderr"] = stderr(items)
     

@@ -10,6 +10,7 @@ import nemo.collections.nlp as nemo_nlp
 from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
@@ -19,6 +20,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
 from apex.transformer import tensor_parallel, parallel_state
 
 from .nemo_gpt3 import CustomSaveRestoreConnector
@@ -100,7 +102,7 @@ def setup_trainer_and_model(args):
     vocab_file = args.get('vocab_file', None)
     merge_file = args.get('merge_file', None)
 
-    args['precision'] = args.get('precision', 32)
+    args['precision'] = args.get('precision', 16)
     # cast precision to int if 32 or 16
     if args['precision'] in ["32", "16"]:
         args['precision'] = int(float(args['precision']))
@@ -127,9 +129,7 @@ def setup_trainer_and_model(args):
         )
 
     model = CustomModel.restore_from(
-        restore_path=args['nemo_model'], trainer=trainer,
-        save_restore_connector=CustomSaveRestoreConnector(
-            vocab_file=vocab_file, merge_file=merge_file)
+        restore_path=args['nemo_model'], trainer=trainer
     )
     model.freeze()
 
@@ -179,11 +179,15 @@ class NeMo_GPT3LM_TP_PP(LM):
             return new_batch
 
         # print("@@@@@@", requests)
-        request_ds = RequestDataset(requests, self.gpt3.tokenizer)
+        def _collate(x):  # used to reorder request and remove duplications
+            toks = x[0] + x[1]
+            return -len(toks), tuple(toks)
+        reord = utils.Reorderer(requests, _collate)
+        request_ds = RequestDataset(reord.get_reordered(), self.gpt3.tokenizer)
+        # request_ds = RequestDataset(requests, self.gpt3.tokenizer)
         request_dl = DataLoader(request_ds, collate_fn=pad_collate, batch_size=self.batch_size, shuffle=False)
         res = self.trainer.predict(self.gpt3, request_dl)
-        res = [item for batch in res for item in batch]
-        return res if self.can_access_output() else None
+        return reord.get_original([item for batch in res for item in batch]) if self.can_access_output() else None
 
     def loglikelihood_rolling(self, requests):
         loglikelihoods = []

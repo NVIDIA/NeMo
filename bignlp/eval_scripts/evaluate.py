@@ -64,7 +64,10 @@ def run_evaluation(cfg, dependency=None):
     # Model parameters
     model_type = model_cfg.type
     checkpoint = model_cfg.checkpoint_path
+    pipeline_model_parallel_size = model_cfg.pipeline_model_parallel_size
     tensor_model_parallel_size = model_cfg.tensor_model_parallel_size
+    precision = model_cfg.precision
+
     batch_size = model_cfg.eval_batch_size
     vocab_file = model_cfg.vocab_file
     merge_file = model_cfg.merge_file
@@ -99,7 +102,11 @@ def run_evaluation(cfg, dependency=None):
                 f"--cache_dir {cache_dir} " \
                 f"--batch_size {batch_size} " \
                 f"--output_path {results_dir} " \
-                f"--model_args nemo_model={checkpoint},tensor_model_parallel_size={tensor_model_parallel_size},vocab_file={vocab_file},merges_file={merge_file} "
+                f"--model_args nemo_model={checkpoint}," \
+                f"pipeline_model_parallel_size={pipeline_model_parallel_size}," \
+                f"tensor_model_parallel_size={tensor_model_parallel_size}," \
+                f"precision={precision}," \
+                f"vocab_file={vocab_file},merges_file={merge_file} "
 
     if cfg.cluster_type == "bcm":
         # BCM parameters

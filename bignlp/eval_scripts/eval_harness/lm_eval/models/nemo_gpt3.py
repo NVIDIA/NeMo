@@ -108,16 +108,16 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
                 with open_dict(conf):
-                    conf.precision = 32
+                    conf.precision = "bf16"
                     conf.megatron_amp_O2 = False
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
 
-                if "precision" in conf:
-                    conf.precision = 32
-                if "megatron_amp_O2" in conf:
-                    conf.megatron_amp_O2 = False
+                # if "precision" in conf:
+                #     conf.precision = 16
+                # if "megatron_amp_O2" in conf:
+                #     conf.megatron_amp_O2 = False
 
                 if self.vocab_file is not None:
                     conf.tokenizer.vocab_file = self.vocab_file
