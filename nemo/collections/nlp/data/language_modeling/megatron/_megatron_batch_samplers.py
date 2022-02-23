@@ -71,7 +71,9 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
         self.drop_last = drop_last
 
     def __len__(self):
-        return self.total_samples
+        return (
+            self.total_samples - self.consumed_samples - 1
+        ) // self.num_micro_batch_times_micro_batch_size_times_data_parallel_size + 1
 
     def get_start_end_idx(self):
         start_idx = self.data_parallel_rank * self._num_micro_batch_times_micro_batch_size
@@ -150,8 +152,10 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
             self.total_samples % self.num_micro_batch_times_micro_batch_size_times_data_parallel_size
         )
 
-    def __len__(self) -> int:
-        return self.total_samples
+    def __len__(self):
+        return (
+            self.total_samples - self.consumed_samples - 1
+        ) // self.num_micro_batch_times_micro_batch_size_times_data_parallel_size + 1
 
     @property
     def num_micro_batch_times_micro_batch_size(self) -> int:
