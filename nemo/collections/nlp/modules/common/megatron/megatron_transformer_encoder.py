@@ -131,10 +131,8 @@ class MegatronTransformerEncoderModule(MegatronModule):
         enc_output = self.model(
             enc_input, attn_mask_postprocess(enc_attn_mask_3d), layer_past=layer_past, get_key_value=get_key_value,
         )
-        # we copy input mask for transformer
-        enc_output_mask = enc_attn_mask
 
-        return enc_output, enc_output_mask
+        return enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load."""

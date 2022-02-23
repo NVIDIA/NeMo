@@ -66,23 +66,30 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
-        self.encoder.set_input_tensor(input_tensor)
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+
+        assert len(input_tensor) == 1, \
+            'input_tensor should only be length 1 for stage with both encoder and decoder'
+        self.encoder.set_input_tensor(input_tensor[0])
 
     def encode(
         self, enc_input, enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
     ):
         """Encodes embedder input using encoder"""
-        enc_output, enc_output_mask = self.encoder(
+        enc_output = self.encoder(
             enc_input=enc_input,
             enc_attn_mask=enc_attn_mask,
             layer_past=enc_layer_past,
             get_key_value=enc_get_key_value,
         )
 
-        return enc_output, enc_output_mask
+        return enc_output
 
     def decode(
-        self, dec_input, dec_attn_mask, enc_output, enc_output_mask, dec_layer_past=None, dec_get_key_value=False,
+        self, dec_input, dec_attn_mask, enc_output, enc_attn_mask, dec_layer_past=None, dec_get_key_value=False,
     ):
         """Decodes embedder input using decoder and encoder input"""
         dec_output = self.decoder(
@@ -91,7 +98,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             layer_past=dec_layer_past,
             get_key_value=dec_get_key_value,
             enc_output=enc_output,
-            enc_output_mask=enc_output_mask,
+            enc_attn_mask=enc_attn_mask,
         )
 
         return dec_output
@@ -105,7 +112,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_layer_past=None,
         enc_get_key_value=False,
         enc_output=None,
-        enc_output_mask=None,
         dec_layer_past=None,
         dec_get_key_value=False,
     ):
@@ -125,7 +131,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
             enc_output=enc_output,
-            enc_output_mask=enc_output_mask,
+            enc_attn_mask=enc_attn_mask,
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
         )

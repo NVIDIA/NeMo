@@ -208,7 +208,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
-        self.language_model.set_input_tensor(input_tensor)
+        self.enc_dec_model.set_input_tensor(input_tensor)
 
     def forward(
         self,
@@ -231,11 +231,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
         if output_enc_hidden_only:
-            enc_output, enc_output_mask = self.enc_dec_model.encode(
+            enc_output = self.enc_dec_model.encode(
                 enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
             )
             ret_dict["enc_output"] = enc_output
-            ret_dict["enc_output_mask"] = enc_output_mask
         else:
             dec_position_ids = build_position_ids(dec_input_ids)
             dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
@@ -249,7 +248,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     enc_layer_past=None,
                     enc_get_key_value=False,
                     enc_output=None,
-                    enc_output_mask=None,
                     dec_layer_past=None,
                     dec_get_key_value=False,
                 )

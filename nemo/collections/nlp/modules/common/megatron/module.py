@@ -85,7 +85,7 @@ class MegatronModule(torch.nn.Module):
         # 3. In the training loop, before an all-reduce between the grads of
         #    the two word_embeddings layers to ensure that every applied weight
         #    update is the same on both stages.
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage() and (not hasattr(self.language_model, 'embedding') or self.language_model.embedding is None):
             assert not parallel_state.is_pipeline_first_stage()
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first

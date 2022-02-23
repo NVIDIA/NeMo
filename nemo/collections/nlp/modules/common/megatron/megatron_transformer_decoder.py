@@ -122,14 +122,14 @@ class MegatronTransformerDecoderModule(MegatronModule):
         self.model.set_input_tensor(input_tensor)
 
     def forward(
-        self, dec_input, dec_attn_mask, enc_output, enc_output_mask, layer_past=None, get_key_value=False,
+        self, dec_input, dec_attn_mask, enc_output, enc_attn_mask, layer_past=None, get_key_value=False,
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
             source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
         )
         enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=enc_output_mask, attn_mask_type=AttnMaskType.padding,
+            source_mask=dec_attn_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
         )
 
         # transformer decoder

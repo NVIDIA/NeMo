@@ -649,9 +649,6 @@ class TransformerLanguageModel(MegatronModule):
 
         # Decoder
         if self.add_decoder:
-            assert (
-                parallel_state.get_pipeline_model_parallel_world_size() == 1
-            ), 'pipeline parallelism is not supported in the presence of decoder'
             self.decoder = ParallelTransformer(
                 layer_type=LayerType.decoder,
                 self_attn_mask_type=self.decoder_attn_mask_type,

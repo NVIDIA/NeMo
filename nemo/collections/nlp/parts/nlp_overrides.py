@@ -151,6 +151,7 @@ class NLPDDPPlugin(DDPPlugin):
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
                     pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
