@@ -35,7 +35,7 @@ from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelProcessor
 from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
-from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor
+from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor, JaMecabProcessor
 from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
@@ -521,7 +521,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.setup_test_data(test_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = MTEncDecModel._setup_eval_dataloader_from_config(
+            cfg=val_data_config,
+            encoder_tokenizer=self.encoder_tokenizer,
+            decoder_tokenizer=self.decoder_tokenizer,
+            is_multilingual=self.multilingual,
+            multilingual_ids=self.multilingual_ids
+        )
         # instantiate Torchmetric for each val dataloader
         if self._validation_dl is not None:
             for dataloader_idx in range(len(self._validation_dl)):
@@ -537,7 +543,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = MTEncDecModel._setup_eval_dataloader_from_config(
+            cfg=test_data_config,
+            encoder_tokenizer=self.encoder_tokenizer,
+            decoder_tokenizer=self.decoder_tokenizer,
+            is_multilingual=self.multilingual,
+            multilingual_ids=self.multilingual_ids
+        )
         # instantiate Torchmetric for each test dataloader
         if self._test_dl is not None:
             for dataloader_idx in range(len(self._test_dl)):
@@ -696,7 +708,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             eos=self.decoder_tokenizer.eos_id,
         )
 
-    def _setup_eval_dataloader_from_config(self, cfg: DictConfig):
+    @classmethod
+    def _setup_eval_dataloader_from_config(
+        cls,
+        cfg: DictConfig,
+        encoder_tokenizer= None,
+        decoder_tokenizer= None,
+        is_multilingual: bool = False,
+        multilingual_ids: List[int] = None,
+    ):
         src_file_name = cfg.get('src_file_name')
         tgt_file_name = cfg.get('tgt_file_name')
 
@@ -724,7 +744,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         dataloaders = []
         prepend_idx = 0
         for idx, src_file in enumerate(src_file_list):
-            if self.multilingual:
+            if is_multilingual:
                 prepend_idx = idx
             dataset = TranslationDataset(
                 dataset_src=str(Path(src_file).expanduser()),
@@ -739,9 +759,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 cache_data_per_node=cfg.get("cache_data_per_node", False),
                 use_cache=cfg.get("use_cache", False),
                 reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                prepend_id=self.multilingual_ids[prepend_idx] if self.multilingual else None,
+                prepend_id=multilingual_ids[prepend_idx] if is_multilingual else None,
             )
-            dataset.batchify(self.encoder_tokenizer, self.decoder_tokenizer)
+            dataset.batchify(encoder_tokenizer, decoder_tokenizer)
 
             if cfg.shuffle:
                 sampler = pt_data.RandomSampler(dataset)
@@ -770,6 +790,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.source_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.source_processor = EnJaProcessor(source_lang)
+        elif source_lang == 'ja-mecab':
+            self.source_processor = JaMecabProcessor()
         elif source_lang == 'zh':
             self.source_processor = ChineseProcessor()
         elif source_lang == 'hi':
@@ -783,6 +805,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.target_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
             self.target_processor = EnJaProcessor(target_lang)
+        elif target_lang == 'ja-mecab':
+            self.target_processor = JaMecabProcessor()
         elif target_lang == 'zh':
             self.target_processor = ChineseProcessor()
         elif target_lang == 'hi':
