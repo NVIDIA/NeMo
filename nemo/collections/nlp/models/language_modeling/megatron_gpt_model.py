@@ -27,10 +27,6 @@ from nemo.collections.nlp.data.language_modeling.megatron._megatron_batch_sample
     MegatronPretrainingBatchSampler,
     MegatronPretrainingRandomBatchSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
