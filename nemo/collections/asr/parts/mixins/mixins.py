@@ -76,7 +76,7 @@ class ASRBPEMixin(ABC):
             )
 
         if self.tokenizer_type == 'agg':
-            logging.debug('_setup_tokenizer: detected an aggregate tokenizer')
+            logging.info('_setup_tokenizer: detected an aggregate tokenizer')
             # need to de-register any old artifacts
             if hasattr(self, 'cfg'):
                 with open_dict(self.cfg):
