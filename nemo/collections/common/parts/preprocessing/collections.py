@@ -208,7 +208,7 @@ class ASRAudioText(AudioText):
             offsets.append(item['offset'])
             speakers.append(item['speaker'])
             orig_srs.append(item['orig_sr'])
-            langs.append(item["lang"])
+            langs.append(item['lang'])
 
         super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs, *args, **kwargs)
 
