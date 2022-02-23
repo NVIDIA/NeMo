@@ -1,10 +1,11 @@
 defaults:
   - _self_
   - cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
-  - data_preparation: download_pile
-  - training: 5b  # Must match training_config below.
-  - conversion: convert
-  - evaluation: evaluate_all
+  - data_preparation: download_t5_pile
+  - training: t5/220m  # Must match training_config below.
+  - conversion: convert_t5
+  - finetuning: t5/mnli
+  - evaluation: gpt3/evaluate_all
   - override hydra/job_logging: stdout
 
 hydra:
@@ -12,19 +13,24 @@ hydra:
     dir: .
   output_subdir: null
 
-run_data_preparation: True
-run_training: True
-run_conversion: True
-run_evaluation: True
+debug: False
+
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: True # Finetuning only supports T5
+run_evaluation: False
 
 cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
-training_config: 5b  # Must match - training above.
-bignlp_path: ???  # Path should end with bignlp-scripts
+data_config: ${hydra:runtime.choices.data_preparation}
+training_config: ${hydra:runtime.choices.training}
+finetuning_config: ${hydra:runtime.choices.finetuning}
+bignlp_path: /lustre/fsw/joc/yuya/bignlp-scripts_dev  # Path should end with bignlp-scripts
 data_dir: ${bignlp_path}/data  # Location to store and read the data.
 base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
-  - null
-container: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
+  - /lustre/fsw/joc/yuya/bignlp-t5/nemo-mt5/NeMo:/opt/bignlp/NeMo
+container: nvcr.io/nvidian/bignlp-training:22.02.01-py
 
 wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
 nccl_topology_xml_file: null  # This file will be exported as "export NCCL_TOPO_FILE=${nccl_topology_xml_file}"

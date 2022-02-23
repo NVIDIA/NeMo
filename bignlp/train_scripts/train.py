@@ -4,6 +4,8 @@ import subprocess
 
 import hydra
 import omegaconf
+from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
+from bignlp.train_scripts.train_utils import generate_mt5_data_blend
 
 
 def create_slurm_file(
@@ -86,8 +88,20 @@ def run_training(cfg, hydra_args="", dependency=None):
     
     # Shared between BCP and BCM 
     new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
-    code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
-    train_cmd = f"python3 -u {code_path} {hydra_args}"
+    if "gpt" in cfg.training_config:
+        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
+    elif "mt5" in cfg.training_config:
+        if train_cfg.model.data.data_prefix is None:
+            cfg.training.model.data.data_prefix = generate_mt5_data_blend(cfg)
+            hydra_args = convert_to_cli(cfg)
+        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
+    elif "t5" in cfg.training_config:
+        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
+    else:
+        raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
+
+    hydra_args = hydra_args.replace(" ", " \\\n  ")
+    train_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.gpus
@@ -105,11 +119,7 @@ def run_training(cfg, hydra_args="", dependency=None):
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-        if container_mounts is not None:
-            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
-            for mount in container_mounts:
-                if mount is not None and isinstance(mount, str):
-                    mounts_str += f",{mount}:{mount}"
+        mounts_str += add_container_mounts(container_mounts)
 
         flags = (
             f"--container-image {container} "

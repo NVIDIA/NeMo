@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 from pytorch_lightning.trainer.trainer import Trainer
 from hydra import compose, initialize
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 import hydra
 
@@ -35,37 +35,37 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
         self.vocab_file = vocab_file
 
     def restore_from(
-            self,
-            calling_cls,
-            restore_path: str,
-            override_config_path=None,
-            map_location=None,
-            strict: bool = True,
-            return_config: bool = False,
-            trainer: Trainer = None,
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path=None,
+        map_location=None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
     ):
         """
-		Restores model instance (weights and configuration) into .nemo file
+        Restores model instance (weights and configuration) into .nemo file
 
-		Args:
-		restore_path: path to .nemo file from which model should be instantiated
-		override_config_path: path to a yaml config that will override the internal
-			config file or an OmegaConf / DictConfig object representing the model config.
-		map_location: Optional torch.device() to map the instantiated model to a device.
-			By default (None), it will select a GPU if available, falling back to CPU otherwise.
-		strict: Passed to load_state_dict. By default True
-		return_config: If set to true, will return just the underlying config of the restored
-			model as an OmegaConf DictConfig object without instantiating the model.
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
-		Example:
-			```
-			model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
-			assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
-			```
+        Example:
+            ```
+            model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+            assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+            ```
 
-		Returns:
-		An instance of type cls or its underlying config (if return_config is set).
-		"""
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         cwd = os.getcwd()
@@ -76,6 +76,7 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
             else:
                 map_location = torch.device('cpu')
 
+        app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
@@ -101,19 +102,22 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
                     instance = conf
                     return instance
                 else:
-                    app_state = AppState()
-                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
+                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
+                with open_dict(conf):
+                    conf.precision = "bf16"
+                    conf.megatron_amp_O2 = False
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                if "precision" in conf:
-                    conf.precision = 32
-                if "megatron_amp_O2" in conf:
-                    conf.megatron_amp_O2 = False
+
+                # if "precision" in conf:
+                #     conf.precision = 16
+                # if "megatron_amp_O2" in conf:
+                #     conf.megatron_amp_O2 = False
 
                 if self.vocab_file is not None:
                     conf.tokenizer.vocab_file = self.vocab_file
@@ -122,9 +126,16 @@ class CustomSaveRestoreConnector(SaveRestoreConnector):
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
-                instance.load_state_dict(
-                    self._load_state_dict_from_disk(model_weights, map_location=map_location), strict=strict
-                )
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
+                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+                if conf.get('megatron_amp_O2', False):
+                    new_state_dict = {}
+                    for key in state_dict.keys():
+                        new_key = key.replace('model.', 'model.module.', 1)
+                        new_state_dict[new_key] = state_dict[key]
+                    state_dict = new_state_dict
+                instance.load_state_dict(state_dict, strict=strict)
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
                 instance._set_model_restore_state(is_being_restored=False)
@@ -277,7 +288,7 @@ class NeMo_GPT3LM(LM):
             for chunk in utils.chunks(tqdm(reord.get_reordered(), disable=disable_tqdm),
                                       n=self.batch_size):  # NOTE: hard-code batch size to be 1 for 530B model for now
                 inps = []
-                contlens = []
+                conts = []
                 inplens = []
 
                 padding_length = None
@@ -316,13 +327,13 @@ class NeMo_GPT3LM(LM):
                     ], dim=0)
 
                     inps.append(inp.unsqueeze(0))
-                    contlens.append(cont)
+                    conts.append(cont)
                     inplens.append(inplen)
 
                 maybe_multi_logits = self._model_call_megatron(torch.cat(inps, dim=0))  # [batch, seq, vocab]
 
                 for (cache_key, _, _), maybe_logits, inp, inplen, cont_toks in zip(chunk, maybe_multi_logits, inps,
-                                                                                   inplens, contlens):
+                                                                                   inplens, conts):
                     contlen = len(cont_toks)
 
                     if self.can_access_output():
@@ -353,6 +364,7 @@ class NeMo_GPT3LM(LM):
 
                     res.append(answer)
 
+        print(reord.get_original(res))
         return reord.get_original(res)
 
     def _model_call_megatron(self, inps):

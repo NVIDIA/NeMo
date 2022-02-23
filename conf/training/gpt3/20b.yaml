@@ -1,27 +1,28 @@
 run:
-  name: 5b
+  name: gpt3_20b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "7-00:00:00"
+  time_limit: "8-00:00:00"
   dependency: "singleton"
 
 trainer:
-  num_nodes: 20
   gpus: 8
+  num_nodes: 80
   accelerator: ddp
-  precision: 16
+  precision: bf16
   amp_backend: native
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "06:23:30:00"
+  max_time: "07:23:30:00"
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
+
 
 exp_manager:
   explicit_log_dir: ${training.run.results_dir}
@@ -47,21 +48,22 @@ exp_manager:
     sync_cuda: True
     buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
 
+
 model:
-  # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
+  # model parallelism 
   micro_batch_size: 2
   global_batch_size: 1440
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
 
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: 2048
-  num_layers: 24
-  hidden_size: 4096
+  num_layers: 44
+  hidden_size: 6144
   ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
-  num_attention_heads: 32
-  init_method_std: 0.01  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  num_attention_heads: 48
+  init_method_std: 0.008165  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
@@ -72,7 +74,7 @@ model:
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 0
+  activations_checkpoint_num_layers: 2
 
   tokenizer:
     library: 'megatron'
@@ -87,7 +89,7 @@ model:
   hysteresis: 2 # Gradient scale hysteresis
   fp32_residual_connection: False # Move residual connections to fp32
   fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-
+  
   # Megatron O2-style half-precision
   megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
 
@@ -98,7 +100,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1.2e-4
+    lr: 1e-4
     weight_decay: 0.1 
     betas: 
     - 0.9
@@ -107,7 +109,7 @@ model:
       name: CosineAnnealing
       warmup_steps: 190
       constant_steps: 20000
-      min_lr: 1.2e-5
+      min_lr: 1e-5
 
   data:
     data_impl: mmap

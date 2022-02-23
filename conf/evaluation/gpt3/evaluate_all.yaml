@@ -4,10 +4,10 @@ run:
   nodes: 1
   ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
   gpus_per_task: 1
-  eval_name: eval_lambada
+  eval_name: eval_all
   convert_name: convert_nemo
   model_train_name: 5b
-  tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
+  tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
   results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
 
 model:
@@ -15,6 +15,8 @@ model:
   # path of checkpoint; must be .nemo file
   checkpoint_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_gpt.nemo 
   tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
+  pipeline_model_parallel_size: 1
+  precision: 16 # must match training precision - 32, 16 or bf16
   eval_batch_size: 16
   vocab_file: ${data_dir}/bpe/vocab.json
   merge_file: ${data_dir}/bpe/merges.txt

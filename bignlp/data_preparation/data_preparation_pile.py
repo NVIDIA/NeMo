@@ -3,7 +3,8 @@ import subprocess
 
 import omegaconf
 
-from .dataprep_scripts import utils
+from .pile_dataprep_scripts import utils
+from bignlp.bignlp_utils import add_container_mounts
 
 
 def create_slurm_file(
@@ -79,7 +80,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     if download_vocab_url is not None:
         assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
         utils.download_single_file(
-            url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.json"
+            url=download_vocab_url,
+            save_dir=vocab_save_dir,
+            file_name="vocab.json" if download_vocab_url.endswith("json") else "vocab.txt"
         )
 
     # Download merges
@@ -91,9 +94,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
-    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/dataprep_scripts/download.py")
-    extract_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/dataprep_scripts/extract.py")
-    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/dataprep_scripts/preprocess.py")
+    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/download.py")
+    extract_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/extract.py")
+    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/preprocess.py")
     
     # BCM config
     if cfg.cluster_type == "bcm":
@@ -106,11 +109,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-        if container_mounts is not None:
-            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
-            for mount in container_mounts:
-                if mount is not None and isinstance(mount, str):
-                    mounts_str += f",{mount}:{mount}"
+        mounts_str += add_container_mounts(container_mounts)
 
         flags = f"--container-image {container} --container-mounts {mounts_str}"
 

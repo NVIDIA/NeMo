@@ -10,9 +10,11 @@ import utils
 @hydra.main(config_path="../../../conf", config_name="config")
 def main(cfg):
     bignlp_path = cfg.bignlp_path
+    data_config = cfg.data_config
     data_cfg = cfg.data_preparation
     data_dir = cfg.data_dir
     rm_extracted = data_cfg.rm_extracted
+    tokenizer_type = data_cfg.tokenizer_type
     assert data_dir is not None, "data_dir must be a valid path"
 
     # Vocab
@@ -47,7 +49,8 @@ def main(cfg):
     if cfg.cluster_type == "bcm":
         file_number = int(os.environ.get("SLURM_ARRAY_TASK_ID"))
         extracted_path = os.path.join(data_dir, f"{file_number:02d}.jsonl")
-        output_prefix = os.path.join(data_dir, f"my-gpt3_{file_number:02d}")
+        # TODO: find better way to do this
+        output_prefix = os.path.join(data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}")
 
         flags = (
             f"--input {extracted_path} "
@@ -56,7 +59,7 @@ def main(cfg):
             f"--merge-file {merges_path} "
             f"--dataset-impl mmap "
             f"--tokenizer-library megatron "
-            f"--tokenizer-type GPT2BPETokenizer "
+            f"--tokenizer-type {tokenizer_type} "
             f"--workers $SLURM_CPUS_ON_NODE "
             f"--append-eod "
         )

@@ -4,12 +4,14 @@ import subprocess
 
 import hydra
 import omegaconf
-from bignlp.bignlp_utils import add_container_mounts
+from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
+from bignlp.train_scripts.train_utils import generate_mt5_data_blend
+from bignlp.finetune_scripts.data import download_glue
 
 
 def create_slurm_file(
         new_script_path,
-        convert_cmd,
+        train_cmd,
         job_name,
         flags="",
         dependency=None,
@@ -18,11 +20,14 @@ def create_slurm_file(
         mem=0,
         overcommit=True,
         nodes=1,
-        ntasks_per_node=1,
+        ntasks_per_node=8,
         gpus_per_task=1,
         partition="batch",
         account=None,
 ):
+    """
+    Creates a slurm file to launch a training job.
+    """
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
@@ -37,91 +42,96 @@ def create_slurm_file(
         if account is not None:
             f.writelines(f"#SBATCH -A {account}\n")
         f.writelines(f"#SBATCH --job-name={job_name}\n")
-        if mem is not None:
-            f.writelines(f"#SBATCH --mem={mem}\n")
+        f.writelines(f"#SBATCH --mem={mem}\n")
         if exclusive:
             f.writelines("#SBATCH --exclusive\n")
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} sh -c "{convert_cmd}"\n\n')
+        f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
 
 
 def create_bcp_file(
-    cmd_str,
-    num_nodes,
-    ntasks_per_node,
-    log_file,
-    new_script_path
+        train_cmd,
+        num_nodes,
+        log_file,
+        new_script_path
 ):
     with open(new_script_path, "w") as f:
-        f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str}" >> {log_file} 2>&1\n\n')
-        f.writelines("set +x\n")
+        f.writelines(f'bcprun -n {num_nodes} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
+        f.writelines("\n")
+        f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
 
 
-        
-def convert_ckpt(cfg, hydra_args="", dependency=None):
+def run_finetuning(cfg, hydra_args="", dependency=None):
+    """
+    Main function to launch a training job, with the config given in cfg.
+    """
     # Read config
     bignlp_path = cfg.bignlp_path
-    container = cfg.container
     container_mounts = cfg.container_mounts
-    convert_cfg = cfg.conversion
+    container = cfg.container
+    finetune_cfg = cfg.finetuning
+    cluster_cfg = cfg.cluster
     data_dir = cfg.data_dir
     base_results_dir = cfg.base_results_dir
-    run_cfg = convert_cfg.run
-    model_cfg = convert_cfg.model
+    run_cfg = finetune_cfg.run
 
     # Run parameters
-    job_name = run_cfg.job_name
-    nodes = run_cfg.nodes
-    time_limit = run_cfg.time_limit
-    ntasks_per_node = run_cfg.ntasks_per_node
-    gpus_per_task = run_cfg.gpus_per_task
-    convert_name = run_cfg.convert_name
-    model_train_name = run_cfg.model_train_name
+    name = run_cfg.name
+    task_name = run_cfg.task_name
     results_dir = run_cfg.results_dir
-    output_path = run_cfg.output_path
-    nemo_file_name = run_cfg.nemo_file_name
-    
-    os.makedirs(output_path, exist_ok=True)
-    os.makedirs(results_dir, exist_ok=True)
+    time_limit = run_cfg.time_limit
 
-    new_script_path = os.path.join(bignlp_path, f"bignlp/conversion_scripts/{model_train_name}.sh")
-    code_path = os.path.join(bignlp_path, "bignlp/conversion_scripts/convert_ckpt.py")
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    download_glue.download_glue(
+        data_dir=os.path.join(data_dir, "glue_data"),
+        tasks=task_name
+    )
+
+    # Shared between BCP and BCM 
+    new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
+    code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
-    cmd_str = f"python3 -u {code_path} \\\n  {hydra_args}"
+    train_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
+    nodes = finetune_cfg.trainer.num_nodes
+    ntasks_per_node = finetune_cfg.trainer.gpus
+
+    # BCM parameters
     if cfg.cluster_type == "bcm":
-        # BCM parameters
-        partition = cfg.cluster.partition
-        account = cfg.cluster.account
-        exclusive = cfg.cluster.exclusive
-        job_name_prefix = cfg.cluster.job_name_prefix
-        gpus_per_task = cfg.cluster.gpus_per_task
+        partition = cluster_cfg.partition
+        account = cluster_cfg.account
+        exclusive = cluster_cfg.exclusive
+        gpus_per_task = cluster_cfg.gpus_per_task
+        job_name_prefix = cluster_cfg.job_name_prefix
+        if dependency is None:
+            dependency = run_cfg.dependency
+        job_name = job_name_prefix + name
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
         flags = (
-            f"--no-container-mount-home "
             f"--container-image {container} "
             f"--container-mounts {mounts_str} "
-            f"-o {base_results_dir}/{model_train_name}/{convert_name}/convert-%j.log "
-            f"-e {base_results_dir}/{model_train_name}/{convert_name}/convert-%j.error "
+            f"-o {results_dir}/{name}-%j.log "
+            f"-e {results_dir}/{name}-%j.error "
         )
+
         create_slurm_file(
             new_script_path=new_script_path,
-            convert_cmd=cmd_str,
-            job_name=job_name_prefix+job_name,
+            train_cmd=train_cmd,
+            job_name=job_name,
             flags=flags,
             dependency=dependency,
             exclusive=exclusive,
-            mem=None,
-            overcommit=None,
             time=time_limit,
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
@@ -132,20 +142,19 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         job_id = subprocess.check_output(
             [f"sbatch --parsable {new_script_path}"], shell=True
         )
-        dependency = job_id.decode("utf-8")
-        print(f"Submitted Conversion script with job id: {dependency}")
+        dependency = job_id = job_id.decode("utf-8")
+        print(f"Submitted Training script with job id: {dependency}")
         return dependency
 
-    elif cfg.cluster_type == "bcp":
+    # BCP parameters
+    if cfg.cluster_type == "bcp":
         create_bcp_file(
             new_script_path=new_script_path,
-            cmd_str=cmd_str,
+            train_cmd=train_cmd,
             num_nodes=nodes,
-            ntasks_per_node=ntasks_per_node,
-            log_file=f"{base_results_dir}/{model_train_name}/{convert_name}/convert_log.txt",
+            log_file=f"{results_dir}/{name}.log",
         )
-
-        submit_cmd = f"NGC_TASKS_PER_NODE={ntasks_per_node} {new_script_path}"
-        job_id = subprocess.check_output([f"{submit_cmd}"], shell=True)
-        print(f"Conversion job submitted with command: \n{submit_cmd}")
-        return job_id
+        submit_cmd = f"NGC_NTASKS_PER_NODE={ntasks_per_node} {new_script_path}"
+        subprocess.check_output([f"{submit_cmd}"], shell=True)
+        print(f"Training job submitted with command: \n{submit_cmd}")
+        return None
