@@ -792,13 +792,11 @@ class MegatronGPTModel(NLPModel):
         else:
             return [self._optimizer], [self._scheduler]
 
-    def compute_consumed_samples(self, global_relative_step=0):
-        # TODO: this should be a counter self.consumed_samples
-        # and updated after every train_step: self.consumed_samples += global_batch_size
+    def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
             self.init_consumed_samples
-            + global_relative_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 

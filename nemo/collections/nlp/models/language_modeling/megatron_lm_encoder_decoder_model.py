@@ -360,11 +360,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def compute_consumed_samples(self, global_relative_step=0):
+    def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
             self.init_consumed_samples
-            + global_relative_step
+            + steps_since_resume
             * app_state.data_parallel_size
             * self._cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
