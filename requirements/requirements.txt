@@ -10,3 +10,4 @@ numba
 wget
 frozendict
 unidecode
+Cython
