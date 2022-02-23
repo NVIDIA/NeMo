@@ -32,11 +32,15 @@ class ASRBPEMixin(ABC):
     The setup_tokenizer method adds the following parameters to the class -
         -   tokenizer_cfg: The resolved config supplied to the tokenizer (with `dir` and `type` arguments).
         -   tokenizer_dir: The directory path to the tokenizer vocabulary + additional metadata.
-        -   tokenizer_type: The type of the tokenizer. Currently supports `bpe` and `wpe`.
+        -   tokenizer_type: The type of the tokenizer. Currently supports `bpe` and `wpe`, as well as `agg`.
         -   vocab_path: Resolved path to the vocabulary text file.
 
     In addition to these variables, the method will also instantiate and preserve a tokenizer
     (subclass of TokenizerSpec) if successful, and assign it to self.tokenizer.
+
+    The method also supports aggregate tokenizers, which consist of ordinary, monolingual tokenizers.
+    If a conversion between a monolongual and an aggregate tokenizer (or vice versa) is detected,
+    all registered artifacts will be cleaned up.
     """
 
     def _setup_tokenizer(self, tokenizer_cfg: DictConfig):
@@ -77,12 +81,14 @@ class ASRBPEMixin(ABC):
 
         if self.tokenizer_type == 'agg':
             logging.info('_setup_tokenizer: detected an aggregate tokenizer')
-            # need to de-register any old artifacts
+            # need to de-register any monolingual config items if they exist
             if hasattr(self, 'cfg'):
                 with open_dict(self.cfg.tokenizer):
                     self.cfg.tokenizer.pop('model_path', None)
                     self.cfg.tokenizer.pop('vocab_path', None)
                     self.cfg.tokenizer.pop('spe_tokenizer_vocab', None)
+
+            # need to de-register any monolingual artifacts if they exist
             if hasattr(self, 'artifacts'):
                 self.artifacts.pop('tokenizer.model_path', None)
                 self.artifacts.pop('tokenizer.vocab_path', None)
@@ -92,6 +98,7 @@ class ASRBPEMixin(ABC):
                         self.artifacts.pop(akey)
 
             tokenizers_dict = {}
+            # make each of the monolingual tokenizers in the config and assemble into the AggregateTokenizer
             for lang, tokenizer_config in self.tokenizer_cfg['tokenizers'].items():
                 (tokenizer, model_path, vocab_path, spe_vocab_path,) = self._make_tokenizer(tokenizer_config, lang)
                 tokenizers_dict[lang] = tokenizer
