@@ -93,6 +93,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
             masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
             onnx_safe=cfg.get('onnx_safe', False),
+            activation=cfg.get('activation', 'gelu'),
         )
 
         self.setup_optimizer_param_groups()
@@ -185,11 +186,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 async_grad_allreduce=async_grad_allreduce,
             )
             assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
-            sched_config = self._cfg.optim.sched
-            sched_config['max_steps'] = self._trainer.max_steps
-            self._scheduler = prepare_lr_scheduler(
-                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
-            )
+            if hasattr(self._cfg.optim, 'sched'):
+                sched_config = self._cfg.optim.sched
+                sched_config['max_steps'] = self._trainer.max_steps
+                self._scheduler = prepare_lr_scheduler(
+                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+                )
 
         if self._scheduler is None:
             return self._optimizer
@@ -266,7 +268,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         keys = ['text_enc', 'text_dec', 'labels', 'loss_mask', 'enc_mask', 'dec_mask']
         datatype = torch.int64
-
         data = batch
         data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
