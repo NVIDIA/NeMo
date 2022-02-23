@@ -101,7 +101,7 @@ class ASRBPEMixin(ABC):
                         self.cfg.tokenizer.tokenizers[lang]['type'] = self.tokenizer_cfg['tokenizers'][lang]['type']
 
                 # pop these now that we don't need them
-                if "dir" in tcfg:
+                if "dir" in tokenizer_config:
                     self.tokenizer_cfg['tokenizers'][lang].pop('dir')
                 self.tokenizer_cfg['tokenizers'][lang].pop('type')
                 self.tokenizer_cfg['tokenizers'][lang].pop('hf_kwargs', {})
