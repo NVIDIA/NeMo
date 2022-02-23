@@ -260,7 +260,20 @@ class GPTDataset(MegatronDataset):
 def _create_ltor_masks_and_position_ids(
     tokens: torch.Tensor, eod_token: int, reset_position_ids: bool, reset_attention_mask: bool, eod_mask_loss: bool,
 ):
-    """Modified version of get_ltor_masks_and_position_ids in nemo/collections/nlp/modules/common/megatron/utils.py"""  # NOQA
+    """Create `attention_mask`, `loss_mask`, and `position_ids`.
+
+    This function is modified :func:`get_ltor_masks_and_position_ids` in nemo/collections/nlp/modules/common/megatron/utils.py:
+    `get_ltor_masks_and_position_ids` assumes a microbatch of ``tokens``, i.e. 2D tensor while
+    this function assumes ``tokens`` to be 1D tensor.
+
+    Args:
+        tokens: A 1D tensor that holds the indices of tokens.
+        eod_token:
+        reset_position_ids:
+        reset_attention_mask:
+        eod_mask_loss
+
+    """
     assert tokens.ndim == 1
     seq_length = tokens.numel()
     # `attention_mask` has the shape of [1, seq_length, seq_length]
