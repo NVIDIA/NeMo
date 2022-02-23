@@ -307,7 +307,7 @@ class MegatronGPTModel(NLPModel):
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
         self.log(
             'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step),
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
         )
@@ -448,6 +448,11 @@ class MegatronGPTModel(NLPModel):
 
         return fwd_output_only_func
 
+    def on_pretrain_routine_start(self) -> None:
+        # keep a copy of init_global_step
+        self.init_global_step = self.trainer.global_step
+        return super().on_pretrain_routine_start()
+
     def validation_step(self, batch, batch_idx):
         """
             Our dataloaders produce a micro-batch and then we fetch
@@ -505,7 +510,11 @@ class MegatronGPTModel(NLPModel):
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            rank_zero_only=True,
+        )
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -675,6 +684,15 @@ class MegatronGPTModel(NLPModel):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
+        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            init_consumed_samples = int(
+                float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+            )
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+
         # Initalize soft prompts before loading datasets and training
         if self.use_soft_prompts:
             self.init_new_prompts()
@@ -704,13 +722,7 @@ class MegatronGPTModel(NLPModel):
             self.prompt_tuning_param_freeze_and_optimizer_setup()
 
         elif hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
-            if resume_checkpoint_path:
-                consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            else:
-                consumed_samples = 0
+            consumed_samples = self.compute_consumed_samples(0)
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
@@ -780,12 +792,13 @@ class MegatronGPTModel(NLPModel):
         else:
             return [self._optimizer], [self._scheduler]
 
-    def compute_consumed_samples(self, global_step):
+    def compute_consumed_samples(self, global_relative_step=0):
         # TODO: this should be a counter self.consumed_samples
         # and updated after every train_step: self.consumed_samples += global_batch_size
         app_state = AppState()
         consumed_samples = (
-            global_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+            self.init_consumed_samples
+            + global_relative_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 
