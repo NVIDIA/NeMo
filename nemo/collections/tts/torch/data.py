@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import librosa
+import numpy as np
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
@@ -134,9 +135,12 @@ class TTSDataset(Dataset):
 
         # Initialize text tokenizer
         self.text_tokenizer = text_tokenizer
+
+        self.phoneme_probability = None
         if isinstance(self.text_tokenizer, BaseTokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
             self.tokens = text_tokenizer.tokens
+            self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
         else:
             if text_tokenizer_pad_id is None:
                 raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
@@ -146,6 +150,7 @@ class TTSDataset(Dataset):
 
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
             self.tokens = tokens
+        self.cache_text = True if self.phoneme_probability is None else False
 
         # Initialize text normalizer is specified
         self.text_normalizer = text_normalizer
@@ -179,15 +184,14 @@ class TTSDataset(Dataset):
 
                     if "normalized_text" not in item:
                         text = item["text"]
-
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-
                         file_info["normalized_text"] = text
-                        file_info["text_tokens"] = self.text_tokenizer(text)
                     else:
                         file_info["normalized_text"] = item["normalized_text"]
-                        file_info["text_tokens"] = self.text_tokenizer(item["normalized_text"])
+
+                    if self.cache_text:
+                        file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
 
                     data.append(file_info)
 
@@ -222,7 +226,7 @@ class TTSDataset(Dataset):
         self.hop_len = self.hop_length or self.n_fft // 4
         self.fb = torch.tensor(
             librosa.filters.mel(
-                self.sample_rate, self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
+                sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
             ),
             dtype=torch.float,
         ).unsqueeze(0)
@@ -241,6 +245,7 @@ class TTSDataset(Dataset):
             hop_length=self.hop_len,
             win_length=self.win_length,
             window=window_fn(self.win_length, periodic=False).to(torch.float) if window_fn else None,
+            return_complex=True,
         )
 
         # Initialize sup_data_path, sup_data_types and run preprocessing methods for every supplementary data type
@@ -331,6 +336,13 @@ class TTSDataset(Dataset):
         self.align_prior_matrix_folder.mkdir(exist_ok=True, parents=True)
 
         self.use_beta_binomial_interpolator = kwargs.pop('use_beta_binomial_interpolator', False)
+        if not self.cache_text:
+            if 'use_beta_binomial_interpolator' in kwargs and not self.use_beta_binomial_interpolator:
+                logging.warning(
+                    "phoneme_probability is not None, but use_beta_binomial_interpolator=False, we"
+                    " set use_beta_binomial_interpolator=True manually to use phoneme_probability."
+                )
+            self.use_beta_binomial_interpolator = True
 
         if self.use_beta_binomial_interpolator:
             self.beta_binomial_interpolator = BetaBinomialInterpolator()
@@ -386,9 +398,13 @@ class TTSDataset(Dataset):
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-        # Load text
-        text = torch.tensor(sample["text_tokens"]).long()
-        text_length = torch.tensor(len(sample["text_tokens"])).long()
+        if "text_tokens" in sample:
+            text = torch.tensor(sample["text_tokens"]).long()
+            text_length = torch.tensor(len(sample["text_tokens"])).long()
+        else:
+            tokenized = self.text_tokenizer(sample["normalized_text"])
+            text = torch.tensor(tokenized).long()
+            text_length = torch.tensor(len(tokenized)).long()
 
         # Load mel if needed
         log_mel, log_mel_length = None, None
@@ -417,6 +433,7 @@ class TTSDataset(Dataset):
         # Load alignment prior matrix if needed
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
+            align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
                 mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
@@ -719,7 +736,7 @@ class VocoderDataset(Dataset):
             json. Each line should contain the following:
                 "audio_filepath": <PATH_TO_WAV>,
                 "duration": <Duration of audio clip in seconds> (Optional),
-                "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional)
+                "mel_filepath": <PATH_TO_LOG_MEL> (Optional, can be in .npy (numpy.save) or .pt (torch.save) format)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
             n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
                 n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
@@ -823,11 +840,14 @@ class VocoderDataset(Dataset):
             features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-            mel = torch.load(sample["mel_filepath"])
+            if Path(sample["mel_filepath"]).suffix == ".npy":
+                mel = torch.from_numpy(np.load(sample["mel_filepath"]))
+            else:
+                mel = torch.load(sample["mel_filepath"])
             frames = math.ceil(self.n_segments / self.hop_length)
 
-            if len(audio) > self.n_segments:
-                start = random.randint(0, mel.shape[1] - frames - 2)
+            if len(audio) >= self.n_segments:
+                start = random.randint(0, mel.shape[1] - frames - 1)
                 mel = mel[:, start : start + frames]
                 audio = audio[start * self.hop_length : (start + frames) * self.hop_length]
             else:
