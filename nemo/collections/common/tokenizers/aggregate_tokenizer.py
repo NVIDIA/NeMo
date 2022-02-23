@@ -27,16 +27,23 @@ class DummyTokenizer:
         self.vocab = vocab
         self.vocab_size = len(vocab)
 
-    # this one is for the crowd
+    # minimum compatibility
+    # since all the monolingual tokenizers have a vocab
+    # additional methods could be added here
     def get_vocab(self):
         return self.vocab
 
 
 class AggregateTokenizer(TokenizerSpec):
     '''
-    AggregateTokenizer, allowing one to combine existing tokenizers into one.
+    AggregateTokenizer, allowing one to combine multiple regular monolongual tokenizers into one tokenizer.
+    The intuition is that we can use existing tokenizers "as is", without retraining, and associate each tokenizer with a language id
+    during text processing (language id will be used to route the incoming text sample to the right tokenizer)
+    as well as a token id range for detokenization (e.g. [0..127] for tokenizer A, [128..255] for tokenizer B) so
+    that the orignal text could be reconstructed. Note that we assume that the incoming dict of langs / tokenizers
+    is ordered, e.g. the first tokenizer will be assigned a lower interval of token ids
         Args:
-        tokenizers: dict of tokenizers, keys are lang ids
+        tokenizers: dict of tokenizers, keys are lang ids, values are actual tokenizers
     '''
 
     def __init__(self, tokenizers: Dict):
@@ -64,7 +71,8 @@ class AggregateTokenizer(TokenizerSpec):
         self.vocab_size = len(self.vocabulary)
         logging.info(f'Aggregate vocab size: {self.vocab_size}')
 
-        # for compatibility purposes only
+        # for compatibility purposes only -- right now only the get_vocab method
+        # is supported, returning the joint vocab across all tokenizers
         self.tokenizer = DummyTokenizer(self.vocabulary)
 
         # lookup tables to speed up token to text operations
