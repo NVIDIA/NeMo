@@ -36,6 +36,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.utils import logging
+import onnxruntime
 
 
 def set_streaming_mode(asr_model, cache_drop_size=0):
@@ -60,6 +61,12 @@ def set_streaming_mode(asr_model, cache_drop_size=0):
     return last_channel_num, last_time_num
 
 
+def to_numpy(tensor):
+    if tensor is None:
+        return None
+    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+
 def model_process(
     asr_model,
     audio_signal,
@@ -68,40 +75,60 @@ def model_process(
     cache_last_channel=None,
     cache_last_time=None,
     previous_hypotheses=None,
+    onnx_model=None
 ):
 
-    out = asr_model.encoder(
-        audio_signal=audio_signal,
-        length=length,
-        cache_last_channel=cache_last_channel,
-        cache_last_time=cache_last_time,
-    )
-    if len(out) > 2:
-        encoded, encoded_len, cache_last_channel_next, cache_last_time_next = out
-    else:
-        encoded, encoded_len = out
-        cache_last_channel_next = cache_last_time_next = None
-
-    if valid_out_len is not None:
-        encoded = encoded[:, :, :valid_out_len]
-        encoded_len = torch.clamp(encoded_len, max=valid_out_len)
-
-    if hasattr(asr_model, "decoding"):
-        best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
-            encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
+    if onnx_model is None:
+        out = asr_model.encoder(
+            audio_signal=audio_signal,
+            length=length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
         )
-        # greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
-        greedy_predictions = best_hyp[0].y_sequence
-        # greedy_predictions = []
-        # for alignment in best_hyp[0].alignments:
-        #     alignment.remove(1024)
-        #     greedy_predictions.extend(alignment)
-        # greedy_predictions = torch.Tensor(greedy_predictions)
+        if len(out) > 2:
+            encoded, encoded_len, cache_last_channel_next, cache_last_time_next = out
+        else:
+            encoded, encoded_len = out
+            cache_last_channel_next = cache_last_time_next = None
 
+        if valid_out_len is not None:
+            encoded = encoded[:, :, :valid_out_len]
+            encoded_len = torch.clamp(encoded_len, max=valid_out_len)
+
+        if hasattr(asr_model, "decoding"):
+            best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
+                encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
+            )
+            # greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
+            greedy_predictions = best_hyp[0].y_sequence
+            # greedy_predictions = []
+            # for alignment in best_hyp[0].alignments:
+            #     alignment.remove(1024)
+            #     greedy_predictions.extend(alignment)
+            # greedy_predictions = torch.Tensor(greedy_predictions)
+
+        else:
+            log_probs = asr_model.decoder(encoder_output=encoded)
+            greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+            best_hyp = None
     else:
-        log_probs = asr_model.decoder(encoder_output=encoded)
-        greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+        ort_inputs = {
+            onnx_model.get_inputs()[0].name: to_numpy(audio_signal),
+            onnx_model.get_inputs()[1].name: to_numpy(length),
+            onnx_model.get_inputs()[2].name: to_numpy(cache_last_channel),
+            onnx_model.get_inputs()[3].name: to_numpy(cache_last_time),
+        }
+
+        out, cache_last_channel_next, cache_last_time_next = onnx_model.run(None, ort_inputs)
+        out = torch.tensor(out)
+        cache_last_channel_next = torch.tensor(cache_last_channel_next)
+        cache_last_time_next = torch.tensor(cache_last_time_next)
+        greedy_predictions = out.argmax(dim=-1, keepdim=False)
+        if valid_out_len is not None:
+            greedy_predictions = greedy_predictions[:, :valid_out_len]
+
         best_hyp = None
+
     return greedy_predictions, cache_last_channel_next, cache_last_time_next, best_hyp
 
 
@@ -124,6 +151,9 @@ def main():
     parser.add_argument(
         "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
     )
+    parser.add_argument(
+        "--onnx_model", type=str, help="Path to asr model .nemo file", default=None
+    )
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--output_path", type=str, help="path to output file", default=None)
     parser.add_argument(
@@ -145,6 +175,11 @@ def main():
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+
+    if args.onnx_model is not None:
+        onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
+    else:
+        onnx_model = None
 
     if hasattr(asr_model, "decoding"):
         decoding_cfg = asr_model.cfg.decoding
@@ -218,6 +253,7 @@ def main():
         cache_last_channel=None,
         cache_last_time=None,
         previous_hypotheses=None,
+        onnx_model=None #onnx_model,
     )
 
     print(asr_out_whole)
@@ -261,6 +297,7 @@ def main():
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
         previous_hypotheses=None,
+        onnx_model=onnx_model,
     )
     print(asr_out_stream)
     asr_out_stream_total = asr_out_stream
@@ -311,6 +348,7 @@ def main():
             cache_last_channel=cache_last_channel_next,
             cache_last_time=cache_last_time_next,
             previous_hypotheses=previous_hypotheses,
+            onnx_model=onnx_model,
         )
         if last_channel_cache_size >= 0:
             cache_last_channel_next = cache_last_channel_next[:, :, -last_channel_cache_size:, :]
