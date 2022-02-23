@@ -205,8 +205,8 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         if self.learn_alignment:
             eval_phon_mode = contextlib.nullcontext()
-            if hasattr(self.tokenizer, "set_phone_prob"):
-                eval_phon_mode = self.tokenizer.set_phone_prob(prob=1.0)
+            if hasattr(self.vocab, "set_phone_prob"):
+                eval_phon_mode = self.vocab.set_phone_prob(prob=1.0)
 
             # Disable mixed g2p representation if necessary
             with eval_phon_mode:
@@ -443,7 +443,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             dataset = instantiate(cfg.dataset, parser=self.parser)
         elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
             phon_mode = contextlib.nullcontext()
-            if hasattr(self.tokenizer, "set_phone_prob"):
+            if hasattr(self.vocab, "set_phone_prob"):
                 phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
 
             with phon_mode:
