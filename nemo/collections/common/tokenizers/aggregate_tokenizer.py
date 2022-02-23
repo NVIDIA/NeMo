@@ -154,3 +154,7 @@ class AggregateTokenizer(TokenizerSpec):
     @property
     def vocab(self):
         return self.vocabulary
+
+    @property
+    def langs(self):
+        return list(self.tokenizers_dict.keys())
