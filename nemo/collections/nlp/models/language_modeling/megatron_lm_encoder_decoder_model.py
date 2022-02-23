@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
+from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
@@ -32,6 +33,8 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
     MegatronTokenLevelEncoderDecoderModule,
 )
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
@@ -70,11 +73,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
         self._build_vocab()
 
+        app_state = AppState()
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         self.enc_dec_model = build_model(
             model_provider_func=self.model_provider_func,
-            wrap_with_ddp=False
+            wrap_with_ddp=False,
+            model_type=ModelType.encoder_and_decoder,
+            pipeline_model_parallel_rank=app_state.pipeline_model_parallel_rank,
+            pipeline_model_parallel_world_size=app_state.pipeline_model_parallel_size,
+            pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank
         )[0]
 
         self.setup_optimizer_param_groups()
@@ -98,7 +106,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
-        self.model.model_type = ModelType.encoder_and_decoder
+        self.enc_dec_model.model_type = ModelType.encoder_and_decoder
 
     def _build_tokenizer(self):
         """
@@ -126,8 +134,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
-    
-    def model_provider_func(self, pre_process, post_proces, add_encoder, add_decoder):
+
+    def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
@@ -257,7 +265,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
-                model=self.model,
+                model=self.enc_dec_model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
@@ -268,7 +276,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
-                model=self.model,
+                model=self.enc_dec_model,
                 forward_only=False,
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
@@ -298,8 +306,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
                 parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
             ):
-                if self.model.share_word_embeddings:
-                    word_embeddings_weight = self.model.word_embeddings_weight()
+                if self.enc_dec_model.share_word_embeddings:
+                    word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                     grad = word_embeddings_weight.grad
                     torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
@@ -412,8 +420,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
         ):
-            if self.model.share_word_embeddings:
-                word_embeddings_weight = self.model.word_embeddings_weight()
+            if self.enc_dec_model.share_word_embeddings:
+                word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
                     grad = word_embeddings_weight.main_grad
@@ -454,7 +462,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
-                model=self.model,
+                model=self.enc_dec_model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
@@ -465,7 +473,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
-                model=self.model,
+                model=self.enc_dec_model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
                 decoder_sequence_length=decoder_seq_length,
