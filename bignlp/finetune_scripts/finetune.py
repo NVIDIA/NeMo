@@ -94,7 +94,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     )
 
     # Shared between BCP and BCM 
-    new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
+    new_script_path = os.path.join(bignlp_path, f"bignlp/finetune_scripts/{name}.sh")
     code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
