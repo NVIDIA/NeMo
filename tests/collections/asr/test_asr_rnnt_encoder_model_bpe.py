@@ -191,7 +191,7 @@ class TestEncDecRNNTBPEModel:
         tok_en = {"dir": tokenizer_dir, "type": "wpe"}
         # the below is really an english tokenizer but we pretend it is spanish
         tok_es = {"dir": tokenizer_dir, "type": "wpe"}
-        tcfg = DictConfig({"type": "agg", "tokenizers": {"en": tok_en, "es": tok_es}})
+        tcfg = DictConfig({"type": "agg", "langs": {"en": tok_en, "es": tok_es}})
         with tempfile.TemporaryDirectory() as tmpdir:
             asr_model.change_vocabulary(new_tokenizer_dir=None, new_tokenizer_type="agg", new_tokenizer_cfg=tcfg)
 
