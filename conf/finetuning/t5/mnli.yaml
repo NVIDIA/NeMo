@@ -7,6 +7,8 @@ run:
   task_name: "mnli"  # supported: ???
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 
+name: megatron_t5_mnli
+
 trainer:
   gpus: 8
   num_nodes: 1
@@ -50,7 +52,7 @@ model:
   data:
     train_ds:
       task_name: ${finetuning.run.task_name}
-      file_path: ${data_dir}/MNLI/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
+      file_path: ${data_dir}/glue_data/MNLI/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
       batch_size: 16
       shuffle: True
       num_workers: 4
@@ -59,7 +61,7 @@ model:
 
     validation_ds:
       task_name: ${finetuning.run.task_name}
-      file_path: ${data_dir}/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      file_path: ${data_dir}/glue_data/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       batch_size: 16
       shuffle: False
       num_workers: 4

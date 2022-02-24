@@ -25,6 +25,7 @@ cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
 data_config: ${hydra:runtime.choices.data_preparation}
 training_config: ${hydra:runtime.choices.training}
 finetuning_config: ${hydra:runtime.choices.finetuning}
+evaluation_config: ${hydra:runtime.choices.evaluation}
 bignlp_path: /lustre/fsw/joc/yuya/bignlp-scripts_dev  # Path should end with bignlp-scripts
 data_dir: ${bignlp_path}/data  # Location to store and read the data.
 base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.

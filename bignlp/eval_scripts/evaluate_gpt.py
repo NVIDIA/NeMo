@@ -88,8 +88,8 @@ def run_evaluation(cfg, dependency=None):
     # Command to download the eval datasets.
     cache_dir = os.path.join(results_dir, "data_cache")
     code_path1 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/download.py")
-    eval_cmd1 = f"python {code_path1} \\\n  --tasks {tasks} \\\n  --cache_dir {cache_dir}" \
- \
+    eval_cmd1 = f"python {code_path1} \\\n  --tasks {tasks} \\\n  --cache_dir {cache_dir}"
+
     # Command to run the model on the eval datasets.
     new_script_path = os.path.join(bignlp_path, f"bignlp/eval_scripts/{name}.sh")
     code_path2 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/evaluate.py")
@@ -102,7 +102,7 @@ def run_evaluation(cfg, dependency=None):
            f"--model_args='nemo_model={checkpoint},pipeline_model_parallel_size={pipeline_model_parallel_size}," \
            f"tensor_model_parallel_size={tensor_model_parallel_size},precision={precision}'"
     args = args.replace(" ", " \\\n  ")
-    eval_cmd2 = f"python -u {code_path2} {args}"
+    eval_cmd2 = f"python -u {code_path2} \\\n {args}"
 
     if cfg.cluster_type == "bcm":
         # BCM parameters
