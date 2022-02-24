@@ -105,6 +105,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         onnx_safe=False,
         hidden_steps=-1,
         hidden_blocks=1,
+        add_encoder=True,
+        add_decoder=True,
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -113,6 +115,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.post_process = post_process
         self.fp16_cross_entropy = fp16_cross_entropy
         self.precision = precision
+        self.add_encoder = add_encoder
+        self.add_decoder = add_decoder
+        self.pre_process = pre_process
+        self.post_process = post_process
 
         if kv_channels is None:
             assert (
@@ -120,83 +126,87 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-        # TODO: add get_embedding function to support various embedders (like prompt tuning)
-        self.encoder_embedding = Embedding(
-            hidden_size=hidden_size,
-            vocab_size=vocab_size,
-            max_sequence_length=max_position_embeddings,
-            init_method=init_method_normal(init_method_std),
-            num_tokentypes=num_tokentypes,
-            use_cpu_initialization=use_cpu_initialization,
-            embedding_dropout_prob=hidden_dropout,
-        )
-        self.decoder_embedding = self.encoder_embedding
-        self._encoder_embedding_key = "encoder_embedding"
-        self._decoder_embedding_key = "decoder_embedding"
+        if pre_process:
+            # TODO: add get_embedding function to support various embedders (like prompt tuning)
+            self.encoder_embedding = Embedding(
+                hidden_size=hidden_size,
+                vocab_size=vocab_size,
+                max_sequence_length=max_position_embeddings,
+                init_method=init_method_normal(init_method_std),
+                num_tokentypes=num_tokentypes,
+                use_cpu_initialization=use_cpu_initialization,
+                embedding_dropout_prob=hidden_dropout,
+            )
+            self.decoder_embedding = self.encoder_embedding
+            self._encoder_embedding_key = "encoder_embedding"
+            self._decoder_embedding_key = "decoder_embedding"
 
-        encoder = get_encoder_model(
-            arch=encoder_arch,
-            hidden_size=hidden_size,
-            ffn_hidden_size=ffn_hidden_size,
-            num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
-            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-            kv_channels=kv_channels,
-            init_method=init_method_normal(init_method_std),
-            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
-            encoder_attn_mask_type=AttnMaskType.padding,
-            pre_process=pre_process,
-            post_process=post_process,
-            init_method_std=init_method_std,
-            use_cpu_initialization=use_cpu_initialization,
-            hidden_dropout=hidden_dropout,
-            attention_dropout=attention_dropout,
-            precision=precision,
-            fp32_residual_connection=fp32_residual_connection,
-            activations_checkpoint_method=activations_checkpoint_method,
-            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
-            layernorm_epsilon=layernorm_epsilon,
-            bias_gelu_fusion=bias_gelu_fusion,
-            masked_softmax_fusion=masked_softmax_fusion,
-            persist_layer_norm=persist_layer_norm,
-            openai_gelu=openai_gelu,
-            onnx_safe=onnx_safe,
-            hidden_steps=hidden_steps,
-            hidden_blocks=hidden_blocks,
-            activation=activation,
-        )
+        encoder, decoder = None, None
+        if add_encoder:
+            encoder = get_encoder_model(
+                arch=encoder_arch,
+                hidden_size=hidden_size,
+                ffn_hidden_size=ffn_hidden_size,
+                num_layers=num_layers,
+                num_attention_heads=num_attention_heads,
+                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                kv_channels=kv_channels,
+                init_method=init_method_normal(init_method_std),
+                scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+                encoder_attn_mask_type=AttnMaskType.padding,
+                pre_process=pre_process,
+                post_process=post_process,
+                init_method_std=init_method_std,
+                use_cpu_initialization=use_cpu_initialization,
+                hidden_dropout=hidden_dropout,
+                attention_dropout=attention_dropout,
+                precision=precision,
+                fp32_residual_connection=fp32_residual_connection,
+                activations_checkpoint_method=activations_checkpoint_method,
+                activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                layernorm_epsilon=layernorm_epsilon,
+                bias_gelu_fusion=bias_gelu_fusion,
+                masked_softmax_fusion=masked_softmax_fusion,
+                persist_layer_norm=persist_layer_norm,
+                openai_gelu=openai_gelu,
+                onnx_safe=onnx_safe,
+                hidden_steps=hidden_steps,
+                hidden_blocks=hidden_blocks,
+                activation=activation,
+            )
 
-        decoder = get_decoder_model(
-            arch=decoder_arch,
-            hidden_size=hidden_size,
-            ffn_hidden_size=ffn_hidden_size,
-            num_layers=num_layers,
-            num_attention_heads=num_attention_heads,
-            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-            kv_channels=kv_channels,
-            init_method=init_method_normal(init_method_std),
-            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
-            decoder_attn_mask_type=AttnMaskType.causal,
-            pre_process=pre_process,
-            post_process=post_process,
-            init_method_std=init_method_std,
-            use_cpu_initialization=use_cpu_initialization,
-            hidden_dropout=hidden_dropout,
-            attention_dropout=attention_dropout,
-            precision=precision,
-            fp32_residual_connection=fp32_residual_connection,
-            activations_checkpoint_method=activations_checkpoint_method,
-            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
-            layernorm_epsilon=layernorm_epsilon,
-            bias_gelu_fusion=bias_gelu_fusion,
-            masked_softmax_fusion=masked_softmax_fusion,
-            persist_layer_norm=persist_layer_norm,
-            openai_gelu=openai_gelu,
-            onnx_safe=onnx_safe,
-            hidden_steps=hidden_steps,
-            hidden_blocks=hidden_blocks,
-            activation=activation,
-        )
+        if add_decoder:
+            decoder = get_decoder_model(
+                arch=decoder_arch,
+                hidden_size=hidden_size,
+                ffn_hidden_size=ffn_hidden_size,
+                num_layers=num_layers,
+                num_attention_heads=num_attention_heads,
+                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                kv_channels=kv_channels,
+                init_method=init_method_normal(init_method_std),
+                scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+                decoder_attn_mask_type=AttnMaskType.causal,
+                pre_process=pre_process,
+                post_process=post_process,
+                init_method_std=init_method_std,
+                use_cpu_initialization=use_cpu_initialization,
+                hidden_dropout=hidden_dropout,
+                attention_dropout=attention_dropout,
+                precision=precision,
+                fp32_residual_connection=fp32_residual_connection,
+                activations_checkpoint_method=activations_checkpoint_method,
+                activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                layernorm_epsilon=layernorm_epsilon,
+                bias_gelu_fusion=bias_gelu_fusion,
+                masked_softmax_fusion=masked_softmax_fusion,
+                persist_layer_norm=persist_layer_norm,
+                openai_gelu=openai_gelu,
+                onnx_safe=onnx_safe,
+                hidden_steps=hidden_steps,
+                hidden_blocks=hidden_blocks,
+                activation=activation,
+            )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)
         self._enc_dec_model_key = "enc_dec_model"
@@ -207,8 +217,31 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self._tokens_head_key = 'tokens_head'
 
     def set_input_tensor(self, input_tensor):
-        """See megatron.model.transformer.set_input_tensor()"""
-        self.enc_dec_model.set_input_tensor(input_tensor)
+        """ See megatron.model.transformer.set_input_tensor()"""
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+
+        if self.add_encoder and self.add_decoder:
+            assert len(input_tensor) == 1, \
+                'input_tensor should only be length 1 for stage with both encoder and decoder'
+            self.enc_dec_model.encoder.set_input_tensor(input_tensor[0])
+        elif self.add_encoder:
+            assert len(input_tensor) == 1, \
+                'input_tensor should only be length 1 for stage with only encoder'
+            self.enc_dec_model.encoder.set_input_tensor(input_tensor[0])
+        elif self.add_decoder:
+            if len(input_tensor) == 2:
+                self.enc_dec_model.decoder.set_input_tensor(input_tensor[0])
+                self.encoder_hidden_state = input_tensor[1]
+            elif len(input_tensor) == 1:
+                self.enc_dec_model.decoder.set_input_tensor(None)
+                self.encoder_hidden_state = input_tensor[0]
+            else:
+                raise Exception('input_tensor must have either length 1 or 2')
+        else:
+            raise Exception('Stage must have at least either encoder or decoder')
 
     def forward(
         self,
@@ -226,10 +259,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         """
         ret_dict = {}
 
-        # encoder embeddings
-        enc_position_ids = build_position_ids(enc_input_ids)
-        enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
+        if self.pre_process:
+            # encoder embeddings
+            enc_position_ids = build_position_ids(enc_input_ids)
+            enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
+        # TODO: Not sure how this works with PP?
         if output_enc_hidden_only:
             enc_output = self.enc_dec_model.encode(
                 enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
