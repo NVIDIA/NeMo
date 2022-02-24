@@ -14,7 +14,7 @@
 
 import copy
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -190,9 +190,8 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
     def change_vocabulary(
         self,
-        new_tokenizer_dir: str,
+        new_tokenizer_dir: Union[str, DictConfig],
         new_tokenizer_type: str,
-        new_tokenizer_cfg: Optional[DictConfig] = None,
         decoding_cfg: Optional[DictConfig] = None,
     ):
         """
@@ -202,15 +201,24 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         model to learn capitalization, punctuation and/or special characters.
 
         Args:
-            new_tokenizer_dir: Directory path to tokenizer.
-            new_tokenizer_type: Type of tokenizer. Can be either `bpe` or `wpe`.
-            new_tokenizer_cfg: An optional config for a new tokenizer; pre-empts the dir and type.
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
+            new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
 
         Returns: None
 
         """
+        if isinstance(new_tokenizer_dir, DictConfig):
+            if new_tokenizer_type == 'agg':
+                new_tokenizer_cfg = new_tokenizer_dir
+            else:
+                raise ValueError(
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                )
+        else:
+            new_tokenizer_cfg = None
+
         if new_tokenizer_cfg is not None:
             tokenizer_cfg = new_tokenizer_cfg
         else:

@@ -14,7 +14,7 @@
 
 import copy
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -323,9 +323,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def change_vocabulary(
-        self, new_tokenizer_dir: str, new_tokenizer_type: str, new_tokenizer_cfg: Optional[DictConfig] = None
-    ):
+    def change_vocabulary(self, new_tokenizer_dir: Union[str, DictConfig], new_tokenizer_type: str):
         """
         Changes vocabulary of the tokenizer used during CTC decoding process.
         Use this method when fine-tuning on from pre-trained model.
@@ -334,14 +332,24 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         model to learn capitalization, punctuation and/or special characters.
 
         Args:
-            new_tokenizer_dir: Path to the new tokenizer directory.
-            new_tokenizer_type: Either `bpe` or `wpe`. `bpe` is used for SentencePiece tokenizers,
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
+            new_tokenizer_type: Either `agg`, `bpe` or `wpe`. `bpe` is used for SentencePiece tokenizers,
                 whereas `wpe` is used for `BertTokenizer`.
             new_tokenizer_cfg: A config for the new tokenizer. if provided, pre-empts the dir and type
 
         Returns: None
 
         """
+        if isinstance(new_tokenizer_dir, DictConfig):
+            if new_tokenizer_type == 'agg':
+                new_tokenizer_cfg = new_tokenizer_dir
+            else:
+                raise ValueError(
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                )
+        else:
+            new_tokenizer_cfg = None
+
         if new_tokenizer_cfg is not None:
             tokenizer_cfg = new_tokenizer_cfg
         else:

@@ -193,7 +193,7 @@ class TestEncDecRNNTBPEModel:
         tok_es = {"dir": tokenizer_dir, "type": "wpe"}
         tcfg = DictConfig({"type": "agg", "langs": {"en": tok_en, "es": tok_es}})
         with tempfile.TemporaryDirectory() as tmpdir:
-            asr_model.change_vocabulary(new_tokenizer_dir=None, new_tokenizer_type="agg", new_tokenizer_cfg=tcfg)
+            asr_model.change_vocabulary(new_tokenizer_dir=tcfg, new_tokenizer_type="agg")
 
             save_path = os.path.join(tmpdir, "ctc_agg.nemo")
             asr_model.train()
