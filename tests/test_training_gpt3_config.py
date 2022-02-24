@@ -1,53 +1,13 @@
 from omegaconf import OmegaConf
 
 
-class TestConfig:
+class TestTrainingGPT3Config:
 
-    def test_config(self):
-        conf = OmegaConf.load('conf/config.yaml')
-        s = """
-        defaults:
-          - _self_
-          - cluster: bcm
-          - data_preparation: download_pile
-          - training: 5b
-          - conversion: convert
-          - evaluation: evaluate_all
-          - override hydra/job_logging: stdout
-
-        hydra:
-          run:
-            dir: .
-          output_subdir: null
-
-        run_data_preparation: True
-        run_training: True
-        run_conversion: True
-        run_evaluation: True
-
-        cluster_type: bcm
-        training_config: 5b
-        bignlp_path: ???
-        data_dir: ${bignlp_path}/data
-        base_results_dir: ${bignlp_path}/results
-        container_mounts:
-          - null
-        container: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
-
-        wandb_api_key_file: null
-        nccl_topology_xml_file: null
-        """
-        expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/config.yaml must be set to {expected} but it currently is {conf}."
-
-
-class TestTrainingConfig:
-
-    def test_training_config_126m(self):
-        conf = OmegaConf.load('conf/training/126m.yaml')
+    def test_training_gpt3_config_126m(self):
+        conf = OmegaConf.load('conf/training/gpt3/126m.yaml')
         s = """
         run:
-          name: 126m
+          name: gpt3_126m
           results_dir: ${base_results_dir}/${.name}
           time_limit: "1-12:00:00"
           dependency: "singleton"
@@ -64,10 +24,10 @@ class TestTrainingConfig:
           max_epochs: null
           max_steps: 600000
           max_time: "01:11:30:00"
-          log_every_n_steps: 100
-          val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
-          limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
+          log_every_n_steps: 10
+          val_check_interval: 2000
+          limit_val_batches: 50
+          limit_test_batches: 50
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
@@ -93,7 +53,7 @@ class TestTrainingConfig:
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
-            buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
+            buffer_size: 5
 
         model:
           # model parallelism 
@@ -230,13 +190,13 @@ class TestTrainingConfig:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/126m.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"conf/training/gpt3/126m.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_config_5b(self):
-        conf = OmegaConf.load('conf/training/5b.yaml')
+        conf = OmegaConf.load('conf/training/gpt3/5b.yaml')
         s = """
         run:
-          name: 5b
+          name: gpt3_5b
           results_dir: ${base_results_dir}/${.name}
           time_limit: "7-00:00:00"
           dependency: "singleton"
@@ -253,10 +213,10 @@ class TestTrainingConfig:
           max_epochs: null
           max_steps: 105000
           max_time: "06:23:30:00"
-          log_every_n_steps: 100
-          val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
-          limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
+          log_every_n_steps: 10
+          val_check_interval: 2000
+          limit_val_batches: 50
+          limit_test_batches: 50
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
@@ -282,7 +242,7 @@ class TestTrainingConfig:
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
-            buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
+            buffer_size: 5
 
         model:
           # model parallelism: MBS=2, TPS=2, AGB=9 for 80GB nodes.
@@ -419,13 +379,13 @@ class TestTrainingConfig:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/5b.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"conf/training/gpt3/5b.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_config_20b(self):
-        conf = OmegaConf.load('conf/training/20b.yaml')
+        conf = OmegaConf.load('conf/training/gpt3/20b.yaml')
         s = """
         run:
-          name: 20b
+          name: gpt3_20b
           results_dir: ${base_results_dir}/${.name}
           time_limit: "8-00:00:00"
           dependency: "singleton"
@@ -442,10 +402,10 @@ class TestTrainingConfig:
           max_epochs: null
           max_steps: 105000
           max_time: "07:23:30:00"
-          log_every_n_steps: 100
-          val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
-          limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
+          log_every_n_steps: 10
+          val_check_interval: 2000
+          limit_val_batches: 50
+          limit_test_batches: 50
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
 
@@ -472,7 +432,7 @@ class TestTrainingConfig:
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
-            buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
+            buffer_size: 5
 
 
         model:
@@ -610,29 +570,5 @@ class TestTrainingConfig:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/20b.yaml must be set to {expected} but it currently is {conf}."
-
-
-class TestDataPrepConfig:
-
-    def test_download_pile_config(self):
-        conf = OmegaConf.load('conf/data_preparation/download_pile.yaml')
-        s = """
-        download_the_pile: True
-        the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"
-        file_numbers: "0-29" 
-        preprocess_data: True
-        download_vocab_url: "https://huggingface.co/gpt2/resolve/main/vocab.json"
-        download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"
-        vocab_save_dir: ${data_dir}/bpe
-        merges_save_dir: ${data_dir}/bpe
-        log_dir: ${base_results_dir}/data_preparation/logs
-        rm_downloaded: True
-        rm_extracted: True
-        nodes: 30
-        time_limit: "4:00:00"
-        bcp_preproc_npernode: 2
-        """
-        expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/data_preparation/download_pile.yaml must be set to {expected} but it currently is {conf}."
-
+        assert expected == conf, f"conf/training/gpt3/20b.yaml must be set to {expected} but it currently is {conf}."
+ 
