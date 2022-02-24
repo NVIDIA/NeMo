@@ -87,7 +87,6 @@ def evaluate(lm, task_dict, provide_description, num_fewshot, limit, bootstrap_i
         # TODO: right now, this code runs multiple seperate LM requests for multiple Requests differing
         # only in index. We could implement some kind of caching, but that would be more of a bandaid
         # solution. we could also implement some kind of autogrouping here; they should end up next to each other.
-
         # reqs is a list of request objects, as many as the samples * (num. possibile answers)
         logger.info("Running {} {} requests ...".format(len(reqs), reqtype))
         start_time = time.time()

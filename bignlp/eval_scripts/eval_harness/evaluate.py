@@ -183,14 +183,11 @@ def main():
     args = eval_args
 
     assert args is not None
-    if args.model == "nemo-gpt3" or "nemo-gpt3-tp":
+    if "nemo-gpt3" in args.model:
         assert args.device == 'cuda', "devices == 'cuda' are required to run nemo evaluations."
 
-    model_args = utils.simple_parse_args_string(args.model_args)
-    if args.model == "nemo-gpt3" \
-            and "tensor_model_parallel_size" in model_args \
-            and int(model_args["tensor_model_parallel_size"]) > 1:
-        args.model = "nemo-gpt3-tp"
+    if args.model == "nemo-gpt3":
+        args.model = "nemo-gpt3-tp-pp"
 
     lm = models.get_model(args.model).create_from_arg_string(args.model_args, {
         'batch_size': args.batch_size, 'device': args.device
