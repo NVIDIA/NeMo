@@ -878,18 +878,19 @@ class MegatronGPTModel(NLPModel):
 
         """
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=1,
-            micro_batch_size=1,
-            data_parallel_size=1,
-        )
 
         results = []
         request_tokens = request["tokens"]
 
         for idx, tokens in enumerate(request_tokens):
+            micro_batch_size = tokens.shape[0]
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=1,
+            )
 
             # For prompt tuned GPT models
             if self.use_soft_prompts:
@@ -928,11 +929,12 @@ class MegatronGPTModel(NLPModel):
                         reset_attention_mask=self.cfg.get('reset_attention_mask', False),
                         eod_mask_loss=self.cfg.get('eod_mask_loss', False),
                     )
+                attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
                 if self.use_soft_prompts:
-                    batch = [tokens, attention_mask, position_ids, prompt_ids]
+                    batch = [tokens, attention_mask_repeat, position_ids, prompt_ids]
                 else:
-                    batch = [tokens, attention_mask, position_ids]
-                tensor_shape = [tokens.shape[1], 1, self.cfg.hidden_size]
+                    batch = [tokens, attention_mask_repeat, position_ids]
+                tensor_shape = [tokens.shape[1], micro_batch_size, self.cfg.hidden_size]
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                     output_tensor = forward_backward_pipelining_without_interleaving(
                         forward_step_func=self.get_forward_output_only_func(),
@@ -1003,18 +1005,19 @@ class MegatronGPTModel(NLPModel):
             * offsets: list of tokens start positions in text
         """
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=1,
-            micro_batch_size=1,
-            data_parallel_size=1,
-        )
 
         results = []
         request_tokens = request["tokens"]
         for idx, tokens in enumerate(request_tokens):
             tokens_cut = tokens[:, :-1]
+            micro_batch_size = tokens_cut.shape[0]
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=1,
+            )
             # For prompt tuned GPT models
             if self.use_soft_prompts:
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -1048,11 +1051,13 @@ class MegatronGPTModel(NLPModel):
                     eod_mask_loss=self.cfg.get('eod_mask_loss', False),
                 )
 
+            # we repeat attention mask to work with apex fwd/bwd function
+            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
             if self.use_soft_prompts:
-                batch = [tokens, attention_mask, position_ids, prompt_ids]
+                batch = [tokens_cut, attention_mask_repeat, position_ids, prompt_ids]
             else:
-                batch = [tokens, attention_mask, position_ids]
-            tensor_shape = [tokens_cut.shape[1], 1, self.cfg.hidden_size]
+                batch = [tokens_cut, attention_mask_repeat, position_ids]
+            tensor_shape = [tokens_cut.shape[1], micro_batch_size, self.cfg.hidden_size]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=self.get_forward_output_only_func(),
