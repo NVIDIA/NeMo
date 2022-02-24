@@ -16,7 +16,7 @@ class TestConversionT5Config:
           train_dir: ${base_results_dir}/${.model_train_name}
           results_dir: ${.train_dir}/${.convert_name}
           output_path: ${.train_dir}/${.convert_name}
-          nemo_file_name: megatron_gpt.nemo
+          nemo_file_name: megatron_t5.nemo
 
         model:
           model_type: t5
