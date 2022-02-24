@@ -197,7 +197,16 @@ def get_vad_stream_status(data):
                 status[i] = 'single'
     return status
 
+def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
+    frame = []
+    with open(filepath, "r") as f:
+        for line in f.readlines():
+            frame.append(float(line))
 
+    name = filepath.split("/")[-1].rsplit(".", 1)[0] 
+    return torch.tensor(frame), name
+
+    
 def generate_overlap_vad_seq(
     frame_pred_dir: str, smoothing_method: str, overlap: float, window_length_in_sec: float, shift_length_in_sec: float, num_workers: int, out_dir: str = None
 ):
@@ -248,7 +257,7 @@ def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
             frame.append(float(line))
 
     name = filepath.split("/")[-1].split(".")[0] 
-    return torch.tensor(frame).half(), name
+    return torch.tensor(frame), name
 
 
 @torch.jit.script
@@ -341,7 +350,9 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args) :
 
     overlap_filepath = os.path.join(out_dir, name + "." + smoothing_method)
     with open(overlap_filepath, "w") as f:
-        f.write("\n".join(["{:.4f}".format(pred) for pred in preds]))
+        # f.write("\n".join(["{:.4f}".format(pred) for pred in preds]))
+        for pred in preds:
+            f.write(f"{pred:.4f}\n")
 
     return overlap_filepath
 
@@ -432,13 +443,12 @@ def binarization(sequence: torch.Tensor,
     speech_segments  = torch.empty(0)
     
     for i in range(1, len(sequence)):
-        
         # Current frame is speech
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
                 if i * shift_length_in_sec + pad_offset > max(0, start - pad_onset):
-                    new_seg = torch.tensor([max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]).half().unsqueeze(0)
+                    new_seg = torch.tensor([max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]).unsqueeze(0)
                     speech_segments = torch.cat((speech_segments, new_seg), 0)
 
                 start = i * shift_length_in_sec
@@ -453,7 +463,7 @@ def binarization(sequence: torch.Tensor,
 
     # if it's speech at the end, add final segment
     if speech:
-        new_seg = torch.tensor([max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]).half().unsqueeze(0)
+        new_seg = torch.tensor([max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]).unsqueeze(0)
         speech_segments = torch.cat((speech_segments, new_seg), 0)
 
     # Merge the overlapped speech segments due to padding
@@ -546,7 +556,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     # This is what riva team wants for VAD output. 
     speech_segments, _ = torch.sort(speech_segments, 0)
 
-    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1]
+    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + shift_length_in_sec
     speech_segments = torch.column_stack((speech_segments, dur))
 
     
@@ -567,8 +577,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     save_path = os.path.join(out_dir, save_name)
     with open(save_path, "w") as fp:
         for i in preds:
-            # fp.write(str(i[0]) + " " + str(i[2]) + " " + "speech" + "\n")
-            fp.write(str(float(i[0])) + " " + str(float(i[2])) + " " + "speech" + "\n")
+            fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
 
     return save_path
 
