@@ -78,7 +78,7 @@ model:
 
   tokenizer:
     type: agg  # The AggregateTokenizer is an ordered dict of N monolingual tokenizers, one per language id
-    tokenizers:
+    langs:
       en: # this language id must match the 'lang' field for english samples in the manifest
         dir: ??? # path to the en tokenizer which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
         type: ??? # Can be either bpe or wpe
