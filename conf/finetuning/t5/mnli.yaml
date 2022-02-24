@@ -46,7 +46,7 @@ exp_manager:
     save_best_model: True
 
 model:
-  restore_from_path: ???.nemo # Path to a trained T5 .nemo file
+  restore_from_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
   tensor_model_parallel_size: 1
 
   data:

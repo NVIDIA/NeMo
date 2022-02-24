@@ -9,7 +9,7 @@ run:
   train_dir: ${base_results_dir}/${.model_train_name}
   results_dir: ${.train_dir}/${.convert_name}
   output_path: ${.train_dir}/${.convert_name}
-  nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
+  nemo_file_name: megatron_t5.nemo # name of nemo checkpoint; must be .nemo file
 
 model:
   model_type: t5 # gpt or t5, use t5 for mt5 as well
