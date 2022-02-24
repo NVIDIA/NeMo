@@ -8,21 +8,21 @@ from bignlp.bignlp_utils import add_container_mounts
 
 
 def create_slurm_file(
-    new_script_path,
-    eval_cmd1,
-    eval_cmd2,
-    job_name,
-    flags="",
-    dependency=None,
-    time="04:00:00",
-    exclusive=True,
-    mem=0,
-    overcommit=True,
-    nodes=1,
-    ntasks_per_node=8,
-    gpus_per_task=1,
-    partition="batch",
-    account=None,
+        new_script_path,
+        eval_cmd1,
+        eval_cmd2,
+        job_name,
+        flags="",
+        dependency=None,
+        time="04:00:00",
+        exclusive=True,
+        mem=0,
+        overcommit=True,
+        nodes=1,
+        ntasks_per_node=8,
+        gpus_per_task=1,
+        partition="batch",
+        account=None,
 ):
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
@@ -69,8 +69,6 @@ def run_evaluation(cfg, dependency=None):
     precision = model_cfg.precision
 
     batch_size = model_cfg.eval_batch_size
-    vocab_file = model_cfg.vocab_file
-    merge_file = model_cfg.merge_file
 
     # Run parameters
     name = run_cfg.name
@@ -83,30 +81,28 @@ def run_evaluation(cfg, dependency=None):
     model_train_name = run_cfg.model_train_name
     tasks = run_cfg.tasks
     results_dir = run_cfg.results_dir
-    
+
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
-    
+
     # Command to download the eval datasets.
     cache_dir = os.path.join(results_dir, "data_cache")
     code_path1 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/download.py")
-    eval_cmd1 = f"python {code_path1} --tasks {tasks} --cache_dir {cache_dir} " \
-    
+    eval_cmd1 = f"python {code_path1} \\\n  --tasks {tasks} \\\n  --cache_dir {cache_dir}" \
+ \
     # Command to run the model on the eval datasets.
     new_script_path = os.path.join(bignlp_path, f"bignlp/eval_scripts/{name}.sh")
     code_path2 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/evaluate.py")
-    eval_cmd2 = f"python -u {code_path2} " \
-                f"--name {name} " \
-                f"--model {model_type} " \
-                f"--tasks {tasks} " \
-                f"--cache_dir {cache_dir} " \
-                f"--batch_size {batch_size} " \
-                f"--output_path {results_dir} " \
-                f"--model_args nemo_model={checkpoint}," \
-                f"pipeline_model_parallel_size={pipeline_model_parallel_size}," \
-                f"tensor_model_parallel_size={tensor_model_parallel_size}," \
-                f"precision={precision}," \
-                f"vocab_file={vocab_file},merges_file={merge_file} "
+    args = f"--name={name} " \
+           f"--model={model_type} " \
+           f"--tasks={tasks} " \
+           f"--cache_dir={cache_dir} " \
+           f"--batch_size={batch_size} " \
+           f"--output_path={results_dir} " \
+           f"--model_args='nemo_model={checkpoint},pipeline_model_parallel_size={pipeline_model_parallel_size}," \
+           f"tensor_model_parallel_size={tensor_model_parallel_size},precision={precision}'"
+    args = args.replace(" ", " \\\n  ")
+    eval_cmd2 = f"python -u {code_path2} {args}"
 
     if cfg.cluster_type == "bcm":
         # BCM parameters

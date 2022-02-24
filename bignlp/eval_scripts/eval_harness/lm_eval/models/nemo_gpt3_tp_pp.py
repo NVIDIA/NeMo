@@ -60,7 +60,6 @@ class CustomModel(MegatronGPTModel):
             _, lens, _, _, conti_lens = batch
             batch_size = len(lens)
             assert len(response) == batch_size, "Response's length not equal to batch size."
-            # print("@@@@@@@", response)
             res = []
             for index in range(batch_size):
                 conti_len = conti_lens[index]
@@ -98,9 +97,6 @@ def setup_trainer_and_model(args):
 
     args['tensor_model_parallel_size'] = int(args.get('tensor_model_parallel_size', 1))
     args['pipeline_model_parallel_size'] = int(args.get('pipeline_model_parallel_size', 1))
-
-    vocab_file = args.get('vocab_file', None)
-    merge_file = args.get('merge_file', None)
 
     args['precision'] = args.get('precision', 16)
     # cast precision to int if 32 or 16
@@ -178,7 +174,6 @@ class NeMo_GPT3LM_TP_PP(LM):
             new_batch = default_collate(new_batch)
             return new_batch
 
-        # print("@@@@@@", requests)
         def _collate(x):  # used to reorder request and remove duplications
             toks = x[0] + x[1]
             return -len(toks), tuple(toks)
