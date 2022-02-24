@@ -3,7 +3,7 @@ download_the_pile: True  # Whether to download the pile dataset from the interne
 the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
 file_numbers: "0-29"  # The pile dataset consists of 30 files (0-29), choose which ones to download.
 preprocess_data: True  # True to preprocess the data from a jsonl file, False otherwise.
-  download_vocab_url: "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt"  # URL to download the vocab from.
+download_vocab_url: "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt"  # URL to download the vocab from.
 download_merges_url: null
 vocab_save_dir: ${data_dir}/bpe
 merges_save_dir: ${data_dir}/bpe

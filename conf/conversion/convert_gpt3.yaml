@@ -5,7 +5,7 @@ run:
   time_limit: "2:00:00"
   ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
   convert_name: convert_nemo
-  model_train_name: 126m_bf16_O2_pp2_tp2
+  model_train_name: ???
   train_dir: ${base_results_dir}/${.model_train_name}
   results_dir: ${.train_dir}/${.convert_name}
   output_path: ${.train_dir}/${.convert_name}
