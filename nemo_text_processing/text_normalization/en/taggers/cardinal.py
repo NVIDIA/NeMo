@@ -93,7 +93,7 @@ class CardinalFst(GraphFst):
 
         if deterministic:
             long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-            final_graph = self.graph | serial_graph | pynutil.add_weight(long_numbers, -0.001)
+            final_graph = plurals._priority_union(long_numbers, self.graph, NEMO_SIGMA).optimize() | serial_graph
             cardinal_with_leading_zeros = pynini.compose(
                 pynini.accep("0") + pynini.closure(NEMO_DIGIT), self.single_digits_graph
             )
@@ -117,9 +117,6 @@ class CardinalFst(GraphFst):
 
         if lm:
             final_graph |= self.range_graph
-        if baseline:
-            self.range_graph = self.get_range_graph(lm=False)
-            final_graph |= pynutil.add_weight(self.range_graph, weight=0.5)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)

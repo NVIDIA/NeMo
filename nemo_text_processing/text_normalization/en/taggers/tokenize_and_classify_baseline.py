@@ -158,7 +158,7 @@ class ClassifyFst(GraphFst):
             # classify |= pynutil.insert("tokens { ") + "name: \"" + pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.5) + pynutil.insert("\" }")
             classify |= pynutil.add_weight(word_graph, 100)
 
-            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=2.1) + pynutil.insert(" }")
+            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=0) + pynutil.insert(" }")
             punct = pynini.closure(
                 pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
                 | (pynutil.insert(" ") + punct),

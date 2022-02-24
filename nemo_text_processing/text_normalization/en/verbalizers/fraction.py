@@ -44,7 +44,7 @@ class FractionFst(GraphFst):
         numerator = pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
         numerator_one = pynutil.delete("numerator: \"") + pynini.accep("one") + pynutil.delete("\" ")
         denominator = pynutil.delete("denominator: \"") + (
-            pynini.closure(NEMO_NOT_QUOTE) @ suffix | pynutil.add_weight(pynini.cross('four', 'quarter'), -1)
+            pynini.closure(NEMO_NOT_QUOTE) @ suffix | pynutil.add_weight(pynini.cross('four', 'quarter'), -0.001)
         )
 
         conjunction = pynutil.insert("and ")
@@ -64,11 +64,11 @@ class FractionFst(GraphFst):
         )
 
         fraction_with_one = pynutil.add_weight(
-            numerator_one + insert_space + denominator + pynutil.delete("\""), 0.0001
+            numerator_one + insert_space + denominator + pynutil.delete("\""), 0.001
         )
 
         graph = integer + (denominator_half | fraction_with_one | fraction_default)
-        graph |= pynutil.add_weight(pynini.cross("numerator: \"one\" denominator: \"two\"", "one half"), -1)
+        graph |= pynutil.add_weight(pynini.cross("numerator: \"one\" denominator: \"two\"", "one half"), -0.001)
         graph |= integer + (numerator | numerator_one) + insert_space + denominator_one_two
 
         self.graph = graph

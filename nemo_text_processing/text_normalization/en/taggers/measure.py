@@ -274,7 +274,7 @@ class MeasureFst(GraphFst):
             | pynini.cross("N", "North")
         ) + pynini.closure(pynutil.delete("."), 0, 1)
 
-        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -1), 0, 1)
+        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -0.001), 0, 1)
         address_words = get_formats(get_abs_path("data/address/address_words.tsv"))
         address_words = (
             pynini.accep(NEMO_SPACE)
@@ -299,7 +299,7 @@ class MeasureFst(GraphFst):
 
         zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
         zip_code = pynini.closure(
-            pynutil.add_weight(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -100),
+            pynutil.add_weight(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -0.001),
             0,
             1,
         )
