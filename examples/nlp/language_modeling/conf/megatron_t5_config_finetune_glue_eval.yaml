@@ -12,9 +12,9 @@ trainer:
 
 
 exp_manager:
-  explicit_log_dir: ${evaluation.run.results_dir}
+  explicit_log_dir: null
   exp_dir: null
-  name: megatron_t5_glue
+  name: megatron_t5_glue_eval
   create_checkpoint_callback: False
 
 model:
@@ -25,9 +25,9 @@ model:
 
   data:
     validation_ds:
-      task_name: ${evaluation.run.task_name}
-      file_path: ${data_dir}/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
-      batch_size: 16
+      task_name: 'mnli'
+      file_path: ??? # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      batch_size: 32
       shuffle: False
       num_workers: 4
       pin_memory: True
