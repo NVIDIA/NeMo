@@ -70,6 +70,8 @@ def convert_file_numbers(file_numbers_str):
     final_list = []
     split_comma = file_numbers_str.split(",")
     for elem in split_comma:
+        if elem == "":
+            continue
         if "-" in elem:
             split_dash = elem.split("-")
             final_list += list(range(int(split_dash[0]), int(split_dash[1]) + 1))
