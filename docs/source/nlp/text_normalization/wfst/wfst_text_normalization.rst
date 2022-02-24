@@ -4,7 +4,6 @@ Text Normalization
 ==================
 
 NeMo Text Normalization converts text from written form into its verbalized form. It is used as a preprocessing step before Text to Speech (TTS). It could also be used for preprocessing Automatic Speech Recognition (ASR) training transcripts.
-Supported languages: English, German.
 
 
 Quick Start Guide
@@ -164,8 +163,8 @@ See `nemo_text_processing/text_normalization/normalize_with_audio.py <https://gi
 Supported Languages
 -------------------
 
-Deterministic TN supports: English and German languages.
-Non-deterministic (audio-based) TN supports: English, German, and Russian languages.
+Deterministic TN supports: English, German and Spanish languages.
+Non-deterministic (audio-based) TN supports: English, German, Spanish, and Russian languages.
 
 Installation
 ------------
