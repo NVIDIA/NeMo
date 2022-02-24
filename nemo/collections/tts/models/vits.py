@@ -27,8 +27,12 @@ from torch.cuda.amp import autocast
 from torch.nn import functional as F
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, DistributedBucketSampler
-from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, GeneratorLoss
-from nemo.collections.tts.losses.vits_losses import KlLoss, FeatureMatchingLoss
+from nemo.collections.tts.losses.vits_losses import (
+    KlLoss, 
+    FeatureMatchingLoss, 
+    DiscriminatorLoss, 
+    GeneratorLoss
+)
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_modules import (
     MultiPeriodDiscriminator,
@@ -193,6 +197,9 @@ class VitsModel(TextToWaveform):
         return spec
 
     def training_step(self, batch, batch_idx):
+        # get optimizers
+        optim_g, optim_d = self.optimizers()
+
         # TODO: support accum gradient or don't allow to use accum gradient in init
         (y, y_lengths, x, x_lengths) = batch
 
@@ -206,7 +213,7 @@ class VitsModel(TextToWaveform):
 
             mel = spec_to_mel_torch(
                 spec,
-                self._cfg.filter_length,
+                self._cfg.n_window_size,
                 self._cfg.n_mel_channels,
                 self._cfg.sample_rate,
                 self._cfg.mel_fmin,
@@ -217,7 +224,7 @@ class VitsModel(TextToWaveform):
         y_hat = y_hat.float()
         y_hat_mel = audio_to_mel_torch(
             y_hat.squeeze(1),
-            self._cfg.filter_length,
+            self._cfg.n_window_size,
             self._cfg.n_mel_channels,
             self._cfg.sample_rate,
             self.cfg.n_window_stride,
@@ -235,16 +242,15 @@ class VitsModel(TextToWaveform):
             disc_generated_outputs=y_d_hat_g)
             loss_disc_all = loss_disc
 
-        # get optimizers
-        optim_g, optim_d = self.optimizers()
+
 
         # train discriminator
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
-        optim_d.step()
         # TODO: maybe change it to PTL-based function
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
-
+        optim_d.step()
+        
         with autocast(enabled=True):
             # Generator
             y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
@@ -259,9 +265,9 @@ class VitsModel(TextToWaveform):
         # train generator
         optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
-        optim_g.step()
         # TODO: maybe change it to PTL-based function
         norm_g = clip_grad_value_(self.net_g.parameters(), None)
+        optim_g.step()
 
         schedulers = self.lr_schedulers()
         if schedulers is not None:
