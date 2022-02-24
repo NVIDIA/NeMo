@@ -89,7 +89,7 @@ def main(cfg):
         ncpus = psutil.cpu_count(logical=False)
         for file_number in files_to_preproc:
             extracted_path = os.path.join(data_dir, f"{file_number:02d}.jsonl")
-            output_prefix = os.path.join(data_dir, f"my-gpt3_{file_number:02d}")
+            output_prefix = os.path.join(data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}")
 
             flags = (
                 f"--input {extracted_path} "

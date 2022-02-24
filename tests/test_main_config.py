@@ -44,6 +44,7 @@ class TestConfig:
         data_config: ${hydra:runtime.choices.data_preparation}
         training_config: ${hydra:runtime.choices.training}
         finetuning_config: ${hydra:runtime.choices.finetuning}
+        evaluation_config: ${hydra:runtime.choices.evaluation}
         """
         expected = OmegaConf.create(s)
         assert expected == conf, f"conf/config.yaml must be set to {expected} but it currently is {conf}."
