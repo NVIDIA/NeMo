@@ -1,8 +1,10 @@
 name: CI-Import-Check
 
 on:
-  workflow_dispatch:
   push:
+
+  pull_request:
+    types: [ opened ]
 
 jobs:
   ci-import-check:
