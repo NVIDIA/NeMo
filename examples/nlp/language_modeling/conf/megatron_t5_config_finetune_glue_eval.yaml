@@ -18,7 +18,7 @@ exp_manager:
   create_checkpoint_callback: False
 
 model:
-  restore_from_finetuned_path: ??? # Path to a trained T5 .nemo file
+  restore_from_finetuned_path: ??? # Path to a finetuned T5 .nemo file
   tensor_model_parallel_size: 1
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
