@@ -11,14 +11,14 @@ trainer:
   num_nodes: 4
   gpus: 8
   accelerator: ddp
-  precision: 64
+  precision: 16
   amp_backend: native
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: 07:00:00:00
+  max_time: "06:23:30:00"
   log_every_n_steps: 100
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
@@ -53,7 +53,7 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 16
+  micro_batch_size: 64
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
 

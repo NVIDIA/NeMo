@@ -9,14 +9,14 @@ class TestTrainingT5Config:
         run:
           name: t5_220m
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "1-12:00:00"
+          time_limit: "7-00:00:00"
           dependency: "singleton"
-
+        
         name: megatron_t5
         restore_from_path: null # used when starting from a .nemo file
-
+        
         trainer:
-          num_nodes: 16
+          num_nodes: 4
           gpus: 8
           accelerator: ddp
           precision: 16
@@ -26,15 +26,15 @@ class TestTrainingT5Config:
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-          max_time: 07:00:00:00
+          max_time: "06:23:30:00"
           log_every_n_steps: 100
           val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
           limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
           limit_test_batches: ${multiply:500, ${.accumulate_grad_batches}}
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
-
-
+        
+        
         exp_manager:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
@@ -58,30 +58,38 @@ class TestTrainingT5Config:
           step_timing_kwargs:
             sync_cuda: True
             buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
-
+        
         model:
           # model parallelism
-          micro_batch_size: 16
+          micro_batch_size: 64
           tensor_model_parallel_size: 1
-
-          # model architecture TODO: modify for O2
+          pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
+        
+          # model architecture
+          make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+          pre_process: True # add embedding
+          post_process: True # add pooler
+        
+          megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+        
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 12
           hidden_size: 768
           ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
           num_attention_heads: 12
-          init_method_std: 0.02  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+          init_method_std: 0.15  # Standard deviation of the zero mean normal distribution used for weight initialization.')
           hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
+          attention_dropout: 0.1 # Dropout probability in the attention layer.
           kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
-          make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
-          pre_process: True # add embedding
-          post_process: True # add pooler
-          activations_checkpoint_method: null
-          activations_checkpoint_num_layers: 1
-
+          persist_layer_norm: True # Use of persistent fused layer norm kernel.
+          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          encoder_arch: 'transformer'
+          decoder_arch: 'transformer'
+          activation: 'gelu'
+        
           tokenizer:
             library: 'megatron'
             type: 'BertWordPieceCase'
@@ -89,18 +97,21 @@ class TestTrainingT5Config:
             vocab_file: ${data_dir}/c4/bpe/vocab.txt
             merge_file: null
             num_sentinel_tokens: 100
-
+        
           # precision
           native_amp_init_scale: 4294967296 # 2 ** 32
           native_amp_growth_interval: 1000
           fp32_residual_connection: False # Move residual connections to fp32
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
-
+        
           # miscellaneous
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
-
+        
+          activations_checkpoint_method: null # 'uniform', 'block'
+          activations_checkpoint_num_layers: 1
+        
           optim:
             name: fused_adam
             lr: 0.0001
@@ -114,8 +125,8 @@ class TestTrainingT5Config:
               min_lr: 0.00001
               last_epoch: -1
               warmup_ratio: 0.01
-
-
+        
+        
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
@@ -125,7 +136,14 @@ class TestTrainingT5Config:
             num_workers: 4
             dataloader_type: single # cyclic
             masked_lm_prob: 0.15
-            short_seq_prob: 0.1
+            dataset_type: 't5'
+            short_seq_prob: 0.0
+            max_ngram_size: 128
+            mean_ngram_size: 3
+            geometric_dist: True
+            permutation: False
+            whole_word_masking: True
+            favor_longer_ngrams: False
             data_prefix: # Should be weight path weight path... for a blended dataset
               - .0333
               - ${data_dir}/my-t5_00_text_document
