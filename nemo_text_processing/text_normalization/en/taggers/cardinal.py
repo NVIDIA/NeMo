@@ -44,7 +44,7 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True, lm: bool = False):
+    def __init__(self, deterministic: bool = True, lm: bool = False, baseline: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
         # TODO replace to have "oh" as a default for "0"
         graph = pynini.Far(get_abs_path("data/numbers/cardinal_number_name.far")).get_fst()
@@ -117,6 +117,9 @@ class CardinalFst(GraphFst):
 
         if lm:
             final_graph |= self.range_graph
+        if baseline:
+            self.range_graph = self.get_range_graph(lm=False)
+            final_graph |= pynutil.add_weight(self.range_graph, weight=0.5)
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)

@@ -57,7 +57,13 @@ class MeasureFst(GraphFst):
     """
 
     def __init__(
-        self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True, lm: bool = False
+        self,
+        cardinal: GraphFst,
+        decimal: GraphFst,
+        fraction: GraphFst,
+        deterministic: bool = True,
+        lm: bool = False,
+        baseline: bool = False,
     ):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
@@ -194,7 +200,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
         )
 
-        address = self.get_address_graph(cardinal, lm=lm)
+        address = self.get_address_graph(cardinal, lm=lm, baseline=baseline)
         address = (
             pynutil.insert("units: \"address\" cardinal { integer: \"")
             + address
@@ -237,7 +243,7 @@ class MeasureFst(GraphFst):
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
-    def get_address_graph(self, cardinal, lm):
+    def get_address_graph(self, cardinal, lm=False, baseline=False):
         """
         Finite state transducer for classifying serial.
             The serial is a combination of digits, letters and dashes, e.g.:
@@ -305,7 +311,7 @@ class MeasureFst(GraphFst):
             + pynini.closure(pynutil.add_weight(city + state + zip_code, -0.001), 0, 1)
         )
 
-        if lm:
+        if lm or baseline:
             address |= address_num + direction + address_words + pynini.closure(pynini.cross(".", ""), 0, 1)
 
         return address
