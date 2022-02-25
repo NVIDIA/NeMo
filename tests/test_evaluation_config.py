@@ -12,7 +12,7 @@ class TestEvaluationT5Config:
           dependency: "singleton"
           convert_name: convert_nemo
           model_train_name: t5_220m
-          task_name: "mnli"  # supported: ???
+          task_name: "mnli"
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
         trainer:
@@ -41,8 +41,8 @@ class TestEvaluationT5Config:
           data:
             validation_ds:
               task_name: ${evaluation.run.task_name}
-              file_path: ${data_dir}/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
-              batch_size: 16
+              file_path: ${data_dir}/glue_data/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+              batch_size: 32
               shuffle: False
               num_workers: 4
               pin_memory: True
