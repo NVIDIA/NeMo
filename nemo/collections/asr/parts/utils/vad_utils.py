@@ -62,7 +62,7 @@ def prepare_manifest(config):
     # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
     if type(config['input']) == str:
         input_list = []
-        with open(config['input'], 'r', encoding='utf-8') as manifest:
+        with open(config['input'], 'r') as manifest:
             for line in manifest.readlines():
                 input_list.append(json.loads(line.strip()))
     elif type(config['input']) == list:
@@ -86,7 +86,7 @@ def prepare_manifest(config):
         logging.info("The prepared manifest file exists. Overwriting!")
         os.remove(manifest_vad_input)
 
-    with open(manifest_vad_input, 'a', encoding='utf-8') as fout:
+    with open(manifest_vad_input, 'a') as fout:
         for res in results:
             for r in res:
                 json.dump(r, fout)
@@ -118,7 +118,7 @@ def write_vad_infer_manifest(file, args_func):
     try:
         sr = 16000
         x, _sr = librosa.load(filepath, sr=sr, offset=in_offset, duration=in_duration)
-        duration = librosa.get_duration(y=x, sr=sr)
+        duration = librosa.get_duration(x, sr=sr)
         left = duration
         current_offset = in_offset
 
@@ -163,8 +163,8 @@ def write_vad_infer_manifest(file, args_func):
 
     except Exception as e:
         err_file = "error.log"
-        with open(err_file, 'w', encoding='utf-8') as fout:
-            fout.write(filepath + ":" + str(e))
+        with open(err_file, 'w') as fout:
+            fout.write(file + ":" + str(e))
     return res
 
 
@@ -197,6 +197,7 @@ def get_vad_stream_status(data):
                 status[i] = 'single'
     return status
 
+
 def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
     frame = []
     with open(filepath, "r") as f:
@@ -204,6 +205,7 @@ def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
             frame.append(float(line))
 
     name = filepath.split("/")[-1].rsplit(".", 1)[0] 
+    
     return torch.tensor(frame), name
 
     
@@ -248,16 +250,6 @@ def generate_overlap_vad_seq(
     p.join()
 
     return overlap_out_dir
-
-
-def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
-    frame = []
-    with open(filepath, "r") as f:
-        for line in f.readlines():
-            frame.append(float(line))
-
-    name = filepath.split("/")[-1].split(".")[0] 
-    return torch.tensor(frame), name
 
 
 @torch.jit.script
@@ -696,43 +688,51 @@ def vad_tune_threshold_on_dev(
     params_grid = get_parameter_grid(params)
 
     for param in params_grid:
-        # perform binarization, filtering accoring to param and write to rttm-like table
-        vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
+        try:
+                
+            # perform binarization, filtering accoring to param and write to rttm-like table
+            vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
 
-        # add reference and hypothesis to metrics
-        for filename in paired_filenames:
-            groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
-            vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
-            reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
-            metric(reference, hypothesis)  # accumulation
+            # add reference and hypothesis to metrics
+            for filename in paired_filenames:
+                groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
+                vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
+                reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
+                metric(reference, hypothesis)  # accumulation
 
-        # delete tmp table files
-        shutil.rmtree(vad_table_dir, ignore_errors=True)
+            # delete tmp table files
+            shutil.rmtree(vad_table_dir, ignore_errors=True)
 
-        report = metric.report(display=False)
-        DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-        FA = report.iloc[[-1]][('false alarm', '%')].item()
-        MISS = report.iloc[[-1]][('miss', '%')].item()
+            report = metric.report(display=False)
+            DetER = report.iloc[[-1]][('detection error rate', '%')].item()
+            FA = report.iloc[[-1]][('false alarm', '%')].item()
+            MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        assert (
-            focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
-        ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
-        all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
-        logging.info(f"parameter {param}, {all_perf[str(param)] }")
+            assert (
+                focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
+            ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
+            all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
+            logging.info(f"parameter {param}, {all_perf[str(param)] }")
 
-        score = all_perf[str(param)][focus_metric + ' (%)']
+            score = all_perf[str(param)][focus_metric + ' (%)']
 
-        del report
-        metric.reset()  # reset internal accumulator
+            del report
+            metric.reset()  # reset internal accumulator
 
-        # save results for analysis
-        with open(result_file + ".txt", "a", encoding='utf-8') as fp:
-            fp.write(f"{param}, {all_perf[str(param)] }\n")
+            # save results for analysis
+            with open(result_file + ".txt", "a") as fp:
+                fp.write(f"{param}, {all_perf[str(param)] }\n")
 
-        if score < min_score:
-            best_threhsold = param
-            optimal_scores = all_perf[str(param)]
-            min_score = score
+        except:
+            pass
+
+        finally:
+
+            if score < min_score:
+                best_threhsold = param
+                optimal_scores = all_perf[str(param)]
+                min_score = score
+            print("Current best", best_threhsold, optimal_scores)
 
     return best_threhsold, optimal_scores
 
@@ -768,7 +768,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     """
     groundtruth_RTTM_dict = {}
     if os.path.isfile(groundtruth_RTTM):
-        with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
+        with open(groundtruth_RTTM, "r") as fp:
             groundtruth_RTTM_files = fp.read().splitlines()
     elif os.path.isdir(groundtruth_RTTM):
         groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
@@ -782,7 +782,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
 
     vad_pred_dict = {}
     if os.path.isfile(vad_pred):
-        with open(vad_pred, "r", encoding='utf-8') as fp:
+        with open(vad_pred, "r") as fp:
             vad_pred_files = fp.read().splitlines()
     elif os.path.isdir(vad_pred):
         vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
@@ -819,7 +819,7 @@ def plot(
     FRAME_LEN = 0.01
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
-    dur = librosa.get_duration(y=audio, sr=sample_rate)
+    dur = librosa.get_duration(audio, sr=sample_rate)
 
     time = np.arange(offset, offset + dur, FRAME_LEN)
     frame = np.loadtxt(path2_vad_pred)
@@ -904,7 +904,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
     all_len = 0
 
     data = []
-    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
+    for line in open(manifest_vad_input, 'r'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
@@ -928,7 +928,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
 
             all_len += len(to_save)
             outpath = os.path.join(out_dir, data[i] + ".frame")
-            with open(outpath, "a", encoding='utf-8') as fout:
+            with open(outpath, "a") as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
 
