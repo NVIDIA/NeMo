@@ -4,7 +4,7 @@ from omegaconf import OmegaConf
 class TestEvaluationT5Config:
     
     def test_evaluation_t5_mnli_matched_config(self):
-        conf = OmegaConf.load('conf/evaluation/t5/mnli.yaml')
+        conf = OmegaConf.load('conf/evaluation/t5/mnli_matched.yaml')
         s = """
         run:
           name: eval_${.task_name}_${.model_train_name}
