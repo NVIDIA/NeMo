@@ -26,10 +26,10 @@ from tqdm.auto import tqdm
 
 # List of the supported models to be used with N-gram LM and beam search decoding
 SUPPORTED_MODELS = {
-    'EncDecCTCModelBPE': 'subword',
-    'EncDecRNNTBPEModel': 'subword',
-    'EncDecCTCModel': 'char',
-    'EncDecRNNTModel': 'char',
+    'EncDecCTCModelBPE': ('subword', True),
+    'EncDecRNNTBPEModel': ('subword', False),
+    'EncDecCTCModel': ('char', True),
+    'EncDecRNNTModel': ('char', False),
 }
 
 
@@ -67,9 +67,7 @@ def tokenize_str(texts, tokenizer, offset):
     for text in texts:
         tok_text = tokenizer.text_to_ids(text)
         if offset < 0:
-            tok_text = [str(i) for i in tok_text]
-            #tok_text = " ".join(tok_text)
-            #print(tok_text)
+            tok_text = [str(token) for token in tok_text]
         else:
             tok_text = [chr(token + offset) for token in tok_text]
         tokenized_text.append(tok_text)

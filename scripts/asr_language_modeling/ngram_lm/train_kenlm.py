@@ -81,9 +81,9 @@ def main():
     parser.add_argument(
         "--do_lowercase", action='store_true', help="Whether to apply lower case conversion on the training text"
     )
-    parser.add_argument(
-        "--no_unicode_encoding", action='store_true', help="Whether to encode the text as Unicode characters"
-    )
+    # parser.add_argument(
+    #     "--no_unicode_encoding", action='store_true', help="Whether to encode the text as Unicode characters"
+    # )
     args = parser.parse_args()
 
     """ TOKENIZER SETUP """
@@ -97,7 +97,7 @@ def main():
         )
         model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
 
-    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
+    encoding_level, offset_encoding = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
     if not encoding_level:
         logging.warning(
             f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
@@ -115,7 +115,7 @@ def main():
             path=encoded_train_file,
             chunk_size=CHUNK_SIZE,
             buffer_size=CHUNK_BUFFER_SIZE,
-            token_offset=-1 if args.no_unicode_encoding else TOKEN_OFFSET,
+            token_offset=TOKEN_OFFSET if offset_encoding else -1,
         )
         # --discount_fallback is needed for training KenLM for BPE-based models
         discount_arg = "--discount_fallback"

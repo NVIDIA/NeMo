@@ -254,7 +254,6 @@ def main():
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
         else:
-
             @contextlib.contextmanager
             def autocast():
                 yield
@@ -292,18 +291,23 @@ def main():
 
     logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
 
-    encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(asr_model).__name__, None)
+    encoding_level, offset_encoding = kenlm_utils.SUPPORTED_MODELS.get(type(asr_model).__name__, None)
     if not encoding_level:
         logging.warning(
             f"Model type '{type(asr_model).__name__}' may not be supported. Would try to train a char-level LM."
         )
         encoding_level = 'char'
+        offset_encoding = False
 
     vocab = asr_model.decoder.vocabulary
-    ids_to_text_func = None
-    if encoding_level == "subword":
+
+    if offset_encoding:
         vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
         ids_to_text_func = asr_model.tokenizer.ids_to_text
+    else:
+        vocab = [str(idx) for idx in range(len(vocab))]
+        ids_to_text_func = asr_model.tokenizer.ids_to_text
+
     # delete the model to free the memory
     del asr_model
 

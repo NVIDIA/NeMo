@@ -194,22 +194,22 @@ def main():
         "--beam_width",
         required=True,
         type=int,
-        nargs="+",
-        help="The width or list of the widths for the beam search decoding",
+        #nargs="+",
+        help="The width for the beam search decoding",
     )
     parser.add_argument(
         "--beam_alpha",
         required=True,
         type=float,
-        nargs="+",
-        help="The alpha parameter or list of the alphas for the beam search decoding",
+        #nargs="+",
+        help="The alpha parameter for the beam search decoding",
     )
     parser.add_argument(
         "--beam_beta",
         required=True,
         type=float,
-        nargs="+",
-        help="The beta parameter or list of the betas for the beam search decoding",
+        #nargs="+",
+        help="The beta parameter for the beam search decoding",
     )
     parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
@@ -225,7 +225,15 @@ def main():
 
     args = parser.parse_args()
 
-    asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
+    if args.nemo_model_file.endswith('.nemo'):
+        asr_model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device(args.device))
+    else:
+        logging.warning(
+            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+        )
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(
+            args.nemo_model_file, map_location=torch.device(args.device)
+        )
 
     target_transcripts = []
     with open(args.input_manifest, 'r') as manifest_file:
@@ -250,11 +258,12 @@ def main():
         asr_model = asr_model.eval()
         rnnt_cfg = RNNTBPEDecodingConfig()
         rnnt_cfg.strategy = args.search_strategy  #beam greedy
-        rnnt_cfg.beam.beam_size = args.beam_width[0]
-        rnnt_cfg.beam.ngram_lm_model = '/drive3/checkpoints/ngc/release_nemoasrset_2.0/transducer/lm/6gram_model_v1024.model'
+        rnnt_cfg.beam.beam_size = args.beam_width
+        rnnt_cfg.beam.ngram_lm_model = args.kenlm_model_file
+        #'/drive3/checkpoints/ngc/release_nemoasrset_2.0/transducer/lm/6gram_model_v1024.model'
         #'/drive3/checkpoints/ngc/release_8_17/conformer_transducer_bpe_en/small/4gram_ls_noencode.model'
-        rnnt_cfg.beam.ngram_lm_alpha = args.beam_alpha[0] #0.2
-        rnnt_cfg.beam.ngram_lm_beta = args.beam_beta[0]
+        rnnt_cfg.beam.ngram_lm_alpha = args.beam_alpha #0.2
+        rnnt_cfg.beam.ngram_lm_beta = args.beam_beta
         rnnt_cfg.beam.ngram_lm_bos = True
         rnnt_cfg.compute_hypothesis_token_set = False
         asr_model.change_decoding_strategy(OmegaConf.structured(rnnt_cfg))
