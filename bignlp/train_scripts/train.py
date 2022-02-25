@@ -20,19 +20,26 @@ def create_slurm_file(
     overcommit=True,
     nodes=1,
     ntasks_per_node=8,
-    gpus_per_task=1,
+    gpus_per_task=None,
+    gpus_per_node=None,
     partition="batch",
     account=None,
 ):
     """
     Creates a slurm file to launch a training job.
     """
+    # Set default values
+    if gpus_per_task is None and gpus_per_node is None:
+        gpus_per_task = 1
+
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_node is not None:
+            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
@@ -111,7 +118,8 @@ def run_training(cfg, hydra_args="", dependency=None):
         partition = cluster_cfg.partition
         account = cluster_cfg.account
         exclusive = cluster_cfg.exclusive
-        gpus_per_task = cluster_cfg.gpus_per_task
+        gpus_per_task = cluster_cfg.gpus_per_task if "gpus_per_task" in cluster_cfg else None
+        gpus_per_node = cluster_cfg.gpus_per_node if "gpus_per_node" in cluster_cfg else None
         job_name_prefix = cluster_cfg.job_name_prefix
         if dependency is None:
             dependency = run_cfg.dependency
@@ -139,6 +147,7 @@ def run_training(cfg, hydra_args="", dependency=None):
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
             gpus_per_task=gpus_per_task,
+            gpus_per_node=gpus_per_node,
             partition=partition,
             account=account,
         )
