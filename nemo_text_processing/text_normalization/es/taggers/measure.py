@@ -111,7 +111,7 @@ class MeasureFst(GraphFst):
             + unit_singular_graph
         )
 
-        subgraph_fraction = fraction.fst + insert_space + pynini.closure(delete_space, 0, 1) + unit_plural
+        subgraph_fraction = fraction.fst + insert_space + pynini.closure(delete_space, 0, 1) +  unit_singular_graph
 
         decimal_times = (
             pynutil.insert("decimal { ")
@@ -170,10 +170,10 @@ class MeasureFst(GraphFst):
         final_graph = (
             subgraph_decimal
             | subgraph_cardinal
-            | subgraph_fraction
             | cardinal_dash_alpha
             | alpha_dash_cardinal
             | decimal_dash_alpha
+            | subgraph_fraction
             | decimal_times
             | cardinal_times
             | alpha_dash_decimal
