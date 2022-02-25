@@ -16,7 +16,7 @@ class TestTrainingT5Config:
         restore_from_path: null # used when starting from a .nemo file
         
         trainer:
-          num_nodes: 4
+          num_nodes: 16
           gpus: 8
           accelerator: ddp
           precision: 16
@@ -61,7 +61,7 @@ class TestTrainingT5Config:
         
         model:
           # model parallelism
-          micro_batch_size: 64
+          micro_batch_size: 16
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
         
