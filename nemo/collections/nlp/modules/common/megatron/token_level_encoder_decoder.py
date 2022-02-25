@@ -117,8 +117,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
-        self.pre_process = pre_process
-        self.post_process = post_process
 
         if kv_channels is None:
             assert (
@@ -208,13 +206,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
             )
 
-        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)
+        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder)
         self._enc_dec_model_key = "enc_dec_model"
 
-        self.tokens_head = MegatronTokenLevelHead(
-            self.decoder_embedding.word_embeddings.weight.size(0), parallel_output
-        )
-        self._tokens_head_key = 'tokens_head'
+        if add_decoder and post_process:
+            self.tokens_head = MegatronTokenLevelHead(
+                self.word_embeddings_weight().size(0),
+                parallel_output
+            )
+            self._tokens_head_key = 'tokens_head'
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -271,8 +271,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
             ret_dict["enc_output"] = enc_output
         else:
-            dec_position_ids = build_position_ids(dec_input_ids)
-            dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
+            if self.pre_process:
+                dec_position_ids = build_position_ids(dec_input_ids)
+                dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
+            else:
+                # Note: This is when the decoder itself is split across PP ranks.
+                dec_input = None
 
             ret_dict.update(
                 self.enc_dec_model(
@@ -288,21 +292,22 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
             )
 
-            # project decoder output to vocabulary-size dimensions
-            token_logits = self.tokens_head(ret_dict["dec_output"], self.decoder_embedding.word_embeddings.weight)
-            # token_logits [batch, length, vocab_size]
-            ret_dict["token_logits"] = token_logits
+            if self.post_process and self.add_decoder:
+                # project decoder output to vocabulary-size dimensions
+                token_logits = self.tokens_head(ret_dict["dec_output"], self.decoder_embedding.word_embeddings.weight)
+                # token_logits [batch, length, vocab_size]
+                ret_dict["token_logits"] = token_logits
 
-            if labels is not None:
-                # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
-                if self.fp16_cross_entropy:
-                    assert token_logits.dtype == torch.half
-                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
-                else:
-                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+                if labels is not None:
+                    # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
+                    if self.fp16_cross_entropy:
+                        assert token_logits.dtype == torch.half
+                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
+                    else:
+                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
 
-                # tokens_loss [batch, length]
-                ret_dict["tokens_loss"] = tokens_loss
+                    # tokens_loss [batch, length]
+                    ret_dict["tokens_loss"] = tokens_loss
 
         return ret_dict
 

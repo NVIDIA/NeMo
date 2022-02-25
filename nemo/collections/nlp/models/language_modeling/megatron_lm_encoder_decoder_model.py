@@ -73,16 +73,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
         self._build_vocab()
 
-        app_state = AppState()
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         self.enc_dec_model = build_model(
             model_provider_func=self.model_provider_func,
             wrap_with_ddp=False,
             model_type=ModelType.encoder_and_decoder,
-            pipeline_model_parallel_rank=app_state.pipeline_model_parallel_rank,
-            pipeline_model_parallel_world_size=app_state.pipeline_model_parallel_size,
-            pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank
         )[0]
 
         self.setup_optimizer_param_groups()
@@ -150,8 +146,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             ffn_hidden_size=self.cfg.ffn_hidden_size,
             num_tokentypes=0,
             parallel_output=True,
-            pre_process=self.cfg.get('pre_process', True),
-            post_process=self.cfg.get('post_process', True),
+            pre_process=pre_process,
+            post_process=post_process,
             init_method_std=self.cfg.get('init_method_std', 0.02),
             fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
@@ -167,6 +163,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             onnx_safe=self.cfg.get('onnx_safe', False),
             activation=self.cfg.get('activation', 'gelu'),
+            add_encoder=add_encoder,
+            add_decoder=add_decoder,
         )
         return model
 
@@ -493,16 +491,31 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        self.log('val_loss', averaged_loss[0], prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
+
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        torch.distributed.broadcast(averaged_loss, get_last_rank())
+        self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
 
     def loss_func(self, loss_mask, tokens_loss):
         """

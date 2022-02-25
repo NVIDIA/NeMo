@@ -48,15 +48,19 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         self.decoder = decoder
         # try to infer mask_type if not given
         if encoder_attn_mask_type is None:
-            try:
+            if encoder is None:
+                encoder_attn_mask_type = None
+            elif hasattr(encoder.model, 'self_attn_mask_type'):
                 encoder_attn_mask_type = encoder.model.self_attn_mask_type
-            except Exception as e:
-                raise ValueError("Failed inferring encoder_attn_mask_type, please provide AttnMaskType value")
+            else:
+                raise AttributeError("Could not find an attribute for encoder self_attn_mask_type, make sure it is set when instatiating the encoder or pass it to the constructor of this class.")
         if decoder_attn_mask_type is None:
-            try:
+            if decoder is None:
+                decoder_attn_mask_type = None
+            elif hasattr(decoder.model, 'self_attn_mask_type'):
                 decoder_attn_mask_type = decoder.model.self_attn_mask_type
-            except Exception as e:
-                raise ValueError("Failed inferring decoder_attn_mask_type, please provide AttnMaskType value")
+            else:
+                raise AttributeError("Could not find an attribute for decoder self_attn_mask_type, make sure it is set when instatiating the decoder or pass it to the constructor of this class.")
 
         self.encoder_attn_mask_type = encoder_attn_mask_type
         self.decoder_attn_mask_type = decoder_attn_mask_type
@@ -78,6 +82,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
     def encode(
         self, enc_input, enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
     ):
+        if self.encoder is None:
+            raise ValueError(f"Cannot call .encode(...) when self.encoder is None.")
         """Encodes embedder input using encoder"""
         enc_output = self.encoder(
             enc_input=enc_input,
@@ -91,6 +97,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
     def decode(
         self, dec_input, dec_attn_mask, enc_output, enc_attn_mask, dec_layer_past=None, dec_get_key_value=False,
     ):
+        if self.decoder is None:
+            raise ValueError(f"Cannot call .decode(...) when self.decoder is None.")
         """Decodes embedder input using decoder and encoder input"""
         dec_output = self.decoder(
             dec_input=dec_input,
@@ -114,15 +122,24 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_output=None,
         dec_layer_past=None,
         dec_get_key_value=False,
+        output_enc_hidden_only=False,
     ):
         # encoder
         if enc_output is None:
-            enc_output = self.encode(
-                enc_input=enc_input,
-                enc_attn_mask=enc_attn_mask,
-                enc_layer_past=enc_layer_past,
-                enc_get_key_value=enc_get_key_value,
-            )
+            if self.encoder is not None:
+                enc_output = self.encode(
+                    enc_input=enc_input,
+                    enc_attn_mask=enc_attn_mask,
+                    enc_layer_past=enc_layer_past,
+                    enc_get_key_value=enc_get_key_value,
+                )
+            else:
+                enc_output = self.encoder_hidden_state
+        else:
+            enc_output = enc_output.to(enc_input.dtype)
+
+        if self.decoder is None or output_enc_hidden_only:
+            return {"enc_output": enc_output}
 
         # decoder
         dec_output = self.decode(

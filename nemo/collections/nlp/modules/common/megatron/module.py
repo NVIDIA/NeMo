@@ -14,6 +14,7 @@
 
 """Megatron Module"""
 
+from sklearn.model_selection import learning_curve
 import torch
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
@@ -53,15 +54,17 @@ class MegatronModule(torch.nn.Module):
         self.share_word_embeddings = share_word_embeddings
 
     def word_embeddings_weight(self):
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-            return self.language_model.embedding.word_embeddings.weight
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if self.pre_process:
+            if hasattr(self, 'language_model'):
+                return self.language_model.embedding.word_embeddings.weight
+            # Move T5 embeddings to CUDA
+            elif hasattr(self, 'encoder_embedding') and hasattr(self, 'decoder_embedding'):
+                return self.encoder_embedding.weight
+        else:
             if not self.share_word_embeddings:
-                raise Exception(
-                    'word_embeddings_weight() called for last ' 'stage, but share_word_embeddings is false'
-                )
+                raise Exception('word_embeddings_weight() called for last '
+                                'stage, but share_word_embeddings is false')
             return self.word_embeddings.weight
-        raise Exception('word_embeddings_weight() should be ' 'called for first and last stage only')
 
     def initialize_word_embeddings(self, init_method, vocab_size, hidden_size):
         if not self.share_word_embeddings:
@@ -85,7 +88,7 @@ class MegatronModule(torch.nn.Module):
         # 3. In the training loop, before an all-reduce between the grads of
         #    the two word_embeddings layers to ensure that every applied weight
         #    update is the same on both stages.
-        if parallel_state.is_pipeline_last_stage() and (not hasattr(self.language_model, 'embedding') or self.language_model.embedding is None):
+        if parallel_state.is_pipeline_last_stage() and not self.pre_process:
             assert not parallel_state.is_pipeline_first_stage()
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first
@@ -95,6 +98,55 @@ class MegatronModule(torch.nn.Module):
             )
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
+
+        # Zero out initial weights for decoder embedding.
+        # NOTE: We don't currently support T5 with the interleaved schedule.
+        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True) and \
+                self.pre_process:
+            # Zero params for GPT
+            if hasattr(self, 'language_model'):
+                self.language_model.embedding.zero_parameters()
+            # Zero params for T5
+            elif hasattr(self, 'encoder_embedding') and hasattr(self, 'decoder_embedding'):
+                self.encoder_embedding.zero_parameters()
+                self.decoder_embedding.zero_parameters()
+            else:
+                raise ValueError(f"Unknown model type: {self}")
+
+        # Ensure that first and last stages have the same initial parameter
+        # values.
+        if torch.distributed.is_initialized():
+            if parallel_state.is_rank_in_embedding_group():
+                torch.distributed.all_reduce(self.word_embeddings_weight().data,
+                                             group=parallel_state.get_embedding_group())
+
+            # Ensure that encoder(first stage) and decoder(split stage) position 
+            # embeddings have the same initial parameter values
+            # NOTE: We don't currently support T5 with the interleaved schedule.
+            if parallel_state.is_rank_in_position_embedding_group() and \
+                    parallel_state.pipeline_model_parallel_split_rank is not None:
+                # TODO: Support tokentype embedding.
+                # Move GPT embeddings to CUDA
+                if hasattr(self, 'language_model'):
+                    self.language_model.embedding.cuda()
+                # Move T5 embeddings to CUDA
+                elif hasattr(self, 'encoder_embedding') and hasattr(self, 'decoder_embedding'):
+                    self.encoder_embedding.cuda()
+                    self.decoder_embedding.cuda()
+                else:
+                    raise ValueError(f"Unknown model type: {self}")
+
+                # Move GPT embeddings to CUDA
+                if hasattr(self, 'language_model'):
+                    position_embeddings = self.language_model.embedding.position_embeddings
+                # Move T5 embeddings to CUDA
+                elif hasattr(self, 'encoder_embedding') and hasattr(self, 'decoder_embedding'):
+                    position_embeddings = self.encoder_embedding.position_embeddings
+                else:
+                    raise ValueError(f"Unknown model type: {self}")
+
+                torch.distributed.all_reduce(position_embeddings.weight.data,
+                                             group=parallel_state.get_position_embedding_group())
 
     def sync_initial_word_embeddings(self):
 
