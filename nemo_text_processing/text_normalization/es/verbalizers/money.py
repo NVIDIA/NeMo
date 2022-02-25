@@ -20,8 +20,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.es.graph_utils import (
     shift_cardinal_gender,
-    shift_number_gender,
-    add_cardinal_apocope_fem,
     strip_cardinal_apocope,
 )
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
