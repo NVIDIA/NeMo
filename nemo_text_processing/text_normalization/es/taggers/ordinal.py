@@ -167,7 +167,9 @@ class OrdinalFst(GraphFst):
 
         else:
             # We insert both genders as default
-            graph_roman += pynutil.insert(" morphosyntactic_features: \"gender_masc\"") | pynutil.insert(" morphosyntactic_features: \"gender_fem\"")
+            graph_roman += pynutil.insert(" morphosyntactic_features: \"gender_masc\"") | pynutil.insert(
+                " morphosyntactic_features: \"gender_fem\""
+            )
 
         # Rest of graph
         convert_abbreviation = accept_masc | accep_fem | accep_apocope

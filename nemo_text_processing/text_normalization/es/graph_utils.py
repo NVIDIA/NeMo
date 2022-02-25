@@ -145,6 +145,7 @@ def strip_cardinal_apocope(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     strip = pynini.cdrewrite(strip, "", pynini.union("[EOS]", "\""), NEMO_SIGMA)
     return fst @ strip
 
+
 def add_cardinal_apocope_fem(fst: 'pynini.FstLike') -> 'pynini.FstLike':
     """
     Adds apocope on cardinal strings in line with stressing rules. e.g. "una" -> "un". This only occurs when "una" precedes a stressed "a" sound in formal speech. This is not predictable

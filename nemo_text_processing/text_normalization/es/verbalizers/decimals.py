@@ -20,10 +20,10 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.es import LOCALIZATION
 from nemo_text_processing.text_normalization.es.graph_utils import (
+    add_cardinal_apocope_fem,
     shift_cardinal_gender,
     shift_number_gender,
     strip_cardinal_apocope,
-    add_cardinal_apocope_fem
 )
 
 try:
@@ -76,15 +76,14 @@ class DecimalFst(GraphFst):
         )
 
         # Allowing permutation for fem gender, don't include quantity since "million","billion", etc.. are masculine
-        graph_fem = optional_sign + (
-            shift_cardinal_gender(integer) + delete_space + shift_number_gender(fractional)
-        )
-        if not deterministic: # "una" will drop to "un" in certain cases
+        graph_fem = optional_sign + (shift_cardinal_gender(integer) + delete_space + shift_number_gender(fractional))
+        if not deterministic:  # "una" will drop to "un" in certain cases
             graph_fem |= add_cardinal_apocope_fem(graph_fem)
 
-        self.numbers_only_quantity = optional_sign + pynini.union(
-            (integer + quantity), (integer + delete_space + fractional + quantity)
-        ).optimize()
+        self.numbers_only_quantity = (
+            optional_sign
+            + pynini.union((integer + quantity), (integer + delete_space + fractional + quantity)).optimize()
+        )
 
         self.graph_masc = (graph_masc + delete_preserve_order).optimize()
         self.graph_fem = (graph_fem + delete_preserve_order).optimize()

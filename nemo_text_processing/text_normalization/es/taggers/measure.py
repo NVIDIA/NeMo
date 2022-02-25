@@ -111,7 +111,7 @@ class MeasureFst(GraphFst):
             + unit_singular_graph
         )
 
-        subgraph_fraction = fraction.fst + insert_space + pynini.closure(delete_space, 0, 1) +  unit_singular_graph
+        subgraph_fraction = fraction.fst + insert_space + pynini.closure(delete_space, 0, 1) + unit_singular_graph
 
         decimal_times = (
             pynutil.insert("decimal { ")
