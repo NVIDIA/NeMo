@@ -49,11 +49,7 @@ from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodingConfig
 from nemo.utils import logging
 
 
-def beam_search_eval(
-    all_hypotheses,
-    target_transcripts,
-    preds_output_file=None
-):
+def beam_search_eval(all_hypotheses, target_transcripts, preds_output_file=None):
     wer_dist_first = cer_dist_first = 0
     wer_dist_best = cer_dist_best = 0
     words_count = 0
@@ -143,22 +139,13 @@ def main():
         help="The decoding scheme to be used for evaluation.",
     )
     parser.add_argument(
-        "--beam_width",
-        required=True,
-        type=int,
-        help="The width for the beam search decoding",
+        "--beam_width", required=True, type=int, help="The width for the beam search decoding",
     )
     parser.add_argument(
-        "--beam_alpha",
-        required=True,
-        type=float,
-        help="The alpha parameter for the beam search decoding",
+        "--beam_alpha", required=True, type=float, help="The alpha parameter for the beam search decoding",
     )
     parser.add_argument(
-        "--beam_beta",
-        required=True,
-        type=float,
-        help="The beta parameter for the beam search decoding",
+        "--beam_beta", required=True, type=float, help="The beta parameter for the beam search decoding",
     )
     parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
@@ -249,9 +236,7 @@ def main():
         preds_output_file = None
 
     beam_search_eval(
-        all_hypotheses=all_hypotheses,
-        target_transcripts=target_transcripts,
-        preds_output_file=preds_output_file,
+        all_hypotheses=all_hypotheses, target_transcripts=target_transcripts, preds_output_file=preds_output_file,
     )
 
 

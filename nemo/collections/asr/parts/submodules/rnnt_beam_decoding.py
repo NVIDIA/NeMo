@@ -595,9 +595,7 @@ class BeamRNNTInfer(Typing):
                             lm_score *= 1.0 / math.log10(math.e)
                             new_hyp.lm_state = next_state
                             new_hyp.score = new_hyp.score + self.ngram_lm_alpha * lm_score
-                            new_hyp.score += self.ngram_lm_beta * (len(new_hyp.y_sequence)-1) # TODO: fix it
-
-
+                            new_hyp.score += self.ngram_lm_beta * (len(new_hyp.y_sequence) - 1)  # TODO: fix it
 
                         new_hyp.dec_state = state
                         new_hyp.y_sequence.append(int(k))
