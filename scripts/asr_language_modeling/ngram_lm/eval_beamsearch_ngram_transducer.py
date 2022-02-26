@@ -177,7 +177,6 @@ def main():
         )
 
     target_transcripts = []
-    i = 0
     with open(args.input_manifest, 'r') as manifest_file:
         audio_file_paths = []
         for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
