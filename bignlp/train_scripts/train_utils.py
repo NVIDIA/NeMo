@@ -68,7 +68,7 @@ def numa_mapping():
 
 def convert_args_to_hydra_train_args(args, prefix="training."):
     for index, arg in enumerate(args):
-        k, v = arg.lsplit("=", 1)
+        k, v = arg.split("=", 1)
         if "splits_string" in k:
             args[index] = "{}={}".format(k, v.replace("'", "\\'"))
 
