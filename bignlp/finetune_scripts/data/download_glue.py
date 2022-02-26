@@ -11,6 +11,7 @@ URLLIB = urllib.request
 TASKS = ["CoLA", "SST-2", "MRPC", "QQP", "STS-B", "MNLI", "QNLI", "RTE", "WNLI", "diagnostic"]
 TASK2PATH = {"CoLA": 'https://dl.fbaipublicfiles.com/glue/data/CoLA.zip',
              "SST-2": 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip',
+             "MRPC": 'https://raw.githubusercontent.com/MegEngine/Models/master/official/nlp/bert/glue_data/MRPC/dev_ids.tsv',
              "QQP": 'https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip',
              "STS-B": 'https://dl.fbaipublicfiles.com/glue/data/STS-B.zip',
              "MNLI": 'https://dl.fbaipublicfiles.com/glue/data/MNLI.zip',
