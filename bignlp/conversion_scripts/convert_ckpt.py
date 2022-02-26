@@ -127,7 +127,8 @@ if __name__ == '__main__':
     cmd_str = f"python3 -u {code_path} \\\n  {args}"
 
     if is_global_rank_zero():
-        print("\n\n************** Converting commands ***********")
+        print("************** Converting commands ***********")
         print(f'\n{cmd_str}')
+        print("**********************************************\n\n")
 
     os.system(f"{cmd_str}")
