@@ -575,7 +575,7 @@ class BeamRNNTInfer(Typing):
                         score=(max_hyp.score + float(logp)),
                         y_sequence=max_hyp.y_sequence[:],
                         dec_state=max_hyp.dec_state,
-                        lm_state=max_hyp.lm_state,
+                        lm_state=max_hyp.lm_state.__deepcopy__(),
                         timestep=max_hyp.timestep[:],
                         length=encoded_lengths,
                     )
@@ -588,6 +588,10 @@ class BeamRNNTInfer(Typing):
                         kept_hyps.append(new_hyp)
                     else:
                         # if non-blank token was predicted, update state and sequence and then search more hypothesis
+                        new_hyp.dec_state = state
+                        new_hyp.y_sequence.append(int(k))
+                        new_hyp.timestep.append(i)
+
                         if self.ngram_lm:
                             next_state = kenlm.State()
                             lm_score = self.ngram_lm.BaseScore(new_hyp.lm_state, str(int(k)), next_state)
@@ -596,10 +600,6 @@ class BeamRNNTInfer(Typing):
                             new_hyp.lm_state = next_state
                             new_hyp.score = new_hyp.score + self.ngram_lm_alpha * lm_score
                             new_hyp.score += self.ngram_lm_beta * (len(new_hyp.y_sequence) - 1)  # TODO: fix it
-
-                        new_hyp.dec_state = state
-                        new_hyp.y_sequence.append(int(k))
-                        new_hyp.timestep.append(i)
 
                         hyps.append(new_hyp)
 
