@@ -593,9 +593,11 @@ class BeamRNNTInfer(Typing):
                             lm_score = self.ngram_lm.BaseScore(new_hyp.lm_state, str(int(k)), next_state)
                             # Convert the KenLM's scores from base 10 to natural base
                             lm_score *= 1.0 / math.log10(math.e)
-                            # lm_score += self.ngram_lm_beta # TODO: fix it
                             new_hyp.lm_state = next_state
                             new_hyp.score = new_hyp.score + self.ngram_lm_alpha * lm_score
+                            new_hyp.score += self.ngram_lm_beta * (len(new_hyp.y_sequence)-1) # TODO: fix it
+
+
 
                         new_hyp.dec_state = state
                         new_hyp.y_sequence.append(int(k))
