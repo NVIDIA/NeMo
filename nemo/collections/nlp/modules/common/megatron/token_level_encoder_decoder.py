@@ -219,6 +219,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         tokentype_ids=None,
         labels=None,
         enc_hidden_states=None,
+        enc_output_mask=None,
         output_enc_hidden_only=False,
         enc_input=None,
     ):
@@ -250,8 +251,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     dec_attn_mask=dec_attn_mask,
                     enc_layer_past=None,
                     enc_get_key_value=False,
-                    enc_output=None,
-                    enc_output_mask=None,
+                    enc_output=enc_hidden_states,
+                    enc_output_mask=enc_output_mask,
                     dec_layer_past=None,
                     dec_get_key_value=False,
                 )
