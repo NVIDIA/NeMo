@@ -18,10 +18,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_preserve_order,
 )
-from nemo_text_processing.text_normalization.es.graph_utils import (
-    shift_cardinal_gender,
-    strip_cardinal_apocope,
-)
+from nemo_text_processing.text_normalization.es.graph_utils import shift_cardinal_gender, strip_cardinal_apocope
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
@@ -159,7 +156,7 @@ class MoneyFst(GraphFst):
         graph_decimal_masc = decimal.graph_masc + NEMO_SPACE + maj_masc
 
         graph_decimal_fem = decimal.graph_fem
-        graph_decimal_fem |= decimal.numbers_only_quantity # can still have "x billions" with fem currency
+        graph_decimal_fem |= decimal.numbers_only_quantity  # can still have "x billions" with fem currency
         graph_decimal_fem += NEMO_SPACE + maj_fem
 
         graph_decimal = graph_decimal_fem | graph_decimal_masc

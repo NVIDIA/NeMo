@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
-from nemo_text_processing.text_normalization.es.graph_utils import shift_cardinal_gender, strip_cardinal_apocope, add_cardinal_apocope_fem
+from nemo_text_processing.text_normalization.es.graph_utils import (
+    add_cardinal_apocope_fem,
+    shift_cardinal_gender,
+    strip_cardinal_apocope,
+)
 
 try:
     import pynini
