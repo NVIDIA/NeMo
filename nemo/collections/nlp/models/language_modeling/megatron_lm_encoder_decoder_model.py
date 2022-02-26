@@ -35,7 +35,10 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group, get_params_for_weight_decay_optimization
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
@@ -424,17 +427,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
                 # All reduce position embeddings for T5.
-                if  (
-                        parallel_state.is_rank_in_position_embedding_group() and \
-                        parallel_state.get_pipeline_model_parallel_world_size() > 1 and \
-                        parallel_state.get_pipeline_model_parallel_split_rank() is not None
+                if (
+                    parallel_state.is_rank_in_position_embedding_group()
+                    and parallel_state.get_pipeline_model_parallel_world_size() > 1
+                    and parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 ):
-                        position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
-                        if self.megatron_amp_o2:
-                            grad = position_embeddings_weight.main_grad
-                        else:
-                            grad = position_embeddings_weight.grad
-                        torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+                    position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+                    if self.megatron_amp_o2:
+                        grad = position_embeddings_weight.main_grad
+                    else:
+                        grad = position_embeddings_weight.grad
+                    torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -455,6 +458,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 loss = self.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
+
             return output, loss_func
 
         return fwd_output_and_loss_func
@@ -551,7 +555,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         dec_mask = data_b['dec_mask']
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
-
 
     def process_global_batch(self, global_batch):
         """ Prepares the global batch for apex fwd/bwd functions.
@@ -667,10 +670,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def compute_consumed_samples(self, global_step):
         app_state = AppState()
         consumed_samples = (
-            global_step
-            * app_state.data_parallel_size
-            * self.cfg.micro_batch_size
-            * get_num_microbatches()
+            global_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 

@@ -28,8 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.utils import logging
-from nemo.utils import AppState
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -743,8 +742,10 @@ class ParallelTransformer(MegatronModule):
         else:
             app_state = AppState()
             # Each stage gets a contiguous set of layers.
-            if self.model_type == ModelType.encoder_and_decoder and \
-                    parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if (
+                self.model_type == ModelType.encoder_and_decoder
+                and parallel_state.get_pipeline_model_parallel_world_size() > 1
+            ):
                 pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
                 if layer_type == LayerType.encoder:
                     offset = pipeline_rank * self.num_layers
@@ -770,17 +771,20 @@ class ParallelTransformer(MegatronModule):
                 assert parallel_state.pipeline_model_parallel_split_rank is not None
                 num_ranks_in_encoder = parallel_state.pipeline_model_parallel_split_rank
                 num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder
-                assert num_layers % num_ranks_in_encoder == 0, \
-                        'num_layers must be divisible by number of ranks given to encoder'
-                assert num_layers % num_ranks_in_decoder == 0, \
-                        'num_layers must be divisible by number of ranks given to decoder'
+                assert (
+                    num_layers % num_ranks_in_encoder == 0
+                ), 'num_layers must be divisible by number of ranks given to encoder'
+                assert (
+                    num_layers % num_ranks_in_decoder == 0
+                ), 'num_layers must be divisible by number of ranks given to decoder'
                 if parallel_state.is_pipeline_stage_before_split():
                     num_layers = num_layers // num_ranks_in_encoder
                 else:
                     num_layers = num_layers // num_ranks_in_decoder
             else:
-                assert num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0, \
-                    'num_layers must be divisible by pipeline_model_parallel_size'
+                assert (
+                    num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+                ), 'num_layers must be divisible by pipeline_model_parallel_size'
                 num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
         else:
             num_layers = num_layers

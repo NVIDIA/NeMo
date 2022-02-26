@@ -62,12 +62,15 @@ class MegatronModule(torch.nn.Module):
             elif hasattr(self, 'decoder_embedding'):
                 return self.decoder_embedding.word_embeddings.weight
             else:
-                raise ValueError(f"Pre_process is True, but no embedding is found on this rank. Looked for language_model.embedding, encoder_embedding, and decoder_embedding")
+                raise ValueError(
+                    f"Pre_process is True, but no embedding is found on this rank. Looked for language_model.embedding, encoder_embedding, and decoder_embedding"
+                )
         else:
             # This is the pipeline parallel last stage.
             if not self.share_word_embeddings:
-                raise Exception('word_embeddings_weight() called for last '
-                                'stage, but share_word_embeddings is false')
+                raise Exception(
+                    'word_embeddings_weight() called for last ' 'stage, but share_word_embeddings is false'
+                )
             return self.word_embeddings.weight
 
     def position_embeddings_weight(self):
@@ -79,7 +82,9 @@ class MegatronModule(torch.nn.Module):
             elif hasattr(self, 'decoder_embedding'):
                 return self.decoder_embedding.position_embeddings.weight
             else:
-                raise ValueError(f"Pre_process is True, but no embedding is found on this rank. Looked for language_model.embedding, encoder_embedding, and decoder_embedding")
+                raise ValueError(
+                    f"Pre_process is True, but no embedding is found on this rank. Looked for language_model.embedding, encoder_embedding, and decoder_embedding"
+                )
         else:
             # We only need position embeddings on the encoder and decoder first stages where pre_process=True
             raise ValueError(f"Pre_process is False, there is no position embedding on this rank.")
@@ -121,8 +126,7 @@ class MegatronModule(torch.nn.Module):
         # Zero out initial weights for decoder embedding.
         # NOTE: We don't currently support T5 with the interleaved schedule.
         # This is the case where PP > 1 and we're on the decoder first stage.
-        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True) and \
-                self.pre_process:
+        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True) and self.pre_process:
             if hasattr(self, 'language_model'):
                 # Zero params for GPT
                 self.language_model.embedding.zero_parameters()
@@ -151,13 +155,14 @@ class MegatronModule(torch.nn.Module):
         # Ensure that the encoder first stage and decoder first have the same
         # initial position embedding parameter values.
         # NOTE: We don't currently support T5 with the interleaved schedule.
-        if parallel_state.is_rank_in_position_embedding_group() and \
-                parallel_state.get_pipeline_model_parallel_split_rank() is not None:
+        if (
+            parallel_state.is_rank_in_position_embedding_group()
+            and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+        ):
             # TODO: Support tokentype embedding.
             # self.language_model.embedding.cuda()
             position_embeddings = self.position_embeddings_weight()
-            torch.distributed.all_reduce(position_embeddings.data,
-                                            group=parallel_state.get_position_embedding_group())
+            torch.distributed.all_reduce(position_embeddings.data, group=parallel_state.get_position_embedding_group())
 
 
 def conversion_helper(val, conversion):

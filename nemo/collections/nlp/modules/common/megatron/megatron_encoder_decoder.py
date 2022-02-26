@@ -53,14 +53,18 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             elif hasattr(encoder.model, 'self_attn_mask_type'):
                 encoder_attn_mask_type = encoder.model.self_attn_mask_type
             else:
-                raise AttributeError("Could not find an attribute for encoder self_attn_mask_type, make sure it is set when instatiating the encoder or pass it to the constructor of this class.")
+                raise AttributeError(
+                    "Could not find an attribute for encoder self_attn_mask_type, make sure it is set when instatiating the encoder or pass it to the constructor of this class."
+                )
         if decoder_attn_mask_type is None:
             if decoder is None:
                 decoder_attn_mask_type = None
             elif hasattr(decoder.model, 'self_attn_mask_type'):
                 decoder_attn_mask_type = decoder.model.self_attn_mask_type
             else:
-                raise AttributeError("Could not find an attribute for decoder self_attn_mask_type, make sure it is set when instatiating the decoder or pass it to the constructor of this class.")
+                raise AttributeError(
+                    "Could not find an attribute for decoder self_attn_mask_type, make sure it is set when instatiating the decoder or pass it to the constructor of this class."
+                )
 
         self.encoder_attn_mask_type = encoder_attn_mask_type
         self.decoder_attn_mask_type = decoder_attn_mask_type

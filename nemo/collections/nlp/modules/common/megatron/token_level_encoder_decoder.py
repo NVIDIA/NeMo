@@ -125,7 +125,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
 
-
         encoder, decoder = None, None
         if add_encoder:
             if pre_process:
@@ -243,10 +242,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         )
 
         if add_decoder and post_process:
-            self.tokens_head = MegatronTokenLevelHead(
-                self.word_embeddings_weight().size(0),
-                parallel_output
-            )
+            self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
             self._tokens_head_key = 'tokens_head'
 
     def set_input_tensor(self, input_tensor):
@@ -262,12 +258,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             input_tensor = [input_tensor]
 
         if self.add_encoder and self.add_decoder:
-            assert len(input_tensor) == 1, \
-                'input_tensor should only be length 1 for stage with both encoder and decoder'
+            assert (
+                len(input_tensor) == 1
+            ), 'input_tensor should only be length 1 for stage with both encoder and decoder'
             self.enc_dec_model.encoder.set_input_tensor(input_tensor[0])
         elif self.add_encoder:
-            assert len(input_tensor) == 1, \
-                'input_tensor should only be length 1 for stage with only encoder'
+            assert len(input_tensor) == 1, 'input_tensor should only be length 1 for stage with only encoder'
             self.enc_dec_model.encoder.set_input_tensor(input_tensor[0])
         elif self.add_decoder:
             if len(input_tensor) == 2:
@@ -339,7 +335,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
                     else:
                         tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
-                
+
                 # print(f'Loss at rank : {torch.distributed.get_rank()}', tokens_loss.size())
                 return tokens_loss
 

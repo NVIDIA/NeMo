@@ -37,7 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
-    get_params_for_weight_decay_optimization
+    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
@@ -47,9 +47,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.common import (
-        build_model,
-    )
+    from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
