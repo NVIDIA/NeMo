@@ -158,7 +158,7 @@ def main():
         raise RuntimeError("Training KenLM was not successful!")
 
     os.remove(encoded_train_file)
-    # logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
+    logging.info(f"Deleted the temporary encoded training file '{encoded_train_file}'.")
     os.remove(arpa_file)
     logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
