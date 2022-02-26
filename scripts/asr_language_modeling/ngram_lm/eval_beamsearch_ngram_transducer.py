@@ -46,116 +46,86 @@ import editdistance
 import kenlm_utils
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.utils import logging
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodingConfig
-from omegaconf import OmegaConf
+from nemo.utils import logging
 
 
-# def beam_search_eval(
-#     all_probs,
-#     target_transcripts,
-#     vocab,
-#     ids_to_text_func=None,
-#     preds_output_file=None,
-#     lm_path=None,
-#     beam_alpha=1.0,
-#     beam_beta=0.0,
-#     beam_width=128,
-#     beam_batch_size=128,
-#     progress_bar=True,
-# ):
-#     # creating the beam search decoder
-#     beam_search_lm = nemo_asr.modules.BeamSearchDecoderWithLM(
-#         vocab=vocab,
-#         beam_width=beam_width,
-#         alpha=beam_alpha,
-#         beta=beam_beta,
-#         lm_path=lm_path,
-#         num_cpus=max(os.cpu_count(), 1),
-#         input_tensor=False,
-#     )
-#
-#     wer_dist_first = cer_dist_first = 0
-#     wer_dist_best = cer_dist_best = 0
-#     words_count = 0
-#     chars_count = 0
-#     sample_idx = 0
-#     if preds_output_file:
-#         out_file = open(preds_output_file, 'w')
-#
-#     if progress_bar:
-#         it = tqdm(
-#             range(int(np.ceil(len(all_probs) / beam_batch_size))),
-#             desc=f"Beam search decoding with width={beam_width}, alpha={beam_alpha}, beta={beam_beta}",
-#             ncols=120,
-#         )
-#     else:
-#         it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
-#     for batch_idx in it:
-#         # disabling type checking
-#         with nemo.core.typecheck.disable_checks():
-#             probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
-#             beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
-#
-#         for beams_idx, beams in enumerate(beams_batch):
-#             target = target_transcripts[sample_idx + beams_idx]
-#             target_split_w = target.split()
-#             target_split_c = list(target)
-#             words_count += len(target_split_w)
-#             chars_count += len(target_split_c)
-#             wer_dist_min = cer_dist_min = 10000
-#             for candidate_idx, candidate in enumerate(beams):
-#                 if ids_to_text_func is not None:
-#                     # For BPE encodings, need to shift by TOKEN_OFFSET to retrieve the original sub-word ids
-#                     pred_text = ids_to_text_func([ord(c) - TOKEN_OFFSET for c in candidate[1]])
-#                 else:
-#                     pred_text = candidate[1]
-#                 pred_split_w = pred_text.split()
-#                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
-#                 pred_split_c = list(pred_text)
-#                 cer_dist = editdistance.eval(target_split_c, pred_split_c)
-#
-#                 wer_dist_min = min(wer_dist_min, wer_dist)
-#                 cer_dist_min = min(cer_dist_min, cer_dist)
-#
-#                 if candidate_idx == 0:
-#                     # first candidate
-#                     wer_dist_first += wer_dist
-#                     cer_dist_first += cer_dist
-#
-#                 score = candidate[0]
-#                 if preds_output_file:
-#                     out_file.write('{}\t{}\n'.format(pred_text, score))
-#             wer_dist_best += wer_dist_min
-#             cer_dist_best += cer_dist_min
-#         sample_idx += len(probs_batch)
-#
-#     if preds_output_file:
-#         out_file.close()
-#         logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
-#
-#     if lm_path:
-#         logging.info(
-#             'WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(
-#                 wer_dist_first / words_count, cer_dist_first / chars_count
-#             )
-#         )
-#     else:
-#         logging.info(
-#             'WER/CER with beam search decoding = {:.2%}/{:.2%}'.format(
-#                 wer_dist_first / words_count, cer_dist_first / chars_count
-#             )
-#         )
-#     logging.info(
-#         'Best WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count)
-#     )
-#     logging.info(f"=================================================================================")
-#
+def beam_search_eval(
+    all_hypotheses,
+    target_transcripts,
+    # vocab,
+    # ids_to_text_func=None,
+    preds_output_file=None,
+    progress_bar=True,
+):
+
+    wer_dist_first = cer_dist_first = 0
+    wer_dist_best = cer_dist_best = 0
+    words_count = 0
+    chars_count = 0
+    if preds_output_file:
+        out_file = open(preds_output_file, 'w')
+
+    if progress_bar:
+        it = tqdm(range(len(all_hypotheses)), desc=f"Beam search decoding...", ncols=120,)
+    else:
+        it = range(len(all_hypotheses))
+
+    for sample_idx in it:
+        # disabling type checking
+        # with nemo.core.typecheck.disable_checks():
+        #     probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+        #     beams_batch = beam_search_lm.forward(log_probs=probs_batch, log_probs_length=None,)
+
+        # for beams_idx, beams in enumerate(beams_batch):
+        hypotheses = all_hypotheses[sample_idx]
+        target = target_transcripts[sample_idx]
+        target_split_w = target.split()
+        target_split_c = list(target)
+        words_count += len(target_split_w)
+        chars_count += len(target_split_c)
+        wer_dist_min = cer_dist_min = 10000
+        for candidate_idx, candidate in enumerate(hypotheses):
+            pred_text = candidate.text
+            pred_split_w = pred_text.split()
+            wer_dist = editdistance.eval(target_split_w, pred_split_w)
+            pred_split_c = list(pred_text)
+            cer_dist = editdistance.eval(target_split_c, pred_split_c)
+
+            wer_dist_min = min(wer_dist_min, wer_dist)
+            cer_dist_min = min(cer_dist_min, cer_dist)
+
+            if candidate_idx == 0:
+                # first candidate
+                wer_dist_first += wer_dist
+                cer_dist_first += cer_dist
+
+            if preds_output_file:
+                out_file.write('{}\t{}\n'.format(pred_text, candidate.score))
+        wer_dist_best += wer_dist_min
+        cer_dist_best += cer_dist_min
+
+    if preds_output_file:
+        out_file.close()
+        logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
+
+    logging.info(
+        'WER/CER with the provided decoding strategy = {:.2%}/{:.2%}'.format(
+            wer_dist_first / words_count, cer_dist_first / chars_count
+        )
+    )
+
+    logging.info(
+        'Oracle WER/CER in candidates = {:.2%}/{:.2%}'.format(wer_dist_best / words_count, cer_dist_best / chars_count)
+    )
+    logging.info(f"=================================================================================")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -185,8 +155,8 @@ def main():
     )
     parser.add_argument(
         "--decoding_mode",
-        choices=["greedy", "beamsearch", "beamsearch_ngram"],
-        default="beamsearch_ngram",
+        choices=["greedy", "beam", "tsd", "alsd"],
+        default="beam",
         type=str,
         help="The decoding scheme to be used for evaluation.",
     )
@@ -194,33 +164,25 @@ def main():
         "--beam_width",
         required=True,
         type=int,
-        #nargs="+",
+        # nargs="+",
         help="The width for the beam search decoding",
     )
     parser.add_argument(
         "--beam_alpha",
         required=True,
         type=float,
-        #nargs="+",
+        # nargs="+",
         help="The alpha parameter for the beam search decoding",
     )
     parser.add_argument(
         "--beam_beta",
         required=True,
         type=float,
-        #nargs="+",
+        # nargs="+",
         help="The beta parameter for the beam search decoding",
     )
     parser.add_argument(
         "--beam_batch_size", default=128, type=int, help="The batch size to be used for beam search decoding"
-    )
-
-    parser.add_argument(
-        "--search_strategy",
-        choices=["greedy", "beam"],
-        default="beam",
-        type=str,
-        help="The decoding scheme to be used for evaluation.",
     )
 
     args = parser.parse_args()
@@ -236,12 +198,16 @@ def main():
         )
 
     target_transcripts = []
+    i = 0
     with open(args.input_manifest, 'r') as manifest_file:
         audio_file_paths = []
         for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
             data = json.loads(line)
             target_transcripts.append(data['text'])
             audio_file_paths.append(data['audio_filepath'])
+            i += 1
+            if i > 5:
+                break
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
@@ -257,15 +223,16 @@ def main():
     else:
         asr_model = asr_model.eval()
         rnnt_cfg = RNNTBPEDecodingConfig()
-        rnnt_cfg.strategy = args.search_strategy  #beam greedy
+        rnnt_cfg.strategy = args.decoding_mode  # beam greedy
         rnnt_cfg.beam.beam_size = args.beam_width
         rnnt_cfg.beam.ngram_lm_model = args.kenlm_model_file
         #'/drive3/checkpoints/ngc/release_nemoasrset_2.0/transducer/lm/6gram_model_v1024.model'
         #'/drive3/checkpoints/ngc/release_8_17/conformer_transducer_bpe_en/small/4gram_ls_noencode.model'
-        rnnt_cfg.beam.ngram_lm_alpha = args.beam_alpha #0.2
+        rnnt_cfg.beam.ngram_lm_alpha = args.beam_alpha  # 0.2
         rnnt_cfg.beam.ngram_lm_beta = args.beam_beta
         rnnt_cfg.beam.ngram_lm_bos = True
         rnnt_cfg.compute_hypothesis_token_set = False
+        rnnt_cfg.beam.return_best_hypothesis = False
         asr_model.change_decoding_strategy(OmegaConf.structured(rnnt_cfg))
 
         if args.use_amp:
@@ -273,30 +240,30 @@ def main():
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
         else:
+
             @contextlib.contextmanager
             def autocast():
                 yield
 
+        params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
+
+        logging.info(f"==============================Starting the beam search decoding===============================")
+        logging.info(f"Beam search params: {params}")
+        logging.info(f"It may take some time...")
+        logging.info(f"==============================================================================================")
+
         with autocast():
             with torch.no_grad():
-                #all_logits = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, logprobs=True)
-                hypotheses, all_hypotheses = asr_model.transcribe(audio_file_paths, batch_size=args.acoustic_batch_size, return_hypotheses=False)
-        # all_probs = [kenlm_utils.softmax(logits) for logits in all_logits]
-        # if args.probs_cache_file:
-        #     logging.info(f"Writing pickle files of probabilities at '{args.probs_cache_file}'...")
-        #     with open(args.probs_cache_file, 'wb') as f_dump:
-        #         pickle.dump(all_probs, f_dump)
+                hypotheses, all_hypotheses = asr_model.transcribe(
+                    audio_file_paths, batch_size=args.acoustic_batch_size, return_hypotheses=True
+                )
 
     wer_dist_greedy = 0
     cer_dist_greedy = 0
     words_count = 0
     chars_count = 0
-    #for batch_idx, probs in enumerate(all_probs):
-    for batch_idx, pred_text in enumerate(hypotheses):
-        #preds = np.argmax(probs, axis=1)
-        #preds_tensor = torch.tensor(preds, device='cpu').unsqueeze(0)
-        #pred_text = asr_model._wer.ctc_decoder_predictions_tensor(preds_tensor)[0]
-
+    for batch_idx, hyp in enumerate(hypotheses):
+        pred_text = hyp.text
         pred_split_w = pred_text.split()
         target_split_w = target_transcripts[batch_idx].split()
         pred_split_c = list(pred_text)
@@ -310,66 +277,57 @@ def main():
         words_count += len(target_split_w)
         chars_count += len(target_split_c)
 
-    logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
+    logging.info('WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
 
-    # encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(asr_model).__name__, None)
-    # if not encoding_level:
-    #     logging.warning(
-    #         f"Model type '{type(asr_model).__name__}' may not be supported. Would try to train a char-level LM."
-    #     )
-    #     encoding_level = 'char'
-    #
-    # vocab = asr_model.decoder.vocabulary
-    # ids_to_text_func = None
+    encoding_level, offset_encoding = kenlm_utils.SUPPORTED_MODELS.get(type(asr_model).__name__, None)
+    if not encoding_level:
+        logging.warning(
+            f"Model type '{type(asr_model).__name__}' may not be supported. Would try to train a char-level LM."
+        )
+        encoding_level = 'char'
+
     # if encoding_level == "subword":
-    #     vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
     #     ids_to_text_func = asr_model.tokenizer.ids_to_text
-    # # delete the model to free the memory
-    # del asr_model
-    #
+    # else:
+    #     ids_to_text_func = None
+
+    # vocab = asr_model.joint.vocabulary
+    # if offset_encoding:
+    #     vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
+    # else:
+    #     vocab = [str(idx) for idx in range(len(vocab))]
+
+    # delete the model to free the memory
+    del asr_model
+
     # if args.decoding_mode == "beamsearch_ngram":
     #     if not os.path.exists(args.kenlm_model_file):
     #         raise FileNotFoundError(f"Could not find the KenLM model file '{args.kenlm_model_file}'.")
     #     lm_path = args.kenlm_model_file
     # else:
     #     lm_path = None
-    #
-    # # 'greedy' decoding_mode would skip the beam search decoding
-    # if args.decoding_mode in ["beamsearch_ngram", "beamsearch"]:
-    #
-    #     params = {'beam_width': args.beam_width, 'beam_alpha': args.beam_alpha, 'beam_beta': args.beam_beta}
-    #     hp_grid = ParameterGrid(params)
-    #     hp_grid = list(hp_grid)
-    #
-    #     logging.info(f"==============================Starting the beam search decoding===============================")
-    #     logging.info(f"Grid search size: {len(hp_grid)}")
-    #     logging.info(f"It may take some time...")
-    #     logging.info(f"==============================================================================================")
-    #
-    #     if args.preds_output_folder and not os.path.exists(args.preds_output_folder):
-    #         os.mkdir(args.preds_output_folder)
-    #     for hp in hp_grid:
-    #         if args.preds_output_folder:
-    #             preds_output_file = os.path.join(
-    #                 args.preds_output_folder,
-    #                 f"preds_out_width{hp['beam_width']}_alpha{hp['beam_alpha']}_beta{hp['beam_beta']}.tsv",
-    #             )
-    #         else:
-    #             preds_output_file = None
-    #
-    #         beam_search_eval(
-    #             all_probs=all_probs,
-    #             target_transcripts=target_transcripts,
-    #             vocab=vocab,
-    #             ids_to_text_func=ids_to_text_func,
-    #             preds_output_file=preds_output_file,
-    #             lm_path=lm_path,
-    #             beam_width=hp["beam_width"],
-    #             beam_alpha=hp["beam_alpha"],
-    #             beam_beta=hp["beam_beta"],
-    #             beam_batch_size=args.beam_batch_size,
-    #             progress_bar=True,
-    #         )
+
+    if args.decoding_mode != "greedy":
+
+        if args.preds_output_folder and not os.path.exists(args.preds_output_folder):
+            os.mkdir(args.preds_output_folder)
+
+        if args.preds_output_folder:
+            preds_output_file = os.path.join(
+                args.preds_output_folder,
+                f"preds_out_width{args.beam_width}_alpha{args.beam_alpha}_beta{args.beam_beta}.tsv",
+            )
+        else:
+            preds_output_file = None
+
+        beam_search_eval(
+            all_hypotheses=all_hypotheses,
+            target_transcripts=target_transcripts,
+            # vocab=vocab,
+            # ids_to_text_func=ids_to_text_func,
+            preds_output_file=preds_output_file,
+            progress_bar=True,
+        )
 
 
 if __name__ == '__main__':

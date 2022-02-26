@@ -42,6 +42,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import NoamAnnealing
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
 @dataclass
@@ -54,6 +55,7 @@ class FastPitchHifiGanE2EConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
+@deprecated(version="1.8", explanation="FastPitchHifiGanE2EModel will be removed.")
 class FastPitchHifiGanE2EModel(TextToWaveform):
     """An end-to-end speech synthesis model based on FastPitch and HiFiGan that converts strings to audio without using
     the intermediate mel spectrogram representation.

@@ -182,6 +182,7 @@ model:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       # You may enable FastEmit to reduce the latency of the model for streaming
       fastemit_lambda: 0.0  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
+      clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   # Adds Gaussian noise to the gradients of the decoder to avoid overfitting
   variational_noise:
@@ -205,12 +206,13 @@ model:
       min_lr: 1e-6
 
 trainer:
-  gpus: -1 # number of GPUs, -1 would use all available GPUs
+  devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
@@ -220,7 +222,7 @@ trainer:
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
-  checkpoint_callback: false  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
 
 

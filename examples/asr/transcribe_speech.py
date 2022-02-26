@@ -16,7 +16,7 @@ import contextlib
 import glob
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from typing import Optional
 
 import pytorch_lightning as pl
@@ -77,7 +77,7 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    num_workers: int = min(batch_size, os.cpu_count() - 1)
+    num_workers: int = 0
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -90,12 +90,15 @@ class TranscriptionConfig:
     overwrite_transcripts: bool = True
 
     # Decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
+    if is_dataclass(cfg):
+        cfg = OmegaConf.structured(cfg)
 
     if cfg.model_path is None and cfg.pretrained_name is None:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
@@ -105,11 +108,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
-            cfg.cuda = 0  # use 0th CUDA device
+            device = [0]  # use 0th CUDA device
+            accelerator = 'gpu'
         else:
-            cfg.cuda = -1  # use CPU
+            device = 1
+            accelerator = 'cpu'
+    else:
+        device = [cfg.cuda]
+        accelerator = 'gpu'
 
-    device = torch.device(f'cuda:{cfg.cuda}' if cfg.cuda >= 0 else 'cpu')
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
 
     # setup model
     if cfg.model_path is not None:
@@ -118,14 +126,18 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
-        asr_model = imported_class.restore_from(restore_path=cfg.model_path, map_location=device)  # type: ASRModel
+        asr_model = imported_class.restore_from(
+            restore_path=cfg.model_path, map_location=map_location
+        )  # type: ASRModel
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
-        asr_model = ASRModel.from_pretrained(model_name=cfg.pretrained_name, map_location=device)  # type: ASRModel
+        asr_model = ASRModel.from_pretrained(
+            model_name=cfg.pretrained_name, map_location=map_location
+        )  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    trainer = pl.Trainer(gpus=[cfg.cuda] if cfg.cuda >= 0 else 0)
+    trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
@@ -175,7 +187,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # transcribe audio
     with autocast():
         with torch.no_grad():
-            transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size)
+            transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers)
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")

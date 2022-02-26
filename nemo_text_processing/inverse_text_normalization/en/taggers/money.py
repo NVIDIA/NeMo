@@ -16,6 +16,7 @@
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
+    NEMO_NOT_SPACE,
     NEMO_SIGMA,
     GraphFst,
     convert_space,
@@ -49,6 +50,13 @@ class MoneyFst(GraphFst):
         # quantity, integer_part, fractional_part, currency
 
         cardinal_graph = cardinal.graph_no_exception
+        # add support for missing hundred (only for 3 digit numbers)
+        # "one fifty" -> "one hundred fifty"
+        with_hundred = pynini.compose(
+            pynini.closure(NEMO_NOT_SPACE) + pynini.accep(" ") + pynutil.insert("hundred ") + NEMO_SIGMA,
+            pynini.compose(cardinal_graph, NEMO_DIGIT ** 3),
+        )
+        cardinal_graph |= with_hundred
         graph_decimal_final = decimal.final_graph_wo_negative
 
         unit = pynini.string_file(get_abs_path("data/currency.tsv"))
@@ -108,5 +116,6 @@ class MoneyFst(GraphFst):
         graph_decimal = graph_decimal_final + delete_extra_space + graph_unit_plural
         graph_decimal |= pynutil.insert("currency: \"$\" integer_part: \"0\" ") + cents_standalone
         final_graph = graph_integer | graph_decimal
+
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

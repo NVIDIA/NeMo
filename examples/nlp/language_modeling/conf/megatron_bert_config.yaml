@@ -2,12 +2,12 @@ name: megatron_bert
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  gpus: 2
+  devices: 2
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
   precision: 16
   logger: False # logger provided by exp_manager
-  checkpoint_callback: False
+  enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
@@ -35,13 +35,14 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: 'megatron_bert--{val_loss:.2f}-{step}-{consumed_samples}'
-    model_parallel_size: ${model.tensor_model_parallel_size}
+    model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 
 model:
   # model parallelism 
   micro_batch_size: 4
-  tensor_model_parallel_size: 2
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
 
   # model architecture
   encoder_seq_length: 512

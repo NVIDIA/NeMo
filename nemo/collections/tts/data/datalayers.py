@@ -62,10 +62,12 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 DataDict = Dict[str, Any]
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.VocoderDataset`` instead.")
 class AudioDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -173,6 +175,7 @@ class AudioDataset(Dataset):
         return len(self.collection)
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.VocoderDataset`` instead.")
 class MelAudioDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -233,6 +236,7 @@ class MelAudioDataset(Dataset):
         return len(self.collection)
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.VocoderDataset`` instead.")
 class SplicedAudioDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -310,6 +314,7 @@ class SplicedAudioDataset(Dataset):
         return self.samples.shape[0] // self.n_segments
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.VocoderDataset`` instead.")
 class NoisySpecsDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -442,6 +447,7 @@ class NoisySpecsDataset(Dataset):
         return result
 
 
+# TODO(Oktai15): remove this function when DegliModel and EDMel2SpecModel will be removed
 def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
 
     os.makedirs(dest)
@@ -453,7 +459,7 @@ def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
         for line in list_file_pbar:
             audio_file = line.split('|')[0]
             speech = sf.read(audio_file)[0].astype(np.float32)
-            spec_clean = np.ascontiguousarray(librosa.stft(speech, **kwargs_stft))
+            spec_clean = np.ascontiguousarray(librosa.stft(y=speech, **kwargs_stft))
             mag_clean = np.ascontiguousarray(np.abs(spec_clean)[..., np.newaxis])
             signal_power = np.mean(np.abs(speech) ** 2)
 
@@ -466,7 +472,7 @@ def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
                 snr = librosa.db_to_power(snr_db)
                 noise_power = signal_power / snr
                 noisy = speech + np.sqrt(noise_power) * np.random.randn(len(speech))
-                spec_noisy = librosa.stft(noisy, **kwargs_stft)
+                spec_noisy = librosa.stft(y=noisy, **kwargs_stft)
                 spec_noisy = np.ascontiguousarray(spec_noisy)
                 T_x = spec_noisy.shape[1]
                 x = spec_noisy.view(dtype=np.float32).reshape((*spec_noisy.shape, 2))
@@ -480,6 +486,7 @@ def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
     return i_speech
 
 
+# TODO(Oktai15): remove this function when DegliModel and EDMel2SpecModel will be removed
 def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_length, num_snr, destination):
     kwargs_stft = dict(hop_length=hop_length, window='hann', center=True, n_fft=n_fft, dtype=np.complex64)
 
@@ -522,6 +529,7 @@ def preprocess_linear_specs_dataset(valid_filelist, train_filelist, n_fft, hop_l
     return tar_dir
 
 
+@deprecated(version="1.8", explanation="Please, use ``nemo.tts.collections.torch.data.TTSDataset`` instead.")
 class FastSpeech2Dataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:

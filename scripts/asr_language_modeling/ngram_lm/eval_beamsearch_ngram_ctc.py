@@ -254,6 +254,7 @@ def main():
                 logging.info("AMP is enabled!\n")
                 autocast = torch.cuda.amp.autocast
         else:
+
             @contextlib.contextmanager
             def autocast():
                 yield
@@ -299,14 +300,16 @@ def main():
         encoding_level = 'char'
         offset_encoding = False
 
-    vocab = asr_model.decoder.vocabulary
-
-    if offset_encoding:
-        vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
+    if encoding_level == "subword":
         ids_to_text_func = asr_model.tokenizer.ids_to_text
     else:
+        ids_to_text_func = None
+
+    vocab = asr_model.decoder.vocabulary
+    if offset_encoding:
+        vocab = [chr(idx + TOKEN_OFFSET) for idx in range(len(vocab))]
+    else:
         vocab = [str(idx) for idx in range(len(vocab))]
-        ids_to_text_func = asr_model.tokenizer.ids_to_text
 
     # delete the model to free the memory
     del asr_model

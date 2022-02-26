@@ -27,9 +27,11 @@
 # limitations under the License.
 
 import copy
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
+import kenlm
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -38,8 +40,6 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix, select_k_expansions
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
-import kenlm
-import math
 from nemo.utils import logging
 
 
@@ -515,7 +515,16 @@ class BeamRNNTInfer(Typing):
             init_lm_state = kenlm.State()
         else:
             init_lm_state = None
-        kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0, lm_state=init_lm_state)]
+        kept_hyps = [
+            Hypothesis(
+                score=0.0,
+                y_sequence=[self.blank],
+                dec_state=dec_state,
+                timestep=[-1],
+                length=0,
+                lm_state=init_lm_state,
+            )
+        ]
         cache = {}
 
         if partial_hypotheses is not None:
@@ -1226,4 +1235,3 @@ class BeamRNNTInferConfig:
     ngram_lm_alpha: Optional[float] = 0.0
     ngram_lm_beta: Optional[float] = 0.0
     ngram_lm_bos: Optional[bool] = True
-

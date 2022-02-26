@@ -27,13 +27,13 @@
 # limitations under the License.
 
 import multiprocessing
-from typing import Optional
+from typing import Optional, Tuple
 
 import numba
 import torch
 from numba import cuda
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
 from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
 
 
@@ -46,7 +46,8 @@ class GPURNNT:
         alphabet_size: int,
         workspace,
         blank: int,
-        fastemit_lambda,
+        fastemit_lambda: float,
+        clamp: float,
         num_threads: int,
         stream,
     ):
@@ -63,6 +64,7 @@ class GPURNNT:
             blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
             fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
                 FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+            clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
             num_threads: Number of OMP threads to launch.
             stream: Numba Cuda Stream.
         """
@@ -75,11 +77,13 @@ class GPURNNT:
         )  # a flat vector of floatX numbers that represents allocated memory slices
         self.blank_ = blank
         self.fastemit_lambda_ = fastemit_lambda
+        self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
         self.stream_ = stream  # type: cuda.cudadrv.driver.Stream
 
         if num_threads > 0:
             numba.set_num_threads(min(multiprocessing.cpu_count(), num_threads))
+            self.num_threads_ = numba.get_num_threads()
         else:
             self.num_threads_ = numba.get_num_threads()
 
@@ -144,26 +148,11 @@ class GPURNNT:
             An enum that either represents a successful RNNT operation or failure.
         """
         training = grads is not None
-        used_offset = 0
-
-        # // denom
-        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-
-        # // alphas & betas
-        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
-        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
-
-        # // logllh
-        llForward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
-        used_offset += self.minibatch_
-        llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
-        used_offset += self.minibatch_
 
         if training:
             grads *= 0.0  # zero grads
+
+        used_offset, (denom, alphas, betas, llForward, llBackward) = self._prepare_workspace()
 
         ######## START EXECUTION ########
         self.log_softmax(acts, denom)
@@ -220,17 +209,21 @@ class GPURNNT:
                 self.alphabet_size_,
                 self.blank_,
                 self.fastemit_lambda_,
+                self.clamp_,
             )
 
-        # // cost
-        costs.copy_to_device(llForward, stream=self.stream_)
+        # // cost copy, negate (for log likelihood) and update with additional regularizers
+        # This needs to be done via CUDA, because we used temporary memory llForward
+        # passed to alpha, which was updated with log likelihoods.
+        # But copying this data into a pytorch pointer is more difficult (numba api is one way)
+        # Therefore launch a pointwise CUDA kernel to update the costs inplace from data of llForward
+        # Then negate to compute the loglikelihood.
+        threadsperblock = min(costs.shape[0], 32)
+        blockspergrid = (costs.shape[0] + (threadsperblock - 1)) // threadsperblock
+        rnnt_helper.compute_costs_data[blockspergrid, threadsperblock, self.stream_, 0](
+            llForward, costs, self.fastemit_lambda_
+        )
         self.stream_.synchronize()
-
-        # compute negative log likelihood.
-        for mb in range(self.minibatch_):
-            # Scale llForward by FastEmit lambda
-            costs[mb] = -costs[mb]
-            costs[mb] = (1.0 + self.fastemit_lambda_) * costs[mb]
 
         return global_constants.RNNTStatus.RNNT_STATUS_SUCCESS
 
@@ -267,3 +260,31 @@ class GPURNNT:
             return global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE
 
         return self.compute_cost_and_score(acts, None, costs, pad_labels, label_lengths, input_lengths)
+
+    def _prepare_workspace(self) -> (int, Tuple[torch.Tensor]):
+        """
+        Helper method that uses the workspace and constructs slices of it that can be used.
+
+        Returns:
+            An int, representing the offset of the used workspace (practically, the slice of the workspace consumed)
+            A tuple of tensors representing the shared workspace.
+        """
+        used_offset = 0
+
+        # // denom
+        denom = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
+        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
+
+        # // alphas & betas
+        alphas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
+        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
+        betas = self.gpu_workspace[used_offset : used_offset + self.maxT_ * self.maxU_ * self.minibatch_]
+        used_offset += self.maxT_ * self.maxU_ * self.minibatch_
+
+        # // logllh
+        llForward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
+        used_offset += self.minibatch_
+        llBackward = self.gpu_workspace[used_offset : used_offset + self.minibatch_]
+        used_offset += self.minibatch_
+
+        return used_offset, (denom, alphas, betas, llForward, llBackward)

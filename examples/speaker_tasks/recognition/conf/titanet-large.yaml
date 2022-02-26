@@ -18,20 +18,12 @@ model:
         min_snr_db: 0
         max_snr_db: 30
 
-      impulse:
-        manifest_path: null
-        prob: 0.3
-
       speed:
         prob: 0.3
         sr: *sample_rate
         resample_type: 'kaiser_fast'
         min_speed_rate: 0.95
         max_speed_rate: 1.05
-
-      transcode_aug:
-        prob: 0.3
-
 
   validation_ds:
     manifest_filepath: ???
@@ -60,7 +52,6 @@ model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-    nb_augmentation_prob: 0.3
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
@@ -145,7 +136,7 @@ model:
 
   optim:
     name: sgd
-    lr: .006
+    lr: .006 #(original titanet-large was trained with 0.08 lr)
     weight_decay: 0.001
 
     # scheduler setup
@@ -155,12 +146,12 @@ model:
       min_lr: 0.0
 
 trainer:
-  gpus: 1 # number of gpus
-  max_epochs: 200
+  devices: 1 # number of gpus (original titanet-large was trained on 4 nodes with 8 gpus each)
+  max_epochs: 250
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1
+  accelerator: gpu
   strategy: ddp
-  accumulate_grad_batches: 1
   deterministic: True
   enable_checkpointing: False
   logger: False

@@ -14,14 +14,20 @@
 
 """Gradient clipping."""
 
-import amp_C
 import torch
-from apex.multi_tensor_apply import multi_tensor_applier
-from apex.transformer import parallel_state
-from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from torch._six import inf
 
 from nemo.collections.nlp.modules.common.megatron.module import param_is_not_shared
+
+try:
+    import amp_C
+    from apex.multi_tensor_apply import multi_tensor_applier
+    from apex.transformer import parallel_state
+    from apex.transformer.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
@@ -60,6 +66,9 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
             grads.append(grad)
         if grad_not_none and is_not_shared and is_not_tp_duplicate:
             grads_for_norm.append(grad)
+
+    if not grads_for_norm:
+        raise ValueError("No grads found, please disable gradient clipping")
 
     # Norm parameters.
     max_norm = float(max_norm)
