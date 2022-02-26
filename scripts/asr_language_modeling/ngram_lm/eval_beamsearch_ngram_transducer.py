@@ -33,9 +33,6 @@
 # https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_language_modeling.html
 
 
-# Please check train_kenlm.py to find out why we need TOKEN_OFFSET for BPE-based models
-TOKEN_OFFSET = 100
-
 import argparse
 import contextlib
 import json
@@ -43,14 +40,10 @@ import os
 import pickle
 
 import editdistance
-import kenlm_utils
-import numpy as np
 import torch
 from omegaconf import OmegaConf
-from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
-import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEDecodingConfig
 from nemo.utils import logging
@@ -59,11 +52,8 @@ from nemo.utils import logging
 def beam_search_eval(
     all_hypotheses,
     target_transcripts,
-    # vocab,
-    # ids_to_text_func=None,
     preds_output_file=None
 ):
-
     wer_dist_first = cer_dist_first = 0
     wer_dist_best = cer_dist_best = 0
     words_count = 0
@@ -194,9 +184,9 @@ def main():
             data = json.loads(line)
             target_transcripts.append(data['text'])
             audio_file_paths.append(data['audio_filepath'])
-            i += 1
-            if i > 100:
-                break
+            # i += 1
+            # if i > 100:
+            #     break
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")
