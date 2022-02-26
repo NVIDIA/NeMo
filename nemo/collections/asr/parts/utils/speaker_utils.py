@@ -81,7 +81,6 @@ def audio_rttm_map(manifest):
 
     return AUDIO_RTTM_MAP
 
-
 def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
     """
     Check whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
@@ -154,38 +153,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
     else:
         return None
 
-def get_embs_and_timestamps_list(multiscale_embeddings_and_timestamps, multiscale_args_dict):
-    """
-    The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
-    indexed by scale index. This function rearranges the extracted speaker embedding and
-    timestamps by unique ID to make the further processing more convenient.
-
-    Args:
-        multiscale_embeddings_and_timestamps (dict):
-            Dictionary of embeddings and timestamps for each scale.
-        multiscale_args_dict (dict):
-            Dictionary of scale information: window, shift and multiscale weights.
-
-    Returns:
-        embs_and_timestamps (dict)
-            A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
-    """
-    N_scale = len(multiscale_args_dict['scale_dict'].keys())
-    embs_and_timestamps = {
-        uniq_id: [ None, [None]*N_scale ]
-        for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
-    }
-    for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
-        embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
-        for uniq_id in embeddings.keys():
-            embs_and_timestamps[uniq_id][0] = torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
-            assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
-            time_stamps_tensor = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]], dtype=torch.double)
-            embs_and_timestamps[uniq_id][1][scale_idx] = [embeddings[uniq_id], time_stamps_tensor]
-    return embs_and_timestamps
-
-
-def get_embs_and_timestamps_dict(multiscale_embeddings_and_timestamps, multiscale_args_dict):
+def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
     The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
     indexed by scale index. This function rearranges the extracted speaker embedding and
@@ -368,11 +336,8 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             cuda=cuda,
         )
 
-        N_scale = len(embs_and_timestamps[uniq_id][1])
-        base_scale_idx = N_scale - 1
-        lines = embs_and_timestamps[uniq_id][1][base_scale_idx][1] # 'time_stamps'
-        lines = lines.cpu().numpy()
-        lines = [ f"{lines[i][0]} {lines[i][1]} " for i in range(lines.shape[0]) ]
+        base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
+        lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
         assert len(cluster_labels) == len(lines)
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
