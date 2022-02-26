@@ -8,11 +8,11 @@ import zipfile
 import io
 URLLIB = urllib.request
 
-TASKS = ["CoLA", "SST", "MRPC", "QQP", "STS", "MNLI", "QNLI", "RTE", "WNLI", "diagnostic"]
+TASKS = ["CoLA", "SST-2", "MRPC", "QQP", "STS-B", "MNLI", "QNLI", "RTE", "WNLI", "diagnostic"]
 TASK2PATH = {"CoLA": 'https://dl.fbaipublicfiles.com/glue/data/CoLA.zip',
-             "SST": 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip',
+             "SST-2": 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip',
              "QQP": 'https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip',
-             "STS": 'https://dl.fbaipublicfiles.com/glue/data/STS-B.zip',
+             "STS-B": 'https://dl.fbaipublicfiles.com/glue/data/STS-B.zip',
              "MNLI": 'https://dl.fbaipublicfiles.com/glue/data/MNLI.zip',
              "QNLI": 'https://dl.fbaipublicfiles.com/glue/data/QNLIv2.zip',
              "RTE": 'https://dl.fbaipublicfiles.com/glue/data/RTE.zip',
