@@ -15,7 +15,7 @@
 import os
 import re
 from operator import itemgetter
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -35,7 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group, get_params_for_weight_decay_optimization
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
@@ -44,7 +44,7 @@ try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import ModelType
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization, build_model
+    from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
@@ -133,6 +133,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
+        # print(f"Add encoder {add_encoder} and decoder {add_decoder}, pre_process {pre_process}, post_process {post_process}")
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
             decoder_arch=self.cfg.decoder_arch,
@@ -194,7 +195,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.enc_dec_model])
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
 
     def configure_optimizers(self):
         self.setup_optimization()
@@ -291,23 +292,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        # TODO: @sangkug how do we reduce the embeddings with O2 implementation?
-        if not self.megatron_amp_o2:
-            # we all-reduce gradients manually
-            self.allreduce_gradients()
+        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
+        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
+        if self.megatron_amp_o2:
+            # main grads are stored in the MainParamsOptimizer wrapper
+            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
 
-            # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
-            # All-reduce word_embeddings' grad across first and last stages to ensure
-            # that word_embeddings parameters stay in sync.
-            # This should only run for models that support pipelined model parallelism
-            # (BERT and GPT-2).
-            if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-                parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
-            ):
-                if self.enc_dec_model.share_word_embeddings:
-                    word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
-                    grad = word_embeddings_weight.grad
-                    torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            self.allreduce_word_and_position_embeddings()
+        else:
+
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+            self.allreduce_word_and_position_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -408,7 +404,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
-    def allreduce_first_last_embeddings(self):
+    def allreduce_word_and_position_embeddings(self):
 
         # Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/training.py#L407
         # All-reduce word_embeddings' grad across first and last stages to ensure
@@ -427,11 +423,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
+                # All reduce position embeddings for T5.
+                if  (
+                        parallel_state.is_rank_in_position_embedding_group() and \
+                        parallel_state.get_pipeline_model_parallel_world_size() > 1 and \
+                        parallel_state.get_pipeline_model_parallel_split_rank() is not None
+                ):
+                        position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+                        if self.megatron_amp_o2:
+                            grad = position_embeddings_weight.main_grad
+                        else:
+                            grad = position_embeddings_weight.grad
+                        torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda() for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
-            ret_dict = model(
+            output = model(
                 enc_input_ids=encoder_input_ids,
                 dec_input_ids=decoder_input_ids,
                 enc_attn_mask=encoder_attn_mask,
@@ -446,7 +455,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 loss = self.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
                 return loss, {'avg': reduced_loss}
-            return ret_dict["tokens_loss"], loss_func
+            return output, loss_func
 
         return fwd_output_and_loss_func
 
@@ -620,6 +629,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            self.enc_dec_model.sync_initial_word_embeddings()
+            self.enc_dec_model.sync_initial_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):

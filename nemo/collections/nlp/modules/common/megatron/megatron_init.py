@@ -58,7 +58,6 @@ def initialize_model_parallel_for_nemo(
     app_state.local_rank = local_rank
     app_state.tensor_model_parallel_size = tensor_model_parallel_size
     app_state.pipeline_model_parallel_size = pipeline_model_parallel_size
-    app_state.pipeline_model_parallel_split_rank = pipeline_model_parallel_split_rank
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,

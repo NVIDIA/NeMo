@@ -68,17 +68,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         self._encoder_key = "encoder"
         self._decoder_key = "decoder"
 
-    def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
-        # This is usually handled in schedules.py but some inference code still
-        # gives us non-lists or None
-        if not isinstance(input_tensor, list):
-            input_tensor = [input_tensor]
-
-        assert len(input_tensor) == 1, \
-            'input_tensor should only be length 1 for stage with both encoder and decoder'
-        self.encoder.set_input_tensor(input_tensor[0])
-
     def encode(
         self, enc_input, enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
     ):
@@ -134,12 +123,23 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_get_key_value=enc_get_key_value,
                 )
             else:
+                # print('Setting encoder hidden state with shape : ', self.encoder_hidden_state.size())
+                assert self.encoder_hidden_state is not None
                 enc_output = self.encoder_hidden_state
         else:
             enc_output = enc_output.to(enc_input.dtype)
 
         if self.decoder is None or output_enc_hidden_only:
-            return {"enc_output": enc_output}
+            return enc_output
+
+        '''
+        print('==================================')
+        print('Dec input : ', dec_input.size())
+        print('Dec attn mask : ', dec_attn_mask.size())
+        print('Enc output : ', enc_output.size())
+        print('Enc attn mask : ', enc_attn_mask.size())
+        print('==================================')
+        '''
 
         # decoder
         dec_output = self.decode(
@@ -150,13 +150,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
         )
+        # print('Dec output :', dec_output.size())
 
-        ret_dict = {
-            "enc_output": enc_output,
-            "dec_output": dec_output,
-        }
-
-        return ret_dict
+        return dec_output, enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load."""

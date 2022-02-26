@@ -767,7 +767,6 @@ class ParallelTransformer(MegatronModule):
         """Compute the number of transformer layers resident on the current rank."""
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.model_type == ModelType.encoder_and_decoder:
-                print(parallel_state.pipeline_model_parallel_split_rank_)
                 assert parallel_state.pipeline_model_parallel_split_rank is not None
                 num_ranks_in_encoder = parallel_state.pipeline_model_parallel_split_rank
                 num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder
