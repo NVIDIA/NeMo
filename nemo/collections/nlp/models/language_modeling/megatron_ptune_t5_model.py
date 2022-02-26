@@ -158,7 +158,7 @@ class MegatronT5PTuneModel(NLPModel):
         enc_taskname = data_b['enc_taskname']
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_taskname
-    
+
     def get_loss(self, batch):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, enc_taskname = self.process_batch(batch)
         input_embeds = self.embed_input(tokens_enc, enc_taskname)
@@ -169,27 +169,27 @@ class MegatronT5PTuneModel(NLPModel):
 
         encoder_input = input_embeds + position_embeddings
 
-        if self.dtype == torch.float32:
-            output = self.model.enc_dec_model.model(
+        if self.float_type == torch.float32:
+            output = self.model.enc_dec_model(
                 enc_input_ids=None,
                 enc_attn_mask=enc_mask,
                 dec_input_ids=tokens_dec,
                 dec_attn_mask=dec_mask,
                 tokentype_ids=None,
-                lables=labels,
+                labels=labels,
                 enc_hidden_states=None,
                 output_enc_hidden_only=False,
                 enc_input=encoder_input,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.dtype):
-                output = self.model.enc_dec_model.model(
+            with torch.autocast(device_type="cuda", dtype=self.float_type):
+                output = self.model.enc_dec_model(
                     enc_input_ids=None,
                     enc_attn_mask=enc_mask,
                     dec_input_ids=tokens_dec,
                     dec_attn_mask=dec_mask,
                     tokentype_ids=None,
-                    lables=labels,
+                    labels=labels,
                     enc_hidden_states=None,
                     output_enc_hidden_only=False,
                     enc_input=encoder_input,
@@ -225,7 +225,10 @@ class MegatronT5PTuneModel(NLPModel):
         loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
 
         predicted_token_ids, log_probs = self.model.decode(
-            tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=NUM_TOKEN_TO_GEN, encoder_input=encoder_input
+            tokens_enc=tokens_enc,
+            enc_mask=enc_mask,
+            num_tokens_to_generate=NUM_TOKEN_TO_GEN,
+            enc_input=encoder_input,
         )
 
         return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
@@ -245,7 +248,7 @@ class MegatronT5PTuneModel(NLPModel):
                 pred = [id for id in pred if id not in self.tokenizer.special_token_to_id.values()]
                 label = [id for id in label if id not in self.tokenizer.special_token_to_id.values()]
                 pred = self.tokenizer.ids_to_text(pred)
-                label = self.tokenizer.ids_to_text(label)                
+                label = self.tokenizer.ids_to_text(label)
                 all_preds.append(pred)
                 all_labels.append(label)
 

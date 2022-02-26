@@ -109,6 +109,7 @@ class T5PTuneDataset(TaskDataset):
         dec_input = torch.LongTensor(dec_input)
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
+        enc_taskname = torch.LongTensor(enc_taskname)
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
         dec_mask = (dec_input != self.tokenizer.pad_id).long()
@@ -231,6 +232,7 @@ class T5PTuneInferenceDataset(TaskDataset):
 
         enc_query = torch.LongTensor(enc_query)
         dec_input = torch.LongTensor(dec_input)
+        enc_taskname = torch.LongTensor(enc_taskname)
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
         dec_mask = (dec_input != self.tokenizer.pad_id).long()
