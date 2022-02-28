@@ -66,10 +66,7 @@ class MeasureFst(GraphFst):
         baseline: bool = False,
     ):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
-        cardinal_graph = cardinal.graph
-
-        if not deterministic:
-            cardinal_graph = cardinal.graph | cardinal.range_graph
+        cardinal_graph = cardinal.graph | cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit |= pynini.compose(

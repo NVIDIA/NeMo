@@ -32,11 +32,13 @@ from nemo_text_processing.text_normalization.en.taggers.measure import MeasureFs
 from nemo_text_processing.text_normalization.en.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.en.taggers.range import RangeFst as RangeFst
 from nemo_text_processing.text_normalization.en.taggers.roman import RomanFst
 from nemo_text_processing.text_normalization.en.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTimeFst
 
 from nemo.utils import logging
 
@@ -110,19 +112,24 @@ class ClassifyFst(GraphFst):
             ).fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
+            v_time_graph = vTimeFst(deterministic=True).fst
+            time_final = pynini.compose(time_graph, v_time_graph)
+            range_graph = RangeFst(time=time_final, deterministic=deterministic).fst
+
             classify = (
                 pynutil.add_weight(whitelist_graph, 1.01)
                 | pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(decimal_graph, 1.1)
                 | pynutil.add_weight(measure_graph, 1.1)
-                | pynutil.add_weight(cardinal_graph, 1.1)
+                | pynutil.add_weight(cardinal_graph, 1.11)
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(money_graph, 1.1)
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electonic_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(word_graph, 100)
+                | pynutil.add_weight(range_graph, 1.1)
             )
 
             roman_graph = RomanFst(deterministic=deterministic).fst
