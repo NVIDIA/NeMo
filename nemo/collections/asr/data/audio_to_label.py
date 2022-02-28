@@ -959,10 +959,9 @@ class _AudioTSVADDataset(Dataset):
         target = torch.zeros(dur_fr, self.max_spks)
         base_scale_idx = max(self.emb_dict.keys())
         for stt, end, spk in zip(stt_list, end_list, speaker_list):
-            try:
-                spk = int(self.emb_dict[base_scale_idx][uniq_id]['mapping'][spk].split('_')[1])
-            except:
-                import ipdb;ipdb.set_trace()
+            spk = int(self.emb_dict[base_scale_idx][uniq_id]['mapping'][spk].split('_')[1])
+            # except:
+                # import ipdb;ipdb.set_trace()
             stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
             target[stt_fr:end_fr, spk] = 1
         
@@ -1045,7 +1044,7 @@ class _AudioTSVADDataset(Dataset):
         if offset is None:
             offset = 0
         
-        targets = self.parse_rttm_multiscale(sample)
+        targets = self.parse_rttm_multiscale(sample).float()
         uniq_id = self.get_uniq_id(sample.rttm_file)
         scale_n = len(self.emb_dict.keys())
 
@@ -1070,7 +1069,7 @@ class _AudioTSVADDataset(Dataset):
         if offset is None:
             offset = 0
         # targets: feats_len x max_spks 
-        targets = self.parse_rttm_multiscale(sample)
+        targets = self.parse_rttm_multiscale(sample).float()
         uniq_id = self.get_uniq_id(sample.rttm_file)
         scale_n = len(self.emb_dict.keys())
 
@@ -1082,7 +1081,7 @@ class _AudioTSVADDataset(Dataset):
             repeat_mat = torch.tensor(self.emb_seq["session_scale_mapping"][uniq_id][scale_index])
             feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
         
-        # avg_embs: feats_len x scale_n x emb_dim 
+        # feats: feats_len x scale_n x emb_dim 
         feats_out= torch.stack(feats).permute(1, 0, 2)
         feats_len = feats_out.shape[0]
         return feats_out, feats_len, targets, avg_embs

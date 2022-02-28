@@ -680,5 +680,5 @@ def COSclustering(
 
     if oracle_num_speakers:
         assert  len(set(Y)) == oracle_num_speakers
-
+    
     return Y

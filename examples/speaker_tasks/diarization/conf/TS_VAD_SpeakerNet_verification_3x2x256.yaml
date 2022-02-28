@@ -96,8 +96,10 @@ ts_vad_model:
     feat_in: *n_mels
     frame_splicing: 1
     num_spks: *max_num_of_spks
+    scale_n: 3
     out_channels: [2,2,3,4]
-    lstm_hidden_size: 1024
+    lstm_hidden_size: 512
+    dropout_rate: 0.5
     emb_sizes: 192
     y_stride: *subsample_rate
     rproj: 100

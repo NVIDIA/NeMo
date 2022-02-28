@@ -362,6 +362,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
 
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
+        # import ipdb; ipdb.set_trace()
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
             lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])

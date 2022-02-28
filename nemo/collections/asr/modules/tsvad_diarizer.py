@@ -16,6 +16,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -127,21 +128,36 @@ class TSVAD_module(NeuralModule, Exportable):
         """
         return OrderedDict(
             {
-            "audio_signal": NeuralType(('B', 'T', 'C', 'D'), SpectrogramType()),
+            "ms_embs": NeuralType(('B', 'T', 'C', 'D'), SpectrogramType()),
             "length": NeuralType(tuple('B'), LengthsType()),
-            "ivectors": NeuralType(('B', 'C', 'D', 'C'), EncodedRepresentation()),
+            "ms_avg_embs": NeuralType(('B', 'C', 'D', 'C'), EncodedRepresentation()),
+            "targets": NeuralType(('B', 'T', 'C'), ProbsType()),
             }
         )
-    # init_mode: Optional[str] = 'xavier_uniform',
-    # out_channels=[64, 64, 128, 128], 
+
+    def init_weights(self, m):
+        if type(m) == nn.Linear:
+            torch.nn.init.xavier_uniform_(m.weight)
+            m.bias.data.fill_(0.01)
+        elif type(m) in [nn.GRU, nn.LSTM, nn.RNN]:
+            for name, param in m.named_parameters():
+                if 'weight_ih' in name:
+                    torch.nn.init.xavier_uniform_(param.data)
+                elif 'weight_hh' in name:
+                    torch.nn.init.orthogonal_(param.data)   
+                elif 'bias' in name:
+                    param.data.fill_(0.01)
+
     def __init__(
             self, 
             feat_in: int,
             frame_splicing: int = 1,
             out_channels: list = [],
             num_spks: int = -1,
-            lstm_hidden_size=1024,
+            scale_n: int = 1,
+            lstm_hidden_size=512,
             emb_sizes=192,
+            dropout_rate: float=0.5,
             y_stride=10,
             rproj=100, 
             nproj=100, 
@@ -153,118 +169,89 @@ class TSVAD_module(NeuralModule, Exportable):
         self._num_classes = num_spks
         self.emb_sizes = 192
         self.num_spks = num_spks
+        self.scale_n = scale_n
         self.chan = 1
-        # self.input_types = OrderedDict()
+        self.eps = 1e-6
+        self.num_lstm_layers = 1
+        self.fixed_ms_weight = torch.ones(self.scale_n)/self.scale_n
+        self.cos_dist = torch.nn.CosineSimilarity(dim=3, eps=self.eps)
+        lstm_input_size = lstm_hidden_size
+        self.lstm = nn.LSTM(lstm_input_size, lstm_hidden_size, num_layers=self.num_lstm_layers, batch_first=True)
+        self.hidden2spk = nn.Linear(lstm_hidden_size, self.num_spks)
+        self.dis2emb= nn.Linear(self.num_spks, lstm_input_size)
+        self.dropout = nn.Dropout(dropout_rate)
 
-        batchnorm = nn.BatchNorm2d(1, eps=0.001, momentum=0.99)
-        
-        conv_layer_1 = ConvLayer(in_channels=1, out_channels=out_channels[0])
-        conv_layer_2 = ConvLayer(in_channels=out_channels[0], out_channels=out_channels[1])
-        conv_layer_3 = ConvLayer(in_channels=out_channels[1], out_channels=out_channels[2], stride=(1, y_stride))
-        conv_layer_4 = ConvLayer(in_channels=out_channels[2], out_channels=out_channels[3])
-        
-        self.cnn_encoder = nn.Sequential(
-                      batchnorm,
-                      conv_layer_1,
-                      conv_layer_2,
-                      conv_layer_3,
-                      conv_layer_4
-                   )
-        cell_lin = 100 
-        feat_lin_layer_1 = nn.Linear(feat_in, cell_lin)
-        feat_lin_layer_2 = nn.Linear(cell_lin, cell_lin)
-        feat_lin_layer_3 = nn.Linear(cell_lin, cell_lin)
-        feat_lin_layer_4 = nn.Linear(cell_lin, feat_in)
-        
-        self.dnn_encoder = nn.Sequential(
-                      batchnorm,
-                      feat_lin_layer_1,
-                      feat_lin_layer_2,
-                      feat_lin_layer_3,
-                      feat_lin_layer_4,
-                   )
-        # dim = feat_in
-        combined_size = out_channels[-1]*feat_in + self.emb_sizes # If CNN
-        # combined_size = 1*feat_in + self.emb_sizes # If DNN
-        rnn_in = num_spks * 2*nproj
-        # combine_in = (out_channels[-1]*feat_in + self.emb_sizes) 
-        combine_in = combined_size * num_spks
-        self.SD_linear = nn.Linear(combined_size, nproj)
-        self.rnn_speaker_detection = BLSTMP(n_in=nproj, n_hidden=cell, nproj=2*nproj, num_layers=1)
-        self.rnn_combine = BLSTMP(rnn_in, n_hidden=cell, nproj=2*nproj)
-        self.output_layer = nn.Linear(2*nproj//num_spks, 1)
-        self._feat_in = feat_in
-
-        self.linear_layer = torch.nn.Linear(in_features=lstm_hidden_size, out_features=self._num_classes)
-        # self.apply(lambda x: init_weights(x, mode=init_mode))
+        self.hidden2spk.apply(self.init_weights)
+        self.dis2emb.apply(self.init_weights)
+        self.lstm.apply(self.init_weights)
     
-    # def core_model(self, cnn_encoded, signal_lengths, ivectors):
-
-        # bs, cnn_chan, dim, tframe = cnn_encoded.shape
-        # print(f"cnn_encoded input shape: bs, cnn_chan, dim, tframe, {bs, cnn_chan, dim, tframe}")
-
-
-    def core_model(self, cnn_encoded, signal_lengths, ivectors):
-        # bs = cnn_encoded.shape[0]
-        # bs, cnn_chan, tframe, dim = cnn_encoded.shape
-        bs, cnn_chan, dim, tframe = cnn_encoded.shape
-        print(f"cnn_encoded input shape: bs, cnn_chan, dim, tframe, {bs, cnn_chan, dim, tframe}")
-        # tframe = torch.max(signal_lengths).item()
-        sprint("cnn_encoded shape0:", cnn_encoded.shape)
-        cnn_encoded    = cnn_encoded.permute(0, 2, 1, 3)  # B x 1 x T x cnn_feat -> B x T x 1 x cnn_feat
-        sprint("cnn_encoded shape1:", cnn_encoded.shape)
-        cnn_encoded    = cnn_encoded.contiguous().view(bs, tframe, cnn_chan * dim)      # B x T x 2560
-        sprint("cnn_encoded shape2:", cnn_encoded.shape)
-        # cnn_encoded    = cnn_encoded.unsqueeze(1).repeat(1, self.num_spks, 1, 1)            # B x num_spks x T x 2560
-        cnn_encoded    = cnn_encoded.unsqueeze(1).expand(-1, self.num_spks, -1, -1)            # B x num_spks x T x 2560
-        sprint("cnn_encoded repeated shape3:", cnn_encoded.shape)
+    def core_model(self, ms_embs, length, ms_avg_embs, targets):
+        """
+        targets: batch_size x feats_len x max_spks
+        avg_embs: batch_size x scale_n x emb_dim x max_spks
+        ms_embs : batch_size x feats_len x scale_n x emb_dim
+        """
+        batch_size = ms_embs.shape[0]
+        length = ms_embs.shape[1]
+        # Extend ms_embs to have "max_spks" number of embeddings in spk axis
+        sprint("ms_embs shape:", ms_embs.shape)
+        _ms_embs = ms_embs.unsqueeze(4).expand(-1, -1, -1, -1, self.num_spks)
         
-        ivectors = ivectors.view(bs, self.num_spks, self.emb_sizes).unsqueeze(2)  # B x num_spks x 1 x emb_sizes
-        sprint("ivectors shape1:", ivectors.shape)
-        # ivectors = ivectors.repeat(1, 1, tframe, 1)                             # B x num_spks x T x emb_sizes
-        ivectors = ivectors.expand(-1, -1, tframe, -1)                             # B x num_spks x T x emb_sizes
-        sprint("ivectors repeated shape2:", ivectors.shape)
-        
-        sd_in  = torch.cat((cnn_encoded, ivectors), dim=-1)                 # B x num_spks x T x 2660
-        sprint("sd_in shape1:", sd_in.shape)
-        sd_in  = self.SD_linear(sd_in).view(self.num_spks*bs, tframe, -1)   # num_spks * B x T x 384
-        sprint("sd_in shape2:", sd_in.shape)
-        
-        sd_out = self.rnn_speaker_detection(sd_in)                           #  num_spks*B x T x 320
-        sprint("sd_out shape0:", sd_out.shape)
-        sd_out = sd_out.contiguous().view(bs, self.num_spks, tframe, -1)     #  B x num_spks x T x 320
-        sd_out = sd_out.view(bs, self.num_spks, tframe, -1)     #  B x num_spks x T x 320
-        sprint("sd_out shape1:", sd_out.shape)
-        sd_out = sd_out.permute(0, 2, 1, 3)                                  #  B x T x num_spks x 320
-        sprint("sd_out shape2:", sd_out.shape)
-        sd_out = sd_out.contiguous().view(bs, tframe, -1)                    #  B x T x num_spks*320
-        sd_out = sd_out.view(bs, tframe, -1)                    #  B x T x num_spks*320
-        sprint("sd_out shape3:", sd_out.shape)
+        # Extend ms_avg_embs to have "length" number of embeddings in temporal axis
+        sprint("_ms_embs shape:", _ms_embs.shape)
+        sprint("ms_avg_embs shape:", ms_avg_embs.shape)
+        _ms_avg_embs = ms_avg_embs.unsqueeze(1).expand(-1, length, -1, -1, -1)
 
-        outputs = self.rnn_combine(sd_out)                                   #  B x T x 320
-        sprint("outputs shape0:", outputs.shape)
-        outputs = outputs.contiguous().view(bs, tframe, self.num_spks, -1)   #  B x T x num_spks x 320/num_spks
-        sprint("outputs shape1:", outputs.shape)
-        preds   = self.output_layer(outputs).squeeze(-1)                     #  B x T x num_spks
-        sprint("preds shape2:", preds.shape)
-        preds   = nn.Sigmoid()(preds)
-        sprint("preds shape3:", preds.shape)
-        return preds        
+        # Cosine distance: batch_size x length x emb_dim x max_spks
+        sprint("_ms_avg_embs shape:", _ms_avg_embs.shape)
+        cos_dist_seq = self.cos_dist(_ms_embs, _ms_avg_embs)
+
+        # Cosine weight: batch_size x length x emb_dim x max_spks
+        sprint("cos_dist_seq shape:", cos_dist_seq.shape)
+        sprint("self.fixed_ms_weight shape:", self.fixed_ms_weight.shape)
+        self.fixed_ms_weight = self.fixed_ms_weight.to(ms_embs.device)
+        cos_weight = self.fixed_ms_weight[None, None, :, None].expand(batch_size, length, -1, self.num_spks)
+
+        # Element wise multiplied cosine dist vals: batch_size x length x emb_dim x max_spks
+        sprint("cos_weight shape:", cos_weight.shape)
+        weighted_cos_dist_seq = torch.mul(cos_weight, cos_dist_seq)
+
+        # Calculate the weighted sum on the multi-scale axis: batch_size x length
+        sprint("weighted_cos_dist_seq shape:", weighted_cos_dist_seq.shape)
+        seq_input = weighted_cos_dist_seq.sum(axis=2)
+
+        # Feed seq_input to the sequence modeler.    
+        sprint("seq_input shape:", seq_input.shape)
+        lstm_input = self.dis2emb(seq_input)
+        lstm_input = F.relu(lstm_input)
+        lstm_input = self.dropout(lstm_input)
+
+        sprint("lstm_input shape:", lstm_input.shape)
+        lstm_output, (hn, cn)= self.lstm(lstm_input)
+        lstm_hidden_out = F.relu(lstm_output)
+        lstm_hidden_out = self.dropout(lstm_hidden_out)
+
+        sprint("lstm_hidden shape:", lstm_hidden_out.shape)
+        spk_preds = self.hidden2spk(lstm_hidden_out)
+
+        sprint("spk_preds shape:", spk_preds.shape)
+        preds = nn.Sigmoid()(spk_preds)
+        
+        sprint("preds shape:", preds.shape)
+        # import ipdb; ipdb.set_trace()
+        return preds
 
     @typecheck()
-    def forward(self, audio_signal, length, ivectors):
-        sprint("audio_signal 0:", audio_signal.shape)
-        audio_signal_single_ch = audio_signal.unsqueeze(1)
-        cnn_encoded = self.cnn_encoder(audio_signal_single_ch)
-        sprint("audio_signal 1:", audio_signal_single_ch.shape)
-        
-        # audio_signal_single_ch = audio_signal_single_ch.permute(0, 1, 3, 2)
-        # dnn_encoded = self.dnn_encoder(audio_signal_single_ch)
-        # dnn_encoded = dnn_encoded.permute(0,1,3,2) 
-        # sprint("audio_signal 2:", dnn_encoded.shape)
-        bs, cnn_chan, tframe, dim = cnn_encoded.size()
-        preds = self.core_model(cnn_encoded, length, ivectors)
+    def forward(self, ms_embs, length, ms_avg_embs, targets):
+        sprint("ms_embs 0:", ms_embs.shape)
+        # bs, cnn_chan, tframe, dim = cnn_encoded.size()
+        preds = self.core_model(ms_embs, length, ms_avg_embs, targets)
         return preds
+    # def forward(self, ms_embs, length, ms_avg_embs):
+        # sprint("ms_embs 0:", ms_embs.shape)
+        # # bs, cnn_chan, tframe, dim = cnn_encoded.size()
+        # preds = self.core_model(ms_embs, length, ms_avg_embs)
+        # return preds
 
     def input_example(self):
         """
@@ -273,8 +260,11 @@ class TSVAD_module(NeuralModule, Exportable):
             A tuple of input examples.
         """
         device = next(self.parameters()).device
-        input_example = torch.randn(1, self._feat_in, 8192, device=device)
-        lens = torch.full(size=(input_example.shape[0],), fill_value=8192, device=device)
-        ivectors = torch.randn(1, self.emb_sizes, self.num_spks, device=device)
-        return tuple([input_example, lens, ivectors])
+        lens = torch.full(size=(input_example.shape[0],), fill_value=123, device=device)
+        input_example = torch.randn(1, lens, self.scale_n, self.emb_sizes, device=device)
+        avg_embs = torch.randn(1, self.scale_n, self.emb_sizes, self.num_spks, device=device)
+        # return tuple([input_example, lens, avg_embs])
+        ### temp
+        targets = torch.randn(1, lens, self.num_spks).round().float()
+        return tuple([input_example, lens, avg_embs, targets])
 

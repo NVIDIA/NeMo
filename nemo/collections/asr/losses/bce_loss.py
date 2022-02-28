@@ -43,16 +43,23 @@ class BCELoss(Loss, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, reduction='sum', alpha=1.0, weight=torch.tensor([0.01, 0.99])):
+    def __init__(self, reduction='sum', alpha=1.0, weight=torch.tensor([0.1, 0.9])):
         super().__init__()
         self.reduction = reduction
         self.loss_weight = weight
         self.alpha = alpha
+        self.loss_f = torch.nn.BCELoss(reduction=self.reduction)
 
     @typecheck()
     def forward(self, logits, labels):
-        self.positive = logits.round().bool() == True
-        self.negative = logits.round().bool() == False
+        # logits.requires_grad = True
+        self.positive = logits.round().bool() == 1
+        self.negative = logits.round().bool() == 0
+        self.positive_label = labels.round().bool() == 1
+        self.negative_label = labels.round().bool() == 0
+
+        # print("logits:", logits, "labels:", labels)
+        # print("logits type:", type(logits), "labels: type", type(labels))
         # print("logits.shape:", logits.shape, "labels.shape:", labels.shape)
         self.true = logits.round().bool() == labels.round().bool()
         self.false = logits.round().bool() != labels.round().bool()
@@ -61,20 +68,19 @@ class BCELoss(Loss, Typing):
         self.true_positive_count = torch.sum(torch.logical_and(self.true, self.positive))
         self.false_positive_count = torch.sum(torch.logical_and(self.false, self.positive))
         self.total_counts_k = torch.prod(torch.tensor(labels.shape))
-        self.ground_truth_pos_rate = torch.tensor(torch.sum(self.positive) / self.total_counts_k, requires_grad=True)
+        # print("numer: ", torch.sum(self.positive_label))
+        # print("denom: ", self.total_counts_k)
+        self.ground_truth_pos_rate = torch.tensor(torch.sum(self.positive_label) / self.total_counts_k, requires_grad=False)
         min_len = min(logits.shape[1], labels.shape[1])
         logits, labels = logits[:, :min_len, :], labels[:, :min_len, :]
         weight = torch.clone(labels)
         weight[weight == 0] = self.loss_weight[0]
         weight[weight == 1] = self.loss_weight[1]
-        loss_f = torch.nn.BCELoss(reduction=self.reduction, weight=weight)
-        # loss_f = torch.nn.BCELoss(reduction=self.reduction)
-        # loss_f = torch.nn.BCELoss(reduction=self.reduction)
+        # loss_f = torch.nn.BCELoss(reduction=self.reduction, weight=weight)
         # print("logits:", logits)
         # self.positive = torch.sum(logits.round().bool() == True)
         # self.total_counts_k = torch.prod(torch.tensor(labels.shape))
         print("[LOSS] self.ground_truth_pos_rate:", self.ground_truth_pos_rate)
         # return loss_f(logits, labels) + self.alpha * self.ground_truth_pos_rate
-        return loss_f(logits, labels) 
-        # return self.ground_truth_pos_rate
+        return self.loss_f(logits, labels) 
 

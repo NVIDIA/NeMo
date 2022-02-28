@@ -132,8 +132,8 @@ class MultiBinaryAcc(Metric):
             preds, targets = preds[:, :min_len, :], targets[:, :min_len, :]
             self.true = preds.round().bool() == targets.round().bool()
             self.false = preds.round().bool() != targets.round().bool()
-            self.positive = preds.round().bool() == True
-            self.negative = preds.round().bool() == False
+            self.positive = preds.round().bool() == 1
+            self.negative = preds.round().bool() == 0
             self.positive_count = torch.sum(preds.round().bool() == True)
             # self.true_positive_count += torch.sum(self.true == self.positive)
             # self.false_positive_count += torch.sum(self.false == self.positive)
@@ -154,15 +154,16 @@ class MultiBinaryAcc(Metric):
         self.target_true_rate = self.target_true / self.total_counts_k
         # sprint("self.true_positive_count:", self.true_positive_count)
         # sprint("self.correct_counts_k:", self.correct_counts_k)
-        # sprint("self.target_true:", self.target_true)
+        sprint("self.target_true:", self.target_true)
+        sprint("self.total_counts_k:", self.total_counts_k)
         # sprint("self.predicted_true:", self.predicted_true)
-        print("[Metric] self.recall:", self.recall)
-        print("[Metric] self.precision:", self.precision)
         self.f1_score = 2 * self.precision * self.recall / (self.precision + self.recall)
         self.f1_score = -1 if torch.isnan(self.f1_score) else self.f1_score
-        print("[Metric] self.infer_positive_rate:", self.infer_positive_rate)
-        print("[Metric] self.target_true_rate:", self.target_true_rate)
-        print("[Metric] self.f1_score:", self.f1_score)
+        sprint("[Metric] self.recall:", self.recall)
+        sprint("[Metric] self.precision:", self.precision)
+        sprint("[Metric] self.infer_positive_rate:", self.infer_positive_rate)
+        sprint("[Metric] self.target_true_rate:", self.target_true_rate)
+        sprint("[Metric] self.f1_score:", self.f1_score)
         return self.f1_score
 
 class ClusterEmbedding:
@@ -174,6 +175,9 @@ class ClusterEmbedding:
         self.clus_map_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
         self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
     
+    def prepare_cluster_embs_infer(self):
+        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict = self.run_clustering_diarizer(self._cfg_tsvad.test_ds.manifest_filepath,
+                                                               self._cfg_tsvad.test_ds.emb_dir)
     def prepare_cluster_embs(self):
         """
         TSVAD
@@ -235,18 +239,20 @@ class ClusterEmbedding:
     def assign_labels_to_longer_segs(self, scale_n, base_clus_label_dict, session_scale_mapping_dict):
         new_clus_label_dict = {scale_index: {} for scale_index in range(scale_n)}
         for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
-            try:
-                base_scale_clus_label = np.array([ x[-1] for x in base_clus_label_dict[uniq_id]])
-            except:
-                import ipdb; ipdb.set_trace()
-
+            base_scale_clus_label = np.array([ x[-1] for x in base_clus_label_dict[uniq_id]])
             new_clus_label_dict[scale_n-1][uniq_id] = base_scale_clus_label
             for scale_index in range(scale_n-1):
                 new_clus_label = []
-                for seg_idx in list(set(uniq_scale_mapping_dict[scale_index])):
-                    seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping_dict[scale_index] == seg_idx])
+                assert uniq_scale_mapping_dict[scale_index].shape[0] == base_scale_clus_label.shape[0], "The number of base scale labels does not match the segment numbers in uniq_scale_mapping_dict"
+                max_index = max(uniq_scale_mapping_dict[scale_index])
+                for seg_idx in range(max_index+1):
+                    if seg_idx in uniq_scale_mapping_dict[scale_index]:
+                        seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping_dict[scale_index] == seg_idx])
+                    else:
+                        seg_clus_label = 0 if len(new_clus_label) == 0 else new_clus_label[-1]
                     new_clus_label.append(seg_clus_label)
                 new_clus_label_dict[scale_index][uniq_id] = new_clus_label
+                # import ipdb; ipdb.set_trace()
         return new_clus_label_dict
 
     def get_clus_emb(self, emb_scale_seq_dict, clus_label, speaker_mapping_dict, session_scale_mapping_dict):
@@ -275,6 +281,9 @@ class ClusterEmbedding:
                 label_array = torch.Tensor(clus_label_list)
                 avg_embs = torch.zeros(dim, self.max_num_of_spks)
                 for spk_idx in spk_set:
+                    if len(label_array) != emb_tensor.shape[0]:
+                        # fisher-2004-wav-mixed/fe_03_00113_mixed.wav shows 2x segments and erroneous segmentations
+                        import ipdb; ipdb.set_trace()
                     selected_embs = emb_tensor[label_array == spk_idx]
                     avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
                 inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
@@ -451,13 +460,14 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         result = []
         return None
 
-    def __init__(self, cfg: DictConfig, emb_clus: Dict, trainer: Trainer = None):
+    # def __init__(self, cfg: DictConfig, emb_clus: Dict, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.ts_vad_model_cfg = cfg
         cfg.tsvad_module.num_spks = cfg.max_num_of_spks
         cfg.train_ds.num_spks = cfg.max_num_of_spks
         cfg.validation_ds.num_spks = cfg.max_num_of_spks
         cfg.test_ds.num_spks = cfg.max_num_of_spks
-        self.get_emb_clus(emb_clus)
+        # self.get_emb_clus(emb_clus)
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
@@ -477,6 +487,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         """
         return torch.nn.BCELoss(reduction='sum')
     
+    def get_emb_clus_infer(self, emb_clus):
+        self.emb_sess_test_dict = emb_clus.emb_sess_test_dict
+        self.clus_test_label_dict = emb_clus.clus_test_label_dict
+        self.emb_seq_test = emb_clus.emb_seq_test
+
     def get_emb_clus(self, emb_clus):
         self.emb_sess_train_dict = emb_clus.emb_sess_train_dict
         self.emb_sess_dev_dict = emb_clus.emb_sess_dev_dict
@@ -510,10 +525,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         return labels
 
     def __setup_dataloader_from_config(self, config: Optional[Dict], emb_dict: Dict, emb_seq: Dict, clus_label_dict: Dict):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
-        else:
-            augmentor = None
+        augmentor = None
 
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
@@ -559,26 +571,18 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        # self.labels = self.extract_labels(train_data_config)
-        # train_data_config['labels'] = self.labels
-        # if 'shuffle' not in train_data_config:
-            # train_data_config['shuffle'] = True
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_config, 
                                                              emb_dict=self.emb_sess_train_dict, 
                                                              emb_seq=self.emb_seq_train,
                                                              clus_label_dict=self.clus_train_label_dict)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        # val_data_layer_config['labels'] = self.labels
-        # self.task = 'identification'
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config, 
                                                                   emb_dict=self.emb_sess_dev_dict, 
                                                                   emb_seq=self.emb_seq_dev,
                                                                   clus_label_dict=self.clus_dev_label_dict)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
-        # if hasattr(self, 'dataset'):
-            # test_data_config['labels'] = self.labels
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_config, 
                                                             emb_dict=self.emb_sess_test_dict, 
                                                             emb_seq=self.emb_seq_test,
@@ -595,44 +599,49 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         else:
             audio_eltype = AudioSignal()
         return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype),
+            "input_signal": NeuralType(('B', 'T', 'C', 'D'), audio_eltype),
             "input_signal_length": NeuralType(tuple('B'), LengthsType()),
-            "ivectors": NeuralType(('B', 'D', 'C'), EncodedRepresentation()),
+            "ivectors": NeuralType(('B', 'C', 'D', 'C'), EncodedRepresentation()),
+            "targets": NeuralType(('B', 'T', 'C'), ProbsType()),
         }
 
     @property
     def output_types(self):
         return OrderedDict({"probs": NeuralType(('B', 'T', 'C'), LogprobsType())})
-
+    
     @typecheck()
-    def forward(self, input_signal, input_signal_length, ivectors):
+    def forward(self, input_signal, input_signal_length, ivectors, targets):
         length=3000
         sprint("EncDecDiarLabelModel.forward.. ")
-        # sprint("self.tsvad.input_types:", self.tsvad.input_types)
-        processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
-        )
-        # print("processed_signal.shape:", processed_signal.shape)
-        # print("processed_signal_len:", processed_signal_len)
-        processed_signal = processed_signal[:, :, :length]
-        processed_signal_len = length*torch.ones_like(processed_signal_len)
-        preds = self.tsvad(audio_signal=processed_signal, length=processed_signal_len, ivectors=ivectors)
+        print("self.tsvad.input_types:", self.tsvad.input_types)
+        # def forward(self, ms_embs, length, ms_avg_embs):
+        preds = self.tsvad(ms_embs=input_signal, length=input_signal_length, ms_avg_embs=ivectors, targets=targets)
         return preds
+
+
+    # @typecheck()
+    # def forward(self, input_signal, input_signal_length, ivectors):
+        # length=3000
+        # sprint("EncDecDiarLabelModel.forward.. ")
+        # print("self.tsvad.input_types:", self.tsvad.input_types)
+        # # def forward(self, ms_embs, length, ms_avg_embs):
+        # preds = self.tsvad(ms_embs=input_signal, length=input_signal_length, ms_avg_embs=ivectors)
+        # return preds
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
-        sprint(f"Running Training  Step.... batch_idx {batch_idx}")
 
         sprint("Running Training Step 1....")
         signals, signal_lengths, targets, ivectors = batch
         sprint("Running Training Step 2....")
         preds = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
-                             ivectors=ivectors)
+                             ivectors=ivectors,
+                             targets=targets)
         sprint("Running Training Step 3....")
-        loss = self.loss(logits=preds, labels=targets)
+        loss_value = self.loss(logits=preds, labels=targets)
 
-        self.log('loss', loss)
+        self.log('loss', loss_value)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         sprint("Running Training Step 4....")
@@ -643,28 +652,24 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         acc = self._accuracy.compute()
         sprint("Running Training Step 5....")
         self._accuracy.reset()
-        self.log(f'training_batch_accuracy', acc)
-        sprint("Accuracy: ", acc)
-        # logging.info(f"Accuracy: {acc}")
-        return {'loss': loss}
+        logging.info(f"Batch Train F1 Acc. {acc}, Train loss {loss_value}")
+        return {'loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         sprint("batch data size : ", len(batch), [x.shape for x in batch])
-        # import ipdb; ipdb.set_trace()
-        sprint(f"Running Validation Step0.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
         signals, signal_lengths, targets, ivectors = batch
-        sprint(f"Running Validation Step1.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
-        sprint(signals.shape, signal_lengths, ivectors.shape, targets.shape)
+        # preds = self.forward(input_signal=signals, 
+                             # input_signal_length=signal_lengths, 
+                             # ivectors=ivectors)
         preds = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
-                             ivectors=ivectors)
-        sprint(f"Running Validation Step2.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
+                             ivectors=ivectors,
+                             targets=targets)
         loss_value = self.loss(logits=preds, labels=targets)
         self._accuracy(preds, targets)
         acc = self._accuracy.compute()
-        sprint(f"Running Validation Step3.... batch_idx {batch_idx} dataloader_idx {dataloader_idx} ")
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-
+        logging.info(f"Batch Val F1 Acc. {acc}, Val loss {loss_value}")
         return {
             'val_loss': loss_value,
             'val_correct_counts': correct_counts,
@@ -682,10 +687,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         acc = self._accuracy.compute()
         self._accuracy.reset()
 
-        # logging.info("val_loss: {:.3f}".format(val_loss_mean))
-        self.log('val_loss', val_loss_mean)
-        self.log('training_batch_accuracy', acc)
-
+        logging.info(f"Total Val F1 Acc. {acc:.4f}, Val loss mean {val_loss_mean:.4f}")
         return {
             'val_loss': val_loss_mean,
             'val_acc': acc,
@@ -693,14 +695,18 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         signals, signal_lengths, targets, ivectors = batch
+        # preds = self.forward(input_signal=signals, 
+                             # input_signal_length=signal_lengths, 
+                             # ivectors=ivectors)
         preds = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
-                             ivectors=ivectors)
+                             ivectors=ivectors,
+                             targets=targets)
         loss_value = self.loss(preds, targets)
         self._accuracy(preds, targets)
         acc = self._accuracy.compute()
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-
+        logging.info(f"Batch Test F1 Acc. {acc}, Test loss {loss_value}")
         return {
             'test_loss': loss_value,
             'test_correct_counts': correct_counts,
@@ -718,9 +724,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         acc = self._accuracy.compute()
         self._accuracy.reset()
 
-        logging.info("test_loss: {:.3f}".format(test_loss_mean))
-        self.log('test_loss', test_loss_mean)
-
+        logging.info(f"Total Test F1 Acc. {acc:.4f}, Test loss mean {val_loss_mean:.4f}")
         return {
             'test_loss': test_loss_mean,
             'test_acc_top_k': acc,
