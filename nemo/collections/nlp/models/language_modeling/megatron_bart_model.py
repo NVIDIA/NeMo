@@ -21,20 +21,18 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 )
 from nemo.utils import logging
 
-__all__ = ["MegatronT5Model"]
+__all__ = ["MegatronBARTModel"]
 
 
-class MegatronT5Model(MegatronLMEncoderDecoderModel):
+class MegatronBARTModel(MegatronLMEncoderDecoderModel):
     """
-    Megatron T5 pretraining
+    Megatron BART pretraining
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
     def _build_vocab(self):
-        # T5-related construction
-        self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
         self._add_special_tokens_to_tokenizer()
 
         super()._build_vocab()
@@ -46,13 +44,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             }
             self.tokenizer.add_special_tokens(additional_tokens)
 
-        if self._cfg.tokenizer.library == 'sentencepiece':
-            # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.
-            # If cls, sep and mask are not attributes of the tokenizer, add it.
-            if not hasattr(self.tokenizer, 'cls_token'):
-                self.tokenizer.add_special_tokens({'cls_token': '<cls>'})
-            if not hasattr(self.tokenizer.tokenizer, 'sep_id'):
-                self.tokenizer.add_special_tokens({'sep_token': '<sep>'})
+        elif self._cfg.tokenizer.library == 'sentencepiece':
+            # Need to add mask tokens to the tokenizer if they don't exist.
             if not hasattr(self.tokenizer.tokenizer, 'mask_id'):
                 self.tokenizer.add_special_tokens({'mask_token': '<mask>'})
 
@@ -80,15 +73,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                     self.tokenizer.add_special_tokens({'eos_token': '<eos>'})
             else:
                 self.tokenizer.add_special_tokens({'eos_token': '</s>'})
-
-            # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
-            for i in range(self.num_sentinel_tokens):
-                if f'▁<extra_id_{i}>' in self.tokenizer.vocab:
-                    self.tokenizer.special_token_to_id[f'<extra_id_{i}>'] = self.tokenizer.text_to_ids(
-                        f'<extra_id_{i}>'
-                    )[0]
-                else:
-                    self.tokenizer.add_special_tokens([f'<extra_id_{i}>'])
 
     def build_train_valid_test_datasets(self):
         logging.info('Building T5 datasets.')
