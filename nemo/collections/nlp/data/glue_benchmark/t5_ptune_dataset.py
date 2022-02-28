@@ -214,37 +214,30 @@ class T5PTuneInferenceDataset(TaskDataset):
         return len(self.examples)
 
     def __getitem__(self, idx):
-        enc_query, dec_input, taskname = self.features[idx]
-        return {'text_enc': enc_query, 'text_dec': dec_input, 'taskname_enc': taskname}
+        enc_query, taskname = self.features[idx]
+        return {'text_enc': enc_query, 'taskname_enc': taskname}
 
     def collate_fn(self, batch):
         enc_query = [item['text_enc'] for item in batch]
-        dec_input = [item['text_dec'] for item in batch]
         enc_taskname = [item['taskname_enc'] for item in batch]
 
-        max_dec_input_length = max([len(item) for item in dec_input]) if dec_input else 0
         max_enc_query_length = max([len(item) for item in enc_query]) if enc_query else 0
         max_taskname_length = max([len(item) for item in enc_taskname])
 
         enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
-        dec_input = [item + [self.tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
         enc_taskname = [item + [self.pad_id] * (max_taskname_length - len(item)) for item in enc_taskname]
 
         enc_query = torch.LongTensor(enc_query)
-        dec_input = torch.LongTensor(dec_input)
         enc_taskname = torch.LongTensor(enc_taskname)
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
-        dec_mask = (dec_input != self.tokenizer.pad_id).long()
 
         # input_attn_mask = make_attention_mask_3d(enc_input, enc_input, self.pad_id)
         # input_attn_mask = (input_attn_mask * make_history_mask_3d(enc_input)).long()
 
         return {
             'text_enc': enc_query,
-            'text_dec': dec_input,
             'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
             'enc_taskname': enc_taskname,
         }
 
@@ -267,7 +260,5 @@ class T5PTuneInferenceDataset(TaskDataset):
                 self.templates,
                 self.tokenizer,
             )
-            dec_query = [self.tokenizer.bos_id] 
-            dec_input = dec_query[:-1]
-            features.append([enc_query, dec_input, taskname_ids])
+            features.append([enc_query, taskname_ids])
         return features

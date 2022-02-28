@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import os
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 from operator import itemgetter
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.glue_benchmark.t5_ptune_dataset import T5PTuneDataset
+from nemo.collections.nlp.data.glue_benchmark.t5_ptune_dataset import T5PTuneDataset, T5PTuneInferenceDataset
 from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
 )
@@ -28,6 +28,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
+from omegaconf import OmegaConf, open_dict
 from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 try:
@@ -41,7 +42,6 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronT5PTuneModel']
 
-NUM_TOKEN_TO_GEN = 10
 
 class MegatronT5PTuneModel(NLPModel):
     """
@@ -62,9 +62,26 @@ class MegatronT5PTuneModel(NLPModel):
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
 
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
+        # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
+        t5_cfg = MegatronT5Model.restore_from(
+            self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)), trainer=trainer, return_config=True
+        )
+        OmegaConf.set_struct(t5_cfg, True)
+        with open_dict(t5_cfg):
+            t5_cfg.masked_softmax_fusion = False
+            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+
         self.model = MegatronT5Model.restore_from(
             self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
-            trainer=trainer)
+            trainer=trainer,
+            override_config_path=t5_cfg,
+        )
+
+        # self.model = MegatronT5Model.restore_from(
+        #     self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
+        #     trainer=trainer)
 
         self.tokenizer = self.model.tokenizer
 
@@ -102,6 +119,7 @@ class MegatronT5PTuneModel(NLPModel):
         )
         self.spell_length = sum(self.template)
         self._reduced_loss_buffer = []
+        self.decoder_seq_length = cfg.get('decoder_seq_length', 10)
 
     def embed_input(self, queries, enc_taskname):
         bz = queries.shape[0]
@@ -228,7 +246,7 @@ class MegatronT5PTuneModel(NLPModel):
         predicted_token_ids, log_probs = self.model.decode(
             tokens_enc=tokens_enc,
             enc_mask=enc_mask,
-            num_tokens_to_generate=NUM_TOKEN_TO_GEN,
+            num_tokens_to_generate=self.decoder_seq_length,
             enc_input=encoder_input,
         )
 
@@ -376,3 +394,106 @@ class MegatronT5PTuneModel(NLPModel):
 
     def list_available_models():
         pass
+
+
+    @torch.no_grad()
+    def ptune_inference(self, queries: List[Dict], batch_size: int = 1, decode_token_len: int = None) -> List[str]:
+        """
+        Get prediction for the queries
+        Args:
+            queries: List of data samples without labels
+            batch_size: batch size to use during inference
+            decode_token_len: max number of tokens to generate during inference
+        Returns:
+            all_preds: model predictions
+        """
+        if decode_token_len is None:
+            decode_token_len = self.decoder_seq_length
+        # store predictions for all queries in a single list
+        all_preds = []
+        mode = self.training
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+            dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
+            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, decode_token_len)
+            for i, batch in enumerate(infer_datalayer):
+                tokens_enc = batch['text_enc'].to(self.device)
+                enc_taskname = batch['enc_taskname'].to(self.device)
+                enc_mask = batch['enc_mask'].to(self.device)
+
+                input_embeds = self.embed_input(tokens_enc, enc_taskname)
+
+                encoder_position_ids = build_position_ids(tokens_enc)
+
+                position_embeddings = self.position_embeddings(encoder_position_ids)
+
+                encoder_input = input_embeds + position_embeddings
+
+                # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
+                if self.float_type == torch.float32:
+                    predicted_token_ids, _ = self.model.decode(
+                        tokens_enc=tokens_enc,
+                        enc_mask=enc_mask,
+                        num_tokens_to_generate=decode_token_len,
+                        enc_input=encoder_input,
+                    )
+                else:
+                    with torch.autocast(device_type="cuda", dtype=self.float_type):
+                        predicted_token_ids, _ = self.model.decode(
+                            tokens_enc=tokens_enc,
+                            enc_mask=enc_mask,
+                            num_tokens_to_generate=decode_token_len,
+                            enc_input=encoder_input,
+                        )
+
+                preds = predicted_token_ids.cpu().numpy().tolist()
+                for i, pred in enumerate(preds):
+                    if self.tokenizer.eos_id in pred:
+                        idx = pred.index(self.tokenizer.eos_id)
+                        pred = pred[:idx]
+                    pred = [id for id in pred if id not in self.tokenizer.special_token_to_id.values()]
+                    pred = self.tokenizer.ids_to_text(pred)
+                    all_preds.append(pred)
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+            logging.set_verbosity(logging_level)
+        return all_preds
+
+    def _setup_infer_dataloader(
+        self, cfg: Dict, queries: List[str], decode_token_len: int
+    ) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a infer data loader.
+
+        Args:
+            cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
+            queries: queries object
+        Returns:
+            A pytorch DataLoader.
+        """
+        # dataset = PTuneTextClassificationDataset(None, queries, prompt)
+        dataset = T5PTuneInferenceDataset(
+            queries=queries,
+            data_type="test",
+            tokenizer=self.tokenizer,
+            templates=self.template,
+            pseudo_token_id=self.pseudo_token_id,
+            pad_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.test_ds.max_seq_length,
+            max_seq_length_decoder=decode_token_len,
+        )
+
+        # Torch dataloader.
+        return torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=cfg["batch_size"],
+            shuffle=False,
+            num_workers=cfg.get("num_workers", 0),
+            pin_memory=cfg.get("pin_memory", False),
+            drop_last=False,
+        )
