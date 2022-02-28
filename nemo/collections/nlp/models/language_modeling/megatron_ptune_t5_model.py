@@ -12,32 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Any, Dict, Optional, Union, List
-from operator import itemgetter
+from typing import Dict, List
+
 import torch
+from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.glue_benchmark.t5_ptune_dataset import T5PTuneDataset, T5PTuneInferenceDataset
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    build_position_ids,
-)
-
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.utils import logging
-from omegaconf import OmegaConf, open_dict
-from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    build_position_ids,
+)
+from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
+from nemo.utils import logging
+
 try:
     from apex.transformer import tensor_parallel
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
 
 
 __all__ = ['MegatronT5PTuneModel']
@@ -66,7 +64,9 @@ class MegatronT5PTuneModel(NLPModel):
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
         t5_cfg = MegatronT5Model.restore_from(
-            self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)), trainer=trainer, return_config=True
+            self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
+            trainer=trainer,
+            return_config=True,
         )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
@@ -112,11 +112,7 @@ class MegatronT5PTuneModel(NLPModel):
         self.tokenizer.add_special_tokens([cfg.pseudo_token])
 
         self.pseudo_token_id = self.tokenizer.special_token_to_id[cfg.pseudo_token]
-        self.pad_token_id = (
-            self.tokenizer.pad_id
-            if self.tokenizer.pad_id is not None
-            else self.tokenizer.unk_id
-        )
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.spell_length = sum(self.template)
         self._reduced_loss_buffer = []
         self.decoder_seq_length = cfg.get('decoder_seq_length', 10)
@@ -293,7 +289,7 @@ class MegatronT5PTuneModel(NLPModel):
 
     def test_epoch_end(self, outputs):
         test_loss, test_acc = self.inference_epoch_end(outputs)
-        self.log('test_loss',test_loss, prog_bar=True)
+        self.log('test_loss', test_loss, prog_bar=True)
         self.log('test_acc', test_acc, prog_bar=True)
         logging.info(f'Test loss: {test_loss}')
         logging.info(f'Test accuracy: {test_acc}')
@@ -358,7 +354,7 @@ class MegatronT5PTuneModel(NLPModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        self.build_train_valid_test_datasets(test_only=stage=='test')
+        self.build_train_valid_test_datasets(test_only=stage == 'test')
         self.setup_test_data()
         if stage == 'test':
             return
@@ -394,7 +390,6 @@ class MegatronT5PTuneModel(NLPModel):
 
     def list_available_models():
         pass
-
 
     @torch.no_grad()
     def ptune_inference(self, queries: List[Dict], batch_size: int = 1, decode_token_len: int = None) -> List[str]:

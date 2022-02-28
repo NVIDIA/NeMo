@@ -22,15 +22,18 @@ from typing import Dict, List, Optional
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import (
+    TaskDataset,
+    TemplateProcessor,
+    processors,
+    register_taskdata_processor,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
     make_attention_mask_3d,
     make_history_mask_3d,
 )
-from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import (
-    TaskDataset, register_taskdata_processor, TemplateProcessor, processors)
-from nemo.utils import logging
 from nemo.core.neural_types import NeuralType
-
+from nemo.utils import logging
 
 __all__ = [
     'DataProcessor',
@@ -138,7 +141,11 @@ class T5PTuneDataset(TaskDataset):
         labels_list = []
         for ex_index, example in enumerate(self.examples):
             processor = example.processor
-            label_ids = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(processor.label2string(example.label)) + [self.tokenizer.eos_id]
+            label_ids = (
+                [self.tokenizer.bos_id]
+                + self.tokenizer.text_to_ids(processor.label2string(example.label))
+                + [self.tokenizer.eos_id]
+            )
             max_label_len = max(len(label_ids), max_label_len)
             labels_list.append(label_ids)
         if self.max_seq_length_decoder is None:
@@ -165,6 +172,7 @@ class T5PTuneDataset(TaskDataset):
             labels = dec_query[1:]
             features.append([enc_query, dec_input, labels, taskname_ids])
         return features
+
 
 class T5PTuneInferenceDataset(TaskDataset):
     """Multiple Task Dataset used in P-Tuning inference. Assumes no label in the data"""

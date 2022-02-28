@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 
+import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -21,14 +23,12 @@ from pytorch_lightning.plugins.environments.torchelastic_environment import Torc
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
+from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import TemplateProcessor, register_taskdata_processor
 from nemo.collections.nlp.models.language_modeling.megatron_ptune_t5_model import MegatronT5PTuneModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import TemplateProcessor, register_taskdata_processor
-import os
-import torch
 
 
 @hydra_runner(config_path="conf", config_name="megatron_ptune_t5")
