@@ -28,6 +28,7 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
