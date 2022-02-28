@@ -16,7 +16,7 @@ class TestTrainingT5Config:
         restore_from_path: null # used when starting from a .nemo file
         
         trainer:
-          num_nodes: 16
+          num_nodes: 4
           gpus: 8
           accelerator: ddp
           precision: 16
@@ -61,7 +61,7 @@ class TestTrainingT5Config:
         
         model:
           # model parallelism
-          micro_batch_size: 16
+          micro_batch_size: 64
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
         
@@ -78,7 +78,7 @@ class TestTrainingT5Config:
           hidden_size: 768
           ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
           num_attention_heads: 12
-          init_method_std: 0.15  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+          init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
           hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
           attention_dropout: 0.1 # Dropout probability in the attention layer.
           kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null

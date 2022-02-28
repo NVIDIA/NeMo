@@ -4,11 +4,11 @@ run:
   dependency: "singleton"
   convert_name: convert_nemo
   model_train_name: t5_220m
-  task_name: "mnli"
+  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
 trainer:
-  gpus: 1
+  gpus: ${evaluation.model.tensor_model_parallel_size}
   num_nodes: 1
   accelerator: ddp
   precision: 16
@@ -25,7 +25,7 @@ exp_manager:
   create_checkpoint_callback: False
 
 model:
-  restore_from_finetuned_path: ${finetuning.run.results_dir}/checkpoints/megatron_t5_mnli.nemo # Path to a finetuned T5 .nemo file
+  restore_from_finetuned_path: ${finetuning.run.results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
   tensor_model_parallel_size: 1
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
@@ -33,7 +33,7 @@ model:
   data:
     validation_ds:
       task_name: ${evaluation.run.task_name}
-      file_path: ${data_dir}/glue_data/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      file_path: ${data_dir}/glue_data/${evaluation.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not evaluating MNLI
       batch_size: 32
       shuffle: False
       num_workers: 4

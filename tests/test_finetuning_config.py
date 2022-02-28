@@ -8,14 +8,12 @@ class TestFinetuningT5Config:
         s = """
         run:
           name: ${.task_name}_${.model_train_name}
-          time_limit: "1-12:00:00"
+          time_limit: "04:00:00"
           dependency: "singleton"
           convert_name: convert_nemo
           model_train_name: t5_220m
-          task_name: "mnli"
+          task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
-        
-        name: megatron_t5_mnli
         
         trainer:
           gpus: 8
@@ -44,23 +42,25 @@ class TestFinetuningT5Config:
           resume_ignore_no_checkpoint: True
           create_checkpoint_callback: True
           checkpoint_callback_params:
-            monitor: val_acc
+            monitor: validation_acc
             save_top_k: 5
             mode: max
             always_save_nemo: False # TODO: add support
             save_nemo_on_train_end: True # Set to true for subsequent validation runs.
-            filename: 'megatron_t5--{val_acc:.3f}-{step}'
+            filename: 'megatron_t5--{validation_acc:.3f}-{step}'
             model_parallel_size: ${finetuning.model.tensor_model_parallel_size}
             save_best_model: True
         
-        model:
-          restore_from_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+        model: # For different finetuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
+          restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
           tensor_model_parallel_size: 1
+          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          megatron_amp_O2: False # Enable O2 optimization for megatron amp
         
           data:
             train_ds:
               task_name: ${finetuning.run.task_name}
-              file_path: ${data_dir}/glue_data/MNLI/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
+              file_path: ${data_dir}/glue_data/${finetuning.run.task_name}/train.tsv # Path to the TSV file for MNLI train
               batch_size: 16
               shuffle: True
               num_workers: 4
@@ -69,7 +69,7 @@ class TestFinetuningT5Config:
         
             validation_ds:
               task_name: ${finetuning.run.task_name}
-              file_path: ${data_dir}/glue_data/MNLI/dev_matched.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+              file_path: ${data_dir}/glue_data/${finetuning.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not finetuning MNLI
               batch_size: 16
               shuffle: False
               num_workers: 4
