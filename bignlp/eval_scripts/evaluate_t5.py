@@ -98,7 +98,7 @@ def run_evaluation(cfg, hydra_args="", dependency=None):
     code_path = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_t5/evaluate.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
-    train_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
+    train_cmd = f"PYTHONPATH={bignlp_path}" + ":${PYTHONPATH} \\\n" + f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = eval_cfg.trainer.num_nodes
     ntasks_per_node = eval_cfg.trainer.gpus

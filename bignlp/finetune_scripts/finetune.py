@@ -98,7 +98,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
-    train_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
+    train_cmd = f"PYTHONPATH={bignlp_path}" + ":${PYTHONPATH} \\\n" + f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = finetune_cfg.trainer.num_nodes
     ntasks_per_node = finetune_cfg.trainer.gpus
