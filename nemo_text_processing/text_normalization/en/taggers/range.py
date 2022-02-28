@@ -31,13 +31,12 @@ class RangeFst(GraphFst):
         for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, time: GraphFst, cardinal: GraphFst, deterministic: bool = True):
+    def __init__(self, time: GraphFst, cardinal: GraphFst = None, deterministic: bool = True):
         super().__init__(name="range", kind="classify", deterministic=deterministic)
 
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
-        self.graph = pynini.accep("")
+        self.graph = time + delete_space + pynini.cross("-", " to ") + delete_space + time
         if not deterministic:
-            self.graph |= time + delete_space + pynini.cross("-", " to ") + delete_space + time
             cardinal = cardinal.graph
             range_graph = cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
 

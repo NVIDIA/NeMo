@@ -120,8 +120,7 @@ class ClassifyFst(GraphFst):
             fraction = FractionFst(deterministic=True, cardinal=cardinal)
             fraction_graph = fraction.fst
 
-            # use False deterministic for measure to add range graph to cardinal options
-            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=False, lm=True)
+            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=True, lm=True)
             measure_graph = measure.fst
             date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
             date_graph = date.fst
@@ -182,7 +181,7 @@ class ClassifyFst(GraphFst):
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
 
-            punct_only = pynutil.add_weight(punct_graph, weight=0.1)
+            punct_only = pynutil.add_weight(punct_graph, weight=2.1)
             punct = pynini.closure(
                 pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
                 | (pynutil.insert(" ") + punct_only),
