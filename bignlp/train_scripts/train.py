@@ -28,10 +28,6 @@ def create_slurm_file(
     """
     Creates a slurm file to launch a training job.
     """
-    # Set default values
-    if gpus_per_task is None and gpus_per_node is None:
-        gpus_per_task = 1
-
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
         f.writelines(f"#SBATCH --nodes={nodes}\n")
