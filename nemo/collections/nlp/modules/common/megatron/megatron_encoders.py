@@ -23,6 +23,7 @@ import torch.nn.init as init
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_encoder import MegatronTransformerEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
@@ -34,6 +35,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 __all__ = []
@@ -57,6 +60,7 @@ def get_encoder_model(
     init_method_std=0.02,
     use_cpu_initialization=False,
     hidden_dropout=0.1,
+    attention_dropout=0.1,
     precision=16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
@@ -66,6 +70,7 @@ def get_encoder_model(
     masked_softmax_fusion=True,
     persist_layer_norm=False,
     openai_gelu=False,
+    activation="gelu",
     onnx_safe=False,
     hidden_steps=-1,
     hidden_blocks=1,
@@ -100,6 +105,7 @@ def get_encoder_model(
             post_process=post_process,
             use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
@@ -110,6 +116,7 @@ def get_encoder_model(
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            activation=activation,
         )
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")

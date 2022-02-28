@@ -76,7 +76,7 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    every_n_val_epochs: Optional[int] = 1
+    every_n_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
@@ -139,10 +139,10 @@ class TimingCallback(Callback):
         self.timer.stop(name)
         pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
 
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
@@ -755,18 +755,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.kth_best_model_path = best_k_models[-1]
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
-
-    # TODO remove _save_last_checkpoint after fix for issue #https://github.com/PyTorchLightning/pytorch-lightning/issues/11451
-    def _save_last_checkpoint(self, trainer, monitor_candidates) -> None:
-        if not self.save_last:
-            return
-
-        filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST)
-        if self.last_model_path and self.last_model_path != filepath:
-            trainer.training_type_plugin.remove_checkpoint(self.last_model_path)
-
-        self.last_model_path = filepath
-        trainer.save_checkpoint(filepath, self.save_weights_only)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         # output = None

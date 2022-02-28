@@ -140,7 +140,7 @@ class TTSDataset(Dataset):
         if isinstance(self.text_tokenizer, BaseTokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
             self.tokens = text_tokenizer.tokens
-            self.phoneme_probability = self.text_tokenizer.phoneme_probability
+            self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
         else:
             if text_tokenizer_pad_id is None:
                 raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
@@ -226,7 +226,7 @@ class TTSDataset(Dataset):
         self.hop_len = self.hop_length or self.n_fft // 4
         self.fb = torch.tensor(
             librosa.filters.mel(
-                self.sample_rate, self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
+                sr=self.sample_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=self.lowfreq, fmax=self.highfreq
             ),
             dtype=torch.float,
         ).unsqueeze(0)
@@ -736,7 +736,7 @@ class VocoderDataset(Dataset):
             json. Each line should contain the following:
                 "audio_filepath": <PATH_TO_WAV>,
                 "duration": <Duration of audio clip in seconds> (Optional),
-                "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional)
+                "mel_filepath": <PATH_TO_LOG_MEL> (Optional, can be in .npy (numpy.save) or .pt (torch.save) format)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
             n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
                 n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
@@ -841,13 +841,13 @@ class VocoderDataset(Dataset):
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
             if Path(sample["mel_filepath"]).suffix == ".npy":
-                mel = np.load(sample["mel_filepath"])
+                mel = torch.from_numpy(np.load(sample["mel_filepath"]))
             else:
                 mel = torch.load(sample["mel_filepath"])
             frames = math.ceil(self.n_segments / self.hop_length)
 
-            if len(audio) > self.n_segments:
-                start = random.randint(0, mel.shape[1] - frames - 2)
+            if len(audio) >= self.n_segments:
+                start = random.randint(0, mel.shape[1] - frames - 1)
                 mel = mel[:, start : start + frames]
                 audio = audio[start * self.hop_length : (start + frames) * self.hop_length]
             else:

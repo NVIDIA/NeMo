@@ -16,7 +16,11 @@
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.utils import attn_mask_postprocess, build_attention_mask_3d
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    attn_mask_postprocess,
+    build_attention_mask_3d,
+)
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -24,6 +28,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 __all__ = ["MegatronTransformerEncoderModule"]
@@ -48,6 +54,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         use_cpu_initialization=False,
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
@@ -58,6 +65,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
+        activation='gelu',
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
 
@@ -96,12 +104,14 @@ class MegatronTransformerEncoderModule(MegatronModule):
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
             use_cpu_initialization=use_cpu_initialization,
             bias_gelu_fusion=bias_gelu_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            activation=activation,
         )
         self._model_key = 'model'
 
