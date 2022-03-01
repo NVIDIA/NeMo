@@ -46,7 +46,7 @@ class FractionFst(GraphFst):
         denominator_half = pynini.cross("denominator: \"two\"", "half")
         denominator_quarter = pynini.cross("denominator: \"four\"", "quarter")
 
-        denominator_rest = pynutil.delete("denominator: \"") + suffix + pynutil.delete("\"")
+        denominator_rest = pynutil.delete("denominator: \"") + pynini.closure(NEMO_NOT_QUOTE) @ suffix + pynutil.delete("\"")
 
         denominators = plurals._priority_union(
             denominator_one,
