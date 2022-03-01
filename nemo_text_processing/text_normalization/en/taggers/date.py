@@ -282,9 +282,7 @@ class DateFst(GraphFst):
 
         final_graph = graph_mdy | graph_dmy
 
-        if deterministic:
-            final_graph += pynutil.insert(" preserve_order: true")
-        else:
+        if not deterministic or lm:
             final_graph += pynini.closure(pynutil.insert(" preserve_order: true"), 0, 1)
             m_sep_d = (
                 month_numbers_graph
@@ -294,11 +292,13 @@ class DateFst(GraphFst):
                 + day_graph
             )
             final_graph |= m_sep_d
+        else:
+            final_graph += pynutil.insert(" preserve_order: true")
 
         year_graph_standalone = pynutil.insert(" year: \"") + year_graph_standalone + pynutil.insert("\"")
         final_graph |= graph_ymd | year_graph_standalone
 
-        if not deterministic:
+        if not deterministic or lm:
             ymd_to_mdy_graph = None
             ymd_to_dmy_graph = None
             mdy_to_dmy_graph = None
