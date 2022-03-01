@@ -142,12 +142,16 @@ class DateFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False, baseline: bool = False):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
+        # january
         month_graph = pynini.string_file(get_abs_path("data/months/names.tsv")).optimize()
+        # January, JANUARY
         month_graph |= pynini.compose(TO_LOWER + pynini.closure(NEMO_CHAR), month_graph) | pynini.compose(
             TO_LOWER ** (2, ...), month_graph
         )
 
+        # jan
         month_abbr_graph = pynini.string_file(get_abs_path("data/months/abbr.tsv")).optimize()
+        # jan, Jan, JAN
         month_abbr_graph = (
             month_abbr_graph
             | pynini.compose(TO_LOWER + pynini.closure(NEMO_LOWER, 1), month_abbr_graph).optimize()
