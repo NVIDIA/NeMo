@@ -32,13 +32,13 @@ def main(cfg):
     run_evaluation = cfg.get("run_evaluation")
 
     # TODO: build a mapping from dataset name to modules
-    data_cfg = cfg.get("data_config")
-    if "pile" in data_cfg:
+    data_config = cfg.get("data_config")
+    if "pile" in data_config:
         from bignlp.data_preparation import data_preparation_pile as data_preparation
-    elif "mc4" in data_cfg:
+    elif "mc4" in data_config:
         from bignlp.data_preparation import data_preparation_mc4 as data_preparation
     else:
-        raise ValueError(f"Unrecognized dataset in data config `{data_cfg}`.")
+        raise ValueError(f"Unrecognized dataset in data config `{data_config}`.")
 
     cfg_copy = copy.deepcopy(cfg)
     dependency = None
