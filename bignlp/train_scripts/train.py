@@ -114,8 +114,8 @@ def run_training(cfg, hydra_args="", dependency=None):
         partition = cluster_cfg.partition
         account = cluster_cfg.account
         exclusive = cluster_cfg.exclusive
-        gpus_per_task = cluster_cfg.gpus_per_task if "gpus_per_task" in cluster_cfg else None
-        gpus_per_node = cluster_cfg.gpus_per_node if "gpus_per_node" in cluster_cfg else None
+        gpus_per_task = cluster_cfg.get("gpus_per_task", None)
+        gpus_per_node = cluster_cfg.get("gpus_per_node", None)
         job_name_prefix = cluster_cfg.job_name_prefix
         if dependency is None:
             dependency = run_cfg.dependency
