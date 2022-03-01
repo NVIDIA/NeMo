@@ -10,9 +10,9 @@ class TestEvaluationT5Config:
           name: eval_${.task_name}_${.model_train_name}
           time_limit: "0-04:00:00"
           dependency: "singleton"
-          convert_name: convert_nemo
           model_train_name: t5_220m
           task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
         trainer:
@@ -33,7 +33,7 @@ class TestEvaluationT5Config:
           create_checkpoint_callback: False
         
         model:
-          restore_from_finetuned_path: ${finetuning.run.results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+          restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
           tensor_model_parallel_size: 1
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp

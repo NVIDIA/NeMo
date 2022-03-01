@@ -1,4 +1,3 @@
-#TODO: auto config node number and ntasks per node
 run:
   job_name: convert_${conversion.run.model_train_name}
   nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
