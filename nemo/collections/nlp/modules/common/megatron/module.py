@@ -56,7 +56,6 @@ class MegatronModule(torch.nn.Module):
         if self.pre_process:
             if hasattr(self, 'language_model'):
                 return self.language_model.embedding.word_embeddings.weight
-            # Move T5 embeddings to CUDA
             elif hasattr(self, 'encoder_embedding'):
                 return self.encoder_embedding.word_embeddings.weight
             elif hasattr(self, 'decoder_embedding'):
@@ -251,12 +250,21 @@ class Float16Module(MegatronModule):
         return self.module.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
 
     def word_embeddings_weight(self):
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
-            return self.module.language_model.embedding.word_embeddings.weight
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if self.module.pre_process:
+            if hasattr(self.module, 'language_model'):
+                return self.module.language_model.embedding.word_embeddings.weight
+            elif hasattr(self.module, 'encoder_embedding'):
+                return self.module.encoder_embedding.word_embeddings.weight
+            elif hasattr(self.module, 'decoder_embedding'):
+                return self.module.decoder_embedding.word_embeddings.weight
+            else:
+                raise ValueError(
+                    f"Pre_process is True, but no embedding is found on this rank. Looked for language_model.embedding, encoder_embedding, and decoder_embedding"
+                )
+        else:
+            # This is the pipeline parallel last stage.
             if not self.share_word_embeddings:
                 raise Exception(
                     'word_embeddings_weight() called for last ' 'stage, but share_word_embeddings is false'
                 )
             return self.module.word_embeddings.weight
-        raise Exception('word_embeddings_weight() should be ' 'called for first and last stage only')
