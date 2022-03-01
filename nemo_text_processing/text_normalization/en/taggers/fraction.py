@@ -29,6 +29,8 @@ class FractionFst(GraphFst):
     Finite state transducer for classifying fraction
     "23 4/5" ->
     tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } }
+    "23 4/5th" ->
+    tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } }
 
     Args:
         deterministic: if True will provide a single transduction option,

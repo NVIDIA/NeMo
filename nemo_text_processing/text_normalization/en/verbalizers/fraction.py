@@ -30,7 +30,7 @@ class FractionFst(GraphFst):
     """
     Finite state transducer for verbalizing fraction
         e.g. tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } } ->
-        twenty three four fifth
+        twenty three and four fifth
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -42,14 +42,12 @@ class FractionFst(GraphFst):
         suffix = OrdinalFst().suffix
 
         integer = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
-        numerator = pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE) + pynutil.delete("\" ")
         denominator_one = pynini.cross("denominator: \"one\"", "over one")
         denominator_half = pynini.cross("denominator: \"two\"", "half")
         denominator_quarter = pynini.cross("denominator: \"four\"", "quarter")
 
         denominator_rest = pynutil.delete("denominator: \"") + suffix + pynutil.delete("\"")
 
-        numerator_one = pynutil.delete("numerator: \"") + pynini.accep("one") + pynutil.delete("\" ")
         denominators = plurals._priority_union(
             denominator_one,
             plurals._priority_union(
@@ -59,6 +57,10 @@ class FractionFst(GraphFst):
             ),
             NEMO_SIGMA,
         ).optimize()
+        if not deterministic:
+            denominators |= pynutil.delete("denominator: \"") + (pynini.accep("four") @ suffix) + pynutil.delete("\"")
+
+        numerator_one = pynutil.delete("numerator: \"") + pynini.accep("one") + pynutil.delete("\" ")
         numerator_one = numerator_one + insert_space + denominators
         numerator_rest = (
             pynutil.delete("numerator: \"")
