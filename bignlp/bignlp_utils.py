@@ -45,5 +45,5 @@ def add_container_mounts(container_mounts):
         assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
         for mount in container_mounts:
             if mount is not None and isinstance(mount, str):
-                mounts_str += f",{mount}"  # TODO: change it back
+                mounts_str += f",{mount}" if ":" in mount else f",{mount}:{mount}"
     return mounts_str

@@ -10,7 +10,7 @@ from bignlp.bignlp_utils import convert_to_cli, fake_submit
 from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
 from bignlp.finetune_scripts import finetune
-from bignlp.eval_scripts import evaluate
+from bignlp.eval_scripts import evaluate_gpt, evaluate_t5
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
@@ -61,8 +61,15 @@ def main(cfg):
     else:
         cfg_copy._content.pop("finetuning", None)
 
+    # TODO: merge evaluation harness
     if run_evaluation:
-        dependency = evaluate.run_evaluation(cfg, dependency=dependency)
+        if "gpt" in cfg.evaluation_config:
+            dependency = evaluate_gpt.run_evaluation(cfg, dependency=dependency)
+        elif "t5" in cfg.evaluation_config:
+            dependency = evaluate_t5.run_evaluation(cfg, hydra_args=hydra_args, dependency=dependency)
+        else:
+            raise ValueError(f"Unrecognized model in evaluation config `{cfg.evaluation_config}`.")
+
     else:
         cfg_copy._content.pop("evaluation", None)
 
