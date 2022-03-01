@@ -157,7 +157,13 @@ class MegatronGPTModel(NLPModel):
 
             if self.cfg.get('existing_prompt_tags', None):
                 # Fill table with prev tuned prompt tags and their ids
-                self.prompt_table = set(self.cfg.existing_prompt_tags)
+                # Assign prompt tag ids if they don't have any
+                if len(self.cfg.existing_prompt_tags[0]) == 1:
+                    existing_prompt_tags = self.cfg.existing_prompt_tags
+                    existing_prompt_tags = [(existing_prompt_tags[tag_id], tag_id + 1) for tag_id in range(len(existing_prompt_tags))]
+                    self.prompt_table = set(existing_prompt_tags)
+                else:
+                    self.prompt_table = set(self.cfg.existing_prompt_tags)
 
                 # Get max prompt id from table for starting point of new prompt ids
                 self.next_prompt_id = max(self.prompt_table, key=lambda x: x[1])[1]
