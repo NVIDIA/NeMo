@@ -128,7 +128,7 @@ model:
     dataset_type: 't5'
     short_seq_prob: 0.0
     max_ngram_size: 256
-    mean_ngram_size: 3
+    mean_ngram_size: null
     geometric_dist: True
     permutation: False
     whole_word_masking: True

@@ -16,8 +16,8 @@ class TestEvaluationT5Config:
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
         trainer:
-          gpus: ${evaluation.model.tensor_model_parallel_size}
-          num_nodes: 1
+          gpus: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
+          num_nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8}
           accelerator: ddp
           precision: 16
           logger: False # logger provided by exp_manager
@@ -34,7 +34,9 @@ class TestEvaluationT5Config:
         
         model:
           restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
-          tensor_model_parallel_size: 1
+          tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+          pipeline_model_parallel_size: 1
+          model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
         
