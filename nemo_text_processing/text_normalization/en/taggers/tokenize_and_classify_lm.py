@@ -152,6 +152,7 @@ class ClassifyFst(GraphFst):
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
 
             time_final = pynini.compose(time_graph, v_time_graph)
+            date_final = pynini.compose(date_graph, v_date_graph)
             cardinal_final = pynini.compose(cardinal_graph, v_cardinal_graph)
 
             classify_and_verbalize = (
@@ -164,7 +165,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.1)
+                | pynutil.add_weight(date_final, 1.1)
                 | pynutil.add_weight(whitelist_graph, 1.1)
             ).optimize()
 
@@ -175,7 +176,9 @@ class ClassifyFst(GraphFst):
             # abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
             # classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
-            range_graph = RangeFst(time=time_final, cardinal=cardinal_tagger, deterministic=deterministic).fst
+            range_graph = RangeFst(
+                time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
+            ).fst
             v_range_graph = vRangeFst(deterministic=deterministic).fst
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.5)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
