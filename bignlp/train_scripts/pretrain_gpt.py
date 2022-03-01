@@ -13,11 +13,13 @@ def main(cfg):
     hydra_train_args = convert_args_to_hydra_train_args(args)
 
     bignlp_path = cfg.bignlp_path
+    dgxa100_gpu2core = cfg.dgxa100_gpu2core
+    dgxa100_gpu2mem = cfg.dgxa100_gpu2mem
     training_config = cfg.training_config.rsplit('/', 1)[1]
     training_config_path = os.path.join(bignlp_path, "conf/training", cfg.training_config.rsplit('/', 1)[0])
     flags = f"--config-path={training_config_path} --config-name={training_config} "
 
-    gpu_mapping, core_mapping = numa_mapping()
+    gpu_mapping, core_mapping = numa_mapping(dgxa100_gpu2core, dgxa100_gpu2mem)
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
