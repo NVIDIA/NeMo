@@ -1,12 +1,11 @@
-slurm:
-  partition: luna
-  account: "joc"
-  time_limit: "1-12:00:00"
-  nodes: 8  # Number of nodes to be used for full training run.
-  exclusive: True
-  mem: 0
-  overcommit: True
-  ntasks_per_node: 8  # Number of GPUs per node.
-  gpus_per_task: "null"
-  dependency: "singleton"
-  job_name: "joc-bignlp_gpt3:126m"
+partition: luna
+account: joc
+time_limit: "30:00"
+nodes: 8  # Number of nodes to be used for full training run.
+exclusive: True
+mem: 0
+overcommit: True
+ntasks_per_node: 8  # Number of GPUs per node.
+gpus_per_task: null
+dependency: "singleton"
+job_name_prefix: "joc-bignlp_gpt3:"

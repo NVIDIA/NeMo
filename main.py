@@ -1,4 +1,5 @@
 import hydra
+from omegaconf import OmegaConf
 
 from hp_tool.search_config import search_config
 
@@ -14,6 +15,6 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
+    OmegaConf.register_new_resolver("multiply", lambda x, y: x*y)
     main()
 

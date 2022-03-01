@@ -19,43 +19,47 @@ def _calculate_model_size(
     return model_size
 
 
-def calculate_num_layers_hidden_size_learning_rate(
-    model_size, seq_length=2048, vocab_size=51200
-):
-    if model_size < 0.25:
+def calculate_layers_hs_lr(model_size_in_b, seq_length=2048, vocab_size=51200):
+    if model_size_in_b < 0.25:
         hidden_size, att_heads, lr = 768, 12, 6e-4
-    elif model_size < 0.5:
+    elif model_size_in_b < 0.5:
         hidden_size, att_heads, lr = 1024, 16, 3e-4
-    elif model_size < 1:
+    elif model_size_in_b < 1:
         hidden_size, att_heads, lr = 1536, 16, 2.5e-4
-    elif model_size < 2:
+    elif model_size_in_b < 2:
         hidden_size, att_heads, lr = 2048, 16, 2e-4
-    elif model_size < 3:
+    elif model_size_in_b < 3:
         hidden_size, att_heads, lr = 2560, 32, 1.6e-4
-    elif model_size < 4.5:
+    elif model_size_in_b < 4.5:
         hidden_size, att_heads, lr = 3072, 32, 1.4e-4
-    elif model_size < 8:
+    elif model_size_in_b < 8:
         hidden_size, att_heads, lr = 4096, 32, 1.2e-4
-    elif model_size < 15:
+    elif model_size_in_b < 15:
         hidden_size, att_heads, lr = 5120, 40, 1e-4
-    elif model_size < 25:
+    elif model_size_in_b < 25:
         hidden_size, att_heads, lr = 6144, 48, 1e-4
-    else:
+    elif model_size_in_b < 52:
+        hidden_size, att_heads, lr = 8192, 64, 0.8e-4
+    elif model_size_in_b < 105:
+        hidden_size, att_heads, lr = 10240, 80, 0.7e-4
+    elif model_size_in_b < 205:
         hidden_size, att_heads, lr = 12288, 96, 0.6e-4
+    elif model_size_in_b < 405:
+        hidden_size, att_heads, lr = 14336, 128, 0.5e-4
+    elif model_size_in_b < 805:
+        hidden_size, att_heads, lr = 20480, 128, 0.4e-4
+    elif model_size_in_b < 1105:
+        hidden_size, att_heads, lr = 24576, 128, 0.3e-4
+    else:
+        raise ValueError("Model_size must be smaller than 1.1T parameters.")
 
     margin = 0.02
     for attempt in range(0, 10):
-        for num_layers in range(1, 100):
-            out_model_size = _calculate_model_size(
-                vocab_size, seq_length, hidden_size, num_layers
-            )
-            if (
-                model_size * (1.0 - margin)
-                < out_model_size
-                < model_size * (1.0 + margin)
-            ):
-                return num_layers, hidden_size, att_heads, lr
-        margin += 0.03
+        for layers in range(1, 200):
+            out_size = _calculate_model_size(vocab_size, seq_length, hidden_size, layers)
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
+                return layers, hidden_size, att_heads, lr
+        margin *= 2  # Double margin of acceptable model sizes.
     raise Exception("Number of layers not found, config is not possible.")
 
 
@@ -120,6 +124,7 @@ def generic_base_config(cfg):
 
     model:
       micro_batch_size: 4
+      global_batch_size: 256
       tensor_model_parallel_size: 1
       pipeline_model_parallel_size: 1
       encoder_seq_length: 2048
@@ -190,7 +195,7 @@ def generic_base_config(cfg):
     return base_cfg
 
 
-def modify_cfg(base_cfg, act, tp, pp, mbs):
+def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes):
     new_cfg = copy.deepcopy(base_cfg)
     new_cfg["model"]["activations_checkpoint_num_layers"] = act
     new_cfg["model"]["tensor_model_parallel_size"] = tp
@@ -200,22 +205,21 @@ def modify_cfg(base_cfg, act, tp, pp, mbs):
     num_layers = new_cfg["model"]["num_layers"]
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
-    num_gpus = new_cfg["slurm"]["nodes"] * new_cfg["slurm"]["ntasks_per_node"]
+    num_gpus = new_cfg["trainer"]["num_nodes"] * new_cfg["trainer"]["gpus"]
+    gbs = new_cfg["model"]["global_batch_size"]
 
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp
     mod_layers = num_layers % pp
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
-        new_cfg["slurm"]["nodes"] = 1  # Necessary for short single-node test.
-        days = max_mins // 3600
-        hours = (max_mins % 3600) // 60
-        mins = (max_mins % 3600) % 60
-        new_cfg["slurm"]["time_limit"] = f"{days}-{hours}:{mins}:00"
-        new_cfg["slurm"]["job_name"] = \
-                f"{new_cfg['slurm']['job_name']}_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
-        new_cfg["run"]["log_dir"] = \
-                f"{new_cfg['run']['log_dir']}/tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
+        new_cfg["trainer"]["num_nodes"] = pp  # Necessary for short single-node test.
+        days = max_minutes // 3600
+        hours = (max_minutes % 3600) // 60
+        mins = (max_minutes % 3600) % 60
+        new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
+        new_cfg["run"]["name"] = \
+                f"{new_cfg['run']['name']}_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
         print(
             f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, num_gpus={num_gpus}, act_ckpt_layers={act}. Adding to directory."
         )
