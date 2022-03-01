@@ -18,11 +18,11 @@ import torch
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 
 from nemo.collections.nlp.data.glue_benchmark.t5_ptune_dataset import T5PTuneDataset, T5PTuneInferenceDataset
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
@@ -41,24 +41,13 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronT5PTuneModel']
 
 
-class MegatronT5PTuneModel(NLPModel):
+class MegatronT5PTuneModel(MegatronBaseModel):
     """
     Megatron T5 P-Tune
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        initialize_model_parallel_for_nemo(
-            world_size=trainer.world_size,
-            global_rank=trainer.global_rank,
-            local_rank=trainer.local_rank,
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            seed=cfg.get('seed', 1234),
-        )
-
-        # shared params for dataset and data loaders
-        # tokenizer needs to get initialized before the super.__init__()
-        # as dataloaders and datasets need it to process the data
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
@@ -117,15 +106,26 @@ class MegatronT5PTuneModel(NLPModel):
         self._reduced_loss_buffer = []
         self.decoder_seq_length = cfg.get('decoder_seq_length', 10)
 
-    def embed_input(self, queries, enc_taskname):
-        bz = queries.shape[0]
-        queries_for_embedding = queries.clone()
+    def embed_input(self, enc_input_id: Tensor, enc_taskname_id: Tensor):
+        """
+        This method will replace the virtual tokens in the enc_input_id with
+        embeddings calculated from `prompt_encoder`. If the `enc_taskname_id` is
+        not None, the computed virtual token embeddings are depenedent on it.
+        The virtual token placeholders has the token_id `self.pseudo_token_id`.
+        params:
+            enc_input_id: the input token ids
+            enc_taskname_id: the NLP task tag token ids
+        returns:
+            the token embedding for the LM model.
+        """
+        bz = enc_input_id.shape[0]
+        queries_for_embedding = enc_input_id.clone()
 
-        queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
+        queries_for_embedding[(enc_input_id == self.pseudo_token_id)] = self.pad_token_id
         raw_embeds = self.word_embeddings(queries_for_embedding).clone()
 
         if self.cfg.prompt_encoder.task_dependent:
-            enc_taskname = self.word_embeddings(enc_taskname)
+            enc_taskname = self.word_embeddings(enc_taskname_id)
         else:
             enc_taskname = None
 
@@ -135,7 +135,7 @@ class MegatronT5PTuneModel(NLPModel):
             with torch.autocast(device_type="cuda", dtype=self.float_type):
                 replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
 
-        blocked_indices = queries == self.pseudo_token_id
+        blocked_indices = enc_input_id == self.pseudo_token_id
         raw_embeds = raw_embeds.clone().type(self.float_type)
         # find the index to the psedo-tokens
         index = blocked_indices.nonzero().reshape((bz, -1, 2))[:, :, 1][:, :, None]
