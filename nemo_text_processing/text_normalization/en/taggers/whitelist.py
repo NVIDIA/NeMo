@@ -50,12 +50,7 @@ class WhiteListFst(GraphFst):
     """
 
     def __init__(
-        self,
-        input_case: str,
-        deterministic: bool = True,
-        input_file: str = None,
-        lm: bool = False,
-        baseline: bool = False,
+        self, input_case: str, deterministic: bool = True, input_file: str = None, lm: bool = False,
     ):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
