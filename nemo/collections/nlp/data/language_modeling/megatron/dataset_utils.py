@@ -63,8 +63,9 @@ DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
 DSET_TYPE_T5 = 't5'
 DSET_TYPE_T5_LM = 't5_prefix_lm'
+DSET_TYPE_BART = 'bart'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM]
+DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART]
 
 
 def compile_helper():
@@ -320,6 +321,9 @@ def create_masked_lm_predictions(
                     else:
                         masked_token = vocab_id_list[np_rng.randint(0, len(vocab_id_list))]
             elif masking_style == "t5":
+                masked_token = mask_id
+            elif masking_style == "bart":
+                # FIXME: add all BART self-supervision
                 masked_token = mask_id
             else:
                 raise ValueError("invalid value of masking style")

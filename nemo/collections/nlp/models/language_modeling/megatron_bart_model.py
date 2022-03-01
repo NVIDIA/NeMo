@@ -75,11 +75,8 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
                 self.tokenizer.add_special_tokens({'eos_token': '</s>'})
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building T5 datasets.')
-        if self._cfg.data.seq_length_dec < self._cfg.data.seq_length * self._cfg.data.masked_lm_prob:
-            raise ValueError(
-                f"Cannot have decoder max sequence length ({self._cfg.data.seq_length_dec}) less than encoder sequence length ({self._cfg.data.seq_length}) * masked_lm_prob ({self._cfg.data.masked_lm_prob})"
-            )
+        logging.info('Building BART datasets.')
+
         global_batch_size = self.trainer.world_size * self._cfg.micro_batch_size / self._cfg.tensor_model_parallel_size
         eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
@@ -88,11 +85,11 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
-        # Make sure the user specifies dataset type as either 't5' or 't5_prefix_lm' only.
+        # Make sure the user specifies dataset type as 'bart' only.
         if self._cfg.data.get('dataset_type', None) is not None:
-            if self._cfg.data.get('dataset_type') not in ['t5', 't5_prefix_lm']:
+            if self._cfg.data.get('dataset_type') not in ['bart']:
                 raise ValueError(
-                    f"dataset_type must be either 't5' or 't5_prefix_lm'. found {self._cfg.data.get('dataset_type')}"
+                    f"dataset_type must be 'bart'. found {self._cfg.data.get('dataset_type')}"
                 )
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self._cfg,
@@ -108,7 +105,7 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
             short_seq_prob=self._cfg.data.short_seq_prob,
             seed=self._cfg.seed,
             skip_warmup=self._cfg.data.skip_warmup,
-            dataset_type=self._cfg.data.get('dataset_type', 't5'),
+            dataset_type=self._cfg.data.get('dataset_type', 'bart'),
             max_ngram_size=self._cfg.get('max_ngram_size', 10),
             mean_ngram_size=self._cfg.get('mean_ngram_size', None),
             geometric_dist=self._cfg.get('geometric_dist', True),
@@ -119,7 +116,7 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building T5 datasets.')
+        logging.info(f'Finished building BART datasets.')
         return self._train_ds, self._validation_ds, self._test_ds
 
     def list_available_models(self):
