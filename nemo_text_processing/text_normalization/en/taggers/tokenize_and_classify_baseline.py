@@ -136,6 +136,10 @@ class ClassifyFst(GraphFst):
             whitelist_graph = whitelist.fst
             punct_graph = PunctuationFst(deterministic=True).fst
 
+            v_time_graph = vTime(deterministic=True).fst
+            time_final = pynini.compose(time_graph, v_time_graph)
+            range_graph = RangeFst(time=time_final, deterministic=deterministic).fst
+
             classify = (
                 pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(decimal_graph, 1.1)
@@ -148,6 +152,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(money_graph, 1.1)
                 | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(whitelist_graph, 1.01)
+                | pynutil.add_weight(range_graph, 1.1)
             ).optimize()
 
             roman_graph = RomanFst(deterministic=deterministic).fst

@@ -122,15 +122,18 @@ class CardinalFst(GraphFst):
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
 
-    def get_range_graph(self):
-        # use hundreds graph for 4 digit numbers
-        graph = (
-            get_hundreds_graph()
-            | (
-                pynini.compose(pynini.closure(NEMO_DIGIT, 1, 3), self.graph)
-                | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph)
-            )
-        ).optimize()
+    def get_range_graph(self, date_format_for_four_digits=True):
+        if date_format_for_four_digits:
+            # use hundreds graph for 4 digit numbers
+            graph = (
+                get_hundreds_graph()
+                | (
+                    pynini.compose(pynini.closure(NEMO_DIGIT, 1, 3), self.graph)
+                    | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph)
+                )
+            ).optimize()
+        else:
+            graph = self.graph.optimize()
 
         if self.deterministic:
             range_graph = graph + (pynini.cross("-", " to ") | pynini.cross(" - ", " to ")) + graph
@@ -140,7 +143,10 @@ class CardinalFst(GraphFst):
             graph.optimize()
 
             range_graph = (
-                (pynutil.add_weight(pynini.accep("from "), -0.001) | pynini.closure(pynutil.insert("from "), 0, 1))
+                (
+                    pynutil.add_weight(pynini.accep("from "), -0.001)
+                    | pynini.closure(pynutil.add_weight(pynutil.insert("from "), 0.0001), 0, 1)
+                )
                 + graph
                 + (pynini.cross("-", " to ") | pynini.cross(" - ", " to "))
                 + graph
@@ -213,7 +219,7 @@ class CardinalFst(GraphFst):
             pynini.difference(NEMO_SIGMA, pynini.closure(NEMO_DIGIT, 1) + pynini.union(*endings)), serial_graph
         ).optimize()
 
-        # serial_graph = pynutil.add_weight(serial_graph, 2.0001)
+        serial_graph = pynutil.add_weight(serial_graph, 0.0001)
         serial_graph |= (
             pynini.closure(NEMO_NOT_SPACE, 1)
             + (pynini.cross("^2", " squared") | pynini.cross("^3", " cubed")).optimize()
