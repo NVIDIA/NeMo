@@ -20,7 +20,10 @@ def main(cfg):
     # Vocab
     vocab_dir = data_cfg.vocab_save_dir
     assert vocab_dir is not None, "vocab_save_dir must be a valid path."
-    vocab_path = os.path.join(bignlp_path, vocab_dir, "vocab.json")
+    if 'gpt' in tokenizer_type.lower():
+        vocab_path = os.path.join(bignlp_path, vocab_dir, "vocab.json")
+    else:
+        vocab_path = os.path.join(bignlp_path, vocab_dir, "vocab.txt")
 
     # Merges
     merges_dir = data_cfg.merges_save_dir
@@ -89,7 +92,7 @@ def main(cfg):
         ncpus = psutil.cpu_count(logical=False)
         for file_number in files_to_preproc:
             extracted_path = os.path.join(data_dir, f"{file_number:02d}.jsonl")
-            output_prefix = os.path.join(data_dir, f"my-gpt3_{file_number:02d}")
+            output_prefix = os.path.join(data_dir, f"my-{'t5' if 't5' in data_config else 'gpt3'}_{file_number:02d}")
 
             flags = (
                 f"--input {extracted_path} "
@@ -98,7 +101,7 @@ def main(cfg):
                 f"--merge-file {merges_path} "
                 f"--dataset-impl mmap "
                 f"--tokenizer-library megatron "
-                f"--tokenizer-type GPT2BPETokenizer "
+                f"--tokenizer-type {tokenizer_type} "
                 f"--workers {ncpus} "
                 f"--append-eod "
             )

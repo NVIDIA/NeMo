@@ -8,25 +8,6 @@ from omegaconf import OmegaConf
 from bignlp.bignlp_utils import add_container_mounts
 
 
-def inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
-    """
-    Injects tensor/pipeline model parallel ranks into the filepath.
-    Does nothing if not using model parallelism.
-    """
-    tensor_model_parallel_rank = pipeline_model_parallel_rank = 0
-    if tensor_model_parallel_size > 1 or pipeline_model_parallel_size > 1:
-        # filepath needs to be updated to include mp_rank
-        dirname = os.path.dirname(filepath)
-        basename = os.path.basename(filepath)
-        if pipeline_model_parallel_size is None or pipeline_model_parallel_size == 1:
-            filepath = f'{dirname}/mp_rank_{tensor_model_parallel_rank:02d}/{basename}'
-        else:
-            filepath = f'{dirname}/tp_rank_{tensor_model_parallel_rank:02d}_pp_rank_{pipeline_model_parallel_rank:03d}/{basename}'
-        return filepath
-    else:
-        return filepath
-
-
 def create_slurm_file(
         new_script_path,
         convert_cmd,
@@ -118,48 +99,27 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     os.makedirs(output_path, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
 
-
-    # Checkpoint search
-    if checkpoint_name == "latest":
-        checkpoints = os.path.join(checkpoint_folder, '*.ckpt')
-        checkpoints = inject_model_parallel_rank(checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size)
-        checkpoint_list = glob.glob(checkpoints)
-        latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
-        checkpoint_name = os.path.basename(latest_checkpoint)
-
-    checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint = inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
-    checkpoint_list = glob.glob(checkpoint)
-    if len(checkpoint_list) > 1:
-        raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
-    if len(checkpoint_list) == 0:
-        raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
-    checkpoint_name = os.path.basename(checkpoint_list[0])
-
-    # Create hparam override file for vocab and merge
-    hparams_override_file = os.path.join(results_dir, "hparams_override.yaml")
-    conf = OmegaConf.load(hparams_file)
-    if vocab_file is not None:
-        conf.cfg.tokenizer.vocab_file = vocab_file
-    if merge_file is not None:
-        conf.cfg.tokenizer.merge_file = merge_file
-    with open(hparams_override_file, 'w') as f:
-        OmegaConf.save(config=conf, f=f)
-
     new_script_path = os.path.join(bignlp_path, f"bignlp/conversion_scripts/{model_train_name}.sh")
-    code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
+    code_path = os.path.join(bignlp_path, "bignlp/conversion_scripts/convert_ckpt.py")
     args = f"--gpus_per_node={gpus_per_node} " \
            f"--model_type={model_type} " \
            f"--checkpoint_folder={checkpoint_folder} " \
            f"--checkpoint_name={checkpoint_name} " \
-           f"--hparams_file={hparams_override_file} " \
+           f"--hparams_file={hparams_file} " \
            f"--nemo_file_path={nemo_file_path} " \
            f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
-           f"--pipeline_model_parallel_size={pipeline_model_parallel_size}"
+           f"--pipeline_model_parallel_size={pipeline_model_parallel_size} " \
+           f"--vocab_file={vocab_file} " \
+           f"--merge_file={merge_file}"
 
     args = args.replace(" ", " \\\n  ")
     cmd_str = f"python3 -u {code_path} \\\n  {args}"
 
+    # Delete conf override file if exists
+    hparams_override_file = os.path.join(output_path, "hparams_override.yaml")
+    if os.path.exists(hparams_override_file):
+        os.remove(hparams_override_file)
+    
     cluster_cfg = cfg.get("cluster")
     if cfg.get("cluster_type") == "bcm":
         # BCM parameters

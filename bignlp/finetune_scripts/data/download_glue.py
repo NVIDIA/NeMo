@@ -6,13 +6,15 @@ import tempfile
 import urllib.request
 import zipfile
 import io
+
 URLLIB = urllib.request
 
-TASKS = ["CoLA", "SST", "MRPC", "QQP", "STS", "MNLI", "QNLI", "RTE", "WNLI", "diagnostic"]
+TASKS = ["CoLA", "SST-2", "MRPC", "QQP", "STS-B", "MNLI", "QNLI", "RTE", "WNLI", "diagnostic"]
 TASK2PATH = {"CoLA": 'https://dl.fbaipublicfiles.com/glue/data/CoLA.zip',
-             "SST": 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip',
+             "SST-2": 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip',
+             "MRPC": 'https://raw.githubusercontent.com/MegEngine/Models/master/official/nlp/bert/glue_data/MRPC/dev_ids.tsv',
              "QQP": 'https://dl.fbaipublicfiles.com/glue/data/QQP-clean.zip',
-             "STS": 'https://dl.fbaipublicfiles.com/glue/data/STS-B.zip',
+             "STS-B": 'https://dl.fbaipublicfiles.com/glue/data/STS-B.zip',
              "MNLI": 'https://dl.fbaipublicfiles.com/glue/data/MNLI.zip',
              "QNLI": 'https://dl.fbaipublicfiles.com/glue/data/QNLIv2.zip',
              "RTE": 'https://dl.fbaipublicfiles.com/glue/data/RTE.zip',
@@ -36,6 +38,14 @@ def download_and_extract(task, data_dir):
     os.remove(data_file)
     print("\tCompleted!")
 
+
+def create_softlinks(tasks, data_dir):
+    for task in tasks:
+        src = os.path.join(data_dir, task)
+        dst = os.path.join(data_dir, task.lower())
+        if os.path.exists(dst):
+            os.remove(dst)
+        os.symlink(src, dst)
 
 def format_mrpc(data_dir, path_to_data):
     print("Processing MRPC...")
@@ -131,6 +141,7 @@ def download_glue(data_dir='glue_data', tasks='all', path_to_mrpc=None):
             download_diagnostic(data_dir)
         else:
             download_and_extract(task, data_dir)
+    create_softlinks(tasks, data_dir)
 
 
 def main(arguments):

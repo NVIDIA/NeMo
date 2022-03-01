@@ -6,9 +6,6 @@ import time
 import math
 from collections import defaultdict
 
-dgxa100_gpu2core = {0: '48-51,176-179', 1: '60-63,188-191', 2: '16-19,144-147', 3: '28-31,156-159',
-                    4: '112-115,240-243', 5: '124-127,252-255', 6: '80-83,208-211', 7: '92-95,220-223'}
-dgxa100_gpu2mem = {0: '3', 1: '3', 2: '1', 3: '1', 4: '7', 5: '7', 6: '5', 7: '5'}
 rank2gpu = [0, 4, 2, 6, 1, 5, 3, 7]
 
 
@@ -60,7 +57,7 @@ def generate_cmd_prefix(cfg, code_dir):
     return cmd_prefix
 
 
-def numa_mapping():
+def numa_mapping(dgxa100_gpu2core, dgxa100_gpu2mem):
     gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
     core_mapping = f"exec numactl --physcpubind={dgxa100_gpu2core[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} --membind={dgxa100_gpu2mem[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} -- "
     return gpu_mapping, core_mapping
@@ -68,11 +65,11 @@ def numa_mapping():
 
 def convert_args_to_hydra_train_args(args, prefix="training."):
     for index, arg in enumerate(args):
-        k, v = arg.lsplit("=", 1)
+        k, v = arg.split("=", 1)
         if "splits_string" in k:
             args[index] = "{}={}".format(k, v.replace("'", "\\'"))
 
-    train_args = [x.replace(prefix, "") for x in args if x[:9] == prefix]
+    train_args = [x.replace(prefix, "") for x in args if x.startswith(prefix)]
     train_args = [x.replace("None", "null") for x in train_args if "run." not in x]
     hydra_train_args = " ".join(train_args)
     return hydra_train_args

@@ -7,44 +7,44 @@ class TestEvaluationT5Config:
         conf = OmegaConf.load('conf/evaluation/t5/mnli_matched.yaml')
         s = """
         run:
-          name: ${.task_name}_${.model_train_name}
-          time_limit: "1-12:00:00"
+          name: eval_${.task_name}_${.model_train_name}
+          time_limit: "0-04:00:00"
           dependency: "singleton"
-          convert_name: convert_nemo
           model_train_name: t5_220m
-          eval_name: "eval_mnli"
-          results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
-
+          task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+          finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+          results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+        
         trainer:
-          gpus: 8
-          num_nodes: 1
+          gpus: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
+          num_nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8}
           accelerator: ddp
           precision: 16
-          logger: False
+          logger: False # logger provided by exp_manager
           checkpoint_callback: False
           replace_sampler_ddp: False
-          max_epochs: 4
-          max_steps: null
           log_every_n_steps: 10
-          val_check_interval: 500
-          accumulate_grad_batches: 1
-          gradient_clip_val: 1.0
-
+        
+        
         exp_manager:
           explicit_log_dir: ${evaluation.run.results_dir}
           exp_dir: null
-          name: megatron_t5_glue
+          name: megatron_t5_glue_eval
           create_checkpoint_callback: False
-
+        
         model:
-          restore_from_path: ???.nemo
-          tensor_model_parallel_size: 1
-
+          restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+          tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+          pipeline_model_parallel_size: 1
+          model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          megatron_amp_O2: False # Enable O2 optimization for megatron amp
+        
           data:
             validation_ds:
               task_name: ${evaluation.run.task_name}
-              file_path: ${data_dir}/MNLI/dev_matched.tsv
-              batch_size: 16
+              file_path: ${data_dir}/glue_data/${evaluation.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not evaluating MNLI
+              batch_size: 32
               shuffle: False
               num_workers: 4
               pin_memory: True
@@ -55,7 +55,7 @@ class TestEvaluationT5Config:
 
 
 class TestEvaluationGPT3Config:
-    
+
     def test_evaluation_gpt3_evaluate_all_config(self):
         conf = OmegaConf.load('conf/evaluation/gpt3/evaluate_all.yaml')
         s = """
@@ -81,7 +81,7 @@ class TestEvaluationGPT3Config:
         """
         expected = OmegaConf.create(s)
         assert expected == conf, f"conf/evaluation/gpt3/evaluate_all.yaml must be set to {expected} but it currently is {conf}."
-    
+
     def test_evaluation_gpt3_evaluate_lambada_config(self):
         conf = OmegaConf.load('conf/evaluation/gpt3/evaluate_lambada.yaml')
         s = """

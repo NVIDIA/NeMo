@@ -6,24 +6,24 @@ import hydra
 import omegaconf
 from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
 from bignlp.train_scripts.train_utils import generate_mt5_data_blend
+from bignlp.finetune_scripts.data import download_glue
 
 
 def create_slurm_file(
-    new_script_path,
-    train_cmd,
-    job_name,
-    flags="",
-    dependency=None,
-    time="04:00:00",
-    exclusive=True,
-    mem=0,
-    overcommit=True,
-    nodes=1,
-    ntasks_per_node=8,
-    gpus_per_task=None,
-    gpus_per_node=None,
-    partition="batch",
-    account=None,
+        new_script_path,
+        train_cmd,
+        job_name,
+        flags="",
+        dependency=None,
+        time="04:00:00",
+        exclusive=True,
+        mem=0,
+        overcommit=True,
+        nodes=1,
+        ntasks_per_node=8,
+        gpus_per_task=1,
+        partition="batch",
+        account=None,
 ):
     """
     Creates a slurm file to launch a training job.
@@ -34,8 +34,6 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
-        if gpus_per_node is not None:
-            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
@@ -55,10 +53,10 @@ def create_slurm_file(
 
 
 def create_bcp_file(
-    train_cmd,
-    num_nodes,
-    log_file,
-    new_script_path
+        train_cmd,
+        num_nodes,
+        log_file,
+        new_script_path
 ):
     with open(new_script_path, "w") as f:
         f.writelines(f'bcprun -n {num_nodes} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
@@ -67,62 +65,53 @@ def create_bcp_file(
     os.chmod(new_script_path, 0o755)
 
 
-def run_training(cfg, hydra_args="", dependency=None):
+def run_evaluation(cfg, hydra_args="", dependency=None):
     """
     Main function to launch a training job, with the config given in cfg.
     """
     # Read config
-    bignlp_path = cfg.get("bignlp_path")
-    container_mounts = cfg.get("container_mounts")
-    container = cfg.get("container")
-    train_cfg = cfg.get("training")
-    cluster_cfg = cfg.get("cluster")
-    data_dir = cfg.get("data_dir")
-    base_results_dir = cfg.get("base_results_dir")
-    run_cfg = train_cfg.get("run")
+    bignlp_path = cfg.bignlp_path
+    container_mounts = cfg.container_mounts
+    container = cfg.container
+    eval_cfg = cfg.evaluation
+    cluster_cfg = cfg.cluster
+    data_dir = cfg.data_dir
+    base_results_dir = cfg.base_results_dir
+    run_cfg = eval_cfg.run
 
     # Run parameters
-    name = run_cfg.get("name")
-    results_dir = run_cfg.get("results_dir")
-    time_limit = run_cfg.get("time_limit")
-    
+    name = run_cfg.name
+    task_name = run_cfg.task_name
+    results_dir = run_cfg.results_dir
+    time_limit = run_cfg.time_limit
+
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
-    
-    # Shared between BCP and BCM 
-    new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
-    training_config = cfg.get("training_config")
-    if "gpt" in training_config:
-        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
-    elif "mt5" in training_config:
-        model_cfg = train_cfg.get("model")
-        model_data_cfg = model_cfg.get("data")
-        if model_data_cfg.get("data_prefix") is None:
-            cfg.training.model.data.data_prefix = generate_mt5_data_blend(cfg)
-            hydra_args = convert_to_cli(cfg)
-        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
-    elif "t5" in training_config:
-        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
-    else:
-        raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
+
+    download_glue.download_glue(
+        data_dir=os.path.join(data_dir, "glue_data"),
+        tasks=task_name
+    )
+
+    # Shared between BCP and BCM
+    new_script_path = os.path.join(bignlp_path, f"bignlp/eval_scripts/{name}.sh")
+    code_path = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_t5/evaluate.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
     train_cmd = f"PYTHONPATH={bignlp_path}" + ":${PYTHONPATH} \\\n" + f"python3 -u {code_path} \\\n  {hydra_args}"
 
-    nodes = train_cfg.trainer.num_nodes
-    ntasks_per_node = train_cfg.trainer.gpus
+    nodes = eval_cfg.trainer.num_nodes
+    ntasks_per_node = eval_cfg.trainer.gpus
 
     # BCM parameters
     if cfg.cluster_type == "bcm":
-        partition = cluster_cfg.get("partition")
-        account = cluster_cfg.get("account")
-        exclusive = cluster_cfg.get("exclusive")
-        gpus_per_task = cluster_cfg.get("gpus_per_task")
-        gpus_per_node = cluster_cfg.get("gpus_per_node")
-        job_name_prefix = cluster_cfg.get("job_name_prefix")
-
+        partition = cluster_cfg.partition
+        account = cluster_cfg.account
+        exclusive = cluster_cfg.exclusive
+        gpus_per_task = cluster_cfg.gpus_per_task
+        job_name_prefix = cluster_cfg.job_name_prefix
         if dependency is None:
-            dependency = run_cfg.get("dependency")
+            dependency = run_cfg.dependency
         job_name = job_name_prefix + name
 
         # Process container-mounts.
@@ -147,7 +136,6 @@ def run_training(cfg, hydra_args="", dependency=None):
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
             gpus_per_task=gpus_per_task,
-            gpus_per_node=gpus_per_node,
             partition=partition,
             account=account,
         )
@@ -159,7 +147,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         return dependency
 
     # BCP parameters
-    if cfg.get("cluster_type") == "bcp":
+    if cfg.cluster_type == "bcp":
         create_bcp_file(
             new_script_path=new_script_path,
             train_cmd=train_cmd,
@@ -170,4 +158,3 @@ def run_training(cfg, hydra_args="", dependency=None):
         subprocess.check_output([f"{submit_cmd}"], shell=True)
         print(f"Training job submitted with command: \n{submit_cmd}")
         return None
-
