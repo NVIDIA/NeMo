@@ -284,7 +284,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
 
-        # self.init_streaming_params()
+        self.init_streaming_params()
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -320,6 +320,15 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             self.att_mask = att_mask
         else:
             self.register_buffer('att_mask', att_mask, persistent=False)
+
+    def streaming_forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None):
+        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        return self.forward_for_export(
+            audio_signal=audio_signal,
+            length=length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+        )
 
     @typecheck()
     def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None):
@@ -470,9 +479,10 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.init_shift_size = 1
         self.last_channel_cache_size = self.att_context_size[0]
 
-        self.valid_out_len = (self.init_shift_size - 1) // self.subsampling_factor + 1
+        # self.valid_out_len = (self.init_shift_size - 1) // self.subsampling_factor + 1
 
         self.export_cache_support = False
+        self.drop_extra_pre_encoded = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
         if device is None:
@@ -490,3 +500,4 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
 
         return cache_last_channel, cache_last_time, cache_pre_encode
+

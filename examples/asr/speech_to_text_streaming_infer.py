@@ -210,7 +210,7 @@ def main():
 
     # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
-    asr_model.encoder.init_streaming_params()
+    # asr_model.encoder.init_streaming_params()
     batch_size = 1
     cache_last_channel, cache_last_time, init_cache_pre_encode = asr_model.encoder.get_initial_cache_state(
         batch_size=batch_size
@@ -227,7 +227,8 @@ def main():
         asr_model=asr_model,
         audio_signal=init_audio,
         length=torch.tensor([init_audio.size(-1)]),
-        valid_out_len=asr_model.encoder.valid_out_len,
+        valid_out_len=(asr_model.encoder.init_shift_size - 1) // asr_model.encoder.subsampling_factor
+        + 1,  # asr_model.encoder.valid_out_len,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
         previous_hypotheses=None,
@@ -240,7 +241,6 @@ def main():
     previous_hypotheses = best_hyp
     pre_encode_cache_size = 5
 
-    # if type(asr_model.encoder.pre_encode) == ConvSubsampling:
     asr_model.encoder.drop_extra_pre_encoded = True
 
     for i in range(asr_model.encoder.init_shift_size, processed_signal.size(-1), asr_model.encoder.shift_size):
@@ -300,6 +300,7 @@ def main():
         )
         if i + asr_model.encoder.chunk_size >= processed_signal.size(-1):
             break
+
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)
     # print(greedy_merge_ctc(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
