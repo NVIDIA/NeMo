@@ -62,11 +62,7 @@ class RomanFst(GraphFst):
 
         # single symbol roman numerals with preceding key words are converted to cardinal form
         graph |= (
-            pynutil.insert("key_cardinal: \"")
-            + key_words
-            + pynutil.insert("\"")
-            + pynini.accep(" ")
-            + default_graph
+            pynutil.insert("key_cardinal: \"") + key_words + pynutil.insert("\"") + pynini.accep(" ") + default_graph
         ).optimize()
 
         # two digit roman numerals up to 49
@@ -85,6 +81,6 @@ class RomanFst(GraphFst):
         )
 
         graph |= roman_to_cardinal | roman_to_ordinal
-        
+
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
