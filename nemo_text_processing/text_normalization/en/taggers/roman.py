@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -62,14 +63,10 @@ class RomanFst(GraphFst):
 
         # single symbol roman numerals with preceding key words are converted to cardinal form
         graph |= (
-            pynutil.insert("key_cardinal: \"")
-            + key_words
-            + pynutil.insert("\"")
-            + pynini.accep(" ")
-            + pynini.compose(NEMO_ALPHA, default_graph)
+            pynutil.insert("key_cardinal: \"") + key_words + pynutil.insert("\"") + pynini.accep(" ") + default_graph
         ).optimize()
 
-        # two and more roman numerals, single digit roman numbers could be initials or I
+        # two digit roman numerals up to 49
         roman_to_cardinal = pynini.compose(
             pynini.closure(NEMO_ALPHA, 2),
             (
@@ -78,7 +75,7 @@ class RomanFst(GraphFst):
             ),
         )
 
-        # two and more roman numerals, single digit roman numbers could be initials or I
+        # convert three digit roman or up with suffix to ordinal
         roman_to_ordinal = pynini.compose(
             pynini.closure(NEMO_ALPHA, 3),
             (pynutil.insert("default_ordinal: \"default\" ") + graph_teens @ default_graph + pynutil.delete("th")),
