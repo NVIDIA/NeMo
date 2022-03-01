@@ -30,5 +30,6 @@ test:bignlp_scripts:
   script:
     - pip install -r requirements.txt
     - pip install 'pytest>=3'
+    - pip install requests-mock
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
     - pytest tests
