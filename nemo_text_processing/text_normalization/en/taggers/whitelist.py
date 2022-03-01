@@ -49,7 +49,7 @@ class WhiteListFst(GraphFst):
         input_file: path to a file with whitelist replacements
     """
 
-    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None, lm: bool = False):
+    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
         def _get_whitelist_graph(input_case, file):

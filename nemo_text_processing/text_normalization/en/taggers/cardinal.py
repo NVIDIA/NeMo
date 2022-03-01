@@ -23,7 +23,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     insert_space,
     plurals,
 )
-from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
+from nemo_text_processing.text_normalization.en.taggers.date import get_four_digit_year_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
@@ -46,7 +46,7 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True, lm: bool = False, baseline: bool = False):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         self.lm = lm
@@ -111,7 +111,7 @@ class CardinalFst(GraphFst):
                 self.graph
                 | serial_graph
                 | self.single_digits_graph
-                | get_hundreds_graph()
+                | get_four_digit_year_graph()
                 | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
                 | cardinal_with_leading_zeros
             )
@@ -126,7 +126,7 @@ class CardinalFst(GraphFst):
         if date_format_for_four_digits:
             # use hundreds graph for 4 digit numbers
             graph = (
-                get_hundreds_graph()
+                get_four_digit_year_graph()
                 | (
                     pynini.compose(pynini.closure(NEMO_DIGIT, 1, 3), self.graph)
                     | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph)

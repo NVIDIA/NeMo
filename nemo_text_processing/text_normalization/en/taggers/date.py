@@ -21,6 +21,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     TO_LOWER,
     GraphFst,
     delete_extra_space,
+    delete_space,
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
@@ -28,10 +29,12 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     graph_teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv"))).optimize()
     graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
     ties_graph = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv"))).optimize()
+    year_suffix = pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -60,7 +63,7 @@ def get_ties_graph(deterministic: bool = True):
     return graph.optimize()
 
 
-def get_hundreds_graph(deterministic: bool = True):
+def get_four_digit_year_graph(deterministic: bool = True):
     """
     Returns a four digit transducer which is combination of ties/teen or digits
     (using hundred instead of thousand format), e.g.
@@ -73,53 +76,66 @@ def get_hundreds_graph(deterministic: bool = True):
         | (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred")
         | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")) + pynutil.delete("0s"))
         @ pynini.cdrewrite(pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA)
-        | pynutil.add_weight(
-            graph_digit
-            + insert_space
-            + pynini.cross("00", "thousand")
-            + (pynutil.delete("0") | insert_space + graph_digit),
-            weight=-0.001,
-        )
-        | pynutil.add_weight(
-            graph_digit
-            + insert_space
-            + pynini.cross("000", "thousand")
-            + pynini.closure(pynutil.delete(" "), 0, 1)
-            + pynini.accep("s"),
-            weight=-0.001,
-        )
     )
+    thousand_graph = (
+        graph_digit
+        + insert_space
+        + pynini.cross("00", "thousand")
+        + (pynutil.delete("0") | insert_space + graph_digit)
+    )
+    thousand_graph |= (
+        graph_digit
+        + insert_space
+        + pynini.cross("000", "thousand")
+        + pynini.closure(pynutil.delete(" "), 0, 1)
+        + pynini.accep("s")
+    )
+    if deterministic:
+        graph = plurals._priority_union(thousand_graph, graph, NEMO_SIGMA)
+    else:
+        graph |= thousand_graph
+
     return graph.optimize()
 
 
 def _get_two_digit_year_with_s_graph():
     # to handle '70s -> seventies
-    return pynutil.add_weight(
-        pynini.closure(pynutil.add_weight(pynutil.delete("'"), -0.001), 0, 1)
+    graph = (
+        pynini.closure(pynutil.delete("'"), 0, 1)
         + pynini.compose(
             ties_graph + pynutil.delete("0s"), pynini.cdrewrite(pynini.cross("y", "ies"), "", "[EOS]", NEMO_SIGMA)
-        ),
-        -0.2,
+        )
     ).optimize()
+    return graph
 
 
-def _get_year_graph(deterministic: bool = True):
+def _get_year_graph(cardinal_graph, deterministic: bool = True):
     """
     Transducer for year, only from 1000 - 2999 e.g.
     1290 -> twelve nineteen
     2000 - 2009 will be verbalized as two thousand.
+    
+    Transducer for 3 digit year, e.g. 123-> one twenty three
+    
+    Transducer for year with suffix
+    123 A.D., 4200 B.C
     """
-    graph = get_hundreds_graph(deterministic)
-    graph = (
-        pynini.union("1", "2")
-        + NEMO_DIGIT
-        + NEMO_DIGIT
-        + NEMO_DIGIT
-        + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)
-    ) @ graph
+    graph = get_four_digit_year_graph(deterministic)
+    graph = (pynini.union("1", "2") + (NEMO_DIGIT ** 3) + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)) @ graph
 
     graph |= _get_two_digit_year_with_s_graph()
+
+    three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
+    year_with_suffix = (
+        (get_four_digit_year_graph(deterministic=True) | three_digit_year) + delete_space + insert_space + year_suffix
+    )
+    graph |= year_with_suffix
     return graph.optimize()
+
+
+def _get_two_digit_year(cardinal_graph, single_digits_graph):
+    wo_digit_year = NEMO_DIGIT ** (2) @ plurals._priority_union(cardinal_graph, single_digits_graph, NEMO_SIGMA)
+    return wo_digit_year
 
 
 class DateFst(GraphFst):
@@ -139,7 +155,7 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False, baseline: bool = False):
+    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # january
@@ -162,42 +178,13 @@ class DateFst(GraphFst):
         month_numbers_labels = pynini.string_file(get_abs_path("data/months/numbers.tsv")).optimize()
         cardinal_graph = cardinal.graph_hundred_component_at_least_one_none_zero_digit
 
-        year_graph = _get_year_graph(deterministic)
+        year_graph = _get_year_graph(cardinal_graph=cardinal_graph, deterministic=deterministic)
 
-        YEAR_WEIGHT = 0.001
-        year_graph_standalone = (
-            pynutil.insert("year: \"") + pynutil.add_weight(year_graph, YEAR_WEIGHT) + pynutil.insert("\"")
-        )
+        year_graph_standalone = pynini.closure(pynini.union("in ", "In ", "IN "), 0, 1) + year_graph
 
-        if lm:
-            year_graph_standalone |= (
-                pynutil.insert("year: \"")
-                + pynini.union("in ", "In ", "IN ")
-                + pynutil.add_weight(year_graph, YEAR_WEIGHT)
-                + pynutil.insert("\"")
-            )
+        three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
+        year_graph |= three_digit_year
 
-            year_graph_standalone |= (
-                pynutil.insert("year: \"")
-                + (
-                    ((NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph)
-                    | get_hundreds_graph(deterministic=deterministic)
-                )
-                + pynutil.delete(pynini.closure(pynini.accep(" ")))
-                + insert_space
-                + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
-                + pynutil.insert("\"")
-            )
-
-        if baseline:
-            year_graph_standalone |= (
-                pynutil.insert("year: \"")
-                + get_hundreds_graph(deterministic=deterministic)
-                + pynutil.delete(pynini.closure(pynini.accep(" ")))
-                + insert_space
-                + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
-                + pynutil.insert("\"")
-            )
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_labels + pynutil.insert("\"")
 
@@ -216,7 +203,9 @@ class DateFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        two_digit_year = NEMO_DIGIT ** (2) @ (cardinal.single_digits_graph | cardinal_graph)
+        two_digit_year = _get_two_digit_year(
+            cardinal_graph=cardinal_graph, single_digits_graph=cardinal.single_digits_graph
+        )
         two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
 
         # if lm:
@@ -229,7 +218,7 @@ class DateFst(GraphFst):
             pynutil.insert(" year: \"")
             + pynini.accep(",")
             + pynini.closure(pynini.accep(" "), 0, 1)
-            + (year_graph | ((NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph))
+            + year_graph
             + pynutil.insert("\"")
         )
         optional_graph_year = pynini.closure(graph_year, 0, 1)
@@ -293,9 +282,7 @@ class DateFst(GraphFst):
 
         final_graph = graph_mdy | graph_dmy
 
-        if deterministic:
-            final_graph += pynutil.insert(" preserve_order: true")
-        else:
+        if not deterministic or lm:
             final_graph += pynini.closure(pynutil.insert(" preserve_order: true"), 0, 1)
             m_sep_d = (
                 month_numbers_graph
@@ -305,10 +292,13 @@ class DateFst(GraphFst):
                 + day_graph
             )
             final_graph |= m_sep_d
+        else:
+            final_graph += pynutil.insert(" preserve_order: true")
 
+        year_graph_standalone = pynutil.insert(" year: \"") + year_graph_standalone + pynutil.insert("\"")
         final_graph |= graph_ymd | year_graph_standalone
 
-        if not deterministic:
+        if not deterministic or lm:
             ymd_to_mdy_graph = None
             ymd_to_dmy_graph = None
             mdy_to_dmy_graph = None

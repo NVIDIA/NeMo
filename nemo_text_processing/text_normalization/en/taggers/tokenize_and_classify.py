@@ -38,6 +38,8 @@ from nemo_text_processing.text_normalization.en.taggers.telephone import Telepho
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
+from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst as vDateFst
+from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinalFst
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTimeFst
 
 from nemo.utils import logging
@@ -113,8 +115,11 @@ class ClassifyFst(GraphFst):
             punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             v_time_graph = vTimeFst(deterministic=True).fst
+            v_ordinal_graph = vOrdinalFst(deterministic=True)
+            v_date_graph = vDateFst(ordinal=v_ordinal_graph, deterministic=deterministic).fst
             time_final = pynini.compose(time_graph, v_time_graph)
-            range_graph = RangeFst(time=time_final, deterministic=deterministic).fst
+            date_final = pynini.compose(date_graph, v_date_graph)
+            range_graph = RangeFst(time=time_final, date=date_final, deterministic=deterministic).fst
 
             classify = (
                 pynutil.add_weight(whitelist_graph, 1.01)

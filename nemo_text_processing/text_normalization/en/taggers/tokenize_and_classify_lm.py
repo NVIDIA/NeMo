@@ -19,14 +19,12 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
-    NEMO_SIGMA,
     NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
     delete_space,
     generator_main,
 )
-from nemo_text_processing.text_normalization.en.taggers.abbreviation import AbbreviationFst
 from nemo_text_processing.text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.text_normalization.en.taggers.date import DateFst
 from nemo_text_processing.text_normalization.en.taggers.decimal import DecimalFst
@@ -42,7 +40,6 @@ from nemo_text_processing.text_normalization.en.taggers.telephone import Telepho
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
-from nemo_text_processing.text_normalization.en.verbalizers.abbreviation import AbbreviationFst as vAbbreviation
 from nemo_text_processing.text_normalization.en.verbalizers.cardinal import CardinalFst as vCardinal
 from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst as vDate
 from nemo_text_processing.text_normalization.en.verbalizers.decimal import DecimalFst as vDecimal
@@ -101,7 +98,6 @@ class ClassifyFst(GraphFst):
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
-            # self.whitelist_word = pynini.Far(far_file, mode='r')['whitelist_word']
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
@@ -122,14 +118,14 @@ class ClassifyFst(GraphFst):
 
             measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=True, lm=True)
             measure_graph = measure.fst
-            date = DateFst(cardinal=cardinal, deterministic=False, lm=True)
+            date = DateFst(cardinal=cardinal, deterministic=True, lm=True)
             date_graph = date.fst
             word_graph = WordFst(deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
             telephone_graph = TelephoneFst(deterministic=True).fst
             electronic_graph = ElectronicFst(deterministic=True).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
-            whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist, lm=True)
+            whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
             whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=True).graph
 
@@ -152,6 +148,7 @@ class ClassifyFst(GraphFst):
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
 
             time_final = pynini.compose(time_graph, v_time_graph)
+            date_final = pynini.compose(date_graph, v_date_graph)
             cardinal_final = pynini.compose(cardinal_graph, v_cardinal_graph)
 
             classify_and_verbalize = (
@@ -164,7 +161,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.1)
+                | pynutil.add_weight(date_final, 1.1)
                 | pynutil.add_weight(whitelist_graph, 1.1)
             ).optimize()
 
@@ -172,10 +169,9 @@ class ClassifyFst(GraphFst):
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 98)
 
-            # abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
-            # classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
-
-            range_graph = RangeFst(time=time_final, cardinal=cardinal_tagger, deterministic=deterministic).fst
+            range_graph = RangeFst(
+                time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
+            ).fst
             v_range_graph = vRangeFst(deterministic=deterministic).fst
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.5)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
@@ -222,11 +218,6 @@ class ClassifyFst(GraphFst):
             no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
             self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
 
-            # whitelist graph will be used at the very end as a separate call
-            # whitelist_word_graph = pynutil.add_weight(word_graph, 100) | pynutil.add_weight(whitelist_graph, 1.01)
-            # self.whitelist_word = get_token_sem_graph(whitelist_word_graph)
-
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
-                # generator_main(f"{far_file.replace('.far', '_whitelist.far')}", {"whitelist_word": self.whitelist_word})
                 logging.info(f'ClassifyFst grammars are saved to {far_file}.')

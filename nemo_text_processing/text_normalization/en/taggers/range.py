@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, convert_space
 
 try:
     import pynini
@@ -31,11 +31,13 @@ class RangeFst(GraphFst):
         for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, time: GraphFst, cardinal: GraphFst = None, deterministic: bool = True):
+    def __init__(self, time: GraphFst, date: GraphFst, cardinal: GraphFst = None, deterministic: bool = True):
         super().__init__(name="range", kind="classify", deterministic=deterministic)
 
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
         self.graph = time + delete_space + pynini.cross("-", " to ") + delete_space + time
+        date_year = (NEMO_DIGIT ** 4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
+        self.graph |= date_year + delete_space + pynini.cross("-", " to ") + delete_space + date_year
         if not deterministic:
             cardinal = cardinal.graph
             range_graph = cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
