@@ -302,7 +302,6 @@ class MeasureFst(GraphFst):
             + pynini.closure(pynutil.add_weight(city + state + zip_code, -0.001), 0, 1)
         )
 
-        if lm:
-            address |= address_num + direction + address_words + pynini.closure(pynini.cross(".", ""), 0, 1)
+        address |= address_num + direction + address_words + pynini.closure(pynini.cross(".", ""), 0, 1)
 
         return address
