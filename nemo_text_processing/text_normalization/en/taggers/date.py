@@ -22,6 +22,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
     insert_space,
+    delete_space
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
@@ -166,42 +167,32 @@ class DateFst(GraphFst):
 
         year_graph = _get_year_graph(deterministic)
 
-        YEAR_WEIGHT = 0.001
         year_graph_standalone = (
-            pynutil.insert("year: \"") + pynutil.add_weight(year_graph, YEAR_WEIGHT) + pynutil.insert("\"")
+            pynutil.insert("year: \"") + year_graph + pynutil.insert("\"")
         )
 
+        # 123 A.D., 4200 B.C
+        year_graph_standalone |= (
+            pynutil.insert("year: \"")
+            + (
+                ((NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph)
+                | get_four_digit_year_graph(deterministic=True)
+            )
+            + delete_space
+            + insert_space
+            + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
+            + pynutil.insert("\"")
+        )
+            
         if lm:
             # in 1917
             year_graph_standalone |= (
                 pynutil.insert("year: \"")
                 + pynini.union("in ", "In ", "IN ")
-                + pynutil.add_weight(year_graph, YEAR_WEIGHT)
+                + year_graph
                 + pynutil.insert("\"")
             )
 
-            # 123 A.D.
-            year_graph_standalone |= (
-                pynutil.insert("year: \"")
-                + (
-                    ((NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph)
-                    | get_four_digit_year_graph(deterministic=deterministic)
-                )
-                + pynutil.delete(pynini.closure(pynini.accep(" ")))
-                + insert_space
-                + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
-                + pynutil.insert("\"")
-            )
-
-        if baseline:
-            year_graph_standalone |= (
-                pynutil.insert("year: \"")
-                + get_four_digit_year_graph(deterministic=deterministic)
-                + pynutil.delete(pynini.closure(pynini.accep(" ")))
-                + insert_space
-                + pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
-                + pynutil.insert("\"")
-            )
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_labels + pynutil.insert("\"")
 
