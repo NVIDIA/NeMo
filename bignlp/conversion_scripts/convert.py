@@ -83,37 +83,37 @@ def create_bcp_file(
 
 def convert_ckpt(cfg, hydra_args="", dependency=None):
     # Read config
-    bignlp_path = cfg.bignlp_path
-    container = cfg.container
-    container_mounts = cfg.container_mounts
-    convert_cfg = cfg.conversion
-    data_dir = cfg.data_dir
-    base_results_dir = cfg.base_results_dir
-    run_cfg = convert_cfg.run
-    model_cfg = convert_cfg.model
+    bignlp_path = cfg.get("bignlp_path")
+    container = cfg.get("container")
+    container_mounts = cfg.get("container_mounts")
+    convert_cfg = cfg.get("conversion")
+    data_dir = cfg.get("data_dir")
+    base_results_dir = cfg.get("base_results_dir")
+    run_cfg = convert_cfg.get("run")
+    model_cfg = convert_cfg.get("model")
 
     # Run parameters
-    job_name = run_cfg.job_name
-    nodes = run_cfg.nodes
-    time_limit = run_cfg.time_limit
-    ntasks_per_node = run_cfg.ntasks_per_node
-    convert_name = run_cfg.convert_name
-    model_train_name = run_cfg.model_train_name
-    results_dir = run_cfg.results_dir
-    output_path = run_cfg.output_path
-    nemo_file_name = run_cfg.nemo_file_name
-    gpus_per_node = run_cfg.ntasks_per_node
+    job_name = run_cfg.get("job_name")
+    nodes = run_cfg.get("nodes")
+    time_limit = run_cfg.get("time_limit")
+    ntasks_per_node = run_cfg.get("ntasks_per_node")
+    convert_name = run_cfg.get("convert_name")
+    model_train_name = run_cfg.get("model_train_name")
+    results_dir = run_cfg.get("results_dir")
+    output_path = run_cfg.get("output_path")
+    nemo_file_name = run_cfg.get("nemo_file_name")
+    gpus_per_node = run_cfg.get("ntasks_per_node")
     nemo_file_path = os.path.join(output_path, nemo_file_name)
 
     # Model parameters
-    model_type = model_cfg.model_type
-    checkpoint_folder = model_cfg.checkpoint_folder
-    checkpoint_name = model_cfg.checkpoint_name
-    hparams_file = model_cfg.hparams_file
-    tensor_model_parallel_size = model_cfg.tensor_model_parallel_size
-    pipeline_model_parallel_size = model_cfg.pipeline_model_parallel_size
-    vocab_file = model_cfg.vocab_file
-    merge_file = model_cfg.merge_file
+    model_type = model_cfg.get("model_type")
+    checkpoint_folder = model_cfg.get("checkpoint_folder")
+    checkpoint_name = model_cfg.get("checkpoint_name")
+    hparams_file = model_cfg.get("hparams_file")
+    tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
+    pipeline_model_parallel_size = model_cfg.get("pipeline_model_parallel_size")
+    vocab_file = model_cfg.get("vocab_file")
+    merge_file = model_cfg.get("merge_file")
 
     os.makedirs(output_path, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
@@ -160,13 +160,14 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     args = args.replace(" ", " \\\n  ")
     cmd_str = f"python3 -u {code_path} \\\n  {args}"
 
-    if cfg.cluster_type == "bcm":
+    cluster_cfg = cfg.get("cluster")
+    if cfg.get("cluster_type") == "bcm":
         # BCM parameters
-        partition = cfg.cluster.partition
-        account = cfg.cluster.account
-        exclusive = cfg.cluster.exclusive
-        job_name_prefix = cfg.cluster.job_name_prefix
-        gpus_per_task = cfg.cluster.gpus_per_task
+        partition = cluster_cfg.get("partition")
+        account = cluster_cfg.get("account")
+        exclusive = cluster_cfg.get("exclusive")
+        job_name_prefix = cluster_cfg.get("job_name_prefix")
+        gpus_per_task = cluster_cfg.get("gpus_per_task")
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
@@ -202,7 +203,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         print(f"Submitted Conversion script with job id: {dependency}")
         return dependency
 
-    elif cfg.cluster_type == "bcp":
+    elif cfg.get("cluster_type") == "bcp":
         create_bcp_file(
             new_script_path=new_script_path,
             cmd_str=cmd_str,

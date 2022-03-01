@@ -21,23 +21,24 @@ def main(cfg):
     hydra_args = " ".join(sys.argv[1:])
     hydra_args = convert_to_cli(cfg)
 
-    if cfg.debug:
+    if cfg.get("debug"):
         subprocess.check_output = fake_submit
 
     # Read config
-    run_data_preparation = cfg.run_data_preparation
-    run_training = cfg.run_training
-    run_conversion = cfg.run_conversion
-    run_finetuning = cfg.run_finetuning
-    run_evaluation = cfg.run_evaluation
+    run_data_preparation = cfg.get("run_data_preparation")
+    run_training = cfg.get("run_training")
+    run_conversion = cfg.get("run_conversion")
+    run_finetuning = cfg.get("run_finetuning")
+    run_evaluation = cfg.get("run_evaluation")
 
     # TODO: build a mapping from dataset name to modules
-    if "pile" in cfg.data_config:
+    data_cfg = cfg.get("data_config")
+    if "pile" in data_cfg:
         from bignlp.data_preparation import data_preparation_pile as data_preparation
-    elif "mc4" in cfg.data_config:
+    elif "mc4" in data_cfg:
         from bignlp.data_preparation import data_preparation_mc4 as data_preparation
     else:
-        raise ValueError(f"Unrecognized dataset in data config `{cfg.data_config}`.")
+        raise ValueError(f"Unrecognized dataset in data config `{data_cfg}`.")
 
     cfg_copy = copy.deepcopy(cfg)
     dependency = None

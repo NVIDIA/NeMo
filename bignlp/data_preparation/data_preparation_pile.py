@@ -54,24 +54,24 @@ def create_slurm_file(
 
 def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Read config
-    bignlp_path = cfg.bignlp_path
-    container = cfg.container
-    container_mounts = cfg.container_mounts
-    data_dir = cfg.data_dir
-    base_results_dir = cfg.base_results_dir
-    data_cfg = cfg.data_preparation
+    bignlp_path = cfg.get("bignlp_path")
+    container = cfg.get("container")
+    container_mounts = cfg.get("container_mounts")
+    data_dir = cfg.get("data_dir")
+    base_results_dir = cfg.get("base_results_dir")
+    data_cfg = cfg.get("data_preparation")
 
     # Data preparation config
-    download_the_pile = data_cfg.download_the_pile
-    file_numbers = data_cfg.file_numbers
-    preprocess_data = data_cfg.preprocess_data
-    download_vocab_url = data_cfg.download_vocab_url
-    download_merges_url = data_cfg.download_merges_url
-    vocab_save_dir = data_cfg.vocab_save_dir
-    merges_save_dir = data_cfg.merges_save_dir
-    log_dir = data_cfg.log_dir
-    nodes = data_cfg.nodes
-    time_limit = data_cfg.time_limit
+    download_the_pile = data_cfg.get("download_the_pile")
+    file_numbers = data_cfg.get("file_numbers")
+    preprocess_data = data_cfg.get("preprocess_data")
+    download_vocab_url = data_cfg.get("download_vocab_url")
+    download_merges_url = data_cfg.get("download_merges_url")
+    vocab_save_dir = data_cfg.get("vocab_save_dir")
+    merges_save_dir = data_cfg.get("merges_save_dir")
+    log_dir = data_cfg.get("log_dir")
+    nodes = data_cfg.get("nodes")
+    time_limit = data_cfg.get("time_limit")
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -99,7 +99,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/preprocess.py")
     
     # BCM config
-    if cfg.cluster_type == "bcm":
+    cluster_cfg = cfg.get("cluster")
+    if cfg.get("cluster_type") == "bcm" and cluster_cfg is not None:
         partition = cfg.cluster.partition
         account = cfg.cluster.account
         exclusive = cfg.cluster.exclusive
@@ -198,7 +199,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             print(f"Submitted Preprocessing script with job id: {dependency}")
         return dependency
 
-    if cfg.cluster_type == "bcp":
+    if cfg.get("cluster_type") == "bcp":
         def get_launcher(nnodes, npernode, cmd):
             if utils.is_tool('bcprun'):
                 launcher = "NGC_ARRAY_TYPE=MPIJob " + \
@@ -259,7 +260,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cleancmd = get_launcher(nnodes, 1, clean)
             os.system(cleancmd)
 
-            preproc_npernode = int(data_cfg.bcp_preproc_npernode)
+            preproc_npernode = int(data_cfg.get("bcp_preproc_npernode"))
             cmd = f"python3 {preprocess_code_path} {hydra_args}"
             launchcmd = get_launcher(nnodes, preproc_npernode, cmd)
             proc = subprocess.Popen(

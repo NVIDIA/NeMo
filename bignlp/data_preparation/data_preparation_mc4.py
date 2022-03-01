@@ -5,6 +5,7 @@ import subprocess
 import omegaconf
 from bignlp.bignlp_utils import add_container_mounts
 
+
 def create_slurm_file(
         new_script_path,
         code_path,
@@ -62,34 +63,34 @@ def download_single_file(url, save_dir, file_name):
 
 def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Read config
-    bignlp_path = cfg.bignlp_path
-    container = cfg.container
-    container_mounts = cfg.container_mounts
-    data_dir = cfg.data_dir
-    base_results_dir = cfg.base_results_dir
-    data_cfg = cfg.data_preparation
+    bignlp_path = cfg.get("bignlp_path")
+    container = cfg.get("container")
+    container_mounts = cfg.get("container_mounts")
+    data_dir = cfg.get("data_dir")
+    base_results_dir = cfg.get("base_results_dir")
+    data_cfg = cfg.get("data_preparation")
 
     # Data preparation config
-    download_mc4 = data_cfg.download_mc4
-    preprocess_data = data_cfg.preprocess_data
-    mc4_dir = data_cfg.mc4_dir
-    preprocessed_dir = data_cfg.preprocessed_dir
-    git_lfs_dir = data_cfg.git_lfs_dir
-    download_vocab_url = data_cfg.download_vocab_url
-    download_tokenizer_url = data_cfg.download_tokenizer_url
-    vocab_save_dir = data_cfg.vocab_save_dir
-    tokenizer_save_dir = data_cfg.tokenizer_save_dir
-    tokenizer_model = data_cfg.tokenizer_model
-    languages = data_cfg.languages
-    softlinks_dir = data_cfg.softlinks_dir
-    download_worker_mapping = data_cfg.download_worker_mapping
-    preprocess_worker_mapping = data_cfg.preprocess_worker_mapping
-    rm_downloaded = data_cfg.rm_downloaded
-    log_dir = data_cfg.log_dir
-    nodes = data_cfg.nodes
-    time_limit = data_cfg.time_limit
-    cpus_per_node = data_cfg.cpus_per_node
-    workers_per_node = data_cfg.workers_per_node
+    download_mc4 = data_cfg.get("download_mc4")
+    preprocess_data = data_cfg.get("preprocess_data")
+    mc4_dir = data_cfg.get("mc4_dir")
+    preprocessed_dir = data_cfg.get("preprocessed_dir")
+    git_lfs_dir = data_cfg.get("git_lfs_dir")
+    download_vocab_url = data_cfg.get("download_vocab_url")
+    download_tokenizer_url = data_cfg.get("download_tokenizer_url")
+    vocab_save_dir = data_cfg.get("vocab_save_dir")
+    tokenizer_save_dir = data_cfg.get("tokenizer_save_dir")
+    tokenizer_model = data_cfg.get("tokenizer_model")
+    languages = data_cfg.get("languages")
+    softlinks_dir = data_cfg.get("softlinks_dir")
+    download_worker_mapping = data_cfg.get("download_worker_mapping")
+    preprocess_worker_mapping = data_cfg.get("preprocess_worker_mapping")
+    rm_downloaded = data_cfg.get("rm_downloaded")
+    log_dir = data_cfg.get("log_dir")
+    nodes = data_cfg.get("nodes")
+    time_limit = data_cfg.get("time_limit")
+    cpus_per_node = data_cfg.get("cpus_per_node")
+    workers_per_node = data_cfg.get("workers_per_node")
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -142,13 +143,14 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                       f"--preproc-folder " \
                       f"--apply-ftfy"
     # BCM config
-    if cfg.cluster_type == "bcm":
-        partition = cfg.cluster.partition
-        account = cfg.cluster.account
-        exclusive = cfg.cluster.exclusive
-        mem = cfg.cluster.mem
-        overcommit = cfg.cluster.overcommit
-        job_name_prefix = cfg.cluster.job_name_prefix
+    cluster_cfg = cfg.get("cluster")
+    if cfg.get("cluster_type") == "bcm" and cluster_cfg is not None:
+        partition = cluster_cfg.get("partition")
+        account = cluster_cfg.get("account")
+        exclusive = cluster_cfg.get("exclusive")
+        mem = cluster_cfg.get("mem")
+        overcommit = cluster_cfg.get("overcommit")
+        job_name_prefix = cluster_cfg.get("job_name_prefix")
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
@@ -269,6 +271,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             print(f"Submitted mC4 Preprocessing script with job id: {dependency}")
         return dependency
 
-    if cfg.cluster_type == "bcp":
+    if cfg.get("cluster_type") == "bcp":
         raise NotImplementedError
     return None
