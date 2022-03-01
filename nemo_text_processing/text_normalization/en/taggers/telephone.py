@@ -16,6 +16,7 @@
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
+    NEMO_SIGMA,
     GraphFst,
     delete_space,
     insert_space,
@@ -64,9 +65,10 @@ class TelephoneFst(GraphFst):
             country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space, 0, 1
         )
 
-        area_part_common = pynutil.add_weight(pynini.cross("800", "eight hundred"), -1.1)
         area_part_default = pynini.closure(digit + insert_space, 2, 2) + digit
-        area_part = area_part_default | area_part_common
+        area_part = pynini.cross("800", "eight hundred") | pynini.compose(
+            pynini.difference(NEMO_SIGMA, "800"), area_part_default
+        )
 
         area_part = (
             (area_part + pynutil.delete("-"))
@@ -89,5 +91,6 @@ class TelephoneFst(GraphFst):
         optional_extension = pynini.closure(insert_space + extension, 0, 1)
 
         graph = optional_country_code + number_part + optional_extension
+
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
