@@ -171,7 +171,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if self.cfg.precision == 'bf16':
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
-                async_grad_allreduce = True
+                async_grad_allreduce = False
 
             elif self.cfg.precision == 16:
                 fp32_grad_accum = False

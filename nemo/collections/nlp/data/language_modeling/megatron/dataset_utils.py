@@ -168,13 +168,15 @@ def is_start_piece(piece, tokenizer_type='wordpiece'):
     # WordPieces, the first token does not have any marker and any subsequence
     # tokens are prefixed with ##. So whenever we see the ## token, we
     # append it to the previous set of word indexes.
+    '''
     if tokenizer_type == 'wordpiece':
         return not piece.startswith("##")
     elif tokenizer_type == 'sentencepiece':
         return piece.startswith('▁')
     else:
         raise ValueError(f"Tokenizer type {tokenizer_type} is not supported.")
-
+    '''
+    return not piece.startswith("##")
 
 def create_masked_lm_predictions(
     tokens,
