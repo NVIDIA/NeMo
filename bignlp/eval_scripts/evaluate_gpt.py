@@ -52,35 +52,34 @@ def create_slurm_file(
 
 def run_evaluation(cfg, dependency=None):
     # Read config
-    bignlp_path = cfg.bignlp_path
-    container = cfg.container
-    container_mounts = cfg.container_mounts
-    eval_cfg = cfg.evaluation
-    data_dir = cfg.data_dir
-    base_results_dir = cfg.base_results_dir
-    run_cfg = eval_cfg.run
-    model_cfg = eval_cfg.model
+    bignlp_path = cfg.get("bignlp_path")
+    container = cfg.get("container")
+    container_mounts = cfg.get("container_mounts")
+    eval_cfg = cfg.get("evaluation")
+    data_dir = cfg.get("data_dir")
+    base_results_dir = cfg.get("base_results_dir")
+    run_cfg = eval_cfg.get("run")
+    model_cfg = eval_cfg.get("model")
 
     # Model parameters
-    model_type = model_cfg.type
-    checkpoint = model_cfg.checkpoint_path
-    pipeline_model_parallel_size = model_cfg.pipeline_model_parallel_size
-    tensor_model_parallel_size = model_cfg.tensor_model_parallel_size
-    precision = model_cfg.precision
-
-    batch_size = model_cfg.eval_batch_size
+    model_type = model_cfg.get("type")
+    checkpoint = model_cfg.get("checkpoint_path")
+    pipeline_model_parallel_size = model_cfg.get("pipeline_model_parallel_size")
+    tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
+    precision = model_cfg.get("precision")
+    batch_size = model_cfg.get("eval_batch_size")
 
     # Run parameters
-    name = run_cfg.name
-    time_limit = run_cfg.time_limit
-    nodes = run_cfg.nodes
-    ntasks_per_node = run_cfg.ntasks_per_node
-    gpus_per_task = run_cfg.gpus_per_task
-    eval_name = run_cfg.eval_name
-    convert_name = run_cfg.convert_name
-    model_train_name = run_cfg.model_train_name
-    tasks = run_cfg.tasks
-    results_dir = run_cfg.results_dir
+    name = run_cfg.get("name")
+    time_limit = run_cfg.get("time_limit")
+    nodes = run_cfg.get("nodes")
+    ntasks_per_node = run_cfg.get("ntasks_per_node")
+    gpus_per_task = run_cfg.get("gpus_per_task")
+    eval_name = run_cfg.get("eval_name")
+    convert_name = run_cfg.get("convert_name")
+    model_train_name = run_cfg.get("model_train_name")
+    tasks = run_cfg.get("tasks")
+    results_dir = run_cfg.get("results_dir")
 
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
@@ -104,12 +103,13 @@ def run_evaluation(cfg, dependency=None):
     args = args.replace(" ", " \\\n  ")
     eval_cmd2 = f"python -u {code_path2} \\\n {args}"
 
-    if cfg.cluster_type == "bcm":
+    cluster_cfg = cfg.get("cluster")
+    if cfg.get("cluster_type") == "bcm":
         # BCM parameters
-        partition = cfg.cluster.partition
-        account = cfg.cluster.account
-        exclusive = cfg.cluster.exclusive
-        job_name_prefix = cfg.cluster.job_name_prefix
+        partition = cluster_cfg.get("partition")
+        account = cluster_cfg.get("account")
+        exclusive = cluster_cfg.get("exclusive")
+        job_name_prefix = cluster_cfg.get("job_name_prefix")
         job_name = os.path.join(job_name_prefix, name)
 
         # Process container-mounts.
@@ -148,7 +148,7 @@ def run_evaluation(cfg, dependency=None):
         print(f"Submitted Evaluation script with job id: {dependency}")
         return dependency
 
-    elif cfg.cluster_type == "bcp":
+    elif cfg.get("cluster_type") == "bcp":
         print(f"Evaluation dataset download job submitted with command: \n{eval_cmd1}")
         subprocess.check_output([f"{eval_cmd1}"], shell=True)
 

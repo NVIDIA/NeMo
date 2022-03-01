@@ -72,33 +72,36 @@ def run_training(cfg, hydra_args="", dependency=None):
     Main function to launch a training job, with the config given in cfg.
     """
     # Read config
-    bignlp_path = cfg.bignlp_path
-    container_mounts = cfg.container_mounts
-    container = cfg.container
-    train_cfg = cfg.training
-    cluster_cfg = cfg.cluster
-    data_dir = cfg.data_dir
-    base_results_dir = cfg.base_results_dir
-    run_cfg = train_cfg.run
+    bignlp_path = cfg.get("bignlp_path")
+    container_mounts = cfg.get("container_mounts")
+    container = cfg.get("container")
+    train_cfg = cfg.get("training")
+    cluster_cfg = cfg.get("cluster")
+    data_dir = cfg.get("data_dir")
+    base_results_dir = cfg.get("base_results_dir")
+    run_cfg = train_cfg.get("run")
 
     # Run parameters
-    name = run_cfg.name
-    results_dir = run_cfg.results_dir
-    time_limit = run_cfg.time_limit
+    name = run_cfg.get("name")
+    results_dir = run_cfg.get("results_dir")
+    time_limit = run_cfg.get("time_limit")
     
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
     
     # Shared between BCP and BCM 
     new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
-    if "gpt" in cfg.training_config:
+    training_config = cfg.get("training_config")
+    if "gpt" in training_config:
         code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
-    elif "mt5" in cfg.training_config:
-        if train_cfg.model.data.data_prefix is None:
+    elif "mt5" in training_config:
+        model_cfg = train_cfg.get("model")
+        model_data_cfg = model_cfg.get("data")
+        if model_data_cfg.get("data_prefix") is None:
             cfg.training.model.data.data_prefix = generate_mt5_data_blend(cfg)
             hydra_args = convert_to_cli(cfg)
         code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
-    elif "t5" in cfg.training_config:
+    elif "t5" in training_config:
         code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
     else:
         raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
@@ -111,14 +114,15 @@ def run_training(cfg, hydra_args="", dependency=None):
 
     # BCM parameters
     if cfg.cluster_type == "bcm":
-        partition = cluster_cfg.partition
-        account = cluster_cfg.account
-        exclusive = cluster_cfg.exclusive
-        gpus_per_task = cluster_cfg.get("gpus_per_task", None)
-        gpus_per_node = cluster_cfg.get("gpus_per_node", None)
-        job_name_prefix = cluster_cfg.job_name_prefix
+        partition = cluster_cfg.get("partition")
+        account = cluster_cfg.get("account")
+        exclusive = cluster_cfg.get("exclusive")
+        gpus_per_task = cluster_cfg.get("gpus_per_task")
+        gpus_per_node = cluster_cfg.get("gpus_per_node")
+        job_name_prefix = cluster_cfg.get("job_name_prefix")
+
         if dependency is None:
-            dependency = run_cfg.dependency
+            dependency = run_cfg.get("dependency")
         job_name = job_name_prefix + name
 
         # Process container-mounts.
@@ -155,7 +159,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         return dependency
 
     # BCP parameters
-    if cfg.cluster_type == "bcp":
+    if cfg.get("cluster_type") == "bcp":
         create_bcp_file(
             new_script_path=new_script_path,
             train_cmd=train_cmd,
