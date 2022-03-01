@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_space,
     insert_space,
+    plurals,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
@@ -61,9 +62,7 @@ class TelephoneFst(GraphFst):
             + digit
             + pynutil.insert("\"")
         )
-        optional_country_code = pynini.closure(
-            country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space, 0, 1
-        )
+        country_code = country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space
 
         area_part_default = pynini.closure(digit + insert_space, 2, 2) + digit
         area_part = pynini.cross("800", "eight hundred") | pynini.compose(
@@ -88,9 +87,11 @@ class TelephoneFst(GraphFst):
         extension = (
             pynutil.insert("extension: \"") + pynini.closure(digit + insert_space, 0, 3) + digit + pynutil.insert("\"")
         )
-        optional_extension = pynini.closure(insert_space + extension, 0, 1)
+        extension = pynini.closure(insert_space + extension, 0, 1)
 
-        graph = optional_country_code + number_part + optional_extension
+        graph = plurals._priority_union(country_code + number_part, number_part, NEMO_SIGMA).optimize()
+        graph = plurals._priority_union(country_code + number_part + extension, graph, NEMO_SIGMA).optimize()
+        graph = plurals._priority_union(number_part + extension, graph, NEMO_SIGMA).optimize()
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()
