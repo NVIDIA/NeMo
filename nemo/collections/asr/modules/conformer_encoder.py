@@ -19,24 +19,24 @@ import torch
 import torch.distributed
 import torch.nn as nn
 
+from nemo.collections.asr.parts.mixins.streaming import StreamingModuleMixin
+from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
-from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
+from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    MultiHeadAttention,
+    PositionalEncoding,
+    RelPositionalEncoding,
+)
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
 
-from nemo.collections.asr.parts.submodules.conformer_modules import CausalConv1D
-from nemo.collections.asr.parts.submodules.multi_head_attention import (
-    MultiHeadAttention,
-    RelPositionMultiHeadAttention,
-)
-
 __all__ = ['ConformerEncoder']
 
 
-class ConformerEncoder(NeuralModule, Exportable):
+class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
     """
     The encoder for ASR model of Conformer.
     Based on this paper:
@@ -91,7 +91,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
         input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
 
-        if self.is_causal:
+        if self.export_cache_support:
             cache_last_channel = torch.randn(self.n_layers, max_batch, max_cache, self.d_model).to(dev)
             cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_cache).to(dev)
             all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
@@ -131,7 +131,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         n_layers,
         d_model,
         feat_out=-1,
-        is_causal=False,
+        causal_downsampling=False,
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
@@ -153,7 +153,6 @@ class ConformerEncoder(NeuralModule, Exportable):
         super().__init__()
         self.cache_drop_size = None
         self.lookahead_steps = None
-        self.is_causal = is_causal
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
         self.n_layers = n_layers
@@ -161,28 +160,29 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.scale = math.sqrt(self.d_model)
         self.att_context_style = att_context_style
         self.conv_kernel_size = conv_kernel_size
+        self.subsampling_factor = subsampling_factor
+        self.drop_extra_pre_encoded = False
 
         if att_context_size:
             self.att_context_size = att_context_size
         else:
             self.att_context_size = [-1, -1]
 
-        if conv_context_size is not None:
-            if not is_causal:
-                raise ValueError("is_causal needs to be True when conv_context_size is set.")
-            self.conv_context_size = conv_context_size
-            if self.conv_context_size[0] == -1 and self.conv_context_size[0] == -1:
-                self.conv_context_size[0] = conv_kernel_size - 1
-                self.conv_context_size[1] = 0
-            if self.conv_context_size[0] == -1:
-                self.conv_context_size[0] = conv_kernel_size - self.conv_context_size[1] - 1
-            if self.conv_context_size[1] == -1:
-                self.conv_context_size[1] = conv_kernel_size - self.conv_context_size[0] - 1
+        self.export_cache_support = False
 
-            if self.conv_context_size[0] + self.conv_context_size[1] + 1 != conv_kernel_size:
-                raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
+        if conv_context_size is not None:
+            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
+                raise ValueError(
+                    f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
+                )
+            if conv_context_size == "causal":
+                conv_context_size = [conv_kernel_size - 1, 0]
+            else:
+                if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
+                    raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
         else:
-            self.conv_context_size = None
+            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
+        self.conv_context_size = conv_context_size
 
         if att_context_style == "chunked_limited":
             if (self.att_context_size[0] + 1) % (self.att_context_size[1] + 1) > 0:
@@ -221,7 +221,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                     feat_out=d_model,
                     conv_channels=subsampling_conv_channels,
                     activation=nn.ReLU(),
-                    is_causal=is_causal,
+                    is_causal=causal_downsampling,
                 )
             self._feat_out = d_model
         else:
@@ -270,7 +270,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
-                is_causal=is_causal,
+                # is_causal=is_causal,
                 att_context_size=self.att_context_size,
             )
             self.layers.append(layer)
@@ -283,6 +283,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             self._feat_out = d_model
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
+
+        # self.init_streaming_params()
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -312,7 +314,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             )
             att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
-        #att_mask = ~att_mask
+        # att_mask = ~att_mask
 
         if hasattr(self, 'seq_range'):
             self.att_mask = att_mask
@@ -320,9 +322,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.register_buffer('att_mask', att_mask, persistent=False)
 
     @typecheck()
-    def forward(
-        self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None
-    ):
+    def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
         return self.forward_for_export(
             audio_signal=audio_signal,
@@ -332,9 +332,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         )
 
     @typecheck()
-    def forward_for_export(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None
-    ):
+    def forward_for_export(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
         max_audio_length: int = audio_signal.size(-1)
         length = length.to(audio_signal.device)
         if max_audio_length > self.max_audio_length:
@@ -357,6 +355,9 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal, length = self.pre_encode(
                 x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
+            if self.drop_extra_pre_encoded:
+                audio_signal = audio_signal[:, 2:, :]
+                length = length - 2
         else:
             audio_signal = self.pre_encode(x=audio_signal)
 
@@ -380,23 +381,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
 
         pad_mask = self.make_pad_mask(max_audio_length=max_audio_length, seq_lens=padding_length)
-
-        # att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-        # att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
-        #
-        # if self.chunk_size is None:
-        #     if self.att_context_size[0] >= 0:
-        #         att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
-        #     if self.att_context_size[1] >= 0:
-        #         att_mask = att_mask.tril(diagonal=self.att_context_size[1])
-        # else:
-        #     chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
-        #     chunk_idx = torch.div(chunk_idx, self.chunk_size, rounding_mode="trunc")
-        #     diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
-        #     chunked_limited_mask = torch.logical_and(
-        #         torch.le(diff_chunks, self.left_chunks_num), torch.ge(diff_chunks, 0)
-        #     )
-        #     att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
@@ -456,29 +440,53 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.use_pad_mask = on
         return mask
 
-    def set_streaming_params(self):
-        conv_context_size = self.conv_context_size if self.conv_context_size is not None else [self.conv_kernel_size - 1, 0]
+    def init_streaming_params(self):
         if self.att_context_style == "chunked_limited":
             self.lookahead_steps = self.att_context_size[1] + 1
             self.cache_drop_size = 0
         else:
             lookahead_steps_att = self.att_context_size[1] * self.n_layers
-            lookahead_steps_conv = conv_context_size[1] * self.n_layers
-            self.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
-            self.cache_drop_size = self.lookahead_steps
+            lookahead_steps_conv = self.conv_context_size[1] * self.n_layers
+            self.lookahead_steps = self.cache_drop_size = max(lookahead_steps_att, lookahead_steps_conv)
 
-        last_channel_num = 0
-        last_time_num = 0
+        self.last_channel_num = 0
+        self.last_time_num = 0
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):  # and m._max_cache_len > 0:
-                if type(m) == RelPositionMultiHeadAttention:  # or type(m) == RelPositionMultiHeadAttention:
-                    m._cache_id = last_channel_num
-                    last_channel_num += 1
+                if isinstance(m, MultiHeadAttention):
+                    m._cache_id = self.last_channel_num
                     m.cache_drop_size = self.cache_drop_size
+                    self.last_channel_num += 1
 
-                if type(m) == CausalConv1D:
-                    m._cache_id = last_time_num
-                    last_time_num += 1
+                if isinstance(m, CausalConv1D):
+                    m._cache_id = self.last_time_num
                     m.cache_drop_size = self.cache_drop_size
+                    self.last_time_num += 1
 
-        return last_channel_num, last_time_num
+        self.chunk_size = self.subsampling_factor * (1 + self.lookahead_steps)
+        self.shift_size = self.subsampling_factor * ((1 + self.lookahead_steps) - self.cache_drop_size)
+
+        self.init_chunk_size = 1 + self.subsampling_factor * self.lookahead_steps
+        self.init_shift_size = 1
+        self.last_channel_cache_size = self.att_context_size[0]
+
+        self.valid_out_len = (self.init_shift_size - 1) // self.subsampling_factor + 1
+
+        self.export_cache_support = False
+
+    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
+        if device is None:
+            device = next(self.parameters()).device
+        last_time_cache_size = self.conv_context_size[0]
+        cache_last_channel = torch.zeros(
+            (self.last_channel_num, batch_size, 0, self.d_model), device=device, dtype=dtype
+        )
+        cache_last_time = torch.zeros(
+            (self.last_time_num, batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype
+        )
+
+        pre_encode_cache_size = 0  # 8 # 5
+        input_features = self._feat_in
+        cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
+
+        return cache_last_channel, cache_last_time, cache_pre_encode

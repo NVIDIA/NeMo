@@ -181,16 +181,18 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         # assume key and values are the same
         if cache is not None:
+            if self.cache_drop_size is None:
+                raise ValueError("caching is being used while init_streaming_param() is not called yet!")
+
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
-                cache_next = cache_next[self._cache_id]
             q_length = query.size(1)
-            # cache_length = cache.size()[1]
-            cache_next_length = cache_next.size(1)
             q_input = query
             key = value = torch.cat((cache, key), dim=1)
 
         if cache_next is not None:
+            cache_next = cache_next[self._cache_id]
+            cache_next_length = cache_next.size(1)
             q_keep_size = q_length - self.cache_drop_size
 
             # cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :].clone()

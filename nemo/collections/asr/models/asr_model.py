@@ -86,7 +86,9 @@ class ExportableEncDecModel(Exportable):
             if cache_last_channel is None and cache_last_time is None:
                 encoder_output = self.input_module.forward_for_export(input, length)
             else:
-                encoder_output = self.input_module.forward_for_export(input, length, cache_last_channel, cache_last_time)
+                encoder_output = self.input_module.forward_for_export(
+                    input, length, cache_last_channel, cache_last_time
+                )
         else:
             if cache_last_channel is None and cache_last_time is None:
                 encoder_output = self.input_module(input, length)

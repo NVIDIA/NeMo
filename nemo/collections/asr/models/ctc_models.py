@@ -31,7 +31,15 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType, ChannelType
+from nemo.core.neural_types import (
+    AudioSignal,
+    ChannelType,
+    LabelsType,
+    LengthsType,
+    LogprobsType,
+    NeuralType,
+    SpectrogramType,
+)
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModel']
@@ -545,7 +553,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None, cache_last_channel=None, cache_last_time=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        cache_last_channel=None,
+        cache_last_time=None,
     ):
         """
         Forward pass of the model.
@@ -583,13 +597,22 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length, cache_last_channel=cache_last_channel, cache_last_time=cache_last_time)
+        encoder_output = self.encoder(
+            audio_signal=processed_signal,
+            length=processed_signal_length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+        )
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         if len(encoder_output) == 2:
-            return log_probs, encoded_len, greedy_predictions,
+            return (
+                log_probs,
+                encoded_len,
+                greedy_predictions,
+            )
         else:
             return log_probs, encoded_len, greedy_predictions, encoder_output[2], encoder_output[3]
 

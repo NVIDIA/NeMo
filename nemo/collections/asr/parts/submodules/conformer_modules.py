@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Union
 
 import torch
-import torch.nn.functional as F
 from torch import nn as nn
 from torch.nn import LayerNorm
 
+from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
@@ -53,7 +52,7 @@ class ConformerLayer(torch.nn.Module):
         dropout_att=0.1,
         pos_bias_u=None,
         pos_bias_v=None,
-        is_causal=False,
+        # is_causal=False,
         att_context_size=[-1, -1],
     ):
         super(ConformerLayer, self).__init__()
@@ -72,16 +71,12 @@ class ConformerLayer(torch.nn.Module):
             d_model=d_model,
             kernel_size=conv_kernel_size,
             norm_type=conv_norm_type,
-            is_causal=is_causal,
             conv_context_size=conv_context_size,
         )
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
-        if is_causal:
-            MHA_max_cache_len = att_context_size[0]
-        else:
-            MHA_max_cache_len = -1
+        MHA_max_cache_len = att_context_size[0]
 
         if self_attention_model == 'rel_pos':
             self.self_attn = RelPositionMultiHeadAttention(
@@ -173,36 +168,34 @@ class ConformerConvolution(nn.Module):
         kernel_size (int): kernel size for depthwise convolution
     """
 
-    def __init__(self, d_model, kernel_size, norm_type="batch_norm", is_causal=False, conv_context_size=None):
+    def __init__(self, d_model, kernel_size, norm_type="batch_norm", conv_context_size=None):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
-        self.is_causal = is_causal
 
         self.pointwise_conv1 = nn.Conv1d(
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
-        # if is_causal:
-        #     conv_padding = kernel_size - 1
-        # else:
-        #     conv_padding = (kernel_size - 1) // 2
-        if is_causal or conv_context_size is not None:
-            self.depthwise_conv = CausalConv1D(
-                in_channels=d_model,
-                out_channels=d_model,
-                kernel_size=kernel_size,
-                stride=1,
-                padding=conv_context_size,
-                groups=d_model,
-                bias=True,
-            )
-        else:
+
+        if conv_context_size is None or (
+            conv_context_size[0] == (kernel_size - 1) // 2 and conv_context_size[1] == (kernel_size - 1) // 2
+        ):
             self.depthwise_conv = nn.Conv1d(
                 in_channels=d_model,
                 out_channels=d_model,
                 kernel_size=kernel_size,
                 stride=1,
                 padding=(kernel_size - 1) // 2,
+                groups=d_model,
+                bias=True,
+            )
+        else:
+            self.depthwise_conv = CausalConv1D(
+                in_channels=d_model,
+                out_channels=d_model,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=conv_context_size,
                 groups=d_model,
                 bias=True,
             )
@@ -261,78 +254,4 @@ class ConformerFeedForward(nn.Module):
         x = self.activation(x)
         x = self.dropout(x)
         x = self.linear2(x)
-        return x
-
-
-class CausalConv1D(nn.Conv1d):
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        stride: int = 1,
-        padding: Union[str, int] = 0,
-        dilation: int = 1,
-        groups: int = 1,
-        bias: bool = True,
-        padding_mode: str = 'zeros',
-        device=None,
-        dtype=None,
-    ) -> None:
-        self.cache_drop_size = None
-        if padding is None or padding == -1:
-            self._left_padding = kernel_size - 1
-            self._right_padding = stride - 1
-        else:
-            if stride != 1:
-                raise ValueError("No striding allowed for non-symmetric convolutions!")
-            if len(padding) == 1:
-                self._left_padding = padding
-                self._right_padding = padding
-            else:
-                self._left_padding = padding[0]
-                self._right_padding = padding[1]
-
-        padding = 0
-        self._max_cache_len = self._left_padding  # kernel_size - 1
-
-        super(CausalConv1D, self).__init__(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            groups=groups,
-            bias=bias,
-            padding_mode=padding_mode,
-            device=device,
-            dtype=dtype,
-        )
-
-    def forward(self, x, cache=None, cache_next=None):
-        if cache is None:
-            x = F.pad(x, pad=(self._left_padding, self._right_padding))
-        else:
-            input_x = x
-            x_length = x.size(-1)
-            if hasattr(self, '_cache_id'):
-                cache = cache[self._cache_id]
-                cache_next = cache_next[self._cache_id]
-            cache_length = cache.size()[-1]
-            cache_next_length = cache_next.size(-1)
-            needed_cache = cache[:, :, -self._max_cache_len:]
-            x = F.pad(x, pad=(0, self._right_padding))
-            x = torch.cat((needed_cache, x), dim=-1)
-        if cache_next is not None:
-            x_keep_size = x_length - self.cache_drop_size
-            x_keep_size = min(x_keep_size, cache_next_length)
-            #cache_next[:, :, :-x_keep_size] = cache[:, :, -(cache_next_length - x_keep_size):]
-            cache_next[:, :, :-x_keep_size] = cache[:, :, x_keep_size:]
-            input_x_kept = input_x[:, :, :x_keep_size]
-            cache_next[:, :, -x_keep_size:] = input_x_kept[:, :, -x_keep_size:]
-        # else:
-        #     # x = x[:, :, : -self.padding[0]]
-        #     x = x[:, :, : -self._padding]
-        x = super().forward(x)
         return x

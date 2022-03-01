@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import math
-from typing import Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -26,7 +26,7 @@ class StackingSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
 
-    def forward(self, x, lengths, cache=None, cache_next=None):
+    def forward(self, x, lengths):  # , cache=None, cache_next=None):
         b, t, h = x.size()
         pad_size = self.subsampling_factor - (t % self.subsampling_factor)
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
@@ -35,81 +35,6 @@ class StackingSubsampling(torch.nn.Module):
         x = self.proj_out(x)
         lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
         return x, lengths
-
-
-class CausalConv2D(nn.Conv2d):
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        stride: int = 1,
-        padding: Union[str, int] = 0,
-        dilation: int = 1,
-        groups: int = 1,
-        bias: bool = True,
-        padding_mode: str = 'zeros',
-        device=None,
-        dtype=None,
-    ) -> None:
-        if padding == -1:
-            self._left_padding = kernel_size - 1
-            self._right_padding = stride - 1
-        else:
-            self._left_padding = padding
-            self._right_padding = padding
-
-        self._stride = stride
-        self._max_cache_len = kernel_size - stride
-        # self._max_cache_len = 2 * stride + 1
-        self._ignore_len = self._right_padding // self._stride
-        # self._ignore_len = 0
-
-        padding = 0
-        super(CausalConv2D, self).__init__(
-            in_channels,
-            out_channels,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            groups,
-            bias,
-            padding_mode,
-            device,
-            dtype,
-        )
-
-    def forward(self, x, cache=None, cache_next=None):
-        if type(x) == tuple:
-            if cache is not None:
-                raise ValueError("Cache can not be non-None when input x is a tuple!")
-            x, cache = x
-
-        input_x = x
-        x_length = x.size()[2]
-        if cache is None:
-            x = F.pad(x, pad=(self._left_padding, self._right_padding, self._left_padding, self._right_padding))
-        else:
-            if hasattr(self, '_cache_id'):
-                cache = cache[self._cache_id]
-                cache_next = cache_next[self._cache_id]
-
-            cache_length = cache.size()[-2]
-            cache_next_length = cache.size()[-2]
-            needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
-            x = torch.cat((needed_cache, x), dim=-1)
-
-        x = super().forward(x)
-        if cache is None:
-            if self._ignore_len > 0:
-                # x = x[:, :, :-(self.padding[0]//2), :-(self.padding[0]//2)]
-                x = x[:, :, : -self._ignore_len, : -self._ignore_len]
-        else:
-            cache_next[:, :, :-x_length] = cache[:, :, -(cache_next_length - x_length) :]
-            cache_next[:, :, -x_length:] = input_x
-
-        return x
 
 
 class ConvSubsampling(torch.nn.Module):
@@ -138,7 +63,7 @@ class ConvSubsampling(torch.nn.Module):
 
         # is_causal = False
         self.is_causal = is_causal
-        self.is_streaming = False
+        # self.is_streaming = False
 
         in_channels = 1
         layers = []
@@ -194,7 +119,7 @@ class ConvSubsampling(torch.nn.Module):
                             kernel_size=self._kernel_size,
                             stride=self._stride,
                             # padding=self._kernel_size - 1,
-                            padding=-1,
+                            padding=None,
                         )
                     )
                 else:
@@ -224,7 +149,7 @@ class ConvSubsampling(torch.nn.Module):
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
 
-    def forward(self, x, lengths):  # , cache=None, cache_next=None):
+    def forward(self, x, lengths):
         lengths = calc_length(
             lengths,
             padding=self._left_padding + self._right_padding,
@@ -233,38 +158,11 @@ class ConvSubsampling(torch.nn.Module):
             ceil_mode=self._ceil_mode,
             repeat_num=self._sampling_num,
         )
-
         x = x.unsqueeze(1)
-        # x_length = x.size()[-2]
-        # if self.is_streaming: #cache is not None:
-        #     # input_x = x
-        #     # if hasattr(self, '_cache_id'):
-        #     #     cache = cache[self._cache_id]
-        #     #     cache_next = cache_next[self._cache_id]
-        #     # if x_length != 1:
-        #     #     # needed_cache = cache[:, :, -self._max_cache_len :, -self._max_cache_len :]
-        #     #     needed_cache = cache[:, :, -self._max_cache_len:]
-        #     #     x = torch.cat((needed_cache, x), dim=-2)
-        #     #
-        #     # cache_length = cache.size()[-2]
-        #     # cache_next_length = cache_next.size()[-2]
-        #     # cache_next[:, :, :-x_length] = cache[:, :, cache_length - (cache_next_length - x_length) :]
-        #     # cache_next[:, :, -x_length:, :] = input_x[:, :, -cache_next_length:, :]
-        #     conv_right_padding = 0
-        # else:
-        # conv_right_padding = self._right_padding
-
         x = self.conv(x)
-        # if cache is not None and x_length != 1:
 
-        if self.is_streaming:  # and x.size(2) > 1: #cache is not None:
-            x = x[:, :, 2:, :]
-            lengths = lengths - 2
-
-            # cache_next[:, :, :-x_length] = cache[:, :, -(cache_length - x_length) :].clone()
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
-
         return x, lengths
 
 
