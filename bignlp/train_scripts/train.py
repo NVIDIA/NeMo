@@ -20,7 +20,8 @@ def create_slurm_file(
     overcommit=True,
     nodes=1,
     ntasks_per_node=8,
-    gpus_per_task=1,
+    gpus_per_task=None,
+    gpus_per_node=None,
     partition="batch",
     account=None,
 ):
@@ -33,6 +34,8 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_node is not None:
+            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
@@ -111,7 +114,8 @@ def run_training(cfg, hydra_args="", dependency=None):
         partition = cluster_cfg.partition
         account = cluster_cfg.account
         exclusive = cluster_cfg.exclusive
-        gpus_per_task = cluster_cfg.gpus_per_task
+        gpus_per_task = cluster_cfg.get("gpus_per_task", None)
+        gpus_per_node = cluster_cfg.get("gpus_per_node", None)
         job_name_prefix = cluster_cfg.job_name_prefix
         if dependency is None:
             dependency = run_cfg.dependency
@@ -139,6 +143,7 @@ def run_training(cfg, hydra_args="", dependency=None):
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
             gpus_per_task=gpus_per_task,
+            gpus_per_node=gpus_per_node,
             partition=partition,
             account=account,
         )
