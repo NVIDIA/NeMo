@@ -1,25 +1,25 @@
 run:
-  name: gpt3_5b
+  name: gpt3_40b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "7-00:00:00"
+  time_limit: "12-12:00:00"
   dependency: "singleton"
 
 trainer:
-  num_nodes: 20
+  num_nodes: 80
   gpus: 8
   accelerator: ddp
-  precision: 16
+  precision: bf16
   amp_backend: native
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "06:23:30:00"
+  max_time: "12:11:00:00"
   log_every_n_steps: 10
   val_check_interval: 2000
-  limit_val_batches: 50
-  limit_test_batches: 50
+  limit_val_batches: 20
+  limit_test_batches: 20
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
@@ -36,7 +36,7 @@ exp_manager:
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val_loss
-    save_top_k: 10
+    save_top_k: 5
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
@@ -51,18 +51,18 @@ model:
   # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
   micro_batch_size: 2
   global_batch_size: 1440
-  tensor_model_parallel_size: 2
-  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: 8
+  pipeline_model_parallel_size: 4
   resume_from_checkpoint: null # manually set the checkpoint file to load from
 
   # model architecture
   encoder_seq_length: 2048
   max_position_embeddings: 2048
-  num_layers: 24
-  hidden_size: 4096
+  num_layers: 48
+  hidden_size: 8192
   ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
-  num_attention_heads: 32
-  init_method_std: 0.01  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  num_attention_heads: 64
+  init_method_std: 0.007  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
@@ -100,7 +100,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1.2e-4
+    lr: 0.8e-4
     weight_decay: 0.1 
     betas: 
     - 0.9
@@ -109,7 +109,7 @@ model:
       name: CosineAnnealing
       warmup_steps: 190
       constant_steps: 20000
-      min_lr: 1.2e-5
+      min_lr: 0.8e-5
 
   data:
     data_impl: mmap
