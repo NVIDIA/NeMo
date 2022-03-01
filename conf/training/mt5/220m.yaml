@@ -57,7 +57,7 @@ model:
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # PP is not supported yet. Use 1 for now.
 
-  # model architecture TODO: modify for O2
+  # model architecture
   seq_length: 1024
   max_position_embeddings: ${.seq_length}
   num_layers: 12

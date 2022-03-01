@@ -101,7 +101,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.txt"
         )
 
-    # TODO: Download tokenizer
     if download_tokenizer_url is not None:
         assert tokenizer_save_dir is not None, "vocab_save_dir must be a valid path."
         download_single_file(

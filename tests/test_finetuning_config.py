@@ -45,7 +45,7 @@ class TestFinetuningT5Config:
             monitor: validation_acc
             save_top_k: 5
             mode: max
-            always_save_nemo: False # TODO: add support
+            always_save_nemo: False
             save_nemo_on_train_end: True # Set to true for subsequent validation runs.
             filename: 'megatron_t5--{validation_acc:.3f}-{step}'
             model_parallel_size: ${finetuning.model.tensor_model_parallel_size}

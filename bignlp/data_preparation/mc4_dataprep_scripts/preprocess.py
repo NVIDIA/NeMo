@@ -39,7 +39,7 @@ if __name__ == '__main__':
         lang_splits = mapping[task_id * world_size + rank].strip().split(',')
     print(" ****** Task ID {:02d} Rank {:02d} is preparing to preprocess {:}...".format(task_id, rank, lang_splits))
 
-    # TODO: delete later
+    # TODO: delete later; after ftfy installed in docker
     if rank == 0:
         os.system("pip install ftfy")
     else:
