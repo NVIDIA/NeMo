@@ -129,8 +129,13 @@ def _get_year_graph(cardinal_graph, deterministic: bool = True):
     year_with_suffix = (
         (get_four_digit_year_graph(deterministic=True) | three_digit_year) + delete_space + insert_space + year_suffix
     )
-    graph |= plurals._priority_union(year_with_suffix, three_digit_year, NEMO_SIGMA)
+    graph |= year_with_suffix
     return graph.optimize()
+
+
+def _get_two_digit_year(cardinal_graph, single_digits_graph):
+    wo_digit_year = NEMO_DIGIT ** (2) @ plurals._priority_union(cardinal_graph, single_digits_graph, NEMO_SIGMA)
+    return wo_digit_year
 
 
 class DateFst(GraphFst):
@@ -150,7 +155,7 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False, baseline: bool = False):
+    def __init__(self, cardinal: GraphFst, deterministic: bool, lm: bool = False):
         super().__init__(name="date", kind="classify", deterministic=deterministic)
 
         # january
@@ -177,6 +182,9 @@ class DateFst(GraphFst):
 
         year_graph_standalone = pynini.closure(pynini.union("in ", "In ", "IN "), 0, 1) + year_graph
 
+        three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
+        year_graph |= three_digit_year
+
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_labels + pynutil.insert("\"")
 
@@ -195,8 +203,8 @@ class DateFst(GraphFst):
             + pynutil.insert("\"")
         )
 
-        two_digit_year = NEMO_DIGIT ** (2) @ plurals._priority_union(
-            cardinal_graph, cardinal.single_digits_graph, NEMO_SIGMA
+        two_digit_year = _get_two_digit_year(
+            cardinal_graph=cardinal_graph, single_digits_graph=cardinal.single_digits_graph
         )
         two_digit_year = pynutil.insert("year: \"") + two_digit_year + pynutil.insert("\"")
 

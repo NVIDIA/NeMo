@@ -125,7 +125,7 @@ class ClassifyFst(GraphFst):
                 cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=True, baseline=True
             )
             measure_graph = measure.fst
-            date = DateFst(cardinal=cardinal, deterministic=True, baseline=True)
+            date = DateFst(cardinal=cardinal, deterministic=True)
             date_graph = date.fst
             word_graph = WordFst(deterministic=deterministic).fst
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst

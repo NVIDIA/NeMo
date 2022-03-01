@@ -69,6 +69,7 @@ class DateFst(GraphFst):
         graph_mdy = (
             month + pynini.closure(delete_extra_space + day, 0, 1) + pynini.closure(delete_extra_space + year, 0, 1)
         )
+        # may 5 -> may five
         if not deterministic and not lm:
             graph_mdy |= (
                 month
@@ -96,9 +97,7 @@ class DateFst(GraphFst):
             + delete_space
         )
 
-        final_graph = (
-            (graph_mdy | year | pynutil.add_weight(graph_dmy, 0.001)) + delete_space + optional_preserve_order
-        )
+        final_graph = (graph_mdy | year | graph_dmy) + delete_space + optional_preserve_order
 
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()
