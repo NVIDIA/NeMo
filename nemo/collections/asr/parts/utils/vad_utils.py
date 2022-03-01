@@ -692,49 +692,51 @@ def vad_tune_threshold_on_dev(
         for i in param:
             if type(param[i])==np.float64:
                 param[i] = float(param[i])
-        # try:
-        # perform binarization, filtering accoring to param and write to rttm-like table
-        vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
-        # add reference and hypothesis to metrics
-        for filename in paired_filenames:
-            groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
-            vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
-            reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
-            metric(reference, hypothesis)  # accumulation
+        try:
+            # perform binarization, filtering accoring to param and write to rttm-like table
+            vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
+            # add reference and hypothesis to metrics
+            for filename in paired_filenames:
+                groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
+                vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
+                reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
+                metric(reference, hypothesis)  # accumulation
 
-        # delete tmp table files
-        shutil.rmtree(vad_table_dir, ignore_errors=True)
+            # delete tmp table files
+            shutil.rmtree(vad_table_dir, ignore_errors=True)
 
-        report = metric.report(display=False)
-        DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-        FA = report.iloc[[-1]][('false alarm', '%')].item()
-        MISS = report.iloc[[-1]][('miss', '%')].item()
+            report = metric.report(display=False)
+            DetER = report.iloc[[-1]][('detection error rate', '%')].item()
+            FA = report.iloc[[-1]][('false alarm', '%')].item()
+            MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        assert (
-            focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
-        ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
-        all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
-        logging.info(f"parameter {param}, {all_perf[str(param)] }")
+            assert (
+                focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
+            ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
+            all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
+            logging.info(f"parameter {param}, {all_perf[str(param)] }")
 
-        score = all_perf[str(param)][focus_metric + ' (%)']
+            score = all_perf[str(param)][focus_metric + ' (%)']
 
-        del report
-        metric.reset()  # reset internal accumulator
+            del report
+            metric.reset()  # reset internal accumulator
 
-        # save results for analysis
-        with open(result_file + ".txt", "a") as fp:
-            fp.write(f"{param}, {all_perf[str(param)] }\n")
+            # save results for analysis
+            with open(result_file + ".txt", "a") as fp:
+                fp.write(f"{param}, {all_perf[str(param)] }\n")
 
-        if score < min_score:
-            best_threhsold = param
-            optimal_scores = all_perf[str(param)]
-            min_score = score
-        print("Current best", best_threhsold, optimal_scores)
+            if score < min_score:
+                best_threhsold = param
+                optimal_scores = all_perf[str(param)]
+                min_score = score
+            print("Current best", best_threhsold, optimal_scores)
 
-    # except:
-    #     print(f"Pass {param}")
-    #     pass
-
+        except RuntimeError as e:
+            print(f"Pass {param}, with error {e}")
+            pass
+        except pd.errors.EmptyDataError as e1:
+            print(f"Pass {param}, with error {e1}")
+            pass
     return best_threhsold, optimal_scores
 
 
@@ -823,7 +825,9 @@ def plot(
     dur = librosa.get_duration(audio, sr=sample_rate)
 
     time = np.arange(offset, offset + dur, FRAME_LEN)
-    frame = np.loadtxt(path2_vad_pred)
+    # frame = np.loadtxt(path2_vad_pred)
+    frame, _ = load_tensor_from_file(path2_vad_pred) 
+
     frame = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
 
     len_pred = len(frame)
