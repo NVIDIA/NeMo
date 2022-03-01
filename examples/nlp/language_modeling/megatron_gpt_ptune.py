@@ -14,7 +14,6 @@
 
 import os
 import pathlib
-from pathlib import Path
 
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -26,7 +25,6 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import TemplateProcessor, register_taskdata_processor
 from nemo.collections.nlp.models.language_modeling.megatron_ptune_gpt_model import MegatronGPTPTuneModel
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

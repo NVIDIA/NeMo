@@ -400,7 +400,7 @@ class MegatronGPTPTuneModel(MegatronBaseModel):
         self.setup_training_data()
         self.setup_validation_data()
 
-    def setup_training_data(self):
+    def setup_training_data(self, training_data_config=None):
         self._train_dl = self.build_pretraining_data_loader(
             self._train_ds,
             self.cfg.data.train_ds.batch_size,
@@ -409,7 +409,7 @@ class MegatronGPTPTuneModel(MegatronBaseModel):
             pin_memory=True,
         )
 
-    def setup_validation_data(self):
+    def setup_validation_data(self, validation_data_config=None):
         self._validation_dl = self.build_pretraining_data_loader(
             self._validation_ds,
             self.cfg.data.validation_ds.batch_size,
@@ -418,7 +418,7 @@ class MegatronGPTPTuneModel(MegatronBaseModel):
             pin_memory=True,
         )
 
-    def setup_test_data(self):
+    def setup_test_data(self, test_data_config=None):
         self._test_dl = self.build_pretraining_data_loader(
             self._test_ds,
             self.cfg.data.test_ds.batch_size,
@@ -427,7 +427,8 @@ class MegatronGPTPTuneModel(MegatronBaseModel):
             pin_memory=True,
         )
 
-    def list_available_models():
+    @classmethod
+    def list_available_models(cls):
         pass
 
     @torch.no_grad()

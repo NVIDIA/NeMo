@@ -28,15 +28,10 @@ from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import (
     processors,
     register_taskdata_processor,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = [
-    'DataProcessor',
     'T5PTuneDataset',
     'register_taskdata_processor',
     'T5PTuneInferenceDataset',
@@ -116,9 +111,6 @@ class T5PTuneDataset(TaskDataset):
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
         dec_mask = (dec_input != self.tokenizer.pad_id).long()
-
-        # input_attn_mask = make_attention_mask_3d(enc_input, enc_input, self.pad_id)
-        # input_attn_mask = (input_attn_mask * make_history_mask_3d(enc_input)).long()
 
         return {
             'text_enc': enc_query,
@@ -239,9 +231,6 @@ class T5PTuneInferenceDataset(TaskDataset):
         enc_taskname = torch.LongTensor(enc_taskname)
 
         enc_mask = (enc_query != self.tokenizer.pad_id).long()
-
-        # input_attn_mask = make_attention_mask_3d(enc_input, enc_input, self.pad_id)
-        # input_attn_mask = (input_attn_mask * make_history_mask_3d(enc_input)).long()
 
         return {
             'text_enc': enc_query,
