@@ -44,16 +44,14 @@ def sprint(*args):
 __all__ = ['SampleConvASREncoder', 'LSTMDecoder', 'TSVAD_module']
 
 class ConvLayer(nn.Module):
-    def __init__(self, in_channels=1, out_channels=2, kernel_size=5, stride=(1, 1), padding=1):
+    def __init__(self, in_channels=1, out_channels=1, kernel_size=(3, 1), stride=(0, 1)):
         super(ConvLayer, self).__init__()
-        pad_size = (kernel_size-1)//2
-        padding = (pad_size, pad_size)
+        pad_size = (kernel_size[1]-1)//2
         self.cnn = nn.Sequential(
                       nn.Conv2d(in_channels=in_channels, 
                                 out_channels=out_channels, 
                                 kernel_size=kernel_size, 
-                                stride=stride, 
-                                padding=padding),
+                                stride=stride),
                       nn.ReLU(),
                       nn.BatchNorm2d(out_channels, eps=0.001, momentum=0.99),
                    )
@@ -62,53 +60,53 @@ class ConvLayer(nn.Module):
         feature = self.cnn(feature)
         return feature
      
-class LSTMP(nn.Module):
-    def __init__(self, n_in, n_hidden, nproj, rproj=100, dropout=0, num_layers=1):
-        super(LSTMP, self).__init__()
+# class LSTMP(nn.Module):
+    # def __init__(self, n_in, n_hidden, nproj, rproj=100, dropout=0, num_layers=1):
+        # super(LSTMP, self).__init__()
 
-        self.num_layers = num_layers
+        # self.num_layers = num_layers
 
-        self.rnns = nn.ModuleList([nn.LSTM(n_in, n_hidden, bidirectional=False, dropout=dropout, batch_first=True)])
-        self.linears = nn.ModuleList([nn.Linear(n_hidden, nproj)])
+        # self.rnns = nn.ModuleList([nn.LSTM(n_in, n_hidden, bidirectional=False, dropout=dropout, batch_first=True)])
+        # self.linears = nn.ModuleList([nn.Linear(n_hidden, nproj)])
 
-        for i in range(num_layers-1):
-            self.rnns.append(nn.LSTM(nproj, n_hidden, bidirectional=False, dropout=dropout, batch_first=True))
-            self.linears.append(nn.Linear(n_hidden, nproj))
-            # self.linears.append(nn.Linear(2*n_hidden, 2*n_hidden))
+        # for i in range(num_layers-1):
+            # self.rnns.append(nn.LSTM(nproj, n_hidden, bidirectional=False, dropout=dropout, batch_first=True))
+            # self.linears.append(nn.Linear(n_hidden, nproj))
+            # # self.linears.append(nn.Linear(2*n_hidden, 2*n_hidden))
     
-    def forward(self, feature):
-        recurrent, _ = self.rnns[0](feature)
-        output = self.linears[0](recurrent)
+    # def forward(self, feature):
+        # recurrent, _ = self.rnns[0](feature)
+        # output = self.linears[0](recurrent)
 
-        for i in range(self.num_layers-1):
-            output, _ = self.rnns[i+1](output)
-            output = self.linears[i+1](output)
+        # for i in range(self.num_layers-1):
+            # output, _ = self.rnns[i+1](output)
+            # output = self.linears[i+1](output)
         
-        return output
+        # return output
 
-class BLSTMP(nn.Module):
-    def __init__(self, n_in, n_hidden, nproj, rproj=100, dropout=0, num_layers=1):
-        super(BLSTMP, self).__init__()
+# class BLSTMP(nn.Module):
+    # def __init__(self, n_in, n_hidden, nproj, rproj=100, dropout=0, num_layers=1):
+        # super(BLSTMP, self).__init__()
 
-        self.num_layers = num_layers
+        # self.num_layers = num_layers
 
-        self.rnns = nn.ModuleList([nn.LSTM(n_in, n_hidden, bidirectional=True, dropout=dropout, batch_first=True)])
-        self.linears = nn.ModuleList([nn.Linear(2*n_hidden, nproj)])
+        # self.rnns = nn.ModuleList([nn.LSTM(n_in, n_hidden, bidirectional=True, dropout=dropout, batch_first=True)])
+        # self.linears = nn.ModuleList([nn.Linear(2*n_hidden, nproj)])
 
-        for i in range(num_layers-1):
-            self.rnns.append(nn.LSTM(nproj, n_hidden, bidirectional=True, dropout=dropout, batch_first=True))
-            self.linears.append(nn.Linear(2*n_hidden, nproj))
-            # self.linears.append(nn.Linear(2*n_hidden, 2*n_hidden))
+        # for i in range(num_layers-1):
+            # self.rnns.append(nn.LSTM(nproj, n_hidden, bidirectional=True, dropout=dropout, batch_first=True))
+            # self.linears.append(nn.Linear(2*n_hidden, nproj))
+            # # self.linears.append(nn.Linear(2*n_hidden, 2*n_hidden))
     
-    def forward(self, feature):
-        recurrent, _ = self.rnns[0](feature)
-        output = self.linears[0](recurrent)
+    # def forward(self, feature):
+        # recurrent, _ = self.rnns[0](feature)
+        # output = self.linears[0](recurrent)
 
-        for i in range(self.num_layers-1):
-            output, _ = self.rnns[i+1](output)
-            output = self.linears[i+1](output)
+        # for i in range(self.num_layers-1):
+            # output, _ = self.rnns[i+1](output)
+            # output = self.linears[i+1](output)
         
-        return output
+        # return output
 
 class TSVAD_module(NeuralModule, Exportable):
     """
@@ -156,12 +154,9 @@ class TSVAD_module(NeuralModule, Exportable):
             num_spks: int = -1,
             scale_n: int = 1,
             lstm_hidden_size=512,
+            cnn_output_ch=16,
             emb_sizes=192,
-            dropout_rate: float=0.5,
-            y_stride=10,
-            rproj=100, 
-            nproj=100, 
-            cell=100):
+            dropout_rate: float=0.5):
         super().__init__()
 
         feat_in = feat_in * frame_splicing
@@ -177,6 +172,9 @@ class TSVAD_module(NeuralModule, Exportable):
         self.cos_dist = torch.nn.CosineSimilarity(dim=3, eps=self.eps)
         lstm_input_size = lstm_hidden_size
         self.lstm = nn.LSTM(lstm_input_size, lstm_hidden_size, num_layers=self.num_lstm_layers, batch_first=True)
+        self.cnn = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(num_spks+1, 1), stride=(0, 1))
+        self.cnn2linear = nn.Linear(emb_sizes*cnn_output_ch, lstm_hidden_size)
+        self.linear2weights = nn.Linear(lstm_hidden_size, self.scale_n)
         self.hidden2spk = nn.Linear(lstm_hidden_size, self.num_spks)
         self.dis2emb= nn.Linear(self.num_spks, lstm_input_size)
         self.dropout = nn.Dropout(dropout_rate)

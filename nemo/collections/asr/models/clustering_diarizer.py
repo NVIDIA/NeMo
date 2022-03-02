@@ -462,7 +462,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
 
         # TODO: Why does this override the main save_to?
-
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
             spkr_model = os.path.join(tmpdir, _SPEAKER_MODEL)

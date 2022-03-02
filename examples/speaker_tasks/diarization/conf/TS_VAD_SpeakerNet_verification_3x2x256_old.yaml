@@ -4,12 +4,12 @@ repeat: &rep 2
 dropout: &drop 0.5
 separable: &separable True
 n_filters: &n_filters 256
-num_workers: &num_workers 20
-batch_size: &global_bs 128
+num_workers: 4
+batch_size: 128
 
-diarizer: &diarizer
-  manifest_filepath: null
-  out_dir: null
+diarizer:
+  manifest_filepath: ???
+  out_dir: ???
   oracle_vad: False # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
   collar: 0.25 # Collar value for scoring
   ignore_overlap: True # Consider or ignore overlap segments while scoring
@@ -47,18 +47,8 @@ diarizer: &diarizer
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
 
-ts_vad_model: 
-  base:
-    name: *name 
-    sample_rate: *sample_rate
-    repeat: *rep
-    dropout: *drop
-    separable: *separable
-    n_filters: *n_filters
-    num_workers: *num_workers
-    batch_size: *global_bs
-    diarizer: *diarizer
-  max_num_of_spks: &max_num_of_spks 5
+ts_vad_model:
+  max_num_of_spks: &max_num_of_spks 2
   subsample_rate: &subsample_rate 1
   split_length: 30
 
@@ -110,8 +100,11 @@ ts_vad_model:
     out_channels: [2,2,3,4]
     lstm_hidden_size: 512
     dropout_rate: 0.5
-    cnn_output_ch: 8
     emb_sizes: 192
+    y_stride: *subsample_rate
+    rproj: 100
+    nproj: 100
+    cell: 896
 
   loss:
     scale: 30
@@ -131,7 +124,7 @@ ts_vad_model:
 trainer:
   gpus: 1 # number of gpus
   max_epochs: 200
-  max_steps: 5000 # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   strategy: ddp
   accumulate_grad_batches: 1

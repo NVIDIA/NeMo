@@ -60,10 +60,14 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     # speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
-    clustering_embedding = ClusterEmbedding(cfg_clus=cfg)
+    clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_ts_vad_model=cfg.ts_vad_model)
     clustering_embedding.prepare_cluster_embs()
+    cfg.ts_vad_model.base.diarizer.update(cfg.diarizer)
     # clustering_embedding.prepare_split_manifest()
-    ts_vad_model = EncDecDiarLabelModel(cfg=cfg.ts_vad_model, emb_clus=clustering_embedding, trainer=trainer)
+    # ts_vad_model = EncDecDiarLabelModel(cfg=cfg, emb_clus=clustering_embedding, trainer=trainer)
+    ts_vad_model = EncDecDiarLabelModel(cfg=cfg.ts_vad_model, trainer=trainer)
+    # import ipdb; ipdb.set_trace()
+    # ts_vad_model.get_emb_clus(clustering_embedding)
     trainer.fit(ts_vad_model)
 
 if __name__ == '__main__':

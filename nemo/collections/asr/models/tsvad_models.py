@@ -167,10 +167,10 @@ class MultiBinaryAcc(Metric):
         return self.f1_score
 
 class ClusterEmbedding:
-    def __init__(self, cfg_clus: DictConfig):
-        self._cfg = cfg_clus
-        self._cfg_tsvad = cfg_clus.ts_vad_model
-        self.max_num_of_spks = self._cfg.diarizer.clustering.parameters.max_num_speakers
+    def __init__(self, cfg_base: DictConfig, cfg_ts_vad_model: DictConfig,trainer: Trainer=None):
+        self.cfg_base = cfg_base
+        self._cfg_tsvad = cfg_ts_vad_model
+        self.max_num_of_spks = self.cfg_base.diarizer.clustering.parameters.max_num_speakers
         self.clus_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
         self.clus_map_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
         self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
@@ -373,9 +373,9 @@ class ClusterEmbedding:
                                                                                                       session_scale_mapping_dict)
         else:
             print("--- Embedding path does not exist")
-            self._cfg.diarizer.manifest_filepath = manifest_filepath
-            self._cfg.diarizer.out_dir = out_dir
-            sd_model = ClusteringDiarizer(cfg=self._cfg)
+            self.cfg_base.diarizer.manifest_filepath = manifest_filepath
+            self.cfg_base.diarizer.out_dir = out_dir
+            sd_model = ClusteringDiarizer(cfg=self.cfg_base)
             score = sd_model.diarize()
             metric, speaker_mapping_dict = score 
             session_scale_mapping_dict = self.get_scale_map(sd_model.embs_and_timestamps)
@@ -423,7 +423,7 @@ class ClusterEmbedding:
         Load embeddings from diarization result folder.
         """
         scale_index = 0
-        window_len_list = list(self._cfg.diarizer.speaker_embeddings.parameters.window_length_in_sec)
+        window_len_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         pickle_folder_path = os.path.join(out_dir, 'speaker_outputs', 'embeddings')
         emb_scale_seq_dict = {scale_index: None for scale_index in range(len(window_len_list))}
         for scale_index in range(len(window_len_list)):
@@ -440,7 +440,8 @@ class ClusterEmbedding:
         emb_sess_avg_dict, base_clus_label_dict = self.get_clus_emb(emb_scale_seq_dict, clus_label, speaker_mapping_dict, session_scale_mapping_dict)
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
 
-class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
+# class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
+class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
     performing model forward pass.
@@ -462,23 +463,29 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 
     # def __init__(self, cfg: DictConfig, emb_clus: Dict, trainer: Trainer = None):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.ts_vad_model_cfg = cfg
-        cfg.tsvad_module.num_spks = cfg.max_num_of_spks
-        cfg.train_ds.num_spks = cfg.max_num_of_spks
-        cfg.validation_ds.num_spks = cfg.max_num_of_spks
-        cfg.test_ds.num_spks = cfg.max_num_of_spks
-        # self.get_emb_clus(emb_clus)
+        self.cfg_ts_vad_model = cfg
+        self.cfg_ts_vad_model.tsvad_module.num_spks = self.cfg_ts_vad_model.max_num_of_spks
+        
+        self.cfg_ts_vad_model.train_ds.num_spks = self.cfg_ts_vad_model.max_num_of_spks
+        self.cfg_ts_vad_model.validation_ds.num_spks = self.cfg_ts_vad_model.max_num_of_spks
+        self.cfg_ts_vad_model.test_ds.num_spks = self.cfg_ts_vad_model.max_num_of_spks
+        ClusterEmbedding.__init__(self, cfg_base=self.cfg_ts_vad_model.base, cfg_ts_vad_model=self.cfg_ts_vad_model, trainer=trainer)
+        if trainer:
+            self.load_split_emb_clus()
+        else:
+            self.load_test_emb_clus_infer()
+        super().__init__(cfg=self.cfg_ts_vad_model, trainer=trainer)
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
-        super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = EncDecDiarLabelModel.from_config_dict(cfg.preprocessor)
-        self.tsvad = EncDecDiarLabelModel.from_config_dict(cfg.tsvad_module)
+        self.preprocessor = EncDecDiarLabelModel.from_config_dict(self.cfg_ts_vad_model.preprocessor)
+        self.tsvad = EncDecDiarLabelModel.from_config_dict(self.cfg_ts_vad_model.tsvad_module)
         self.loss = BCELoss()
         self.task = None
         self._accuracy = MultiBinaryAcc()
         self.labels = None
+        # import ipdb; ipdb.set_trace()
 
     def multispeaker_loss(self):
         """
@@ -492,6 +499,20 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         self.clus_test_label_dict = emb_clus.clus_test_label_dict
         self.emb_seq_test = emb_clus.emb_seq_test
 
+    def load_test_emb_clus_infer(self):
+        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict = self.load_clustering_results(self.cfg_ts_vad_model.test_ds.manifest_filepath,
+                                                               self.cfg_ts_vad_model.test_ds.emb_dir)
+    
+    def load_split_emb_clus(self):
+        self.emb_sess_train_dict, self.emb_seq_train, self.clus_train_label_dict = self.load_clustering_results(self.cfg_ts_vad_model.train_ds.manifest_filepath,
+                                                                self.cfg_ts_vad_model.train_ds.emb_dir)
+        
+        self.emb_sess_dev_dict, self.emb_seq_dev, self.clus_dev_label_dict = self.load_clustering_results(self.cfg_ts_vad_model.validation_ds.manifest_filepath,
+                                                              self.cfg_ts_vad_model.validation_ds.emb_dir)
+
+        self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict = self.load_clustering_results(self.cfg_ts_vad_model.test_ds.manifest_filepath,
+                                                               self.cfg_ts_vad_model.test_ds.emb_dir)
+
     def get_emb_clus(self, emb_clus):
         self.emb_sess_train_dict = emb_clus.emb_sess_train_dict
         self.emb_sess_dev_dict = emb_clus.emb_sess_dev_dict
@@ -502,6 +523,43 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         self.emb_seq_train = emb_clus.emb_seq_train
         self.emb_seq_dev = emb_clus.emb_seq_dev
         self.emb_seq_test = emb_clus.emb_seq_test
+    
+    def load_clustering_results(self, manifest_filepath, out_dir):
+        """
+        TSVAD
+        Run clustering diarizer to get initial clustering results.
+        """
+        isEmbReady = True
+        if os.path.exists(f'{out_dir}/speaker_outputs/embeddings'):
+            print(f"-- Embedding path exists {out_dir}/speaker_outputs/embeddings")
+            # try:
+            emb_sess_avg_dict, session_scale_mapping_dict = self.load_dict_from_pkl(out_dir) 
+            uniq_id_list, _ = self.get_manifest_uniq_ids(manifest_filepath)
+            base_scale_index = max(emb_sess_avg_dict.keys())
+            condA = set(uniq_id_list).issubset(set(emb_sess_avg_dict[base_scale_index].keys()))
+            condB = set(uniq_id_list).issubset(set(session_scale_mapping_dict.keys()))
+            isEmbReady = condA and condB
+            # except:
+                # import ipdb; ipdb.set_trace()
+                # isEmbReady = False
+        else:
+            # import ipdb; ipdb.set_trace()
+            isEmbReady = False
+        
+        if isEmbReady:    
+            print(f"--- Embedding isEmbReady: {isEmbReady}")
+            speaker_mapping_dict = self.load_mapping_from_pkl(out_dir) 
+            emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(out_dir, 
+                                                                                                      speaker_mapping_dict, 
+                                                                                                      session_scale_mapping_dict)
+        else:
+            raise ValueError('Embeddings are not extracted properly. Check the following manifest filepath: {manifest_filepath} and embedding directory: {out_dir}')
+        logging.info("Checking clustering results and rttm files.")
+        emb_sess_avg_dict = self.check_embedding_and_RTTM(emb_sess_avg_dict, manifest_filepath)
+        logging.info("Clustering results and rttm files test passed.")
+        emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
+        return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
+
 
     @staticmethod
     def extract_labels(data_layer_config):
@@ -540,7 +598,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
             clus_label_dict=clus_label_dict,
             emb_seq=emb_seq,
             featurizer=featurizer,
-            subsample_rate=self.ts_vad_model_cfg.subsample_rate,
+            subsample_rate=config.sample_rate,
             max_spks=config.num_spks,
         )
         s0 = dataset.item_sim(0)
@@ -652,7 +710,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         acc = self._accuracy.compute()
         sprint("Running Training Step 5....")
         self._accuracy.reset()
-        logging.info(f"Batch Train F1 Acc. {acc}, Train loss {loss_value}")
+        logging.info(f"Batch Train F1 Acc. {acc:.4f}, Train loss {loss_value:.4f}")
         return {'loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
@@ -669,7 +727,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy(preds, targets)
         acc = self._accuracy.compute()
         correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
-        logging.info(f"Batch Val F1 Acc. {acc}, Val loss {loss_value}")
+        logging.info(f"Batch Val F1 Acc. {acc:.4f}, Val loss {loss_value:.4f}")
         return {
             'val_loss': loss_value,
             'val_correct_counts': correct_counts,
@@ -688,6 +746,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
         self._accuracy.reset()
 
         logging.info(f"Total Val F1 Acc. {acc:.4f}, Val loss mean {val_loss_mean:.4f}")
+        self.log('val_loss', val_loss_mean)
         return {
             'val_loss': val_loss_mean,
             'val_acc': acc,
