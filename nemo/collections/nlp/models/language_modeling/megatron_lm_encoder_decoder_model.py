@@ -68,7 +68,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
         super().__init__(cfg, trainer=trainer)
+
+        # Make sure trainer.accumulate_grad_batches is 1.
+        self._validate_trainer()
 
         # build tokenizer (defaults to nemo supported tokenizers)
         self._build_tokenizer()
@@ -199,51 +207,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
-
-    def configure_optimizers(self):
-        self.setup_optimization()
-
-        # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and self._optimizer is not None:
-            if self.cfg.precision == 'bf16':
-                fp32_grad_accum = True
-                contiguous_grad_bucket = True
-
-            elif self.cfg.precision == 16:
-                fp32_grad_accum = False
-                # TODO: contiguous grad bucket for fp16 is also planned to be supported
-                contiguous_grad_bucket = False
-
-            # TODO: this should be true when not using pipeline parallelism
-            # we will support that for bf16 when we have async handler from apex
-            # and we will support it for fp16 when we have it implemented in the O2 recipe
-            async_grad_allreduce = False
-
-            self._optimizer = MainParamsOptimizerWrapper(
-                self._optimizer,
-                fp32_grad_accum=fp32_grad_accum,
-                contiguous_grad_bucket=contiguous_grad_bucket,
-                async_grad_allreduce=async_grad_allreduce,
-            )
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
-            if hasattr(self._cfg.optim, 'sched'):
-                sched_config = self._cfg.optim.sched
-                sched_config['max_steps'] = self._trainer.max_steps
-                self._scheduler = prepare_lr_scheduler(
-                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
-                )
-
-        if self._scheduler is None:
-            return self._optimizer
-        else:
-            return [self._optimizer], [self._scheduler]
-
-    def get_parameters(self):
-        params = []
-        for param_group in self._optimizer_param_groups:
-            for param in param_group['params']:
-                params.append(param)
-        return params
 
     def training_step(self, batch, batch_idx):
         """
@@ -660,6 +623,44 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
+    def configure_optimizers(self):
+        self.setup_optimization()
+
+        # Wrap the baseline optimizer with the optimizer class with master parameters
+        if self.megatron_amp_o2 and self._optimizer is not None:
+            if self.cfg.precision == 'bf16':
+                fp32_grad_accum = True
+                contiguous_grad_bucket = True
+
+            elif self.cfg.precision == 16:
+                fp32_grad_accum = False
+                # TODO: contiguous grad bucket for fp16 is also planned to be supported
+                contiguous_grad_bucket = False
+
+            # TODO: this should be true when not using pipeline parallelism
+            # we will support that for bf16 when we have async handler from apex
+            # and we will support it for fp16 when we have it implemented in the O2 recipe
+            async_grad_allreduce = False
+
+            self._optimizer = MainParamsOptimizerWrapper(
+                self._optimizer,
+                fp32_grad_accum=fp32_grad_accum,
+                contiguous_grad_bucket=contiguous_grad_bucket,
+                async_grad_allreduce=async_grad_allreduce,
+            )
+            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
+            if hasattr(self._cfg.optim, 'sched'):
+                sched_config = self._cfg.optim.sched
+                sched_config['max_steps'] = self._trainer.max_steps
+                self._scheduler = prepare_lr_scheduler(
+                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+                )
+
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
+
     def get_parameters(self):
         params = []
         for param_group in self._optimizer_param_groups:
@@ -829,6 +830,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             Microbatches are transferred from CPU to GPU inside the pipeline. 
         """
         return batch
+    
+    def _validate_trainer(self):
+        """ Certain trainer configurations can break training.
+            Here we try to catch them and raise an error.
+        """
+        if self.trainer.accumulate_grad_batches > 1:
+            raise ValueError(
+                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+            )
 
     def list_available_models(self):
         pass
