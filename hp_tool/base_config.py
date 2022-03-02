@@ -69,7 +69,7 @@ def calculate_model_size(
         f"you are training to {num_tokens_in_b}B tokens, and each GPU achieves"
         f"{tflops_per_gpu} TFLOPS."
     )
-    time.sleep(3)
+    time.sleep(0.3)
     return model_size_in_b
 
 
@@ -130,7 +130,7 @@ def generate_base_config(
     )
 
     # TRAINER
-    base_cfg["trainer"]["precision"] = 16 if model_size_in_b <= 5.5 else "bf16"
+    base_cfg["trainer"]["precision"] = "bf16" if model_size_in_b <= 5.5 else "bf16"
     mbs = base_cfg["model"]["micro_batch_size"]
     seq_length = base_cfg["model"]["data"]["seq_length"]
     base_cfg["trainer"]["max_steps"] = int((num_tokens_in_b * 1e9) / (seq_length * gbs))

@@ -1,11 +1,7 @@
 partition: luna
 account: joc
-time_limit: "30:00"
-nodes: 8  # Number of nodes to be used for full training run.
 exclusive: True
+gpus_per_task: null
 mem: 0
 overcommit: True
-ntasks_per_node: 8  # Number of GPUs per node.
-gpus_per_task: null
-dependency: "singleton"
 job_name_prefix: "joc-bignlp_gpt3:"

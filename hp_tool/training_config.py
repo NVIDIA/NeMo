@@ -1,6 +1,8 @@
 import os
 import yaml
+import subprocess
 
+import omegaconf
 from omegaconf import OmegaConf
 
 from hp_tool import utils, train
@@ -40,7 +42,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, cfg):
                         #second = new_cfg["run"]["name"].split(":")[-1]
                         #new_cfg["run"]["name"] = f"{first}:{second}"
                         #if new_cfg.cluster.gpus_per_task == "null":
-                        #    del new_cfg.slurm.gpus_per_task
+                        #    del new_cfg.cluster.gpus_per_task
                         results_cfgs[act].append(file_name)
                         with open(f"{base_dir}/{file_name}", "w") as f:
                             yaml.dump(new_cfg, f)
@@ -100,9 +102,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
             new_cfg = create_bignlp_config(cfg)
             new_cfg.training = conf
             new_cfg.cluster = cfg.cluster
-            #hydra_args = convert_to_cli(new_cfg)
-            job_id = train.run_training(new_cfg)
-            #job_id = run_training(new_cfg, hydra_args)
+            job_id = train.run_training(new_cfg, cfg.bignlp_hp_tool_path)
             job_ids.append(job_id[:-1])
             count += 1
             if count == limit:
@@ -120,13 +120,14 @@ def create_bignlp_config(cfg):
     training: null
     cluster: null
 
-    run_data_preparation: True
+    run_data_preparation: False
     run_training: True
-    run_conversion: True
-    run_evaluation: True
+    run_conversion: False
+    run_finetuning: False
+    run_evaluation: False
 
     cluster_type: bcm
-    training_config: 5b
+    training_config: gpt3/5b
     bignlp_path: /opt/bignlp/bignlp-scripts
     data_dir: {data_dir}
     base_results_dir: {results_dir}
@@ -140,35 +141,35 @@ def create_bignlp_config(cfg):
 
 def launch_throughput_measure(dependency_list, model_size, cfg):
     # Read config
-    bignlp_path = cfg.bignlp_path
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
     container_mounts = cfg.container_mounts
-    container = cfg.container
+    container = cfg.training_container
     hp_cfg = cfg.search_config
 
     # SLURM parameters
-    slurm_cfg = hp_cfg.slurm
-    partition = slurm_cfg.partition
-    account = slurm_cfg.account
+    cluster_cfg = cfg.get("cluster")
+    partition = cluster_cfg.get("partition")
+    account = cluster_cfg.account
     time_limit = "30:00"
     nodes = 1
-    exclusive = slurm_cfg.exclusive
-    mem = slurm_cfg.mem
-    overcommit = slurm_cfg.overcommit
+    exclusive = cluster_cfg.exclusive
+    mem = cluster_cfg.mem
+    overcommit = cluster_cfg.overcommit
     ntasks_per_node = 1
     gpus_per_task = None
     dependency = None
     if dependency_list is not None and len(dependency_list) > 0:
         dependency = ":".join(dependency_list)
-    job_name = slurm_cfg.job_name
+    job_name = f"{cluster_cfg.job_name_prefix}latency_measure"
 
     # Settings parameters
-    settings = hp_cfg.settings
-    final_log_dir = settings.final_result_logs
+    train_settings = hp_cfg.train_settings
+    final_log_dir = train_settings.final_result_logs
     if not os.path.exists(final_log_dir):
         os.makedirs(final_log_dir)
 
     # Process container-mounts.
-    mounts_str = f"{bignlp_path}:{bignlp_path}"
+    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path}"
     if container_mounts is not None:
         assert isinstance(
             container_mounts, omegaconf.listconfig.ListConfig
@@ -184,12 +185,12 @@ def launch_throughput_measure(dependency_list, model_size, cfg):
         f"-e {final_log_dir}/compare_throughput_{model_size}b-%j.error "
     )
     new_script_path = os.path.join(
-        bignlp_path, "search_train_config/compare_throughput.sh"
+        bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh"
     )
     code_path = os.path.join(
-        bignlp_path, "search_train_config/compare_throughput_results.py"
+        bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py"
     )
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_train_config.settings.model_size_in_b={model_size}"
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size}"
     utils.create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,

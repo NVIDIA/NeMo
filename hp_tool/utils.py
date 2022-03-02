@@ -3,6 +3,7 @@ import time
 import copy
 
 import yaml
+import omegaconf
 
 
 def _calculate_model_size(
@@ -84,7 +85,7 @@ def generic_base_config(cfg):
       gpus: 8
       num_nodes: 8
       accelerator: ddp
-      precision: 16
+      precision: bf16
       amp_backend: native
       logger: False # logger provided by exp_manager
       checkpoint_callback: False
@@ -100,7 +101,7 @@ def generic_base_config(cfg):
       gradient_clip_val: 1.0
 
     exp_manager:
-      explicit_log_dir: ${training.run.log_dir}
+      explicit_log_dir: ${training.run.results_dir}
       exp_dir: "null"
       name: megatron_gpt
       create_wandb_logger: False
@@ -265,3 +266,34 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --time={time}\n\n")
         f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
         f.writelines("set +x\n")
+
+
+def convert_to_cli(cfg):
+    result = ""
+    for k, v in cfg.items():
+        if isinstance(v, omegaconf.dictconfig.DictConfig):
+            output = convert_to_cli(v).split(" ")
+            result += " ".join([f"{k}.{x}" for x in output if x != ""]) + " "
+        elif isinstance(v, omegaconf.listconfig.ListConfig):
+            if k == "data_prefix":
+                if v is None:
+                    v = "null"
+                else:
+                    v = [x for x in v]  # Needed because of lazy omegaconf interpolation.
+            result += f"{k}={str(v).replace(' ', '')} "
+        elif isinstance(v, str) and "{" in v:
+            continue
+        elif k in ["splits_string", "file_numbers", "languages"]:
+            result += f"{k}=\\'{v}\\' "
+        elif k == "checkpoint_name":
+            v = v.replace('=', '\=')
+            result += f"{k}=\'{v}\' "
+        else:
+            result += f"{k}={convert_to_null(v)} "
+    return result
+
+def convert_to_null(val):
+    if val is None:
+        return "null"
+    return val
+

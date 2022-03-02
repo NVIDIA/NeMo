@@ -5,6 +5,8 @@ import subprocess
 import hydra
 import omegaconf
 
+from hp_tool.utils import convert_to_cli
+
 
 def create_slurm_file(
     new_script_path,
@@ -62,14 +64,13 @@ def create_bcp_file(
     os.chmod(new_script_path, 0o755)
 
 
-def run_training(cfg, hydra_args="", dependency=None):
+def run_training(cfg, bignlp_hp_tool_path):
     """
     Main function to launch a training job, with the config given in cfg.
     """
+    hydra_args = convert_to_cli(cfg)
+
     # Read config
-    print(cfg)
-    quit()
-    bignlp_path = cfg.bignlp_path
     container_mounts = cfg.container_mounts
     container = cfg.container
     train_cfg = cfg.training
@@ -89,8 +90,8 @@ def run_training(cfg, hydra_args="", dependency=None):
     scripts_dir = os.path.join(results_dir, "train_scripts")
     os.makedirs(scripts_dir, exist_ok=True)
     new_script_path = os.path.join(scripts_dir, f"{name}.sh")
-    code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
-    train_cmd = f"python3 -u {code_path} {hydra_args}"
+    code_path = "/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_gpt.py"
+    train_cmd = f"PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args}"
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.gpus
@@ -102,12 +103,11 @@ def run_training(cfg, hydra_args="", dependency=None):
         exclusive = cluster_cfg.exclusive
         gpus_per_task = cluster_cfg.gpus_per_task
         job_name_prefix = cluster_cfg.job_name_prefix
-        if dependency is None:
-            dependency = run_cfg.dependency
+        dependency = run_cfg.dependency
         job_name = job_name_prefix + name
 
         # Process container-mounts.
-        mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
+        mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         if container_mounts is not None:
             assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
             for mount in container_mounts:
@@ -135,9 +135,9 @@ def run_training(cfg, hydra_args="", dependency=None):
             partition=partition,
             account=account,
         )
-        #job_id = subprocess.check_output(
-        #    [f"sbatch --parsable {new_script_path}"], shell=True
-        #)
-        #dependency = job_id = job_id.decode("utf-8")
-        #print(f"Submitted Training script with job id: {dependency}")
-        #return dependency
+        job_id = subprocess.check_output(
+            [f"sbatch --parsable {new_script_path}"], shell=True
+        )
+        dependency = job_id = job_id.decode("utf-8")
+        print(f"Submitted Training script with job id: {dependency}")
+        return dependency

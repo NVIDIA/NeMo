@@ -5,12 +5,11 @@ import subprocess
 
 
 def search_inference_config(base_cfg, cfg):
-    hp_cfg = cfg.search_train_config
-    slurm_cfg = hp_cfg.slurm
-    # train_settings_cfg = hp_cfg.train_settings
+    hp_cfg = cfg.search_config
+    cluster_cfg = cfg.cluster
     inference_settings_cfg = hp_cfg.inference_settings
 
-    bignlp_path = cfg.bignlp_path
+    bignlp_hp_tool_path = cfg.bignlp_hp_tool_path
     input_seq_len = inference_settings_cfg.input_seq_len
     output_seq_len = inference_settings_cfg.output_seq_len
     top_n = inference_settings_cfg.top_n
@@ -25,15 +24,10 @@ def search_inference_config(base_cfg, cfg):
     ]
     max_batch_sizes = [str(x) for x in inference_settings_cfg.max_batch_sizes]
 
-    inference_profile_path = os.path.join(
-        bignlp_path, "infer_scripts/profile_model_with_random_weights.py"
-    )
-    # cluster_config_path = os.path.join(bignlp_path, "conf/inference/cluster_selene.yaml")
-    cluster_config_path = os.path.join(bignlp_path, "conf/inference/cluster_bcm.yaml")
-    navigator_config_path = os.path.join(
-        bignlp_path, "conf/inference/profile_offline.yaml"
-    )
-    model_spec_dir = os.path.join(bignlp_path, "tmp_test_model")
+    inference_profile_path = "/opt/bignlp/bignlp-scripts/bignlp/infer_scripts/profile_model_with_random_weights.py"
+    cluster_config_path = os.path.join(bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
+    navigator_config_path = "/opt/bignlp/bignlp-scripts/conf/inference/profile_offline.yaml"
+    model_spec_dir = os.path.join(bignlp_hp_tool_path, "tmp_test_model")
     if not os.path.isdir(model_spec_dir):
         os.mkdir(model_spec_dir)
     model_spec_path = os.path.join(model_spec_dir, "meta.yaml")
