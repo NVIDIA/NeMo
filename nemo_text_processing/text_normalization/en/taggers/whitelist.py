@@ -21,7 +21,11 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     convert_space,
 )
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.en.utils import (
+    augment_labels_with_punct_at_end,
+    get_abs_path,
+    load_labels,
+)
 
 try:
     import pynini
@@ -52,12 +56,15 @@ class WhiteListFst(GraphFst):
     def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
-        def _get_whitelist_graph(input_case, file):
+        def _get_whitelist_graph(input_case, file, keep_punct_add_end: bool = False):
             whitelist = load_labels(file)
             if input_case == "lower_cased":
-                whitelist = [(x.lower(), y) for x, y in whitelist]
+                whitelist = [[x.lower(), y] for x, y in whitelist]
             else:
-                whitelist = [(x, y) for x, y in whitelist]
+                whitelist = [[x, y] for x, y in whitelist]
+
+            if keep_punct_add_end:
+                whitelist.extend(augment_labels_with_punct_at_end(whitelist))
 
             graph = pynini.string_map(whitelist)
             return graph
@@ -65,7 +72,9 @@ class WhiteListFst(GraphFst):
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
 
         if not deterministic:
-            graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
+            graph |= _get_whitelist_graph(
+                input_case, get_abs_path("data/whitelist_alternatives.tsv"), keep_punct_add_end=True
+            )
 
         for x in [".", ". "]:
             graph |= (
