@@ -62,12 +62,9 @@ class EnJaProcessor:
 class JaMecabProcessor:
     """
     Tokenizer, Detokenizer and Normalizer utilities for Japanese MeCab & English
-    Args:
-        lang_id: ['ja-mecab'].
     """
 
-    def __init__(self, lang_id: str):
-        self.lang_id = lang_id
+    def __init__(self):
         self.mecab_tokenizer = MeCab.Tagger(ipadic.MECAB_ARGS + " -Owakati")
 
     def detokenize(self, text: List[str]) -> str:
