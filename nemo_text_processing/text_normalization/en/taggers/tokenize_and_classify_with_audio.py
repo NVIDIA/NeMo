@@ -149,9 +149,11 @@ class ClassifyFst(GraphFst):
             v_abbreviation = vAbbreviation(deterministic=deterministic).fst
 
             det_v_time_graph = vTime(deterministic=True).fst
+            det_v_date_graph = vDate(ordinal=vOrdinal(deterministic=True), deterministic=True).fst
             time_final = pynini.compose(time_graph, det_v_time_graph)
+            date_final = pynini.compose(date_graph, det_v_date_graph)
             range_graph = RangeFst(
-                time=time_final, cardinal=CardinalFst(deterministic=True), deterministic=deterministic
+                time=time_final, date=date_final, cardinal=CardinalFst(deterministic=True), deterministic=deterministic
             ).fst
             v_range_graph = vRangeFst(deterministic=deterministic).fst
 

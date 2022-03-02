@@ -49,32 +49,23 @@ class WhiteListFst(GraphFst):
         input_file: path to a file with whitelist replacements
     """
 
-    def __init__(
-        self, input_case: str, deterministic: bool = True, input_file: str = None, lm: bool = False,
-    ):
+    def __init__(self, input_case: str, deterministic: bool = True, input_file: str = None):
         super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
-        def _get_whitelist_graph(input_case, file, is_default=True):
+        def _get_whitelist_graph(input_case, file):
             whitelist = load_labels(file)
             if input_case == "lower_cased":
                 whitelist = [(x.lower(), y) for x, y in whitelist]
             else:
                 whitelist = [(x, y) for x, y in whitelist]
 
-            if not is_default:
-                whitelist = [(x, f"|raw_start|{x}|raw_end||norm_start|{y}|norm_end|") for (x, y) in whitelist]
             graph = pynini.string_map(whitelist)
             return graph
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
 
-        # if lm:
-        #     graph = pynutil.insert("< ") + graph + pynutil.insert(" >")
-        is_default = True  # not lm
         if not deterministic:
-            graph |= _get_whitelist_graph(
-                input_case, get_abs_path("data/whitelist_alternatives.tsv"), is_default=is_default
-            )
+            graph |= _get_whitelist_graph(input_case, get_abs_path("data/whitelist_alternatives.tsv"))
 
         for x in [".", ". "]:
             graph |= (
@@ -84,9 +75,7 @@ class WhiteListFst(GraphFst):
             )
 
         if not deterministic:
-            multiple_forms_whitelist_graph = get_formats(
-                get_abs_path("data/whitelist_alternatives_all_format.tsv"), is_default=is_default
-            )
+            multiple_forms_whitelist_graph = get_formats(get_abs_path("data/whitelist_alternatives_all_format.tsv"))
             graph |= multiple_forms_whitelist_graph
 
             graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
@@ -102,10 +91,7 @@ class WhiteListFst(GraphFst):
                 if input_case == "lower_cased":
                     x = x.lower()
 
-                if is_default:
-                    additional_options.append((x, f"{y[0]}.{y[1:]}"))
-                else:
-                    additional_options.append((f"|norm_start|{x}|norm_end|", f"|raw_start|{y[0]}.{y[1:]}|raw_end|"))
+                additional_options.append((x, f"{y[0]}.{y[1:]}"))
 
             states.extend(additional_options)
             state_graph = pynini.string_map(states)
