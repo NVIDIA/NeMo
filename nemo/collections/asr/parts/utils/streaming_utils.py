@@ -1161,3 +1161,72 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
         for idx in range(self.batch_size):
             output.append(self.greedy_merge(self.unmerged[idx]))
         return output
+
+
+class FramewiseStreamingAudioBuffer:
+    """
+    """
+
+    def __init__(self, model):
+        '''
+        Args:
+            asr_model: An ASR model.
+        '''
+        self.model = model
+        self.preprocessor = self.extract_preprocessor(model)
+        self.buffer = None
+        self.buffer_idx = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while True:
+            if self.buffer_idx >= self.buffer.size(-1):
+                raise StopIteration
+            audio_chunk = self.buffer[:, self.buffer_idx: self.chunk_size]
+            self.buffer_idx += self.shift_size
+            yield audio_chunk
+
+    def reset_buffer(self):
+        self.buffer = None
+        self.buffer_idx = 0
+
+    def extract_preprocessor(self, model):
+        cfg = copy.deepcopy(model._cfg)
+        OmegaConf.set_struct(cfg.preprocessor, False)
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        #cfg.preprocessor.normalize = "None"
+        preprocessor = model.from_config_dict(cfg.preprocessor)
+        return preprocessor.to(model.device)
+
+    def append_audio_file(self, audio_filepath):
+        audio = get_samples(audio_filepath)
+        processed_signal, processed_signal_length = self.append_audio(audio)
+        return processed_signal, processed_signal_length
+
+    def append_audio(self, audio):
+        processed_signal, processed_signal_length = self.preprocess_audio(audio)
+        self.append_processed_signal(processed_signal)
+        return processed_signal, processed_signal_length
+
+    def append_processed_signal(self, processed_signal):
+        if self.buffer is None:
+            self.buffer = processed_signal
+        else:
+            if self.buffer.size() != processed_signal.size():
+                raise ValueError("Buffer and the processed signal have different dimensions!")
+            self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
+
+    def get_model_device(self):
+        return self.model.device
+        #return next(self.model.parameters()).device
+
+    def preprocess_audio(self, audio, device=None):
+        if device is None:
+            device = self.get_model_device()
+        audio_signal = torch.from_numpy(audio).unsqueeze_(0).to(device)
+        audio_signal_len = torch.Tensor([audio.shape[0]]).to(device)
+        processed_signal, processed_signal_length = self.preprocessor(input_signal=audio_signal, length=audio_signal_len)
+        return processed_signal, processed_signal_length
