@@ -35,6 +35,7 @@ from nemo_text_processing.text_normalization.en.verbalizers.ordinal import Ordin
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -255,8 +256,8 @@ class MeasureFst(GraphFst):
             + cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
         # to handle the rest of the numbers
-        address_num = pynutil.add_weight(pynini.compose(NEMO_DIGIT ** (3, 4), address_num), -0.0001)
-        address_num |= cardinal.graph
+        address_num = pynini.compose(NEMO_DIGIT ** (3, 4), address_num)
+        address_num = plurals._priority_union(address_num, cardinal.graph, NEMO_SIGMA)
 
         direction = (
             pynini.cross("E", "East")
@@ -265,7 +266,7 @@ class MeasureFst(GraphFst):
             | pynini.cross("N", "North")
         ) + pynini.closure(pynutil.delete("."), 0, 1)
 
-        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -0.0001), 0, 1)
+        direction = pynini.closure(pynini.accep(NEMO_SPACE) + direction, 0, 1)
         address_words = get_formats(get_abs_path("data/address/address_words.tsv"))
         address_words = (
             pynini.accep(NEMO_SPACE)
@@ -289,18 +290,9 @@ class MeasureFst(GraphFst):
         state = pynini.closure(pynini.accep(",") + pynini.accep(NEMO_SPACE) + state, 0, 1)
 
         zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
-        zip_code = pynini.closure(
-            pynutil.add_weight(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -0.0001),
-            0,
-            1,
-        )
+        zip_code = pynini.closure(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, 0, 1,)
 
-        address = (
-            address_num
-            + direction
-            + address_words
-            + pynini.closure(pynutil.add_weight(city + state + zip_code, -0.0001), 0, 1)
-        )
+        address = address_num + direction + address_words + pynini.closure(city + state + zip_code, 0, 1)
 
         address |= address_num + direction + address_words + pynini.closure(pynini.cross(".", ""), 0, 1)
 
