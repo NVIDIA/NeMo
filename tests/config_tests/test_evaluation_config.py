@@ -62,21 +62,23 @@ class TestEvaluationGPT3Config:
         run:
           name: ${.eval_name}_${.model_train_name}
           time_limit: "4:00:00"
-          nodes: 1
-          ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
+          nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
+          ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           gpus_per_task: 1
           eval_name: eval_all
           convert_name: convert_nemo
           model_train_name: 5b
-          tasks: all_tasks
+          tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
           results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
-
+        
         model:
           type: nemo-gpt3
+          # path of checkpoint; must be .nemo file
           checkpoint_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_gpt.nemo 
-          tensor_model_parallel_size: 2
+          tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
           pipeline_model_parallel_size: 1
-          precision: 16
+          model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+          precision: 16 # must match training precision - 32, 16 or bf16
           eval_batch_size: 16
         """
         expected = OmegaConf.create(s)
@@ -88,21 +90,23 @@ class TestEvaluationGPT3Config:
         run:
           name: ${.eval_name}_${.model_train_name}
           time_limit: "4:00:00"
-          nodes: 1
-          ntasks_per_node: ${evaluation.model.tensor_model_parallel_size}
+          nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
+          ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           gpus_per_task: 1
           eval_name: eval_lambada
           convert_name: convert_nemo
           model_train_name: 5b
-          tasks: lambada
+          tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
           results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
-
+        
         model:
           type: nemo-gpt3
+          # path of checkpoint; must be .nemo file
           checkpoint_path: ${base_results_dir}/${evaluation.run.model_train_name}/${evaluation.run.convert_name}/megatron_gpt.nemo 
-          tensor_model_parallel_size: 2
+          tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
           pipeline_model_parallel_size: 1
-          precision: 16
+          model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+          precision: 16 # must match training precision - 32, 16 or bf16
           eval_batch_size: 16
 """
         expected = OmegaConf.create(s)
