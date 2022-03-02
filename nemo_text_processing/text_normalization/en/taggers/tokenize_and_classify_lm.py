@@ -167,13 +167,13 @@ class ClassifyFst(GraphFst):
 
             roman_graph = RomanFst(deterministic=deterministic).fst
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-            classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 98)
+            classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 1.1)
 
             range_graph = RangeFst(
                 time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
             ).fst
             v_range_graph = vRangeFst(deterministic=deterministic).fst
-            classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.5)
+            classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.1)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, 100)
 
