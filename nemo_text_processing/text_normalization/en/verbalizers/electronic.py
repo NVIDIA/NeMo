@@ -96,11 +96,11 @@ class ElectronicFst(GraphFst):
         # nvidia.unknown
         common_server_default_domain_input = pynini.project(server_common, "input") + pynini.compose(
             pynini.accep(".") + NEMO_SIGMA, pynini.difference(NEMO_SIGMA, pynini.project(domain_common, "input"))
-        )
+        ).optimize()
         common_server_default_domain = pynini.compose(
             common_server_default_domain_input,
             server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, default_chars_symbols),
-        )
+        ).optimize()
 
         # unknown.unknown
         non_common_input = pynini.difference(
@@ -118,7 +118,7 @@ class ElectronicFst(GraphFst):
 
         domain = (
             common_server_common_domain | default_domain | default_server_common_domain | common_server_default_domain
-        )
+        ).optimize()
 
         domain = (
             pynutil.delete("domain:")
@@ -127,7 +127,8 @@ class ElectronicFst(GraphFst):
             + domain
             + delete_space
             + pynutil.delete("\"")
-        )
+        ).optimize()
+
         domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.001), "", "", NEMO_SIGMA)
 
         protocol = pynutil.delete("protocol: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
@@ -136,7 +137,7 @@ class ElectronicFst(GraphFst):
             + pynini.closure(user_name + delete_space + pynutil.insert("at ") + delete_space, 0, 1)
             + domain
             + delete_space
-        )
+        ).optimize()
 
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()
