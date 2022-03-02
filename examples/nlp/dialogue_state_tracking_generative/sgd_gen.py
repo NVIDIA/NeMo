@@ -172,7 +172,7 @@ def main(cfg: DictConfig) -> None:
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
         gpu = 1 if cfg.trainer.gpus != 0 else 0
-        trainer = pl.Trainer(gpus=gpu, plugins=plugin, precision=16)
+        trainer = pl.Trainer(gpus=gpu, plugins=plugin, precision=cfg.trainer.precision)
         model.setup_multiple_test_data(test_data_config=cfg.model.test_ds)
         if model.prepare_test(trainer):
             trainer.test(model)

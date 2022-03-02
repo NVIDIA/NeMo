@@ -74,7 +74,13 @@ class IntentSlotMetrics(object):
                 elif len(combo) == 1:
                     slots = combo
                     label = 'none'
-                slots = slots.split(', ') if isinstance(slots, str) else ['None']
+                if isinstance(slots, str):
+                    # temporary patch for purnendu model output
+                    if 'possible intents:' in slots:
+                        slots = slots.split('possible intents:')[0]
+                    slots = slots.split(', ')
+                else:
+                    slots = ['None']
             else:
                 label = field
                 slots = []
@@ -107,9 +113,9 @@ class IntentSlotMetrics(object):
             all_precision.append(precision)
             all_joint_goal_accuracy.append(joint_goal_accuracy)
 
-        avg_joint_goal_accuracy = np.mean(all_joint_goal_accuracy)
-        avg_precision = np.mean(all_precision)
-        avg_recall = np.mean(all_recall)
+        avg_joint_goal_accuracy = np.mean(all_joint_goal_accuracy) * 100
+        avg_precision = np.mean(all_precision) * 100
+        avg_recall = np.mean(all_recall) * 100
         avg_f1 = 2 * (avg_recall * avg_precision) / (avg_recall + avg_precision + 1e-20)
 
         return avg_precision, avg_recall, avg_f1, avg_joint_goal_accuracy
