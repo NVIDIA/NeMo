@@ -116,15 +116,6 @@ def eval_bandwidth(signal, sr, threshold=-50):
 
 # load data from JSON manifest file
 def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None):
-    if not disable_caching:
-        pickle_filename = data_filename.split('.json')[0]
-        json_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(data_filename))
-        timestamp = json_mtime.strftime('%Y%m%d_%H%M')
-        pickle_filename += '_' + timestamp + '.pkl'
-        if os.path.exists(pickle_filename):
-            with open(pickle_filename, 'rb') as f:
-                data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available = pickle.load(f)
-            return data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available
 
     if vocab is not None:
         # load external vocab
@@ -138,6 +129,31 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                     # assume each line contains just a single word
                     word = line.strip()
                 vocabulary_ext[word] = 1
+
+    if not disable_caching:
+        pickle_filename = data_filename.split('.json')[0]
+        json_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(data_filename))
+        timestamp = json_mtime.strftime('%Y%m%d_%H%M')
+        pickle_filename += '_' + timestamp + '.pkl'
+        if os.path.exists(pickle_filename):
+            with open(pickle_filename, 'rb') as f:
+                data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available = pickle.load(f)
+            if vocab is not None:
+                for item in vocabulary_data:
+                    item['OOV'] = item['word'] not in vocabulary_ext
+            if estimate_audio:
+                for item in data:
+                    signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
+                    bw = eval_bandwidth(signal, sr)
+                    item['freq_bandwidth'] = int(bw)
+                    item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
+            with open(pickle_filename, 'wb') as f:
+                pickle.dump(
+                    [data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available],
+                    f,
+                    pickle.HIGHEST_PROTOCOL,
+                )
+            return data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available
 
     data = []
     wer_dist = 0.0
@@ -318,9 +334,9 @@ figures_labels = {
     'WER': ['Word Error Rate', 'WER, %'],
     'CER': ['Character Error Rate', 'CER, %'],
     'WMR': ['Word Match Rate', 'WMR, %'],
-    'I': ['# Insertions', '#words'],
-    'D': ['# Deletions', '#words'],
-    'D-I': ['# Deletions - # Insertions', '#words'],
+    'I': ['# Insertions (I)', '#words'],
+    'D': ['# Deletions (D)', '#words'],
+    'D-I': ['# Deletions - # Insertions (D-I)', '#words'],
     'freq_bandwidth': ['Frequency Bandwidth', 'Bandwidth, Hz'],
     'level_db': ['Peak Level', 'Level, dB'],
 }
@@ -460,7 +476,7 @@ if metrics_available:
     ]
 
 wordstable_columns = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
-if args.vocab is not None:
+if 'OOV' in vocabulary[0]:
     wordstable_columns.append({'name': 'OOV', 'id': 'OOV'})
 if metrics_available:
     wordstable_columns.append({'name': 'Accuracy, %', 'id': 'accuracy'})
