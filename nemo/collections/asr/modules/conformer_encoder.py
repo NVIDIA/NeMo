@@ -185,8 +185,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.conv_context_size = conv_context_size
 
         if att_context_style == "chunked_limited":
-            if (self.att_context_size[0] + 1) % (self.att_context_size[1] + 1) > 0:
-                raise ValueError("Left context should be a multiplier of the right context!")
+            if (self.att_context_size[0]) % (self.att_context_size[1] + 1) > 0:
+                raise ValueError("att_context_size[0] % (att_context_size[0] + 1) should be zero!")
             if self.att_context_size[1] < 0:
                 raise ValueError("Right context can not be unlimited for chunked_limited style!")
             self.chunk_size = self.att_context_size[1] + 1
