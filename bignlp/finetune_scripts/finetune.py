@@ -95,7 +95,11 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
 
     # Shared between BCP and BCM 
     new_script_path = os.path.join(bignlp_path, f"bignlp/finetune_scripts/{name}.sh")
-    code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
+    # TODO: better way to decide model
+    if task_name == 'xnli':
+        code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_mt5.py")
+    else:
+        code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
     train_cmd = f"PYTHONPATH={bignlp_path}" + ":${PYTHONPATH} \\\n" + f"python3 -u {code_path} \\\n  {hydra_args}"
