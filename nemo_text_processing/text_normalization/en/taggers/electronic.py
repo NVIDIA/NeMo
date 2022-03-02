@@ -62,7 +62,8 @@ class ElectronicFst(GraphFst):
 
         protocol_start = pynini.accep("https://") | pynini.accep("http://")
         protocol_symbols = pynini.closure(
-            (NEMO_ALPHA | pynutil.add_weight(graph_symbols | pynini.cross(":", "colon"), -0.001)) + pynutil.insert(" ")
+            (NEMO_ALPHA | pynutil.add_weight(graph_symbols | pynini.cross(":", "colon"), -0.0001))
+            + pynutil.insert(" ")
         )
         protocol_end = pynini.accep("www.")
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)

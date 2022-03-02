@@ -76,7 +76,15 @@ class ElectronicFst(GraphFst):
 
         # nvidia.com
         common_server_common_domain = (
-            server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, domain_common) + NEMO_SIGMA
+            server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, domain_common)
+        )
+        common_server_common_domain |= (
+            server_common
+            + insert_space
+            + pynini.compose(
+                pynini.accep(".") + NEMO_SIGMA,
+                domain_common + pynini.closure(insert_space + pynini.cross(".", "dot ") + default_chars_symbols),
+            )
         )
 
         # unknown.com
@@ -94,9 +102,12 @@ class ElectronicFst(GraphFst):
         ).optimize()
 
         # nvidia.unknown
-        common_server_default_domain_input = pynini.project(server_common, "input") + pynini.compose(
-            pynini.accep(".") + NEMO_SIGMA, pynini.difference(NEMO_SIGMA, pynini.project(domain_common, "input"))
-        ).optimize()
+        common_server_default_domain_input = (
+            pynini.project(server_common, "input")
+            + pynini.compose(
+                pynini.accep(".") + NEMO_SIGMA, pynini.difference(NEMO_SIGMA, pynini.project(domain_common, "input"))
+            ).optimize()
+        )
         common_server_default_domain = pynini.compose(
             common_server_default_domain_input,
             server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, default_chars_symbols),
@@ -129,7 +140,7 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
         ).optimize()
 
-        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.001), "", "", NEMO_SIGMA)
+        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.0001), "", "", NEMO_SIGMA)
 
         protocol = pynutil.delete("protocol: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         graph = (

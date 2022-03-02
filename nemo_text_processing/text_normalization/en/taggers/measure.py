@@ -255,7 +255,7 @@ class MeasureFst(GraphFst):
             + cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
         # to handle the rest of the numbers
-        address_num = pynutil.add_weight(pynini.compose(NEMO_DIGIT ** (3, 4), address_num), -0.001)
+        address_num = pynutil.add_weight(pynini.compose(NEMO_DIGIT ** (3, 4), address_num), -0.0001)
         address_num |= cardinal.graph
 
         direction = (
@@ -265,7 +265,7 @@ class MeasureFst(GraphFst):
             | pynini.cross("N", "North")
         ) + pynini.closure(pynutil.delete("."), 0, 1)
 
-        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -0.001), 0, 1)
+        direction = pynini.closure(pynutil.add_weight(pynini.accep(NEMO_SPACE) + direction, -0.0001), 0, 1)
         address_words = get_formats(get_abs_path("data/address/address_words.tsv"))
         address_words = (
             pynini.accep(NEMO_SPACE)
@@ -290,7 +290,7 @@ class MeasureFst(GraphFst):
 
         zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
         zip_code = pynini.closure(
-            pynutil.add_weight(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -0.001),
+            pynutil.add_weight(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, -0.0001),
             0,
             1,
         )
@@ -299,7 +299,7 @@ class MeasureFst(GraphFst):
             address_num
             + direction
             + address_words
-            + pynini.closure(pynutil.add_weight(city + state + zip_code, -0.001), 0, 1)
+            + pynini.closure(pynutil.add_weight(city + state + zip_code, -0.0001), 0, 1)
         )
 
         address |= address_num + direction + address_words + pynini.closure(pynini.cross(".", ""), 0, 1)

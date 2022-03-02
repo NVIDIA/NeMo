@@ -112,7 +112,7 @@ class CardinalFst(GraphFst):
                 | serial_graph
                 | self.single_digits_graph
                 | get_four_digit_year_graph()
-                | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
+                | pynutil.add_weight(single_digits_graph_with_commas, 0.0001)
                 | cardinal_with_leading_zeros
             )
 
@@ -144,7 +144,7 @@ class CardinalFst(GraphFst):
 
             range_graph = (
                 (
-                    pynutil.add_weight(pynini.accep("from "), -0.001)
+                    pynutil.add_weight(pynini.accep("from "), -0.0001)
                     | pynini.closure(pynutil.add_weight(pynutil.insert("from "), 0.0001), 0, 1)
                 )
                 + graph
