@@ -139,7 +139,7 @@ class CardinalFst(GraphFst):
             range_graph = graph + (pynini.cross("-", " to ") | pynini.cross(" - ", " to ")) + graph
         else:
             # to add default cardinal form with "thousands" and "hundreds" for 4-digit numbers to the options
-            graph |= pynutil.add_weight(self.graph, 0.001)
+            graph |= pynutil.add_weight(self.graph, 0.0001)
             graph.optimize()
 
             range_graph = (
