@@ -18,7 +18,7 @@ def main(cfg):
     finetuning_config_path = os.path.join(bignlp_path, "conf/finetuning", cfg.finetuning_config.rsplit('/', 1)[0])
     flags = f"--config-path={finetuning_config_path} --config-name={finetuning_config} "
 
-    gpu_mapping, core_mapping = numa_mapping()
+    gpu_mapping, core_mapping = numa_mapping(cfg.dgxa100_gpu2core, cfg.dgxa100_gpu2mem)
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (

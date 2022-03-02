@@ -18,7 +18,7 @@ def main(cfg):
     evaluation_config_path = os.path.join(bignlp_path, "conf/evaluation", cfg.evaluation_config.rsplit('/', 1)[0])
     flags = f"--config-path={evaluation_config_path} --config-name={evaluation_config} "
 
-    gpu_mapping, core_mapping = numa_mapping()
+    gpu_mapping, core_mapping = numa_mapping(cfg.dgxa100_gpu2core, cfg.dgxa100_gpu2mem)
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
