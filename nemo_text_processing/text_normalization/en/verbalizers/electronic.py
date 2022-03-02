@@ -19,6 +19,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_space,
     insert_space,
+    plurals,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
@@ -58,9 +59,9 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
             + (
                 pynini.closure(
-                    pynutil.add_weight(graph_digit + insert_space, 0.0009)
-                    | pynutil.add_weight(pynini.closure(graph_symbols + insert_space), 0.0009)
-                    | pynutil.add_weight(chars + insert_space, 0.001)
+                    pynutil.add_weight(graph_digit + insert_space, 0.00009)
+                    | pynutil.add_weight(pynini.closure(graph_symbols + insert_space), 0.00009)
+                    | pynutil.add_weight(chars + insert_space, 0.0001)
                 )
             )
             + pynutil.delete("\"")
@@ -69,14 +70,55 @@ class ElectronicFst(GraphFst):
         server_common = pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
         domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
 
-        convert_defaults = (
-            chars
-            | pynutil.add_weight(graph_symbols, -0.001)
-            | pynutil.add_weight(domain_common, -0.001)
-            | pynutil.add_weight(server_common, -0.001)
+        default_chars_symbols = (
+            (chars | graph_symbols) + pynini.closure(insert_space + (chars | graph_symbols))
+        ).optimize()
+
+        # nvidia.com
+        common_server_common_domain = (
+            server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, domain_common) + NEMO_SIGMA
         )
-        domain = convert_defaults + pynini.closure(insert_space + convert_defaults)
-        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.001), "", "", NEMO_SIGMA)
+
+        # unknown.com
+        default_server_common_domain_input = (
+            pynini.difference(NEMO_SIGMA, pynini.project(server_common, "input"))
+            + pynini.project(domain_common, "input")
+            + NEMO_SIGMA
+        )
+        default_server_common_domain = pynini.compose(
+            default_server_common_domain_input,
+            default_chars_symbols
+            + insert_space
+            + pynini.compose(pynini.accep(".") + NEMO_SIGMA, domain_common)
+            + pynini.closure(insert_space + (chars | graph_symbols)),
+        ).optimize()
+
+        # nvidia.unknown
+        common_server_default_domain_input = pynini.project(server_common, "input") + pynini.compose(
+            pynini.accep(".") + NEMO_SIGMA, pynini.difference(NEMO_SIGMA, pynini.project(domain_common, "input"))
+        )
+        common_server_default_domain = pynini.compose(
+            common_server_default_domain_input,
+            server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, default_chars_symbols),
+        )
+
+        # unknown.unknown
+        non_common_input = pynini.difference(
+            NEMO_SIGMA,
+            pynini.project(server_common, "input") + pynini.project(domain_common, "input")
+            | default_server_common_domain_input
+            | common_server_default_domain_input,
+        ).optimize()
+        default_domain = pynini.compose(
+            non_common_input,
+            default_chars_symbols
+            + insert_space
+            + pynini.compose(pynini.accep(".") + NEMO_SIGMA, default_chars_symbols),
+        ).optimize()
+
+        domain = (
+            common_server_common_domain | default_domain | default_server_common_domain | common_server_default_domain
+        )
 
         domain = (
             pynutil.delete("domain:")
@@ -86,6 +128,7 @@ class ElectronicFst(GraphFst):
             + delete_space
             + pynutil.delete("\"")
         )
+        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.001), "", "", NEMO_SIGMA)
 
         protocol = pynutil.delete("protocol: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
         graph = (
