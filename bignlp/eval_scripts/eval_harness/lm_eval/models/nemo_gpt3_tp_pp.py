@@ -9,7 +9,6 @@ from torch.utils.data.dataloader import default_collate
 import nemo.collections.nlp as nemo_nlp
 from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.asr.models import EncDecCTCModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -22,8 +21,6 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 from apex.transformer import tensor_parallel, parallel_state
-
-from .nemo_gpt3 import CustomSaveRestoreConnector
 
 
 class RequestDataset(Dataset):
