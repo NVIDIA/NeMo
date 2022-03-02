@@ -25,6 +25,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -62,7 +63,8 @@ class ElectronicFst(GraphFst):
 
         protocol_start = pynini.accep("https://") | pynini.accep("http://")
         protocol_symbols = pynini.closure(
-            (NEMO_ALPHA | pynutil.add_weight(graph_symbols | pynini.cross(":", "colon"), -0.001)) + pynutil.insert(" ")
+            plurals._priority_union(graph_symbols | pynini.cross(":", "colon"), NEMO_ALPHA, NEMO_SIGMA)
+            + pynutil.insert(" ")
         )
         protocol_end = pynini.accep("www.")
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
