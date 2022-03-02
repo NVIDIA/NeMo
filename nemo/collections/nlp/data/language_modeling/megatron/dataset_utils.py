@@ -178,6 +178,7 @@ def is_start_piece(piece, tokenizer_type='wordpiece'):
     '''
     return not piece.startswith("##")
 
+
 def create_masked_lm_predictions(
     tokens,
     vocab_id_list,
