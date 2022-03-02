@@ -58,9 +58,9 @@ class ElectronicFst(GraphFst):
             + pynutil.delete("\"")
             + (
                 pynini.closure(
-                    pynutil.add_weight(graph_digit + insert_space, 1.09)
-                    | pynutil.add_weight(pynini.closure(graph_symbols + insert_space), 1.09)
-                    | pynutil.add_weight(chars + insert_space, 1.1)
+                    pynutil.add_weight(graph_digit + insert_space, 0.0009)
+                    | pynutil.add_weight(pynini.closure(graph_symbols + insert_space), 0.0009)
+                    | pynutil.add_weight(chars + insert_space, 0.001)
                 )
             )
             + pynutil.delete("\"")
@@ -71,12 +71,12 @@ class ElectronicFst(GraphFst):
 
         convert_defaults = (
             chars
-            | pynutil.add_weight(graph_symbols, -0.1)
-            | pynutil.add_weight(domain_common, -0.1)
-            | pynutil.add_weight(server_common, -0.1)
+            | pynutil.add_weight(graph_symbols, -0.001)
+            | pynutil.add_weight(domain_common, -0.001)
+            | pynutil.add_weight(server_common, -0.001)
         )
         domain = convert_defaults + pynini.closure(insert_space + convert_defaults)
-        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.1), "", "", NEMO_SIGMA)
+        domain @= pynini.cdrewrite(pynutil.add_weight(graph_digit, -0.001), "", "", NEMO_SIGMA)
 
         domain = (
             pynutil.delete("domain:")
