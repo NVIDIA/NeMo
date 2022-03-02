@@ -14,6 +14,7 @@
 
 import argparse
 import base64
+import csv
 import datetime
 import difflib
 import io
@@ -513,10 +514,11 @@ def download_vocabulary(n_clicks, sort_by, filter_query):
         descending = sort_by[0]['direction'] == 'desc'
         vocabulary_view = sorted(vocabulary_view, key=lambda x: x[col], reverse=descending)
 
-    with open('sde_vocab.csv', encoding='utf-8', mode='w') as fo:
-        fo.write(','.join(vocabulary_view[0].keys()) + '\n')
+    with open('sde_vocab.csv', encoding='utf-8', mode='w', newline='') as fo:
+        writer = csv.writer(fo)
+        writer.writerow(vocabulary_view[0].keys())
         for item in vocabulary_view:
-            fo.write(','.join([str(item[k]) for k in item]) + '\n')
+            writer.writerow([str(item[k]) for k in item])
     return dcc.send_file("sde_vocab.csv")
 
 
