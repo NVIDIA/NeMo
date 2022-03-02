@@ -227,8 +227,7 @@ def main():
         asr_model=asr_model,
         audio_signal=init_audio,
         length=torch.tensor([init_audio.size(-1)]),
-        valid_out_len=(asr_model.encoder.init_shift_size - 1) // asr_model.encoder.subsampling_factor
-        + 1,  # asr_model.encoder.valid_out_len,
+        valid_out_len=asr_model.encoder.init_valid_out_len,
         cache_last_channel=cache_last_channel,
         cache_last_time=cache_last_time,
         previous_hypotheses=None,
@@ -245,11 +244,11 @@ def main():
 
     for i in range(asr_model.encoder.init_shift_size, processed_signal.size(-1), asr_model.encoder.shift_size):
         if i + asr_model.encoder.chunk_size < processed_signal.size(-1):
-            valid_out_len = asr_model.encoder.shift_size // asr_model.encoder.subsampling_factor
+            valid_out_len = asr_model.encoder.init_valid_out_len
         else:
             valid_out_len = None
 
-        chunk_audio = processed_signal[:, :, i : i + asr_model.encoder.chunk_size]
+        chunk_audio = processed_signal[:, :, i: i + asr_model.encoder.chunk_size]
 
         start_pre_encode_cache = i - pre_encode_cache_size
         if start_pre_encode_cache < 0:

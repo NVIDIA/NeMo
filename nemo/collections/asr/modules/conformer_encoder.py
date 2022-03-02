@@ -451,12 +451,26 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
 
     def init_streaming_params(self):
         if self.att_context_style == "chunked_limited":
-            self.lookahead_steps = self.att_context_size[1] + 1
+            self.lookahead_steps = self.att_context_size[1]
             self.cache_drop_size = 0
         else:
             lookahead_steps_att = self.att_context_size[1] * self.n_layers
             lookahead_steps_conv = self.conv_context_size[1] * self.n_layers
             self.lookahead_steps = self.cache_drop_size = max(lookahead_steps_att, lookahead_steps_conv)
+
+        self.last_channel_cache_size = self.att_context_size[0]
+
+        self.chunk_size = self.subsampling_factor * (1 + self.lookahead_steps)
+        self.shift_size = self.subsampling_factor * ((1 + self.lookahead_steps) - self.cache_drop_size)
+
+        self.init_chunk_size = 1 + (self.subsampling_factor * self.lookahead_steps)
+        self.init_shift_size = 1 + self.subsampling_factor * (self.lookahead_steps - self.cache_drop_size)
+
+        self.valid_out_len = self.shift_size // self.subsampling_factor
+        self.init_valid_out_len = (self.init_shift_size - 1) // self.subsampling_factor + 1
+
+        self.export_cache_support = False
+        self.drop_extra_pre_encoded = False
 
         self.last_channel_num = 0
         self.last_time_num = 0
@@ -471,18 +485,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
                     m._cache_id = self.last_time_num
                     m.cache_drop_size = self.cache_drop_size
                     self.last_time_num += 1
-
-        self.chunk_size = self.subsampling_factor * (1 + self.lookahead_steps)
-        self.shift_size = self.subsampling_factor * ((1 + self.lookahead_steps) - self.cache_drop_size)
-
-        self.init_chunk_size = 1 + self.subsampling_factor * self.lookahead_steps
-        self.init_shift_size = 1
-        self.last_channel_cache_size = self.att_context_size[0]
-
-        # self.valid_out_len = (self.init_shift_size - 1) // self.subsampling_factor + 1
-
-        self.export_cache_support = False
-        self.drop_extra_pre_encoded = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
         if device is None:
