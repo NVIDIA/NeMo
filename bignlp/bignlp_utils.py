@@ -5,6 +5,9 @@ import omegaconf
 def convert_to_cli(cfg):
     result = ""
     for k, v in cfg.items():
+        if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem"]:
+            continue
+
         if isinstance(v, omegaconf.dictconfig.DictConfig):
             output = convert_to_cli(v).split(" ")
             result += " ".join([f"{k}.{x}" for x in output if x != ""]) + " "
