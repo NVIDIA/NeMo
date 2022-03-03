@@ -486,7 +486,7 @@ class ASR_DIAR_OFFLINE(object):
         labels = diar_hyp[uniq_id]
         n_spk = self.get_num_of_spk_from_labels(labels)
         riva_dict = od(
-            {'status': 'Success', 'session_id': uniq_id, 'transcription': '', 'speaker_count': n_spk, 'words': [],}
+            {'status': 'Success', 'session_id': uniq_id, 'transcription': '', 'speaker_count': n_spk, 'words': [], 'sentences': []}
         )
         gecko_dict = od({'schemaVersion': 2.0, 'monologues': []})
         start_point, end_point, speaker = labels[0].split()
@@ -517,6 +517,9 @@ class ASR_DIAR_OFFLINE(object):
             audacity_label_words.append(self.get_audacity_label(word, stt_sec, end_sec, speaker))
             total_riva_dict[uniq_id] = riva_dict
             prev_speaker = speaker
+
+        # add sentences to json array
+        self.add_sentences_to_dict(riva_dict, string_out)
 
         if self.params['break_lines']:
             string_out = self.break_lines(string_out)
@@ -1067,3 +1070,38 @@ class ASR_DIAR_OFFLINE(object):
     @staticmethod
     def add_json_to_dict(riva_dict, word, stt, end, speaker):
         riva_dict['words'].append({'word': word, 'start_time': stt, 'end_time': end, 'speaker_label': speaker})
+
+    @staticmethod
+    def add_sentences_to_dict(riva_dict, sentences):
+        # split lines
+        for line in sentences.strip().split('\n'):
+            # extract sentence
+            line_split = line.split(': ')
+            sentence = line_split[1].strip()
+
+            # extract speaker
+            line_split = line_split[0].split('] ')
+            speaker = line_split[1]
+
+            # extract time stamps
+            line_split = line_split[0].split(' - ')
+            start_time = line_split[0].replace('[', '')
+            end_time = line_split[1]
+
+            # convert time stamps to format consistent with how words are stored in the JSON
+            if len(start_time) == 8:
+                m, s = start_time.split(':')
+                start_time = round(int(m) * 60 + float(s), 2)
+            else:
+                h, m, s = start_time.split(':')
+                start_time = round(int(h) * 3600 + int(m) * 60 + float(s), 2)
+
+            if len(end_time) == 8:
+                m, s = end_time.split(':')
+                end_time = round(int(m) * 60 + float(s), 2)
+            else:
+                h, m, s = end_time.split(':')
+                end_time = round(int(h) * 3600 + int(m) * 60 + float(s), 2)
+
+            # save to riva_dict
+            riva_dict['sentences'].append({'sentence': sentence, 'start_time': start_time, 'end_time': end_time, 'speaker_label': speaker})
