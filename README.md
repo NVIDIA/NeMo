@@ -478,8 +478,8 @@ config file.
 
 To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
 ```yaml
-- training: 20B
-training_config: 20B
+- training: 20b
+training_config: 20b
 run_training: True
 ```
 
@@ -491,6 +491,72 @@ python3 main.py
 To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=20b training_config=20b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
+**40B configuration:**
+
+The 40B model uses 80 nodes with 8 GPUs per node by default, and bf16 data type
+for training, and can be trained in about 12 days. The model includes 48
+transformer layers, a hidden size of 8192, and 64 attention heads. The
+sequence length is 2048, and the optimizer is Adam. This model uses tensor
+parallelism of 8 and pipeline parallelism of 4. 
+For the details on all the parameters, see the 40b.yaml config file.
+
+To train a 40B GPT-3 model, modify the `conf/config.yaml` file to set:
+```yaml
+- training: 40b
+training_config: 40b
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+To train a 40B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=40b training_config=40b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
+**175B configuration:**
+
+The 175B model uses 128 nodes with 8 GPUs per node by default, and bf16 data type
+for training, and can be trained in about 35 days. The model includes 96
+transformer layers, a hidden size of 12288, and 96 attention heads. The
+sequence length is 2048, and the optimizer is Adam. This model uses tensor
+parallelism of 8 and pipeline parallelism of 16. 
+For the details on all the parameters, see the 175b.yaml config file.
+
+To train a 175B GPT-3 model, modify the `conf/config.yaml` file to set:
+```yaml
+- training: 175b
+training_config: 175b
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+To train a 175B GPT-3 model on Base Command Platform cluster on 128 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=175b training_config=175b run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
