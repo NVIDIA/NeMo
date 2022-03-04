@@ -472,10 +472,13 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.export_cache_support = False
         self.drop_extra_pre_encoded = False
 
+        self.pre_encode_cache_size = 5
+        self.init_pre_encode_cache_size = 0
+
         self.last_channel_num = 0
         self.last_time_num = 0
         for m in self.layers.modules():
-            if hasattr(m, "_max_cache_len"):  # and m._max_cache_len > 0:
+            if hasattr(m, "_max_cache_len"):
                 if isinstance(m, MultiHeadAttention):
                     m._cache_id = self.last_channel_num
                     m.cache_drop_size = self.cache_drop_size
@@ -497,8 +500,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             (self.last_time_num, batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype
         )
 
-        # pre_encode_cache_size = 0  # 8 # 5
-        # input_features = self._feat_in
-        # cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
+        pre_encode_cache_size = 0  # 8 # 5
+        input_features = self._feat_in
+        cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
 
-        return cache_last_channel, cache_last_time  # , cache_pre_encode
+        return cache_last_channel, cache_last_time

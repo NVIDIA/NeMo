@@ -1175,15 +1175,16 @@ class FramewiseStreamingAudioBuffer:
         self.model = model
         self.buffer = None
         self.buffer_idx = 0
+
         self.online_normalization = online_normalization
         self.init_chunk_size = model.encoder.init_chunk_size
         self.init_shift_size = model.encoder.init_shift_size
         self.chunk_size = model.encoder.chunk_size
         self.shift_size = model.encoder.shift_size
+        self.init_pre_encode_cache_size = model.encoder.init_pre_encode_cache_size
+        self.pre_encode_cache_size = model.encoder.pre_encode_cache_size
+        self.input_features = model.encoder._feat_in
 
-        self.init_pre_encode_cache_size = 0
-        self.pre_encode_cache_size = 5
-        self.input_features = self.model.encoder._feat_in
         self.preprocessor = self.extract_preprocessor()
 
     def __iter__(self):
