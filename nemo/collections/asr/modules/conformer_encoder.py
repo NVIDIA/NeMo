@@ -446,24 +446,46 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.use_pad_mask = on
         return mask
 
-    def setup_streaming_params(self):
+    def setup_streaming_params(self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None):
+        MAX_LOOK_AHEAD = 10000
         streaming_cfg = FramewiseStreamingConfig()
         if self.att_context_style == "chunked_limited":
             streaming_cfg.lookahead_steps = self.att_context_size[1]
-            streaming_cfg.cache_drop_size = 0
-        else:
-            lookahead_steps_att = self.att_context_size[1] * self.n_layers
-            lookahead_steps_conv = self.conv_context_size[1] * self.n_layers
+            if cache_drop_size is None:
+                streaming_cfg.cache_drop_size = 0
+            else:
+                streaming_cfg.cache_drop_size = cache_drop_size
+        elif self.att_context_style == "regular":
+            lookahead_steps_att = self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else MAX_LOOK_AHEAD
+            lookahead_steps_conv = self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else MAX_LOOK_AHEAD
             streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
-            streaming_cfg.cache_drop_size = self.lookahead_steps
+            if cache_drop_size is None:
+                streaming_cfg.cache_drop_size = self.lookahead_steps
+            else:
+                streaming_cfg.cache_drop_size = cache_drop_size
+        else:
+            streaming_cfg.cache_drop_size = cache_drop_size
+            streaming_cfg.lookahead_steps = None
 
-        streaming_cfg.last_channel_cache_size = self.att_context_size[0]
+        streaming_cfg.last_channel_cache_size = self.att_context_size[0] if self.att_context_size[0] >= 0 else MAX_LOOK_AHEAD
 
-        streaming_cfg.init_chunk_size = 1 + (self.subsampling_factor * streaming_cfg.lookahead_steps)
-        streaming_cfg.init_shift_size = 1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
+        if init_chunk_size is None:
+            streaming_cfg.init_chunk_size = 1 + (self.subsampling_factor * streaming_cfg.lookahead_steps)
+        else:
+            streaming_cfg.init_chunk_size = init_chunk_size
+        if init_shift_size is None:
+            streaming_cfg.init_shift_size = 1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
+        else:
+            streaming_cfg.init_shift_size = init_shift_size
 
-        streaming_cfg.chunk_size = self.subsampling_factor * (1 + streaming_cfg.lookahead_steps)
-        streaming_cfg.shift_size = self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size)
+        if chunk_size is None:
+            streaming_cfg.chunk_size = self.subsampling_factor * (1 + streaming_cfg.lookahead_steps)
+        else:
+            streaming_cfg.chunk_size = chunk_size
+        if shift_size is None:
+            streaming_cfg.shift_size = self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size)
+        else:
+            streaming_cfg.shift_size = shift_size
 
         streaming_cfg.init_valid_out_len = (streaming_cfg.init_shift_size - 1) // self.subsampling_factor + 1
         streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
@@ -474,6 +496,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
 
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0
+        self.streaming_cfg = streaming_cfg
+
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):
                 if isinstance(m, MultiHeadAttention):
@@ -486,7 +510,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
                     m.cache_drop_size = streaming_cfg.cache_drop_size
                     streaming_cfg.last_time_num += 1
 
-        self.streaming_cfg = streaming_cfg
         self.export_cache_support = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
