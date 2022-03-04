@@ -88,3 +88,30 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
 @dataclass
 class EncDecCTCModelConfig(model_cfg.NemoConfig):
     model: EncDecCTCConfig = EncDecCTCConfig()
+
+
+@dataclass
+class FramewiseStreamingConfig(model_cfg.NemoConfig):
+    lookahead_steps: int = 0
+    cache_drop_size: int = 0
+    last_channel_cache_size: int = 0
+
+    init_chunk_size: int = 0
+    init_shift_size: int = 0
+
+    chunk_size: int = 0
+    shift_size: int = 0
+
+    init_valid_out_len: int = 0
+    valid_out_len: int = 0
+
+    drop_extra_pre_encoded = False
+
+    pre_encode_cache_size = 5
+    init_pre_encode_cache_size = 0
+
+    last_channel_num: int = 0
+    last_time_num: int = 0
+
+
+

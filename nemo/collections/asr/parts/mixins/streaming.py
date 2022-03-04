@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 
 class StreamingModuleMixin(ABC):
     @abstractmethod
-    def init_streaming_params(self):
+    def setup_streaming_params(self):
         pass
 
     @abstractmethod

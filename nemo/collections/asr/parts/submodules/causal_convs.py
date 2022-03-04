@@ -121,8 +121,6 @@ class CausalConv1D(nn.Conv1d):
         if cache is None:
             x = F.pad(x, pad=(self._left_padding, self._right_padding))
         else:
-            if self.cache_drop_size is None:
-                raise ValueError("caching is being used while init_streaming_param() is not called yet!")
             input_x = x
             x_length = x.size(-1)
             if hasattr(self, '_cache_id'):

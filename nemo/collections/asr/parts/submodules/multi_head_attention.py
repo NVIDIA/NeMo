@@ -181,9 +181,6 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
         # assume key and values are the same
         if cache is not None:
-            if self.cache_drop_size is None:
-                raise ValueError("caching is being used while init_streaming_param() is not called yet!")
-
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
             q_length = query.size(1)

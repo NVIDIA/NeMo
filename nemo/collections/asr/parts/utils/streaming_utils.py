@@ -1177,12 +1177,14 @@ class FramewiseStreamingAudioBuffer:
         self.buffer_idx = 0
 
         self.online_normalization = online_normalization
-        self.init_chunk_size = model.encoder.init_chunk_size
-        self.init_shift_size = model.encoder.init_shift_size
-        self.chunk_size = model.encoder.chunk_size
-        self.shift_size = model.encoder.shift_size
-        self.init_pre_encode_cache_size = model.encoder.init_pre_encode_cache_size
-        self.pre_encode_cache_size = model.encoder.pre_encode_cache_size
+        self.streaming_cfg = model.encoder.streaming_cfg
+
+        # self.init_chunk_size = model.encoder.init_chunk_size
+        # self.init_shift_size = model.encoder.init_shift_size
+        # self.chunk_size = model.encoder.chunk_size
+        # self.shift_size = model.encoder.shift_size
+        # self.init_pre_encode_cache_size = model.encoder.init_pre_encode_cache_size
+        # self.pre_encode_cache_size = model.encoder.pre_encode_cache_size
         self.input_features = model.encoder._feat_in
 
         self.preprocessor = self.extract_preprocessor()
@@ -1193,30 +1195,30 @@ class FramewiseStreamingAudioBuffer:
                 return
                 # raise StopIteration
             if self.buffer_idx == 0:
-                chunk_size = self.init_chunk_size
-                shift_size = self.init_shift_size
+                chunk_size = self.streaming_cfg.init_chunk_size
+                shift_size = self.streaming_cfg.init_shift_size
             else:
-                chunk_size = self.chunk_size
-                shift_size = self.shift_size
+                chunk_size = self.streaming_cfg.chunk_size
+                shift_size = self.streaming_cfg.shift_size
             audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
             if self.buffer_idx == 0:
                 init_cache_pre_encode = torch.zeros(
-                    (audio_chunk.size(0), self.input_features, self.init_pre_encode_cache_size),
+                    (audio_chunk.size(0), self.input_features, self.streaming_cfg.init_pre_encode_cache_size),
                     device=audio_chunk.device,
                     dtype=audio_chunk.dtype,
                 )
                 audio_chunk = torch.cat((init_cache_pre_encode, audio_chunk), dim=-1)
             else:
-                start_pre_encode_cache = self.buffer_idx - self.pre_encode_cache_size
+                start_pre_encode_cache = self.buffer_idx - self.streaming_cfg.pre_encode_cache_size
                 if start_pre_encode_cache < 0:
                     start_pre_encode_cache = 0
                 cache_pre_encode = self.buffer[:, :, start_pre_encode_cache : self.buffer_idx]
-                if cache_pre_encode.size(-1) < self.pre_encode_cache_size:
+                if cache_pre_encode.size(-1) < self.streaming_cfg.pre_encode_cache_size:
                     zeros_pads = torch.zeros(
                         (
                             audio_chunk.size(0),
                             audio_chunk.size(-2),
-                            self.pre_encode_cache_size - cache_pre_encode.size(-1),
+                            self.streaming_cfg.pre_encode_cache_size - cache_pre_encode.size(-1),
                         ),
                         device=audio_chunk.device,
                         dtype=audio_chunk.dtype,
@@ -1241,10 +1243,10 @@ class FramewiseStreamingAudioBuffer:
             yield audio_chunk
 
     def get_valid_out_len(self):
-        if self.buffer_idx - self.init_shift_size == 0:
-            valid_out_len = self.model.encoder.init_valid_out_len
+        if self.buffer_idx - self.streaming_cfg.init_shift_size == 0:
+            valid_out_len = self.model.encoder.streaming_cfg.init_valid_out_len
         elif self.buffer_idx >= self.buffer.size(-1):
-            valid_out_len = self.model.encoder.valid_out_len
+            valid_out_len = self.model.encoder.streaming_cfg.valid_out_len
         else:
             valid_out_len = None
         return valid_out_len

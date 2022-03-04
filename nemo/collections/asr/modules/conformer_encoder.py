@@ -32,6 +32,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
+from nemo.collections.asr.models.configs import FramewiseStreamingConfig
 
 __all__ = ['ConformerEncoder']
 
@@ -151,17 +152,13 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         dropout_att=0.0,
     ):
         super().__init__()
-        self.cache_drop_size = None
-        self.lookahead_steps = None
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
         self.n_layers = n_layers
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
         self.att_context_style = att_context_style
-        self.conv_kernel_size = conv_kernel_size
         self.subsampling_factor = subsampling_factor
-        self.drop_extra_pre_encoded = False
 
         if att_context_size:
             self.att_context_size = att_context_size
@@ -284,7 +281,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
 
-        self.init_streaming_params()
+        self.setup_streaming_params()
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -364,7 +361,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             audio_signal, length = self.pre_encode(
                 x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
-            if self.drop_extra_pre_encoded:
+            if self.streaming_cfg.drop_extra_pre_encoded:
                 audio_signal = audio_signal[:, 2:, :]
                 length = length - 2
         else:
@@ -375,7 +372,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         # Create the self-attention and padding masks
         if cache_last_channel is not None:
             last_channel_num, bs, cache_len, channel_size = cache_last_channel.size()
-            cache_keep_size = max_audio_length - self.cache_drop_size
+            cache_keep_size = max_audio_length - self.streaming_cfg.cache_drop_size
             cache_last_channel_next = torch.zeros(
                 (last_channel_num, bs, cache_len + cache_keep_size, channel_size),
                 device=cache_last_channel.device,
@@ -449,59 +446,58 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.use_pad_mask = on
         return mask
 
-    def init_streaming_params(self):
+    def setup_streaming_params(self):
+        streaming_cfg = FramewiseStreamingConfig()
         if self.att_context_style == "chunked_limited":
-            self.lookahead_steps = self.att_context_size[1]
-            self.cache_drop_size = 0
+            streaming_cfg.lookahead_steps = self.att_context_size[1]
+            streaming_cfg.cache_drop_size = 0
         else:
             lookahead_steps_att = self.att_context_size[1] * self.n_layers
             lookahead_steps_conv = self.conv_context_size[1] * self.n_layers
-            self.lookahead_steps = self.cache_drop_size = max(lookahead_steps_att, lookahead_steps_conv)
+            streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
+            streaming_cfg.cache_drop_size = self.lookahead_steps
 
-        self.last_channel_cache_size = self.att_context_size[0]
+        streaming_cfg.last_channel_cache_size = self.att_context_size[0]
 
-        self.chunk_size = self.subsampling_factor * (1 + self.lookahead_steps)
-        self.shift_size = self.subsampling_factor * ((1 + self.lookahead_steps) - self.cache_drop_size)
+        streaming_cfg.init_chunk_size = 1 + (self.subsampling_factor * streaming_cfg.lookahead_steps)
+        streaming_cfg.init_shift_size = 1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
 
-        self.init_chunk_size = 1 + (self.subsampling_factor * self.lookahead_steps)
-        self.init_shift_size = 1 + self.subsampling_factor * (self.lookahead_steps - self.cache_drop_size)
+        streaming_cfg.chunk_size = self.subsampling_factor * (1 + streaming_cfg.lookahead_steps)
+        streaming_cfg.shift_size = self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size)
 
-        self.valid_out_len = self.shift_size // self.subsampling_factor
-        self.init_valid_out_len = (self.init_shift_size - 1) // self.subsampling_factor + 1
+        streaming_cfg.init_valid_out_len = (streaming_cfg.init_shift_size - 1) // self.subsampling_factor + 1
+        streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
 
-        self.export_cache_support = False
-        self.drop_extra_pre_encoded = False
+        streaming_cfg.drop_extra_pre_encoded = False
+        streaming_cfg.pre_encode_cache_size = 5
+        streaming_cfg.init_pre_encode_cache_size = 0
 
-        self.pre_encode_cache_size = 5
-        self.init_pre_encode_cache_size = 0
-
-        self.last_channel_num = 0
-        self.last_time_num = 0
+        streaming_cfg.last_channel_num = 0
+        streaming_cfg.last_time_num = 0
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):
                 if isinstance(m, MultiHeadAttention):
-                    m._cache_id = self.last_channel_num
-                    m.cache_drop_size = self.cache_drop_size
-                    self.last_channel_num += 1
+                    m._cache_id = streaming_cfg.last_channel_num
+                    m.cache_drop_size = streaming_cfg.cache_drop_size
+                    streaming_cfg.last_channel_num += 1
 
                 if isinstance(m, CausalConv1D):
-                    m._cache_id = self.last_time_num
-                    m.cache_drop_size = self.cache_drop_size
-                    self.last_time_num += 1
+                    m._cache_id = streaming_cfg.last_time_num
+                    m.cache_drop_size = streaming_cfg.cache_drop_size
+                    streaming_cfg.last_time_num += 1
+
+        self.streaming_cfg = streaming_cfg
+        self.export_cache_support = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
         if device is None:
             device = next(self.parameters()).device
         last_time_cache_size = self.conv_context_size[0]
         cache_last_channel = torch.zeros(
-            (self.last_channel_num, batch_size, 0, self.d_model), device=device, dtype=dtype
+            (self.streaming_cfg.last_channel_num, batch_size, 0, self.d_model), device=device, dtype=dtype
         )
         cache_last_time = torch.zeros(
-            (self.last_time_num, batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype
+            (self.streaming_cfg.last_time_num, batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype
         )
-
-        pre_encode_cache_size = 0  # 8 # 5
-        input_features = self._feat_in
-        cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
 
         return cache_last_channel, cache_last_time

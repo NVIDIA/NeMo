@@ -176,7 +176,7 @@ def main():
     streaming_buffer_iter = iter(streaming_buffer)
     for step_num, chunk_audio in enumerate(streaming_buffer_iter):
         if step_num == 1:
-            asr_model.encoder.drop_extra_pre_encoded = True
+            asr_model.encoder.streaming_cfg.drop_extra_pre_encoded = True
 
         valid_out_len = streaming_buffer.get_valid_out_len()
         (asr_out_stream, cache_last_channel, cache_last_time, previous_hypotheses,) = model_process(
@@ -189,8 +189,8 @@ def main():
             previous_hypotheses=previous_hypotheses,
             onnx_model=onnx_model,
         )
-        if asr_model.encoder.last_channel_cache_size >= 0:
-            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.last_channel_cache_size :, :]
+        if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
+            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :]
         # print(asr_out_stream)
         print(asr_out_stream.size())
         if asr_out_stream_total is None:
@@ -200,8 +200,8 @@ def main():
         step_num += 1
         print(
             processed_signal.size(-1),
-            asr_model.encoder.shift_size,
-            asr_model.encoder.chunk_size,
+            asr_model.encoder.streaming_cfg.shift_size,
+            asr_model.encoder.streaming_cfg.chunk_size,
             streaming_buffer.buffer_idx,
             len(asr_out_stream_total),
         )
