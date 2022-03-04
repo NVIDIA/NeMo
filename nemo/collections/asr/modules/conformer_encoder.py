@@ -497,9 +497,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             (self.last_time_num, batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype
         )
 
-        pre_encode_cache_size = 0  # 8 # 5
-        input_features = self._feat_in
-        cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
+        # pre_encode_cache_size = 0  # 8 # 5
+        # input_features = self._feat_in
+        # cache_pre_encode = torch.zeros((batch_size, input_features, pre_encode_cache_size), device=device, dtype=dtype)
 
-        return cache_last_channel, cache_last_time, cache_pre_encode
-
+        return cache_last_channel, cache_last_time  # , cache_pre_encode

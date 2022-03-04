@@ -29,6 +29,7 @@ from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
+from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
 
 
@@ -159,43 +160,48 @@ def main():
         asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to("cuda")
-    cfg = copy.deepcopy(asr_model._cfg)
-    OmegaConf.set_struct(cfg.preprocessor, False)
-    # some changes for streaming scenario
-    cfg.preprocessor.dither = 0.0
-    cfg.preprocessor.pad_to = 0
-    if args.online_normalization:
-        model_normalize_type = cfg.preprocessor.normalize
-        cfg.preprocessor.normalize = None
-    if cfg.preprocessor.normalize != "per_feature":
-        logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
-    # Disable config overwriting
-    OmegaConf.set_struct(cfg.preprocessor, True)
-    preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
-    preprocessor.to(asr_model.device)
+
+    # cfg = copy.deepcopy(asr_model._cfg)
+    # OmegaConf.set_struct(cfg.preprocessor, False)
+    # # some changes for streaming scenario
+    # cfg.preprocessor.dither = 0.0
+    # cfg.preprocessor.pad_to = 0
+    # if args.online_normalization:
+    #     model_normalize_type = cfg.preprocessor.normalize
+    #     cfg.preprocessor.normalize = None
+    # if cfg.preprocessor.normalize != "per_feature":
+    #     logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
+    # # Disable config overwriting
+    # OmegaConf.set_struct(cfg.preprocessor, True)
+    # preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+    # preprocessor.to(asr_model.device)
 
     asr_model.eval()
 
-    audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
-    audio_sample, _ = librosa.load(audio_path, sr=16000)
-
-    processed_signal, processed_signal_length = preprocessor(
-        input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
-    )
-
-    if args.online_normalization:
-        processed_signal_normalized, x_mean_whole, x_std_whole = normalize_batch(
-            x=processed_signal, seq_len=processed_signal_length, normalize_type=model_normalize_type
-        )
-    else:
-        processed_signal_normalized = processed_signal
+    # audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
+    # audio_sample, _ = librosa.load(audio_path, sr=16000)
+    #
+    # processed_signal, processed_signal_length = preprocessor(
+    #     input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
+    # )
+    #
+    # if args.online_normalization:
+    #     processed_signal_normalized, x_mean_whole, x_std_whole = normalize_batch(
+    #         x=processed_signal, seq_len=processed_signal_length, normalize_type=model_normalize_type
+    #     )
+    # else:
+    #     processed_signal_normalized = processed_signal
 
     # model_normalize_type = {"fixed_mean": x_mean_whole, "fixed_std": x_std_whole}
     # print(x_mean_whole, x_std_whole)
 
+    audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
+    streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
+    processed_signal, processed_signal_length = streaming_buffer.append_audio_file(audio_path)
+
     asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
         asr_model=asr_model,
-        audio_signal=processed_signal_normalized,
+        audio_signal=processed_signal,
         length=processed_signal_length,
         valid_out_len=None,
         cache_last_channel=None,
@@ -212,93 +218,107 @@ def main():
 
     # asr_model.encoder.init_streaming_params()
     batch_size = 1
-    cache_last_channel, cache_last_time, init_cache_pre_encode = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
-    )
+    # cache_last_channel, cache_last_time, init_cache_pre_encode = asr_model.encoder.get_initial_cache_state(
+    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
-    init_audio = processed_signal[:, :, : asr_model.encoder.init_chunk_size]
-    if args.online_normalization and init_audio.size(-1) > 1:
-        init_audio, x_mean, x_std = normalize_batch(
-            x=init_audio, seq_len=torch.tensor([init_audio.size(-1)]), normalize_type=model_normalize_type
-        )
-    init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
+    # streaming_buffer_it = iter(streaming_buffer)
+    # init_audio = next(streaming_buffer_it)
 
-    asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
-        asr_model=asr_model,
-        audio_signal=init_audio,
-        length=torch.tensor([init_audio.size(-1)]),
-        valid_out_len=asr_model.encoder.init_valid_out_len,
-        cache_last_channel=cache_last_channel,
-        cache_last_time=cache_last_time,
-        previous_hypotheses=None,
-        onnx_model=onnx_model,
-    )
-    print(asr_out_stream)
-    asr_out_stream_total = asr_out_stream
+    # init_audio = processed_signal[:, :, : asr_model.encoder.init_chunk_size]
+    # if args.online_normalization and init_audio.size(-1) > 1:
+    #     init_audio, x_mean, x_std = normalize_batch(
+    #         x=init_audio, seq_len=torch.tensor([init_audio.size(-1)]), normalize_type=model_normalize_type
+    #     )
+    # init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
 
-    step_num = 1
-    previous_hypotheses = best_hyp
-    pre_encode_cache_size = 5
+    # asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
+    #     asr_model=asr_model,
+    #     audio_signal=init_audio,
+    #     length=torch.tensor([init_audio.size(-1)]),
+    #     valid_out_len=asr_model.encoder.init_valid_out_len,
+    #     cache_last_channel=cache_last_channel,
+    #     cache_last_time=cache_last_time,
+    #     previous_hypotheses=None,
+    #     onnx_model=onnx_model,
+    # )
+    # print(asr_out_stream)
+    # asr_out_stream_total = asr_out_stream
 
-    asr_model.encoder.drop_extra_pre_encoded = True
+    step_num = 0
+    # previous_hypotheses = best_hyp
+    # pre_encode_cache_size = 5
 
-    for i in range(asr_model.encoder.init_shift_size, processed_signal.size(-1), asr_model.encoder.shift_size):
-        if i + asr_model.encoder.chunk_size < processed_signal.size(-1):
-            valid_out_len = asr_model.encoder.init_valid_out_len
-        else:
-            valid_out_len = None
+    previous_hypotheses = None
+    asr_out_stream_total = None
+    # for i in range(asr_model.encoder.init_shift_size, processed_signal.size(-1), asr_model.encoder.shift_size):
+    while True:
+        if step_num == 1:
+            asr_model.encoder.drop_extra_pre_encoded = True
 
-        chunk_audio = processed_signal[:, :, i: i + asr_model.encoder.chunk_size]
+        # if i + asr_model.encoder.chunk_size < processed_signal.size(-1):
+        #     valid_out_len = asr_model.encoder.init_valid_out_len
+        # else:
+        #     valid_out_len = None
 
-        start_pre_encode_cache = i - pre_encode_cache_size
-        if start_pre_encode_cache < 0:
-            start_pre_encode_cache = 0
-        cache_pre_encode = processed_signal[:, :, start_pre_encode_cache:i]
-        if cache_pre_encode.size(-1) < pre_encode_cache_size:
-            zeros_pads = torch.zeros(
-                (batch_size, chunk_audio.size(-2), pre_encode_cache_size - cache_pre_encode.size(-1)),
-                device=asr_model.device,
-                dtype=torch.float32,
-            )
-        else:
-            zeros_pads = None
+        # chunk_audio = processed_signal[:, :, i: i + asr_model.encoder.chunk_size]
 
-        chunk_audio = torch.cat((cache_pre_encode, chunk_audio), dim=-1)
-        if args.online_normalization:
-            chunk_audio, x_mean, x_std = normalize_batch(
-                x=chunk_audio, seq_len=torch.tensor([chunk_audio.size(-1)]), normalize_type=model_normalize_type
-            )
-            # print(x_mean)
-            # print(x_std)
+        # start_pre_encode_cache = i - pre_encode_cache_size
+        # if start_pre_encode_cache < 0:
+        #     start_pre_encode_cache = 0
+        # cache_pre_encode = processed_signal[:, :, start_pre_encode_cache:i]
+        # if cache_pre_encode.size(-1) < pre_encode_cache_size:
+        #     zeros_pads = torch.zeros(
+        #         (batch_size, chunk_audio.size(-2), pre_encode_cache_size - cache_pre_encode.size(-1)),
+        #         device=asr_model.device,
+        #         dtype=torch.float32,
+        #     )
+        # else:
+        #     zeros_pads = None
+        #
+        # chunk_audio = torch.cat((cache_pre_encode, chunk_audio), dim=-1)
+        # if args.online_normalization:
+        #     chunk_audio, x_mean, x_std = normalize_batch(
+        #         x=chunk_audio, seq_len=torch.tensor([chunk_audio.size(-1)]), normalize_type=model_normalize_type
+        #     )
+        #     # print(x_mean)
+        #     # print(x_std)
+        #
+        # if zeros_pads is not None:
+        #     chunk_audio = torch.cat((zeros_pads, chunk_audio), dim=-1)
 
-        if zeros_pads is not None:
-            chunk_audio = torch.cat((zeros_pads, chunk_audio), dim=-1)
-
-        (asr_out_stream, cache_last_channel_next, cache_last_time_next, previous_hypotheses,) = model_process(
+        try:
+            chunk_audio = next(streaming_buffer)
+        except StopIteration:
+            break
+        valid_out_len = streaming_buffer.get_valid_out_len()
+        (asr_out_stream, cache_last_channel, cache_last_time, previous_hypotheses,) = model_process(
             asr_model=asr_model,
             audio_signal=chunk_audio,
             length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
             valid_out_len=valid_out_len,
-            cache_last_channel=cache_last_channel_next,
-            cache_last_time=cache_last_time_next,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
             previous_hypotheses=previous_hypotheses,
             onnx_model=onnx_model,
         )
         if asr_model.encoder.last_channel_cache_size >= 0:
-            cache_last_channel_next = cache_last_channel_next[:, :, -asr_model.encoder.last_channel_cache_size :, :]
+            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.last_channel_cache_size:, :]
         # print(asr_out_stream)
         print(asr_out_stream.size())
-        asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
+        if asr_out_stream_total is None:
+            asr_out_stream_total = asr_out_stream
+        else:
+            asr_out_stream_total = torch.cat((asr_out_stream_total, asr_out_stream), dim=-1)
         step_num += 1
         print(
             processed_signal.size(-1),
             asr_model.encoder.shift_size,
             asr_model.encoder.chunk_size,
-            i,
+            streaming_buffer.buffer_idx,
             len(asr_out_stream_total),
         )
-        if i + asr_model.encoder.chunk_size >= processed_signal.size(-1):
-            break
+        # if i + asr_model.encoder.chunk_size >= processed_signal.size(-1):
+        #     break
 
     # asr_model = asr_model.to(asr_model.device)
     print(asr_out_stream_total)

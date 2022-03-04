@@ -27,4 +27,3 @@ class StreamingModuleMixin(ABC):
     @abstractmethod
     def streaming_forward(self, batch_size, dtype, device):
         pass
-

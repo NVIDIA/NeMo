@@ -14,7 +14,6 @@
 
 import copy
 import os
-import shutil
 
 import numpy as np
 import soundfile as sf
@@ -23,6 +22,7 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
@@ -1167,15 +1167,24 @@ class FramewiseStreamingAudioBuffer:
     """
     """
 
-    def __init__(self, model):
+    def __init__(self, model, online_normalization=None):
         '''
         Args:
             asr_model: An ASR model.
         '''
         self.model = model
-        self.preprocessor = self.extract_preprocessor(model)
         self.buffer = None
         self.buffer_idx = 0
+        self.online_normalization = online_normalization
+        self.init_chunk_size = model.encoder.init_chunk_size
+        self.init_shift_size = model.encoder.init_shift_size
+        self.chunk_size = model.encoder.chunk_size
+        self.shift_size = model.encoder.shift_size
+
+        self.init_pre_encode_cache_size = 0
+        self.pre_encode_cache_size = 5
+        self.input_features = self.model.encoder._feat_in
+        self.preprocessor = self.extract_preprocessor()
 
     def __iter__(self):
         return self
@@ -1184,22 +1193,81 @@ class FramewiseStreamingAudioBuffer:
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
                 raise StopIteration
-            audio_chunk = self.buffer[:, self.buffer_idx: self.chunk_size]
-            self.buffer_idx += self.shift_size
+            if self.buffer_idx == 0:
+                chunk_size = self.init_chunk_size
+                shift_size = self.init_shift_size
+            else:
+                chunk_size = self.chunk_size
+                shift_size = self.shift_size
+            audio_chunk = self.buffer[:, :, self.buffer_idx: self.buffer_idx + chunk_size]
+            if self.buffer_idx == 0:
+                init_cache_pre_encode = torch.zeros(
+                    (audio_chunk.size(0), self.input_features, self.init_pre_encode_cache_size),
+                    device=audio_chunk.device,
+                    dtype=audio_chunk.dtype,
+                )
+                audio_chunk = torch.cat((init_cache_pre_encode, audio_chunk), dim=-1)
+            else:
+                start_pre_encode_cache = self.buffer_idx - self.pre_encode_cache_size
+                if start_pre_encode_cache < 0:
+                    start_pre_encode_cache = 0
+                cache_pre_encode = self.buffer[:, :, start_pre_encode_cache : self.buffer_idx]
+                if cache_pre_encode.size(-1) < self.pre_encode_cache_size:
+                    zeros_pads = torch.zeros(
+                        (
+                            audio_chunk.size(0),
+                            audio_chunk.size(-2),
+                            self.pre_encode_cache_size - cache_pre_encode.size(-1),
+                        ),
+                        device=audio_chunk.device,
+                        dtype=audio_chunk.dtype,
+                    )
+                else:
+                    zeros_pads = None
+
+                audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
+                if self.online_normalization:
+                    audio_chunk, x_mean, x_std = normalize_batch(
+                        x=audio_chunk,
+                        seq_len=torch.tensor([audio_chunk.size(-1)]),
+                        normalize_type=self.model_normalize_type,
+                    )
+                    # print(x_mean)
+                    # print(x_std)
+
+                if zeros_pads is not None:
+                    audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
+
+            self.buffer_idx += shift_size
             yield audio_chunk
+
+    def get_valid_out_len(self):
+        if self.buffer_idx - self.init_shift_size == 0:
+            valid_out_len = self.model.encoder.init_valid_out_len
+        elif self.buffer_idx >= self.buffer.size(-1):
+            valid_out_len = self.model.encoder.valid_out_len
+        else:
+            valid_out_len = None
+        return valid_out_len
 
     def reset_buffer(self):
         self.buffer = None
         self.buffer_idx = 0
 
-    def extract_preprocessor(self, model):
-        cfg = copy.deepcopy(model._cfg)
+    def reset_buffer_pointer(self):
+        self.buffer_idx = 0
+
+    def extract_preprocessor(self):
+        cfg = copy.deepcopy(self.model._cfg)
+        self.model_normalize_type = cfg.preprocessor.normalize
         OmegaConf.set_struct(cfg.preprocessor, False)
         cfg.preprocessor.dither = 0.0
         cfg.preprocessor.pad_to = 0
-        #cfg.preprocessor.normalize = "None"
-        preprocessor = model.from_config_dict(cfg.preprocessor)
-        return preprocessor.to(model.device)
+        if self.online_normalization:
+            cfg.preprocessor.normalize = "None"
+
+        preprocessor = self.model.from_config_dict(cfg.preprocessor)
+        return preprocessor.to(self.get_model_device())
 
     def append_audio_file(self, audio_filepath):
         audio = get_samples(audio_filepath)
@@ -1208,7 +1276,7 @@ class FramewiseStreamingAudioBuffer:
 
     def append_audio(self, audio):
         processed_signal, processed_signal_length = self.preprocess_audio(audio)
-        self.append_processed_signal(processed_signal)
+        processed_signal = self.append_processed_signal(processed_signal)
         return processed_signal, processed_signal_length
 
     def append_processed_signal(self, processed_signal):
@@ -1219,14 +1287,24 @@ class FramewiseStreamingAudioBuffer:
                 raise ValueError("Buffer and the processed signal have different dimensions!")
             self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
 
+        if self.online_normalization:
+            processed_signal, x_mean, x_std = normalize_batch(
+                x=processed_signal,
+                seq_len=torch.tensor([processed_signal.size(-1)]),
+                normalize_type=self.model_normalize_type,
+            )
+        return processed_signal
+
     def get_model_device(self):
         return self.model.device
-        #return next(self.model.parameters()).device
+        # return next(self.model.parameters()).device
 
     def preprocess_audio(self, audio, device=None):
         if device is None:
             device = self.get_model_device()
         audio_signal = torch.from_numpy(audio).unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([audio.shape[0]]).to(device)
-        processed_signal, processed_signal_length = self.preprocessor(input_signal=audio_signal, length=audio_signal_len)
+        processed_signal, processed_signal_length = self.preprocessor(
+            input_signal=audio_signal, length=audio_signal_len
+        )
         return processed_signal, processed_signal_length
