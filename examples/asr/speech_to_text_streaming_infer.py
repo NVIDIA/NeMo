@@ -151,20 +151,28 @@ def main():
     streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
     processed_signal, processed_signal_length = streaming_buffer.append_audio_file(audio_path)
 
-    asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
-        asr_model=asr_model,
-        audio_signal=processed_signal,
-        length=processed_signal_length,
-        valid_out_len=None,
-        cache_last_channel=None,
-        cache_last_time=None,
-        previous_hypotheses=None,
-        onnx_model=None,  # onnx_model,
-    )
+    # asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
+    #     asr_model=asr_model,
+    #     audio_signal=processed_signal,
+    #     length=processed_signal_length,
+    #     valid_out_len=None,
+    #     cache_last_channel=None,
+    #     cache_last_time=None,
+    #     previous_hypotheses=None,
+    #     onnx_model=None,  # onnx_model,
+    # )
+    asr_out_whole, cache_last_channel_next, cache_last_time_next, best_hyp = \
+        asr_model.stream_step(processed_signal=processed_signal,
+                              processed_signal_length=processed_signal_length,
+                              valid_out_len=None,
+                              cache_last_channel=None,
+                              cache_last_time=None,
+                              previous_hypotheses=None)
+
 
     print(asr_out_whole)
-    if best_hyp is not None:
-        print(best_hyp[0].text)
+    # if best_hyp is not None:
+    #     print(best_hyp[0].text)
 
     # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
@@ -175,22 +183,32 @@ def main():
     asr_out_stream_total = None
     streaming_buffer_iter = iter(streaming_buffer)
     for step_num, chunk_audio in enumerate(streaming_buffer_iter):
-        if step_num == 1:
+        if step_num > 0:
             asr_model.encoder.streaming_cfg.drop_extra_pre_encoded = True
 
         valid_out_len = streaming_buffer.get_valid_out_len()
-        (asr_out_stream, cache_last_channel, cache_last_time, previous_hypotheses,) = model_process(
-            asr_model=asr_model,
-            audio_signal=chunk_audio,
-            length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
-            valid_out_len=valid_out_len,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            previous_hypotheses=previous_hypotheses,
-            onnx_model=onnx_model,
-        )
+        # (asr_out_stream, cache_last_channel, cache_last_time, previous_hypotheses,) = model_process(
+        #     asr_model=asr_model,
+        #     audio_signal=chunk_audio,
+        #     length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
+        #     valid_out_len=valid_out_len,
+        #     cache_last_channel=cache_last_channel,
+        #     cache_last_time=cache_last_time,
+        #     previous_hypotheses=previous_hypotheses,
+        #     onnx_model=onnx_model,
+        # )
+
+        asr_out_stream, cache_last_channel, cache_last_time, previous_hypotheses \
+            = asr_model.stream_step(processed_signal=chunk_audio,
+                                    processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
+                                    valid_out_len=valid_out_len,
+                                    cache_last_channel=cache_last_channel,
+                                    cache_last_time=cache_last_time,
+                                    previous_hypotheses=previous_hypotheses)
+
+
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
-            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :]
+            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size:, :]
         # print(asr_out_stream)
         print(asr_out_stream.size())
         if asr_out_stream_total is None:

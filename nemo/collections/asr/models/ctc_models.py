@@ -537,8 +537,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-            "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
+            # "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+            # "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
         }
 
     @property
@@ -547,8 +547,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
-            "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-            "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
+            # "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
+            # "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
         }
 
     @typecheck()
@@ -558,8 +558,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         input_signal_length=None,
         processed_signal=None,
         processed_signal_length=None,
-        cache_last_channel=None,
-        cache_last_time=None,
+        # cache_last_channel=None,
+        # cache_last_time=None,
     ):
         """
         Forward pass of the model.
@@ -600,8 +600,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         encoder_output = self.encoder(
             audio_signal=processed_signal,
             length=processed_signal_length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
+            # cache_last_channel=cache_last_channel,
+            # cache_last_time=cache_last_time,
         )
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
@@ -649,6 +649,33 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             tensorboard_logs.update({'training_batch_wer': wer})
 
         return {'loss': loss_value, 'log': tensorboard_logs}
+
+    def stream_step(self, processed_signal, processed_signal_length, valid_out_len, cache_last_channel, cache_last_time, previous_hypotheses=None):
+        encoder_output = self.encoder(
+            audio_signal=processed_signal,
+            length=processed_signal_length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+        )
+
+        if len(encoder_output) == 2:
+            encoded, encoded_len = encoder_output
+            cache_last_channel_next = cache_last_time_next = None
+        else:
+            encoded, encoded_len, cache_last_channel_next, cache_last_time_next = encoder_output
+
+        if valid_out_len is not None:
+            encoded = encoded[:, :, :valid_out_len]
+            encoded_len = torch.clamp(encoded_len, max=valid_out_len)
+
+        log_probs = self.decoder(encoder_output=encoded)
+        greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+
+        # transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
+        #     predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
+        # )
+
+        return greedy_predictions, cache_last_channel_next, cache_last_time_next, None
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch
