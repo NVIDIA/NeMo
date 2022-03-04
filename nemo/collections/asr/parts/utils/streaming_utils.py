@@ -1190,14 +1190,14 @@ class FramewiseStreamingAudioBuffer:
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
                 return
-                #raise StopIteration
+                # raise StopIteration
             if self.buffer_idx == 0:
                 chunk_size = self.init_chunk_size
                 shift_size = self.init_shift_size
             else:
                 chunk_size = self.chunk_size
                 shift_size = self.shift_size
-            audio_chunk = self.buffer[:, :, self.buffer_idx: self.buffer_idx + chunk_size]
+            audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
             if self.buffer_idx == 0:
                 init_cache_pre_encode = torch.zeros(
                     (audio_chunk.size(0), self.input_features, self.init_pre_encode_cache_size),

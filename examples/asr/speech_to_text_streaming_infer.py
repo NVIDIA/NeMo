@@ -19,7 +19,6 @@ This script serves three goals:
     (3) Serves as CI test for pre-trained checkpoint
 """
 
-import copy
 from argparse import ArgumentParser
 
 import onnxruntime
@@ -199,7 +198,7 @@ def main():
             onnx_model=onnx_model,
         )
         if asr_model.encoder.last_channel_cache_size >= 0:
-            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.last_channel_cache_size:, :]
+            cache_last_channel = cache_last_channel[:, :, -asr_model.encoder.last_channel_cache_size :, :]
         # print(asr_out_stream)
         print(asr_out_stream.size())
         if asr_out_stream_total is None:
@@ -214,7 +213,6 @@ def main():
             streaming_buffer.buffer_idx,
             len(asr_out_stream_total),
         )
-
 
     print(asr_out_stream_total)
     # print(greedy_merge_ctc(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
