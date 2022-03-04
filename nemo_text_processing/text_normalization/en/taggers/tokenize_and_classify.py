@@ -133,7 +133,6 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electonic_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
-                | pynutil.add_weight(word_graph, 100)
                 | pynutil.add_weight(range_graph, 1.1)
             )
 
@@ -151,6 +150,8 @@ class ClassifyFst(GraphFst):
                 | (pynutil.insert(" ") + punct),
                 1,
             )
+            
+            classify = (pynutil.insert("name: \"<\" } tokens { ") + classify +  pynutil.insert(" } tokens { name: \">\"")) |  pynutil.add_weight(word_graph, 100)
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
             token_plus_punct = (
                 pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
