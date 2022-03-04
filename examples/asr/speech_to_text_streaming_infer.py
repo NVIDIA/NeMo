@@ -111,21 +111,14 @@ def greedy_merge_ctc(asr_model, preds):
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
+        "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file",
     )
-    parser.add_argument("--onnx_model", type=str, help="Path to asr model .nemo file", default=None)
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--output_path", type=str, help="path to output file", default=None)
-    parser.add_argument(
-        "--model_stride",
-        type=int,
-        default=8,
-        help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-    )
-
+    parser.add_argument("--onnx_model", type=str, help="Path to the ONNX file of an asr model", default=None)
+    parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument(
         "--online_normalization", default=False, action='store_true', help="Perform normalization on the run."
     )
+    # parser.add_argument("--output_path", type=str, help="path to output file", default=None)
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -176,8 +169,7 @@ def main():
     # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
 
     # asr_model.encoder.init_streaming_params()
-    batch_size = 1
-    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
+    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=args.batch_size)
 
     previous_hypotheses = None
     asr_out_stream_total = None
