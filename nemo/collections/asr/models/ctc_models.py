@@ -654,12 +654,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         self,
         processed_signal,
         processed_signal_length=None,
-        valid_out_len=None,
         cache_last_channel=None,
         cache_last_time=None,
+        valid_out_len=None,
         previous_hypotheses=None,
-        previous_pred_out=None
+        previous_pred_out=None,
+        drop_extra_pre_encoded=None
     ):
+        if drop_extra_pre_encoded is not None:
+            self.encoder.streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
+
         encoder_output = self.encoder(
             audio_signal=processed_signal,
             length=processed_signal_length,

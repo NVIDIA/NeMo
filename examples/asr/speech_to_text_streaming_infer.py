@@ -30,82 +30,18 @@ from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingA
 from nemo.utils import logging
 
 
-def to_numpy(tensor):
-    if tensor is None:
-        return None
-    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-
-def model_process(
-    asr_model,
-    audio_signal,
-    length,
-    valid_out_len=None,
-    cache_last_channel=None,
-    cache_last_time=None,
-    previous_hypotheses=None,
-    onnx_model=None,
-):
-
-    if onnx_model is None:
-        out = asr_model.encoder(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-        )
-        if len(out) > 2:
-            encoded, encoded_len, cache_last_channel_next, cache_last_time_next = out
-        else:
-            encoded, encoded_len = out
-            cache_last_channel_next = cache_last_time_next = None
-
-        if valid_out_len is not None:
-            encoded = encoded[:, :, :valid_out_len]
-            encoded_len = torch.clamp(encoded_len, max=valid_out_len)
-
-        if hasattr(asr_model, "decoding"):
-            best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
-                encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
-            )
-            greedy_predictions = best_hyp[0].y_sequence
-        else:
-            log_probs = asr_model.decoder(encoder_output=encoded)
-            greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-            best_hyp = None
-    else:
-        ort_inputs = {
-            onnx_model.get_inputs()[0].name: to_numpy(audio_signal),
-            onnx_model.get_inputs()[1].name: to_numpy(length),
-            onnx_model.get_inputs()[2].name: to_numpy(cache_last_channel),
-            onnx_model.get_inputs()[3].name: to_numpy(cache_last_time),
-        }
-
-        out, cache_last_channel_next, cache_last_time_next = onnx_model.run(None, ort_inputs)
-        out = torch.tensor(out)
-        cache_last_channel_next = torch.tensor(cache_last_channel_next)
-        cache_last_time_next = torch.tensor(cache_last_time_next)
-        greedy_predictions = out.argmax(dim=-1, keepdim=False)
-        if valid_out_len is not None:
-            greedy_predictions = greedy_predictions[:, :valid_out_len]
-
-        best_hyp = None
-
-    return greedy_predictions, cache_last_channel_next, cache_last_time_next, best_hyp
-
-
-def greedy_merge_ctc(asr_model, preds):
-    blank_id = len(asr_model.decoder.vocabulary)
-    model_tokenizer = asr_model.tokenizer
-
-    decoded_prediction = []
-    previous = blank_id
-    for p in preds:
-        if (p != previous or previous == blank_id) and p != blank_id:
-            decoded_prediction.append(int(p))
-        previous = p
-    hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
-    return hypothesis
+# def greedy_merge_ctc(asr_model, preds):
+#     blank_id = len(asr_model.decoder.vocabulary)
+#     model_tokenizer = asr_model.tokenizer
+#
+#     decoded_prediction = []
+#     previous = blank_id
+#     for p in preds:
+#         if (p != previous or previous == blank_id) and p != blank_id:
+#             decoded_prediction.append(int(p))
+#         previous = p
+#     hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
+#     return hypothesis
 
 
 def main():
@@ -169,15 +105,11 @@ def main():
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=args.batch_size)
 
     previous_hypotheses = None
-    #pred_out_stream_total = None
+    # pred_out_stream_total = None
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, chunk_audio in enumerate(streaming_buffer_iter):
-        if step_num > 0:
-            asr_model.encoder.streaming_cfg.drop_extra_pre_encoded = True
-
         valid_out_len = streaming_buffer.get_valid_out_len()
-
         pred_out_stream, cache_last_channel, cache_last_time, previous_hypotheses = asr_model.stream_step(
             processed_signal=chunk_audio,
             processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
@@ -185,7 +117,8 @@ def main():
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             previous_hypotheses=previous_hypotheses,
-            previous_pred_out=pred_out_stream
+            previous_pred_out=pred_out_stream,
+            drop_extra_pre_encoded=True if step_num > 0 else False
         )
 
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
