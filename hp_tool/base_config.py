@@ -50,7 +50,7 @@ def calculate_model_size(
     if model_size_in_b is None:
         model_size_in_b = round(
             (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
-            / (8 * num_tokens_in_b),
+            / (8 * num_tokens_in_b * 1e9) / 1e9,
             2,
         )
     else:
@@ -64,12 +64,11 @@ def calculate_model_size(
             2,
         )
     print(
-        f"You can train a {model_size_in_b} parameter model in "
-        f"{max_training_days} days using {gpu_count} GPUs. This result assumes"
-        f"you are training to {num_tokens_in_b}B tokens, and each GPU achieves"
+        f"You can train a {model_size_in_b}B parameter model in "
+        f"{max_training_days} days using {gpu_count} GPUs. This result assumes "
+        f"you are training to {num_tokens_in_b}B tokens, and each GPU achieves "
         f"{tflops_per_gpu} TFLOPS."
     )
-    time.sleep(0.3)
     return model_size_in_b
 
 
@@ -157,5 +156,3 @@ def generate_base_config(
     with open(f"{cfg.base_results_dir}/base_cfg_{model_size_in_b}b.yaml", "w") as f:
         yaml.dump(base_cfg, f)
     return base_cfg
-
-

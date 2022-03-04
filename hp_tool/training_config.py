@@ -29,20 +29,32 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, cfg):
     os.makedirs(base_dir, exist_ok=True)
 
     max_minutes = cfg.search_config.train_settings.max_minutes_per_run
+    
+    valid_pp_list = []
+    for tp in tp_list:
+        for pp in pp_list:
+            act_ckpt_layers = [x for x in range(num_layers//pp + 1)]
+            for act in act_ckpt_layers:
+                for mbs in mbs_list:
+                    num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["gpus"]
+                    gbs = base_cfg["model"]["global_batch_size"]
+                    att_heads = base_cfg["model"]["num_attention_heads"]
+                    num_layers = base_cfg["model"]["num_layers"]
+                    mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
+                    mod_att_heads = att_heads % tp
+                    mod_layers = num_layers % pp
+                    if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
+                        valid_pp_list.append(pp)
+
     # Generate grid search configs.
     for tp in tp_list:
         for pp in pp_list:
             act_ckpt_layers = [x for x in range(num_layers//pp + 1)]
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
-                    new_cfg = utils.modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes)
+                    new_cfg = utils.modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max(valid_pp_list))
                     if new_cfg:  # Save candidate cfg.
-                        file_name = f"tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
-                        #first = cfg.cluster.job_prefix.split(":")[0]
-                        #second = new_cfg["run"]["name"].split(":")[-1]
-                        #new_cfg["run"]["name"] = f"{first}:{second}"
-                        #if new_cfg.cluster.gpus_per_task == "null":
-                        #    del new_cfg.cluster.gpus_per_task
+                        file_name = f"{model_size_in_b}b_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
                         results_cfgs[act].append(file_name)
                         with open(f"{base_dir}/{file_name}", "w") as f:
                             yaml.dump(new_cfg, f)
@@ -51,7 +63,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, cfg):
 
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers):
-    valid_pp = [x for x in range(1, num_layers+1) if x % num_layers == 0] # Only divisors of num_layers are possible.
+    valid_pp = [x for x in range(1, num_layers+1) if num_layers % x == 0] # Only divisors of num_layers are possible.
     tp = [1, 2, 4, 8]
     pp = [1]
     mbs = [1, 2, 4, 8]
@@ -75,11 +87,11 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers):
         mbs = [1, 2, 4]
     elif 130.0 < model_size_in_b <= 195.0:
         tp = [8]
-        pp = [x for x in valid_pp if 7 < x < 26]
+        pp = [x for x in valid_pp if 7 < x < 29]
         mbs = [1, 2]
     elif 195.0 < model_size_in_b <= 395.0:
         tp = [8]
-        pp = [x for x in valid_pp if 15 < x < 51]
+        pp = [x for x in valid_pp if 15 < x < 65]
         mbs = [1, 2]
     elif 395.0 < model_size_in_b <= 790.0:
         tp = [8]
@@ -87,7 +99,7 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers):
         mbs = [1, 2]
     elif 790.0 < model_size_in_b <= 1100.0:
         tp = [8]
-        pp = [x for x in valid_pp if 29 < x < 89]
+        pp = [x for x in valid_pp if 29 < x < 131]
         mbs = [1, 2]
     return tp, pp, mbs
 
@@ -111,10 +123,10 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
 
 
 def create_bignlp_config(cfg):
-
     results_dir = cfg.search_config.train_settings.candidate_logs
     training_container = cfg.training_container
     data_dir = cfg.data_dir
+    model_size = cfg.search_config.train_settings.model_size_in_b
 
     s = f"""
     training: null
@@ -130,7 +142,7 @@ def create_bignlp_config(cfg):
     training_config: gpt3/5b
     bignlp_path: /opt/bignlp/bignlp-scripts
     data_dir: {data_dir}
-    base_results_dir: {results_dir}
+    base_results_dir: {results_dir}/{model_size}b
     container_mounts:
       - {results_dir}:/opt/bignlp/bignlp-scripts/results
     container: {training_container}
@@ -146,7 +158,7 @@ def launch_throughput_measure(dependency_list, model_size, cfg):
     container = cfg.training_container
     hp_cfg = cfg.search_config
 
-    # SLURM parameters
+    # CLUSTER parameters
     cluster_cfg = cfg.get("cluster")
     partition = cluster_cfg.get("partition")
     account = cluster_cfg.account

@@ -39,6 +39,7 @@ def search_config(cfg):
         tflops_per_gpu=tflops_per_gpu,
         num_tokens_in_b=num_tokens_in_b,
     )
+    cfg.search_config.train_settings.model_size_in_b = model_size_in_b
 
     # Generate base config for the given model size
     base_cfg = generate_base_config(
@@ -51,7 +52,7 @@ def search_config(cfg):
     )
 
     # Launch grid search for training constraints
-    search_training_config(base_cfg, model_size_in_b, cfg)
+    #search_training_config(base_cfg, model_size_in_b, cfg)
 
     # Launch grid search for inference constraints
     search_inference_config(base_cfg=base_cfg, cfg=cfg)
