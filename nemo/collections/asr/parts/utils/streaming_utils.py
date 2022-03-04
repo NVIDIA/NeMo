@@ -1200,7 +1200,7 @@ class FramewiseStreamingAudioBuffer:
             else:
                 chunk_size = self.streaming_cfg.chunk_size
                 shift_size = self.streaming_cfg.shift_size
-            audio_chunk = self.buffer[:, :, self.buffer_idx: self.buffer_idx + chunk_size]
+            audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
             if self.buffer_idx == 0:
                 init_cache_pre_encode = torch.zeros(
                     (audio_chunk.size(0), self.input_features, self.streaming_cfg.init_pre_encode_cache_size),

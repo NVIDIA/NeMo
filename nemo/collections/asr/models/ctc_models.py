@@ -653,11 +653,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
     def stream_step(
         self,
         processed_signal,
-        processed_signal_length,
-        valid_out_len,
-        cache_last_channel,
-        cache_last_time,
+        processed_signal_length=None,
+        valid_out_len=None,
+        cache_last_channel=None,
+        cache_last_time=None,
         previous_hypotheses=None,
+        previous_pred_out=None
     ):
         encoder_output = self.encoder(
             audio_signal=processed_signal,
@@ -682,6 +683,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         # transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
         #     predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
         # )
+
+        if previous_pred_out is not None:
+            greedy_predictions = torch.cat((previous_pred_out, greedy_predictions), dim=-1)
 
         return greedy_predictions, cache_last_channel_next, cache_last_time_next, None
 
