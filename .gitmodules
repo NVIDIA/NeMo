@@ -1,0 +1,3 @@
+[submodule "BigNLP-Inference-Scripts"]
+	path = BigNLP-Inference-Scripts
+	url = https://gitlab-master.nvidia.com/dl/JoC/BigNLP-Inference-Scripts.git
