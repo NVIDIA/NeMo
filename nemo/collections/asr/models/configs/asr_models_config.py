@@ -112,6 +112,3 @@ class FramewiseStreamingConfig(model_cfg.NemoConfig):
 
     last_channel_num: int = 0
     last_time_num: int = 0
-
-
-

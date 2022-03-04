@@ -650,7 +650,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def stream_step(self, processed_signal, processed_signal_length, valid_out_len, cache_last_channel, cache_last_time, previous_hypotheses=None):
+    def stream_step(
+        self,
+        processed_signal,
+        processed_signal_length,
+        valid_out_len,
+        cache_last_channel,
+        cache_last_time,
+        previous_hypotheses=None,
+    ):
         encoder_output = self.encoder(
             audio_signal=processed_signal,
             length=processed_signal_length,

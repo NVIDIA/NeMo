@@ -19,6 +19,7 @@ import torch
 import torch.distributed
 import torch.nn as nn
 
+from nemo.collections.asr.models.configs import FramewiseStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingModuleMixin
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
@@ -32,7 +33,6 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
-from nemo.collections.asr.models.configs import FramewiseStreamingConfig
 
 __all__ = ['ConformerEncoder']
 
@@ -446,7 +446,9 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         self.use_pad_mask = on
         return mask
 
-    def setup_streaming_params(self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None):
+    def setup_streaming_params(
+        self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None
+    ):
         MAX_LOOK_AHEAD = 10000
         streaming_cfg = FramewiseStreamingConfig()
         if self.att_context_style == "chunked_limited":
@@ -456,8 +458,12 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             else:
                 streaming_cfg.cache_drop_size = cache_drop_size
         elif self.att_context_style == "regular":
-            lookahead_steps_att = self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else MAX_LOOK_AHEAD
-            lookahead_steps_conv = self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else MAX_LOOK_AHEAD
+            lookahead_steps_att = (
+                self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else MAX_LOOK_AHEAD
+            )
+            lookahead_steps_conv = (
+                self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else MAX_LOOK_AHEAD
+            )
             streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
             if cache_drop_size is None:
                 streaming_cfg.cache_drop_size = self.lookahead_steps
@@ -467,14 +473,18 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             streaming_cfg.cache_drop_size = cache_drop_size
             streaming_cfg.lookahead_steps = None
 
-        streaming_cfg.last_channel_cache_size = self.att_context_size[0] if self.att_context_size[0] >= 0 else MAX_LOOK_AHEAD
+        streaming_cfg.last_channel_cache_size = (
+            self.att_context_size[0] if self.att_context_size[0] >= 0 else MAX_LOOK_AHEAD
+        )
 
         if init_chunk_size is None:
             streaming_cfg.init_chunk_size = 1 + (self.subsampling_factor * streaming_cfg.lookahead_steps)
         else:
             streaming_cfg.init_chunk_size = init_chunk_size
         if init_shift_size is None:
-            streaming_cfg.init_shift_size = 1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
+            streaming_cfg.init_shift_size = 1 + self.subsampling_factor * (
+                streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size
+            )
         else:
             streaming_cfg.init_shift_size = init_shift_size
 
@@ -483,7 +493,9 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
         else:
             streaming_cfg.chunk_size = chunk_size
         if shift_size is None:
-            streaming_cfg.shift_size = self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size)
+            streaming_cfg.shift_size = self.subsampling_factor * (
+                (1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size
+            )
         else:
             streaming_cfg.shift_size = shift_size
 
@@ -520,7 +532,9 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             (self.streaming_cfg.last_channel_num, batch_size, 0, self.d_model), device=device, dtype=dtype
         )
         cache_last_time = torch.zeros(
-            (self.streaming_cfg.last_time_num, batch_size, self.d_model, last_time_cache_size), device=device, dtype=dtype
+            (self.streaming_cfg.last_time_num, batch_size, self.d_model, last_time_cache_size),
+            device=device,
+            dtype=dtype,
         )
 
         return cache_last_channel, cache_last_time
