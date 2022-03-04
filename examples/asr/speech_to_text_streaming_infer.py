@@ -22,13 +22,11 @@ This script serves three goals:
 import copy
 from argparse import ArgumentParser
 
-import librosa
 import onnxruntime
 import torch
 from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
 
@@ -71,14 +69,7 @@ def model_process(
             best_hyp, _ = asr_model.decoding.rnnt_decoder_predictions_tensor(
                 encoded, encoded_len.to(encoded.device), return_hypotheses=True, partial_hypotheses=previous_hypotheses
             )
-            # greedy_predictions = [hyp.y_sequence for hyp in best_hyp[0]]
             greedy_predictions = best_hyp[0].y_sequence
-            # greedy_predictions = []
-            # for alignment in best_hyp[0].alignments:
-            #     alignment.remove(1024)
-            #     greedy_predictions.extend(alignment)
-            # greedy_predictions = torch.Tensor(greedy_predictions)
-
         else:
             log_probs = asr_model.decoder(encoder_output=encoded)
             greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
@@ -160,38 +151,7 @@ def main():
         asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to("cuda")
-
-    # cfg = copy.deepcopy(asr_model._cfg)
-    # OmegaConf.set_struct(cfg.preprocessor, False)
-    # # some changes for streaming scenario
-    # cfg.preprocessor.dither = 0.0
-    # cfg.preprocessor.pad_to = 0
-    # if args.online_normalization:
-    #     model_normalize_type = cfg.preprocessor.normalize
-    #     cfg.preprocessor.normalize = None
-    # if cfg.preprocessor.normalize != "per_feature":
-    #     logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
-    # # Disable config overwriting
-    # OmegaConf.set_struct(cfg.preprocessor, True)
-    # preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
-    # preprocessor.to(asr_model.device)
-
     asr_model.eval()
-
-    # audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
-    # audio_sample, _ = librosa.load(audio_path, sr=16000)
-    #
-    # processed_signal, processed_signal_length = preprocessor(
-    #     input_signal=torch.tensor(audio_sample).unsqueeze(0).cuda(), length=torch.tensor([len(audio_sample)]).cuda()
-    # )
-    #
-    # if args.online_normalization:
-    #     processed_signal_normalized, x_mean_whole, x_std_whole = normalize_batch(
-    #         x=processed_signal, seq_len=processed_signal_length, normalize_type=model_normalize_type
-    #     )
-    # else:
-    #     processed_signal_normalized = processed_signal
-
     # model_normalize_type = {"fixed_mean": x_mean_whole, "fixed_std": x_std_whole}
     # print(x_mean_whole, x_std_whole)
 
@@ -218,78 +178,15 @@ def main():
 
     # asr_model.encoder.init_streaming_params()
     batch_size = 1
-    # cache_last_channel, cache_last_time, init_cache_pre_encode = asr_model.encoder.get_initial_cache_state(
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
-
-    # streaming_buffer_it = iter(streaming_buffer)
-    # init_audio = next(streaming_buffer_it)
-
-    # init_audio = processed_signal[:, :, : asr_model.encoder.init_chunk_size]
-    # if args.online_normalization and init_audio.size(-1) > 1:
-    #     init_audio, x_mean, x_std = normalize_batch(
-    #         x=init_audio, seq_len=torch.tensor([init_audio.size(-1)]), normalize_type=model_normalize_type
-    #     )
-    # init_audio = torch.cat((init_cache_pre_encode, init_audio), dim=-1)
-
-    # asr_out_stream, cache_last_channel_next, cache_last_time_next, best_hyp = model_process(
-    #     asr_model=asr_model,
-    #     audio_signal=init_audio,
-    #     length=torch.tensor([init_audio.size(-1)]),
-    #     valid_out_len=asr_model.encoder.init_valid_out_len,
-    #     cache_last_channel=cache_last_channel,
-    #     cache_last_time=cache_last_time,
-    #     previous_hypotheses=None,
-    #     onnx_model=onnx_model,
-    # )
-    # print(asr_out_stream)
-    # asr_out_stream_total = asr_out_stream
-
-    step_num = 0
-    # previous_hypotheses = best_hyp
-    # pre_encode_cache_size = 5
 
     previous_hypotheses = None
     asr_out_stream_total = None
-    # for i in range(asr_model.encoder.init_shift_size, processed_signal.size(-1), asr_model.encoder.shift_size):
-    while True:
+    streaming_buffer_iter = iter(streaming_buffer)
+    for step_num, chunk_audio in enumerate(streaming_buffer_iter):
         if step_num == 1:
             asr_model.encoder.drop_extra_pre_encoded = True
 
-        # if i + asr_model.encoder.chunk_size < processed_signal.size(-1):
-        #     valid_out_len = asr_model.encoder.init_valid_out_len
-        # else:
-        #     valid_out_len = None
-
-        # chunk_audio = processed_signal[:, :, i: i + asr_model.encoder.chunk_size]
-
-        # start_pre_encode_cache = i - pre_encode_cache_size
-        # if start_pre_encode_cache < 0:
-        #     start_pre_encode_cache = 0
-        # cache_pre_encode = processed_signal[:, :, start_pre_encode_cache:i]
-        # if cache_pre_encode.size(-1) < pre_encode_cache_size:
-        #     zeros_pads = torch.zeros(
-        #         (batch_size, chunk_audio.size(-2), pre_encode_cache_size - cache_pre_encode.size(-1)),
-        #         device=asr_model.device,
-        #         dtype=torch.float32,
-        #     )
-        # else:
-        #     zeros_pads = None
-        #
-        # chunk_audio = torch.cat((cache_pre_encode, chunk_audio), dim=-1)
-        # if args.online_normalization:
-        #     chunk_audio, x_mean, x_std = normalize_batch(
-        #         x=chunk_audio, seq_len=torch.tensor([chunk_audio.size(-1)]), normalize_type=model_normalize_type
-        #     )
-        #     # print(x_mean)
-        #     # print(x_std)
-        #
-        # if zeros_pads is not None:
-        #     chunk_audio = torch.cat((zeros_pads, chunk_audio), dim=-1)
-
-        try:
-            chunk_audio = next(streaming_buffer)
-        except StopIteration:
-            break
         valid_out_len = streaming_buffer.get_valid_out_len()
         (asr_out_stream, cache_last_channel, cache_last_time, previous_hypotheses,) = model_process(
             asr_model=asr_model,
@@ -317,16 +214,13 @@ def main():
             streaming_buffer.buffer_idx,
             len(asr_out_stream_total),
         )
-        # if i + asr_model.encoder.chunk_size >= processed_signal.size(-1):
-        #     break
 
-    # asr_model = asr_model.to(asr_model.device)
+
     print(asr_out_stream_total)
     # print(greedy_merge_ctc(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
 
     print(torch.sum(asr_out_stream_total != asr_out_whole))
-    print(step_num)
 
 
 if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    main()

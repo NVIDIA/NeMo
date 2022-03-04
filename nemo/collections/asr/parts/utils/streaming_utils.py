@@ -1187,12 +1187,10 @@ class FramewiseStreamingAudioBuffer:
         self.preprocessor = self.extract_preprocessor()
 
     def __iter__(self):
-        return self
-
-    def __next__(self):
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
-                raise StopIteration
+                return
+                #raise StopIteration
             if self.buffer_idx == 0:
                 chunk_size = self.init_chunk_size
                 shift_size = self.init_shift_size
