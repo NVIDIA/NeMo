@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import torch
+
+from dataclasses import dataclass
+
 from torch.autograd import Variable
 from torch.nn import functional as F
 
@@ -98,6 +101,20 @@ class Encoder(NeuralModule):
         outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
         return outputs
+
+
+@dataclass
+class DecoderStates:
+    attention_hidden: Variable = None
+    attention_cell: Variable = None
+    decoder_hidden: Variable = None
+    decoder_cell: Variable = None
+    attention_weights: Variable = None
+    attention_weights_cum: Variable = None
+    attention_context: Variable = None
+    memory: Variable = None
+    processed_memory: Variable = None
+    mask: Variable = None
 
 
 class Decoder(NeuralModule):
@@ -212,19 +229,23 @@ class Decoder(NeuralModule):
         B = memory.size(0)
         MAX_TIME = memory.size(1)
 
-        self.attention_hidden = Variable(memory.data.new(B, self.attention_rnn_dim).zero_())
-        self.attention_cell = Variable(memory.data.new(B, self.attention_rnn_dim).zero_())
+        states = DecoderStates()
 
-        self.decoder_hidden = Variable(memory.data.new(B, self.decoder_rnn_dim).zero_())
-        self.decoder_cell = Variable(memory.data.new(B, self.decoder_rnn_dim).zero_())
+        states.attention_hidden = Variable(memory.data.new(B, self.attention_rnn_dim).zero_())
+        states.attention_cell = Variable(memory.data.new(B, self.attention_rnn_dim).zero_())
 
-        self.attention_weights = Variable(memory.data.new(B, MAX_TIME).zero_())
-        self.attention_weights_cum = Variable(memory.data.new(B, MAX_TIME).zero_())
-        self.attention_context = Variable(memory.data.new(B, self.encoder_embedding_dim).zero_())
+        states.decoder_hidden = Variable(memory.data.new(B, self.decoder_rnn_dim).zero_())
+        states.decoder_cell = Variable(memory.data.new(B, self.decoder_rnn_dim).zero_())
 
-        self.memory = memory
-        self.processed_memory = self.attention_layer.memory_layer(memory)
-        self.mask = mask
+        states.attention_weights = Variable(memory.data.new(B, MAX_TIME).zero_())
+        states.attention_weights_cum = Variable(memory.data.new(B, MAX_TIME).zero_())
+        states.attention_context = Variable(memory.data.new(B, self.encoder_embedding_dim).zero_())
+
+        states.memory = memory
+        states.processed_memory = self.attention_layer.memory_layer(memory)
+        states.mask = mask
+
+        return states
 
     def parse_decoder_inputs(self, decoder_inputs):
         # (B, n_mel_channels, T_out) -> (B, T_out, n_mel_channels)
@@ -253,47 +274,46 @@ class Decoder(NeuralModule):
 
         return mel_outputs, gate_outputs, alignments
 
-    def decode(self, decoder_input):
-        cell_input = torch.cat((decoder_input, self.attention_context), -1)
+    def decode(self, decoder_input, states):
+        cell_input = torch.cat((decoder_input, states.attention_context), -1)
 
-        self.attention_hidden, self.attention_cell = self.attention_rnn(
-            cell_input, (self.attention_hidden, self.attention_cell)
-        )
-        self.attention_hidden = F.dropout(self.attention_hidden, self.p_attention_dropout, self.training)
+        states.attention_hidden, states.attention_cell = self.attention_rnn(
+            cell_input, (states.attention_hidden, states.attention_cell))
+        states.attention_hidden = F.dropout(states.attention_hidden, self.p_attention_dropout, self.training)
 
         attention_weights_cat = torch.cat(
-            (self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1)), dim=1,
+            (states.attention_weights.unsqueeze(1), states.attention_weights_cum.unsqueeze(1)), dim=1,
         )
-        self.attention_context, self.attention_weights = self.attention_layer(
-            self.attention_hidden, self.memory, self.processed_memory, attention_weights_cat, self.mask,
+        states.attention_context, states.attention_weights = self.attention_layer(
+            states.attention_hidden, states.memory, states.processed_memory, attention_weights_cat, states.mask,
         )
 
-        self.attention_weights_cum += self.attention_weights
-        decoder_input = torch.cat((self.attention_hidden, self.attention_context), -1)
+        states.attention_weights_cum += states.attention_weights
+        decoder_input = torch.cat((states.attention_hidden, states.attention_context), -1)
 
-        self.decoder_hidden, self.decoder_cell = self.decoder_rnn(
-            decoder_input, (self.decoder_hidden, self.decoder_cell)
+        states.decoder_hidden, states.decoder_cell = self.decoder_rnn(
+            decoder_input, (states.decoder_hidden, states.decoder_cell)
         )
-        self.decoder_hidden = F.dropout(self.decoder_hidden, self.p_decoder_dropout, self.training)
+        states.decoder_hidden = F.dropout(states.decoder_hidden, self.p_decoder_dropout, self.training)
 
-        decoder_hidden_attention_context = torch.cat((self.decoder_hidden, self.attention_context), dim=1)
+        decoder_hidden_attention_context = torch.cat((states.decoder_hidden, states.attention_context), dim=1)
         decoder_output = self.linear_projection(decoder_hidden_attention_context)
 
         gate_prediction = self.gate_layer(decoder_hidden_attention_context)
-        return decoder_output, gate_prediction, self.attention_weights
-
+        return decoder_output, gate_prediction, states.attention_weights
+        
     def train_forward(self, *, memory, decoder_inputs, memory_lengths):
         decoder_input = self.get_go_frame(memory).unsqueeze(0)
         decoder_inputs = self.parse_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0)
         decoder_inputs = self.prenet(decoder_inputs)
 
-        self.initialize_decoder_states(memory, mask=~get_mask_from_lengths(memory_lengths))
+        states = self.initialize_decoder_states(memory, mask=~get_mask_from_lengths(memory_lengths))
 
         mel_outputs, gate_outputs, alignments = [], [], []
         while len(mel_outputs) < decoder_inputs.size(0) - 1:
             decoder_input = decoder_inputs[len(mel_outputs)]
-            mel_output, gate_output, attention_weights = self.decode(decoder_input)
+            mel_output, gate_output, attention_weights = self.decode(decoder_input, states)
 
             mel_outputs += [mel_output.squeeze(1)]
             gate_outputs += [gate_output]
@@ -310,7 +330,7 @@ class Decoder(NeuralModule):
         else:
             mask = None
 
-        self.initialize_decoder_states(memory, mask=mask)
+        states = self.initialize_decoder_states(memory, mask=mask)
 
         mel_lengths = torch.zeros([memory.size(0)], dtype=torch.int32)
         not_finished = torch.ones([memory.size(0)], dtype=torch.int32)
@@ -322,7 +342,7 @@ class Decoder(NeuralModule):
         stepped = False
         while True:
             decoder_input = self.prenet(decoder_input, inference=True)
-            mel_output, gate_output, alignment = self.decode(decoder_input)
+            mel_output, gate_output, alignment = self.decode(decoder_input, states)
 
             dec = torch.le(torch.sigmoid(gate_output.data), self.gate_threshold).to(torch.int32).squeeze(1)
 
