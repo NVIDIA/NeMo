@@ -466,7 +466,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             )
             streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
             if cache_drop_size is None:
-                streaming_cfg.cache_drop_size = self.lookahead_steps
+                streaming_cfg.cache_drop_size = streaming_cfg.lookahead_steps
             else:
                 streaming_cfg.cache_drop_size = cache_drop_size
         else:
