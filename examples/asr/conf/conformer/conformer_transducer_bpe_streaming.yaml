@@ -86,6 +86,7 @@ model:
     frame_splicing: 1
     dither: 0.00001
     pad_to: 0
+    pad_value: 0.0
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
@@ -114,8 +115,8 @@ model:
     self_attention_model: rel_pos # rel_pos or abs_pos
     n_heads: 8 # may need to be lower for smaller d_models
     # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
-    att_context_size: [107, 17] # -1 means unlimited context
-    att_context_style: regular # regular chunked_limited
+    att_context_size: [114, 18] # -1 means unlimited context
+    att_context_style: chunked_limited # regular chunked_limited
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     untie_biases: true # unties the biases of the TransformerXL layers
     pos_emb_max_len: 5000
