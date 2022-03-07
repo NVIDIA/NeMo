@@ -21,7 +21,6 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import collections
 import os
 import random
-from multiprocessing.sharedctypes import Value
 from typing import Dict, Optional, Union
 
 import numpy as np
@@ -43,7 +42,6 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_metrics import IntentSlotMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -111,8 +109,6 @@ class DialogueGPTModel(NLPModel):
             input_ids,
             attn_masks,
             labels,
-            generate_input_ids,
-            generate_attn_masks,
             candidate_input_ids,
             candidate_attn_masks,
             template_length,
@@ -347,7 +343,7 @@ class DialogueGPTModel(NLPModel):
 
         candidate_tokens = torch.stack(best_candidate_input_ids)
         generated_field, ground_truth_field = self.process_into_structured_fields(
-            candidate_tokens, labels, left_padding=False, template_length=template_length
+            candidate_tokens, labels, template_length=template_length
         )
         return generated_field, ground_truth_field
 
@@ -407,7 +403,7 @@ class DialogueGPTModel(NLPModel):
 
         candidate_tokens = torch.stack(best_candidate_input_ids)
         generated_field, ground_truth_field = self.process_into_structured_fields(
-            candidate_tokens, labels, left_padding=False, template_length=template_length
+            candidate_tokens, labels, template_length=template_length
         )
         return generated_field, ground_truth_field
 
@@ -454,31 +450,44 @@ class DialogueGPTModel(NLPModel):
 
     def post_process_megatron_generation(self, outputs):
         text_outputs = [output[0] for output in outputs]
-        # for i in text_outputs:
-        #     print(i)
         generated_tokens = self.tokenizer.tokenizer(text_outputs, padding=True, return_tensors="pt").data["input_ids"]
         return generated_tokens
 
-    def generate_candidates(self, generate_input_ids, generate_attn_masks, labels, template_length, input_ids):
+    def generate_candidates(self, labels, template_length, input_ids, attn_masks):
+
+        tokens_to_generate = 32
 
         if self.cfg.library == "huggingface":
-            param_dict = {
-                "input_ids": generate_input_ids,
-                "attention_masks": generate_attn_masks,
-                "max_length": self._cfg.dataset.max_seq_length + 32,
-                "pad_token_id": self.tokenizer.tokenizer.pad_token_id,
-            }
-            generated_tokens = self.language_model.generate(**param_dict)
-            generated_field, ground_truth_field = self.process_into_structured_fields(generated_tokens, labels)
+            generated_tokens = []
+            max_length = 0
+            for i in range(input_ids.size(0)):
+                param_dict = {
+                    "input_ids": input_ids[i : i + 1, : template_length[i]],
+                    "attention_masks": attn_masks[i : i + 1, : template_length[i]],
+                    "max_length": template_length[i] + tokens_to_generate,
+                    "pad_token_id": self.tokenizer.tokenizer.pad_token_id,
+                }
+                generated_tokens.append(self.language_model.generate(**param_dict))
+                max_length = max(max_length, generated_tokens[-1].size(1))
+
+            # pad each generated to ensure they are of same length in dim 1, therefore stack-able
+            generated_tokens = [
+                torch.cat(
+                    [i, torch.ones((1, max_length - i.size(1))).to(i.device) * self.tokenizer.tokenizer.pad_token_id],
+                    axis=-1,
+                )
+                for i in generated_tokens
+            ]
+            generated_tokens = torch.cat(generated_tokens, axis=0)
 
         elif self.cfg.library == "megatron":
-            tokens_to_generate = 32
             positions, request = self.prepare_megatron_generation(labels, input_ids, template_length)
             outputs = self.language_model.complete(request, positions, tokens_to_generate)
             generated_tokens = self.post_process_megatron_generation(outputs)
-            generated_field, ground_truth_field = self.process_into_structured_fields(
-                generated_tokens, labels, left_padding=False, template_length=template_length
-            )
+
+        generated_field, ground_truth_field = self.process_into_structured_fields(
+            generated_tokens, labels, template_length=template_length
+        )
 
         return generated_field, ground_truth_field
 
@@ -487,8 +496,6 @@ class DialogueGPTModel(NLPModel):
             input_ids,
             attn_masks,
             labels,
-            generate_input_ids,
-            generate_attn_masks,
             candidate_input_ids,
             candidate_attn_masks,
             template_length,
@@ -507,7 +514,7 @@ class DialogueGPTModel(NLPModel):
         # autoregressively generate candidates (possibly with constraint)
         elif self.eval_mode == "generation":
             generated_field, ground_truth_field = self.generate_candidates(
-                generate_input_ids, generate_attn_masks, labels, template_length, input_ids,
+                labels, template_length, input_ids, attn_masks
             )
         # comparing likelihood based on the perplexity of generating " Answer: yes" after "<utterance> <label_type>: <candidate_label>"
         # (optionally, the difference of that with " Answer: no" using the flag minus_negative=True)
@@ -528,16 +535,12 @@ class DialogueGPTModel(NLPModel):
             'ground_truth_field': ground_truth_field,
         }
 
-    def process_into_structured_fields(self, generated_tokens, labels, left_padding=True, template_length=None):
+    def process_into_structured_fields(self, generated_tokens, labels, template_length=None):
 
         generated_field = []
 
         for i in range(generated_tokens.size(0)):
-            if left_padding and template_length is None:
-                start_point = self._cfg.dataset.max_seq_length
-            else:
-                start_point = template_length[i].item()
-
+            start_point = 0 if template_length is None else template_length[i].item()
             stop_point = generated_tokens.size(1)
 
             for j in range(start_point, stop_point):

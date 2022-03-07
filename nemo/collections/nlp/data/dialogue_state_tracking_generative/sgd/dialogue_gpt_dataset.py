@@ -54,6 +54,7 @@ class DialogueGPTDataset(Dataset):
             self.label_to_description = defaultdict(str)
         self.all_possible_labels = set()
         self.tokenizer = tokenizer
+        self.tokenizer.tokenizer.padding_side = "right"
         self.max_candidates = 2
         if not isinstance(dataset_split, str):
             dataset_split = dataset_split[0]
@@ -195,8 +196,6 @@ class DialogueGPTDataset(Dataset):
                 base_template + ' ' + self.format_target(candidate, slots=slots) for candidate in candidates
             ]
 
-        self.tokenizer.tokenizer.padding_side = "right"
-
         encodings_dict, input_ids, attn_masks = self.default_encode(sentence)
 
         candidate_tokenized_sentences = [
@@ -218,26 +217,10 @@ class DialogueGPTDataset(Dataset):
             [-100 if i < training_mask_end else labels.data[i] for i in range(len(labels.data))]
         )
 
-        # left padding is for batch generation but right padding is essential for teacher force training
-        self.tokenizer.tokenizer.padding_side = "left"
-
-        encodings_dict_without_answer = self.tokenizer.tokenizer(
-            sentence_without_answer,
-            truncation=True,
-            max_length=self.cfg.max_seq_length,
-            padding="max_length",
-            return_tensors="pt",
-        )
-
-        generate_input_ids = torch.squeeze(encodings_dict_without_answer['input_ids'])
-        generate_attn_masks = torch.squeeze(encodings_dict_without_answer['attention_mask'])
-
         return (
             input_ids,
             attn_masks,
             labels,
-            generate_input_ids,
-            generate_attn_masks,
             candidate_input_ids,
             candidate_attn_masks,
             training_mask_end,
