@@ -85,7 +85,7 @@ RUN --mount=from=nemo-src,target=/tmp/nemo cd /tmp/nemo && pip install ".[all]" 
     python -c "import nemo.collections.tts as nemo_tts" && \
     python -c "import nemo_text_processing.text_normalization as text_normalization"
 
-# TODO: Update to newer numba 0.56.0RC1 for 22.02 container
+# TODO: Update to newer numba 0.56.0RC1 for 22.03 container if possible
 # install pinned numba version
 # RUN conda install -c conda-forge numba==0.54.1
 
