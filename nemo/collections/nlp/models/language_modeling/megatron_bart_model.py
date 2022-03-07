@@ -38,14 +38,14 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
         super()._build_vocab()
 
     def _add_special_tokens_to_tokenizer(self):
-        if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
-            additional_tokens = {
-                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-            }
-            self.tokenizer.add_special_tokens(additional_tokens)
-
-        elif self._cfg.tokenizer.library == 'sentencepiece':
-            # Need to add mask tokens to the tokenizer if they don't exist.
+        """BART related tokens (and Megatron regquired tokens)"""
+        if self._cfg.tokenizer.library == 'sentencepiece':
+            # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.
+            # If cls, sep and mask are not attributes of the tokenizer, add it.
+            if not hasattr(self.tokenizer, 'cls_token'):
+                self.tokenizer.add_special_tokens({'cls_token': '<cls>'})
+            if not hasattr(self.tokenizer.tokenizer, 'sep_id'):
+                self.tokenizer.add_special_tokens({'sep_token': '<sep>'})
             if not hasattr(self.tokenizer.tokenizer, 'mask_id'):
                 self.tokenizer.add_special_tokens({'mask_token': '<mask>'})
 

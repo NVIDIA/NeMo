@@ -323,7 +323,6 @@ def create_masked_lm_predictions(
             elif masking_style == "t5":
                 masked_token = mask_id
             elif masking_style == "bart":
-                # FIXME: add all BART self-supervision
                 masked_token = mask_id
             else:
                 raise ValueError("invalid value of masking style")
@@ -449,6 +448,7 @@ def build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
+    deleted_lm_prob
 ):
 
     if len(data_prefix) == 1:
@@ -551,6 +551,7 @@ def _build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
+    deleted_lm_prob=0.0,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -592,6 +593,7 @@ def _build_train_valid_test_datasets(
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
 
         dataset = None
         if splits[index + 1] > splits[index]:
@@ -664,6 +666,25 @@ def _build_train_valid_test_datasets(
                     documents=documents,
                     indexed_dataset=indexed_dataset,
                     num_samples=int(train_valid_test_num_samples[index]),
+                    **kwargs,
+                )
+            elif dataset_type == DSET_TYPE_BART:
+                assert tokenizer is not None, "Tokenizer is required for BART dataset"
+                logging.info("Instatiating BART Dataset ...")
+                dataset = T5Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
+                    indexed_dataset=indexed_dataset,
+                    masked_lm_prob=masked_lm_prob,
+                    max_seq_length_dec=max_seq_length_dec,
+                    short_seq_prob=short_seq_prob,
+                    max_ngram_size=max_ngram_size,
+                    mean_ngram_size=mean_ngram_size,
+                    geometric_dist=geometric_dist,
+                    permutation=permutation,
+                    whole_word_masking=whole_word_masking,
+                    favor_long_ngrams=favor_long_ngrams,
                     **kwargs,
                 )
             else:
