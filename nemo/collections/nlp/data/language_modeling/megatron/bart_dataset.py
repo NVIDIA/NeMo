@@ -224,7 +224,6 @@ def build_training_sample(
         geometric_dist=geometric_dist,
         masking_style="bart",
         tokenizer_type=tokenizer_type,
-        delete_mask_prob=delete_mask_prob,
     )
 
     # Padding.
@@ -238,6 +237,8 @@ def build_training_sample(
         masked_spans,
         bos_id,
         eos_id,
+        delete_mask_prob=delete_mask_prob,
+        np_rng=np_rng,
     )
 
     train_sample = {
@@ -263,9 +264,9 @@ def pad_and_convert_to_numpy(
     bos_id=None,
     eos_id=None,
     delete_mask_prob=0,
+    np_rng=None,
 ):
     """Pad sequences and convert them to numpy."""
-    # TODO: finish me
     bart_input = []
     (bart_decoder_in, bart_decoder_out) = ([bos_id], [])
     (start_index, end_index) = (0, None)
@@ -275,7 +276,9 @@ def pad_and_convert_to_numpy(
         bart_decoder_out.extend(span.label)
 
         end_index = span.index[0]
-        bart_input.extend(tokens[start_index:end_index])
+        # delete mask with probability delete_mask_prob
+        if np_rng.rand() >= delete_mask_prob:
+            bart_input.extend(tokens[start_index:end_index])
 
         # the next start index is the token after the last span token
         start_index = span.index[-1] + 1
