@@ -105,7 +105,7 @@ def main():
         "--pipeline_model_parallel_size", type=int, default=1, required=False,
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
-    parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
+    parser.add_argument("--batch_size", default=1, type=int, required=False, help="Evaluation batch_size")
     parser.add_argument(
         "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
     )
@@ -116,9 +116,11 @@ def main():
     if args.precision in ["32", "16"]:
         args.precision = int(float(args.precision))
 
+    # trainer required for restoring model parallel models
     trainer = Trainer(
         plugins=NLPDDPPlugin(),
-        gpus=args.tensor_model_parallel_size * args.pipeline_model_parallel_size,
+        devices=args.tensor_model_parallel_size * args.pipeline_model_parallel_size,
+        accelerator='gpu',
         precision=args.precision,
     )
 
@@ -163,7 +165,7 @@ def main():
     # defining type of request
     if args.path_to_file != "":
         request = []
-        prompts = open(args.path_to_file, 'r')
+        prompts = open(args.path_to_file, 'r', encoding='utf-8')
 
         for prompt in prompts.readlines():
             prompt = prompt.split('\n')[0]
