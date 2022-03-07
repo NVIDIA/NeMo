@@ -783,6 +783,9 @@ class MegatronGPTModel(NLPModel):
                 fp32_grad_accum = False
                 # TODO: contiguous grad bucket for fp16 is also planned to be supported
                 contiguous_grad_bucket = False
+                raise ValueError(
+                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
+                )
 
             # TODO: this should be true when not using pipeline parallelism
             # we will support that for bf16 when we have async handler from apex
