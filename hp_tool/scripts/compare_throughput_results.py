@@ -44,7 +44,7 @@ def main(cfg):
     print(f"Top {output_top_n} configs sorted from fastest to slowest:")
     for i, (config, avg_time) in enumerate(result_models):
         print(f"Config #{i+1}: {config} with {avg_time:.4f}s per global step.")
-        if i == output_top_n:
+        if i+1 == output_top_n:
             break
 
     print("\n==================================================")

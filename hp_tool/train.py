@@ -51,23 +51,13 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def create_bcp_file(
-    train_cmd,
-    num_nodes,
-    log_file,
-    new_script_path
-):
-    with open(new_script_path, "w") as f:
-        f.writelines(f'bcprun -n {num_nodes} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
-        f.writelines("\n")
-        f.writelines("set +x \n")
-    os.chmod(new_script_path, 0o755)
-
-
 def run_training(cfg, bignlp_hp_tool_path):
     """
     Main function to launch a training job, with the config given in cfg.
     """
+    del cfg["cluster"]["cluster"]
+    del cfg["cluster"]["env"]
+
     hydra_args = convert_to_cli(cfg)
 
     # Read config
@@ -84,7 +74,11 @@ def run_training(cfg, bignlp_hp_tool_path):
     results_dir = run_cfg.results_dir
     time_limit = run_cfg.time_limit
     
-    os.makedirs(results_dir, exist_ok=True)
+    if os.path.isdir(results_dir):
+        return None
+    else:
+        os.makedirs(results_dir, exist_ok=True)
+
     
     # Shared between BCP and BCM 
     scripts_dir = os.path.join(results_dir, "train_scripts")
@@ -97,47 +91,46 @@ def run_training(cfg, bignlp_hp_tool_path):
     ntasks_per_node = train_cfg.trainer.gpus
 
     # BCM parameters
-    if cfg.cluster_type == "bcm":
-        partition = cluster_cfg.partition
-        account = cluster_cfg.account
-        exclusive = cluster_cfg.exclusive
-        gpus_per_task = cluster_cfg.gpus_per_task
-        job_name_prefix = cluster_cfg.job_name_prefix
-        dependency = run_cfg.dependency
-        job_name = job_name_prefix + name
+    partition = cluster_cfg.partition
+    account = cluster_cfg.account
+    exclusive = cluster_cfg.exclusive
+    gpus_per_task = cluster_cfg.gpus_per_task
+    job_name_prefix = cluster_cfg.job_name_prefix
+    dependency = run_cfg.dependency
+    job_name = job_name_prefix + name
 
-        # Process container-mounts.
-        mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-        if container_mounts is not None:
-            assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
-            for mount in container_mounts:
-                if mount is not None and isinstance(mount, str):
-                    mounts_str += f",{mount}:{mount}"
+    # Process container-mounts.
+    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
+    if container_mounts is not None:
+        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        for mount in container_mounts:
+            if mount is not None and isinstance(mount, str):
+                mounts_str += f",{mount}:{mount}"
 
-        flags = (
-            f"--container-image {container} "
-            f"--container-mounts {mounts_str} "
-            f"-o {results_dir}/{name}-%j.log "
-            f"-e {results_dir}/{name}-%j.error "
-        )
+    flags = (
+        f"--container-image {container} "
+        f"--container-mounts {mounts_str} "
+        f"-o {results_dir}/{name}-%j.log "
+        f"-e {results_dir}/{name}-%j.error "
+    )
 
-        create_slurm_file(
-            new_script_path=new_script_path,
-            train_cmd=train_cmd,
-            job_name=job_name,
-            flags=flags,
-            dependency=dependency,
-            exclusive=exclusive,
-            time=time_limit,
-            nodes=nodes,
-            ntasks_per_node=ntasks_per_node,
-            gpus_per_task=gpus_per_task,
-            partition=partition,
-            account=account,
-        )
-        job_id = subprocess.check_output(
-            [f"sbatch --parsable {new_script_path}"], shell=True
-        )
-        dependency = job_id = job_id.decode("utf-8")
-        print(f"Submitted Training script with job id: {dependency}")
-        return dependency
+    create_slurm_file(
+        new_script_path=new_script_path,
+        train_cmd=train_cmd,
+        job_name=job_name,
+        flags=flags,
+        dependency=dependency,
+        exclusive=exclusive,
+        time=time_limit,
+        nodes=nodes,
+        ntasks_per_node=ntasks_per_node,
+        gpus_per_task=gpus_per_task,
+        partition=partition,
+        account=account,
+    )
+    job_id = subprocess.check_output(
+        [f"sbatch --parsable {new_script_path}"], shell=True
+    )
+    dependency = job_id = job_id.decode("utf-8")
+    print(f"Submitted Training script with job id: {dependency}")
+    return dependency

@@ -141,6 +141,7 @@ def generate_base_config(
     # MODEL
     layers, hs, att_heads, lr = utils.calculate_layers_hs_lr(model_size_in_b=model_size_in_b)
     base_cfg["model"]["num_layers"] = int(layers)
+    base_cfg["model"]["global_batch_size"] = int(gbs)
     base_cfg["model"]["hidden_size"] = int(hs)
     base_cfg["model"]["num_attention_heads"] = int(att_heads)
     base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6)

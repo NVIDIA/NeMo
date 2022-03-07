@@ -5,3 +5,14 @@ gpus_per_task: null
 mem: 0
 overcommit: True
 job_name_prefix: "joc-bignlp_gpt3:"
+
+cluster:
+  type: pyxis
+  account: joc
+  partition: luna
+  srun_args: ["--mpi", "pmix"]
+  support_gpus_allocation: False
+env:
+  job_name_prefix: "joc-bignlp_gpt3:"
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.01-py3

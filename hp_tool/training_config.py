@@ -14,7 +14,8 @@ def search_training_config(base_cfg, model_size, cfg):
         base_cfg, model_size, cfg
     )
     # Launch candidate configs.
-    job_ids = launch_grid_search_configs(base_dir, results_cfgs, cfg)
+    #job_ids = launch_grid_search_configs(base_dir, results_cfgs, cfg)
+    job_ids = None
     # Measure and compare throughputs for each config.
     launch_throughput_measure(job_ids, model_size, cfg)
 
@@ -115,7 +116,8 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
             new_cfg.training = conf
             new_cfg.cluster = cfg.cluster
             job_id = train.run_training(new_cfg, cfg.bignlp_hp_tool_path)
-            job_ids.append(job_id[:-1])
+            if job_id is not None:
+                job_ids.append(job_id[:-1])
             count += 1
             if count == limit:
                 return job_ids

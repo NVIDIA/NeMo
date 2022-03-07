@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - cluster: bcm
-  - search_config: 126m
+  - search_config: 40b
   - override hydra/job_logging: stdout
 
 hydra:

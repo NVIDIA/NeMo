@@ -250,7 +250,7 @@ def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_pp):
         new_cfg["run"]["name"] = \
                 f"{new_cfg['run']['name']}_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
         print(
-            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, num_gpus={num_gpus}, act_ckpt_layers={act}. Adding to directory."
+            f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}. Adding to directory."
         )
         return new_cfg
     return None
