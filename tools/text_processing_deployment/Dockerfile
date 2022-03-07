@@ -31,7 +31,7 @@ RUN apt-get install build-essential -y && apt-get install wget -y
 RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v2.5.0/protobuf-2.5.0.tar.gz
 RUN tar xzvf protobuf-2.5.0.tar.gz
 RUN cd protobuf-2.5.0 && ./configure && make && make install && ldconfig
-RUN pip install pynini==2.1.4
+RUN conda install -c conda-forge thrax=1.3.4 -y
 RUN git clone https://github.com/yzhang123/sparrowhawk.git
 RUN cd sparrowhawk &&  git checkout test &&   apt-get install -y autoconf &&     bash autoreconf && ./configure && make && make install && ldconfig
 RUN git clone https://github.com/kward/shunit2.git

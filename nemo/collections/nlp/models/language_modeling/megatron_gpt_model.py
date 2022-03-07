@@ -708,13 +708,13 @@ class MegatronGPTModel(NLPModel):
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
 
-        # Initalize soft prompts before loading datasets and training
-        if self.use_soft_prompts:
-            self.init_new_prompts()
-
         if stage == 'predict':
             return
         else:
+            # Initalize soft prompts before loading datasets and training
+            if self.use_soft_prompts:
+                self.init_new_prompts()
+
             # TODO: consider adding a ModelPT guard to check if model is being restored.
             # allowing restored models to optionally setup datasets
             self.build_train_valid_test_datasets()
