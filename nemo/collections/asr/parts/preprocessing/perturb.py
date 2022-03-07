@@ -684,6 +684,38 @@ class TranscodePerturbation(Perturbation):
         return
 
 
+class RandomSegmentPerturbation(Perturbation):
+    """
+    Returns a random segment from input of duration "duration_sec". 
+    Returns input as is, if duration_sec >= duration of input.
+
+    This is intended for self-supervised learning.
+    Not for supervised as extracting corresponding text is not feasible.
+
+
+    Args:
+        duration_sec (float): duration of the segment to be extracted
+        rng: Random number generator
+    """
+
+    def __init__(self, duration_sec=32., rng=None):
+        if duration_sec <= 0:
+            raise ValueError("duration_sec should be > 0")
+
+        self._duration_sec = duration_sec
+        self._rng = random.Random() if rng is None else rng
+
+    def perturb(self, data):
+        if self._duration_sec >= data.duration:
+            start_time = 0.0
+            end_time = data.duration
+        else:
+            start_time = self._rng.uniform(0.0, data.duration-self._duration_sec)
+            end_time = start_time + self._duration_sec
+        
+        data.subsegment(start_time=start_time, end_time=end_time)
+
+
 perturbation_types = {
     "speed": SpeedPerturbation,
     "time_stretch": TimeStretchPerturbation,
@@ -694,6 +726,7 @@ perturbation_types = {
     "white_noise": WhiteNoisePerturbation,
     "rir_noise_aug": RirAndNoisePerturbation,
     "transcode_aug": TranscodePerturbation,
+    "random_segment": RandomSegmentPerturbation,
 }
 
 
