@@ -92,7 +92,9 @@ class T5Dataset(MegatronDataset):
                 raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
             self.tokenizer_type = 'sentencepiece'
             if whole_word_masking:
-                raise ValueError("Whole word masking is not supported with sentencepiece tokenizers and only with wordpiece tokenizers. Please set it to False.")
+                raise ValueError(
+                    "Whole word masking is not supported with sentencepiece tokenizers and only with wordpiece tokenizers. Please set it to False."
+                )
 
         self.cls_id = tokenizer.cls_id
         self.sep_id = tokenizer.sep_id
