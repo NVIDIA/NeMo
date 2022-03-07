@@ -448,7 +448,7 @@ def build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
-    deleted_lm_prob
+    delete_mask_prob=0,
 ):
 
     if len(data_prefix) == 1:
@@ -474,6 +474,7 @@ def build_train_valid_test_datasets(
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
+            delete_mask_prob=delete_mask_prob,
         )
     # Blending dataset.
     # Parse the values.
@@ -507,6 +508,7 @@ def build_train_valid_test_datasets(
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
+            delete_mask_prob=delete_mask_prob,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -552,6 +554,7 @@ def _build_train_valid_test_datasets(
     whole_word_masking=True,
     favor_long_ngrams=False,
     deleted_lm_prob=0.0,
+    delete_mask_prob=0,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -671,7 +674,7 @@ def _build_train_valid_test_datasets(
             elif dataset_type == DSET_TYPE_BART:
                 assert tokenizer is not None, "Tokenizer is required for BART dataset"
                 logging.info("Instatiating BART Dataset ...")
-                dataset = T5Dataset(
+                dataset = BARTDataset(
                     cfg=cfg,
                     trainer=trainer,
                     tokenizer=tokenizer,
@@ -685,6 +688,7 @@ def _build_train_valid_test_datasets(
                     permutation=permutation,
                     whole_word_masking=whole_word_masking,
                     favor_long_ngrams=favor_long_ngrams,
+                    delete_mask_prob=delete_mask_prob,
                     **kwargs,
                 )
             else:
