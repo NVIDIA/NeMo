@@ -250,8 +250,10 @@ class DialogueGPTModel(NLPModel):
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
             # 'assit_intent_and_slot' has prompt_id of 1
+            # 'assit_intent_and_slot_with_options' has prompt_id of 2
             prompt_ids = torch.tensor([1] * input_ids.size(0)) if self.prompt_tags else None
-
+            if self.cfg.dataset.prompt_template == "prompt_tuning_with_options" and prompt_ids is not None:
+                prompt_ids = prompt_ids * 2
             attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
             full_attention_mask = torch.cat([attn_mask_add_on, attention_mask], axis=-1)
             full_attention_mask_expand = torch.tril(

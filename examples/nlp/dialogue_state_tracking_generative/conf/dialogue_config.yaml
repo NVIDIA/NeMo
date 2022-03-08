@@ -74,6 +74,7 @@ model:
     field: intent # intemt, slots, service
     prompt_template: default # default, prompt_tuning, i_want_to
     target_template: default # default, with_description, with_slots
+    few_shot: 0 # int ; 0 to 10, for number of examples in prompt
     debug_mode: false # small number of examples for debugging
     eval_mode: ranking # ranking or generation or binary_score
     binary_score_subsample: false # subsample negative examples for binary score training

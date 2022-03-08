@@ -19,6 +19,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
 
 import copy
+import random
 import re
 from collections import defaultdict
 
@@ -63,6 +64,8 @@ class DialogueGPTDataset(Dataset):
             self.preprocess_feature(idx)
         if self.cfg.debug_mode:
             self.features = self.features[:16]
+        # for few shot learning to append in the prompt
+        self.lm_features = self.get_lm_samples()
 
     def transform(self, label):
         if self.cfg.task == "sgd":
@@ -138,13 +141,53 @@ class DialogueGPTDataset(Dataset):
         else:
             raise ValueError("Please choose a target format from {default, with_description, with_slots}")
 
-    def format_prompt(self, utterance):
+    def get_lm_samples(self):
+        max_sample_length = 0
+        lm_features = []
+        for idx in range(len(self.features)):
+            ex = self.features[idx].data
+            utterance = ex["utterance"]
+            label = ex["labels"][self.label_type]
+            slots = ex["labels"]["slots"] if self.cfg.target_template == "with_slots" else None
+            lm_feature = self.format_prompt(utterance) + ' ' + self.format_target(label, slots=slots)
+            feature_len = self.get_n_tokens_in_sentence(lm_feature)
+            max_sample_length = max(max_sample_length, feature_len)
+            lm_features.append(lm_feature)
+        print("max feature length per sample with label: ", max_sample_length)
+        print(
+            "please adjust max seq len to at least {} * ({} + 1) = {} but not too much more for efficiency".format(
+                max_sample_length, self.cfg.few_shot, max_sample_length * (1 + self.cfg.few_shot)
+            )
+        )
+        return lm_features
+
+    def format_prompt(self, utterance, few_shot=0, idx=None):
         if self.cfg.prompt_template == "default":
             base_template = utterance + ' ' + self.label_type + ':'
         elif self.cfg.prompt_template == "i_want_to":
             base_template = utterance + ' ' + 'I want to'
         elif self.cfg.prompt_template == "prompt_tuning":
             base_template = utterance + '\n' + self.label_type + ':'
+        elif self.cfg.prompt_template == "prompt_tuning_with_options":
+            base_template = (
+                'possible intents: '
+                + ', '.join(sorted(list(self.all_possible_labels)))
+                + '\n\n'
+                + utterance
+                + '\n'
+                + self.label_type
+                + ':'
+            )
+
+        if few_shot > 0:
+            few_shot_indices = random.sample(range(len(self.features)), few_shot + 1)
+            few_shot_indices = [i for i in few_shot_indices if i != idx][:few_shot]
+            few_shot_samples = [self.lm_features[i] for i in few_shot_indices]
+            base_template = (
+                self.tokenizer.tokenizer.pad_token.join(few_shot_samples)
+                + self.tokenizer.tokenizer.pad_token
+                + base_template
+            )
         return base_template
 
     def __getitem__(self, idx: int):
@@ -173,7 +216,8 @@ class DialogueGPTDataset(Dataset):
 
         slots = ex["labels"]["slots"] if self.cfg.target_template == "with_slots" else None
 
-        base_template = self.format_prompt(utterance)
+        base_template = self.format_prompt(utterance, few_shot=self.cfg.few_shot, idx=idx)
+
         sentence_without_answer = base_template
 
         sentence = base_template + ' ' + self.format_target(label, slots=slots)
