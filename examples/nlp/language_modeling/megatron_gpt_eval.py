@@ -127,20 +127,20 @@ def main():
         precision=args.precision,
     )
 
-    app_state = AppState()
-    if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
-        app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
-        (
-            app_state.tensor_model_parallel_rank,
-            app_state.pipeline_model_parallel_rank,
-            app_state.model_parallel_size,
-            _,
-        ) = fake_initialize_model_parallel(
-            world_size=app_state.model_parallel_size,
-            rank=trainer.global_rank,
-            tensor_model_parallel_size_=args.tensor_model_parallel_size,
-            pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
-        )
+    # app_state = AppState()
+    # if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+    #     app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+    #     (
+    #         app_state.tensor_model_parallel_rank,
+    #         app_state.pipeline_model_parallel_rank,
+    #         app_state.model_parallel_size,
+    #         _,
+    #     ) = fake_initialize_model_parallel(
+    #         world_size=app_state.model_parallel_size,
+    #         rank=trainer.global_rank,
+    #         tensor_model_parallel_size_=args.tensor_model_parallel_size,
+    #         pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
+    #     )
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
     model.freeze()
