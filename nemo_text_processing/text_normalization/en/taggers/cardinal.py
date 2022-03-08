@@ -95,8 +95,9 @@ class CardinalFst(GraphFst):
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
         if deterministic:
-            long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-            final_graph = plurals._priority_union(long_numbers, self.graph, NEMO_SIGMA).optimize() | serial_graph
+            # long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
+            # final_graph = plurals._priority_union(long_numbers, self.graph, NEMO_SIGMA).optimize() | serial_graph
+            final_graph = self.graph | serial_graph
             cardinal_with_leading_zeros = pynini.compose(
                 pynini.accep("0") + pynini.closure(NEMO_DIGIT), self.single_digits_graph
             )
