@@ -67,6 +67,8 @@ model:
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+  masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
   activation: 'gelu'
