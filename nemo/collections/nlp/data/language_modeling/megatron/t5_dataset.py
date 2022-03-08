@@ -270,6 +270,7 @@ def pad_and_convert_to_numpy(
     t5_input = []
     (t5_decoder_in, t5_decoder_out) = ([bos_id], [])
     (start_index, end_index) = (0, None)
+    import pudb; pudb.set_trace()
     for span in masked_spans:
         flag = sentinel_tokens.popleft()
 

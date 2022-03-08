@@ -276,7 +276,7 @@ def pad_and_convert_to_numpy(
         bart_decoder_out.extend(span.label)
 
         end_index = span.index[0]
-        # delete mask with probability delete_mask_prob
+        # delete mask with probability delete_mask_prob (i.e., do not include mask)
         if np_rng.rand() >= delete_mask_prob:
             bart_input.extend(tokens[start_index:end_index])
 
