@@ -206,7 +206,7 @@ def build_training_sample(
 
     # Masking.
     max_predictions_per_seq = max_num_tokens
-    (tokens, masked_positions, masked_labels, _, masked_spans) = create_masked_lm_predictions(
+    (output_tokens, masked_positions, masked_labels, _, masked_spans) = create_masked_lm_predictions(
         tokens=tokens,
         vocab_id_list=vocab_id_list,
         vocab_id_to_token_dict=vocab_id_to_token_dict,
@@ -229,6 +229,7 @@ def build_training_sample(
     # Padding.
     tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_to_numpy(
         tokens,
+        output_tokens,
         masked_positions,
         masked_labels,
         pad_id,
@@ -255,6 +256,7 @@ def build_training_sample(
 
 def pad_and_convert_to_numpy(
     tokens,
+    output_tokens,
     masked_positions,
     masked_labels,
     pad_id,
