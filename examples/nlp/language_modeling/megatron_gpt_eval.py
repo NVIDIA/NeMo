@@ -109,8 +109,8 @@ def main():
     parser.add_argument(
         "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
     )
-    parser.add_argument("--devices", default=1, help="PyTorch Lightning Trainer devices flag")
-    parser.add_argument("--num_nodes", default=1, help="PyTorch Lightning Trainer num_nodes flag")
+    parser.add_argument("--devices", default=1, type=int, help="PyTorch Lightning Trainer devices flag")
+    parser.add_argument("--num_nodes", default=1, type=int, help="PyTorch Lightning Trainer num_nodes flag")
 
     args = parser.parse_args()
 
@@ -120,27 +120,12 @@ def main():
 
     # trainer required for restoring model parallel models
     trainer = Trainer(
-        plugins=NLPDDPPlugin(),
+        plugins=[NLPDDPPlugin()],
         devices=args.devices,
         num_nodes=args.num_nodes,
         accelerator='gpu',
         precision=args.precision,
     )
-
-    # app_state = AppState()
-    # if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
-    #     app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
-    #     (
-    #         app_state.tensor_model_parallel_rank,
-    #         app_state.pipeline_model_parallel_rank,
-    #         app_state.model_parallel_size,
-    #         _,
-    #     ) = fake_initialize_model_parallel(
-    #         world_size=app_state.model_parallel_size,
-    #         rank=trainer.global_rank,
-    #         tensor_model_parallel_size_=args.tensor_model_parallel_size,
-    #         pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
-    #     )
 
     model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
     model.freeze()
