@@ -109,6 +109,8 @@ def main():
     parser.add_argument(
         "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
     )
+    parser.add_argument("--devices", default=1, help="PyTorch Lightning Trainer devices flag")
+    parser.add_argument("--num_nodes", default=1, help="PyTorch Lightning Trainer num_nodes flag")
 
     args = parser.parse_args()
 
@@ -119,8 +121,10 @@ def main():
     # trainer required for restoring model parallel models
     trainer = Trainer(
         plugins=NLPDDPPlugin(),
-        devices=args.tensor_model_parallel_size * args.pipeline_model_parallel_size,
+        devices=args.devices,
+        num_nodes=args.num_nodes,
         accelerator='gpu',
+        strategy='ddp',
         precision=args.precision,
     )
 
