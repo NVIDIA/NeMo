@@ -13,7 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    delete_space,
+    insert_space,
+)
 
 try:
     import pynini
@@ -48,6 +54,9 @@ class MeasureFst(GraphFst):
             + pynutil.delete("\"")
             + delete_space
         )
+
+        if not deterministic:
+            unit |= pynini.compose(unit, pynini.cross(pynini.union("inch", "inches"), "\""))
 
         graph_decimal = (
             pynutil.delete("decimal {")
