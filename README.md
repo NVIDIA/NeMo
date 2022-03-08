@@ -55,6 +55,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
         - [5.7.2. Basic text generation](#572-basic-text-generation)
         - [5.7.3. Longer text generation](#573-longer-text-generation)
         - [5.7.4. Dialogue text generation](#574-dialogue-text-generation)
+        - [5.7.5. Inference parameters](#575-inference-parameters)
 - [6. Performance](#6-performance)
     - [6.1. Results](#61-results)
         - [6.1.1. Training Accuracy Results](#611-training-accuracy-results)
@@ -1481,8 +1482,8 @@ cluster:                # example config for enterprise cluster
   enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:21.12-py3-base
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:21.12-py3-base
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.02-py3-base
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.02-py3-base
 ```
 
 The `cluster` section configures Slurm cluster parameters. The `srun_args`
@@ -1508,8 +1509,8 @@ cluster:                # example config for enterprise cluster
   instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:21.12-py3-base
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:21.12-py3-base
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.02-py3-base
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.02-py3-base
 ```
 
 The `cluster` section set Base Command Platform parameters:
@@ -1541,14 +1542,14 @@ Also, the user needs to define the Inference Scripts workspace inside the NGC
 workspace.  Example Inference Script call:
 
 ```sh
-    python3 ./infer_scripts/prepare_model_repository.py \
+    python3 ./bignlp/infer_scripts/prepare_model_repository.py \
     --cluster-config-path ./conf/inference/cluster_bcp.yaml \
-    --navigator-config-path ./conf/inference/medium_mbs_128-pp_1-tp_8-io_60_20.yaml \ # will be copied to the infer_workspace folder
+    --navigator-config-path ./conf/inference/medium_mbs_128-pp_1-tp_8-io_60_20.yaml \
     --model-path /<path_to_mounted_workspace>/5b-pile-all-optimize-checkpoint/release \
     --model-name test_5b \
-    --model-repository-path /<path_to_mounted_workspace>/test_5b \ # location of the model repository
+    --model-repository-path /<path_to_mounted_workspace>/test_5b \
     --dataset-dir /<path_to_mounted_workspace>/lambada \
-    --accuracy-tests --performance-tests \ # type of tests to run
+    --accuracy-tests --performance-tests \
     --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S) # name of the infer_workspace folder for this run
 ```
 
@@ -1636,10 +1637,10 @@ The outputs:
 * NVIDIA Triton model stores with a placeholder for the trained model checkpoint.
 
 You can benchmark a model using
-`infer_scripts/profile_model_with_random_weights.py` script:
+`bignlp/infer_scripts/profile_model_with_random_weights.py` script:
 
 ```
-python3 ./infer_scripts/profile_model_with_random_weights.py \
+python3 ./bignlp/infer_scripts/profile_model_with_random_weights.py \
     --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
     --model-path conf/inference/model_specs/5b.ft \
@@ -1733,8 +1734,8 @@ The outputs:
 
 Model repository preparation for the NVIDIA Triton Inference Server:
 
-```python
-python3 ./infer_scripts/profile_model.py \
+```sh
+python3 ./bignlp/infer_scripts/profile_model.py \
     --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/profile_offline.yaml \
     --model-path <Your path to training checkpoint> \
@@ -1767,7 +1768,7 @@ The parameters:
 
 Megatron checkpoint must have embedded vocabulary in PyTorch checkpoint file
 or vocabulary file stored in `<model-path>/vocab.json`. Vocabulary embedding can
-be performed with `./infer_scripts/embed_vocab_in_megatron_checkpoint.py` script.
+be performed with `./bignlp/infer_scripts/embed_vocab_in_megatron_checkpoint.py` script.
 
 The parameters `tensor-parallel-sizes`, `pipeline-parallel-sizes`,
 `input-output-lengths`, and `max-batch-sizes` are used to generate combinations of
@@ -1874,8 +1875,8 @@ The outputs:
 The accuracy report is stored in the current directory in the file `lambada_metrics.csv`.
 You can verify your model running in NVIDIA Triton by using the Lambada dataset:
 
-```
-python3 ./infer_scripts/prepare_model_repository.py \
+```sh
+python3 ./bignlp/infer_scripts/prepare_model_repository.py \
     --cluster-config-path <Your cluster config>.yaml \
     --navigator-config-path ./conf/inference/small_mbs_256-pp_1-tp_1-io_60_20.yaml \
     --model-path <Your path to training checkpoint> \
@@ -1900,7 +1901,7 @@ Parameters:
 
 Megatron checkpoint must have embedded vocabulary in PyTorch checkpoint file
 or vocabulary file stored in `<model-path>/vocab.json`. Vocabulary embedding can
-be performed with `./infer_scripts/embed_vocab_in_megatron_checkpoint.py` script.
+be performed with `./bignlp/infer_scripts/embed_vocab_in_megatron_checkpoint.py` script.
 
 The parameter `navigator-config-path` contains the Navigator configuration to
 convert a model, set up a NVIDIA Triton, and parameters to perform performance
@@ -1930,8 +1931,8 @@ The outputs:
 * Running NVIDIA Triton model instance serving model in cluster.
 
 To run the NVIDIA Triton Model Navigator, do the following:
-```
-python3 ./infer_scripts/run_tritonserver.py \
+```sh
+python3 ./bignlp/infer_scripts/run_tritonserver.py \
     --cluster-config-path <Your cluster config>.yaml \
     --model-repository-path <Your output path for NVIDIA Triton model repository>
 ```
@@ -1992,10 +1993,10 @@ FasterTransformer model converted from real checkpoint. You can use
 #### 5.7.2. Basic text generation
 
 The simple implementation of text input script was prepared
-as Python command line client script `infer_scripts/chatbot.py`.
+as Python command line client script `bignlp/infer_scripts/chatbot.py`.
 You can run it to send a simple request:
-```
-python3  infer_scripts/chatbot.py \
+```sh
+python3  bignlp/infer_scripts/chatbot.py \
     --url <TRITON CLUSTER NODE>:<PORT> \
     --protocol <PROTOCOL> \
     --datasets-dir <FOLDER WITH MERGES AND VOCABULARY> \
@@ -2014,15 +2015,15 @@ Parameters:
 
 
 The script will print out FasterTransformer output:
-```
-$ python3  infer_scripts/chatbot.py --url triton-node:8001 --protocol grpc \
+```sh
+python3  bignlp/infer_scripts/chatbot.py --url triton-node:8001 --protocol grpc \
     --datasets-dir /bignlp_workdir/data/ \
     --model-name 20B_mega_real --output-len 40 \
     --query "A car is"
  a vehicle that can be driven by one person.
 
 The word "car" comes from the French word for chariot, which was used to describe the first cars in the late 19th century. The first
-$
+
 ```
 
 You can change `output-len` to generate longer sequences, but a quality of output
@@ -2036,8 +2037,8 @@ The issue with this approach, is that a context of previous requests is lost qui
 forgets, what it outputted before.
 
 
-```
-python3  infer_scripts/author.py \
+```sh
+python3  bignlp/infer_scripts/author.py \
     --url <TRITON CLUSTER NODE>:<PORT> \
     --protocol <PROTOCOL> \
     --datasets-dir <FOLDER WITH MERGES AND VOCABULARY> \
@@ -2054,13 +2055,20 @@ Parameters:
 * `output-len`: Token sequence output length.
 * `query`: Text sent to model as a query.
 
+
+<details>
+
+<summary>
+Example below shows text generation.
+</summary>
+
 You can pass the text _AI is like a new steam engine_ to `author.py` to generate few paragraphs of text:
 
-```
-$ python3  infer_scripts/author.py --url triton-node:8001 --protocol grpc \
+```sh
+python3  bignlp/infer_scripts/author.py --url triton-node:8001 --protocol grpc \
     --datasets-dir /bignlp_workdir/data/ \
     --model-name 20B_mega_real \
-    --output-len 40
+    --output-len 40 \
     --query "AI is like a new steam engine."
  It’s not just about the technology, it’s also about how we can use AI to solve problems that are important for society and our economy.
 
@@ -2069,12 +2077,20 @@ The first thing I want to do is talk a little bit about what we mean by artifici
 What is Artificial Intelligence?
 
 Artificial intelligence is defined as “the ability of machines to perform tasks that normally require human intelligence.” This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example, a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes^CKeyboard handler detected with signal
-$
+
 ```
 You can interrupt text generation by using `Ctrl+C`.
 
+</details>
+
 The `author.py` script uses output from previous query to generate more text.
 The table below shows examples of input and output used for text generated above.
+
+<details>
+
+<summary>
+The table below shows examples of input and output used for text generated above.
+</summary>
 
 | Input len | Input text | Output len | Output text |
 | --------- | ---------- | ---------- | ----------- |
@@ -2083,19 +2099,22 @@ The table below shows examples of input and output used for text generated above
 | 40 | 'to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence? Artificial intelligence is defined as 'the ability of machines to perform' | 40 | ' tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
 | 41 | 'tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | ', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
 
+</details>
+
+
 #### 5.7.4. Dialogue text generation
 
 The `dialogue.py` script was created to showcase text generation for a simple
 support chatbot dialogue scenario:
 
-```
-python3  infer_scripts/dialogue.py \
+```sh
+python3  bignlp/infer_scripts/dialogue.py \
     --url <TRITON CLUSTER NODE>:<PORT> \
     --protocol <PROTOCOL> \
     --datasets-dir <FOLDER WITH MERGES AND VOCABULARY> \
     --model-name <MODEL NAME> \
     --output-len <REQUESTED OUTPUT LEN> \
-    --customer "<TEXT CONTEXT FOR CUSTOMER ROLE>"
+    --customer "<TEXT CONTEXT FOR CUSTOMER ROLE>" \
     --support "<TEXT CONTEXT FOR SUPPORT ROLE>"
 ```
 
@@ -2112,12 +2131,19 @@ A model needs prompt to be able to generate text useful for chatbot application.
 You must tell a machine, that it is working in a support team in your company and
 answering questions from customers.
 
-```
-$ python3 infer_scripts/dialogue.py --url triton-node:8001 --protocol grpc \
+<details>
+
+<summary>
+Example below shows text generation.
+</summary>
+
+
+```sh
+python3 bignlp/infer_scripts/dialogue.py --url triton-node:8001 --protocol grpc \
     --datasets-dir /bignlp_workdir/data/ \
     --model-name 20B_mega_real \
-    --output-len 40
-    --customer "NVIDIA customer:"
+    --output-len 40 \
+    --customer "NVIDIA customer:" \
     --support "NVIDIA machine learning expert:"
 NVIDIA customer:What is machine learning?
 NVIDIA machine learning expert: It's a way to make computers do things that they couldn't before.
@@ -2130,9 +2156,11 @@ NVIDIA machine learning expert: Yes, it can. It will take a few minutes to train
 NVIDIA customer: (END to FINISH): Is AI dangerous?
 NVIDIA machine learning expert: No, not at all! We're just trying to help you make better decisions.
 NVIDIA customer: (END to FINISH): END
-$
+
 
 ```
+
+</details>
 
 The `dialogue.py` script reads an input from console, so you can just type
 and press Enter to send a question to a model. It is extended with a prompt to
@@ -2167,16 +2195,94 @@ from user and later uses them to extract answer from a text generated by
 a model. You must consider similar output cleaning and post processing
 routines to use this solution.
 
+
+<details>
+
+<summary>
 The table below shows examples of input and output used for text generated above.
+</summary>
+
 | Input len | Input text | Output len | Output text |
 | --------- | ---------- | ---------- | ----------- |
-| 15 | 'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | '"It's a way to make computers do things that they couldn\'t before."------jamesblonde. I\'m not sure what the point of this article was. It seems' |
+| 15 | 'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | '"It's a way to make computers do things that they couldn\'t before."-jamesblonde. I\'m not sure what the point of this article was. It seems' |
 | 41 | 'NVIDIA machine learning expert: "It's a way to make computers do things that they couldn\'t before." NVIDIA customer: "What I need to start experiments with machine learning?" NVIDIA machine learning expert: ' | 40 | '"We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we'll be happy to show you how it works."The' |
 | 56 | 'NVIDIA machine learning expert: "We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works." NVIDIA customer: "Can AI recognize cats?" NVIDIA machine learning expert: ' | 40 | '"Sure! Let's try that!"A: I think the best way is to use a library like Googlec or tens.net has is is moreing with a a' |
 | 28 | 'NVIDIA machine learning expert: "Sure! Let's try that!" NVIDIA customer: "Can AI generate text?" NVIDIA machine learning expert: ' | 40 | '"Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Great! I\'ll wait here for you to finish training your model."A:' |
 | 36 | 'NVIDIA machine learning expert: "Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Is AI dangerous?" NVIDIA machine learning expert: ' | 40 | '"No, not at all! We\'re just trying to help you make better decisions."A: I think this is an interesting question and I\'m going to try my hand' |
 
+</details>
 
+#### 5.7.5. Inference parameters
+
+Inference related parameters like temperature, `top_k`, `top_p` are stored in
+`config.pbtxt` file inside Triton model repository.
+
+They are in parameters section:
+
+```
+parameters {
+  key: "top_k"
+  value {                                                                        
+    string_value: "1"
+  }
+}
+parameters {
+  key: "top_p"
+  value {
+    string_value: "0.0"
+  }
+}
+```
+You can modify them using text editor. FasterTransformer backend reads
+parameters, when model is loaded so compute node with new configuration must
+be started again to apply a change. Please remember that FasterTransformer
+can't be restarted in the same compute job due to MPI limitations.
+
+The C++ inference engine reads parameters from Triton configuration and runs inference
+using weight files. Some parameters are determined by weights created during
+training but some other parameters can be adjusted to improve inference results
+for different tasks.
+
+There are three main types of parameters:
+* Parameters derived from training configurations,
+   which can't be changed later, like number of decoder layers. You must train
+   a new model to modify them. The weight files structure depends on them.
+* Parameters adjustable for inference, which you can change after training to
+   improve accuracy of your inference task like `top_k`.
+* Parameter `tensor_para_size` decided during conversion from PyTorch to
+   FasterTransformer
+
+<details>
+
+<summary>
+Triton parameters table
+</summary>
+
+| Parameter name               | Example value | Determined by weights | Comment                                                                                                        |
+|------------------------------|---------------|-----------------------|----------------------------------------------------------------------------------------------------------------|
+| `beam_search_diversity_rate` | 0.0           | No                    | Adjust to improve inference results                                                                            |
+| `beam_width`                 | 1             | No                    | Adjust to improve inference results                                                                            |
+| `decoder_layers`             | 44            | Yes                   | Decided during training                                                                                        |
+| `end_id`                     | 50256         | Yes                   | Derived from vocabulary used during training                                                                   |
+| `head_num`                   | 48            | Yes                   | Decided during training                                                                                        |
+| `inter_size`                 | 24576         | Yes                   | Decided during training                                                                                        |
+| `is_half`                    | 1             | No                    | Don’t change.                                                                                                  |
+| `len_penalty`                | 1             | No                    | Adjust to improve inference results                                                                            |
+| `max_input_len`              | 60            | No                    | Can be used for optimization.                                                                                  |
+| `max_seq_len`                | 80            | No                    | The maximum output sequence length we can serve. Parameter is used for buffer allocation.                      |
+| `model_name`                 | `model_name`  | No                    | Name                                                                                                           |
+| `pipeline_para_size`         | 1             | No                    | Can be modified but number of nodes used to run a model must match. It must divide the number of layers.       |
+| `repetition_penalty`         | 1.1           | No                    | Adjust to improve inference results                                                                            |
+| `size_per_head`              | 128           | Yes                   | Decided during training                                                                                        |
+| `start_id`                   | 50256         | Yes                   | Derived from vocabulary used during training                                                                   |
+| `temperature`                | 1.0           | No                    | Adjust to improve inference results                                                                            |
+| `tensor_para_size`           | 4             | Yes                   | Decided during conversion to FasterTransformer checkpoint. It must be equal to number of used GPUs.            |
+| `top_k`                      | 1.0           | No                    | Adjust to improve inference results                                                                            |
+| `top_p`                      | 0.0           | No                    | Adjust to improve inference results                                                                            |
+| `vocab_size`                 | 51200         | Yes                   | Derived from vocabulary used during training                                                                   |
+
+
+</details>
 
 ## 6. Performance
 <a id="markdown-performance" name="performance"></a>
