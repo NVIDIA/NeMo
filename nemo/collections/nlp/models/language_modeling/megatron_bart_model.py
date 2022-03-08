@@ -88,9 +88,7 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
         # Make sure the user specifies dataset type as 'bart' only.
         if self._cfg.data.get('dataset_type', None) is not None:
             if self._cfg.data.get('dataset_type') not in ['bart']:
-                raise ValueError(
-                    f"dataset_type must be 'bart'. found {self._cfg.data.get('dataset_type')}"
-                )
+                raise ValueError(f"dataset_type must be 'bart'. found {self._cfg.data.get('dataset_type')}")
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
             cfg=self._cfg,
             trainer=self.trainer,
