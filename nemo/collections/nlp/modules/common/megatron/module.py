@@ -268,3 +268,19 @@ class Float16Module(MegatronModule):
                     'word_embeddings_weight() called for last ' 'stage, but share_word_embeddings is false'
                 )
             return self.module.word_embeddings.weight
+
+    def position_embeddings_weight(self):
+        if self.module.pre_process:
+            if hasattr(self.module, 'language_model'):
+                return self.module.language_model.embedding.position_embeddings.weight
+            elif hasattr(self.module, 'encoder_embedding'):
+                return self.module.encoder_embedding.position_embeddings.weight
+            elif hasattr(self.module, 'decoder_embedding'):
+                return self.module.decoder_embedding.position_embeddings.weight
+            else:
+                raise ValueError(
+                    f"Pre_process is True, but no embedding is found on this rank. Looked for language_model.position_embeddings, encoder_embedding.position_embedding_weight, and decoder_embedding.position_embedding_weight"
+                )
+        else:
+            # We only need position embeddings on the encoder and decoder first stages where pre_process=True
+            raise ValueError(f"Pre_process is False, there is no position embedding on this rank.")
