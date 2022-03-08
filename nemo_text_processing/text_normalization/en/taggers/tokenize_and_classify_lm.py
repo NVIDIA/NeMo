@@ -19,6 +19,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
+    NEMO_SIGMA,
     NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
@@ -58,6 +59,7 @@ from nemo.utils import logging
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -148,20 +150,20 @@ class ClassifyFst(GraphFst):
             v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
 
             time_final = pynini.compose(time_graph, v_time_graph)
-            date_final = pynini.compose(date_graph, v_date_graph)
-            cardinal_final = pynini.compose(cardinal_graph, v_cardinal_graph)
+
+            cardinal_or_date_final = plurals._priority_union(date_graph, cardinal_graph, NEMO_SIGMA)
+            cardinal_or_date_final = pynini.compose(cardinal_or_date_final, (v_cardinal_graph | v_date_graph))
 
             classify_and_verbalize = (
                 pynutil.add_weight(time_final, 1.1)
                 | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
-                | pynutil.add_weight(cardinal_final, 1.1)
                 | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                | pynutil.add_weight(date_final, 1.1)
+                | pynutil.add_weight(cardinal_or_date_final, 1.1)
                 | pynutil.add_weight(whitelist_graph, 1.1)
             ).optimize()
 
@@ -169,6 +171,7 @@ class ClassifyFst(GraphFst):
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 1.1)
 
+            date_final = pynini.compose(date_graph, v_date_graph)
             range_graph = RangeFst(
                 time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
             ).fst
