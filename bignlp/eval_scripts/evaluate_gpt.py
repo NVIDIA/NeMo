@@ -45,8 +45,8 @@ def create_slurm_file(
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} --ntasks=1 sh -c "{eval_cmd1}"\n\n')
-        f.writelines(f'srun {flags} --ntasks={ntasks_per_node} sh -c "{eval_cmd2}"\n\n')
+        f.writelines(f'srun {flags} sh -c "{eval_cmd1}"\n\n')
+        f.writelines(f'srun {flags} sh -c "{eval_cmd2}"\n\n')
         f.writelines("set +x\n")
 
 
