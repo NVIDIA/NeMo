@@ -10,17 +10,14 @@ import time
 from datetime import datetime
 import subprocess
 
-
 from lm_eval import models, tasks, evaluator, base, utils
 
 logger = logging.getLogger('__main__')
 
-try:
-    import nemo.collections.nlp as nemo_nlp
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.utils import logging
-except ModuleNotFoundError:
-    logger.error("Importing NeMo module failed, checkout the NeMo submodule")
+import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 
 def parse_args(parser_main):
@@ -53,6 +50,8 @@ def parse_args(parser_main):
     # Model
     parser.add_argument('--model', required=True)
     parser.add_argument('--model_args', default="")
+    parser.add_argument('--vocab_file', default=None)
+    parser.add_argument('--merge_file', default=None)
     # parser.add_argument('--no_cache', action="store_true")
     # parser.add_argument("--temperature", type=float, default=1.0,
     #                     help='Sampling temperature.')
@@ -188,6 +187,20 @@ def main():
 
     if args.model == "nemo-gpt3":
         args.model = "nemo-gpt3-tp-pp"
+
+    # TODO: fix vocab file and merge file
+    if is_global_rank_zero():
+        if args.vocab_file is not None:
+            shutil.copyfile(args.vocab_file, "/root/.cache/torch/megatron/megatron-gpt-345m_vocab")
+        if args.merge_file is not None:
+            shutil.copyfile(args.merge_file, "/root/.cache/torch/megatron/megatron-gpt-345m_merges")
+    if args.vocab_file is not None:
+        while not os.path.exists("/root/.cache/torch/megatron/megatron-gpt-345m_vocab"):
+            time.sleep(1)
+    if args.merge_file is not None:
+        while not os.path.exists("/root/.cache/torch/megatron/megatron-gpt-345m_merges"):
+            time.sleep(1)
+
 
     lm = models.get_model(args.model).create_from_arg_string(args.model_args, {
         'batch_size': args.batch_size, 'device': args.device

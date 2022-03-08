@@ -80,6 +80,8 @@ class TestEvaluationGPT3Config:
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           precision: 16 # must match training precision - 32, 16 or bf16
           eval_batch_size: 16
+          vocab_file: ${data_dir}/bpe/vocab.json
+          merge_file: ${data_dir}/bpe/merges.txt
         """
         expected = OmegaConf.create(s)
         assert expected == conf, f"conf/evaluation/gpt3/evaluate_all.yaml must be set to {expected} but it currently is {conf}."
@@ -108,6 +110,8 @@ class TestEvaluationGPT3Config:
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           precision: 16 # must match training precision - 32, 16 or bf16
           eval_batch_size: 16
+          vocab_file: ${data_dir}/bpe/vocab.json
+          merge_file: ${data_dir}/bpe/merges.txt
 """
         expected = OmegaConf.create(s)
         assert expected == conf, f"conf/evaluation/gpt3/evaluate_lambada.yaml must be set to {expected} but it currently is {conf}."
