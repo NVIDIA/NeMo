@@ -43,12 +43,8 @@ class RomanFst(GraphFst):
         default_graph = pynini.string_map(roman_dict).optimize()
         default_graph = pynutil.insert("integer: \"") + default_graph + pynutil.insert("\"")
         graph_teens = pynini.string_map([x[0] for x in roman_dict[:19]]).optimize()
-        male_labels = load_labels(get_abs_path("data/roman/male.tsv"))
-        female_labels = load_labels(get_abs_path("data/roman/female.tsv"))
-        male_labels.extend([[x[0].upper()] for x in male_labels])
-        female_labels.extend([[x[0].upper()] for x in female_labels])
-        names = pynini.string_map(male_labels).optimize()
-        names |= pynini.string_map(female_labels).optimize()
+
+        names = get_names()
 
         # up to five digit roman numerals with a preceding name are converted to ordinal form
         graph = (
@@ -84,3 +80,16 @@ class RomanFst(GraphFst):
 
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()
+
+
+def get_names():
+    """
+    Returns the graph that matched common male and female names.
+    """
+    male_labels = load_labels(get_abs_path("data/roman/male.tsv"))
+    female_labels = load_labels(get_abs_path("data/roman/female.tsv"))
+    male_labels.extend([[x[0].upper()] for x in male_labels])
+    female_labels.extend([[x[0].upper()] for x in female_labels])
+    names = pynini.string_map(male_labels).optimize()
+    names |= pynini.string_map(female_labels).optimize()
+    return names

@@ -21,6 +21,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     convert_space,
 )
+from nemo_text_processing.text_normalization.en.taggers.roman import get_names
 from nemo_text_processing.text_normalization.en.utils import (
     augment_labels_with_punct_at_end,
     get_abs_path,
@@ -71,7 +72,15 @@ class WhiteListFst(GraphFst):
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist_tts.tsv"))
 
-        if not deterministic:
+        if deterministic:
+            names = get_names()
+            graph |= (
+                pynini.cross(pynini.union("st", "St", "ST"), "Saint")
+                + pynini.closure(pynutil.delete("."))
+                + pynini.accep(" ")
+                + names
+            )
+        else:
             graph |= _get_whitelist_graph(
                 input_case, get_abs_path("data/whitelist_alternatives.tsv"), keep_punct_add_end=True
             )
