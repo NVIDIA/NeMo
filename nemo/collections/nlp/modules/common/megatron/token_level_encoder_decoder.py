@@ -286,7 +286,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         tokentype_ids=None,
         labels=None,
         enc_hidden_states=None,
+        enc_output_mask=None,
         output_enc_hidden_only=False,
+        enc_input=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)

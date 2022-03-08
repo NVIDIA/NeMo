@@ -70,3 +70,7 @@ class MegatronBaseModel(NLPModel):
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
+
+    def _enable_nvidia_optimizations(self):
+        # by default, this method do nothing
+        pass
