@@ -124,7 +124,6 @@ def main():
         devices=args.devices,
         num_nodes=args.num_nodes,
         accelerator='gpu',
-        strategy='ddp',
         precision=args.precision,
     )
 
