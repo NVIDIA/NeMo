@@ -78,7 +78,14 @@ class MeasureFst(GraphFst):
         preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
         graph |= unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
         # for only unit
-        graph |= pynutil.delete("cardinal { integer: \"-\"") + delete_space +  pynutil.delete("}") + delete_space + unit + pynini.closure(preserve_order)
+        graph |= (
+            pynutil.delete("cardinal { integer: \"-\"")
+            + delete_space
+            + pynutil.delete("}")
+            + delete_space
+            + unit
+            + pynini.closure(preserve_order)
+        )
         address = (
             pynutil.delete("units: \"address\" ")
             + delete_space
