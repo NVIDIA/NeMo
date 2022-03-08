@@ -586,6 +586,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
+        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+        if resume_checkpoint_path:
+            try:
+                init_consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
+            except (ValueError, TypeError):
+                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+                init_consumed_samples = 0
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+
         """A PTL method to setup the training, validation and test datasets."""
         if stage == 'predict':
             return
@@ -611,6 +624,15 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 consumed_samples = 0
             logging.info(f'Starting/Resuming training from consumed samples: {consumed_samples}')
+
+    def on_pretrain_routine_start(self) -> None:
+        # keep a copy of init_global_step
+        self.init_global_step = self.trainer.global_step
+        return super().on_pretrain_routine_start()
+
+    def setup_training_data(self, cfg):
+        if hasattr(self, '_train_ds'):
+            consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
@@ -668,10 +690,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 params.append(param)
         return params
 
-    def compute_consumed_samples(self, global_step):
+    def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
-            global_step * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+            self.init_consumed_samples
+            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
 
