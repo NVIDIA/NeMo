@@ -277,7 +277,7 @@ def pad_and_convert_to_numpy(
         end_index = span.index[0]
         # delete mask with probability delete_mask_prob (i.e., do not include mask)
         # if np_rng.rand() >= delete_mask_prob:
-        #     bart_input.extend(output_tokens[start_index:end_index])
+        bart_input.extend(output_tokens[start_index:end_index])
 
         # the next start index is the token after the last span token
         start_index = span.index[-1] + 1
