@@ -740,7 +740,6 @@ class ParallelTransformer(MegatronModule):
                 num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
             ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
-            app_state = AppState()
             # Each stage gets a contiguous set of layers.
             if (
                 self.model_type == ModelType.encoder_and_decoder
@@ -750,7 +749,7 @@ class ParallelTransformer(MegatronModule):
                 if layer_type == LayerType.encoder:
                     offset = pipeline_rank * self.num_layers
                 else:
-                    num_ranks_in_enc = app_state.pipeline_model_parallel_split_rank
+                    num_ranks_in_enc = parallel_state.get_pipeline_model_parallel_split_rank()
                     offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
             else:
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
@@ -768,8 +767,8 @@ class ParallelTransformer(MegatronModule):
         """Compute the number of transformer layers resident on the current rank."""
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.model_type == ModelType.encoder_and_decoder:
-                assert parallel_state.pipeline_model_parallel_split_rank is not None
-                num_ranks_in_encoder = parallel_state.pipeline_model_parallel_split_rank
+                assert parallel_state.get_pipeline_model_parallel_split_rank() is not None
+                num_ranks_in_encoder = parallel_state.get_pipeline_model_parallel_split_rank()
                 num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder
                 assert (
                     num_layers % num_ranks_in_encoder == 0

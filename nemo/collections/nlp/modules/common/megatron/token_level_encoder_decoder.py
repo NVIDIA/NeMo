@@ -32,7 +32,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import tensor_parallel
-    from apex.transformer.enums import AttnMaskType
+    from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -173,6 +173,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
+                parent_model_type=ModelType.encoder_and_decoder
             )
 
         if add_decoder:
@@ -232,6 +233,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
+                parent_model_type=ModelType.encoder_and_decoder
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder)
@@ -328,7 +330,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             if self.post_process and self.add_decoder:
                 dec_output, enc_output = output
                 # project decoder output to vocabulary-size dimensions
-                token_logits = self.tokens_head(dec_output, self.decoder_embedding.word_embeddings.weight)
+                token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
                 if labels is not None:
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
@@ -341,7 +343,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 # print(f'Loss at rank : {torch.distributed.get_rank()}', tokens_loss.size())
                 return tokens_loss
 
-            elif self.add_decoder and not self.encoder:
+            elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
                 # print(f'Dec output at rank : {torch.distributed.get_rank()}', decoder_output.size())
                 return decoder_output

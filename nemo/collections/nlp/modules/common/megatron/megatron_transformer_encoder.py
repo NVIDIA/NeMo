@@ -23,7 +23,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer.enums import AttnMaskType
+    from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -66,6 +66,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         activation='gelu',
+        parent_model_type=ModelType.encoder_or_decoder
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
 
@@ -77,6 +78,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         self.model_attn_mask_type = encoder_attn_mask_type
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
+        self.parent_model_type = parent_model_type
 
         if kv_channels is None:
 
@@ -112,6 +114,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             activation=activation,
+            model_type=parent_model_type
         )
         self._model_key = 'model'
 

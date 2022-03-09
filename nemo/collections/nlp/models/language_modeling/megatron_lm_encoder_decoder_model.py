@@ -278,6 +278,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        # print(f'Rank : {torch.distributed.get_rank()}, loss: {loss_mean}, broacasting from {get_last_rank()}')
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
         if self.cfg.precision == 16:
@@ -382,7 +383,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # This should only run for models that support pipelined model parallelism
         # (BERT and GPT-2).
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
+            parallel_state.is_rank_in_embedding_group()
         ):
             if self.enc_dec_model.share_word_embeddings:
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
