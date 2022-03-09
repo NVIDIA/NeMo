@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import json
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
 
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
