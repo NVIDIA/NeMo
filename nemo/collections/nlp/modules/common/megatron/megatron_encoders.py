@@ -74,7 +74,7 @@ def get_encoder_model(
     onnx_safe=False,
     hidden_steps=-1,
     hidden_blocks=1,
-    parent_model_type=ModelType.encoder_or_decoder
+    parent_model_type=ModelType.encoder_or_decoder,
 ):
     """Build language model and return along with the key to save."""
 
@@ -118,7 +118,7 @@ def get_encoder_model(
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             activation=activation,
-            parent_model_type=parent_model_type
+            parent_model_type=parent_model_type,
         )
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")

@@ -173,7 +173,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
-                parent_model_type=ModelType.encoder_and_decoder
+                parent_model_type=ModelType.encoder_and_decoder,
             )
 
         if add_decoder:
@@ -233,7 +233,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
-                parent_model_type=ModelType.encoder_and_decoder
+                parent_model_type=ModelType.encoder_and_decoder,
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder)

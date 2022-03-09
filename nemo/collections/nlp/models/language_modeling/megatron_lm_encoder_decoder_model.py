@@ -868,7 +868,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             Microbatches are transferred from CPU to GPU inside the pipeline. 
         """
         return batch
-    
+
     def _validate_trainer(self):
         """ Certain trainer configurations can break training.
             Here we try to catch them and raise an error.
