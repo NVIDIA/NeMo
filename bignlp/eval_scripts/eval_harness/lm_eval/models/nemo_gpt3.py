@@ -13,19 +13,15 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 import hydra
 
-try:
-    import nemo.collections.nlp as nemo_nlp
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.asr.models import EncDecCTCModel
-    from nemo.collections.nlp.modules.common.megatron.utils import (
-        average_losses_across_data_parallel_group,
-        get_ltor_masks_and_position_ids,
-    )
-    from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-    from nemo.utils import logging
-    from nemo.utils.app_state import AppState
-except ModuleNotFoundError:
-    print("Importing NeMo module failed, checkout the NeMo submodule")
+import nemo.collections.nlp as nemo_nlp
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_ltor_masks_and_position_ids,
+)
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
+from nemo.utils import logging
+from nemo.utils.app_state import AppState
 
 
 class CustomSaveRestoreConnector(SaveRestoreConnector):

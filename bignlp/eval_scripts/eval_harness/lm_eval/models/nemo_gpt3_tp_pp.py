@@ -1,5 +1,6 @@
 from lm_eval.base import LM
 from lm_eval import utils
+import math
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.trainer.trainer import Trainer
@@ -9,7 +10,6 @@ from torch.utils.data.dataloader import default_collate
 import nemo.collections.nlp as nemo_nlp
 from torch.nn.utils.rnn import pad_sequence
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.asr.models import EncDecCTCModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -22,8 +22,6 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 from apex.transformer import tensor_parallel, parallel_state
-
-from .nemo_gpt3 import CustomSaveRestoreConnector
 
 
 class RequestDataset(Dataset):
@@ -103,9 +101,17 @@ def setup_trainer_and_model(args):
     if args['precision'] in ["32", "16"]:
         args['precision'] = int(float(args['precision']))
 
+    # TODO: safely get it from env
+    def divide_ceil(x, y):
+        return int(math.ceil(x / y))
+    model_parallel_size = args['tensor_model_parallel_size'] * args['pipeline_model_parallel_size']
+    num_nodes = divide_ceil(model_parallel_size, 8)
+    gpus = divide_ceil(model_parallel_size, num_nodes)
+
     trainer = Trainer(
         plugins=NLPDDPPlugin(),
-        gpus=args['tensor_model_parallel_size'] * args['pipeline_model_parallel_size'],
+        gpus=gpus,
+        num_nodes=num_nodes,
         precision=args['precision'],
     )
 
@@ -177,6 +183,7 @@ class NeMo_GPT3LM_TP_PP(LM):
         def _collate(x):  # used to reorder request and remove duplications
             toks = x[0] + x[1]
             return -len(toks), tuple(toks)
+
         reord = utils.Reorderer(requests, _collate)
         request_ds = RequestDataset(reord.get_reordered(), self.gpt3.tokenizer)
         # request_ds = RequestDataset(requests, self.gpt3.tokenizer)

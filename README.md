@@ -260,12 +260,13 @@ to run that pipeline or not. In slurm based clusters, all of them can be set
 to True at the same time, and they will be executed in order. However, in Base Command Platform, 
 only one of them should be set to True at a time.
 
-Default settings in the `config/config.yaml` file are:
+Default settings in the `config/config.yaml` file are for GPT3 model:
 
 ```yaml
 run_data_preparation: True
 run_training: True
 run_conversion: True
+run_finetuning: False
 run_evaluation: True
 ```
 
@@ -275,9 +276,31 @@ To run these pipelines execute:
 python3 main.py
 ```
 
+Default settings needs to be modified for running T5 models:
+```yaml
+defaults:
+  - _self_
+  - cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
+  - data_preparation: download_t5_pile
+  - training: t5/220m  # Must match training_config below.
+  - conversion: convert_t5
+  - finetuning: t5/mnli.yaml
+  - evaluation: t5/mnli_matched.yaml
+  - override hydra/job_logging: stdout
+
+run_data_preparation: True
+run_training: True
+run_conversion: True
+run_finetuning: True
+run_evaluation: True
+```
+
 The entire repository uses `hydra/omegaconf` to handle job configuration using
 YAML files, so look at the documentation for those projects to learn more.
 
+
+
+[//]: # (TODO Modify for GPT/T5 pile)
 #### 4.1.2. Data Preparation
 <a id="markdown-data-preparation" name="data-preparation"></a>
 We provide utilities to download and prepare [the Pile](https://pile.eleuther.ai/)
@@ -364,6 +387,7 @@ Any other parameter can also be added to the command to modify its behavior.
 ##### 4.1.2.3. Common
 <a id="markdown-4123-common" name="4123-common"></a>
 
+[//]: # (TODO Data prep yaml is different for gpt and t5 )
 Set the configuration for the data preparation job in the YAML file:
 ```yaml
 download_the_pile: True  # Whether to download the Pile dataset from the internet.
@@ -478,8 +502,8 @@ config file.
 
 To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
 ```yaml
-- training: 20B
-training_config: 20B
+- training: 20b
+training_config: 20b
 run_training: True
 ```
 
@@ -491,6 +515,72 @@ python3 main.py
 To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=20b training_config=20b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
+**40B configuration:**
+
+The 40B model uses 80 nodes with 8 GPUs per node by default, and bf16 data type
+for training, and can be trained in about 12 days. The model includes 48
+transformer layers, a hidden size of 8192, and 64 attention heads. The
+sequence length is 2048, and the optimizer is Adam. This model uses tensor
+parallelism of 8 and pipeline parallelism of 4. 
+For the details on all the parameters, see the 40b.yaml config file.
+
+To train a 40B GPT-3 model, modify the `conf/config.yaml` file to set:
+```yaml
+- training: 40b
+training_config: 40b
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+To train a 40B GPT-3 model on Base Command Platform cluster on 80 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=40b training_config=40b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
+**175B configuration:**
+
+The 175B model uses 128 nodes with 8 GPUs per node by default, and bf16 data type
+for training, and can be trained in about 35 days. The model includes 96
+transformer layers, a hidden size of 12288, and 96 attention heads. The
+sequence length is 2048, and the optimizer is Adam. This model uses tensor
+parallelism of 8 and pipeline parallelism of 16. 
+For the details on all the parameters, see the 175b.yaml config file.
+
+To train a 175B GPT-3 model, modify the `conf/config.yaml` file to set:
+```yaml
+- training: 175b
+training_config: 175b
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+To train a 175B GPT-3 model on Base Command Platform cluster on 128 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=175b training_config=175b run_training=True \
 run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
@@ -822,6 +912,479 @@ The stdout and stderr outputs will also be redirected to the /results/eval_log.t
 Any other parameter can also be added to the command to modify its behavior.
 
 
+[//]: # (T5 runs ---------------------------------------------------------------------)
+### 4.2 Training with Predefined Configurations
+<a id="markdown-training-with-predefined-configurations" name="training-with-predefined-configurations"></a>
+
+We provide two configurations of two different model sizes: 220M and
+3B parameters for T5 model. These configurations include carefully selected
+hyper-parameters, which should be used as a guideline for any custom model
+configurations. All these configurations are provided in the `conf/training/t5`
+directory. The desired configuration can be chosen by selecting the training
+ parameter in the `conf/config.yaml` file.
+
+On Base Command Platform, the training scripts must be ran in multi-node mode, 
+with at least 2 nodes.
+
+**220M configuration:**
+
+The 220M model uses 4 nodes with 8 GPUs per node by default, and fp16 data type
+for training. The model includes 12 transformer layers, a hidden size of 768,
+and 12 attention heads. The sequence length is 512, and the optimizer is
+Adam. This model does not use any model parallelism.  For the details on
+all the parameters, see the `t5/220m.yaml` config file.
+
+To train a 220M T5 model on a Slurm cluster, modify the `conf/config.yaml` file to set:
+```yaml
+training: t5/220m
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+[//]: # (TODO double check BCP running cmds)
+To train a 220M GPT-3 model on Base Command Platform cluster on 4 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=t5/220m run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas). 
+
+To train with fewer or a different number of nodes, the relevant parameters 
+(e.g. `accumulate_grad_batches`) can be adjusted either in the yaml config file or 
+from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). 
+For Base Command Platform, multi-node jobs are required to have at least 
+two nodes so that is the minimum number of nodes we can train with.
+
+
+**3B configuration:**
+
+The 3B model uses 20 nodes with 8 GPUs per node by default, and fp16 data type
+for training, and can be trained in about 10 days. The model includes 24
+transformer layers, a hidden size of 1024, an FFN size of 16384, and 32 attention heads. The
+sequence length is 512, and the optimizer is Adam. This model uses tensor
+parallelism of 2. For the details on all the parameters, see the `t5/5b.yaml`
+config file.
+
+To train a 3B T5 model, modify the `conf/config.yaml` file to set:
+```yaml
+training: t5/5b
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+To train a 3B T5 model on Base Command Platform cluster on 20 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=t5/3b run_training=True \
+run_data_preparation=False run_conversion=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
+creating the job (number of replicas).
+
+#### 4.2.1. Training Logs with TensorBoard and Weights & Biases
+<a id="markdown-training-with-tb-wandb" name="training-with-tb-wandb"></a>
+The training code can log the model and system related metrics to both TensorBoard and 
+Weights & Biases (W&B). The local files will be stored in the directory specified in the 
+`training.exp_manager.explicit_log_dir` parameter. TensorBoard logs are saved by default.
+
+However, W&B needs the API key to be specified to work properly. To upload the logs to W&B, 
+the user must first store the W&B API key to a file (on the first line of the file), and 
+select the path to the file that contains the key using the `wandb_api_key_file` parameter. For Base Command Platform, this file can be stored in a dataset or workspace mounted to the job.
+
+The logs show the reduced_train_loss, val_loss, train_step_timing (which is the best way 
+to measure the time it takes to finish each micro step), and other relevant metrics.
+
+### 4.3 Training with Custom Configurations
+<a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
+
+The training config files can be modified, or other files can be created to be
+used for training. They should follow the same structure and guidelines as the
+existing model configurations.
+
+As a guideline, any model of 5B parameters or less should use fp16 as a data
+type, whereas any model larger than 5B parameters should use bfloat16 (bf16) as
+a data type.
+
+[//]: # (TODO conf path changed)
+### 4.4 Bring Your Own Dataset
+<a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
+If you want to train the GPT-3 or T5 model on your own dataset (which is already
+filtered and cleaned), you must first convert the dataset files to jsonl files.
+Then, you can run the data preprocessing pipeline without needing to download
+the Pile by modifying the configuration in
+`conf/data_preparation/download_pile.yaml`. You should set `download_the_pile` to
+False, and keep `preprocess_data` as True. When running the data preparation
+pipeline, the jsonl files must be stored in the directory indicated in the
+`data_dir` parameter. The result will be a preprocessed dataset, stored in
+the same directory, and ready to be used for training. To train the model on
+your dataset, the training config file must be modified with the desired blend
+of training datasets, by changing the blend in the `model.data.data_prefix`
+parameter.
+
+### 4.5 T5 Training
+<a id="markdown-gpt-3-training" name="gpt-3-training"></a>
+We provide an easy-to-use yet powerful pipeline to perform distributed training
+of GPT-3 and T5 models across multiple nodes and GPUs. We also provide
+well-established recipes for different sizes of GPT-3 and T5 models, where the
+throughput has been maximized, and the convergence properties of the
+models have been tested and confirmed.
+
+The configuration used for the training pipeline must be specified in the
+`conf/config.yaml` file, specifying the training parameter, specifying which file
+to use for training purposes. The `run_training` parameter must be set to True to
+run the training pipeline. The default value is set to GPT-3 5b, which can be found
+in `conf/training/gpt3/5b.yaml`. The parameters can be modified to adjust the
+hyperparameters of the training runs.
+
+#### 4.5.1 Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+And set the training job specific parameters in the conf/training/(model_type)/(model_size).yaml file, 
+using the run section:
+```yaml
+run:
+  name: t5_220m
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "7-00:00:00"
+  dependency: "singleton"
+```
+
+To run only the training pipeline and not the data preparation, evaluation or
+inference pipelines, set the conf/config.yaml file to:
+```yaml
+run_data_preparation: False
+run_training: True
+run_conversion: False
+run_finetuning: False
+run_evaluation: False
+```
+And then run:
+```
+python3 main.py
+```
+
+#### 4.5.2. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+
+Select the cluster related configuration following the NGC documentation. 
+Then, use the python3 main.py command to launch the job and override the 
+desired parameters from the training job parameters.
+
+[//]: # (TODO GPT3 uses new styles of GBS config, T5 uses old style below)
+### 4.6. Resuming Training from Fewer Nodes
+<a id="markdown-resuming-training-from-fewer-nodes" name="resuming-training-from-fewer-nodes"></a>
+
+To be able to resume a training run with a different number of nodes is to keep
+the global batch size unchanged. This ensures that each training step will be
+almost the same, regardless of the number of nodes. The global batch size (GBS)
+can be calculated as:
+
+```
+GBS = (MBS * num_gpus * accumulate_grad_batches) / tensor_parallelism
+```
+
+Where MBS is the micro batch size. For instance, the default GBS for the T5 3B
+model is 2160; the MBS is 27; the number of GPUs is 20\*8 = 160; the
+`accumulate_grad_batches` is set to 1; and the `tensor_parallelism` value is set to 2.
+The GBS can be calculated like this:
+
+```
+2160 = (27 * 160 * 1) / 2
+```
+
+To modify the number of nodes to be used, the user should modify the value of
+`accumulate_grad_batches` in the inverse way. For instance, if the number of
+nodes gets cut in half (20 → 10), then the `accumulate_grad_batches` should be
+doubled (1 → 2).
+
+### 4.7. Checkpoint Conversion
+<a id="markdown-checkpoint-conversion" name="checkpoint-conversion"></a>
+
+We provide a simple tool to convert the checkpoints from .ckpt format to .nemo format, 
+which will later be used for evaluation and inference purposes. 
+
+The configuration used for the checkpoint conversion needs to be specified in the 
+conf/config.yaml file, specifying the conversion parameter, which specifies the file 
+to use for conversion purposes. The default value is set to convert_gpt3, which can be found 
+in conf/conversion/convert_gpt3.yaml for GPT-3 model. In order to run conversion for
+T5, one needs to set conversion parameter to convert_t5,  which can be found 
+in conf/conversion/convert_t5.yaml.
+The run_conversion parameter must be set to True to run the conversion pipeline.
+
+#### 4.7.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the input checkpoint to be used for conversion, use the `model` parameters:
+```yaml
+model:
+  model_type: t5 # gpt or t5, use t5 for mt5 as well
+  checkpoint_folder: ${conversion.run.train_dir}/checkpoints
+  checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
+  hparams_file: ${conversion.run.train_dir}/hparams.yaml
+  tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+  pipeline_model_parallel_size: 1
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+  vocab_file: ${data_dir}/bpe/vocab.txt
+  merge_file: null
+```
+
+
+To specify the output location and file name of the converted .nemo file, use the `run` parameters:
+```yaml
+run:
+  job_name: convert_${conversion.run.model_train_name}
+  nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
+  time_limit: "2:00:00"
+  ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
+  convert_name: convert_nemo
+  model_train_name: t5_220m
+  train_dir: ${base_results_dir}/${.model_train_name}
+  results_dir: ${.train_dir}/${.convert_name}
+  output_path: ${.train_dir}/${.convert_name}
+  nemo_file_name: megatron_t5.nemo # name of nemo checkpoint; must be .nemo file
+```
+
+#### 4.7.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the conversion pipeline and not the data preparation, training, 
+evaluation or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: True
+run_finetuning: False
+run_evaluation: False
+```
+
+then run:
+```
+python3 main.py
+```
+
+#### 4.7.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the conversion script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The conversion script must be launched in a single-node job.
+
+The conversion scripts must be ran in multi-node mode, with 2 nodes.
+
+To run the conversion pipeline to convert a T5 220M checkpoint stored in 
+/mount/results/t5_220m/checkpoints, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=True \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.txt \
+conversion.run.results_dir=/mount/results/t5_220m/convert_nemo \
+conversion.model.checkpoint_folder=/mount/results/t5_220m/checkpoints conversion.model.tensor_model_parallel_size=1 \
+>> /results/convert_log.txt 2>&1
+```
+The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
+The stdout and stderr outputs will also be redirected to the /results/convert_log.txt file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+### 4.8. Model Finetuning
+<a id="markdown-model-evaluation" name="model-evaluation"></a>
+
+We also provide an easy-to-use tool to help finetuning the trained checkpoints
+on GLUE tasks. The following downstream GLUE tasks are supported: 
+`cola`, `sst-2`, `mrpc`, `sts-b`, `qqp`, `mnli`, `qnli`, and `rte`.
+
+The configuration used for the finetuning needs to be specified in the
+`conf/config.yaml` file, specifying the `finetuning` parameter, which specifies the
+file to use for finetuning purposes. The `run_finetuning` parameter must be set
+to `True` to run the finetuning pipeline. To finetune checkpoint on `mnli` task, set
+`finetuning` parameter to `t5/mnli`, which can be found in `conf/finetuning/t5/mnli.yaml`. The
+parameters can be modified to adapt different GLUE tasks and checkpoints
+in finetuning runs. One will need to tune the finetuning hyper parameters
+to reach the best accuracy for a specific GLUE task. The provided hyper parameters
+are only optimized for T5 220M model on `mnli` task.
+
+#### 4.8.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
+And use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: t5_220m
+  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+```
+
+To specify which model checkpoint to load and its definition, use the `model` parameter:
+
+```yaml
+model: # For different finetuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
+  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+  tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+```
+
+#### 4.9.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: True
+run_evaluation: False
+```
+
+then run:
+```
+python3 main.py
+```
+
+#### 4.8.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+T5 finetuning pipeline is similar to training pipeline.
+Select the cluster related configuration following the NGC documentation. 
+Then, use the python3 main.py command to launch the job and override the 
+desired parameters from the finetuning job parameters.
+
+
+### 4.9. Model Evaluation
+<a id="markdown-model-evaluation" name="model-evaluation"></a>
+
+We also provide a simple tool to help evaluate the finetuned checkpoints
+on GLUE tasks after finetuning. The following GLUE tasks are supported: 
+`cola`, `sst-2`, `mrpc`, `sts-b`, `qqp`, `mnli`, `qnli`, and `rte`.
+
+The configuration used for the evalutaion needs to be specified in the
+`conf/config.yaml` file, specifying the `evalutaion` parameter, which specifies the
+file to use for evalutaion purposes. The `run_evalutaion` parameter must be set
+to `True` to run the evalutaion pipeline. To evalutate on `mnli` task, set `evalutaion` parameter to
+`t5/mnli_matched`, which can be found in `conf/evalutaion/t5/mnli.yaml`. The
+parameters can be modified to adapt different GLUE tasks and checkpoints
+in evalutaion runs.
+
+#### 4.9.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
+And use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: eval_${.task_name}_${.model_train_name}
+  time_limit: "0-04:00:00"
+  dependency: "singleton"
+  model_train_name: t5_220m
+  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+```
+
+To specify which finetuned checkpoint to load and its definition, use the `model` parameter:
+
+```yaml
+model:
+  restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+  tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+```
+
+#### 4.8.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the conf/cluster/bcm.yaml file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_evaluation: True
+```
+
+then run:
+```
+python3 main.py
+```
+
+#### 4.9.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+T5 evaluation pipeline is similar to finetuning and training pipelines.
+Select the cluster related configuration following the NGC documentation. 
+Then, use the python3 main.py command to launch the job and override the 
+desired parameters from the finetuning job parameters.
+
+
+[//]: # (T5 deployting not supported yet)
 ## 5. Deploying the BigNLP model
 
 This section describes the deployment of the BigNLP model on the NVIDIA Triton

@@ -45,8 +45,8 @@ def create_slurm_file(
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} --ntasks=1 sh -c "{eval_cmd1}"\n\n')
-        f.writelines(f'srun {flags} --ntasks={ntasks_per_node} sh -c "{eval_cmd2}"\n\n')
+        f.writelines(f'srun {flags} sh -c "{eval_cmd1}"\n\n')
+        f.writelines(f'srun {flags} sh -c "{eval_cmd2}"\n\n')
         f.writelines("set +x\n")
 
 
@@ -68,6 +68,8 @@ def run_evaluation(cfg, dependency=None):
     tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
     precision = model_cfg.get("precision")
     batch_size = model_cfg.get("eval_batch_size")
+    vocab_file = model_cfg.vocab_file
+    merge_file = model_cfg.merge_file
 
     # Run parameters
     name = run_cfg.get("name")
@@ -98,6 +100,8 @@ def run_evaluation(cfg, dependency=None):
            f"--cache_dir={cache_dir} " \
            f"--batch_size={batch_size} " \
            f"--output_path={results_dir} " \
+           f"--vocab_file={vocab_file} " \
+           f"--merge_file={merge_file} " \
            f"--model_args='nemo_model={checkpoint},pipeline_model_parallel_size={pipeline_model_parallel_size}," \
            f"tensor_model_parallel_size={tensor_model_parallel_size},precision={precision}'"
     args = args.replace(" ", " \\\n  ")
