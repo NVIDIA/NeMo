@@ -20,7 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_extra_space,
     delete_preserve_order,
 )
-from nemo_text_processing.text_normalization.es.graph_utils import ones, shift_cardinal_gender
+from nemo_text_processing.text_normalization.es.graph_utils import ones
 from nemo_text_processing.text_normalization.es.utils import get_abs_path
 
 try:
