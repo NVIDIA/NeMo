@@ -24,7 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels, augment_labels_with_punct_at_end
 
 try:
     import pynini
@@ -34,7 +34,9 @@ try:
     graph_teen = pynini.invert(pynini.string_file(get_abs_path("data/numbers/teen.tsv"))).optimize()
     graph_digit = pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))).optimize()
     ties_graph = pynini.invert(pynini.string_file(get_abs_path("data/numbers/ties.tsv"))).optimize()
-    year_suffix = pynini.string_file(get_abs_path("data/year_suffix.tsv")).optimize()
+    year_suffix = load_labels(get_abs_path("data/year_suffix.tsv"))
+    year_suffix.extend(augment_labels_with_punct_at_end(year_suffix))
+    year_suffix = pynini.string_map(year_suffix).optimize()
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
