@@ -118,7 +118,7 @@ def write_vad_infer_manifest(file, args_func):
     try:
         sr = 16000
         x, _sr = librosa.load(filepath, sr=sr, offset=in_offset, duration=in_duration)
-        duration = librosa.get_duration(x, sr=sr)
+        duration = librosa.get_duration(y=x, sr=sr)
         left = duration
         current_offset = in_offset
 
@@ -549,7 +549,6 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
 
     dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + shift_length_in_sec
     speech_segments = torch.column_stack((speech_segments, dur))
-
     
     return speech_segments
 
@@ -560,7 +559,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
     per_args_float : Dict[str, float] = {}
     for i in per_args:
-        if type(per_args[i])==float:
+        if type(per_args[i])==float or type(per_args[i])==int:
             per_args_float[i] = per_args[i]
     preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
     save_name = name + ".txt"
@@ -822,7 +821,7 @@ def plot(
     FRAME_LEN = 0.01
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
-    dur = librosa.get_duration(audio, sr=sample_rate)
+    dur = librosa.get_duration(y=audio, sr=sample_rate)
 
     time = np.arange(offset, offset + dur, FRAME_LEN)
     # frame = np.loadtxt(path2_vad_pred)
