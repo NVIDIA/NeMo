@@ -1,4 +1,4 @@
-name: megatron_t5
+name: megatron_bart
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -21,7 +21,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_t5
+  name: megatron_bart
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -34,7 +34,7 @@ exp_manager:
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_bart--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
@@ -93,13 +93,13 @@ model:
 
   data:
     # Path to data must be specified by the user.
-    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-t5_00_text_document,.5,/raid/data/pile/my-t5_01_text_document]",
+    # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-bart_00_text_document,.5,/raid/data/pile/my-bart_01_text_document]",
     # Or see example below:
     # data_prefix: 
     #   - .5
-    #   - /raid/data/pile/my-t5_00_text_document
+    #   - /raid/data/pile/my-bart_00_text_document
     #   - .5
-    #   - /raid/data/pile/my-t5_01_text_document
+    #   - /raid/data/pile/my-bart_01_text_document
     data_prefix: ???
     data_impl: mmap
     splits_string: 949,45,5
@@ -109,7 +109,7 @@ model:
     num_workers: 0
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
-    dataset_type: 't5'
+    dataset_type: 'bart'
     short_seq_prob: 0.0
     max_ngram_size: 10
     mean_ngram_size: null
