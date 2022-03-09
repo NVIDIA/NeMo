@@ -292,7 +292,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # TODO: make sure compute_consumed_samples works for pipeline parallelism
         self.log(
             'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step),
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             prog_bar=True,
             rank_zero_only=True,
         )
@@ -480,7 +480,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            rank_zero_only=True,
+        )
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -535,15 +539,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         dec_mask_list = []
         for micro_batch in global_batch:
             text_enc, text_dec, labels, loss_mask, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
-            micro_batch_size = text_enc.shape[0]
+            # micro_batch_size = text_enc.shape[0]
             text_enc_list.append(text_enc)
             text_dec_list.append(text_dec)
             labels_list.append(labels)
             loss_mask_list.append(loss_mask)
-            enc_mask_repeat = torch.concat([enc_mask for _ in range(micro_batch_size)])
-            dec_mask_repeat = torch.concat([dec_mask for _ in range(micro_batch_size)])
-            enc_mask_list.append(enc_mask_repeat)
-            dec_mask_list.append(dec_mask_repeat)
+            enc_mask_list.append(enc_mask)
+            dec_mask_list.append(dec_mask)
+            # enc_mask_repeat = torch.concat([enc_mask for _ in range(micro_batch_size)])
+            # dec_mask_repeat = torch.concat([dec_mask for _ in range(micro_batch_size)])
+            # enc_mask_list.append(enc_mask_repeat)
+            # dec_mask_list.append(dec_mask_repeat)
 
         # Concatenate to (num_microbatches x micro_batch_size x seq_len)
         tokens_enc_tensor = torch.concat(text_enc_list, dim=0)
@@ -620,7 +626,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
             if resume_checkpoint_path:
                 consumed_samples = int(
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
