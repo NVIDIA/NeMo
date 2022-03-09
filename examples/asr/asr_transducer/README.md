@@ -22,8 +22,9 @@ graph TD
     B --> |Init| E[Model]
     E --> |Constructor| F(Change Vocabulary)
     F --> G(Setup Train + Validation + Test Data loaders)
-    G --> H(Setup Optimization)
-    H --> I[Maybe init from pretrained]
+    G --> H1(Setup Optimization)
+    H1 --> H2(Change Transducer Decoding Strategy)
+    H2 --> I[Maybe init from pretrained]
     I --> J["trainer.fit(model)"]
 ```
 
