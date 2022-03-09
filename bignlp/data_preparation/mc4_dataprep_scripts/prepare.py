@@ -21,6 +21,8 @@ ALL_LANGS = ['af', 'am', 'ar', 'az', 'be', 'bg', 'bn', 'ca', 'co', 'cs', 'cy', '
              'uz', 'vi', 'xh', 'yi', 'yo', 'zh', 'zu', 'ceb', 'fil', 'haw', 'hmn']
 
 LANG_SPLIT = {
+    'en_cleaned':
+        [('en_cleaned', 'en/c4-train.*-of-01024.json.gz')],
     'en':
         [('en0', 'multilingual/c4-en.tfrecord-0[01]*.json.gz'),
          ('en1', 'multilingual/c4-en.tfrecord-0[23]*.json.gz'),
@@ -52,7 +54,7 @@ def prepare_c4_repo(data_path):
     os.system(f"cd {c4_path} && git lfs install")
 
 
-def distribute_languages(data_path, languages, avail_nodes, worker_mapping_file):
+def distribute_languages(data_path, languages, avail_nodes, worker_mapping_file, cleaned_en=False):
     if languages == 'all':
         langs = ALL_LANGS
     else:
@@ -62,8 +64,14 @@ def distribute_languages(data_path, languages, avail_nodes, worker_mapping_file)
     lang_info = []
     for lang in langs:
         assert lang in ALL_LANGS, f"Language `{lang}` cannot be recognized."
+        if lang == 'en' and cleaned_en:
+            lang = 'en_cleaned'
+            pattern = f"en/c4-train.00000-of-*.json.gz"
+            print(" ****** Using cleaned english data.")
+        else:
+            pattern = f"multilingual/c4-{lang}.tfrecord-00000-*.json.gz"
         stdout = subprocess.check_output(f"cd {c4_path} && git lfs ls-files -s "
-                                         f"-I 'multilingual/c4-{lang}.tfrecord-00000-*.json.gz'", shell=True)
+                                         f"-I '{pattern}'", shell=True)
         stdout = stdout.decode("utf-8").split()
         file_name = stdout[2]
         file_size = int(stdout[-2].strip('('))
@@ -107,9 +115,11 @@ if __name__ == "__main__":
     parser.add_argument("--node-array-size", help="Size of node array in download step", required=True,
                         type=int)
     parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
+    parser.add_argument("--cleaned-en", action="store_true", help="Whether to cleaned C4 en dataset instead "
+                                                                  "of uncleaned mC4 en")
     args = parser.parse_args()
     avail_nodes = args.node_array_size
 
     setup_git_lfs(args.git_lfs_path)
     prepare_c4_repo(args.data_path)
-    distribute_languages(args.data_path, args.languages, avail_nodes, args.worker_mapping_file)
+    distribute_languages(args.data_path, args.languages, avail_nodes, args.worker_mapping_file, args.cleaned_en)

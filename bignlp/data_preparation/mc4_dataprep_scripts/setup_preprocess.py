@@ -18,7 +18,7 @@ Example usage:
 """
 
 
-def split_languages(c4_path, languages, max_split_size, soft_link_path):
+def split_languages(c4_path, languages, max_split_size, soft_link_path, cleaned_en=False):
     if languages == 'all':
         langs = ALL_LANGS
     else:
@@ -31,7 +31,11 @@ def split_languages(c4_path, languages, max_split_size, soft_link_path):
     lang_splits_info = []
     for lang in langs:
         assert lang in ALL_LANGS, f"Language `{lang}` cannot be recognized."
-        file_list = sorted(glob.glob(os.path.join(c4_path, f"multilingual/c4-{lang}.tfrecord-*.json.gz")))
+        if lang == 'en' and cleaned_en:
+            file_list = f"en/c4-train.00000-of-*.json.gz"
+            print(" ****** Using cleaned english data.")
+        else:
+            file_list = sorted(glob.glob(os.path.join(c4_path, f"multilingual/c4-{lang}.tfrecord-*.json.gz")))
         file0 = file_list[0]
         file_size = os.path.getsize(file0) * 1.0 / 1024 ** 3  # convert bytes to GB
         num_files = len(file_list)
@@ -96,6 +100,8 @@ if __name__ == "__main__":
                                                              "for preprocessing, the size of each shard is less than "
                                                              "max-split-size. (unit in GB)", type=int)
     parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
+    parser.add_argument("--cleaned-en", action="store_true", help="Whether to cleaned C4 en dataset instead "
+                                                                  "of uncleaned mC4 en")
     args = parser.parse_args()
 
     print(f" ****** Removing git lfs cache files in {args.c4_path} ...")
@@ -103,6 +109,7 @@ if __name__ == "__main__":
     # Remove git lfs cached files
     if os.path.exists(os.path.join(args.c4_path, ".git", "lfs")):
         shutil.rmtree(os.path.join(args.c4_path, ".git", "lfs"))
-    lang_splits_info = split_languages(args.c4_path, args.languages, args.max_split_size, args.soft_link_path)
+    lang_splits_info = split_languages(args.c4_path, args.languages, args.max_split_size, args.soft_link_path,
+                                       args.cleaned_en)
     distribute_lang_splits(lang_splits_info, args.node_array_size, args.workers_per_node, args.max_split_size,
                            args.worker_mapping_file)
