@@ -144,8 +144,8 @@ def main():
 
     args = parser.parse_args()
 
-    if args.model_file:
-        assert not args.checkpoint_dir
+    if args.model_file and args.checkpoint_dir:
+        raise ValueError("Only one of model_file or checkpoint_dir should be used")
 
     # cast precision to int if 32 or 16
     if args.precision in ["32", "16"]:
