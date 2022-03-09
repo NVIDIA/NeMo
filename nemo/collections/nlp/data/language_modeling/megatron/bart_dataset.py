@@ -279,8 +279,6 @@ def pad_and_convert_to_numpy(
     # Encoder-side padding mask.
     num_tokens = len(bart_input)
     padding_length = max_seq_length - num_tokens
-    if padding_length < 0:
-        raise ValueError(f"padding_length = {padding_length}")
     assert padding_length >= 0
     assert len(masked_positions) == len(masked_labels)
 
