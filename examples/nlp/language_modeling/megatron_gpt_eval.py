@@ -144,6 +144,10 @@ def main():
 
     args = parser.parse_args()
 
+    assert (
+        args.devices * args.num_nodes == args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
+
     if args.model_file and args.checkpoint_dir:
         raise ValueError("Only one of model_file or checkpoint_dir should be used")
 
@@ -165,6 +169,8 @@ def main():
     elif args.checkpoint_dir:
         app_state = AppState()
         if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+            app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
             app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
             (
                 app_state.tensor_model_parallel_rank,
@@ -174,8 +180,8 @@ def main():
             ) = fake_initialize_model_parallel(
                 world_size=app_state.model_parallel_size,
                 rank=trainer.global_rank,
-                tensor_model_parallel_size_=args.tensor_model_parallel_size,
-                pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
+                tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
+                pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
             )
         # inject model parallel rank
         checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_dir, args.checkpoint_name))
