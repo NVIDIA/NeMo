@@ -6,6 +6,7 @@ import logging
 import sys
 import os
 import string
+import shutil
 import time
 from datetime import datetime
 import subprocess
@@ -189,7 +190,8 @@ def main():
         args.model = "nemo-gpt3-tp-pp"
 
     # TODO: fix vocab file and merge file
-    if is_global_rank_zero():
+    if int(os.environ.get('LOCAL_RANK'), 0) == 0:
+        os.makedirs("/root/.cache/torch/megatron", exist_ok=True)
         if args.vocab_file is not None:
             shutil.copyfile(args.vocab_file, "/root/.cache/torch/megatron/megatron-gpt-345m_vocab")
         if args.merge_file is not None:
