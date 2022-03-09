@@ -334,7 +334,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args) :
 
     per_args_float : Dict[str, float] = {}
     for i in per_args:
-        if type(per_args[i])==float:
+        if type(per_args[i])==float or type(per_args[i])==int:
             per_args_float[i] = per_args[i]
 
     preds = generate_overlap_vad_seq_per_tensor(frame, per_args_float, smoothing_method)
