@@ -39,7 +39,6 @@ class BARTDataset(MegatronDataset):
         num_epochs,
         max_num_samples,
         max_seq_length,
-        max_seq_length_dec,
         seed,
         masked_lm_prob=0.15,
         short_seq_prob=0.1,
@@ -58,7 +57,6 @@ class BARTDataset(MegatronDataset):
         self.seed = seed
         self.masked_lm_prob = masked_lm_prob
         self.max_seq_length = max_seq_length
-        self.max_seq_length_dec = max_seq_length_dec
         self.short_seq_prob = short_seq_prob
         self.max_ngram_size = max_ngram_size
         self.mean_ngram_size = mean_ngram_size
@@ -120,7 +118,6 @@ class BARTDataset(MegatronDataset):
             sample=sample,
             target_seq_length=seq_length,
             max_seq_length=self.max_seq_length,
-            max_seq_length_dec=self.max_seq_length_dec,
             vocab_id_list=self.vocab_id_list,
             vocab_id_to_token_dict=self.vocab_id_to_token_dict,
             cls_id=self.cls_id,
@@ -147,7 +144,6 @@ def build_training_sample(
     sample,
     target_seq_length,
     max_seq_length,
-    max_seq_length_dec,
     vocab_id_list,
     vocab_id_to_token_dict,
     cls_id,
@@ -234,7 +230,6 @@ def build_training_sample(
         masked_labels,
         pad_id,
         max_seq_length,
-        max_seq_length_dec,
         masked_spans,
         bos_id,
         eos_id,
@@ -261,7 +256,6 @@ def pad_and_convert_to_numpy(
     masked_labels,
     pad_id,
     max_seq_length,
-    max_seq_length_dec,
     masked_spans=None,
     bos_id=None,
     eos_id=None,
@@ -288,7 +282,7 @@ def pad_and_convert_to_numpy(
 
     # Decoder-side padding mask.
     num_tokens_dec = len(bart_decoder_in)
-    padding_length_dec = max_seq_length_dec - num_tokens_dec
+    padding_length_dec = max_seq_length - num_tokens_dec
     assert padding_length_dec >= 0
     filler_dec = [pad_id] * padding_length_dec
     tokens_dec_in = np.array(bart_decoder_in + filler_dec, dtype=np.int64)

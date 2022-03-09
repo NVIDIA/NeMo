@@ -680,7 +680,6 @@ def _build_train_valid_test_datasets(
                     tokenizer=tokenizer,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
-                    max_seq_length_dec=max_seq_length_dec,
                     short_seq_prob=short_seq_prob,
                     max_ngram_size=max_ngram_size,
                     mean_ngram_size=mean_ngram_size,
