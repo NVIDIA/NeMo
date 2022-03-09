@@ -89,7 +89,7 @@ class MeasureFst(GraphFst):
             graph_fraction_masc @ (NEMO_SIGMA + pynini.union("medio", "medios")) + NEMO_WHITE_SPACE + unit_masc, -0.001
         )  # "medio litro" not "medio de litro"
 
-        graph_fem = shift_cardinal_gender(graph_cardinal_fem | graph_decimal_fem) + NEMO_WHITE_SPACE + unit_fem
+        graph_fem = (graph_cardinal_fem | graph_decimal_fem) + NEMO_WHITE_SPACE + unit_fem
         graph_fem |= graph_fraction_fem + NEMO_WHITE_SPACE + pynutil.insert("de ") + unit_fem
         graph_fem |= pynutil.add_weight(
             graph_fraction_fem @ (NEMO_SIGMA + pynini.union("media", "medias")) + NEMO_WHITE_SPACE + unit_fem, -0.001

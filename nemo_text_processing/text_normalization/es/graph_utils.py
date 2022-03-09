@@ -36,7 +36,7 @@ try:
 
     ones = pynini.union("un", "ún")
     fem_ones = pynini.union(pynini.cross("un", "una"), pynini.cross("ún", "una"), pynini.cross("uno", "una"))
-    one_to_one_hundred = pynini.union(digits, tens, teens, twenties, tens + pynini.accep(" y ") + digits)
+    one_to_one_hundred = pynini.union(digits, "uno", tens, teens, twenties, tens + pynini.accep(" y ") + digits)
     fem_hundreds = hundreds @ pynini.cdrewrite(pynini.cross("ientos", "ientas"), "", "", NEMO_SIGMA)
 
     PYNINI_AVAILABLE = True
@@ -101,6 +101,7 @@ def shift_cardinal_gender(fst: 'pynini.FstLike') -> 'pynini.FstLike':
 
     fem_allign = pynini.cdrewrite(fem_hundreds, "", before_mil, NEMO_SIGMA)  # doscientas mil dosciento
     fem_allign @= pynini.cdrewrite(fem_hundreds, "", before_double_digits, NEMO_SIGMA)  # doscientas mil doscienta
+
     fem_allign @= pynini.cdrewrite(
         fem_ones, "", pynini.union("[EOS]", "\"", decimal_separator), NEMO_SIGMA
     )  # If before a quote or EOS, we know it's the end of a string

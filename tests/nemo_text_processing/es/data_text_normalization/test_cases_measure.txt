@@ -5,6 +5,7 @@ a-5~a cinco
 3 h~tres horas
 1 h~una hora
 245 mph~doscientas cuarenta y cinco millas por hora
+200.045 mph~doscientas mil cuarenta y cinco millas por hora
 1,01 mph~una coma cero una millas por hora
 1 1/2 mph~una y media milla por hora
 1 1/2 m~uno y medio metro
