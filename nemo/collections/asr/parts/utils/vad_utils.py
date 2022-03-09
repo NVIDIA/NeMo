@@ -48,7 +48,7 @@ This file contains all the utility functions required for voice activity detecti
 """
 
 
-def prepare_manifest(config):
+def prepare_manifest(config: dict) -> str:
     """
     Perform VAD on long audio snippet might cause CUDA out of memory issue. 
     Automatically split manifest entry by split_duration to avoid the potential memory issue.
@@ -94,12 +94,12 @@ def prepare_manifest(config):
     return manifest_vad_input
 
 
-def write_vad_infer_manifest(file, args_func):
+def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
     """
     Used by prepare_manifest.
     Given a list of files, write them to manifest for dataloader with restrictions.
     Args:
-        files (json) : file to be processed
+        files (dict) : file to be processed
         args_func:
             label (str): label for audio snippet.y
             split_duration (float): max duration of each audio clip (each line in json)
@@ -168,7 +168,7 @@ def write_vad_infer_manifest(file, args_func):
     return res
 
 
-def get_vad_stream_status(data):
+def get_vad_stream_status(data: list) -> list:
     """
     Generate a list of status for each snippet in manifest. A snippet should be in single, start, next or end status. 
     Used for concatenate to full audio file.
@@ -198,7 +198,7 @@ def get_vad_stream_status(data):
     return status
 
 
-def load_tensor_from_file(filepath: str) -> (Tuple[torch.Tensor, str], str):
+def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
     """
     Load torch.Tensor and the name from file
     """
@@ -219,7 +219,7 @@ def generate_overlap_vad_seq(
     shift_length_in_sec: float,
     num_workers: int,
     out_dir: str = None,
-):
+) -> str:
     """
     Gnerate predictions with overlapping input windows/segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple windows. 
     Two common smoothing filters are supported: majority vote (median) and average (mean).
@@ -332,7 +332,7 @@ def generate_overlap_vad_seq_per_tensor(
     return preds
 
 
-def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
+def generate_overlap_vad_seq_per_file(frame_filepath: str, per_args: Dict[str, float]) -> str:
     """
     A wrapper for generate_overlap_vad_seq_per_tensor.
     """
@@ -359,7 +359,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
 @torch.jit.script
 def merge_overlap_segment(segments: torch.Tensor) -> torch.Tensor:
     """
-    Merged the overlapped segemtns {(0, 1.5), (1, 3.5), } -> {(0, 3.5), }
+    Merged the overlapped segemtns torch.Tensor([[0, 1.5], [1, 3.5]]) -> torch.Tensor([0, 3.5])
     """
     segments = segments[segments[:, 0].sort()[1]]
     merge_boundary = segments[:-1, 1] >= segments[1:, 0]
@@ -379,12 +379,17 @@ def filter_short_segments(segments: torch.Tensor, threshold: float) -> torch.Ten
     return segments[segments[:, 1] - segments[:, 0] >= threshold]
 
 
-def percentile(data, perc: int):
+def percentile(data: torch.Tensor, perc: int) -> float:
+    """
+    Calculate percentile given data
+    """
     size = len(data)
-    return sorted(data)[int(math.ceil((size * perc) / 100)) - 1]
+    return float(sorted(data)[int(math.ceil((size * perc) / 100)) - 1])
 
 
-def cal_vad_onset_offset(scale, onset, offset, sequence=None):
+def cal_vad_onset_offset(
+    scale: str, onset: float, offset: float, sequence: torch.Tensor = None
+) -> Tuple[float, float]:
     """
     Calculate onset and offset threshold given different scale.
     """
@@ -404,7 +409,7 @@ def cal_vad_onset_offset(scale, onset, offset, sequence=None):
 
 
 @torch.jit.script
-def binarization(sequence: torch.Tensor, per_args: Dict[str, float]):
+def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
     """
     Binarize predictions to speech and non-speech
 
@@ -422,7 +427,7 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]):
             shift_length_in_sec (float): amount of shift of window for generating the frame.
     
     Returns:
-        speech_segments(torch.Tensor): A tensor of speech segment in torch.Tensor[(start1, end1), (start2, end2))] format. 
+        speech_segments(torch.Tensor): A tensor of speech segment in torch.Tensor([[start1, end1], [start2, end2]]) format. 
     """
     shift_length_in_sec = per_args.get('shift_length_in_sec', 0.01)
 
@@ -469,7 +474,11 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]):
 
 
 @torch.jit.script
-def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: torch.Tensor):
+def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: torch.Tensor) -> torch.Tensor:
+    """
+    Remove to_be_removed_segments torch.Tensor([[start2, end2],[start4, end4]]) 
+    from original_segments torch.Tensor([[start1, end1],[start2, end2],[start3, end3], [start4, end4]]) 
+    """
     for y in to_be_removed_segments:
         original_segments = original_segments[original_segments.eq(y).all(dim=1).logical_not()]
     return original_segments
@@ -478,7 +487,7 @@ def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: tor
 @torch.jit.script
 def get_gap_segments(segments: torch.Tensor) -> torch.Tensor:
     """
-    Get the gap segments. {(start1, end1), (start2, end2), (start3, end3)} -> {(end1, start2), (end2, start3)}
+    Get the gap segments. torch.Tensor([[start1, end1], [start2, end2], [start3, end3]]) -> torch.Tensor([[end1, start2], [end2, start3]])
     """
     segments = segments[segments[:, 0].sort()[1]]
     return torch.column_stack((segments[:-1, 1], segments[1:, 0]))
@@ -494,14 +503,14 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
     Paper: Gregory Gelly and Jean-Luc Gauvain. "Minimum Word Error Training of RNN-based Voice Activity Detection", InterSpeech 2015. 
     Implementation: https://github.com/pyannote/pyannote-audio/blob/master/pyannote/audio/utils/signal.py 
     Args:
-        speech_segments (torch.Tensor):  A tensor of speech segment in torch.Tensor[(start1, end1), (start2, end2))] format. 
+        speech_segments (torch.Tensor):  A tensor of speech segment in torch.Tensor([[start1, end1], [start2, end2]]) format. 
         per_args:
             min_duration_on (float): threshold for small non_speech deletion
             min_duration_off (float): threshold for short speech segment deletion
             filter_speech_first (float): Whether to perform short speech segment deletion first. Use 1.0 to represent True. 
 
     Returns:
-        speech_segments(torch.Tensor): A tensor of filtered speech segment in torch.Tensor[(start1, end1), (start2, end2))] format. 
+        speech_segments(torch.Tensor): A tensor of filtered speech segment in torch.Tensor([[start1, end1], [start2, end2]]) format. 
     """
     min_duration_on = per_args.get('min_duration_on', 0.0)
     min_duration_off = per_args.get('min_duration_off', 0.0)
@@ -547,6 +556,7 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
 def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
     """
     See discription in generate_overlap_vad_seq.
+    Use this for single instance pipeline. 
     """
     shift_length_in_sec = per_args['shift_length_in_sec']
     speech_segments = binarization(sequence, per_args)
@@ -560,8 +570,10 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     return speech_segments
 
 
-def generate_vad_segment_table_per_file(pred_filepath, per_args):
-
+def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> str:
+    """
+    A wrapper for generate_vad_segment_table_per_tensor
+    """
     out_dir = per_args['out_dir']
     sequence, name = load_tensor_from_file(pred_filepath)
 
@@ -592,8 +604,8 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
 
 def generate_vad_segment_table(
-    vad_pred_dir, postprocessing_params, shift_length_in_sec, num_workers, out_dir=None, threshold=None
-):
+    vad_pred_dir: str, postprocessing_params: dict, shift_length_in_sec: float, num_workers: int, out_dir: str = None,
+) -> str:
     """
     Convert frame level prediction to speech segment in start and end times format.
     And save to csv file  in rttm-like format
@@ -638,7 +650,9 @@ def generate_vad_segment_table(
     return table_out_dir
 
 
-def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file):
+def vad_construct_pyannote_object_per_file(
+    vad_table_filepath: str, groundtruth_RTTM_file: str
+) -> Tuple[Annotation, Annotation]:
     """
     Construct pyannote object for evaluation.
     Args:
@@ -665,7 +679,7 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
     return reference, hypothesis
 
 
-def get_parameter_grid(params):
+def get_parameter_grid(params: dict) -> list:
     """
     Get the parameter grid given a dictionary of parameters.
     """
@@ -684,14 +698,20 @@ def get_parameter_grid(params):
 
 
 def vad_tune_threshold_on_dev(
-    params, vad_pred, groundtruth_RTTM, result_file="res", vad_pred_method="frame", focus_metric="DetER"
-):
+    params: dict,
+    vad_pred: str,
+    groundtruth_RTTM: str,
+    result_file: str = "res",
+    vad_pred_method: str = "frame",
+    focus_metric: str = "DetER",
+    shift_length_in_sec: float = 0.01,
+    num_workers: int = 20,
+) -> Tuple[dict, dict]:
     """
     Tune thresholds on dev set. Return best thresholds which gives the lowest detection error rate (DetER) in thresholds.
     Args:
         params (dict): dictionary of parameter to be tuned on.
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
-        vad_pred_dir (str): directory of vad predictions or a file contains the paths of them
         groundtruth_RTTM_dir (str): directory of groundtruch rttm files or a file contains the paths of them.
         focus_metric (str): metrics we care most when tuning threshold. Should be either in "DetER", "FA", "MISS"
     Returns:
@@ -714,7 +734,9 @@ def vad_tune_threshold_on_dev(
                 param[i] = float(param[i])
         try:
             # perform binarization, filtering accoring to param and write to rttm-like table
-            vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
+            vad_table_dir = generate_vad_segment_table(
+                vad_pred, param, shift_length_in_sec=shift_length_in_sec, num_workers=num_workers
+            )
             # add reference and hypothesis to metrics
             for filename in paired_filenames:
                 groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
@@ -762,7 +784,7 @@ def vad_tune_threshold_on_dev(
     return best_threhsold, optimal_scores
 
 
-def check_if_param_valid(params):
+def check_if_param_valid(params: dict) -> bool:
     """
     Check if the parameters are valid.
     """
@@ -787,7 +809,7 @@ def check_if_param_valid(params):
     return True
 
 
-def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
+def pred_rttm_map(vad_pred: str, groundtruth_RTTM: str, vad_pred_method: str = "frame") -> Tuple[set, dict, dict]:
     """
     Find paired files in vad_pred and groundtruth_RTTM
     """
@@ -824,14 +846,14 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
 
 
 def plot(
-    path2audio_file,
-    path2_vad_pred,
-    path2ground_truth_label=None,
-    offset=0,
-    duration=None,
-    threshold=None,
-    per_args=None,
-):
+    path2audio_file: str,
+    path2_vad_pred: str,
+    path2ground_truth_label: str = None,
+    offset: float = 0,
+    duration: float = None,
+    threshold: float = None,
+    per_args: dict = None,
+) -> ipd.Audio:
     """
     Plot VAD outputs for demonstration in tutorial
     Args:
@@ -839,6 +861,7 @@ def plot(
         path2_vad_pred (str): path to vad prediction file,
         path2ground_truth_label(str): path to groundtruth label file.
         threshold (float): threshold for prediction score (from 0 to 1).
+        per_args(dict): a dict that stores the thresholds for postprocessing. 
     """
     plt.figure(figsize=[20, 2])
     FRAME_LEN = 0.01
@@ -886,7 +909,9 @@ def plot(
     return ipd.Audio(audio, rate=16000)
 
 
-def gen_pred_from_speech_segments(speech_segments, prob, shift_length_in_sec=0.01):
+def gen_pred_from_speech_segments(
+    speech_segments: torch.Tensor, prob: float, shift_length_in_sec: float = 0.01
+) -> np.array:
     """
     Generate prediction arrays like 000111000... from speech segments {[0,1][2,4]} 
     """
@@ -901,7 +926,7 @@ def gen_pred_from_speech_segments(speech_segments, prob, shift_length_in_sec=0.0
     return pred
 
 
-def extract_labels(path2ground_truth_label, time):
+def extract_labels(path2ground_truth_label: str, time: list) -> list:
     """
     Extract groundtruth label for given time period.
     path2ground_truth_label (str): path of groundtruth label file 
@@ -920,7 +945,9 @@ def extract_labels(path2ground_truth_label, time):
     return labels
 
 
-def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec, manifest_vad_input, out_dir):
+def generate_vad_frame_pred(
+    vad_model, window_length_in_sec: float, shift_length_in_sec: float, manifest_vad_input: str, out_dir: str
+) -> str:
     """
     Generate VAD frame level prediction and write to out_dir
     """
@@ -965,7 +992,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
     return out_dir
 
 
-def init_vad_model(model_path):
+def init_vad_model(model_path: str):
     """
     Initiate VAD model with model path
     """
