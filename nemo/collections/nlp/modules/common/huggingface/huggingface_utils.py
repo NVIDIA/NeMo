@@ -19,23 +19,23 @@ from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
-    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     CAMEMBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     GPT2_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     AutoModel,
     BertConfig,
-    DistilBertConfig,
     CamembertConfig,
+    DistilBertConfig,
     GPT2Config,
     RobertaConfig,
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
-from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.camembert import CamembertEncoder
+from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.gpt2 import GPT2Encoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.utils import logging
