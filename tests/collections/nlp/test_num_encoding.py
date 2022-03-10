@@ -14,7 +14,7 @@
 
 
 import pytest
-from nemo.collections.common.tokenizers.column_coder import FloatCode, IntCode, CategoryCode
+from nemo.collections.common.tokenizers.column_coder import FloatCode, IntCode, CategoryCode, ColumnCodes
 import pandas as pd
 import numpy as np
 import string
@@ -27,8 +27,8 @@ class TestColumnCoder:
         np.random.seed(1234)
         array = np.random.random(100)
         series = pd.Series(array)
-        float_coder = FloatCode('t', 5, 0, 10)
-        float_coder.compute_code(data_series=series, fillall=False)
+        float_coder = FloatCode('t', 5, 0, False, 10)
+        float_coder.compute_code(data_series=series)
         r = float_coder.encode('0.323')
         assert np.array_equal(np.array(r), np.array([37, 32, 27, 15, 1]))
         decoded = float_coder.decode(r)
@@ -42,8 +42,8 @@ class TestColumnCoder:
         decoded = float_coder.decode(r)
         assert decoded == 'nan'
 
-        float_coder = FloatCode('t', 5, 0, 377)
-        float_coder.compute_code(data_series=series, fillall=True)
+        float_coder = FloatCode('t', 5, 0, True, 377)
+        float_coder.compute_code(data_series=series)
         r = float_coder.encode('0.323')
         assert np.array_equal(np.array(r), np.array([1508, 1234, 1036, 613, 338]))
         decoded = float_coder.decode(r)
@@ -58,8 +58,8 @@ class TestColumnCoder:
     def test_int(self):
         np.random.seed(1234)
         array = np.random.randint(3, 1000, 100)
-        int_coder = IntCode('i', 3, 0, 16)
-        int_coder.compute_code(array, False)
+        int_coder = IntCode('i', 3, 0, False, 16)
+        int_coder.compute_code(array)
 
         r = int_coder.encode('232')
         assert np.array_equal(np.array(r), np.array([32, 30, 2]))
@@ -78,11 +78,86 @@ class TestColumnCoder:
         array = np.char.add(np.random.choice(ALPHABET, 1000), np.random.choice(ALPHABET, 1000))
 
         int_coder = CategoryCode('c', 0)
-        int_coder.compute_code(array, False)
+        int_coder.compute_code(array)
 
         r = int_coder.encode('xy')
         assert np.array_equal(np.array(r), np.array([509]))
         decoded = int_coder.decode(r)
         assert decoded == 'xy'
 
- 
+    @pytest.mark.unit
+    def test_column_coder(self):
+        column_configs = [
+            {
+                "name": "col_a",
+                "code_type": "float",
+                "args": {
+                    "code_len": 4,
+                    "base": 16,
+                    "fillall": False
+                }
+            },
+            {
+                "name": "col_b",
+                "code_type": "float",
+                "args": {
+                    "code_len": 4,
+                    "base": 177,
+                    "fillall": True
+                }
+            },
+            {
+                "name": "col_c",
+                "code_type": "int",
+                "args": {
+                    "code_len": 3,
+                    "base": 12,
+                    "fillall": True
+                }
+            },
+            {
+                "name": "col_d",
+                "code_type": "category",
+            },
+
+        ]
+
+        example_arrays = {}
+        np.random.seed(1234)
+
+        array = np.random.random(100)
+        example_arrays['col_a'] = array
+
+        array = np.random.random(100)
+        example_arrays['col_b'] = array
+
+        array = np.random.randint(3, 1000, 100)
+        example_arrays['col_c'] = array
+
+        ALPHABET = np.array(list(string.ascii_lowercase + ' '))
+        array = np.char.add(np.random.choice(ALPHABET, 1000), np.random.choice(ALPHABET, 1000))
+        example_arrays['col_d'] = array
+
+        cc = ColumnCodes.get_column_codes(column_configs, example_arrays)
+
+        rr = cc.encode('col_a', '0.323')
+        assert np.array_equal(np.array(rr), np.array([43, 36, 22, 7]))
+        decoded = cc.decode('col_a', rr)
+        assert decoded == '0.3229'
+
+        rr = cc.encode('col_b', '0.323')
+        assert np.array_equal(np.array(rr), np.array([576, 447, 272, 201]))
+        decoded = cc.decode('col_b', rr)
+        assert decoded == '0.3229999'
+
+        rr = cc.encode('col_c', '232')
+        assert np.array_equal(np.array(rr), np.array([779, 772, 765]))
+        decoded = cc.decode('col_c', rr)
+        assert decoded == '232'
+
+        rr = cc.encode('col_d', 'xy')
+        assert np.array_equal(np.array(rr), np.array([1305]))
+        decoded = cc.decode('col_d', rr)
+        assert decoded == 'xy'
+
+        assert cc.vocab_size == 1343

@@ -21,13 +21,29 @@ from numpy import ndarray
 
 class Code(object):
 
-    def compute_code(self, data_series: ndarray, fillall: bool = True):
+    def compute_code(self, data_series: ndarray):
+        """
+        @params:
+            data_series: an array of input data used to calculate mapping
+        """
         raise NotImplementedError()
 
-    def __init__(self, code_len: int, start_id: int):
+    def __init__(self, col_name: str, code_len: int, start_id: int, fillall: bool = True):
+        """
+        @params:
+            col_name: name of the column
+            code_len: number of tokens used to code the column.
+            start_id: offset for token_id. 
+            fillall: if True, reserve space for digit number even the digit number is
+            not present in the data_series. Otherwise, only reserve space for the numbers
+            in the data_series. 
+
+        """
+        self.name = col_name
         self.code_len = code_len
         self.start_id = start_id
         self.end_id = start_id
+        self.fillall = fillall
 
     def encode(self, item: str) -> List[int]:
         raise NotImplementedError()
@@ -47,12 +63,11 @@ class Code(object):
 class IntCode(Code):
 
     def __init__(self, col_name: str, code_len: int,
-                 start_id: int, base: int = 100):
-        super().__init__(code_len, start_id)
-        self.name = col_name
+                 start_id: int, fillall: bool = True, base: int = 100):
+        super().__init__(col_name, code_len, start_id, fillall)
         self.base = base
 
-    def compute_code(self, data_series: ndarray, fillall: bool = True):
+    def compute_code(self, data_series: ndarray):
         self.mval = data_series.min()
         significant_val = self.convert_to_int(data_series, self.mval)
         # data_series = data_series.dropna()
@@ -64,7 +79,7 @@ class IntCode(Code):
             id_to_item = digits_id_to_item[i]
             item_to_id = digits_item_to_id[i]
             v = (significant_val // self.base**i) % self.base
-            if fillall:
+            if self.fillall:
                 uniq_items = range(0, self.base)
             else:
                 uniq_items = sorted(np.unique(v).tolist())
@@ -150,10 +165,10 @@ class IntCode(Code):
 class FloatCode(IntCode):
 
     def __init__(self, col_name: str, code_len: int,
-                 start_id: int, base: int = 100):
-        super().__init__(col_name, code_len, start_id, base)
+                 start_id: int, fillall: bool = True, base: int = 100):
+        super().__init__(col_name, code_len, start_id, fillall, base)
 
-    def compute_code(self, data_series: ndarray, fillall: bool = True):
+    def compute_code(self, data_series: ndarray):
         self.mval = data_series.min()
         values = np.log(data_series - self.mval + 1.0)
         digits = int(math.log(values.max(), self.base)) + 1
@@ -162,7 +177,7 @@ class FloatCode(IntCode):
         if extra_digits < 0:
             raise "need large length to code the nummber"
         self.extra_digits = extra_digits
-        super().compute_code(data_series, fillall)
+        super().compute_code(data_series)
 
     def convert_to_int(self, val, min_val):
         values = np.log(val - min_val + 1.0)
@@ -192,10 +207,9 @@ class FloatCode(IntCode):
 class CategoryCode(Code):
 
     def __init__(self, col_name: str, start_id: int):
-        super().__init__(1, start_id)
-        self.name = col_name
+        super().__init__(col_name, 1, start_id, True)
 
-    def compute_code(self, data_series: ndarray, fillall: bool = True):
+    def compute_code(self, data_series: ndarray):
         uniq_items = np.unique(data_series).tolist()
         id_to_item = {}
         item_to_id = {}
@@ -212,6 +226,13 @@ class CategoryCode(Code):
 
     def decode(self, ids: List[int]) -> str:
         return self.id_to_item[ids[0]]
+
+
+column_map = {
+    "int": IntCode,
+    "float": FloatCode,
+    "category": CategoryCode
+}
 
 
 class ColumnCodes:
@@ -244,3 +265,20 @@ class ColumnCodes:
 
     def get_range(self, column_id: int) -> List[Tuple[int, int]]:
         return self.column_codes[self.columns[column_id]].code_range
+
+    @classmethod
+    def get_column_codes(cls, column_configs, example_arrays):
+        column_codes = cls()
+        beg = 0
+        cc = None
+        for config in column_configs:
+            col_name = config['name']
+            coder = column_map[config['code_type']]
+            args = config.get('args', {})
+            start_id = beg if cc is None else cc.end_id
+            args['start_id'] = start_id
+            args['col_name'] = col_name
+            cc = coder(**args)
+            cc.compute_code(example_arrays[col_name])
+            column_codes.register(col_name, cc)
+        return column_codes
