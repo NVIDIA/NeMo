@@ -14,9 +14,10 @@
 
 
 import pytest
-from nemo.collections.common.tokenizers.column_coder import FloatCode, IntCode
+from nemo.collections.common.tokenizers.column_coder import FloatCode, IntCode, CategoryCode
 import pandas as pd
 import numpy as np
+import string
 
 
 class TestColumnCoder:
@@ -69,4 +70,19 @@ class TestColumnCoder:
         assert np.array_equal(np.array(r), np.array([36, 31, 15]))
         decoded = int_coder.decode(r)
         assert decoded == 'nan'
+
+    @pytest.mark.unit
+    def test_category(self):
+        np.random.seed(1234)
+        ALPHABET = np.array(list(string.ascii_lowercase + ' '))
+        array = np.char.add(np.random.choice(ALPHABET, 1000), np.random.choice(ALPHABET, 1000))
+
+        int_coder = CategoryCode('c', 0)
+        int_coder.compute_code(array, False)
+
+        r = int_coder.encode('xy')
+        assert np.array_equal(np.array(r), np.array([509]))
+        decoded = int_coder.decode(r)
+        assert decoded == 'xy'
+
  
