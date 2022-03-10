@@ -40,7 +40,7 @@ from typing import Dict, List
 from torch.linalg import eigh as eigh
 
 @torch.jit.script
-def cos_similarity(a, b, eps=torch.tensor(0.00035)):
+def cos_similarity(a, b, eps=torch.tensor(3.5e-4)):
     """
     Args:
         a: (torch.tensor)
@@ -379,7 +379,6 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device:  torch.devi
     fused_sim_d = torch.matmul(repp.permute(2,1,0), multiscale_weights.t()).squeeze(2).t()
     return fused_sim_d, base_scale_emb
 
-    device = torch.device("cuda:0") if cuda else torch.device("cpu")
 @torch.jit.script
 def getCosAffinityMatrix(_emb):
     """
@@ -645,10 +644,7 @@ class NMESC:
     
     def getEigRatio(self, p_neighbors: int):
         """
-        For a given p_neighbors value,
-        calculates g_p, which is a ratio
-        between p_neighbors and the maximum eigengap.
-
+        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the maximum eigengap.
         For more details: https://arxiv.org/abs/2003.02405
 
         Args:
@@ -745,7 +741,7 @@ def COSclustering(
         Y: (List[int])
             Speaker label for each segment.
     """
-    device = torch.device("cuda:0") if cuda else torch.device("cpu")
+    device = torch.device("cuda") if cuda else torch.device("cpu")
     # Get base-scale embedding from uniq_embs_and_timestamps.
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
