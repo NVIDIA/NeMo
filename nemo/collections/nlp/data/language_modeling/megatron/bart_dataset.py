@@ -229,6 +229,7 @@ def build_training_sample(
         masked_positions,
         masked_labels,
         pad_id,
+        mask_id,
         max_seq_length,
         masked_spans,
         bos_id,
@@ -255,6 +256,7 @@ def pad_and_convert_to_numpy(
     masked_positions,
     masked_labels,
     pad_id,
+    mask_id,
     max_seq_length,
     masked_spans=None,
     bos_id=None,
@@ -267,8 +269,12 @@ def pad_and_convert_to_numpy(
     bart_decoder_in = [bos_id] + tokens
     bart_decoder_out = tokens + [eos_id]
     bart_input = output_tokens
+
     # delete mask with probability delete_mask_prob (i.e., do not include mask)
-    # if np_rng.rand() >= delete_mask_prob:
+    if delete_mask_prob > 0:
+        deleted_masks = np_rng.rand(len(masked_labels))
+        delete_masked_positions_ind = np_rng.rand(len(masked_labels)) < delete_mask_prob
+        # if np_rng.rand() >= delete_mask_prob:
 
     # Some checks.
     # Encoder-side padding mask.
