@@ -12,16 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-
 from omegaconf import OmegaConf
+from nemo.utils import logging
+import pandas as pd
 from nemo.core.config import hydra_runner
+from nemo.collections.common.tokenizers.column_coder import ColumnCodes
+import pickle
 
 
 @hydra_runner(config_path="conf", config_name="tabular_data_tokenizer")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(OmegaConf.to_yaml(cfg))
+    table = pd.read_csv(cfg.table_csv_file)
+    example_arrays = {}
+    for col in cfg.table_structure:
+        col_name = col['name']
+        example_arrays[col_name] = table[col_name].dropna().unique()
+    cc = ColumnCodes.get_column_codes(cfg.table_structure, example_arrays)
+    with open(cfg.tokenizer_file, 'wb') as handle:
+        pickle.dump(cc, handle)
 
 
 if __name__ == '__main__':

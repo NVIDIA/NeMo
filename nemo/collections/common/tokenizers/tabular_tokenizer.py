@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from tkinter import END
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.column_coder import ColumnCodes
 import pickle
@@ -109,6 +110,9 @@ class TabularTokenizer(TokenizerSpec):
         """ Converts a sequence of tokens into ids using the vocab. """
         ids = []
         cindex = 0
+        if NEW_LINE in tokens:
+            idd = tokens.index(NEW_LINE)
+            cindex = (self.num_columns - idd) % self.num_columns
         for token in tokens:
 
             if token in self.special_tokens:
@@ -123,9 +127,12 @@ class TabularTokenizer(TokenizerSpec):
     def ids_to_tokens(self, ids, skip_special_tokens=False):
         """Converts a sequence of ids in Tabular tokens using the vocab."""
         tokens = []
-        cindex = 0
         sizes = self.code_column.sizes
         ids_size = sum(sizes)
+        cindex = 0
+        if self.eor in ids:
+            idd = ids.index(self.eor)
+            cindex = (ids_size - idd) % ids_size
         cum_sizes = numpy.cumsum(sizes)
         old_column_index = -1
         token_ids = []
