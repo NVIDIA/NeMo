@@ -361,7 +361,7 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device:  torch.devi
     """
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     base_scale_idx = max(uniq_scale_dict.keys())
-    base_scale_emb = np.array(uniq_scale_dict[base_scale_idx]['embeddings'])
+    base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
     multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float().to(device)
 
     score_mat_list, repeated_tensor_list = [], []
@@ -618,20 +618,20 @@ class NMESC:
 
     def subsampleAffinityMat(self, NME_mat_size: int):
         """
-        Perform Subsampling of affinity matrix.
+        Perform subsampling of affinity matrix.
         This subsampling is for calculational complexity, not for performance.
         The smaller NME_mat_size is,
             - the bigger the chance of missing a speaker.
             - the faster p-value estimation speed (based on eigen decomposition).
 
-        Recommended NME_mat_size is 250~750.
+        The recommended NME_mat_size is 250~750.
         However, if there are speakers who speak for very short period of time in the recording,
         this subsampling might make the system miss the underrepresented speaker.
         Use this with caution.
 
         Args:
             NME_mat_size: (int)
-                Targeted matrix size
+                The targeted matrix size
 
         Returns:
             subsample_ratio : (float)
@@ -742,7 +742,8 @@ def COSclustering(
             Speaker label for each segment.
     """
     device = torch.device("cuda") if cuda else torch.device("cpu")
-    # Get base-scale embedding from uniq_embs_and_timestamps.
+    
+    # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
     if emb.shape[0] == 1:
