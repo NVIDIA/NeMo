@@ -24,7 +24,6 @@ from nemo.utils import config_utils, logging
 
 
 class TestASRModulesBasicTests:
-
     @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor1(self):
         # Test 1 that should test the pure stft implementation as much as possible
