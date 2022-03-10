@@ -18,6 +18,7 @@ from pytorch_lightning import seed_everything
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+
 """
 This script demonstrates how to use run speaker diarization.
 Usage:
@@ -39,6 +40,7 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     sd_model = ClusteringDiarizer(cfg=cfg)
     sd_model.diarize()
+
 
 if __name__ == '__main__':
     main()
