@@ -200,7 +200,7 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
     return args
 
 
-def inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
+def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
     """
     Injects tensor/pipeline model parallel ranks into the filepath.
     Does nothing if not using model parallelism.
@@ -244,13 +244,13 @@ def main():
     # Checkpoint search
     if checkpoint_name == "latest":
         checkpoints = os.path.join(checkpoint_folder, '*.ckpt')
-        checkpoints = inject_model_parallel_rank(checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size)
+        checkpoints = _inject_model_parallel_rank(checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size)
         checkpoint_list = glob.glob(checkpoints)
         latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
         checkpoint_name = os.path.basename(latest_checkpoint)
 
     checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint = inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
+    checkpoint = _inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
     checkpoint_list = glob.glob(checkpoint)
     if len(checkpoint_list) > 1:
         raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
