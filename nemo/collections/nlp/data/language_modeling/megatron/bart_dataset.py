@@ -163,7 +163,7 @@ def build_training_sample(
     eos_id=None,
     tokenizer_type="wordpiece",
     delete_mask_prob=0,
-    tokenizer=tokenizer,
+    tokenizer=None,
 ):
     """Build BART training sample.
     Arguments:
