@@ -17,6 +17,8 @@ from typing import Tuple
 
 import torch
 
+from nemo.utils.decorators import experimental
+
 __all__ = [
     "MegatronPretrainingBatchSampler",
     "MegatronPretrainingRandomBatchSampler",
@@ -157,6 +159,7 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
 
 
 # NOTE (mkozuki): I haven't tested this enough.
+@experimental
 class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
 
     # NOTE (mkozuki): [[Argument of `dataset` and `data_sharding`]]
