@@ -16,8 +16,6 @@ import warnings
 from typing import Tuple
 
 import torch
-from apex.transformer import parallel_state
-from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 __all__ = [
     "MegatronPretrainingBatchSampler",
@@ -27,16 +25,24 @@ __all__ = [
 
 class BaseMegatronBatchSampler:
     """Megatron style BatchSampler.
-    
-    Let mbs, gbs, tp, pp, and dp stand for "micro batch size", "global batch size", "tensor model parallel world size","pipeline model parallel world size", and "data parallel world size",
-    the number of micro batches (hereafter, nmb) is defined as :math:`nmb = gbs \\div (mbs \\times dp)`.
 
-    See `apex/transformer/microbatches.py#L91-L98 <https://github.com/NVIDIA/apex/blob/44c3043685b6115e7b81b3458a6c76601b1e55b4/apex/transformer/microbatches.py#L91-L98>`_ for the initial settings of the number of micro batches and `apex/transformer/microbatches.py#L160-L177 <https://github.com/NVIDIA/apex/blob/44c3043685b6115e7b81b3458a6c76601b1e55b4/apex/transformer/microbatches.py#L160-L177>_`. for warming up of global batch size.
+    Let mbs, gbs, tp, pp, and dp stand for "micro batch size", "global batch size",
+    "tensor model parallel world size", "pipeline model parallel world size", and
+    "data parallel world size", the number of micro batches (hereafter, nmb) is defined as
+    :math:`nmb = gbs \\div (mbs \\times dp)`.
 
-    Let's say `(mbs, gbs, tp, pp, dp) = (1, 16, 1, 1, 2)`, then the number of micro batches is
+    See `apex/transformer/microbatches.py#L91-L98 <https://github.com/NVIDIA/apex/blob/
+    44c3043685b6115e7b81b3458a6c76601b1e55b4/apex/transformer/microbatches.py#L91-L98>`_
+    for the initial settings of the number of micro batches and
+    `apex/transformer/microbatches.py#L160-L177 <https://github.com/NVIDIA/apex/blob/
+    44c3043685b6115e7b81b3458a6c76601b1e55b4/apex/transformer/microbatches.py#L160-L177>_`.
+    for warming up of global batch size.
+
+    e.g.) `(mbs, gbs, tp, pp, dp) = (1, 16, 1, 1, 2)`, then the number of micro batches is
     :math:`gbs \\div (mbs \\times dp) = 16 \\div (1 \\times 2) = 8`.
-    In this case, an instance of Megatron Batch Sampler on each data parallel rank is expected returns :math:`nmb \\times mbs = 8` indices.
-    """  # NOQA
+    In this case, an instance of Megatron Batch Sampler on each data parallel rank is expected
+    returns :math:`nmb \\times mbs = 8` indices.
+    """
 
     _global_batch_size: int
     _num_micro_batches: int
@@ -53,14 +59,16 @@ class BaseMegatronBatchSampler:
         drop_last: bool,
     ) -> None:
         """Constructor of Megatron-LM style Batch Sampler.
-        
+
         Args:
             total_samples: The size of dataset.
             consumed_samples: The number of samples that have been used.
             micro_batch_size: The size of each micro batch.
             global_batch_size: The size of global batch.
-            data_parallel_rank: The value you can obtain via `parallel_state.get_data_parallel_rank()` of apex.transformer.
-            data_parallel_size: The value you can obtain via `parallel_state.get_data_parallel_world_size()` of apex.transformer.
+            data_parallel_rank: The value you can obtain via
+                `parallel_state.get_data_parallel_rank()` of apex.transformer.
+            data_parallel_size: The value you can obtain via
+                `parallel_state.get_data_parallel_world_size()` of apex.transformer.
         """
         # Sanity checks.
         if total_samples <= 0:
@@ -92,7 +100,9 @@ class BaseMegatronBatchSampler:
         self._global_batch_size = new_global_batch_size
         if self._global_batch_size % (self.micro_batch_size * self.data_parallel_size) != 0:
             raise RuntimeError(
-                f"`global_batch_size` ({self._global_batch_size}) is not divisible by `micro_batch_size ({self.micro_batch_size}) x data_parallel_size ({self.data_parallel_size})`"
+                f"`global_batch_size` ({self._global_batch_size}) is not divisible by "
+                f"`micro_batch_size ({self.micro_batch_size}) x data_parallel_size "
+                f"({self.data_parallel_size})`"
             )
         self._num_micro_batches = self._global_batch_size // (self.micro_batch_size * self.data_parallel_size)
         self._global_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.micro_batch_size
@@ -108,7 +118,7 @@ class BaseMegatronBatchSampler:
 
     def __len__(self) -> int:
         """Length of Batch Sampler.
-        
+
         ..note::
             When `rampup_batch_size` is enabled, the return value can be not exactly precise.
 
@@ -137,7 +147,6 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             batch.append(idx)
             if len(batch) == self._global_batch_size:
                 start_idx, end_idx = self.get_start_end_idx()
-                indices = batch[start_idx:end_idx]
                 yield batch[start_idx:end_idx]
                 batch = []
 
@@ -181,7 +190,11 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
         # note(mkozuki): might be better to uncomment
-        # assert current_epoch_samples % (self.data_parallel_size * apex.transformer.pipeline_parallel.utils.get_micro_batch_size()) == 0
+        # assert (
+        #     current_epoch_samples
+        #     % (self.data_parallel_size * apex.transformer.pipeline_parallel.utils.get_micro_batch_size())
+        #     == 0
+        # )
 
         # data sharding and random sampling
         bucket_size = (
