@@ -151,10 +151,15 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     else:
         # get filenames from manifest
         filepaths = []
+        
         with open(cfg.dataset_manifest, 'r') as f:
+            full_manifest = True
             for line in f:
                 item = json.loads(line)
+                if "duration" not in item:
+                    full_manifest = False
                 filepaths.append(item['audio_filepath'])
+                
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
     # setup AMP (optional)
@@ -185,9 +190,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         return cfg
 
     # transcribe audio
-    with autocast():
+    with autocast():      
         with torch.no_grad():
-            transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers)
+            if full_manifest:
+                transcriptions = asr_model.transcribe(path2manifest=cfg.dataset_manifest, 
+                                                      batch_size=cfg.batch_size, 
+                                                      num_workers=cfg.num_workers,
+                                                      num_files=len(filepaths))
+                 
+            else:
+                transcriptions = asr_model.transcribe(paths2audio_files=filepaths, 
+                                                      batch_size=cfg.batch_size, 
+                                                      num_workers=cfg.num_workers,
+                                                      num_files=len(filepaths))
+                
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
@@ -195,7 +211,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
-
     # write audio transcriptions
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:

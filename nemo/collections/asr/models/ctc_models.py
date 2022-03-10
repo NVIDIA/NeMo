@@ -15,6 +15,7 @@ import copy
 import json
 import os
 import tempfile
+import shutil
 from math import ceil
 from typing import Dict, List, Optional, Union
 
@@ -204,11 +205,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
     @torch.no_grad()
     def transcribe(
         self,
-        paths2audio_files: List[str],
+        paths2audio_files: List[str] = None,
+        path2manifest: str = None,
         batch_size: int = 4,
         logprobs: bool = False,
         return_hypotheses: bool = False,
         num_workers: int = 0,
+        num_files: int=None
     ) -> List[str]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -227,7 +230,12 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         Returns:
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order as paths2audio_files
         """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
+        if (path2manifest and paths2audio_files) or (not path2manifest and not paths2audio_files):
+            raise ValueError(
+                "Use either `path2manifest` or `paths2audio_files` "
+            )
+
+        if paths2audio_files and len(paths2audio_files) == 0:
             return {}
 
         if return_hypotheses and logprobs:
@@ -246,7 +254,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         device = next(self.parameters()).device
         dither_value = self.preprocessor.featurizer.dither
         pad_to_value = self.preprocessor.featurizer.pad_to
-
         try:
             self.preprocessor.featurizer.dither = 0.0
             self.preprocessor.featurizer.pad_to = 0
@@ -258,18 +265,26 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
+            
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
-                        fp.write(json.dumps(entry) + '\n')
+                if path2manifest:
+                    manifest_filepath = path2manifest
+                
+                else:
+                    with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                            for audio_file in paths2audio_files:
+                                entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                                fp.write(json.dumps(entry) + '\n')
+
+                    manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
 
                 config = {
-                    'paths2audio_files': paths2audio_files,
+                    'manifest_filepath': manifest_filepath,
                     'batch_size': batch_size,
-                    'temp_dir': tmpdir,
                     'num_workers': num_workers,
+                    "num_files": num_files
                 }
+
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
@@ -691,9 +706,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        batch_size = min(config['batch_size'], config['num_files'])
+        
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': config['manifest_filepath'],
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.decoder.vocabulary,
             'batch_size': batch_size,
