@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 
 import pytest
-from nemo.collections.common.tokenizers.column_coder import FloatCode
+from nemo.collections.common.tokenizers.column_coder import FloatCode, IntCode
 import pandas as pd
 import numpy as np
 
@@ -26,7 +26,8 @@ class TestColumnCoder:
         np.random.seed(1234)
         array = np.random.random(100)
         series = pd.Series(array)
-        float_coder = FloatCode('t', series, 5, 0, 10, False)
+        float_coder = FloatCode('t', 5, 0, 10)
+        float_coder.compute_code(data_series=series, fillall=False)
         r = float_coder.encode('0.323')
         assert np.array_equal(np.array(r), np.array([37, 32, 27, 15, 1]))
         decoded = float_coder.decode(r)
@@ -40,7 +41,8 @@ class TestColumnCoder:
         decoded = float_coder.decode(r)
         assert decoded == 'nan'
 
-        float_coder = FloatCode('t', series, 5, 0, 377, True)
+        float_coder = FloatCode('t', 5, 0, 377)
+        float_coder.compute_code(data_series=series, fillall=True)
         r = float_coder.encode('0.323')
         assert np.array_equal(np.array(r), np.array([1508, 1234, 1036, 613, 338]))
         decoded = float_coder.decode(r)
@@ -48,5 +50,23 @@ class TestColumnCoder:
         r = float_coder.encode('nan')
         assert np.array_equal(np.array(r), np.array([1885, 1507, 1130, 753, 376]))
         decoded = float_coder.decode(r)
+        assert decoded == 'nan'
+
+
+    @pytest.mark.unit
+    def test_int(self):
+        np.random.seed(1234)
+        array = np.random.randint(3, 1000, 100)
+        int_coder = IntCode('i', 3, 0, 16)
+        int_coder.compute_code(array, False)
+
+        r = int_coder.encode('232')
+        assert np.array_equal(np.array(r), np.array([32, 30, 2]))
+        decoded = int_coder.decode(r)
+        assert decoded == '232'
+
+        r = int_coder.encode('nan')
+        assert np.array_equal(np.array(r), np.array([36, 31, 15]))
+        decoded = int_coder.decode(r)
         assert decoded == 'nan'
  

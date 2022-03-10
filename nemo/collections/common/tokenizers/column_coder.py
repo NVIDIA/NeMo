@@ -13,14 +13,16 @@
 # limitations under the License.
 
 from typing import Dict, List, Tuple
-from cv2 import log
-from pandas import Series
 import numpy as np
 import math
 from nemo.utils import logging
+from numpy import ndarray
 
 
 class Code(object):
+
+    def compute_code(self, data_series: ndarray, fillall: bool = True):
+        raise NotImplementedError()
 
     def __init__(self, code_len: int, start_id: int):
         self.code_len = code_len
@@ -42,38 +44,30 @@ class Code(object):
         return [(self.start_id, self.end_id)]
 
 
-class FloatCode(Code):
+class IntCode(Code):
 
-    def __init__(self, col_name: str, data_series: Series, code_len: int,
-                 start_id: int, base: int = 100, fillall: bool = True):
+    def __init__(self, col_name: str, code_len: int,
+                 start_id: int, base: int = 100):
         super().__init__(code_len, start_id)
-        data_series = data_series.dropna()
         self.name = col_name
-        self.mval = data_series.min()
         self.base = base
-        # values are larger than zero
-        # use log transformation to reduce the gap
-        values = np.log(data_series - self.mval + 1.0)
-        # assume base 10 numbers, can change the base of the values if
-        # larger dictionary is needed
-        digits = int(math.log(values.max(), base)) + 1
-        # extra digits used for 'float' part of the number
-        extra_digits = code_len - digits
-        if extra_digits < 0:
-            raise "need large length to code the nummber"
-        # convert the float number into integer
-        significant_val = (values * base**extra_digits).astype(int)
-        self.extra_digits = extra_digits
-        digits_id_to_item = [{} for _ in range(code_len)]
-        digits_item_to_id = [{} for _ in range(code_len)]
-        for i in range(code_len):
+
+    def compute_code(self, data_series: ndarray, fillall: bool = True):
+        self.mval = data_series.min()
+        significant_val = self.convert_to_int(data_series, self.mval)
+        # data_series = data_series.dropna()
+        self.mval = data_series.min()
+
+        digits_id_to_item = [{} for _ in range(self.code_len)]
+        digits_item_to_id = [{} for _ in range(self.code_len)]
+        for i in range(self.code_len):
             id_to_item = digits_id_to_item[i]
             item_to_id = digits_item_to_id[i]
-            v = (significant_val // base**i) % base
+            v = (significant_val // self.base**i) % self.base
             if fillall:
-                uniq_items = range(0, base)
+                uniq_items = range(0, self.base)
             else:
-                uniq_items = sorted(v.unique().tolist())
+                uniq_items = sorted(np.unique(v).tolist())
             for i in range(len(uniq_items)):
                 item = str(uniq_items[i])
                 item_to_id[item] = self.end_id
@@ -88,6 +82,12 @@ class FloatCode(Code):
         for i in ranges:
             codes.append(i[1]-1)
         self.NA_token_id = codes
+
+    def convert_to_int(self, val, min_val):
+        return (val - min_val).astype(int)
+
+    def reverse_convert_to_int(self, val, min_val):
+        return val + min_val
 
     @property
     def code_range(self) -> List[Tuple[int, int]]:
@@ -113,8 +113,7 @@ class FloatCode(Code):
         if item == self.NA_token:
             return self.NA_token_id
         val = float(item)
-        values = np.log(val - self.mval + 1.0)
-        val_int = (values * self.base**self.extra_digits).astype(int)
+        val_int = self.convert_to_int(val, self.mval)
         digits = []
         for i in range(self.code_len):
             digit = (val_int // self.base**i) % self.base
@@ -144,19 +143,60 @@ class FloatCode(Code):
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
             v += digit * self.base**i
+        v = self.reverse_convert_to_int(v, self.mval)
+        return str(v)
+
+
+class FloatCode(IntCode):
+
+    def __init__(self, col_name: str, code_len: int,
+                 start_id: int, base: int = 100):
+        super().__init__(col_name, code_len, start_id, base)
+
+    def compute_code(self, data_series: ndarray, fillall: bool = True):
+        self.mval = data_series.min()
+        values = np.log(data_series - self.mval + 1.0)
+        digits = int(math.log(values.max(), self.base)) + 1
+        # extra digits used for 'float' part of the number
+        extra_digits = self.code_len - digits
+        if extra_digits < 0:
+            raise "need large length to code the nummber"
+        self.extra_digits = extra_digits
+        super().compute_code(data_series, fillall)
+
+    def convert_to_int(self, val, min_val):
+        values = np.log(val - min_val + 1.0)
+        # assume base 10 numbers, can change the base of the values if
+        # larger dictionary is needed
+        # convert the float number into integer
+        return (values * self.base**self.extra_digits).astype(int)
+
+    def reverse_convert_to_int(self, val, min_val):
         # v = int("".join(items))
-        v = v / self.base**self.extra_digits
+        v = val / self.base**self.extra_digits
+        v = np.exp(v) + min_val - 1.0
+        return v
+
+    def decode(self, ids: List[int]) -> str:
+        if ids[0] == self.NA_token_id[0]:
+            return self.NA_token
+        v = 0
+        for i in reversed(range(self.code_len)):
+            digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
+            v += digit * self.base**i
+        v = self.reverse_convert_to_int(v, self.mval)
         accuracy = max(int(abs(np.log10(0.1 / self.base**self.extra_digits))), 1)
-        v = np.exp(v) + self.mval - 1.0
         return f"{v:.{accuracy}f}"
 
 
-class ColumnCode(Code):
+class CategoryCode(Code):
 
-    def __init__(self, col_name: str, data_series: Series, start_id: int):
+    def __init__(self, col_name: str, start_id: int):
         super().__init__(1, start_id)
         self.name = col_name
-        uniq_items = data_series.unique().tolist()
+
+    def compute_code(self, data_series: ndarray, fillall: bool = True):
+        uniq_items = np.unique(data_series).tolist()
         id_to_item = {}
         item_to_id = {}
         for i in range(len(uniq_items)):
