@@ -98,7 +98,6 @@ def setup_trainer_and_model(args):
     if args.precision in ["32", "16"]:
         args.precision = int(float(args.precision))
 
-    # TODO: safely get it from env
     model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
     num_nodes = max(model_parallel_size // 8, 1)
     gpus = min(model_parallel_size, 8)
@@ -112,8 +111,6 @@ def setup_trainer_and_model(args):
 
     app_state = AppState()
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
-        app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
-        app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
         app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
         (
             app_state.tensor_model_parallel_rank,
@@ -133,6 +130,10 @@ def setup_trainer_and_model(args):
             restore_path=args.nemo_model, trainer=trainer
         )
     else:
+        if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+            app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
+
         logging.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
         # inject model parallel rank
         checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
