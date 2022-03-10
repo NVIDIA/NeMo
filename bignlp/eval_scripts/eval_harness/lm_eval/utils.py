@@ -34,7 +34,7 @@ def simple_parse_args_string(args_string):
     arg_list = args_string.split(",")
     args_dict = {}
     for arg in arg_list:
-        k, v = arg.split("=")
+        k, v = arg.split("=", 1)
         args_dict[k] = v
     return args_dict
 

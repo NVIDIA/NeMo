@@ -62,10 +62,12 @@ def run_evaluation(cfg, dependency=None):
     model_cfg = eval_cfg.get("model")
 
     # Model parameters
-    model_type = model_cfg.get("type")
-    checkpoint = model_cfg.get("checkpoint_path")
-    pipeline_model_parallel_size = model_cfg.get("pipeline_model_parallel_size")
+    model_type = model_cfg.get("model_type")
+    checkpoint_folder = model_cfg.get("checkpoint_folder")
+    checkpoint_name = model_cfg.get("checkpoint_name")
+    hparams_file = model_cfg.get("hparams_file")
     tensor_model_parallel_size = model_cfg.get("tensor_model_parallel_size")
+    pipeline_model_parallel_size = model_cfg.get("pipeline_model_parallel_size")
     precision = model_cfg.get("precision")
     batch_size = model_cfg.get("eval_batch_size")
     vocab_file = model_cfg.vocab_file
@@ -102,8 +104,12 @@ def run_evaluation(cfg, dependency=None):
            f"--output_path={results_dir} " \
            f"--vocab_file={vocab_file} " \
            f"--merge_file={merge_file} " \
-           f"--model_args='nemo_model={checkpoint},pipeline_model_parallel_size={pipeline_model_parallel_size}," \
-           f"tensor_model_parallel_size={tensor_model_parallel_size},precision={precision}'"
+           f"--checkpoint_folder={checkpoint_folder} " \
+           f"--checkpoint_name={checkpoint_name} " \
+           f"--hparams_file={hparams_file} " \
+           f"--pipeline_model_parallel_size={pipeline_model_parallel_size} " \
+           f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
+           f"--precision={precision}"
     args = args.replace(" ", " \\\n  ")
     eval_cmd2 = f"python -u {code_path2} \\\n {args}"
 

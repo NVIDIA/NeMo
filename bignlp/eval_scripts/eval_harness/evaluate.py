@@ -1,5 +1,7 @@
 import argparse
 import json
+import glob
+from omegaconf import OmegaConf
 from typing import Union
 import random
 import logging
@@ -29,9 +31,11 @@ def parse_args(parser_main):
                         help='A string identifier/name for the experiment to be run '
                              '- it will be appended to the output directory name, before the timestamp')
     parser.add_argument('--comment', type=str, default='', help='An optional comment/description of the experiment. '
-                                                                'Will be included in the configuration JSON file and potentially other output files.')
+                                                                'Will be included in the configuration JSON file and '
+                                                                'potentially other output files.')
     parser.add_argument('--no_timestamp', action='store_true',
-                        help='If set, a timestamp and random suffix will NOT be appended to the output directory name (unless no `name` is specified)')
+                        help='If set, a timestamp and random suffix will NOT be appended to the output directory name '
+                             '(unless no `name` is specified)')
     parser.add_argument('--tasks', default="all_tasks")
     parser.add_argument('--cache_dir', default="")
     parser.add_argument('--eval_seed', type=int, default=1234,
@@ -50,21 +54,42 @@ def parse_args(parser_main):
     parser.add_argument('--device', type=str, default='cuda')
     # Model
     parser.add_argument('--model', required=True)
-    parser.add_argument('--model_args', default="")
+
+    parser.add_argument("--nemo_model", type=str, default=None, required=False, help="Pass path to model's .nemo file")
+    parser.add_argument(
+        "--checkpoint_folder",
+        type=str,
+        default=None,
+        required=False,
+        help="If not using a .nemo file. Path to PTL checkpoints saved during training. Ex: "
+             "/raid/nemo_experiments/megatron_gpt/checkpoints",
+    )
+    parser.add_argument(
+        "--checkpoint_name",
+        type=str,
+        default=None,
+        required=False,
+        help="If not using a .nemo file. Name of checkpoint to be used. Ex: "
+             "megatron_gpt--val_loss=6.34-step=649-last.ckpt",
+    )
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, default=1, required=False,
+    )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, default=1, required=False,
+    )
+    parser.add_argument(
+        "--hparams_file",
+        type=str,
+        default=None,
+        required=False,
+        help="If not using a .nemo file. Path to config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
+    )
+    parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
+
     parser.add_argument('--vocab_file', default=None)
     parser.add_argument('--merge_file', default=None)
-    # parser.add_argument('--no_cache', action="store_true")
-    # parser.add_argument("--temperature", type=float, default=1.0,
-    #                     help='Sampling temperature.')
-    # parser.add_argument("--greedy", action='store_true', default=False,
-    #                     help='Use greedy sampling.')
-    # parser.add_argument("--top_p", type=float, default=0.0,
-    #                     help='Top p sampling.')
-    # parser.add_argument("--top_k", type=int, default=0,
-    #                     help='Top k sampling.')
-    # parser.add_argument("--recompute", action='store_true',
-    #                     help='During generation recompute all attention '
-    #                          'instead of using previously computed keys/values.')
+
     # Prompt
     parser.add_argument('--provide_description', action="store_true")
     parser.add_argument('--num_fewshot', type=int, default=0)
@@ -175,6 +200,25 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
     return args
 
 
+def inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
+    """
+    Injects tensor/pipeline model parallel ranks into the filepath.
+    Does nothing if not using model parallelism.
+    """
+    tensor_model_parallel_rank = pipeline_model_parallel_rank = 0
+    if tensor_model_parallel_size > 1 or pipeline_model_parallel_size > 1:
+        # filepath needs to be updated to include mp_rank
+        dirname = os.path.dirname(filepath)
+        basename = os.path.basename(filepath)
+        if pipeline_model_parallel_size is None or pipeline_model_parallel_size == 1:
+            filepath = f'{dirname}/mp_rank_{tensor_model_parallel_rank:02d}/{basename}'
+        else:
+            filepath = f'{dirname}/tp_rank_{tensor_model_parallel_rank:02d}_pp_rank_{pipeline_model_parallel_rank:03d}/{basename}'
+        return filepath
+    else:
+        return filepath
+
+
 def main():
     total_start_time = time.time()
 
@@ -189,27 +233,50 @@ def main():
     if args.model == "nemo-gpt3":
         args.model = "nemo-gpt3-tp-pp"
 
-    # TODO: fix vocab file and merge file
-    if int(os.environ.get('LOCAL_RANK'), 0) == 0:
-        os.makedirs("/root/.cache/torch/megatron", exist_ok=True)
-        if args.vocab_file is not None:
-            shutil.copyfile(args.vocab_file, "/root/.cache/torch/megatron/megatron-gpt-345m_vocab")
-        if args.merge_file is not None:
-            shutil.copyfile(args.merge_file, "/root/.cache/torch/megatron/megatron-gpt-345m_merges")
-    if args.vocab_file is not None:
-        while not os.path.exists("/root/.cache/torch/megatron/megatron-gpt-345m_vocab"):
+    checkpoint_folder = args.checkpoint_folder
+    checkpoint_name = args.checkpoint_name
+    hparams_file = args.hparams_file
+    tensor_model_parallel_size = args.tensor_model_parallel_size
+    pipeline_model_parallel_size = args.pipeline_model_parallel_size
+    vocab_file = args.vocab_file
+    merge_file = args.merge_file
+
+    # Checkpoint search
+    if checkpoint_name == "latest":
+        checkpoints = os.path.join(checkpoint_folder, '*.ckpt')
+        checkpoints = inject_model_parallel_rank(checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size)
+        checkpoint_list = glob.glob(checkpoints)
+        latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
+        checkpoint_name = os.path.basename(latest_checkpoint)
+
+    checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
+    checkpoint = inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
+    checkpoint_list = glob.glob(checkpoint)
+    if len(checkpoint_list) > 1:
+        raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
+    if len(checkpoint_list) == 0:
+        raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
+    args.checkpoint_name = os.path.basename(checkpoint_list[0])
+
+    # Create hparam override file for vocab and merge
+    hparams_override_file = None
+    if hparams_file is not None:
+        hparams_override_file = os.path.join(args.output_path, "hparams_override.yaml")
+        conf = OmegaConf.load(hparams_file)
+        if vocab_file is not None:
+            conf.cfg.tokenizer.vocab_file = vocab_file
+        if merge_file is not None:
+            conf.cfg.tokenizer.merge_file = merge_file
+
+        if is_global_rank_zero():
+            with open(hparams_override_file, 'w') as f:
+                OmegaConf.save(config=conf, f=f)
+
+        while not os.path.exists(hparams_override_file):
             time.sleep(1)
-    if args.merge_file is not None:
-        while not os.path.exists("/root/.cache/torch/megatron/megatron-gpt-345m_merges"):
-            time.sleep(1)
+    args.hparams_file = hparams_override_file
 
-
-    lm = models.get_model(args.model).create_from_arg_string(args.model_args, {
-        'batch_size': args.batch_size, 'device': args.device
-    })
-
-    # if not args.no_cache:
-    #     lm = base.CachingLM(lm, 'lm_cache/' + args.model + '_' + args.model_args.replace('=', '-').replace(',', '_').replace('/', '-') + '.db')
+    lm = models.get_model(args.model)(args, batch_size=args.batch_size)
 
     # Determine whether process is allowed to write to disk
     # can_write_output() limits the processes allowed to enter clause
@@ -288,11 +355,11 @@ def main():
         md_writer.value_matrix = values
         latex_writer.value_matrix = values
 
-        # todo: make latex table look good
-        # print(latex_writer.dumps())
+        if hparams_override_file is not None:
+            os.rename(hparams_override_file, os.path.join(args.output_path, "hparams_override.yaml"))
 
         logger.info(
-            f"{args.model} ({args.model_args}), limit: {args.limit}, provide_description: {args.provide_description}, num_fewshot: {args.num_fewshot}, batch_size: {args.batch_size}")
+            f"{args.model}, limit: {args.limit}, provide_description: {args.provide_description}, num_fewshot: {args.num_fewshot}, batch_size: {args.batch_size}")
         logger.info('\n' + md_writer.dumps())
 
         total_time = time.time() - total_start_time
