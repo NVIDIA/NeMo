@@ -28,7 +28,7 @@ class Code(object):
         """
         raise NotImplementedError()
 
-    def __init__(self, col_name: str, code_len: int, start_id: int, fillall: bool = True):
+    def __init__(self, col_name: str, code_len: int, start_id: int, fillall: bool = True, hasnan: bool = True):
         """
         @params:
             col_name: name of the column
@@ -37,13 +37,14 @@ class Code(object):
             fillall: if True, reserve space for digit number even the digit number is
             not present in the data_series. Otherwise, only reserve space for the numbers
             in the data_series. 
-
+            hasnan: if True, reserve space for nan
         """
         self.name = col_name
         self.code_len = code_len
         self.start_id = start_id
         self.end_id = start_id
         self.fillall = fillall
+        self.hasnan = hasnan
 
     def encode(self, item: str) -> List[int]:
         raise NotImplementedError()
@@ -63,8 +64,9 @@ class Code(object):
 class IntCode(Code):
 
     def __init__(self, col_name: str, code_len: int,
-                 start_id: int, fillall: bool = True, base: int = 100):
-        super().__init__(col_name, code_len, start_id, fillall)
+                 start_id: int, fillall: bool = True, base: int = 100,
+                 hasnan: bool = True):
+        super().__init__(col_name, code_len, start_id, fillall, hasnan)
         self.base = base
 
     def compute_code(self, data_series: ndarray):
@@ -88,15 +90,16 @@ class IntCode(Code):
                 item_to_id[item] = self.end_id
                 id_to_item[self.end_id] = item
                 self.end_id += 1
-        self.end_id += 1  # add the N/A token
         self.digits_id_to_item = digits_id_to_item
         self.digits_item_to_id = digits_item_to_id
         self.NA_token = 'nan'
-        codes = []
-        ranges = self.code_range
-        for i in ranges:
-            codes.append(i[1]-1)
-        self.NA_token_id = codes
+        if self.hasnan:
+            self.end_id += 1  # add the N/A token
+            codes = []
+            ranges = self.code_range
+            for i in ranges:
+                codes.append(i[1]-1)
+            self.NA_token_id = codes
 
     def convert_to_int(self, val, min_val):
         return (val - min_val).astype(int)
@@ -116,17 +119,24 @@ class IntCode(Code):
         for i in reversed(range(self.code_len)):
             ids = self.digits_id_to_item[i].keys()
             if c == 0:
-                outputs.append(
-                    (min(ids),
-                     max(ids) + 2))  # the first token contains the N/A
+                if self.hasnan:
+                    outputs.append(
+                        (min(ids),
+                         max(ids) + 2))  # the first token contains the N/A
+                else:
+                    outputs.append(
+                        (min(ids),
+                         max(ids) + 1))  # non N/A
             else:
                 outputs.append((min(ids), max(ids)+1))
             c += 1
         return outputs
 
     def encode(self, item: str) -> List[int]:
-        if item == self.NA_token:
+        if self.hasnan and item == self.NA_token:
             return self.NA_token_id
+        elif not self.hasnan and item == self.NA_token:
+            raise ValueError(f"colum {self.name} cannot handle nan, please set hasnan=True")
         val = float(item)
         val_int = self.convert_to_int(val, self.mval)
         digits = []
@@ -152,7 +162,7 @@ class IntCode(Code):
         return codes
 
     def decode(self, ids: List[int]) -> str:
-        if ids[0] == self.NA_token_id[0]:
+        if self.hasnan and ids[0] == self.NA_token_id[0]:
             return self.NA_token
         v = 0
         for i in reversed(range(self.code_len)):
@@ -165,8 +175,8 @@ class IntCode(Code):
 class FloatCode(IntCode):
 
     def __init__(self, col_name: str, code_len: int,
-                 start_id: int, fillall: bool = True, base: int = 100):
-        super().__init__(col_name, code_len, start_id, fillall, base)
+                 start_id: int, fillall: bool = True, base: int = 100, hasnan: bool = True):
+        super().__init__(col_name, code_len, start_id, fillall, base, hasnan)
 
     def compute_code(self, data_series: ndarray):
         self.mval = data_series.min()
@@ -193,7 +203,7 @@ class FloatCode(IntCode):
         return v
 
     def decode(self, ids: List[int]) -> str:
-        if ids[0] == self.NA_token_id[0]:
+        if self.hasnan and ids[0] == self.NA_token_id[0]:
             return self.NA_token
         v = 0
         for i in reversed(range(self.code_len)):
@@ -207,7 +217,7 @@ class FloatCode(IntCode):
 class CategoryCode(Code):
 
     def __init__(self, col_name: str, start_id: int):
-        super().__init__(col_name, 1, start_id, True)
+        super().__init__(col_name, 1, start_id, True, False)
 
     def compute_code(self, data_series: ndarray):
         uniq_items = np.unique(data_series).tolist()

@@ -27,7 +27,7 @@ class TestColumnCoder:
         np.random.seed(1234)
         array = np.random.random(100)
         series = pd.Series(array)
-        float_coder = FloatCode('t', 5, 0, False, 10)
+        float_coder = FloatCode('t', 5, 0, False, 10, True)
         float_coder.compute_code(data_series=series)
         r = float_coder.encode('0.323')
         assert np.array_equal(np.array(r), np.array([37, 32, 27, 15, 1]))
@@ -42,7 +42,7 @@ class TestColumnCoder:
         decoded = float_coder.decode(r)
         assert decoded == 'nan'
 
-        float_coder = FloatCode('t', 5, 0, True, 377)
+        float_coder = FloatCode('t', 5, 0, True, 377, True)
         float_coder.compute_code(data_series=series)
         r = float_coder.encode('0.323')
         assert np.array_equal(np.array(r), np.array([1508, 1234, 1036, 613, 338]))
@@ -52,13 +52,31 @@ class TestColumnCoder:
         assert np.array_equal(np.array(r), np.array([1885, 1507, 1130, 753, 376]))
         decoded = float_coder.decode(r)
         assert decoded == 'nan'
+        assert float_coder.end_id == 1886
+        assert float_coder.code_range[0] == (1508, 1886)
+        assert float_coder.code_range[1] == (1131, 1508)
+        assert float_coder.code_range[2] == (754, 1131)
+        assert float_coder.code_range[3] == (377, 754)
+        assert float_coder.code_range[4] == (0, 377)
 
+        float_coder = FloatCode('t', 5, 0, True, 377, False)
+        float_coder.compute_code(data_series=series)
+        assert float_coder.end_id == 1885
+        assert float_coder.code_range[0] == (1508, 1885)
+        assert float_coder.code_range[1] == (1131, 1508)
+        assert float_coder.code_range[2] == (754, 1131)
+        assert float_coder.code_range[3] == (377, 754)
+        assert float_coder.code_range[4] == (0, 377)
+        try:
+            r = float_coder.encode('nan')
+        except ValueError as e:
+            assert str(e) == 'colum t cannot handle nan, please set hasnan=True'
 
     @pytest.mark.unit
     def test_int(self):
         np.random.seed(1234)
         array = np.random.randint(3, 1000, 100)
-        int_coder = IntCode('i', 3, 0, False, 16)
+        int_coder = IntCode('i', 3, 0, False, 16, True)
         int_coder.compute_code(array)
 
         r = int_coder.encode('232')
@@ -94,7 +112,8 @@ class TestColumnCoder:
                 "args": {
                     "code_len": 4,
                     "base": 16,
-                    "fillall": False
+                    "fillall": False,
+                    "hasnan": True
                 }
             },
             {
@@ -103,7 +122,8 @@ class TestColumnCoder:
                 "args": {
                     "code_len": 4,
                     "base": 177,
-                    "fillall": True
+                    "fillall": True,
+                    "hasnan": True
                 }
             },
             {
@@ -112,7 +132,8 @@ class TestColumnCoder:
                 "args": {
                     "code_len": 3,
                     "base": 12,
-                    "fillall": True
+                    "fillall": True,
+                    "hasnan": True
                 }
             },
             {
