@@ -20,20 +20,26 @@ import numpy
 
 __all__ = ['TabularTokenizer']
 
+END_OF_TEXT = '<|endoftext|>'
+NEW_LINE = '\n'
+
 
 class TabularTokenizer(TokenizerSpec):
 
-    def __init__(self, coder_file,
-                 special_tokens=['<|endoftext|>', '\n'],
+    def __init__(self, coder,
+                 special_tokens=[END_OF_TEXT, NEW_LINE],
                  delimiter=','):
-        with open(coder_file, 'rb') as handle:
-            self.code_column: ColumnCodes = pickle.load(handle)
+        if isinstance(coder, ColumnCodes):
+            self.code_column: ColumnCodes = coder
+        else:
+            with open(coder, 'rb') as handle:
+                self.code_column: ColumnCodes = pickle.load(handle)
         self.num_columns = len(self.code_column.columns)
         self.special_tokens = {}
         self.special_tokens_decoder = {}
         self.add_special_tokens(special_tokens)
         self.delimiter = delimiter
-        self.eod_id = self.special_tokens['<|endoftext|>']
+        self.eod_id = self.special_tokens[END_OF_TEXT]
 
     def __len__(self):
         return self.vocab_size
@@ -54,7 +60,7 @@ class TabularTokenizer(TokenizerSpec):
 
     @property
     def eor(self):
-        return self.special_tokens['\n']
+        return self.special_tokens[NEW_LINE]
 
     def add_special_tokens(self, special_tokens):
         """ Add a list of additional tokens to the encoder.
@@ -76,7 +82,7 @@ class TabularTokenizer(TokenizerSpec):
     def text_to_tokens(self, text):
         """ Tokenize a string. """
         tokens = []
-        rows = text.split('\n')
+        rows = text.split(NEW_LINE)
         num_rows = len(rows)
         for row_id in range(num_rows):
             row = rows[row_id]
@@ -84,19 +90,19 @@ class TabularTokenizer(TokenizerSpec):
                 continue
             fields = row.split(self.delimiter)
             for f in fields:
-                splits = f.split('<|endoftext|>')
+                splits = f.split(END_OF_TEXT)
                 if len(splits) == 1:
-                    tokens.append(f)
+                    tokens.append(f.strip())
                 elif len(splits) == 2:
                     if splits[0] != '':
-                        tokens.append(splits[0])
-                    tokens.append('<|endoftext|>')
+                        tokens.append(splits[0].strip())
+                    tokens.append(END_OF_TEXT)
                     if splits[1] != '':
-                        tokens.append(splits[1])
+                        tokens.append(splits[1].strip())
                 else:
                     raise "error"
             if row_id != num_rows - 1:
-                tokens.append('\n')
+                tokens.append(NEW_LINE)
         return tokens
 
     def tokens_to_ids(self, tokens: List[str]):
@@ -115,7 +121,7 @@ class TabularTokenizer(TokenizerSpec):
         return ids
 
     def ids_to_tokens(self, ids, skip_special_tokens=False):
-        """Converts a sequence of ids in BPE tokens using the vocab."""
+        """Converts a sequence of ids in Tabular tokens using the vocab."""
         tokens = []
         cindex = 0
         sizes = self.code_column.sizes
@@ -153,7 +159,7 @@ class TabularTokenizer(TokenizerSpec):
         all_lines = []
         line = []
         for token in tokens:
-            if token == '<|endoftext|>' or token == '\n':
+            if token == END_OF_TEXT or token == NEW_LINE:
                 if len(line) != 0:
                     line_text = self.delimiter.join(line)
                     all_lines.append(line_text)
