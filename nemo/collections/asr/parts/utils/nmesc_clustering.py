@@ -27,7 +27,8 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# This file is part of https://github.com/scikit-learn/scikit-learn/blob/114616d9f6ce9eba7c1aacd3d4a254f868010e25/sklearn/manifold/_spectral_embedding.py and
+# NME-SC clustering is based on the implementation from the paper
+# https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
 from collections import Counter
@@ -83,9 +84,9 @@ def getEuclideanDistance(specEmbA, specEmbB, device: torch.device = torch.device
     """
     Args:
         specEmbA: (torch.tensor)
-            Matrix containing spectral embedding vectors from eigen value decomposition (N x embedding_dim).
+            Matrix containing spectral embedding vectors from eigenvalue decomposition (N x embedding_dim).
         specEmbB: (torch.tensor)
-            Matrix containing spectral embedding vectors from eigen value decomposition (N x embedding_dim).
+            Matrix containing spectral embedding vectors from eigenvalue decomposition (N x embedding_dim).
     Returns:
         dis: (torch.tensor)
             Euclidean distance values of the two set of spectral embedding vectors.
@@ -217,7 +218,7 @@ def kmeans_torch(
 
         center_shift = torch.sum(torch.sqrt(torch.sum((centers - initial_state_pre) ** 2, dim=1)))
 
-        # Increment iter_count
+        # Increase iter_count
         iter_count += 1
         if center_shift ** 2 < threshold:
             break
@@ -292,7 +293,7 @@ def getAffinityGraphMat(affinity_mat_raw, p_value: int):
 def getMinimumConnection(mat, max_N, n_list, device: torch.device):
     """
     Generate connections until fully connect all the nodes in the graph.
-    If graph is not fully connected, it might generate an inaccurate results.
+    If graph is not fully connected, it might generate inaccurate results.
     """
     p_value = torch.tensor(1)
     affinity_mat = getAffinityGraphMat(mat, p_value)
@@ -441,13 +442,13 @@ def estimateNumofSpeakers(
     affinity_mat, max_num_speaker: int, is_cuda: bool = False, device: torch.device = torch.device('cpu')
 ):
     """
-    Estimate the number of speakers using eigen decompose on laplacian Matrix.
+    Estimate the number of speakers using eigen decomposition on the Laplacian Matrix.
     affinity_mat: (array)
         NxN affitnity matrix
     max_num_speaker: (int)
         Maximum number of clusters to consider for each session
     is_cuda: (bool)
-        if cuda availble eigh decomposition would be computed on GPUs
+        if cuda available eigh decomposition would be computed on GPUs
     """
     if not is_cuda:
         device = torch.device('cpu')
@@ -632,8 +633,8 @@ class NMESC:
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
 
-        # Checks whether affinity graph is fully connected.
-        # If not, it adds minimum number of connections to make it fully connected.
+        # Checks whether the affinity graph is fully connected.
+        # If not, it adds a minimum number of connections to make it fully connected.
         if not isGraphFullyConnected(affinity_mat, device=self.device):
             affinity_mat, rp_p_value = getMinimumConnection(
                 self.mat, self.max_N, self.p_value_list, device=self.device
@@ -735,18 +736,18 @@ def COSclustering(
             is performed.
 
         oracle_num_speaker: (int or None)
-            Oracle number of speakers if known else None
+            The oracle number of speakers if known else None
 
         max_num_speaker: (int)
-            Maximum number of clusters to consider for each session
+            The maximum number of clusters to consider for each session
 
         min_samples_for_NMESC: (int)
-            Minimum number of samples required for NME clustering, this avoids
+            The minimum number of samples required for NME clustering, this avoids
             zero p_neighbour_lists. If the input has fewer segments than min_samples,
             it is directed to the enhanced speaker counting mode.
 
         enhanced_count_thres: (int)
-            For short audio recordings under 60 seconds, clustering algorithm cannot
+            For the short audio recordings under 60 seconds, clustering algorithm cannot
             accumulate enough amount of speaker profile for each cluster.
             Thus, getEnhancedSpeakerCount() employs anchor embeddings (dummy representations)
             to mitigate the effect of cluster sparsity.
@@ -768,7 +769,7 @@ def COSclustering(
             Default is None and performs NME-analysis to estimate the threshold.
 
     Returns:
-        Y: (List[int])
+        Y: (torch.tensor[int])
             Speaker label for each segment.
     """
     device = torch.device("cuda") if cuda else torch.device("cpu")
