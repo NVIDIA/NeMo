@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import random
 import warnings
 from typing import Tuple
 
-import numpy
 import torch
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -91,7 +89,7 @@ class BaseMegatronBatchSampler:
     def update_global_batch_size(self, new_global_batch_size: int) -> None:
         """Update the global batch size."""
         self._global_batch_size = new_global_batch_size
-        self._num_micro_batches = self._global_batch_size / (self.micro_batch_size * self.data_parallel_rank)
+        self._num_micro_batches = self._global_batch_size / (self.micro_batch_size * self.data_parallel_size)
         self._globla_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.micro_batch_size
 
     @property
