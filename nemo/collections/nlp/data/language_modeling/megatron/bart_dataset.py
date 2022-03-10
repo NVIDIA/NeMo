@@ -136,7 +136,7 @@ class BARTDataset(MegatronDataset):
             eos_id=self.eos_id,
             tokenizer_type=self.tokenizer_type,
             delete_mask_prob=self.delete_mask_prob,
-            tokenizer=tokenizer,
+            tokenizer=self.tokenizer,
         )
         return training_sample
 
