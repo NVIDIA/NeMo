@@ -109,7 +109,7 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
         # Last batch will be dropped if drop_last is not set False
         for idx in range(self.consumed_samples, self.total_samples):
             batch.append(idx)
-            if len(batch) == self._num_micro_batch_times_micro_batch_size:
+            if len(batch) == self.num_micro_batch_times_micro_batch_size_times_data_parallel_size:
                 start_idx, end_idx = self.get_start_end_idx()
                 yield batch[start_idx:end_idx]
                 batch = []
