@@ -35,8 +35,116 @@ from nemo.utils.exp_manager import StatelessTimer, exp_manager
 Can currently only prompt tune on one task at a time, but can
 run inference with multiple soft-prompts/tasks within a batch.
 
-For detailed usage documentation, please see:
-https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/megatron_finetuning.html#prompt-tuning
+Datasets should be formatted with in a json file like:
+{"prompt_tag": <tag1>, "text": <text1>, "answer": <answer1>}
+{"prompt_tag": <tag1>, "text": <text2>, "answer": <answer2>}
+{"prompt_tag": <tag1>, "text": <text3>, "answer": <answer3>}
+
+Example Usage for first prompt tuning task:
+
+EXPR_NAME='winogrande_prompt_tuning'
+RESTORE_PATH='megatron_gpt.nemo'
+GPUS=1
+MAX_STEPS=4800
+PROMPT_LENGTH=20
+
+echo "Prompt tuning starting"
+python megatron_gpt_prompt_tuning.py \
+        --config-name=megatron_gpt_config \
+        trainer.devices=$GPUS \
+        trainer.max_steps=$MAX_STEPS \
+        restore_from_path=$RESTORE_PATH \
+        exp_manager.name=$EXPR_NAME \
+        exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
+        +model.use_soft_prompts=True \
+        +model.num_prompt_tokens=$PROMPT_LENGTH \
+        +model.existing_prompt_tags=[] \
+        +model.new_prompt_tags=['Winogrande'] \
+        +model.new_prompt_init_text=['disambiguate pronoun noun names pick correct name fill blank'] \
+        +model.new_prompt_init_methods=['text'] \
+        model.data.data_prefix=None \
+        +model.data.train_ds='winogrande_prompt_tuning_train.jsonl' \
+        +model.data.valid_ds='winogrande_prompt_tuning_val.jsonl' \
+        +model.data.batch_size=32 \
+        model.optim.lr=2e-3 \
+        model.optim.sched.min_lr=2e-6 \
+        model.optim.sched.warmup_steps=320 \
+        model.optim.sched.constant_steps=2240 \
+        model.encoder_seq_length=2048
+
+
+Example Usage for second prompt tuning task:
+Be sure to update model.exsiting_prompt_tags with tags from previous prompt tuning session
+and to use the .nemo file saved at the end of the last prompt tuning session
+
+EXPR_NAME='rte_prompt_tuning'
+RESTORE_PATH='winograde_megatron_gpt.nemo'
+GPUS=1
+MAX_STEPS=780
+PROMPT_LENGTH=20
+VAL_CHECK_INTERVAL=50
+
+echo "Prompt tuning starting"
+python megatron_gpt_prompt_tuning.py \
+        --config-name=megatron_gpt_config \
+        trainer.devices=$GPUS \
+        trainer.max_steps=$MAX_STEPS \
+        trainer.val_check_interval=$VAL_CHECK_INTERVAL \
+        restore_from_path=$RESTORE_PATH \
+        exp_manager.name=$EXPR_NAME \
+        exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
+        +model.use_soft_prompts=True \
+        +model.num_prompt_tokens=$PROMPT_LENGTH \
+        +model.existing_prompt_tags=['Winogrande'] \
+        +model.new_prompt_tags=['RTE'] \
+        +model.new_prompt_init_text=['entailment cause relationship imply label text'] \
+        +model.new_prompt_init_methods=['text'] \
+        model.data.data_prefix=None \
+        +model.data.train_ds='RTE_prompt_tuning_train.jsonl' \
+        +model.data.valid_ds='RTE_prompt_tuning_val.jsonl' \
+        +model.data.batch_size=32 \
+        model.optim.lr=2e-4 \
+        model.optim.sched.min_lr=2e-6 \
+        model.optim.sched.warmup_steps=78 \
+        model.optim.sched.constant_steps=545 \
+        model.encoder_seq_length=2048
+
+
+Example Usage for third prompt tuning task:
+Be sure to update model.exsiting_prompt_tags with tags from previous prompt tuning sessions
+and to use the .nemo file saved at the end of the last prompt tuning sessions
+
+EXPR_NAME='boolq_prompt_tune'
+GPUS=1
+MAX_STEPS=2950
+PROMPT_LENGTH=20
+RESTORE_PATH='rte_winogrande_megatron_gpt.nemo'
+
+echo "Prompt tuning starting"
+python megatron_gpt_prompt_tuning.py \
+        --config-name=megatron_gpt_config \
+        trainer.devices=$GPUS \
+        trainer.max_steps=$MAX_STEPS \
+        exp_manager.name=$EXPR_NAME \
+        exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
+        restore_from_path=$RESTORE_PATH \
+        +model.use_soft_prompts=True \
+        +model.num_prompt_tokens=$PROMPT_LENGTH \
+        +model.existing_prompt_tags=['Winogrande, RTE'] \
+        +model.new_prompt_tags=['BoolQ'] \
+        +model.new_prompt_init_text=['true false question answer reading comprehension'] \
+        +model.new_prompt_init_methods=['text'] \
+        +model.calc_loss_on_answer_only=False \
+        model.data.data_prefix=None \
+        +model.data.train_ds='boolq_prompt_tuning_train.jsonl' \
+        +model.data.valid_ds='boolq_prompt_tuning_val.jsonl' \
+        +model.data.batch_size=32 \
+        model.optim.lr=2e-4 \
+        model.optim.sched.min_lr=2e-6 \
+        model.optim.sched.warmup_steps=295 \
+        model.optim.sched.constant_steps=2063 \
+        model.encoder_seq_length=2048
+
 """
 
 
@@ -48,9 +156,9 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [
         NLPDDPPlugin(
-            num_nodes=cfg.trainer.num_nodes,
             no_ddp_communication_hook=True,
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+            find_unused_parameters=False,
         )
     ]
     if cfg.trainer.precision in [16, 'bf16']:
