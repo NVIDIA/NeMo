@@ -796,10 +796,10 @@ pipeline {
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.gpus=[1] \
+            trainer.devices=[1] \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            trainer.accelerator=ddp \
+            trainer.accelerator=gpu \
             exp_manager=null  && \
             rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
