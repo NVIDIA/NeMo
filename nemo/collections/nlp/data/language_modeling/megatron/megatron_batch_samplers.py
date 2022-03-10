@@ -16,6 +16,7 @@ import warnings
 from typing import Tuple
 
 import torch
+from apex.transformer import parallel_state
 from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 __all__ = [
@@ -39,7 +40,7 @@ class BaseMegatronBatchSampler:
 
     _global_batch_size: int
     _num_micro_batches: int
-    _globla_batch_size_on_this_data_parallel_rank: int
+    _global_batch_size_on_this_data_parallel_rank: int
 
     def __init__(
         self,
@@ -89,8 +90,12 @@ class BaseMegatronBatchSampler:
     def update_global_batch_size(self, new_global_batch_size: int) -> None:
         """Update the global batch size."""
         self._global_batch_size = new_global_batch_size
-        self._num_micro_batches = self._global_batch_size / (self.micro_batch_size * self.data_parallel_size)
-        self._globla_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.micro_batch_size
+        if self._global_batch_size % (self.micro_batch_size * self.data_parallel_size) != 0:
+            raise RuntimeError(
+                f"`global_batch_size` ({self._global_batch_size}) is not divisible by `micro_batch_size ({self.micro_batch_size}) x data_parallel_size ({self.data_parallel_size})`"
+            )
+        self._num_micro_batches = self._global_batch_size // (self.micro_batch_size * self.data_parallel_size)
+        self._global_batch_size_on_this_data_parallel_rank = self._num_micro_batches * self.micro_batch_size
 
     @property
     def global_batch_size(self) -> int:
@@ -121,8 +126,8 @@ class BaseMegatronBatchSampler:
 
 class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     def get_start_end_idx(self) -> Tuple[int, int]:
-        start_idx = self.data_parallel_rank * self.local_global_batch_size
-        end_idx = start_idx + self.local_global_batch_size
+        start_idx = self.data_parallel_rank * self._global_batch_size_on_this_data_parallel_rank
+        end_idx = start_idx + self._global_batch_size_on_this_data_parallel_rank
         return start_idx, end_idx
 
     def __iter__(self):
@@ -133,8 +138,7 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             if len(batch) == self._global_batch_size:
                 start_idx, end_idx = self.get_start_end_idx()
                 indices = batch[start_idx:end_idx]
-                assert len(indices) == self._globla_batch_size_on_this_data_parallel_rank
-                yield indices
+                yield batch[start_idx:end_idx]
                 batch = []
 
         # Check the last partial batch and see drop_last is set
@@ -143,9 +147,10 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
             yield batch[start_idx:end_idx]
 
 
+# NOTE (mkozuki): I haven't tested this enough.
 class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
 
-    # TODO (mkozuki): [[Argument of `dataset` and `data_sharding`]]
+    # NOTE (mkozuki): [[Argument of `dataset` and `data_sharding`]]
     # From the commit below, it seems like `dataset` argument and `data_sharding` argument
     # are necessary for ViT training. However, to keep this simple,
     # I omit those two arguments.
@@ -181,7 +186,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         # data sharding and random sampling
         bucket_size = (
             self.total_samples // self._global_batch_size
-        ) * self._globla_batch_size_on_this_data_parallel_rank
+        ) * self._global_batch_size_on_this_data_parallel_rank
         bucket_offset = current_epoch_samples // self.data_parallel_size
         start_idx = self.data_parallel_rank * bucket_size
 
@@ -194,7 +199,7 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         # Last batch if not complete will be dropped.
         for idx in idx_range:
             batch.append(idx)
-            if len(batch) == self._globla_batch_size_on_this_data_parallel_rank:
+            if len(batch) == self._global_batch_size_on_this_data_parallel_rank:
                 self.consumed_samples += self._global_batch_size
                 yield batch
                 batch = []
