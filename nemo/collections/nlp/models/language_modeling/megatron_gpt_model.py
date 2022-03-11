@@ -129,6 +129,7 @@ class MegatronGPTModel(NLPModel):
             tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
             vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
             merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+            delimiter=self.cfg.tokenizer.get('delimiter', None),
         )
 
         vocab_size = self.tokenizer.vocab_size
