@@ -442,7 +442,7 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     Add randomly generated synthetic embeddings to make eigen analysis more stable.
     We refer to these embeddings as anchor embeddings.
 
-    emb (torch.tennsor):
+    emb (torch.tensor):
         The input embedding from the emebedding extractor.
 
     anchor_sample_n (int):
@@ -488,14 +488,15 @@ def getEnhancedSpeakerCount(
     """
     Calculate the number of speakers using NME analysis with anchor embeddings.
 
-    emb (torch.tennsor):
+    emb (torch.tensor):
         The input embedding from the emebedding extractor.
+
     cuda (bool):
-        Use cuda for the operationsif cuda=True.
+        Use cuda for the operations if cuda=True.
 
     random_test_count (int):
-        The number of trails of adding the anchor embeddings.
-        The higher the count, the more accurate the counting is.
+        The number of trials of the enhanced counting with randomness.
+        The higher the count, the more accurate the enhanced counting is.
 
     anchor_spk_n (int):
         The number of speakers for synthetic embedding.
