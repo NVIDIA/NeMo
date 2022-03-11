@@ -111,7 +111,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
 
     # Define running commands
     prepare_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/prepare.py")
-    cleaned_en = "--cleaned-en" if use_cleaned_english else ""
+    cleaned_en = "--cleaned-en " if use_cleaned_english else ""
     prepare_args = f"--data-path={mc4_dir} " \
                    f"--git-lfs-path={git_lfs_dir} " \
                    f"--languages={languages} " \
