@@ -159,8 +159,10 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
 
         # Check the last partial batch and see drop_last is set
         if len(batch) > 0 and not self.drop_last:
-            start_idx, end_idx = self.get_start_end_idx()
-            yield batch[start_idx:end_idx]
+            # start_idx, end_idx = self.get_start_end_idx()
+            # yield batch[start_idx:end_idx]
+            indices = [batch[i] for i in range(self.data_parallel_rank, len(batch), self.data_parallel_size)]
+            yield indices
 
 
 # NOTE (mkozuki): I haven't tested this enough.
