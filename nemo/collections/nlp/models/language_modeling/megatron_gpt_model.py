@@ -247,7 +247,12 @@ class MegatronGPTModel(NLPModel):
 
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
->
+
+        if self.use_soft_prompts:
+            # The micro batches are already prepared for apex by the prompt tuning dataclass
+            batch_for_pipeline = batch
+            tensor_shape = [len(batch_for_pipeline[0][0]), self.cfg.micro_batch_size, self.cfg.hidden_size]
+        else:
             # we prepare the micro batches for the apex fwd/bwd function
             batch_for_pipeline = self.process_global_batch(batch)
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
