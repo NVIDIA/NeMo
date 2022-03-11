@@ -60,6 +60,7 @@ def run_evaluation(cfg, dependency=None):
     base_results_dir = cfg.get("base_results_dir")
     run_cfg = eval_cfg.get("run")
     model_cfg = eval_cfg.get("model")
+    cluster_cfg = cfg.cluster
 
     # Model parameters
     model_type = model_cfg.get("model_type")
@@ -78,7 +79,7 @@ def run_evaluation(cfg, dependency=None):
     time_limit = run_cfg.get("time_limit")
     nodes = run_cfg.get("nodes")
     ntasks_per_node = run_cfg.get("ntasks_per_node")
-    gpus_per_task = run_cfg.get("gpus_per_task")
+    gpus_per_task = cluster_cfg.gpus_per_task
     eval_name = run_cfg.get("eval_name")
     convert_name = run_cfg.get("convert_name")
     model_train_name = run_cfg.get("model_train_name")

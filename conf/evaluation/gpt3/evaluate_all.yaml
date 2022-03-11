@@ -3,7 +3,6 @@ run:
   time_limit: "4:00:00"
   nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
   ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
-  gpus_per_task: null
   eval_name: eval_all
   model_train_name: 5b
   train_dir: ${base_results_dir}/${.model_train_name}
