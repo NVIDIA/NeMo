@@ -437,6 +437,103 @@ def getLamdaGaplist(lambdas):
     return lambdas[1:] - lambdas[:-1]
 
 
+def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sigma: float):
+    """
+    Add randomly generated synthetic embeddings to make eigen analysis more stable.
+    We refer to these embeddings as anchor embeddings.
+
+    emb (torch.tennsor):
+        The input embedding from the emebedding extractor.
+
+    anchor_sample_n (int):
+        The number of embedding samples per speaker.
+        anchor_sample_n = 10 is recommended.
+
+    anchor_spk_n (int):
+        The number of speakers for synthetic embedding.
+        anchor_spk_n = 3 is recommended.
+
+    sigma (int):
+        The amplitude of synthetic noise for each embedding vector.
+        If sigma value is too small, under-counting could happen.
+        If sigma value is too large, over-counting could happen.
+        sigma = 50 is recommended.
+
+    """
+    emb_dim = emb.shape[1]
+    std_org = torch.std(emb, dim=0)
+    new_emb_list = []
+    for _ in range(anchor_spk_n):
+        emb_m = torch.tile(torch.randn(1, emb_dim), (anchor_sample_n, 1))
+        emb_noise = torch.randn(anchor_sample_n, emb_dim).T
+        emb_noise = torch.matmul(
+            torch.diag(std_org), emb_noise / torch.max(torch.abs(emb_noise), dim=0)[0].unsqueeze(0)
+        ).T
+        emb_gen = emb_m + sigma * emb_noise
+        new_emb_list.append(emb_gen)
+
+    new_emb_list.append(emb)
+    new_emb_np = torch.vstack(new_emb_list)
+    return new_emb_np
+
+
+def getEnhancedSpeakerCount(
+    emb: torch.Tensor,
+    cuda: bool,
+    random_test_count: int = 5,
+    anchor_spk_n: int = 3,
+    anchor_sample_n: int = 10,
+    sigma: float = 50,
+):
+    """
+    Calculate the number of speakers using NME analysis with anchor embeddings.
+
+    emb (torch.tennsor):
+        The input embedding from the emebedding extractor.
+    cuda (bool):
+        Use cuda for the operationsif cuda=True.
+
+    random_test_count (int):
+        The number of trails of adding the anchor embeddings.
+        The higher the count, the more accurate the counting is.
+
+    anchor_spk_n (int):
+        The number of speakers for synthetic embedding.
+        anchor_spk_n = 3 is recommended.
+
+    anchor_sample_n (int):
+        The number of embedding samples per speaker.
+        anchor_sample_n = 10 is recommended.
+
+    sigma (float):
+        The amplitude of synthetic noise for each embedding vector.
+        If sigma value is too small, under-counting could happen.
+        If sigma value is too large, over-counting could happen.
+        sigma = 50 is recommended.
+
+    """
+    est_num_of_spk_list = []
+    for seed in range(random_test_count):
+        torch.manual_seed(seed)
+        emb_aug = addAnchorEmb(emb, anchor_sample_n, anchor_spk_n, sigma)
+        mat = getCosAffinityMatrix(emb_aug)
+        nmesc = NMESC(
+            mat,
+            max_num_speaker=emb.shape[0],
+            max_rp_threshold=0.25,
+            sparse_search=True,
+            sparse_search_volume=50,
+            fixed_thres=-1.0,
+            NME_mat_size=300,
+            cuda=cuda,
+        )
+        est_num_of_spk, _ = nmesc.NMEanalysis()
+        est_num_of_spk_list.append(est_num_of_spk)
+    ctt = Counter(est_num_of_spk_list)
+    comp_est_num_of_spk = max(ctt.most_common(1)[0][0] - anchor_spk_n, 1)
+    return comp_est_num_of_spk
+
+
 @torch.jit.script
 def estimateNumofSpeakers(
     affinity_mat, max_num_speaker: int, is_cuda: bool = False, device: torch.device = torch.device('cpu')
@@ -779,6 +876,8 @@ def COSclustering(
     emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32)
+    elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
+        est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb, cuda)
     else:
         est_num_of_spk_enhanced = None
 
@@ -803,10 +902,13 @@ def COSclustering(
         est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
+        est_num_of_spk
         affinity_mat = mat
 
     if oracle_num_speakers:
         est_num_of_spk = oracle_num_speakers
+    elif est_num_of_spk_enhanced:
+        est_num_of_spk = est_num_of_spk_enhanced
 
     spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
     Y = spectral_model.predict(affinity_mat)
