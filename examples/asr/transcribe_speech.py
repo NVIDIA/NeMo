@@ -199,6 +199,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                                                       num_files=len(filepaths))
                  
             else:
+                logging.info("The input manifest is not complete. Will use audio_filepath from input manifest to generate temporary manifest")
                 transcriptions = asr_model.transcribe(paths2audio_files=filepaths, 
                                                       batch_size=cfg.batch_size, 
                                                       num_workers=cfg.num_workers,
