@@ -136,7 +136,6 @@ class BARTDataset(MegatronDataset):
             eos_id=self.eos_id,
             tokenizer_type=self.tokenizer_type,
             delete_mask_prob=self.delete_mask_prob,
-            tokenizer=self.tokenizer,
         )
         return training_sample
 
@@ -163,7 +162,6 @@ def build_training_sample(
     eos_id=None,
     tokenizer_type="wordpiece",
     delete_mask_prob=0,
-    tokenizer=None,
 ):
     """Build BART training sample.
     Arguments:
@@ -238,7 +236,6 @@ def build_training_sample(
         eos_id,
         delete_mask_prob=delete_mask_prob,
         np_rng=np_rng,
-        tokenizer=tokenizer,
     )
 
     train_sample = {
@@ -266,7 +263,6 @@ def pad_and_convert_to_numpy(
     eos_id=None,
     delete_mask_prob=0,
     np_rng=None,
-    tokenizer=None,
 ):
     """Pad sequences and convert them to numpy."""
     bart_decoder_in = [bos_id] + tokens[:-1]

@@ -553,7 +553,6 @@ def _build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
-    deleted_lm_prob=0.0,
     delete_mask_prob=0,
 ):
 
