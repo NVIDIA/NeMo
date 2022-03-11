@@ -268,17 +268,26 @@ def pad_and_convert_to_numpy(
     np_rng=None,
     tokenizer=None,
 ):
-    import pudb; pudb.set_trace()
     """Pad sequences and convert them to numpy."""
-    bart_decoder_in = [bos_id] + tokens
-    bart_decoder_out = tokens + [eos_id]
-    bart_input = output_tokens
+    bart_decoder_in = [bos_id] + tokens[:-1]
+    bart_decoder_out = tokens
 
-    # delete mask with probability delete_mask_prob (i.e., do not include mask)
-    if delete_mask_prob > 0:
-        deleted_masks = np_rng.rand(len(masked_labels))
-        delete_masked_positions_ind = np_rng.rand(len(masked_labels)) < delete_mask_prob
-        # if np_rng.rand() >= delete_mask_prob:
+    # construct bart input by collapsing multiple <mask> into one, and delete randomly
+    bart_input = []
+    (start_index, end_index) = (0, None)
+    for span in masked_spans:
+        end_index = span.index[0]
+        bart_input.extend(output_tokens[start_index:end_index])
+        # delete mask with probability delete_mask_prob
+        if np_rng.rand() >= delete_mask_prob:
+            bart_input.append(mask_id)
+
+        # the next start index is the token after the last span token
+        start_index = span.index[-1] + 1
+
+    # Add the remaining tokens to the BART input
+    bart_input.extend(output_tokens[start_index:])
+
 
     # Some checks.
     # Encoder-side padding mask.

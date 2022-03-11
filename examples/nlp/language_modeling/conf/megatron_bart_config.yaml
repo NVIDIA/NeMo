@@ -116,6 +116,7 @@ model:
     permutation: False
     whole_word_masking: True
     favor_longer_ngrams: False
+    delete_mask_prob: 0.3
 
   optim:
     name: fused_adam
