@@ -32,7 +32,7 @@ def split_languages(c4_path, languages, max_split_size, soft_link_path, cleaned_
     for lang in langs:
         assert lang in ALL_LANGS, f"Language `{lang}` cannot be recognized."
         if lang == 'en' and cleaned_en:
-            file_list = f"en/c4-train.00000-of-*.json.gz"
+            file_list = sorted(glob.glob(os.path.join(c4_path, f"en/c4-train.*.json.gz")))
             print(" ****** Using cleaned english data.")
         else:
             file_list = sorted(glob.glob(os.path.join(c4_path, f"multilingual/c4-{lang}.tfrecord-*.json.gz")))
