@@ -151,6 +151,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     else:
         # get filenames from manifest
         filepaths = []
+        if os.stat(cfg.dataset_manifest).st_size == 0:
+            logging.warning(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+            return None
 
         with open(cfg.dataset_manifest, 'r') as f:
             full_manifest = True

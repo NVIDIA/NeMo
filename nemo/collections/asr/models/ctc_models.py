@@ -261,7 +261,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             self.encoder.freeze()
             self.decoder.freeze()
             logging_level = logging.get_verbosity()
-            logging.set_verbosity(logging.WARNING)
+            logging.set_verbosity(logging.INFO)
             # Work in tmp directory - will store manifest file there
 
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -269,12 +269,13 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                     manifest_filepath = path2manifest
 
                 else:
-                    with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                    manifest_filepath = os.path.join(tmpdir, 'manifest.json')
+                    with open(manifest_filepath, 'w', encoding='utf-8') as fp:
                         for audio_file in paths2audio_files:
                             entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                             fp.write(json.dumps(entry) + '\n')
 
-                    manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+                logging.info(f"Provided or generated manifest_filepath to be transcribed: {manifest_filepath}")
 
                 config = {
                     'manifest_filepath': manifest_filepath,

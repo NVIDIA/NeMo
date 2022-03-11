@@ -165,7 +165,7 @@ def write_vad_infer_manifest(file, args_func):
 
         with open(err_file, 'w', encoding='utf-8') as fout:
             fout.write(filepath + ":" + str(e))
-    
+
     return res
 
 
@@ -357,11 +357,17 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
     return overlap_filepath
 
 
-@torch.jit.script
+# @torch.jit.script
 def merge_overlap_segment(segments: torch.Tensor) -> torch.Tensor:
     """
     Merged the overlapped segemtns {(0, 1.5), (1, 3.5), } -> {(0, 3.5), }
     """
+    if (
+        segments.shape == torch.Size([0])
+        or segments.shape == torch.Size([0, 2])
+        or segments.shape == torch.Size([1, 2])
+    ):
+        return segments
     segments = segments[segments[:, 0].sort()[1]]
     merge_boundary = segments[:-1, 1] >= segments[1:, 0]
     head_padded = torch.nn.functional.pad(merge_boundary, [1, 0], mode='constant', value=0.0)
@@ -469,6 +475,7 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]):
 
     # Merge the overlapped speech segments due to padding
     speech_segments = merge_overlap_segment(speech_segments)  # not sorted
+
     return speech_segments
 
 
@@ -507,6 +514,9 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
     Returns:
         speech_segments(set): Filtered set of speech segment in (start, end) format.  {(start1, end1), (start2, end2)}
     """
+    if speech_segments.shape == torch.Size([0]):
+        return speech_segments
+
     min_duration_on = per_args.get('min_duration_on', 0.0)
     min_duration_off = per_args.get('min_duration_off', 0.0)
     # filter_speech_first = per_args.get('filter_speech_first', True)
@@ -558,6 +568,9 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
 
+    if speech_segments.shape == torch.Size([0]):
+        return speech_segments
+
     # This is what riva team wants for VAD output.
     speech_segments, _ = torch.sort(speech_segments, 0)
 
@@ -578,9 +591,15 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
-    with open(save_path, "w") as fp:
-        for i in preds:
-            fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
+
+    if preds.shape == torch.Size([0]):
+        with open(save_path, "w") as fp:
+            fp.write(f"0 0 speech\n")
+
+    else:
+        with open(save_path, "w") as fp:
+            for i in preds:
+                fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
 
     return save_path
 
@@ -1053,3 +1072,41 @@ def stitch_segmented_asr_output(
             f"Finish stitch segmented ASR output to {stitched_output_manifest}, the speech segments info has been stored in directory {speech_segments_tensor_dir}"
         )
         return stitched_output_manifest
+
+
+def contruct_manfiest_eval(
+    input_manifest: str, stitched_output_manifest: str, aligned_vad_asr_output_manifest: str = None
+) -> str:
+
+    """
+    Generate aligned manifest for evaluation.
+    Because some pure noise samples might not appears in stitched_output_manifest.
+    """
+    if not aligned_vad_asr_output_manifest:
+        aligned_vad_asr_output_manifest = "vad_asr_out.json"
+
+    stitched_output = dict()
+    for line in open(stitched_output_manifest, 'r', encoding='utf-8'):
+        file = json.loads(line)
+        stitched_output[file["audio_filepath"]] = file
+
+    out = []
+    for line in open(input_manifest, 'r', encoding='utf-8'):
+        file = json.loads(line)
+        sample = file["audio_filepath"]
+        if sample in stitched_output:
+            file["pred_text"] = stitched_output[sample]["pred_text"]
+            file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
+        else:
+            file["pred_text"] = ""
+            file["speech_segments_filepath"] = ""
+
+        out.append(file)
+
+    with open(aligned_vad_asr_output_manifest, 'w', encoding='utf-8') as fout:
+        for i in out:
+            json.dump(i, fout)
+            fout.write('\n')
+            fout.flush()
+
+    return aligned_vad_asr_output_manifest
