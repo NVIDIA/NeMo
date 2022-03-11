@@ -153,8 +153,7 @@ def main():
 
     request_dl = DataLoader(dataset=ds, batch_size=2)
 
-
-    # turn off the activation checkpoint method
+    # has to turn off activations_checkpoint_method for inference
     model.model.language_model.encoder.activations_checkpoint_method=None
     #generate(model, ["", ""], 30)
     # For GPT models that have had soft prompt tuning but you don't want to use any soft prompts

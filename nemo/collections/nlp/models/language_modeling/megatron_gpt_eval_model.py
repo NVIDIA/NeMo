@@ -69,5 +69,10 @@ class MegatronGPTEvalModel(MegatronGPTModel):
 
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        generate(self, batch, 30, add_BOS=True)
+        extra = {
+            "greedy": False,
+            "top_k": 0,
+            "top_p": 0.9
+        }
+        generate(self, batch, 30, add_BOS=True, extra=extra)
 

@@ -63,7 +63,7 @@ def get_batch(model, tokenizer, context_tokens):
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
-        tokenizer.eod,
+        tokenizer.eos_id,
         model.cfg.get('reset_position_ids', False),
         model.cfg.get('reset_attention_mask', False),
         model.cfg.get('eod_mask_loss', False))
@@ -123,11 +123,11 @@ def pad_batch(batch, pad_id, max_len):
 
 def tokenize_batch(tokenizer, sentences, max_len, add_BOS):
     if add_BOS:
-        context_tokens = [[tokenizer.eod] + tokenizer.text_to_ids(s) for s in sentences]
+        context_tokens = [[tokenizer.eos_id] + tokenizer.text_to_ids(s) for s in sentences]
     else:
         context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
     context_tokens, context_lengths = pad_batch(context_tokens,
-                                                tokenizer.eod, max_len)
+                                                tokenizer.eos_id, max_len)
     context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
     context_length_tensor = torch.cuda.LongTensor(context_lengths)
     return context_tokens_tensor, context_length_tensor 
@@ -169,7 +169,7 @@ def receive_generate_info():
     return context_length_tensor, context_tokens_tensor, tokens_to_generate, all_probs, temperature
 
 
-def synced_generate(model, context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature):
+def synced_generate(model, context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature, extra):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
     tokens, attention_mask, position_ids = get_batch(model, tokenizer, context_tokens_tensor)
@@ -186,7 +186,7 @@ def synced_generate(model, context_tokens_tensor, context_length_tensor, tokens_
                                                      attention_mask, position_ids,
                                                      tokens_to_generate,
                                                      all_probs,
-                                                     temperature=temperature)
+                                                     temperature=temperature, extra=extra)
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
         context_length += 1
@@ -208,15 +208,14 @@ def synced_generate(model, context_tokens_tensor, context_length_tensor, tokens_
             torch.distributed.broadcast(output_logits, src, group)
             
             if all_probs:
-                args = get_args()
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
                 group = parallel_state.get_embedding_group()
-                full_logits = torch.empty(tokens.size(0), context_length, args.padded_vocab_size, dtype=torch.float32, device=torch.device("cuda"))
+                full_logits = torch.empty(tokens.size(0), context_length, model.padded_vocab_size, dtype=torch.float32, device=torch.device("cuda"))
                 torch.distributed.broadcast(full_logits, src, group)
     if tokens is not None:
         return tokens[:, :context_length], output_logits, full_logits 
 
-def generate(model, sentences=None, tokens_to_generate=0, all_probs=False, temperature=1.0, add_BOS=False):
+def generate(model, sentences=None, tokens_to_generate=0, all_probs=False, temperature=1.0, add_BOS=False, extra={}):
     model.eval()
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == 0:
@@ -225,7 +224,7 @@ def generate(model, sentences=None, tokens_to_generate=0, all_probs=False, tempe
     else:
         context_length_tensor, context_tokens_tensor, tokens_to_generate, all_probs, temperature = receive_generate_info()
 
-    output = synced_generate(model, context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature)
+    output = synced_generate(model, context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature, extra)
     if output is not None:
         decode_tokens, output_logits, full_logits = output
         resp_sentences = []
@@ -282,7 +281,16 @@ def forward_step(model, batch, tensor_shape):
 
 def sample_sequence_batch(model, context_tokens, context_lengths,
                           attention_mask, position_ids,
-                          tokens_to_generate, all_probs=False, type_ids=None, temperature=None):
+                          tokens_to_generate, all_probs=False, type_ids=None, temperature=None, extra={}):
+    app_state = AppState()
+    micro_batch_size = context_tokens.shape[0]
+    _reconfigure_microbatch_calculator(
+        rank=app_state.global_rank,
+        rampup_batch_size=None,
+        global_batch_size=micro_batch_size,
+        micro_batch_size=micro_batch_size,
+        data_parallel_size=1,
+    )
     tokenizer = model.tokenizer
     model.eval()
     with torch.no_grad():
@@ -290,7 +298,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
 
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
-        eos_id = tokenizer.eod
+        eod_id = tokenizer.eos_id
         counter = 0
 
         batch_size = context_tokens.size(0)
@@ -301,8 +309,8 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + context_lengths.max().item() 
        
-        if maxlen > args.seq_length:
-            maxlen = args.seq_length
+        if maxlen > model.cfg.encoder_seq_length:
+            maxlen = model.cfg.encoder_seq_length
         
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
@@ -326,9 +334,14 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                     types2use = type_ids[:, context_length - 1].view(
                         batch_size, -1)
                 
-                batch = [tokens2use, attention_mask, positions2use, set_inference_key_value_memory, maxlen]
+            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            setkey_value_array = torch.tensor([set_inference_key_value_memory] * micro_batch_size)
+            len_array = torch.tensor([maxlen] * micro_batch_size)
+            batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+            tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
             
             output = forward_step(model, batch, tensor_shape)
+            output = output[0]['logits'].float()
 
                 # model, tokens2use,
                 # positions2use,
@@ -342,13 +355,13 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
 
-                if args.greedy:
+                if extra.get('greedy', False): #args.greedy:
                     prev = torch.argmax(logits, dim=-1).view(-1)
                 else:
                     logits = logits.float()
                     logits /= temperature
-                    logits = top_k_logits(logits, top_k=args.top_k,
-                                          top_p=args.top_p)
+                    logits = top_k_logits(logits, top_k=extra.get('top_k', 0),
+                                          top_p=extra.get('top_p', 0.9))
                     log_probs = F.softmax(logits, dim=-1)
                     prev = torch.multinomial(log_probs, num_samples=1).view(-1)
                 started = context_lengths <= context_length
@@ -380,7 +393,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 group = parallel_state.get_embedding_group()
                 torch.distributed.broadcast(new_tokens, src, group)
 
-                done_token = (prev == eos_id).byte() & started.byte()
+                done_token = (prev == eod_id).byte() & started.byte()
                 just_finished = (done_token & ~is_done).bool()
                 lengths[just_finished.view(-1)] = context_length
                 is_done = is_done | done_token
@@ -454,7 +467,7 @@ def tab_sample_sequence_batch(model, context_tokens, context_lengths,
 
         # added eos_id to support the function generate_samples_eval that passes
         # eos_id as an argument and needs termination when that id id found.
-        eos_id = tokenizer.eod
+        eod_id = tokenizer.eos_id
 
         counter = 0
 
@@ -521,7 +534,7 @@ def tab_sample_sequence_batch(model, context_tokens, context_lengths,
                     if token_in_row == tokens_per_row - 1:
                         # line break
                         eor_id = tokenizer.eor
-                        eod_id = tokenizer.eod_id
+                        eod_id = tokenizer.eos_id
                         min_id = min(eor_id, eod_id)
                         max_id = max(eor_id, eod_id) + 1
                         logits = tab_logits(logits, min_id, max_id)
@@ -563,7 +576,7 @@ def tab_sample_sequence_batch(model, context_tokens, context_lengths,
                 group = parallel_state.get_embedding_group()
                 torch.distributed.broadcast(new_tokens, src, group)
 
-                done_token = (prev == eos_id).byte() & started.byte()
+                done_token = (prev == eod_id).byte() & started.byte()
                 just_finished = (done_token & ~is_done).bool()
                 lengths[just_finished.view(-1)] = context_length
                 is_done = is_done | done_token
