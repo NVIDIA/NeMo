@@ -432,15 +432,36 @@ class MegatronGPTModel(NLPModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(batch, model):
-            batch = [x.cuda() for x in batch]
-
+            # batch = [x.cuda() for x in batch]
+            extra_arg = {}
             if self.use_soft_prompts:
-                tokens, attention_mask, position_ids, prompt_ids = batch
-                output_tensor = model(tokens, position_ids, attention_mask, prompt_ids=prompt_ids)
+                if len(batch) == 4:
+                    batch = [x.cuda() for x in batch]
+                    tokens, attention_mask, position_ids, prompt_ids = batch
+                    extra_arg['prompt_ids'] = prompt_ids
+                else:
+                    tokens, attention_mask, position_ids, prompt_ids, set_inference_key_value_memory, inference_max_sequence_len = batch
+                    tokens = tokens.cuda()
+                    attention_mask = attention_mask.cuda()
+                    position_ids = position_ids.cuda()
+                    extra_arg['prompt_ids'] = prompt_ids.cuda()
+                    extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                    extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+                output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
             else:
-                tokens, attention_mask, position_ids = batch
-                attention_mask = attention_mask[0:1]
-                output_tensor = model(tokens, position_ids, attention_mask)
+                if len(batch) == 3:
+                    batch = [x.cuda() for x in batch]
+                    tokens, attention_mask, position_ids = batch
+                    attention_mask = attention_mask[0:1]
+                else:
+                    tokens, attention_mask, position_ids, set_inference_key_value_memory, inference_max_sequence_len = batch
+                    tokens = tokens.cuda()
+                    attention_mask = attention_mask.cuda()
+                    position_ids = position_ids.cuda()
+                    attention_mask = attention_mask[0:1]
+                    extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                    extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+                output_tensor = model(tokens, position_ids, attention_mask, **extra_arg)
 
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
