@@ -70,9 +70,8 @@ class DialogueGPTDataset(Dataset):
     def transform(self, label):
         if self.cfg.task == "sgd":
             label = self.convert_camelcase_to_lower(label)
-        elif self.cfg.task == "assistant":
-            pass
-            # label = label.replace('_', ' ') #comment out to fit prompt tuning
+        elif self.cfg.task == "assistant" and self.cfg.prompt_template != "prompt_tuning":
+            label = label.replace('_', ' ')
         return label
 
     def convert_camelcase_to_lower(self, label):
