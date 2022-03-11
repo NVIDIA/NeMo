@@ -956,3 +956,80 @@ def init_vad_model(model_path):
         logging.info(f"Using NGC cloud VAD model {model_path}")
         vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
     return vad_model
+
+
+def stitch_segmented_asr_output(
+    segmented_output_manifest: str, 
+    speech_segments_tensor_dir: str = None,
+    stitched_output_manifest: str = None) -> str:
+    """
+    Stitch the prediction of speech segments.
+    """
+
+    if not stitched_output_manifest:
+        stitched_output_manifest = "asr_stitched_output_manifest.json"
+        
+    if not speech_segments_tensor_dir:
+        speech_segments_tensor_dir = "speech_segments"
+    
+    if not os.path.exists(speech_segments_tensor_dir):
+        os.mkdir(speech_segments_tensor_dir)
+
+    segmented_output=[]
+    for line in open(segmented_output_manifest, 'r', encoding='utf-8'):
+            file = json.loads(line)
+            segmented_output.append(file)
+
+    with open(stitched_output_manifest, 'w', encoding='utf-8') as fout:
+        speech_segments = torch.Tensor()
+        all_pred_text = ""
+        if len(segmented_output) > 1:
+            for i in range(1, len(segmented_output)):
+                start, end = segmented_output[i-1]['offset'], segmented_output[i-1]['offset']+segmented_output[i-1]['duration']
+                new_seg = torch.tensor([start,end]).unsqueeze(0)
+                speech_segments = torch.cat((speech_segments, new_seg), 0)
+                pred_text = segmented_output[i-1]['pred_text']
+                all_pred_text += pred_text
+                name = segmented_output[i-1]['audio_filepath'].split("/")[-1].rsplit(".", 1)[0] 
+
+                if segmented_output[i-1]['audio_filepath'] != segmented_output[i]['audio_filepath']:
+            
+                    speech_segments_tensor_path=os.path.join(speech_segments_tensor_dir, 
+                                                             name +'.pt')
+                    torch.save(speech_segments, speech_segments_tensor_path) 
+                    meta = {
+                        'audio_filepath': segmented_output[i-1]['audio_filepath'],
+                        'speech_segments_filepath': speech_segments_tensor_path,
+                        'pred_text': all_pred_text,
+                    }
+
+                    json.dump(meta, fout)
+                    fout.write('\n')
+                    fout.flush()
+                    speech_segments = torch.Tensor()
+                    all_pred_text = ""
+                else:
+                    all_pred_text += " "   
+        else:
+            i=-1
+
+        start, end = segmented_output[i]['offset'], segmented_output[i]['offset']+segmented_output[i]['duration']
+        new_seg = torch.tensor([start,end]).unsqueeze(0)
+        speech_segments = torch.cat((speech_segments, new_seg), 0)    
+        pred_text  = segmented_output[i]['pred_text']
+        all_pred_text += pred_text
+        name = segmented_output[i]['audio_filepath'].split("/")[-1].rsplit(".", 1)[0] 
+        speech_segments_tensor_path=os.path.join(speech_segments_tensor_dir, name + '.pt')
+        torch.save(speech_segments, speech_segments_tensor_path) 
+
+        meta = {
+            'audio_filepath': segmented_output[i]['audio_filepath'],
+            'speech_segments_filepath': speech_segments_tensor_path,
+            'pred_text': all_pred_text
+        }
+        json.dump(meta, fout)
+        fout.write('\n')
+        fout.flush()
+        
+        logging.info(f"Finish stitch segmented ASR output to {stitched_output_manifest}, the speech segments info has been stored in directory {speech_segments_tensor_dir}")
+        return stitched_output_manifest
