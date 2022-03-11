@@ -443,7 +443,7 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     We refer to these embeddings as anchor embeddings.
 
     emb (torch.tensor):
-        The input embedding from the emebedding extractor.
+        The input embedding from the embedding extractor.
 
     anchor_sample_n (int):
         The number of embedding samples per speaker.
@@ -455,8 +455,8 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
 
     sigma (int):
         The amplitude of synthetic noise for each embedding vector.
-        If sigma value is too small, under-counting could happen.
-        If sigma value is too large, over-counting could happen.
+        If the sigma value is too small, under-counting could happen.
+        If the sigma value is too large, over-counting could happen.
         sigma = 50 is recommended.
 
     """
@@ -489,7 +489,7 @@ def getEnhancedSpeakerCount(
     Calculate the number of speakers using NME analysis with anchor embeddings.
 
     emb (torch.tensor):
-        The input embedding from the emebedding extractor.
+        The input embedding from the embedding extractor.
 
     cuda (bool):
         Use cuda for the operations if cuda=True.
@@ -508,8 +508,8 @@ def getEnhancedSpeakerCount(
 
     sigma (float):
         The amplitude of synthetic noise for each embedding vector.
-        If sigma value is too small, under-counting could happen.
-        If sigma value is too large, over-counting could happen.
+        If the sigma value is too small, under-counting could happen.
+        If the sigma value is too large, over-counting could happen.
         sigma = 50 is recommended.
 
     """
@@ -621,20 +621,20 @@ class NMESC:
         Please refer to def __init__()
 
     Methods:
-        _NMEanalysis():
+        NMEanalysis():
             Performs NME-analysis to estimate p_value and the number of speakers.
 
         subsampleAffinityMat(NME_mat_size):
             Subsamples the number of speakers to reduce the computational load.
 
         getPvalueList():
-            Generates a list contains p-values that need to be examined.
+            Generates a list containing p-values that need to be examined.
 
         getEigRatio(p_neighbors):
             calculates g_p, which is a ratio between p_neighbors and the maximum eigengap.
 
         getLamdaGaplist(lambdas):
-            Calculates lambda gap values from an array contains ambda values.
+            Calculates lambda gap values from an array contains lambda values.
 
         estimateNumofSpeakers(affinity_mat):
             Estimates the number of speakers using lambda gap list.
@@ -684,7 +684,7 @@ class NMESC:
             fixed_thres: (float or None)
                 A fixed threshould can be used instead of estimating the
                 threshold with NME analysis. If fixed_thres is float,
-                it skips NME analysis part.
+                it skips the NME analysis part.
 
             cuda: (bool)
                 Use cuda for Eigen decomposition if cuda=True.
