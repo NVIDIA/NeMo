@@ -73,12 +73,13 @@ def get_four_digit_year_graph(deterministic: bool = True):
     3900 -> thirty nine hundred
     """
     graph_ties = get_ties_graph(deterministic)
-    graph = (
-        graph_ties + insert_space + graph_ties
-        | (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred")
-        | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")) + pynutil.delete("0s"))
-        @ pynini.cdrewrite(pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA)
-    )
+
+    graph = ((graph_ties + insert_space + graph_ties)
+             | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")))) + pynutil.delete("0s")
+
+    graph |= (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred") + pynutil.delete("s")
+    graph = graph @ pynini.cdrewrite(pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA)
+
     thousand_graph = (
         graph_digit
         + insert_space
