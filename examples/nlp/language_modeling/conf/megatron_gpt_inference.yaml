@@ -1,0 +1,15 @@
+inference:
+  greedy: False,
+  top_k: 0
+  top_p: 0.9
+  temperature: 1.0
+  add_BOS: True
+  tokens_to_generate: 30
+  all_probs: False
+
+precision: 16
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+model_file: ???
+prompts: ['', '']
+ 

@@ -13,15 +13,16 @@
 # limitations under the License.
 
 
-import pytest
-from nemo.collections.common.tokenizers.column_coder import FloatCode, IntCode, CategoryCode, ColumnCodes
-import pandas as pd
-import numpy as np
 import string
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from nemo.collections.common.tokenizers.column_coder import CategoryCode, ColumnCodes, FloatCode, IntCode
 
 
 class TestColumnCoder:
-
     @pytest.mark.unit
     def test_float(self):
         np.random.seed(1234)
@@ -109,38 +110,19 @@ class TestColumnCoder:
             {
                 "name": "col_a",
                 "code_type": "float",
-                "args": {
-                    "code_len": 4,
-                    "base": 16,
-                    "fillall": False,
-                    "hasnan": True
-                }
+                "args": {"code_len": 4, "base": 16, "fillall": False, "hasnan": True},
             },
             {
                 "name": "col_b",
                 "code_type": "float",
-                "args": {
-                    "code_len": 4,
-                    "base": 177,
-                    "fillall": True,
-                    "hasnan": True
-                }
+                "args": {"code_len": 4, "base": 177, "fillall": True, "hasnan": True},
             },
             {
                 "name": "col_c",
                 "code_type": "int",
-                "args": {
-                    "code_len": 3,
-                    "base": 12,
-                    "fillall": True,
-                    "hasnan": True
-                }
+                "args": {"code_len": 3, "base": 12, "fillall": True, "hasnan": True},
             },
-            {
-                "name": "col_d",
-                "code_type": "category",
-            },
-
+            {"name": "col_d", "code_type": "category",},
         ]
 
         example_arrays = {}

@@ -174,7 +174,7 @@ class GPTModel(MegatronModule):
         forward_method_parallel_output=None,
         encoder_input=None,
         set_inference_key_value_memory=False,
-        inference_max_sequence_len=None
+        inference_max_sequence_len=None,
     ):
 
         lm_output = self.language_model(
@@ -186,7 +186,7 @@ class GPTModel(MegatronModule):
             get_key_value=get_key_value,
             encoder_input=encoder_input,
             set_inference_key_value_memory=set_inference_key_value_memory,
-            inference_max_sequence_len=inference_max_sequence_len
+            inference_max_sequence_len=inference_max_sequence_len,
         )
 
         if self.post_process:

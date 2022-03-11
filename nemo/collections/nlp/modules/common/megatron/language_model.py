@@ -732,9 +732,12 @@ class TransformerLanguageModel(MegatronModule):
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(
-                encoder_input, enc_attn_mask, layer_past=layer_past, get_key_value=get_key_value,
+                encoder_input,
+                enc_attn_mask,
+                layer_past=layer_past,
+                get_key_value=get_key_value,
                 set_inference_key_value_memory=set_inference_key_value_memory,
-                inference_max_sequence_len=inference_max_sequence_len
+                inference_max_sequence_len=inference_max_sequence_len,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
@@ -763,7 +766,7 @@ class TransformerLanguageModel(MegatronModule):
             encoder_output=encoder_output,
             enc_dec_attn_mask=enc_dec_attn_mask,
             set_inference_key_value_memory=set_inference_key_value_memory,
-            inference_max_sequence_len=inference_max_sequence_len
+            inference_max_sequence_len=inference_max_sequence_len,
         )
 
         if self.add_pooler and self.post_process:

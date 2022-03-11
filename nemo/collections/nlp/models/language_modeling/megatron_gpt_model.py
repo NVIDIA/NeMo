@@ -440,7 +440,14 @@ class MegatronGPTModel(NLPModel):
                     tokens, attention_mask, position_ids, prompt_ids = batch
                     extra_arg['prompt_ids'] = prompt_ids
                 else:
-                    tokens, attention_mask, position_ids, prompt_ids, set_inference_key_value_memory, inference_max_sequence_len = batch
+                    (
+                        tokens,
+                        attention_mask,
+                        position_ids,
+                        prompt_ids,
+                        set_inference_key_value_memory,
+                        inference_max_sequence_len,
+                    ) = batch
                     tokens = tokens.cuda()
                     attention_mask = attention_mask.cuda()
                     position_ids = position_ids.cuda()
@@ -454,7 +461,13 @@ class MegatronGPTModel(NLPModel):
                     tokens, attention_mask, position_ids = batch
                     attention_mask = attention_mask[0:1]
                 else:
-                    tokens, attention_mask, position_ids, set_inference_key_value_memory, inference_max_sequence_len = batch
+                    (
+                        tokens,
+                        attention_mask,
+                        position_ids,
+                        set_inference_key_value_memory,
+                        inference_max_sequence_len,
+                    ) = batch
                     tokens = tokens.cuda()
                     attention_mask = attention_mask.cuda()
                     position_ids = position_ids.cuda()

@@ -13,52 +13,34 @@
 # limitations under the License.
 
 
+import string
+
+import numpy as np
 import pytest
+
 from nemo.collections.common.tokenizers.column_coder import ColumnCodes
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-import numpy as np
-import string
 
 
 class TestTabularTokenizer:
-
     def setup_method(self, test_method):
         column_configs = [
             {
                 "name": "col_a",
                 "code_type": "float",
-                "args": {
-                    "code_len": 4,
-                    "base": 16,
-                    "fillall": False,
-                    "hasnan": True
-                }
+                "args": {"code_len": 4, "base": 16, "fillall": False, "hasnan": True},
             },
             {
                 "name": "col_b",
                 "code_type": "float",
-                "args": {
-                    "code_len": 4,
-                    "base": 177,
-                    "fillall": True,
-                    "hasnan": True
-                }
+                "args": {"code_len": 4, "base": 177, "fillall": True, "hasnan": True},
             },
             {
                 "name": "col_c",
                 "code_type": "int",
-                "args": {
-                    "code_len": 3,
-                    "base": 12,
-                    "fillall": True,
-                    "hasnan": True
-                }
+                "args": {"code_len": 3, "base": 12, "fillall": True, "hasnan": True},
             },
-            {
-                "name": "col_d",
-                "code_type": "category",
-            },
-
+            {"name": "col_d", "code_type": "category",},
         ]
 
         example_arrays = {}
@@ -79,7 +61,6 @@ class TestTabularTokenizer:
 
         self.cc = ColumnCodes.get_column_codes(column_configs, example_arrays)
 
-
     @pytest.mark.unit
     def test_tabular_tokenizer(self):
         tab = TabularTokenizer(self.cc, delimiter=',')
@@ -92,9 +73,13 @@ class TestTabularTokenizer:
         assert self.cc.vocab_size == 1343
         assert tab.vocab_size == 1345
         r = tab.text_to_ids(text)
-        assert (sum(self.cc.sizes) + 1) * 2 == len(r) 
-        assert np.array_equal(np.array(r[0:13]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1344]))
-        assert np.array_equal(np.array(r[13:]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343]))
+        assert (sum(self.cc.sizes) + 1) * 2 == len(r)
+        assert np.array_equal(
+            np.array(r[0:13]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1344])
+        )
+        assert np.array_equal(
+            np.array(r[13:]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343])
+        )
         reversed_text = tab.ids_to_text(r)
         assert reversed_text == '0.3229,0.0999999,232,xy\n0.3229,0.0999999,232,xy<|endoftext|>'
 
@@ -104,7 +89,9 @@ class TestTabularTokenizer:
         r = tab.text_to_ids(text)
         assert sum(self.cc.sizes) + 1 + 2 == len(r)
         assert np.array_equal(np.array(r[0:2]), np.array([1305, 1344]))
-        assert np.array_equal(np.array(r[2:15]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343]))
+        assert np.array_equal(
+            np.array(r[2:15]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343])
+        )
         reversed_text = tab.ids_to_text(r)
         assert reversed_text == 'xy\n0.3229,0.0999999,232,xy<|endoftext|>'
 
@@ -113,7 +100,9 @@ class TestTabularTokenizer:
         assert len(r) == 5
         r = tab.text_to_ids(text)
         assert sum(self.cc.sizes) + 1 == len(r)
-        assert np.array_equal(np.array(r[0:13]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343]))
+        assert np.array_equal(
+            np.array(r[0:13]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343])
+        )
         reversed_text = tab.ids_to_text(r)
         assert reversed_text == '0.3229,0.0999999,232,xy<|endoftext|>'
 
@@ -123,7 +112,9 @@ class TestTabularTokenizer:
         r = tab.text_to_ids(text)
         assert sum(self.cc.sizes) + 1 + 5 == len(r)
         assert np.array_equal(np.array(r[0:5]), np.array([779, 772, 765, 1305, 1344]))
-        assert np.array_equal(np.array(r[5:18]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343]))
+        assert np.array_equal(
+            np.array(r[5:18]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343])
+        )
         reversed_text = tab.ids_to_text(r)
         assert reversed_text == '232,xy\n0.3229,0.0999999,232,xy<|endoftext|>'
 
@@ -133,6 +124,8 @@ class TestTabularTokenizer:
         r = tab.text_to_ids(text)
         assert sum(self.cc.sizes) + 1 + 9 == len(r)
         assert np.array_equal(np.array(r[0:9]), np.array([576, 414, 285, 147, 779, 772, 765, 1305, 1344]))
-        assert np.array_equal(np.array(r[9:22]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343]))
+        assert np.array_equal(
+            np.array(r[9:22]), np.array([43, 36, 22, 7, 576, 414, 285, 147, 779, 772, 765, 1305, 1343])
+        )
         reversed_text = tab.ids_to_text(r)
         assert reversed_text == '0.0999999,232,xy\n0.3229,0.0999999,232,xy<|endoftext|>'

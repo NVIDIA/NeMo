@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common.tokenizers.column_coder import ColumnCodes
 import pickle
 from typing import List
+
 import numpy
+
+from nemo.collections.common.tokenizers.column_coder import ColumnCodes
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['TabularTokenizer']
 
@@ -25,10 +27,7 @@ NEW_LINE = '\n'
 
 
 class TabularTokenizer(TokenizerSpec):
-
-    def __init__(self, coder,
-                 special_tokens=[END_OF_TEXT, NEW_LINE],
-                 delimiter=','):
+    def __init__(self, coder, special_tokens=[END_OF_TEXT, NEW_LINE], delimiter=','):
         if isinstance(coder, ColumnCodes):
             self.code_column: ColumnCodes = coder
         else:
@@ -73,12 +72,13 @@ class TabularTokenizer(TokenizerSpec):
             self.special_tokens = {}
             self.special_tokens_decoder = {}
             return
-        new = dict((tok, self.code_column.vocab_size + i)
-                   for i, tok in enumerate(special_tokens)
-                   if tok not in self.special_tokens)
+        new = dict(
+            (tok, self.code_column.vocab_size + i)
+            for i, tok in enumerate(special_tokens)
+            if tok not in self.special_tokens
+        )
         self.special_tokens.update(new)
-        self.special_tokens_decoder = {
-            v: k for k, v in self.special_tokens.items()}
+        self.special_tokens_decoder = {v: k for k, v in self.special_tokens.items()}
 
     def text_to_tokens(self, text):
         """ Tokenize a string. """
@@ -158,8 +158,7 @@ class TabularTokenizer(TokenizerSpec):
         return self.tokens_to_ids(self.text_to_tokens(text))
 
     def decode(self, token_ids):
-        tokens = self.ids_to_tokens(
-            token_ids, skip_special_tokens=False)
+        tokens = self.ids_to_tokens(token_ids, skip_special_tokens=False)
         return self.tokens_to_text(tokens)
 
     def tokens_to_text(self, tokens):

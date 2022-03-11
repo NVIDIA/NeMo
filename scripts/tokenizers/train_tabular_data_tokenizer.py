@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import OmegaConf
-from nemo.utils import logging
-import pandas as pd
-from nemo.core.config import hydra_runner
-from nemo.collections.common.tokenizers.column_coder import ColumnCodes
 import pickle
+
+import pandas as pd
+from omegaconf import OmegaConf
+
+from nemo.collections.common.tokenizers.column_coder import ColumnCodes
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
 
 
 @hydra_runner(config_path="conf", config_name="tabular_data_tokenizer")

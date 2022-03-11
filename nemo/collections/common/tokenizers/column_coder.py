@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Tuple
-import numpy as np
 import math
-from nemo.utils import logging
+from typing import Dict, List, Tuple
+
+import numpy as np
 from numpy import ndarray
+
+from nemo.utils import logging
 
 __all__ = ["IntCode", "FloatCode", "CategoryCode", "ColumnCodes"]
 
 
 class Code(object):
-
     def compute_code(self, data_series: ndarray):
         """
         @params:
@@ -64,10 +65,9 @@ class Code(object):
 
 
 class IntCode(Code):
-
-    def __init__(self, col_name: str, code_len: int,
-                 start_id: int, fillall: bool = True, base: int = 100,
-                 hasnan: bool = True):
+    def __init__(
+        self, col_name: str, code_len: int, start_id: int, fillall: bool = True, base: int = 100, hasnan: bool = True
+    ):
         super().__init__(col_name, code_len, start_id, fillall, hasnan)
         self.base = base
 
@@ -82,7 +82,7 @@ class IntCode(Code):
         for i in range(self.code_len):
             id_to_item = digits_id_to_item[i]
             item_to_id = digits_item_to_id[i]
-            v = (significant_val // self.base**i) % self.base
+            v = (significant_val // self.base ** i) % self.base
             if self.fillall:
                 uniq_items = range(0, self.base)
             else:
@@ -100,7 +100,7 @@ class IntCode(Code):
             codes = []
             ranges = self.code_range
             for i in ranges:
-                codes.append(i[1]-1)
+                codes.append(i[1] - 1)
             self.NA_token_id = codes
 
     def convert_to_int(self, val, min_val):
@@ -122,15 +122,11 @@ class IntCode(Code):
             ids = self.digits_id_to_item[i].keys()
             if c == 0:
                 if self.hasnan:
-                    outputs.append(
-                        (min(ids),
-                         max(ids) + 2))  # the first token contains the N/A
+                    outputs.append((min(ids), max(ids) + 2))  # the first token contains the N/A
                 else:
-                    outputs.append(
-                        (min(ids),
-                         max(ids) + 1))  # non N/A
+                    outputs.append((min(ids), max(ids) + 1))  # non N/A
             else:
-                outputs.append((min(ids), max(ids)+1))
+                outputs.append((min(ids), max(ids) + 1))
             c += 1
         return outputs
 
@@ -143,23 +139,21 @@ class IntCode(Code):
         val_int = self.convert_to_int(val, self.mval)
         digits = []
         for i in range(self.code_len):
-            digit = (val_int // self.base**i) % self.base
+            digit = (val_int // self.base ** i) % self.base
             digits.append(str(digit))
-        if (val_int // self.base**self.code_len) != 0:
+        if (val_int // self.base ** self.code_len) != 0:
             raise ValueError("not right length")
         codes = []
         for i in reversed(range(self.code_len)):
             digit_str = digits[i]
             if digit_str in self.digits_item_to_id[i]:
-                codes.append(
-                    self.digits_item_to_id[i][digit_str])
+                codes.append(self.digits_item_to_id[i][digit_str])
             else:
                 # find the nearest encode id
                 allowed_digits = np.array([int(d) for d in self.digits_item_to_id[i].keys()])
                 near_id = np.argmin(np.abs(allowed_digits - int(digit_str)))
                 digit_str = str(allowed_digits[near_id])
-                codes.append(
-                    self.digits_item_to_id[i][digit_str])
+                codes.append(self.digits_item_to_id[i][digit_str])
                 logging.warning('out of domain num is encounterd, use nearest code')
         return codes
 
@@ -169,15 +163,15 @@ class IntCode(Code):
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
-            v += digit * self.base**i
+            v += digit * self.base ** i
         v = self.reverse_convert_to_int(v, self.mval)
         return str(v)
 
 
 class FloatCode(IntCode):
-
-    def __init__(self, col_name: str, code_len: int,
-                 start_id: int, fillall: bool = True, base: int = 100, hasnan: bool = True):
+    def __init__(
+        self, col_name: str, code_len: int, start_id: int, fillall: bool = True, base: int = 100, hasnan: bool = True
+    ):
         super().__init__(col_name, code_len, start_id, fillall, base, hasnan)
 
     def compute_code(self, data_series: ndarray):
@@ -196,11 +190,11 @@ class FloatCode(IntCode):
         # assume base 10 numbers, can change the base of the values if
         # larger dictionary is needed
         # convert the float number into integer
-        return (values * self.base**self.extra_digits).astype(int)
+        return (values * self.base ** self.extra_digits).astype(int)
 
     def reverse_convert_to_int(self, val, min_val):
         # v = int("".join(items))
-        v = val / self.base**self.extra_digits
+        v = val / self.base ** self.extra_digits
         v = np.exp(v) + min_val - 1.0
         return v
 
@@ -210,14 +204,13 @@ class FloatCode(IntCode):
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
-            v += digit * self.base**i
+            v += digit * self.base ** i
         v = self.reverse_convert_to_int(v, self.mval)
-        accuracy = max(int(abs(np.log10(0.1 / self.base**self.extra_digits))), 1)
+        accuracy = max(int(abs(np.log10(0.1 / self.base ** self.extra_digits))), 1)
         return f"{v:.{accuracy}f}"
 
 
 class CategoryCode(Code):
-
     def __init__(self, col_name: str, start_id: int):
         super().__init__(col_name, 1, start_id, True, False)
 
@@ -240,15 +233,10 @@ class CategoryCode(Code):
         return self.id_to_item[ids[0]]
 
 
-column_map = {
-    "int": IntCode,
-    "float": FloatCode,
-    "category": CategoryCode
-}
+column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}
 
 
 class ColumnCodes:
-
     def __init__(self):
         self.column_codes: Dict[str, Code] = {}
         self.columns = []
