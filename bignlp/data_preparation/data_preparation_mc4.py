@@ -82,6 +82,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     tokenizer_save_dir = data_cfg.get("tokenizer_save_dir")
     tokenizer_model = data_cfg.get("tokenizer_model")
     languages = data_cfg.get("languages")
+    use_cleaned_english = data_cfg.get("use_cleaned_english")
     softlinks_dir = data_cfg.get("softlinks_dir")
     download_worker_mapping = data_cfg.get("download_worker_mapping")
     preprocess_worker_mapping = data_cfg.get("preprocess_worker_mapping")
@@ -110,9 +111,11 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
 
     # Define running commands
     prepare_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/prepare.py")
+    cleaned_en = "--cleaned-en" if use_cleaned_english else ""
     prepare_args = f"--data-path={mc4_dir} " \
                    f"--git-lfs-path={git_lfs_dir} " \
                    f"--languages={languages} " \
+                   f"{cleaned_en}" \
                    f"--node-array-size={nodes} " \
                    f"--worker-mapping-file={download_worker_mapping}"
 
@@ -125,6 +128,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     setup_preprocess_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
                             f"--soft-link-path={softlinks_dir} " \
                             f"--languages={languages} " \
+                            f"{cleaned_en}" \
                             f"--node-array-size={nodes} " \
                             f"--workers-per-node={workers_per_node} " \
                             f"--worker-mapping-file={preprocess_worker_mapping}"
