@@ -903,7 +903,6 @@ def COSclustering(
         est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
     else:
-        est_num_of_spk
         affinity_mat = mat
 
     if oracle_num_speakers:
