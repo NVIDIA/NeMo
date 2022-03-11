@@ -150,8 +150,7 @@ class AudioText(_Collection):
                 num_filtered += 1
                 continue
 
-            # 'nothing' is a special word emitted by the transcribe method
-            if text != 'nothing':
+            if text != '':
                 if hasattr(parser, "is_aggregate") and parser.is_aggregate:
                     if lang is not None:
                         text_tokens = parser(text, lang)
