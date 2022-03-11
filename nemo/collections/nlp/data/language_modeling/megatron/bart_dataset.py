@@ -284,7 +284,6 @@ def pad_and_convert_to_numpy(
     # Add the remaining tokens to the BART input
     bart_input.extend(output_tokens[start_index:])
 
-
     # Some checks.
     # Encoder-side padding mask.
     num_tokens = len(bart_input)
