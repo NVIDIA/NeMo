@@ -111,7 +111,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             )
             self.multilingual_ids = [None]
 
-    def validation_step(self, batch, batch_idx):
+    def eval_step(self, batch, batch_idx, dataloader_idx):
         """
         Validation step
         """
