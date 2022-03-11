@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import torch
+from operator import itemgetter
 from typing import Optional
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from omegaconf.dictconfig import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
@@ -109,6 +111,33 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             )
             self.multilingual_ids = [None]
 
+    def validation_step(self, batch, batch_idx):
+        """
+        Validation step
+        """
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
+        tokens_loss = itemgetter("tokens_loss")(
+            self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+        )
+        predicted_tokens_ids, _ = self.decode(tokens_enc, enc_mask, self._cfg.data.seq_length_dec)
+        preds = predicted_tokens_ids.cpu().numpy().tolist()
+        labels = labels.cpu().numpy().tolist()
+        outputs = []
+        for _, (pred, label) in enumerate(zip(preds, labels)):
+            if self.model.tokenizer.eos_id in pred:
+                idx = pred.index(self.model.tokenizer.eos_id)
+                pred = pred[:idx]
+
+            # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
+            if hasattr(self.model.tokenizer, 'special_token_to_id'):
+                pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
+                label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
+            pred = self.model.tokenizer.ids_to_text(pred)
+            outputs.append(pred)
+
+        loss = self.loss_func(loss_mask, tokens_loss)
+        reduced_loss = average_losses_across_data_parallel_group([loss])
+        return reduced_loss
 
     def _setup_eval_dataloader_from_config(
         self, cfg: DictConfig,
