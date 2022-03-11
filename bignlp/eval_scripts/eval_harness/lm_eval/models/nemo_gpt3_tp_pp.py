@@ -1,6 +1,6 @@
 from lm_eval.base import LM
 from lm_eval import utils
-import math
+import os
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.trainer.trainer import Trainer
@@ -20,6 +20,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 from apex.transformer import tensor_parallel, parallel_state
 
@@ -48,7 +49,7 @@ class RequestDataset(Dataset):
         return inp_enc, conti_len
 
 
-class CustomModel(MegatronGPTModel):
+class EvalGPTModel(MegatronGPTModel):
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
         request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
             batch, False
@@ -90,34 +91,27 @@ def setup_trainer_and_model(args):
     """Setup model and optimizer."""
     torch.set_grad_enabled(False)
 
-    assert 'nemo_model' in args, "Path to model's .nemo file is required."
-    logging.info(f"**** Loading checkpoint from {args['nemo_model']}")
+    assert args.nemo_model is not None or \
+           (args.checkpoint_folder is not None and args.checkpoint_name is not None), "Path to checkpoints is required."
 
-    args['tensor_model_parallel_size'] = int(args.get('tensor_model_parallel_size', 1))
-    args['pipeline_model_parallel_size'] = int(args.get('pipeline_model_parallel_size', 1))
-
-    args['precision'] = args.get('precision', 16)
     # cast precision to int if 32 or 16
-    if args['precision'] in ["32", "16"]:
-        args['precision'] = int(float(args['precision']))
+    if args.precision in ["32", "16"]:
+        args.precision = int(float(args.precision))
 
-    # TODO: safely get it from env
-    def divide_ceil(x, y):
-        return int(math.ceil(x / y))
-    model_parallel_size = args['tensor_model_parallel_size'] * args['pipeline_model_parallel_size']
-    num_nodes = divide_ceil(model_parallel_size, 8)
-    gpus = divide_ceil(model_parallel_size, num_nodes)
+    model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+    num_nodes = max(model_parallel_size // 8, 1)
+    gpus = min(model_parallel_size, 8)
 
     trainer = Trainer(
         plugins=NLPDDPPlugin(),
         gpus=gpus,
         num_nodes=num_nodes,
-        precision=args['precision'],
+        precision=args.precision,
     )
 
     app_state = AppState()
-    if args['tensor_model_parallel_size'] > 1 or args['pipeline_model_parallel_size'] > 1:
-        app_state.model_parallel_size = args['tensor_model_parallel_size'] * args['pipeline_model_parallel_size']
+    if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+        app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
         (
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
@@ -126,20 +120,32 @@ def setup_trainer_and_model(args):
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
-            tensor_model_parallel_size_=args['tensor_model_parallel_size'],
-            pipeline_model_parallel_size_=args['pipeline_model_parallel_size'],
+            tensor_model_parallel_size_=args.tensor_model_parallel_size,
+            pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
         )
 
-    model = CustomModel.restore_from(
-        restore_path=args['nemo_model'], trainer=trainer
-    )
+    if args.nemo_model is not None:
+        logging.info(f"**** Loading checkpoint from {args.nemo_model}")
+        model = EvalGPTModel.restore_from(
+            restore_path=args.nemo_model, trainer=trainer
+        )
+    else:
+        if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+            app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
+
+        logging.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
+        # inject model parallel rank
+        checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+        model = EvalGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        
     model.freeze()
 
     return trainer, model
 
 
 class NeMo_GPT3LM_TP_PP(LM):
-    def __init__(self, args, device=None, truncate=False, batch_size=1):
+    def __init__(self, args, truncate=False, batch_size=1):
         super().__init__()
 
         # get megatron
