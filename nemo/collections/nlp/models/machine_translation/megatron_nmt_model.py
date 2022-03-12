@@ -122,22 +122,49 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         predicted_tokens_ids, _ = self.decode(tokens_enc, enc_mask, self._cfg.data.seq_length_dec)
         preds = predicted_tokens_ids.cpu().numpy().tolist()
         labels = labels.cpu().numpy().tolist()
-        outputs = []
+        translations = []
+        ground_truths = []
         for _, (pred, label) in enumerate(zip(preds, labels)):
-            if self.model.tokenizer.eos_id in pred:
-                idx = pred.index(self.model.tokenizer.eos_id)
+            if self.decoder_tokenizer.eos_id in pred:
+                idx = pred.index(self.decoder_tokenizer.eos_id)
                 pred = pred[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
             if hasattr(self.model.tokenizer, 'special_token_to_id'):
-                pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
-                label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
-            pred = self.model.tokenizer.ids_to_text(pred)
-            outputs.append(pred)
+                pred = [id for id in pred if id not in self.decoder_tokenizer.special_token_to_id.values()]
+                label = [id for id in label if id not in self.decoder_tokenizer.special_token_to_id.values()]
+
+            pred = self.decoder_tokenizer.ids_to_text(pred)
+            translations.append(pred)
+
+        np_tgt = label.detach().cpu().numpy()
+        np_src = tokens_enc.detach().cpu().numpy()
+
+        inputs = [self.encoder_tokenizer.ids_to_text(src) for src in np_src]
+        inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
+
+        ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
+        ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
+
+        if self.target_processor is not None:
+            translations = [self.target_processor.detokenize(translation.split(' ')) for translation in translations]
 
         loss = self.loss_func(loss_mask, tokens_loss)
         reduced_loss = average_losses_across_data_parallel_group([loss])
-        return reduced_loss
+
+        return {
+            'inputs': inputs,
+            'translations': translations,
+            'ground_truths': ground_truths,
+            'loss': reduced_loss,
+        }
+
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        """
+        Lightning calls this inside the validation loop with the data from the validation dataloader
+        passed in as `batch`.
+        """
+        return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
 
     def _setup_eval_dataloader_from_config(
         self, cfg: DictConfig,
@@ -169,6 +196,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        # TODO: Figure out how to set global rank and world size for model parallel.
         self._train_dl = MTEncDecModel._setup_dataloader_from_config(
             cfg=train_data_config,
             encoder_tokenizer=self.encoder_tokenizer,
@@ -205,54 +233,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         dec_mask = data_b['dec_mask']
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
-
-    def build_train_valid_test_datasets(self):
-        logging.info('Building T5 datasets.')
-        if self._cfg.data.seq_length_dec < self._cfg.data.seq_length * self._cfg.data.masked_lm_prob:
-            raise ValueError(
-                f"Cannot have decoder max sequence length ({self._cfg.data.seq_length_dec}) less than encoder sequence length ({self._cfg.data.seq_length}) * masked_lm_prob ({self._cfg.data.masked_lm_prob})"
-            )
-        global_batch_size = self.trainer.world_size * self._cfg.micro_batch_size / self._cfg.tensor_model_parallel_size
-        eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
-        train_valid_test_num_samples = [
-            self.trainer.max_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
-        # Make sure the user specifies dataset type as either 't5' or 't5_prefix_lm' only.
-        if self._cfg.data.get('dataset_type', None) is not None:
-            if self._cfg.data.get('dataset_type') not in ['t5', 't5_prefix_lm']:
-                raise ValueError(
-                    f"dataset_type must be either 't5' or 't5_prefix_lm'. found {self._cfg.data.get('dataset_type')}"
-                )
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self._cfg,
-            trainer=self.trainer,
-            tokenizer=self.tokenizer,
-            data_prefix=self._cfg.data.data_prefix,
-            data_impl=self._cfg.data.data_impl,
-            splits_string=self._cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            max_seq_length=self._cfg.data.seq_length,
-            max_seq_length_dec=self._cfg.data.seq_length_dec,
-            masked_lm_prob=self._cfg.data.masked_lm_prob,
-            short_seq_prob=self._cfg.data.short_seq_prob,
-            seed=self._cfg.seed,
-            skip_warmup=self._cfg.data.skip_warmup,
-            dataset_type=self._cfg.data.get('dataset_type', 't5'),
-            max_ngram_size=self._cfg.get('max_ngram_size', 10),
-            mean_ngram_size=self._cfg.get('mean_ngram_size', None),
-            geometric_dist=self._cfg.get('geometric_dist', True),
-            permutation=self._cfg.get('permutation', False),
-            whole_word_masking=self._cfg.get('whole_word_masking', True),
-            favor_long_ngrams=self._cfg.get('favor_long_ngrams', False),
-        )
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
-        logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-        logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building T5 datasets.')
-        return self._train_ds, self._validation_ds, self._test_ds
 
     def list_available_models(self):
         pass

@@ -277,8 +277,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 f"Class does not support encoder.hidden_size ({self.encoder.hidden_size}) != decoder.hidden_size ({self.decoder.hidden_size}). Please use bottleneck architecture instead (i.e., model.encoder.arch = 'seq2seq' in conf/aayn_bottleneck.yaml)"
             )
 
-    def filter_predicted_ids(self, ids):
-        ids[ids >= self.decoder_tokenizer.vocab_size] = self.decoder_tokenizer.unk_id
+    @classmethod
+    def filter_predicted_ids(cls, ids, decoder_tokenizer):
+        ids[ids >= decoder_tokenizer.vocab_size] = decoder_tokenizer.unk_id
         return ids
 
     def test_encoder_ids(self, ids, raise_error=False):
@@ -855,9 +856,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return source_processor, target_processor
 
-    def ids_to_postprocessed_text(self, beam_ids, tokenizer, processor, filter_beam_ids=True):
+    @classmethod
+    def ids_to_postprocessed_text(
+        cls,
+        beam_ids,
+        tokenizer,
+        processor,
+        filter_beam_ids=True
+    ):
         if filter_beam_ids:
-            beam_ids = self.filter_predicted_ids(beam_ids)
+            beam_ids = MTEncDecModel.filter_predicted_ids(beam_ids)
         translations = [tokenizer.ids_to_text(tr) for tr in beam_ids.cpu().numpy()]
         if processor is not None:
             translations = [processor.detokenize(translation.split(' ')) for translation in translations]
@@ -894,14 +902,14 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             if return_beam_scores:
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
-                all_translations = self.ids_to_postprocessed_text(
+                all_translations = MTEncDecModel.ids_to_postprocessed_text(
                     all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
                 )
 
-            best_translations = self.ids_to_postprocessed_text(
+            best_translations = MTEncDecModel.ids_to_postprocessed_text(
                 best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
             )
-            inputs = self.ids_to_postprocessed_text(
+            inputs = MTEncDecModel.ids_to_postprocessed_text(
                 src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
             )
 
