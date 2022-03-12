@@ -19,9 +19,6 @@ from typing import Dict, List, Union
 
 import torch
 import torch.nn.functional as F
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    MegatronTokenLevelEncoderDecoderModule,
-)
 
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
@@ -285,7 +282,7 @@ def get_params_for_weight_decay_optimization(
     for module in modules:
         for module_ in module.modules():
             # Extra-level of nesting for Encoder-Decoder models.
-            if isinstance(module_, MegatronTokenLevelEncoderDecoderModule):
+            if hasattr(module_, 'enc_dec_model'):
                 for module__ in module_.modules():
                     if isinstance(module__, (FusedLayerNorm, FastLayerNorm)):
                         no_weight_decay_params['params'].extend(
