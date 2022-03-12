@@ -1234,8 +1234,10 @@ class FramewiseStreamingAudioBuffer:
                 if zeros_pads is not None:
                     audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
 
+            chunk_lengths = torch.clamp(self.streams_length - self.buffer_idx, min=0, max=audio_chunk.size(-1))
+
             self.buffer_idx += shift_size
-            yield audio_chunk
+            yield audio_chunk, chunk_lengths
 
     def get_valid_out_len(self):
         if self.buffer_idx - self.streaming_cfg.init_shift_size == 0:

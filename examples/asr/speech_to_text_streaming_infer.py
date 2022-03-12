@@ -110,11 +110,12 @@ def main():
     # pred_out_stream_total = None
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
-    for step_num, chunk_audio in enumerate(streaming_buffer_iter):
+    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         valid_out_len = streaming_buffer.get_valid_out_len()
         pred_out_stream, cache_last_channel, cache_last_time, previous_hypotheses = asr_model.stream_step(
             processed_signal=chunk_audio,
-            processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
+            #processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
+            processed_signal_length=chunk_lengths,
             valid_out_len=valid_out_len,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
