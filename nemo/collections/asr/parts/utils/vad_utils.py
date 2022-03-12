@@ -361,6 +361,13 @@ def merge_overlap_segment(segments: torch.Tensor) -> torch.Tensor:
     """
     Merged the overlapped segemtns torch.Tensor([[0, 1.5], [1, 3.5]]) -> torch.Tensor([0, 3.5])
     """
+    if (
+        segments.shape == torch.Size([0])
+        or segments.shape == torch.Size([0, 2])
+        or segments.shape == torch.Size([1, 2])
+    ):
+        return segments
+
     segments = segments[segments[:, 0].sort()[1]]
     merge_boundary = segments[:-1, 1] >= segments[1:, 0]
     head_padded = torch.nn.functional.pad(merge_boundary, [1, 0], mode='constant', value=0.0)
@@ -512,6 +519,9 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
     Returns:
         speech_segments(torch.Tensor): A tensor of filtered speech segment in torch.Tensor([[start1, end1], [start2, end2]]) format. 
     """
+    if speech_segments.shape == torch.Size([0]):
+        return speech_segments
+
     min_duration_on = per_args.get('min_duration_on', 0.0)
     min_duration_off = per_args.get('min_duration_off', 0.0)
     filter_speech_first = per_args.get('filter_speech_first', 1.0)
@@ -562,6 +572,9 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
 
+    if speech_segments.shape == torch.Size([0]):
+        return speech_segments
+
     speech_segments, _ = torch.sort(speech_segments, 0)
 
     dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + shift_length_in_sec
@@ -597,9 +610,16 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
     save_name = name + ".txt"
     save_path = os.path.join(out_dir, save_name)
-    with open(save_path, "w") as fp:
-        for i in preds:
-            fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
+
+    if preds.shape == torch.Size([0]):
+        with open(save_path, "w") as fp:
+            fp.write(f"0 0 speech\n")
+
+    else:
+        with open(save_path, "w") as fp:
+            for i in preds:
+                fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
+
     return save_path
 
 
