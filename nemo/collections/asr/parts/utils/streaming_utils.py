@@ -1175,16 +1175,11 @@ class FramewiseStreamingAudioBuffer:
         self.model = model
         self.buffer = None
         self.buffer_idx = 0
+        self.streams_length = None
 
         self.online_normalization = online_normalization
         self.streaming_cfg = model.encoder.streaming_cfg
 
-        # self.init_chunk_size = model.encoder.init_chunk_size
-        # self.init_shift_size = model.encoder.init_shift_size
-        # self.chunk_size = model.encoder.chunk_size
-        # self.shift_size = model.encoder.shift_size
-        # self.init_pre_encode_cache_size = model.encoder.init_pre_encode_cache_size
-        # self.pre_encode_cache_size = model.encoder.pre_encode_cache_size
         self.input_features = model.encoder._feat_in
 
         self.preprocessor = self.extract_preprocessor()
@@ -1255,6 +1250,7 @@ class FramewiseStreamingAudioBuffer:
     def reset_buffer(self):
         self.buffer = None
         self.buffer_idx = 0
+        self.streams_length = None
 
     def reset_buffer_pointer(self):
         self.buffer_idx = 0
@@ -1271,31 +1267,48 @@ class FramewiseStreamingAudioBuffer:
         preprocessor = self.model.from_config_dict(cfg.preprocessor)
         return preprocessor.to(self.get_model_device())
 
-    def append_audio_file(self, audio_filepath):
+    def append_audio_file(self, audio_filepath, stream_id=-1):
         audio = get_samples(audio_filepath)
-        processed_signal, processed_signal_length = self.append_audio(audio)
-        return processed_signal, processed_signal_length
+        processed_signal, processed_signal_length, stream_id = self.append_audio(audio, stream_id)
+        return processed_signal, processed_signal_length, stream_id
 
-    def append_audio(self, audio):
+    def append_audio(self, audio, stream_id=-1):
         processed_signal, processed_signal_length = self.preprocess_audio(audio)
-        processed_signal = self.append_processed_signal(processed_signal)
-        return processed_signal, processed_signal_length
+        processed_signal, processed_signal_length, stream_id = self.append_processed_signal(processed_signal, stream_id)
+        return processed_signal, processed_signal_length, stream_id
 
-    def append_processed_signal(self, processed_signal):
+    def append_processed_signal(self, processed_signal, stream_id=-1):
+        processed_signal_length = torch.tensor(processed_signal.size(-1), device=processed_signal.device)
+        if stream_id >= 0 and (self.streams_length is not None and stream_id >= len(self.streams_length)):
+            raise ValueError("Not valid stream_id!")
         if self.buffer is None:
+            if stream_id >= 0:
+                raise ValueError("stream_id can not be specified when there is no stream.")
             self.buffer = processed_signal
+            self.streams_length = torch.tensor([processed_signal_length], device=processed_signal.device)
         else:
-            if self.buffer.size() != processed_signal.size():
+            if self.buffer.size(1) != processed_signal.size(1):
                 raise ValueError("Buffer and the processed signal have different dimensions!")
-            self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
+            if stream_id >= 0:
+                needed_len = self.streams_length[stream_id] + processed_signal_length
+                if needed_len > self.buffer.size(-1):
+                    self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, self.buffer.size(-1) - needed_len))
+                #torch.cat((self.buffer, processed_signal), dim=-1)
+            else:
+                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
+                self.streams_length = torch.cat((self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1)
+                stream_id = len(self.streams_length) - 1
+                #self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
+            self.buffer[stream_id, :, self.streams_length[stream_id]:self.streams_length[stream_id] + processed_signal_length] = processed_signal
+            self.streams_length[stream_id] = self.streams_length[stream_id] + processed_signal.size(-1)
 
         if self.online_normalization:
             processed_signal, x_mean, x_std = normalize_batch(
                 x=processed_signal,
-                seq_len=torch.tensor([processed_signal.size(-1)]),
+                seq_len=torch.tensor([processed_signal_length]),
                 normalize_type=self.model_normalize_type,
             )
-        return processed_signal
+        return processed_signal, processed_signal_length, stream_id
 
     def get_model_device(self):
         return self.model.device

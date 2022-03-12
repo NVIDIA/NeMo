@@ -85,11 +85,12 @@ def main():
 
     audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
     streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
-    processed_signal, processed_signal_length = streaming_buffer.append_audio_file(audio_path)
+    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path)
+    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path)
 
     pred_out_offline, cache_last_channel_next, cache_last_time_next, best_hyp = asr_model.stream_step(
-        processed_signal=processed_signal,
-        processed_signal_length=processed_signal_length,
+        processed_signal=streaming_buffer.buffer,
+        processed_signal_length=streaming_buffer.streams_length,
         valid_out_len=None,
         cache_last_channel=None,
         cache_last_time=None,
@@ -101,8 +102,8 @@ def main():
     #     print(best_hyp[0].text)
 
     # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
-
-    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=args.batch_size)
+    batch_size = len(streaming_buffer.streams_length)# args.batch_size
+    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
     # pred_out_stream_total = None
@@ -123,7 +124,7 @@ def main():
 
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
             cache_last_channel = cache_last_channel[
-                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :
+                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size:, :
             ]
         print(pred_out_stream.size())
         step_num += 1
