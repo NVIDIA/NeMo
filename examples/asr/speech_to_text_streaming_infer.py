@@ -84,9 +84,10 @@ def main():
     # print(x_mean_whole, x_std_whole)
 
     audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
+    audio_path2 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/3081-166546-0019.wav"
     streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
-    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path)
-    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path)
+    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path, stream_id=-1)
+    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path2, stream_id=-1)
 
     pred_out_offline, cache_last_channel_next, cache_last_time_next, best_hyp = asr_model.stream_step(
         processed_signal=streaming_buffer.buffer,
