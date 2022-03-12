@@ -589,12 +589,6 @@ class IntentSlotClassificationModel(NLPModel):
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        # Initialize tokenizer.
-        # if not hasattr(self, "tokenizer"):
-        #    self._setup_tokenizer(self.cfg.tokenizer)
-        # Initialize modules.
-        # self._reconfigure_classifier()
-
         # Switch model to evaluation mode
         self.eval()
         self.to(device)

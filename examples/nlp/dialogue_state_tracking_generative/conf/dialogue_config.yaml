@@ -64,7 +64,7 @@ model:
     config_file: null # json file, precedence over config
     config: null
 
-  
+  tokens_to_generate: 32 # for generation mode only
     
   encoder:
     dropout: 0.1

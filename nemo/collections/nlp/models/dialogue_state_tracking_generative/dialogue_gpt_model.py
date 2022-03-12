@@ -71,7 +71,7 @@ class DialogueGPTModel(NLPModel):
             self.prompt_tags = [1, 0] if 'prompt_table' in dir(self.language_model) else []
             if hasattr(self.language_model, 'prompt_table'):
                 self.language_model.prompt_tuning_param_freeze_and_optimizer_setup()
-            """
+
             # Init all new prompts
             for idx, tag in enumerate(cfg.new_prompt_tags):
                 self.prompt_tags.append(tag)
@@ -82,8 +82,10 @@ class DialogueGPTModel(NLPModel):
                 elif init_method == 'random':
                     self.language_model.init_prompt_from_random(tag)
                 else:
-                    raise ValueError(f'\n Soft prompt init method {init_method} is not recognized, please use text or random')
-            """
+                    raise ValueError(
+                        f'\n Soft prompt init method {init_method} is not recognized, please use text or random'
+                    )
+
         all_labels = list(
             self._train_dl.dataset.all_possible_labels.union(
                 self._validation_dl.dataset.all_possible_labels, self._test_dl.dataset.all_possible_labels
@@ -115,11 +117,14 @@ class DialogueGPTModel(NLPModel):
             utterance_length,
             correct_candidate,
         ) = batch
-
+        # construct training samples as generating " Answer: yes/no" after "<utterance> <label_type>: <candidate_label>"
         if self.eval_mode == "binary_score":
             new_input_ids = []
             new_attn_masks = []
             for i in range(candidate_input_ids.size(0)):
+                # in some datasets like assistant, there might be 60+ possible intents with 1 correct intent
+                # therefore we might not want to use all possible intents as negative samples
+                # instead use {binary_score_subsample_ratio} negative samples for every positive sample
                 if self.cfg.dataset.binary_score_subsample:
                     new_input_ids.append(candidate_input_ids[i, 2 * correct_candidate[i].item(), :])
                     new_attn_masks.append(candidate_attn_masks[i, 2 * correct_candidate[i].item(), :])
@@ -252,6 +257,8 @@ class DialogueGPTModel(NLPModel):
             # 'assit_intent_and_slot' has prompt_id of 1
             # 'assit_intent_and_slot_with_options' has prompt_id of 2
             prompt_ids = torch.tensor([1] * input_ids.size(0)) if self.prompt_tags else None
+
+            # this makes a 1d tensor of values 2 rather than 1, which is the prompt_id of 'assit_intent_and_slot_with_options'
             if self.cfg.dataset.prompt_template == "prompt_tuning_with_options" and prompt_ids is not None:
                 prompt_ids = prompt_ids * 2
             attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
@@ -457,7 +464,7 @@ class DialogueGPTModel(NLPModel):
 
     def generate_candidates(self, labels, template_length, input_ids, attn_masks):
 
-        tokens_to_generate = 32
+        tokens_to_generate = self.cfg.tokens_to_generate
 
         if self.cfg.library == "huggingface":
             generated_tokens = []
