@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 pretrained_model: null # pretrained QAModel model from list_available_models()
 do_training: true # training mode, for testing change to false
 trainer:
