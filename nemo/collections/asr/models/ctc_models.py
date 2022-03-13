@@ -664,6 +664,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if drop_extra_pre_encoded is not None:
             self.encoder.streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
 
+        # if processed_signal_length is None:
+        #     processed_signal_length = processed_signal.new_full(processed_signal.size(0), processed_signal.size(-1))
+
         encoder_output = self.encoder(
             audio_signal=processed_signal,
             length=processed_signal_length,
@@ -683,6 +686,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+
+        # seq_range = torch.arange(0, processed_signal.size(2), device=processed_signal.device)
+        # pad_mask = seq_range.repeat(processed_signal_length.size(0), 1) < processed_signal_length.unsqueeze(-1)
 
         # transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
         #     predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,

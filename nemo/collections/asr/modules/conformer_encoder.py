@@ -364,6 +364,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
             if self.streaming_cfg.drop_extra_pre_encoded:
                 audio_signal = audio_signal[:, 2:, :]
                 length = length - 2
+                length = torch.clamp(length, min=0)
+
         else:
             audio_signal = self.pre_encode(x=audio_signal)
 

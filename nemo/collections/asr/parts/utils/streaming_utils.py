@@ -1186,6 +1186,7 @@ class FramewiseStreamingAudioBuffer:
 
     def __iter__(self):
         while True:
+            added_len = 0
             if self.buffer_idx >= self.buffer.size(-1):
                 return
                 # raise StopIteration
@@ -1203,6 +1204,7 @@ class FramewiseStreamingAudioBuffer:
                     dtype=audio_chunk.dtype,
                 )
                 audio_chunk = torch.cat((init_cache_pre_encode, audio_chunk), dim=-1)
+                added_len = init_cache_pre_encode.size(-1)
             else:
                 start_pre_encode_cache = self.buffer_idx - self.streaming_cfg.pre_encode_cache_size
                 if start_pre_encode_cache < 0:
@@ -1222,6 +1224,8 @@ class FramewiseStreamingAudioBuffer:
                     zeros_pads = None
 
                 audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
+                added_len = cache_pre_encode.size(-1)
+
                 if self.online_normalization:
                     audio_chunk, x_mean, x_std = normalize_batch(
                         x=audio_chunk,
@@ -1233,8 +1237,10 @@ class FramewiseStreamingAudioBuffer:
 
                 if zeros_pads is not None:
                     audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
+                    added_len = zeros_pads.size(-1)
 
-            chunk_lengths = torch.clamp(self.streams_length - self.buffer_idx, min=0, max=audio_chunk.size(-1))
+            chunk_lengths = self.streams_length - self.buffer_idx + added_len
+            chunk_lengths = torch.clamp(chunk_lengths, min=0, max=audio_chunk.size(-1))
 
             self.buffer_idx += shift_size
             yield audio_chunk, chunk_lengths
