@@ -29,19 +29,6 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
 
-# def greedy_merge_ctc(asr_model, preds):
-#     blank_id = len(asr_model.decoder.vocabulary)
-#     model_tokenizer = asr_model.tokenizer
-#
-#     decoded_prediction = []
-#     previous = blank_id
-#     for p in preds:
-#         if (p != previous or previous == blank_id) and p != blank_id:
-#             decoded_prediction.append(int(p))
-#         previous = p
-#     hypothesis = model_tokenizer.ids_to_text(decoded_prediction)
-#     return hypothesis
-
 
 def main():
     parser = ArgumentParser()
@@ -53,7 +40,6 @@ def main():
     parser.add_argument(
         "--online_normalization", default=False, action='store_true', help="Perform normalization on the run."
     )
-    # parser.add_argument("--output_path", type=str, help="path to output file", default=None)
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -79,8 +65,6 @@ def main():
 
     asr_model = asr_model.to("cuda")
     asr_model.eval()
-    # model_normalize_type = {"fixed_mean": x_mean_whole, "fixed_std": x_std_whole}
-    # print(x_mean_whole, x_std_whole)
 
     audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
     audio_path2 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/3081-166546-0019.wav"
@@ -104,12 +88,10 @@ def main():
     print(transcribed_texts)
     print(pred_out_offline)
 
-    # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
     batch_size = len(streaming_buffer.streams_length)  # args.batch_size
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
-    # pred_out_stream_total = None
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
@@ -122,7 +104,6 @@ def main():
             previous_hypotheses,
         ) = asr_model.stream_step(
             processed_signal=chunk_audio,
-            # processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
             processed_signal_length=chunk_lengths,
             valid_out_len=valid_out_len,
             cache_last_channel=cache_last_channel,
