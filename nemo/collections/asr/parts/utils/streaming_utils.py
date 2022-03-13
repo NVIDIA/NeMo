@@ -1282,7 +1282,9 @@ class FramewiseStreamingAudioBuffer:
 
     def append_audio(self, audio, stream_id=-1):
         processed_signal, processed_signal_length = self.preprocess_audio(audio)
-        processed_signal, processed_signal_length, stream_id = self.append_processed_signal(processed_signal, stream_id)
+        processed_signal, processed_signal_length, stream_id = self.append_processed_signal(
+            processed_signal, stream_id
+        )
         return processed_signal, processed_signal_length, stream_id
 
     def append_processed_signal(self, processed_signal, stream_id=-1):
@@ -1301,13 +1303,17 @@ class FramewiseStreamingAudioBuffer:
                 needed_len = self.streams_length[stream_id] + processed_signal_length
                 if needed_len > self.buffer.size(-1):
                     self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, self.buffer.size(-1) - needed_len))
-                #torch.cat((self.buffer, processed_signal), dim=-1)
+                # torch.cat((self.buffer, processed_signal), dim=-1)
             else:
                 self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
-                self.streams_length = torch.cat((self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1)
+                self.streams_length = torch.cat(
+                    (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
+                )
                 stream_id = len(self.streams_length) - 1
-                #self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
-            self.buffer[stream_id, :, self.streams_length[stream_id]:self.streams_length[stream_id] + processed_signal_length] = processed_signal
+                # self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
+            self.buffer[
+                stream_id, :, self.streams_length[stream_id] : self.streams_length[stream_id] + processed_signal_length
+            ] = processed_signal
             self.streams_length[stream_id] = self.streams_length[stream_id] + processed_signal.size(-1)
 
         if self.online_normalization:

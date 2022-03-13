@@ -20,7 +20,7 @@ import torch.distributed
 import torch.nn as nn
 
 from nemo.collections.asr.models.configs import FramewiseStreamingConfig
-from nemo.collections.asr.parts.mixins.streaming import StreamingModuleMixin
+from nemo.collections.asr.parts.mixins.streaming import StreamingEncoderMixin
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
@@ -37,7 +37,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, L
 __all__ = ['ConformerEncoder']
 
 
-class ConformerEncoder(NeuralModule, Exportable, StreamingModuleMixin):
+class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
     """
     The encoder for ASR model of Conformer.
     Based on this paper:

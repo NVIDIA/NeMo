@@ -29,7 +29,6 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
 
-
 # def greedy_merge_ctc(asr_model, preds):
 #     blank_id = len(asr_model.decoder.vocabulary)
 #     model_tokenizer = asr_model.tokenizer
@@ -87,23 +86,26 @@ def main():
     audio_path2 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/3081-166546-0019.wav"
     streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
     processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path, stream_id=-1)
-    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path2, stream_id=-1)
+    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+        audio_path2, stream_id=-1
+    )
 
-    pred_out_offline, transcribed_texts, cache_last_channel_next, cache_last_time_next, best_hyp = asr_model.stream_step(
+    (
+        pred_out_offline,
+        transcribed_texts,
+        cache_last_channel_next,
+        cache_last_time_next,
+        best_hyp,
+    ) = asr_model.stream_step(
         processed_signal=streaming_buffer.buffer,
         processed_signal_length=streaming_buffer.streams_length,
-        valid_out_len=None,
-        cache_last_channel=None,
-        cache_last_time=None,
-        previous_hypotheses=None,
+        return_transcribtion=True,
     )
     print(transcribed_texts)
     print(pred_out_offline)
-    # if best_hyp is not None:
-    #     print(best_hyp[0].text)
 
     # print(greedy_merge_ctc(asr_model, list(asr_out_whole[0].cpu().int().numpy())))
-    batch_size = len(streaming_buffer.streams_length)# args.batch_size
+    batch_size = len(streaming_buffer.streams_length)  # args.batch_size
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
@@ -112,22 +114,29 @@ def main():
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         valid_out_len = streaming_buffer.get_valid_out_len()
-        pred_out_stream, transcribed_texts, cache_last_channel, cache_last_time, previous_hypotheses = asr_model.stream_step(
+        (
+            pred_out_stream,
+            transcribed_texts,
+            cache_last_channel,
+            cache_last_time,
+            previous_hypotheses,
+        ) = asr_model.stream_step(
             processed_signal=chunk_audio,
-            #processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
+            # processed_signal_length=torch.tensor([chunk_audio.size(-1)], device=asr_model.device),
             processed_signal_length=chunk_lengths,
             valid_out_len=valid_out_len,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             previous_hypotheses=previous_hypotheses,
             previous_pred_out=pred_out_stream,
-            drop_extra_pre_encoded=True if step_num > 0 else False
+            drop_extra_pre_encoded=True if step_num > 0 else False,
+            return_transcribtion=True,
         )
         print(transcribed_texts)
 
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
             cache_last_channel = cache_last_channel[
-                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size:, :
+                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :
             ]
         print(pred_out_stream.size())
         step_num += 1

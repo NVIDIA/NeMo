@@ -659,48 +659,46 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         valid_out_len=None,
         previous_hypotheses=None,
         previous_pred_out=None,
-        drop_extra_pre_encoded=None
+        drop_extra_pre_encoded=None,
+        return_transcribtion=True,
     ):
-        if drop_extra_pre_encoded is not None:
-            self.encoder.streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
-
-        # if processed_signal_length is None:
-        #     processed_signal_length = processed_signal.new_full(processed_signal.size(0), processed_signal.size(-1))
-
-        encoder_output = self.encoder(
-            audio_signal=processed_signal,
-            length=processed_signal_length,
+        (
+            encoded,
+            encoded_len,
+            cache_last_channel_next,
+            cache_last_time_next,
+            prev_drop_extra_pre_encoded,
+        ) = self.encoder.stream_step(
+            processed_signal=processed_signal,
+            processed_signal_length=processed_signal_length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
+            valid_out_len=valid_out_len,
+            drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
-
-        if len(encoder_output) == 2:
-            encoded, encoded_len = encoder_output
-            cache_last_channel_next = cache_last_time_next = None
-        else:
-            encoded, encoded_len, cache_last_channel_next, cache_last_time_next = encoder_output
-
-        if valid_out_len is not None:
-            encoded = encoded[:, :, :valid_out_len]
-            encoded_len = torch.clamp(encoded_len, max=valid_out_len)
 
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 
-        seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
-        pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
-
-        greedy_predictions.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
+        if processed_signal_length is not None:
+            seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
+            pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
+            greedy_predictions.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
 
         if previous_pred_out is not None:
             greedy_predictions = torch.cat((previous_pred_out, greedy_predictions), dim=-1)
             encoded_len += previous_pred_out.size(-1)
 
         # TODO: make decoding more efficient by avoiding the decoding process from the beginning
-        transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
-            predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
-        )
+        if return_transcribtion:
+            transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
+                predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
+            )
+        else:
+            transcribed_texts = None
 
+        if prev_drop_extra_pre_encoded is not None:
+            self.encoder.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded
         return greedy_predictions, transcribed_texts, cache_last_channel_next, cache_last_time_next, None
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
