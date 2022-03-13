@@ -1299,18 +1299,17 @@ class FramewiseStreamingAudioBuffer:
         else:
             if self.buffer.size(1) != processed_signal.size(1):
                 raise ValueError("Buffer and the processed signal have different dimensions!")
-            if stream_id >= 0:
-                needed_len = self.streams_length[stream_id] + processed_signal_length
-                if needed_len > self.buffer.size(-1):
-                    self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, self.buffer.size(-1) - needed_len))
-                # torch.cat((self.buffer, processed_signal), dim=-1)
-            else:
+            if stream_id < 0:
                 self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
                 self.streams_length = torch.cat(
                     (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
                 )
                 stream_id = len(self.streams_length) - 1
-                # self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
+            needed_len = self.streams_length[stream_id] + processed_signal_length
+            if needed_len > self.buffer.size(-1):
+                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, needed_len - self.buffer.size(-1)))
+            # torch.cat((self.buffer, processed_signal), dim=-1)
+            # self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
             self.buffer[
                 stream_id, :, self.streams_length[stream_id] : self.streams_length[stream_id] + processed_signal_length
             ] = processed_signal
