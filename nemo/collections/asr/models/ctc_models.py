@@ -692,14 +692,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         greedy_predictions.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
 
-        # transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
-        #     predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
-        # )
-
         if previous_pred_out is not None:
             greedy_predictions = torch.cat((previous_pred_out, greedy_predictions), dim=-1)
+            encoded_len += previous_pred_out.size(-1)
 
-        return greedy_predictions, cache_last_channel_next, cache_last_time_next, None
+        # TODO: make decoding more efficient by avoiding the decoding process from the beginning
+        transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
+            predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
+        )
+
+        return greedy_predictions, transcribed_texts, cache_last_channel_next, cache_last_time_next, None
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch

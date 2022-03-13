@@ -731,6 +731,60 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         return {'loss': loss_value}
 
+    def stream_step(
+        self,
+        processed_signal,
+        processed_signal_length=None,
+        cache_last_channel=None,
+        cache_last_time=None,
+        valid_out_len=None,
+        previous_hypotheses=None,
+        previous_pred_out=None,
+        drop_extra_pre_encoded=None
+    ):
+        if drop_extra_pre_encoded is not None:
+            self.encoder.streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
+
+        # if processed_signal_length is None:
+        #     processed_signal_length = processed_signal.new_full(processed_signal.size(0), processed_signal.size(-1))
+
+        encoder_output = self.encoder(
+            audio_signal=processed_signal,
+            length=processed_signal_length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+        )
+
+        if len(encoder_output) == 2:
+            encoded, encoded_len = encoder_output
+            cache_last_channel_next = cache_last_time_next = None
+        else:
+            encoded, encoded_len, cache_last_channel_next, cache_last_time_next = encoder_output
+
+        if valid_out_len is not None:
+            encoded = encoded[:, :, :valid_out_len]
+            encoded_len = torch.clamp(encoded_len, max=valid_out_len)
+
+        #seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
+        #pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
+
+        #greedy_predictions.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
+
+        # TODO: make decoding more efficient by avoiding the decoding process from the beginning
+        best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True, partial_hypotheses=previous_hypotheses
+        )
+        greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
+        if previous_pred_out is not None:
+            for hyp_idx, hyp in enumerate(greedy_predictions):
+                greedy_predictions[hyp_idx] = previous_pred_out[hyp_idx].extend(greedy_predictions[hyp_idx])
+            # encoded_len += previous_pred_out.size(-1)
+
+        if all_hyp is None:
+            all_hyp = best_hyp
+
+        return greedy_predictions, all_hyp, cache_last_channel_next, cache_last_time_next, best_hyp
+
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch
 
