@@ -687,8 +687,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 
-        # seq_range = torch.arange(0, processed_signal.size(2), device=processed_signal.device)
-        # pad_mask = seq_range.repeat(processed_signal_length.size(0), 1) < processed_signal_length.unsqueeze(-1)
+        seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
+        pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
+
+        greedy_predictions.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
 
         # transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
         #     predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
