@@ -87,8 +87,8 @@ class IntCode(Code):
                 uniq_items = range(0, self.base)
             else:
                 uniq_items = sorted(np.unique(v).tolist())
-            for i in range(len(uniq_items)):
-                item = str(uniq_items[i])
+            for k in range(len(uniq_items)):
+                item = str(uniq_items[k])
                 item_to_id[item] = self.end_id
                 id_to_item[self.end_id] = item
                 self.end_id += 1
@@ -181,7 +181,7 @@ class FloatCode(IntCode):
         # extra digits used for 'float' part of the number
         extra_digits = self.code_len - digits
         if extra_digits < 0:
-            raise "need large length to code the nummber"
+            raise ValueError("need large length to code the nummber")
         self.extra_digits = extra_digits
         super().compute_code(data_series)
 

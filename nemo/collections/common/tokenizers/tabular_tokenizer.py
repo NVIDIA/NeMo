@@ -101,7 +101,7 @@ class TabularTokenizer(TokenizerSpec):
                     if splits[1] != '':
                         tokens.append(splits[1].strip())
                 else:
-                    raise "error"
+                    raise ValueError("delimiter error")
             if row_id != num_rows - 1:
                 tokens.append(NEW_LINE)
         return tokens

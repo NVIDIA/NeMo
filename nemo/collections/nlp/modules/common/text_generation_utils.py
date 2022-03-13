@@ -108,17 +108,22 @@ def tokenize_batch(tokenizer, sentences, max_len, add_BOS):
     return context_tokens_tensor, context_length_tensor
 
 
-def send_generate_info(context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature):
+def send_generate_info(
+    context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature, top_k, top_p, greedy
+):
     """
     Needs to be synced up with receive_generate_info
     """
     # Send the sizes of the tensors
     input_info = [
-        context_tokens_tensor.size(0),
-        context_tokens_tensor.size(1),
+        context_tokens_tensor.size(0),  # batch_size
+        context_tokens_tensor.size(1),  # seq_len
         tokens_to_generate,
         all_probs,
         temperature,
+        top_k,
+        top_p,
+        greedy,
     ]
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, 0)
@@ -137,8 +142,11 @@ def receive_generate_info():
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
     tokens_to_generate = int(input_info_tensor[2].item())
-    all_probs = int(input_info_tensor[3].item())
+    all_probs = bool(input_info_tensor[3].item())
     temperature = float(input_info_tensor[4].item())
+    top_k = float(input_info_tensor[5].item())
+    top_p = float(input_info_tensor[6].item())
+    greedy = bool(input_info_tensor[3].item())
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
@@ -147,7 +155,16 @@ def receive_generate_info():
     torch.distributed.broadcast(context_length_tensor, 0)
     torch.distributed.broadcast(context_tokens_tensor, 0)
 
-    return context_length_tensor, context_tokens_tensor, tokens_to_generate, all_probs, temperature
+    return (
+        context_length_tensor,
+        context_tokens_tensor,
+        tokens_to_generate,
+        all_probs,
+        temperature,
+        top_k,
+        top_p,
+        greedy,
+    )
 
 
 def synced_generate(
@@ -241,7 +258,16 @@ def generate(
         context_tokens_tensor, context_length_tensor = tokenize_batch(
             tokenizer, sentences, tokens_to_generate, add_BOS
         )
-        send_generate_info(context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature)
+        send_generate_info(
+            context_tokens_tensor,
+            context_length_tensor,
+            tokens_to_generate,
+            all_probs,
+            temperature,
+            top_k,
+            top_p,
+            greedy,
+        )
     else:
         (
             context_length_tensor,
@@ -249,6 +275,9 @@ def generate(
             tokens_to_generate,
             all_probs,
             temperature,
+            top_k,
+            top_p,
+            greedy,
         ) = receive_generate_info()
 
     output = synced_generate(
@@ -269,7 +298,8 @@ def generate(
 
         decode_tokens = decode_tokens.cpu().numpy().tolist()
         for decode_token in decode_tokens:
-            resp_sentences.append(tokenizer.ids_to_text(decode_token))
+            sentence = tokenizer.ids_to_text(decode_token)
+            resp_sentences.append(sentence)
             if not isinstance(tokenizer, TabularTokenizer):
                 words = []
                 for token in decode_token:
@@ -280,9 +310,8 @@ def generate(
                     words.append(word)
                 resp_sentences_seg.append(words)
             else:
-                # clean up the eod
-                # use nice delimiter
-                resp_sentences = resp_sentences
+                words = tokenizer.text_to_tokens(sentence)
+                resp_sentences_seg.append(words)
         output_logits = output_logits.cpu().numpy().tolist()
         if all_probs:
             full_logits = full_logits.cpu().numpy().tolist()
@@ -505,19 +534,19 @@ def tab_sample_sequence_batch(
     with torch.no_grad():
         context_length = context_lengths.min().item()
         context = context_tokens[:, :context_length]
+        # the context may start in the middle of the row,
+        # calculate the offset according to the position of '\n' or '<|endoftext|>'
         positions = torch.where(context == tokenizer.eor)[1]
+        if len(positions) == 0:
+            positions = torch.where(context == tokenizer.eod)[1]
         if len(positions) != 0:
             max_position = positions.max().item()
             # TODO, need to make sure context of different batch have the same offset lengths")
-            offset = context_length - max_position - 1
+            # otherwise, need to calculate offset per batch_id
+            offset = (context_length - max_position - 1) % tokens_per_row
         else:
             offset = 0
-        # print('context', context_tokens[0][:context_length][-20:])
-        # print('endr', tokenizer.eor)
-        # print('offset', offset)
 
-        # added eos_id to support the function generate_samples_eval that passes
-        # eos_id as an argument and needs termination when that id id found.
         eod_id = tokenizer.eos_id
 
         counter = 0

@@ -69,7 +69,7 @@ class TestColumnCoder:
         assert float_coder.code_range[3] == (377, 754)
         assert float_coder.code_range[4] == (0, 377)
         try:
-            r = float_coder.encode('nan')
+            float_coder.encode('nan')
         except ValueError as e:
             assert str(e) == 'colum t cannot handle nan, please set hasnan=True'
 

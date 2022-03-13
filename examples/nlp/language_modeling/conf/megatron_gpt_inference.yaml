@@ -1,5 +1,5 @@
 inference:
-  greedy: False,
+  greedy: False
   top_k: 0
   top_p: 0.9
   temperature: 1.0
