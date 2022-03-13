@@ -19,6 +19,8 @@ This script serves three goals:
     (3) Serves as CI test for pre-trained checkpoint
 """
 
+import contextlib
+import json
 from argparse import ArgumentParser
 
 import onnxruntime
@@ -30,18 +32,97 @@ from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingA
 from nemo.utils import logging
 
 
+def perform_streaming(asr_model, streaming_buffer):
+    batch_size = len(streaming_buffer.streams_length)
+    with autocast():
+        with torch.no_grad():
+            (
+                pred_out_offline,
+                transcribed_texts,
+                cache_last_channel_next,
+                cache_last_time_next,
+                best_hyp,
+            ) = asr_model.stream_step(
+                processed_signal=streaming_buffer.buffer,
+                processed_signal_length=streaming_buffer.streams_length,
+                return_transcribtion=True,
+            )
+    print(transcribed_texts)
+    print(pred_out_offline)
+
+    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
+
+    previous_hypotheses = None
+    streaming_buffer_iter = iter(streaming_buffer)
+    pred_out_stream = None
+    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
+        valid_out_len = streaming_buffer.get_valid_out_len()
+        with autocast():
+            with torch.no_grad():
+                (
+                    pred_out_stream,
+                    transcribed_texts,
+                    cache_last_channel,
+                    cache_last_time,
+                    previous_hypotheses,
+                ) = asr_model.stream_step(
+                    processed_signal=chunk_audio,
+                    processed_signal_length=chunk_lengths,
+                    valid_out_len=valid_out_len,
+                    cache_last_channel=cache_last_channel,
+                    cache_last_time=cache_last_time,
+                    previous_hypotheses=previous_hypotheses,
+                    previous_pred_out=pred_out_stream,
+                    drop_extra_pre_encoded=True if step_num > 0 else False,
+                    return_transcribtion=True,
+                )
+        print(transcribed_texts)
+
+        if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
+            cache_last_channel = cache_last_channel[
+                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :
+            ]
+        print(pred_out_stream.size())
+        step_num += 1
+        print(
+            asr_model.encoder.streaming_cfg.shift_size,
+            asr_model.encoder.streaming_cfg.chunk_size,
+            streaming_buffer.buffer_idx,
+            len(pred_out_stream),
+        )
+
+    print(pred_out_stream)
+    print(torch.sum(pred_out_stream != pred_out_offline))
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument(
         "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file",
     )
     parser.add_argument("--onnx_model", type=str, help="Path to the ONNX file of an asr model", default=None)
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument(
+        "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
+    )
+    parser.add_argument("--audio_file", type=str, help="Path to an audio file to perform streaming", default=None)
+    parser.add_argument(
+        "--manifest_file",
+        type=str,
+        help="Path to a manifest file containing audio files to perform streaming",
+        default=None,
+    )
+    parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP")
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument(
         "--online_normalization", default=False, action='store_true', help="Perform normalization on the run."
     )
 
     args = parser.parse_args()
+    if (args.audio_file is None and args.manifest_file is None) or (
+        args.audio_file is not None and args.manifest_file is not None
+    ):
+        raise ValueError("One of the audio_file and manifest_file should be non-empty!")
+
     torch.set_grad_enabled(False)
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
@@ -49,6 +130,21 @@ def main():
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+
+    global autocast
+    if (
+        args.use_amp
+        and torch.cuda.is_available()
+        and hasattr(torch.cuda, 'amp')
+        and hasattr(torch.cuda.amp, 'autocast')
+    ):
+        logging.info("AMP enabled!\n")
+        autocast = torch.cuda.amp.autocast
+    else:
+
+        @contextlib.contextmanager
+        def autocast():
+            yield
 
     if args.onnx_model is not None:
         onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
@@ -63,76 +159,36 @@ def main():
             # decoding_cfg.greedy.max_symbols = 5
         asr_model.change_decoding_strategy(decoding_cfg)
 
-    asr_model = asr_model.to("cuda")
+    asr_model = asr_model.to(args.device)
     asr_model.eval()
 
-    audio_path = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
-    audio_path2 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/3081-166546-0019.wav"
     streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
-    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(audio_path, stream_id=-1)
-    processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-        audio_path2, stream_id=-1
-    )
-
-    (
-        pred_out_offline,
-        transcribed_texts,
-        cache_last_channel_next,
-        cache_last_time_next,
-        best_hyp,
-    ) = asr_model.stream_step(
-        processed_signal=streaming_buffer.buffer,
-        processed_signal_length=streaming_buffer.streams_length,
-        return_transcribtion=True,
-    )
-    print(transcribed_texts)
-    print(pred_out_offline)
-
-    batch_size = len(streaming_buffer.streams_length)  # args.batch_size
-    cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
-
-    previous_hypotheses = None
-    streaming_buffer_iter = iter(streaming_buffer)
-    pred_out_stream = None
-    for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        valid_out_len = streaming_buffer.get_valid_out_len()
-        (
-            pred_out_stream,
-            transcribed_texts,
-            cache_last_channel,
-            cache_last_time,
-            previous_hypotheses,
-        ) = asr_model.stream_step(
-            processed_signal=chunk_audio,
-            processed_signal_length=chunk_lengths,
-            valid_out_len=valid_out_len,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-            previous_hypotheses=previous_hypotheses,
-            previous_pred_out=pred_out_stream,
-            drop_extra_pre_encoded=True if step_num > 0 else False,
-            return_transcribtion=True,
+    if args.audio_file is not None:
+        processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+            args.audio_file, stream_id=-1
         )
-        print(transcribed_texts)
-
-        if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
-            cache_last_channel = cache_last_channel[
-                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :
-            ]
-        print(pred_out_stream.size())
-        step_num += 1
-        print(
-            processed_signal.size(-1),
-            asr_model.encoder.streaming_cfg.shift_size,
-            asr_model.encoder.streaming_cfg.chunk_size,
-            streaming_buffer.buffer_idx,
-            len(pred_out_stream),
-        )
-
-    print(pred_out_stream)
-    # print(greedy_merge_ctc(asr_model, list(asr_out_stream_total[0].cpu().int().numpy())))
-
-    print(torch.sum(pred_out_stream != pred_out_offline))
+        # audio_path1 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
+        # audio_path2 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/3081-166546-0019.wav"
+        # processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+        #     audio_path1, stream_id=-1
+        # )
+        # processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+        #     audio_path2, stream_id=-1
+        # )
+        perform_streaming(asr_model, streaming_buffer)
+    else:
+        with open(args.manifest_file, 'r') as f:
+            file_count = 0
+            for line in f:
+                item = json.loads(line)
+                processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+                    item['audio_filepath'], stream_id=-1
+                )
+                file_count += 1
+                if file_count % args.batch_size == 0:
+                    perform_streaming(asr_model, streaming_buffer)
+                    streaming_buffer.reset_buffer()
+                # filepaths.append(item['audio_filepath'])
 
 
 if __name__ == '__main__':
