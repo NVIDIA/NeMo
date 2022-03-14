@@ -51,7 +51,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                 )
         if debug_mode:
             logging.info(f"Offline transcriptions: {transcribed_texts}")
-            #logging.info(pred_out_offline)
+            # logging.info(pred_out_offline)
 
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
@@ -86,7 +86,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
 
         if debug_mode:
             logging.info(transcribed_texts)
-            #print(pred_out_stream.size())
+            # print(pred_out_stream.size())
             # print(
             #     asr_model.encoder.streaming_cfg.shift_size,
             #     asr_model.encoder.streaming_cfg.chunk_size,
@@ -202,6 +202,7 @@ def main():
                 )
                 file_count += 1
                 if file_count % args.batch_size == 0:
+                    logging.info(f"Started to stream samples {file_count} to {file_count+args.batch_size}")
                     perform_streaming(
                         asr_model=asr_model,
                         streaming_buffer=streaming_buffer,
