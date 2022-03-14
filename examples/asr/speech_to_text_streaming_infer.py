@@ -60,9 +60,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     return_transcribtion=True,
                 )
         logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
-        # logging.info(pred_out_offline)
 
-    #logging.info("Starting to stream a batch...")
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
@@ -96,18 +94,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
-            # print(pred_out_stream.size())
-            # print(
-            #     asr_model.encoder.streaming_cfg.shift_size,
-            #     asr_model.encoder.streaming_cfg.chunk_size,
-            #     streaming_buffer.buffer_idx,
-            #     len(pred_out_stream),
-            # )
         step_num += 1
-    # if debug_mode:
-    #     print(pred_out_stream)
-
-    #logging.info("Streaming ended for the batch!")
     logging.info(f"Final streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
 
     if compare_vs_offline:
@@ -195,12 +182,6 @@ def main():
         )
         # audio_path1 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/251-118436-0012.wav"
         # audio_path2 = "/drive3/datasets/data/librispeech_withsp2/LibriSpeech/dev-clean-wav/3081-166546-0019.wav"
-        # processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-        #     audio_path1, stream_id=-1
-        # )
-        # processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-        #     audio_path2, stream_id=-1
-        # )
         perform_streaming(
             asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
         )
@@ -224,7 +205,6 @@ def main():
                     debug_mode=args.debug_mode,
                 )
                 streaming_buffer.reset_buffer()
-            # filepaths.append(item['audio_filepath'])
 
 
 if __name__ == '__main__':

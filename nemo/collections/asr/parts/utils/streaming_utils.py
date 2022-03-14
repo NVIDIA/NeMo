@@ -1258,7 +1258,6 @@ class FramewiseStreamingAudioBuffer:
     def __len__(self):
         return len(self.buffer)
 
-
     def reset_buffer(self):
         self.buffer = None
         self.buffer_idx = 0
