@@ -236,7 +236,7 @@ class Float16Module(MegatronModule):
         return self.module.set_input_tensor(input_tensor)
 
     def forward(self, *inputs, **kwargs):
-        if parallel_state.is_pipeline_first_stage():
+        if self.pre_process:
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
         if parallel_state.is_pipeline_last_stage():
