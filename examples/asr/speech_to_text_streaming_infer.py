@@ -33,7 +33,7 @@ from nemo.utils import logging
 
 
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
-    logging.info("Starting streaming for a batch...")
+    logging.info("Starting to streaming a batch...")
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         with autocast():
