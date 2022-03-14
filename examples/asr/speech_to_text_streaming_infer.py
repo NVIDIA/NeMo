@@ -33,6 +33,7 @@ from nemo.utils import logging
 
 
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
+    logging.info("Starting streaming for a batch...")
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         with autocast():
@@ -49,8 +50,8 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     return_transcribtion=True,
                 )
         if debug_mode:
-            print(transcribed_texts)
-            print(pred_out_offline)
+            logging.info(f"Offline transcriptions: {transcribed_texts}")
+            #logging.info(pred_out_offline)
 
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
@@ -78,28 +79,28 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     drop_extra_pre_encoded=True if step_num > 0 else False,
                     return_transcribtion=True,
                 )
-        if debug_mode:
-            print(transcribed_texts)
-
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
             cache_last_channel = cache_last_channel[
                 :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :
             ]
-        step_num += 1
+
         if debug_mode:
-            print(pred_out_stream.size())
-            print(
-                asr_model.encoder.streaming_cfg.shift_size,
-                asr_model.encoder.streaming_cfg.chunk_size,
-                streaming_buffer.buffer_idx,
-                len(pred_out_stream),
-            )
-    if debug_mode:
-        print(pred_out_stream)
+            logging.info(transcribed_texts)
+            #print(pred_out_stream.size())
+            # print(
+            #     asr_model.encoder.streaming_cfg.shift_size,
+            #     asr_model.encoder.streaming_cfg.chunk_size,
+            #     streaming_buffer.buffer_idx,
+            #     len(pred_out_stream),
+            # )
+        step_num += 1
+    # if debug_mode:
+    #     print(pred_out_stream)
 
     if compare_vs_offline:
-        diff_num = torch.sum(pred_out_stream != pred_out_offline).numpy()
-        print(f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode.")
+        diff_num = torch.sum(pred_out_stream != pred_out_offline).cpu().numpy()
+        logging.info(f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode.")
+    logging.info("Streaming ended for the batch!")
 
 
 def main():
@@ -120,7 +121,11 @@ def main():
     )
     parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP")
     parser.add_argument("--debug_mode", action="store_true", help="Whether to print more detail in the output.")
-    parser.add_argument("--compare_vs_offline", action="store_true", help="Whether to compare the output of the model with the offline mode.")
+    parser.add_argument(
+        "--compare_vs_offline",
+        action="store_true",
+        help="Whether to compare the output of the model with the offline mode.",
+    )
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument(
         "--online_normalization", default=False, action='store_true', help="Perform normalization on the run."
@@ -184,7 +189,9 @@ def main():
         # processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
         #     audio_path2, stream_id=-1
         # )
-        perform_streaming(asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline)
+        perform_streaming(
+            asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
+        )
     else:
         with open(args.manifest_file, 'r') as f:
             file_count = 0
@@ -195,8 +202,12 @@ def main():
                 )
                 file_count += 1
                 if file_count % args.batch_size == 0:
-                    perform_streaming(asr_model=asr_model, streaming_buffer=streaming_buffer,
-                                      compare_vs_offline=args.compare_vs_offline, debug_mode=args.debug_mode)
+                    perform_streaming(
+                        asr_model=asr_model,
+                        streaming_buffer=streaming_buffer,
+                        compare_vs_offline=args.compare_vs_offline,
+                        debug_mode=args.debug_mode,
+                    )
                     streaming_buffer.reset_buffer()
                 # filepaths.append(item['audio_filepath'])
 
