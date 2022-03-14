@@ -281,31 +281,16 @@ def get_params_for_weight_decay_optimization(
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
     for module in modules:
         for module_ in module.modules():
-            # Extra-level of nesting for Encoder-Decoder models.
-            if hasattr(module_, 'enc_dec_model'):
-                for module__ in module_.modules():
-                    if isinstance(module__, (FusedLayerNorm, FastLayerNorm)):
-                        no_weight_decay_params['params'].extend(
-                            [p for p in list(module__._parameters.values()) if p is not None]
-                        )
-                    else:
-                        weight_decay_params['params'].extend(
-                            [p for n, p in list(module__._parameters.items()) if p is not None and n != 'bias']
-                        )
-                        no_weight_decay_params['params'].extend(
-                            [p for n, p in list(module__._parameters.items()) if p is not None and n == 'bias']
-                        )
+            if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
+                no_weight_decay_params['params'].extend(
+                    [p for p in list(module_._parameters.values()) if p is not None]
+                )
             else:
-                if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
-                    no_weight_decay_params['params'].extend(
-                        [p for p in list(module_._parameters.values()) if p is not None]
-                    )
-                else:
-                    weight_decay_params['params'].extend(
-                        [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
-                    )
-                    no_weight_decay_params['params'].extend(
-                        [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
-                    )
+                weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
+                )
+                no_weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
+                )
 
     return weight_decay_params, no_weight_decay_params
