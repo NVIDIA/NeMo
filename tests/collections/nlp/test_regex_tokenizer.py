@@ -20,6 +20,7 @@ from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 
 DEFAULT_REGEX = r"""\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]"""
 
+
 class TestRegexTokenizer:
     def create_test_vocab(self):
         vocab_file = tempfile.NamedTemporaryFile(mode='w+', delete=False)
@@ -48,7 +49,11 @@ class TestRegexTokenizer:
             vocab_file=vocab_file_path,
             regex=DEFAULT_REGEX,
         )
-        tokenizer.create_vocab(data_file_path, vocab_file_path)
+        tokenizer.create_vocab(
+            data_csv_file=data_file_path,
+            vocab_file=vocab_file_path,
+            regex=DEFAULT_REGEX
+        )
         tokenizer.load_vocab()
 
         assert len(tokenizer.vocab) == 18
