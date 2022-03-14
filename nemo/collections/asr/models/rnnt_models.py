@@ -741,10 +741,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         previous_hypotheses=None,
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
-        return_transcribtion=True
+        return_transcribtion=True,
     ):
         if return_transcribtion == False:
-            logging.info("return_transcribtion can not be False for Transducer models as decoder returns the transcriptions too.")
+            logging.info(
+                "return_transcribtion can not be False for Transducer models as decoder returns the transcriptions too."
+            )
         (
             encoded,
             encoded_len,

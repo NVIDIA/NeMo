@@ -28,9 +28,9 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 def extract_transcribtions(hyps):
@@ -60,9 +60,9 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     return_transcribtion=True,
                 )
         logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
-            # logging.info(pred_out_offline)
+        # logging.info(pred_out_offline)
 
-    logging.info("Starting to streaming a batch...")
+    logging.info("Starting to stream a batch...")
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
@@ -205,24 +205,26 @@ def main():
             asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
         )
     else:
+        audio_paths = []
         with open(args.manifest_file, 'r') as f:
-            file_count = 0
             for line in f:
                 item = json.loads(line)
-                processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                    item['audio_filepath'], stream_id=-1
+                audio_paths.append(item['audio_filepath'])
+
+        for audio_idx, audio_path in enumerate(audio_paths):
+            processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
+                audio_path, stream_id=-1
+            )
+            if audio_idx % args.batch_size == 0 or audio_idx == len(audio_paths) - 1:
+                logging.info(f"Starting to stream {len(streaming_buffer)} samples starting from {audio_idx}...")
+                perform_streaming(
+                    asr_model=asr_model,
+                    streaming_buffer=streaming_buffer,
+                    compare_vs_offline=args.compare_vs_offline,
+                    debug_mode=args.debug_mode,
                 )
-                file_count += 1
-                if file_count % args.batch_size == 0:
-                    logging.info(f"Started to stream samples {file_count} to {file_count+args.batch_size}")
-                    perform_streaming(
-                        asr_model=asr_model,
-                        streaming_buffer=streaming_buffer,
-                        compare_vs_offline=args.compare_vs_offline,
-                        debug_mode=args.debug_mode,
-                    )
-                    streaming_buffer.reset_buffer()
-                # filepaths.append(item['audio_filepath'])
+                streaming_buffer.reset_buffer()
+            # filepaths.append(item['audio_filepath'])
 
 
 if __name__ == '__main__':

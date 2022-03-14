@@ -690,7 +690,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             if encoded_len is None:
                 preds_cur = predictions_tensor[preds_idx]
             else:
-                preds_cur = predictions_tensor[preds_idx, :encoded_len[preds_idx]]
+                preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
             if previous_pred_out is not None:
                 greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
             else:
