@@ -430,6 +430,27 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
+    def get_forward_output_only_func(self):
+        def fwd_output_only_func(batch, model):
+            batch = [x.cuda() for x in batch]
+            encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask = batch
+            output = model(
+                encoder_input_ids, # enc_input_ids
+                encoder_attn_mask, # enc_attn_mask
+                decoder_input_ids, # dec_input_ids
+                decoder_attn_mask, # dec_attn_mask
+                None, # tokentype_ids
+                None, # labels
+                None, # enc_hidden_states
+            )
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output, id_func
+
+        return fwd_output_only_func
+
     def validation_step(self, batch, batch_idx):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
@@ -737,42 +758,53 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
-        # TODO: move method into a class inside MegatronTokenLevelEncoderDecoderModule (?)
-        encoder_hidden_states, enc_output_mask = itemgetter("enc_output", "enc_output_mask")(
-            self(
-                encoder_input_ids=tokens_enc,
-                decoder_input_ids=None,
-                encoder_attn_mask=enc_mask,
-                decoder_attn_mask=None,
-                tokentype_ids=None,
-                lm_labels=None,
-                enc_hidden_states=None,
-                enc_output_mask=None,
-                output_enc_hidden_only=True,
-                enc_input=enc_input,
-            )
-        )
         predicted_tokens_dec = (
-            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
+            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).unsqueeze(0).to(tokens_enc.device)
         )
+        encoder_seq_length = tokens_enc.size(1)
+        tensor_shape = [encoder_seq_length, tokens_enc.size(0), self.cfg.hidden_size]
+
         for _ in range(num_tokens_to_generate):
+            # No microbatches in decoding. Just the global batch.
+            decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
-            token_logits = itemgetter("token_logits")(
-                self(
-                    encoder_input_ids=tokens_enc,
-                    decoder_input_ids=predicted_tokens_dec,
-                    encoder_attn_mask=enc_mask,
-                    decoder_attn_mask=dec_mask,
-                    tokentype_ids=None,
-                    lm_labels=None,
-                    enc_hidden_states=encoder_hidden_states,
-                    enc_output_mask=enc_output_mask,
-                    output_enc_hidden_only=False,
-                    enc_input=enc_input,
+
+            batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
+
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                output_tensor = forward_backward_pipelining_without_interleaving(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    batch=batch_for_pipeline,
+                    model=self.enc_dec_model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    decoder_sequence_length=decoder_seq_length,
+                    dtype=self.autocast_dtype,
                 )
-            )
-            token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
-            log_probs, token_ids = torch.max(nn.functional.log_softmax(token_logits, dim=-1), dim=-1)
+            else:
+                output_tensor = forward_backward_no_pipelining(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    batch=batch_for_pipeline,
+                    model=self.enc_dec_model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    decoder_sequence_length=decoder_seq_length,
+                    dtype=self.autocast_dtype,
+                )
+
+            # get output tensor
+            if parallel_state.is_pipeline_last_stage():
+                output_tensor = output_tensor[0]['logits']
+                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+
+                log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor), dim=-1)
+                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+            else:
+                log_probs = torch.zeros((tokens.shape[0], tokens.shape[1]), dtype=torch.float).cuda()
+                tokens = torch.zeros((tokens.shape[0], tokens.shape[1] + 1), dtype=tokens.dtype).cuda()
+
+            torch.distributed.broadcast(tokens, get_last_rank())
+            torch.distributed.broadcast(log_probs, get_last_rank())
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
 
         return predicted_tokens_dec, log_probs
@@ -806,6 +838,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
         enc_mask = tokens_enc != self.tokenizer.pad_id
+
+        # Unsqueeze to set num_microbatches to 1
+        tokens_enc = tokens_enc.unsqueeze(0)
+        enc_mask = enc_mask.unsqueeze(0)
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
