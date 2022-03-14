@@ -186,18 +186,18 @@ def main():
             asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
         )
     else:
-        audio_paths = []
+        samples = []
         with open(args.manifest_file, 'r') as f:
             for line in f:
                 item = json.loads(line)
-                audio_paths.append(item['audio_filepath'])
+                samples.append(item)
 
-        for audio_idx, audio_path in enumerate(audio_paths):
+        for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                audio_path, stream_id=-1
+                sample['audio_filepath'], stream_id=-1
             )
-            if (audio_idx + 1) % args.batch_size == 0 or audio_idx == len(audio_paths) - 1:
-                logging.info(f"Starting to stream {len(streaming_buffer)} samples starting from {audio_idx}...")
+            if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
+                logging.info(f"Starting to stream {len(streaming_buffer)} samples starting from {sample_idx}...")
                 perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
