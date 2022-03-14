@@ -15,11 +15,12 @@
 
 import os
 import re
-from typing import Optional, List
+from typing import List, Optional
+
 import pandas as pd
 
+from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer, TokenizerSpec
 from nemo.utils import logging
-from nemo.collections.common.tokenizers.char_tokenizer import TokenizerSpec
 
 __all__ = ['RegExTokenizer']
 
@@ -29,6 +30,7 @@ DEFAULT_EOS_TOKEN = '&'
 DEFAULT_PAD_TOKEN = '<PAD>'
 DEFAULT_SEP_TOKEN = '<SEP>'
 DEFAULT_UNK_TOKEN = '?'
+
 
 class RegExTokenizer(TokenizerSpec):
     "A regular expression-based tokenizer at word boundary"
@@ -170,12 +172,12 @@ class RegExTokenizer(TokenizerSpec):
         tokenizer = RegExTokenizer(vocab_file=vocab_file)
 
         vocab = {
-            DEFAULT_PAD_TOKEN : 0, # pad_token
-            DEFAULT_UNK_TOKEN : 1, # unk_token
-            DEFAULT_BOS_TOKEN : 2, # begin_token
-            DEFAULT_EOS_TOKEN : 3, # end_token
-            DEFAULT_MASK_TOKEN: 4, # mask_token
-            DEFAULT_SEP_TOKEN : 5  # sep_token
+            DEFAULT_PAD_TOKEN: 0,  # pad_token
+            DEFAULT_UNK_TOKEN: 1,  # unk_token
+            DEFAULT_BOS_TOKEN: 2,  # begin_token
+            DEFAULT_EOS_TOKEN: 3,  # end_token
+            DEFAULT_MASK_TOKEN: 4,  # mask_token
+            DEFAULT_SEP_TOKEN: 5,  # sep_token
         }
         for smiles in df[smiles_col]:
             tokens = tokenizer.text_to_tokens(smiles)
@@ -190,13 +192,12 @@ class RegExTokenizer(TokenizerSpec):
         with open(vocab_file, 'w') as fp:
             for token in vocab:
                 fp.write(f"{token[0]}\n")
-#=============================================================================#
+
+
+# =============================================================================#
 # HERE
-#=============================================================================#
+# =============================================================================#
 
-from typing import Optional
-
-from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 
 __all__ = ['WordTokenizer']
 

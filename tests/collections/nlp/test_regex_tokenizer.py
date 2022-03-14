@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import tempfile
+
+import pytest
 
 from nemo.collections.common.regex_tokenizer import RegExTokenizer
 
 
 class TestRegexTokenizer:
-
     def create_test_vocab(self):
-        vocab_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
+        vocab_file = tempfile.NamedTemporaryFile(mode='w+', delete=False)
         vocab_file.writelines("<MASK>\n^\n&\n<PAD>\n<SEP>\n?\nc\n")
         vocab_file_path = str(vocab_file.name)
         vocab_file.close()
@@ -30,14 +30,16 @@ class TestRegexTokenizer:
 
     @pytest.mark.unit
     def test_create_vocab(self):
-        data_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
-        data_file.writelines("""zinc_id,smiles
+        data_file = tempfile.NamedTemporaryFile(mode='w+', delete=False)
+        data_file.writelines(
+            """zinc_id,smiles
             ZINC000510438538,FC(F)Oc1ccc([C@H](NCc2cnc3ccccn23)C(F)(F)F)cc1
-            """)
+            """
+        )
         data_file_path = str(data_file.name)
         data_file.close()
 
-        vocab_file = tempfile.NamedTemporaryFile(mode = 'w+', delete = False)
+        vocab_file = tempfile.NamedTemporaryFile(mode='w+', delete=False)
         vocab_file_path = str(vocab_file.name)
         vocab_file.close()
 
