@@ -743,6 +743,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         drop_extra_pre_encoded=None,
         return_transcribtion=True
     ):
+        if return_transcribtion == False:
+            logging.info("return_transcribtion can not be False for Transducer models as decoder returns the transcriptions too.")
         (
             encoded,
             encoded_len,
@@ -770,6 +772,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 greedy_predictions[hyp_idx] = torch.cat((previous_pred_out[hyp_idx], greedy_predictions[hyp_idx]), dim=-1)
                 #greedy_predictions[hyp_idx] = previous_pred_out[hyp_idx].extend(greedy_predictions[hyp_idx])
             # encoded_len += previous_pred_out.size(-1)
+
+        # if previous_hypotheses is not None:
+        #     for hyp_idx, hyp in enumerate(greedy_predictions):
+        #         greedy_predictions[hyp_idx] = torch.cat((previous_pred_out[hyp_idx], greedy_predictions[hyp_idx]), dim=-1)
 
         if all_hyp is None:
             all_hyp = best_hyp

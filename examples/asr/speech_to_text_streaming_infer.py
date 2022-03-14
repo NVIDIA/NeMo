@@ -30,6 +30,17 @@ from omegaconf import OmegaConf, open_dict
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+
+
+def extract_transcribtions(hyps):
+    if isinstance(hyps[0], Hypothesis):
+        transcribtions = []
+        for hyp in hyps:
+            transcribtions.append(hyp.text)
+    else:
+        transcribtions = hyps
+    return transcribtions
 
 
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
@@ -50,7 +61,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     return_transcribtion=True,
                 )
         if debug_mode:
-            logging.info(f"Offline transcriptions: {transcribed_texts}")
+            logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
             # logging.info(pred_out_offline)
 
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
@@ -85,7 +96,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
             ]
 
         if debug_mode:
-            logging.info(transcribed_texts)
+            logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
             # print(pred_out_stream.size())
             # print(
             #     asr_model.encoder.streaming_cfg.shift_size,
@@ -98,7 +109,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     #     print(pred_out_stream)
 
     if compare_vs_offline:
-        diff_num = torch.sum(pred_out_stream != pred_out_offline).cpu().numpy()
+        diff_num = torch.sum(torch.cat(pred_out_stream) != torch.cat(pred_out_offline)).cpu().numpy()
         logging.info(f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode.")
     logging.info("Streaming ended for the batch!")
 
