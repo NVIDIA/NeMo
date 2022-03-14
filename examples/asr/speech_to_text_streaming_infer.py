@@ -44,7 +44,6 @@ def extract_transcribtions(hyps):
 
 
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
-    logging.info("Starting to streaming a batch...")
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         with autocast():
@@ -63,6 +62,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
         logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
             # logging.info(pred_out_offline)
 
+    logging.info("Starting to streaming a batch...")
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
     previous_hypotheses = None
@@ -107,12 +107,12 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     # if debug_mode:
     #     print(pred_out_stream)
 
+    logging.info("Streaming ended for the batch!")
     logging.info(f"Final streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
 
     if compare_vs_offline:
         diff_num = torch.sum(torch.cat(pred_out_stream) != torch.cat(pred_out_offline)).cpu().numpy()
         logging.info(f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode.")
-    logging.info("Streaming ended for the batch!")
 
 
 def main():
