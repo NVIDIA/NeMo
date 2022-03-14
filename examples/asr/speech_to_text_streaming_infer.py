@@ -59,7 +59,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     processed_signal_length=streaming_buffer.streams_length,
                     return_transcribtion=True,
                 )
-        logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
+        logging.info(f"Final offline transcriptions:   {extract_transcribtions(transcribed_texts)}")
 
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
