@@ -16,13 +16,13 @@
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.utils import AppState
 
 try:
+    from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
