@@ -693,18 +693,24 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
             if previous_pred_out is not None:
                 greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
+                encoded_len[preds_idx] += len(previous_pred_out[preds_idx])
             else:
                 greedy_predictions_concat = preds_cur
             greedy_predictions.append(greedy_predictions_concat)
 
+        #TODO: fix here
         # if previous_pred_out is not None:
-        #     predictions_tensor = torch.cat((previous_pred_out, predictions_tensor), dim=-1)
-        #     encoded_len += previous_pred_out.size(-1)
+        #      predictions_tensor = torch.cat((previous_pred_out, predictions_tensor), dim=-1)
+        #      encoded_len += previous_pred_out.size(-1)
+
+        # if previous_pred_out is not None:
+        #      predictions_tensor = torch.cat((previous_pred_out, predictions_tensor), dim=-1)
+        #      encoded_len += previous_pred_out.size(-1)
 
         # TODO: make decoding more efficient by avoiding the decoding process from the beginning
         if return_transcribtion:
             transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
-                predictions=predictions_tensor, predictions_len=encoded_len, return_hypotheses=False,
+                predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
             )
         else:
             transcribed_texts = None

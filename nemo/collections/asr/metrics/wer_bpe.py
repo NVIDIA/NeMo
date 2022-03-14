@@ -105,11 +105,14 @@ class WERBPE(Metric):
         """
         hypotheses = []
         # Drop predictions to CPU
-        predictions = move_dimension_to_the_front(predictions, self.batch_dim_index)
-        prediction_cpu_tensor = predictions.long().cpu()
+        if isinstance(predictions, torch.Tensor):
+            predictions = move_dimension_to_the_front(predictions, self.batch_dim_index)
+            prediction_cpu_tensor = predictions.long().cpu()
+        else:
+            prediction_cpu_tensor = predictions
         # iterate over batch
-        for ind in range(prediction_cpu_tensor.shape[0]):
-            prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
+        for ind in range(len(prediction_cpu_tensor)):
+            prediction = prediction_cpu_tensor[ind].cpu().detach().numpy().tolist()
             if predictions_len is not None:
                 prediction = prediction[: predictions_len[ind]]
             # CTC decoding procedure
