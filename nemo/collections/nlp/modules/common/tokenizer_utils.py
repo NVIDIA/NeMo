@@ -122,6 +122,8 @@ def get_tokenizer(
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
+    elif tokenizer_name == 'regex':
+        return RegExTokenizer(vocab_file=vocab_file, regex=tokenizer_model)
 
     logging.info(
         f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, "
@@ -189,10 +191,8 @@ def get_nmt_tokenizer(
         logging.info(f'Using byte-level tokenization')
         return ByteLevelTokenizer(special_tokens_dict)
     elif library == 'regex':
-        RegExTokenizer(
-            vocab_file=vocab_file,
-            regex=tokenizer_model,
-        )
+        logging.info(f'Using regex tokenization')
+        return RegExTokenizer(vocab_file=vocab_file, regex=tokenizer_model)
     elif library == 'megatron':
         if model_name in megatron_tokenizer_model_map:
             model_name = megatron_tokenizer_model_map[model_name]
