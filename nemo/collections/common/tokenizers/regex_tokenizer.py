@@ -58,6 +58,10 @@ class RegExTokenizer(TokenizerSpec):
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
+        # support loading regex from a file
+        if os.path.exists(regex):
+            regex = open(regex, encoding="utf-8").read().rstrip()
+
         self.regex = regex
         self.mask_token = mask_token
         self.bos_token = bos_token
