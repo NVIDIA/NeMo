@@ -154,6 +154,7 @@ def main():
         logging.info("AMP enabled!\n")
         autocast = torch.cuda.amp.autocast
     else:
+
         @contextlib.contextmanager
         def autocast():
             yield
