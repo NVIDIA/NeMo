@@ -22,8 +22,6 @@ DEFAULT_REGEX = r"""\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|
 
 class TestRegexTokenizer:
     def create_test_vocab(self):
-        return None
-
         vocab_file = tempfile.NamedTemporaryFile(mode='w+', delete=False)
         vocab_file.writelines("<MASK>\n^\n&\n<PAD>\n<SEP>\n?\nc\n")
         vocab_file_path = str(vocab_file.name)
