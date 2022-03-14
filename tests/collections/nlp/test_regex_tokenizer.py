@@ -16,7 +16,7 @@ import tempfile
 
 import pytest
 
-from nemo.collections.common.regex_tokenizer import RegExTokenizer
+from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
 
 
 class TestRegexTokenizer:
