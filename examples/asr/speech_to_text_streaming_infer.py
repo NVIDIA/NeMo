@@ -60,8 +60,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     processed_signal_length=streaming_buffer.streams_length,
                     return_transcribtion=True,
                 )
-        if debug_mode:
-            logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
+        logging.info(f"Offline transcriptions: {extract_transcribtions(transcribed_texts)}")
             # logging.info(pred_out_offline)
 
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
@@ -107,6 +106,8 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
         step_num += 1
     # if debug_mode:
     #     print(pred_out_stream)
+
+    logging.info(f"Final streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
 
     if compare_vs_offline:
         diff_num = torch.sum(torch.cat(pred_out_stream) != torch.cat(pred_out_offline)).cpu().numpy()

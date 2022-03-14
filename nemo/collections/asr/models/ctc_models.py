@@ -678,24 +678,41 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         )
 
         log_probs = self.decoder(encoder_output=encoded)
-        greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+        predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
 
         if processed_signal_length is not None:
             seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
             pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
-            greedy_predictions.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
+            predictions_tensor.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
 
-        if previous_pred_out is not None:
-            greedy_predictions = torch.cat((previous_pred_out, greedy_predictions), dim=-1)
-            encoded_len += previous_pred_out.size(-1)
+        greedy_predictions = []
+        for preds_idx, preds in enumerate(predictions_tensor):
+            if encoded_len is None:
+                preds_cur = predictions_tensor[preds_idx]
+            else:
+                preds_cur = predictions_tensor[preds_idx, :encoded_len[preds_idx]]
+            if previous_pred_out is not None:
+                greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
+            else:
+                greedy_predictions_concat = preds_cur
+            greedy_predictions.append(greedy_predictions_concat)
+
+        # if previous_pred_out is not None:
+        #     predictions_tensor = torch.cat((previous_pred_out, predictions_tensor), dim=-1)
+        #     encoded_len += previous_pred_out.size(-1)
 
         # TODO: make decoding more efficient by avoiding the decoding process from the beginning
         if return_transcribtion:
             transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
-                predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
+                predictions=predictions_tensor, predictions_len=encoded_len, return_hypotheses=False,
             )
         else:
             transcribed_texts = None
+
+        # greedy_predictions = []
+        # if previous_pred_out is not None:
+        #     for preds in predictions_tensor:
+        #         greedy_predictions.append(preds)
 
         if prev_drop_extra_pre_encoded is not None:
             self.encoder.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded

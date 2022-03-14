@@ -285,6 +285,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
+            hypothesis.y_sequence = partial_hypotheses.y_sequence.cpu().tolist()
             # if len(partial_hypotheses.y_sequence) > 0:
             #     hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
             if partial_hypotheses.dec_state is not None:

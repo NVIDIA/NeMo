@@ -47,6 +47,8 @@ class Hypothesis:
         `blank` tokens, and optionally merging word-pieces). Should be used as decoded string for
         Word Error Rate calculation.
 
+    text_all: (Optional) A decoded string including the previous decoded strings
+
     timestep: (Optional) A list of integer indices representing at which index in the decoding
         process did the token appear. Should be of same length as the number of non-blank tokens.
 
@@ -74,6 +76,7 @@ class Hypothesis:
     score: float
     y_sequence: Union[List[int], torch.Tensor]
     text: Optional[str] = None
+    text_all: Optional[str] = None
     dec_out: Optional[List[torch.Tensor]] = None
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
