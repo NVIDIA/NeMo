@@ -236,7 +236,8 @@ class Float16Module(MegatronModule):
         return self.module.set_input_tensor(input_tensor)
 
     def forward(self, *inputs, **kwargs):
-        if self.pre_process:
+        # Note: Legacy checkpoints didn't have pre-process.
+        if getattr(self, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
         if parallel_state.is_pipeline_last_stage():
