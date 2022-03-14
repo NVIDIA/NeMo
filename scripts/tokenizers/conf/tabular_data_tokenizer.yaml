@@ -6,6 +6,7 @@ table_structure:
       base: 16   # the positional base number. ie. it uses 16 tokens for one digit
       fillall: False # whether to use full base number for each token or derive it from the data.
       hasnan: False # can it handles nan or not
+      transform: yeo-johnson # can be ['yeo-johnson', 'quantile', 'robust'], check https://scikit-learn.org/stable/modules/classes.html#module-sklearn.preprocessing 
   - name: col_b
     code_type: float
     args:
@@ -13,6 +14,7 @@ table_structure:
       base: 32
       fillall: True
       hasnan: True
+      transform: quantile
   - name: col_c
     code_type: int
     args:

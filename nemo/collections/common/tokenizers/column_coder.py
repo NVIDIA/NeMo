@@ -17,6 +17,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from numpy import ndarray
+from sklearn.preprocessing import PowerTransformer, QuantileTransformer, RobustScaler
 
 from nemo.utils import logging
 
@@ -70,12 +71,10 @@ class IntCode(Code):
     ):
         super().__init__(col_name, code_len, start_id, fillall, hasnan)
         self.base = base
+        self.int_min: int = None
 
     def compute_code(self, data_series: ndarray):
-        self.mval = data_series.min()
-        significant_val = self.convert_to_int(data_series, self.mval)
-        # data_series = data_series.dropna()
-        self.mval = data_series.min()
+        significant_val = self.array_convert_to_int(data_series)
 
         digits_id_to_item = [{} for _ in range(self.code_len)]
         digits_item_to_id = [{} for _ in range(self.code_len)]
@@ -103,11 +102,16 @@ class IntCode(Code):
                 codes.append(i[1] - 1)
             self.NA_token_id = codes
 
-    def convert_to_int(self, val, min_val):
-        return (val - min_val).astype(int)
+    def array_convert_to_int(self, val: ndarray):
+        val = val.astype(int)
+        self.int_min = val.min()
+        return val - self.int_min
 
-    def reverse_convert_to_int(self, val, min_val):
-        return val + min_val
+    def convert_to_int(self, val: float) -> int:
+        return int(val) - self.int_min
+
+    def reverse_convert_to_int(self, val: int) -> int:
+        return val + self.int_min
 
     @property
     def code_range(self) -> List[Tuple[int, int]]:
@@ -136,7 +140,7 @@ class IntCode(Code):
         elif not self.hasnan and item == self.NA_token:
             raise ValueError(f"colum {self.name} cannot handle nan, please set hasnan=True")
         val = float(item)
-        val_int = self.convert_to_int(val, self.mval)
+        val_int = self.convert_to_int(val)
         digits = []
         for i in range(self.code_len):
             digit = (val_int // self.base ** i) % self.base
@@ -164,38 +168,55 @@ class IntCode(Code):
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
             v += digit * self.base ** i
-        v = self.reverse_convert_to_int(v, self.mval)
+        v = self.reverse_convert_to_int(v)
         return str(v)
 
 
 class FloatCode(IntCode):
     def __init__(
-        self, col_name: str, code_len: int, start_id: int, fillall: bool = True, base: int = 100, hasnan: bool = True
+        self,
+        col_name: str,
+        code_len: int,
+        start_id: int,
+        fillall: bool = True,
+        base: int = 100,
+        hasnan: bool = True,
+        transform: str = 'quantile',
     ):
         super().__init__(col_name, code_len, start_id, fillall, base, hasnan)
+        if transform == 'yeo-johnson':
+            self.scaler = PowerTransformer(standardize=True)
+        elif transform == 'quantile':
+            self.scaler = QuantileTransformer(output_distribution='uniform')
+        elif transform == 'robust':
+            self.scaler = RobustScaler()
+        else:
+            raise ValueError('Supported data transformations are "yeo-johnson", "quantile", and "robust"')
 
-    def compute_code(self, data_series: ndarray):
-        self.mval = data_series.min()
-        values = np.log(data_series - self.mval + 1.0)
+    def convert_to_int(self, val: float) -> int:
+        val = np.expand_dims(np.array(val), axis=0)
+        values = self.scaler.transform(val[:, None])[:, 0] - self.mval
+        values = (values * self.base ** self.extra_digits).astype(int)
+        output = values[0]
+        return output
+
+    def array_convert_to_int(self, val: ndarray):
+        values = self.scaler.fit_transform(val[:, None])[:, 0]
+        self.mval = values.min()
+        values = values - self.mval
         digits = int(math.log(values.max(), self.base)) + 1
         # extra digits used for 'float' part of the number
         extra_digits = self.code_len - digits
         if extra_digits < 0:
             raise ValueError("need large length to code the nummber")
         self.extra_digits = extra_digits
-        super().compute_code(data_series)
+        values = (values * self.base ** self.extra_digits).astype(int)
+        return values
 
-    def convert_to_int(self, val, min_val):
-        values = np.log(val - min_val + 1.0)
-        # assume base 10 numbers, can change the base of the values if
-        # larger dictionary is needed
-        # convert the float number into integer
-        return (values * self.base ** self.extra_digits).astype(int)
-
-    def reverse_convert_to_int(self, val, min_val):
-        # v = int("".join(items))
-        v = val / self.base ** self.extra_digits
-        v = np.exp(v) + min_val - 1.0
+    def reverse_convert_to_int(self, val: int) -> float:
+        val = val / self.base ** self.extra_digits
+        val = np.expand_dims(np.array(val), axis=0)
+        v = self.scaler.inverse_transform(val[:, None] + self.mval)[0, 0]
         return v
 
     def decode(self, ids: List[int]) -> str:
@@ -205,7 +226,7 @@ class FloatCode(IntCode):
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
             v += digit * self.base ** i
-        v = self.reverse_convert_to_int(v, self.mval)
+        v = self.reverse_convert_to_int(v)
         accuracy = max(int(abs(np.log10(0.1 / self.base ** self.extra_digits))), 1)
         return f"{v:.{accuracy}f}"
 
