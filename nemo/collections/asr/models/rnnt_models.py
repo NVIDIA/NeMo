@@ -741,6 +741,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         previous_hypotheses=None,
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
+        return_transcribtion=True
     ):
         (
             encoded,
@@ -766,7 +767,8 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
         if previous_pred_out is not None:
             for hyp_idx, hyp in enumerate(greedy_predictions):
-                greedy_predictions[hyp_idx] = previous_pred_out[hyp_idx].extend(greedy_predictions[hyp_idx])
+                greedy_predictions[hyp_idx] = torch.cat((previous_pred_out[hyp_idx], greedy_predictions[hyp_idx]), dim=-1)
+                #greedy_predictions[hyp_idx] = previous_pred_out[hyp_idx].extend(greedy_predictions[hyp_idx])
             # encoded_len += previous_pred_out.size(-1)
 
         if all_hyp is None:
