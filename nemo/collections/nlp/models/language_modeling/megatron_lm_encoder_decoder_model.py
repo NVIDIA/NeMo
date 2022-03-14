@@ -412,14 +412,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = [x.cuda() for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
             output = model(
-                enc_input_ids=encoder_input_ids,
-                dec_input_ids=decoder_input_ids,
-                enc_attn_mask=encoder_attn_mask,
-                dec_attn_mask=decoder_attn_mask,
-                tokentype_ids=None,
-                labels=lm_labels,
-                enc_hidden_states=None,
-                output_enc_hidden_only=False,
+                encoder_input_ids, # enc_input_ids
+                encoder_attn_mask, # enc_attn_mask
+                decoder_input_ids, # dec_input_ids
+                decoder_attn_mask, # dec_attn_mask
+                None, # tokentype_ids
+                lm_labels, # labels
+                None, # enc_hidden_states
             )
 
             def loss_func(output_tensor):
