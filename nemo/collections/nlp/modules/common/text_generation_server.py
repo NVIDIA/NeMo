@@ -84,7 +84,7 @@ class MegatronGenerate(Resource):
             top_k = request.get_json()["top_k"]
             if not (type(top_k) == int or type(top_k) == float):
                 return "top_k must be a positive number less than or equal to 1.0"
-            if not (0.0 < top_k <= 1.0):
+            if not (0.0 <= top_k <= 1.0):
                 return "top_k must be a positive number less than or equal to 1.0"
 
         top_p = 0.9
@@ -92,7 +92,7 @@ class MegatronGenerate(Resource):
             top_p = request.get_json()["top_p"]
             if not (type(top_p) == int or type(top_p) == float):
                 return "top_p must be a positive number less than or equal to 1.0"
-            if not (0.0 < top_p <= 1.0):
+            if not (0.0 <= top_p <= 1.0):
                 return "top_p must be a positive number less than or equal to 1.0"
 
         with lock:  # Need to get lock to keep multiple threads from hitting code
