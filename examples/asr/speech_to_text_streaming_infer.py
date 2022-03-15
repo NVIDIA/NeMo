@@ -61,7 +61,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     return_transcribtion=True,
                 )
         final_offline_tran = extract_transcribtions(transcribed_texts)
-        logging.info(f"Final offline transcriptions:   {final_offline_tran}")
+        logging.info(f" Final offline transcriptions:   {final_offline_tran}")
     else:
         final_offline_tran = None
 
