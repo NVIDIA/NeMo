@@ -41,7 +41,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
     # fake missing classes with None attributes
-    AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -687,13 +687,13 @@ class ParallelTransformer(MegatronModule):
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
 
-        '''
-        # Number of layers.
-        assert (
-            num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
-        ), 'num_layers must be divisible by pipeline_model_parallel_size'
-        '''
-        # self.num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
+        if self.model_type == ModelType.encoder_or_decoder:
+            assert (
+                num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+            ), 'num_layers must be divisible by pipeline_model_parallel_size'
+
+        # TODO: Add similar assert for encoder-decoder.
+
         self.num_layers = self.get_num_layers(num_layers)
         # Transformer layers.
         def build_layer(layer_number):
