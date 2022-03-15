@@ -805,15 +805,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-                log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor), dim=-1)
-                predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+                log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
+                predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1)
             else:
                 log_probs = torch.zeros((predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=torch.float).cuda()
                 predicted_tokens_dec = torch.zeros((predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1), dtype=predicted_tokens_dec.dtype).cuda()
 
             torch.distributed.broadcast(predicted_tokens_dec, get_last_rank())
             torch.distributed.broadcast(log_probs, get_last_rank())
-            predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
 
         return predicted_tokens_dec, log_probs
 
