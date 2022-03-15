@@ -155,8 +155,8 @@ class IntentSlotClassificationModel(NLPModel):
             hidden_size=self.bert_model.config.hidden_size,
             num_intents=len(self.cfg.data_desc.intent_labels),
             num_slots=len(self.cfg.data_desc.slot_labels),
-            dropout=self.cfg.head.fc_dropout,
-            num_layers=self.cfg.head.num_output_layers,
+            dropout=self.cfg.classifier_head.fc_dropout,
+            num_layers=self.cfg.classifier_head.num_output_layers,
             log_softmax=False,
         )
 

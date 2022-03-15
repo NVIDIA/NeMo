@@ -16,6 +16,7 @@ from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.data_proce
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_bert_dataset import (
     DialogueBERTDataset,
     DialogueSGDBERTDataset,
+    DialogueZeroShotIntentDataset,
 )
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_gpt_dataset import DialogueGPTDataset
 from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.schema import Schema

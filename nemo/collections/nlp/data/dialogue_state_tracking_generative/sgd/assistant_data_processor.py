@@ -81,8 +81,14 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         self._tokenizer = tokenizer
         self.intents = self.open_file("dict.intents.csv")
         self.slots = self.open_file("dict.slots.csv")
+        (
+            bio_slot_ids_to_unified_slot_ids,
+            unified_slots,
+        ) = DialogueAssistantDataProcessor.map_bio_format_slots_to_unified_slots(self.slots)
+        self.slots = unified_slots
+        self.bio_slot_ids_to_unified_slot_ids = bio_slot_ids_to_unified_slot_ids
         self.services = sorted(list(set([intent.split('_')[0] for intent in self.intents])))
-        self.empty_slot_id = str(len(self.slots) - 1)
+        self.empty_slot_id = [str(idx) for idx, slot_name in enumerate(self.slots) if slot_name == "O"][0]
 
     def open_file(self, filename):
         """
@@ -96,17 +102,23 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
     def get_continuous_slots(self, slot_ids):
         """
         Extract continuous spans of slot_ids
+
+        To accomodate slots with distinct labels for B-label1 and I-label1, 
+        slot_id = self.bio_slot_ids_to_unified_slot_ids[slot_id] is called to map them both to label1
+        
         Args:
             Slot: list of int representing slot of each word token
             For instance, 54 54 54 54 54 54 54 54 18 54 44 44 54 46 46 54 12 
             Corresponds to "please set an alarm clock for my next meeting with the team at three pm next friday"
             Except for the empty_slot_id (54 in this case), we hope to extract the continuous spans of tokens,
             each containing a start position and an exclusive end position
-            E.g {18: [9, 10], 44: [11,13], 46: [14, 16], 12: [17, 18]}
+            E.g {18: [9, 10], 44: [11, 13], 46: [14, 16], 12: [17, 18]}
         """
         slot_id_stack = []
         position_stack = []
-        for i, slot_id in enumerate(slot_ids):
+        for i in range(len(slot_ids)):
+            slot_id = slot_ids[i]
+            slot_id = self.bio_slot_ids_to_unified_slot_ids[slot_id]
             if not slot_id_stack or slot_id != slot_id_stack[-1]:
                 slot_id_stack.append(slot_id)
                 position_stack.append([])
@@ -119,6 +131,21 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         }
 
         return slot_id_to_start_and_exclusive_end
+
+    @staticmethod
+    def map_bio_format_slots_to_unified_slots(slots):
+        # maps BIO format slots to unified slots (meaning that B-alarm_time and I-alarm_time both map to alarm_time)
+        # called even slots does not contain BIO, for unified interface
+        # in that case slots == unified_slots and bio_slot_ids_to_unified_slot_ids is an identity mapping i.e. {"0": "0", "1": "1"}
+        bio_slot_ids_to_unified_slot_ids = {}
+        unified_slots = []
+        unified_idx = -1
+        for idx, slot in enumerate(slots):
+            if slot.replace('I-', '').replace('B-', '') not in unified_slots:
+                unified_idx += 1
+                unified_slots.append(slot.replace('I-', '').replace('B-', ''))
+            bio_slot_ids_to_unified_slot_ids[str(idx)] = str(unified_idx)
+        return bio_slot_ids_to_unified_slot_ids, unified_slots
 
     def get_dialog_examples(self, dataset_split: str):
         """
@@ -135,6 +162,7 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         dataset_split_print = {"train": "train", "dev": "train", "test": "test"}
 
         raw_examples_intent = self.open_file("{}.tsv".format(dataset_split_print[dataset_split]))
+        # removes header of tsv file
         raw_examples_intent = raw_examples_intent[1:]
         raw_examples_slots = self.open_file("{}_slots.tsv".format(dataset_split_print[dataset_split]))
 

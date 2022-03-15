@@ -44,7 +44,7 @@ model:
   class_balancing: null # or weighted_loss
   intent_loss_weight: 0.6 # relation of intent to slot loss in total loss (between 0 to 1)
   data_dir: ${model.dataset.data_dir}
-  head:
+  classifier_head:
     num_output_layers: 2
     fc_dropout: 0.1
     
@@ -64,14 +64,19 @@ model:
     config: null
 
   tokens_to_generate: 32 # for generation mode only
-    
+  
   encoder:
     dropout: 0.1
+
+  # zero shot intent classification loading
+  # cannot directly load as .nemo uses the pre-refactor model
+  # therefore transfer its attributes over
+  original_nemo_checkpoint: null
 
   dataset:
     task: sgd
     field: intent # intemt, slots, service
-    prompt_template: default # default, prompt_tuning, i_want_to
+    prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel
     target_template: default # default, with_description, with_slots
     few_shot: 0 # int ; 0 to 10, for number of examples in prompt
     debug_mode: false # small number of examples for debugging
@@ -84,7 +89,11 @@ model:
     ignore_extra_tokens: false
     ignore_start_end: true # do not use first and last token for slot training
     do_lowercase: false 
-    
+
+    #zero shot intent classification args
+    class_balancing: weighted_loss
+    num_classes: 3 
+
     max_seq_length: 128 # the maximum length BERT supports is 512
     max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
     max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 

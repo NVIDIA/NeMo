@@ -109,6 +109,9 @@ from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model impor
 from nemo.collections.nlp.models.intent_slot_classification_refactor.intent_slot_classification_model import (
     IntentSlotClassificationModel,
 )
+from nemo.collections.nlp.models.zero_shot_intent_recognition_refactor.zero_shot_intent_model import (
+    ZeroShotIntentModel,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
@@ -135,6 +138,8 @@ def main(cfg: DictConfig) -> None:
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         if cfg.model.dataset.task == 'sgd':
             model_class = SGDQAModel
+        elif cfg.model.dataset.task == 'zero_shot':
+            model_class = ZeroShotIntentModel
         else:
             model_class = IntentSlotClassificationModel
     elif 'gpt' in cfg.model.language_model.pretrained_model_name.lower():
@@ -147,6 +152,7 @@ def main(cfg: DictConfig) -> None:
         else:
             logging.info(f'Restoring model from {cfg.model.nemo_path}')
             model = model_class.restore_from(cfg.model.nemo_path)
+
         if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
             model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
@@ -167,8 +173,9 @@ def main(cfg: DictConfig) -> None:
         elif not os.path.exists(data_dir):
             raise ValueError(f'{data_dir} is not found, skipping evaluation on the test set.')
         else:
-            model.update_data_dirs(data_dir=data_dir, dialogues_example_dir=dialogues_example_dir)
-            model._cfg.dataset = cfg.model.dataset
+            if hasattr(model, "update_data_dirs"):
+                model.update_data_dirs(data_dir=data_dir, dialogues_example_dir=dialogues_example_dir)
+                model._cfg.dataset = cfg.model.dataset
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
         trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator, plugins=plugin, precision=16)
