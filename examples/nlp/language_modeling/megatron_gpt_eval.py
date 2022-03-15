@@ -83,7 +83,10 @@ def main(cfg) -> None:
     request_dl = DataLoader(dataset=ds, batch_size=2)
 
     # has to turn off activations_checkpoint_method for inference
-    model.model.language_model.encoder.activations_checkpoint_method = None
+    try:
+        model.model.language_model.encoder.activations_checkpoint_method = None
+    except:
+        pass
     # set the inference config
     with open_dict(model.cfg):
         model.cfg.inference = cfg.inference
