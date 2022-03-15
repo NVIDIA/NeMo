@@ -89,6 +89,9 @@ To run a tutorial:
      - Buffered Transducer inference with LCS Merge Algorithm
      - `Buffered Transducer inference with LCS Merge <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Buffered_Transducer_Inference_with_LCS_Merge.ipynb>`_
    * - ASR
+     - Offline ASR with VAD
+     - `Offline VAD ASR <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_VAD_ASR.ipynb>`_
+   * - ASR
      - Self-supervised pre-training for ASR
      - `Self-supervised Pre-training for ASR <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Self_Supervised_Pre_Training.ipynb>`_
    * - NLP
