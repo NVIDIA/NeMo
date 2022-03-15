@@ -159,18 +159,18 @@ def main():
         def autocast():
             yield
 
-    if args.onnx_model is not None:
-        onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
-    else:
-        onnx_model = None
+    # if args.onnx_model is not None:
+    #     onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
+    # else:
+    #     onnx_model = None
 
-    if hasattr(asr_model, "decoding"):
-        decoding_cfg = asr_model.cfg.decoding
-        with open_dict(decoding_cfg):
-            decoding_cfg.strategy = "greedy"
-            decoding_cfg.preserve_alignments = True
-            # decoding_cfg.greedy.max_symbols = 5
-        asr_model.change_decoding_strategy(decoding_cfg)
+    # if hasattr(asr_model, "decoding"):
+    #     decoding_cfg = asr_model.cfg.decoding
+    #     with open_dict(decoding_cfg):
+    #         decoding_cfg.strategy = "greedy"
+    #         decoding_cfg.preserve_alignments = True
+    #         # decoding_cfg.greedy.max_symbols = 5
+    #     asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)
     asr_model.eval()
