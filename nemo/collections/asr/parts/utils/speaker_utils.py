@@ -480,11 +480,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
                     start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
                 start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
 
-                if start == 0 and dur == 0:
-                    # No speech segments
-                    # meta = {"audio_filepath": audio_path, "offset": 0, "duration": 0, "label": 'UNK'}
-                    # json.dump(meta, outfile)
-                    # outfile.write("\n")
+                if start == 0 and dur == 0: # No speech segments
                     continue
                 else:
 
