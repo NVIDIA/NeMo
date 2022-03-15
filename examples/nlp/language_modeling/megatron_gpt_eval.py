@@ -19,9 +19,18 @@ from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 assert torch.cuda.is_available()
 
@@ -84,6 +93,17 @@ def main(cfg) -> None:
     print("***************************")
     print(response)
     print("***************************")
+
+    if cfg.server:
+        if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
+            server = MegatronServer(model.cuda())
+            server.run("0.0.0.0", port=8888)
+
+        while True:
+            choice = torch.cuda.LongTensor(1)
+            torch.distributed.broadcast(choice, 0)
+            if choice[0].item() == 0:
+                generate(model.cuda())
 
 
 if __name__ == '__main__':

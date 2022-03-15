@@ -10,6 +10,8 @@ inference:
 precision: 16
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
-model_file: ???
-prompts: ['', '']
+model_file: ???  # GPT nemo file path
+prompts: ['', ''] # prompts for GPT inference
+server: False  # whether launch the inference server
+port: 5555 # the port number for the inference server
  

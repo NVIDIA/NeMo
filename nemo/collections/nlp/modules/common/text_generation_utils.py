@@ -409,8 +409,10 @@ def sample_sequence_batch(
                     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
             attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
-            setkey_value_array = torch.tensor([set_inference_key_value_memory] * micro_batch_size)
-            len_array = torch.tensor([maxlen] * micro_batch_size)
+            setkey_value_array = torch.tensor(
+                [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+            )
+            len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
             batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
             tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
@@ -582,8 +584,10 @@ def tab_sample_sequence_batch(
                     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
             # micro_batch_size = 2
             attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
-            setkey_value_array = torch.tensor([set_inference_key_value_memory] * micro_batch_size)
-            len_array = torch.tensor([maxlen] * micro_batch_size)
+            setkey_value_array = torch.tensor(
+                [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+            )
+            len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
             batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
             tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
