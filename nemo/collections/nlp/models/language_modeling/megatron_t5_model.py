@@ -96,7 +96,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             raise ValueError(
                 f"Cannot have decoder max sequence length ({self._cfg.data.seq_length_dec}) less than encoder sequence length ({self._cfg.data.seq_length}) * masked_lm_prob ({self._cfg.data.masked_lm_prob})"
             )
-        global_batch_size = self.trainer.world_size * self._cfg.micro_batch_size / self._cfg.tensor_model_parallel_size
+        global_batch_size = self._cfg.global_batch_size
         eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
         train_valid_test_num_samples = [
