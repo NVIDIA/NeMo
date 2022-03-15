@@ -202,6 +202,8 @@ def main():
                 item = json.loads(line)
                 samples.append(item)
 
+        logging.info(f"Loaded {len(samples)} from the manifest at {args.manifest_file}.")
+
         for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
                 sample['audio_filepath'], stream_id=-1
@@ -221,9 +223,9 @@ def main():
                 streaming_buffer.reset_buffer()
         if args.compare_vs_offline:
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
-            logging.info(f"WER% of offline mode:{round(offline_wer * 100, 2)}")
+            logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
         streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
-        logging.info(f"WER% of streaming mode:{round(streaming_wer*100, 2)}")
+        logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
 
 
 if __name__ == '__main__':
