@@ -137,7 +137,7 @@ def receive_generate_info():
     """
     Needs to be synced up with send_generate_info
     """
-    input_info_tensor = torch.empty(5, dtype=torch.float32, device=torch.cuda.current_device())
+    input_info_tensor = torch.empty(8, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, 0)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
@@ -146,7 +146,7 @@ def receive_generate_info():
     temperature = float(input_info_tensor[4].item())
     top_k = float(input_info_tensor[5].item())
     top_p = float(input_info_tensor[6].item())
-    greedy = bool(input_info_tensor[3].item())
+    greedy = bool(input_info_tensor[7].item())
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
@@ -417,16 +417,9 @@ def sample_sequence_batch(
             tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
-            output = output[0]['logits'].float()
-
-            # model, tokens2use,
-            # positions2use,
-            # attention_mask,
-            # set_inference_key_value_memory=set_inference_key_value_memory,
-            # inference_max_sequence_len=maxlen,
-            # tokentype_ids=types2use)
 
             if parallel_state.is_pipeline_last_stage():
+                output = output[0]['logits'].float()
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
@@ -592,16 +585,9 @@ def tab_sample_sequence_batch(
             tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
-            output = output[0]['logits'].float()
-            # output = forward_step(
-            #     model, tokens2use,
-            #     positions2use,
-            #     attention_mask,
-            #     set_inference_key_value_memory=set_inference_key_value_memory,
-            #     inference_max_sequence_len=maxlen,
-            #     tokentype_ids=types2use)
 
             if parallel_state.is_pipeline_last_stage():
+                output = output[0]['logits'].float()
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()

@@ -97,7 +97,7 @@ def main(cfg) -> None:
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             server = MegatronServer(model.cuda())
-            server.run("0.0.0.0", port=8888)
+            server.run("0.0.0.0", port=cfg.port)
 
         while True:
             choice = torch.cuda.LongTensor(1)
