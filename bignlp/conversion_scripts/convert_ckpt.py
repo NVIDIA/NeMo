@@ -78,6 +78,7 @@ if __name__ == '__main__':
     model_type = args.model_type
     vocab_file = args.vocab_file
     merge_file = args.merge_file
+    tokenizer_model = args.tokenizer_model
 
     # Checkpoint search
     if checkpoint_name == "latest":
