@@ -206,6 +206,7 @@ def main():
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
                 sample['audio_filepath'], stream_id=-1
             )
+            all_refs_text.append(sample["text"])
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples from {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 streaming_tran, offline_tran = perform_streaming(
@@ -214,11 +215,12 @@ def main():
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
                 )
-                all_streaming_tran.append(streaming_tran)
+                all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:
-                    all_offline_tran.append(offline_tran)
-                all_refs_text.append(sample["text"])
+                    all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
+            if sample_idx > 400:
+                break
         if args.compare_vs_offline:
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
             logging.info(f"WER of offline mode:{offline_wer}")
