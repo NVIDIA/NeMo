@@ -59,7 +59,10 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     processed_signal_length=streaming_buffer.streams_length,
                     return_transcribtion=True,
                 )
-        logging.info(f"Final offline transcriptions:   {extract_transcribtions(transcribed_texts)}")
+        final_offline_tran = extract_transcribtions(transcribed_texts)
+        logging.info(f"Final offline transcriptions:   {final_offline_tran}")
+    else:
+        final_offline_tran = None
 
     cache_last_channel, cache_last_time = asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
 
@@ -95,11 +98,13 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
         step_num += 1
-    logging.info(f"Final streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
+    final_streaming_tran = extract_transcribtions(transcribed_texts)
+    logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
 
     if compare_vs_offline:
         diff_num = torch.sum(torch.cat(pred_out_stream) != torch.cat(pred_out_offline)).cpu().numpy()
         logging.info(f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode.")
+    return final_streaming_tran, final_offline_tran
 
 
 def main():
@@ -198,7 +203,7 @@ def main():
             )
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream {len(streaming_buffer)} samples starting from {sample_idx}...")
-                perform_streaming(
+                final_streaming_tran, final_streaming_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
