@@ -36,8 +36,8 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
     # fake missing classes with None attributes
-    AttnMaskType, ModelType = ApexGuardDefaults()
-
+    AttnMaskType = ApexGuardDefaults()
+    ModelType = ApexGuardDefaults()
 
 __all__ = []
 

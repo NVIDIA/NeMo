@@ -36,6 +36,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
+    ApexGuardDefaults
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
@@ -56,6 +57,7 @@ try:
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
+    ModelType = ApexGuardDefaults()
     HAVE_APEX = False
 
 
