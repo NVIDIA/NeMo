@@ -175,10 +175,10 @@ def main(args):
     torch.set_grad_enabled(False)
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(restore_path=args.asr_model)
+        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model)
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+        asr_model = nemo_asr.models.EncDecRNNTModelBPE.from_pretrained(model_name=args.asr_model)
 
     cfg = copy.deepcopy(asr_model._cfg)
     OmegaConf.set_struct(cfg.preprocessor, False)
