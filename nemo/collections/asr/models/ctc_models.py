@@ -14,7 +14,6 @@
 import copy
 import json
 import os
-import shutil
 import tempfile
 from math import ceil
 from typing import Dict, List, Optional, Union
