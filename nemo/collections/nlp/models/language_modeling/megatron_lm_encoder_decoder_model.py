@@ -412,13 +412,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = [x.cuda() for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
             output = model(
-                encoder_input_ids, # enc_input_ids
-                encoder_attn_mask, # enc_attn_mask
-                decoder_input_ids, # dec_input_ids
-                decoder_attn_mask, # dec_attn_mask
-                None, # tokentype_ids
-                lm_labels, # labels
-                None, # enc_hidden_states
+                encoder_input_ids,  # enc_input_ids
+                encoder_attn_mask,  # enc_attn_mask
+                decoder_input_ids,  # dec_input_ids
+                decoder_attn_mask,  # dec_attn_mask
+                None,  # tokentype_ids
+                lm_labels,  # labels
+                None,  # enc_hidden_states
             )
 
             def loss_func(output_tensor):
@@ -435,13 +435,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = [x.cuda() for x in batch]
             encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask = batch
             output = model(
-                encoder_input_ids, # enc_input_ids
-                encoder_attn_mask, # enc_attn_mask
-                decoder_input_ids, # dec_input_ids
-                decoder_attn_mask, # dec_attn_mask
-                None, # tokentype_ids
-                None, # labels
-                None, # enc_hidden_states
+                encoder_input_ids,  # enc_input_ids
+                encoder_attn_mask,  # enc_attn_mask
+                decoder_input_ids,  # dec_input_ids
+                decoder_attn_mask,  # dec_attn_mask
+                None,  # tokentype_ids
+                None,  # labels
+                None,  # enc_hidden_states
             )
 
             def id_func(output_tensor):
@@ -806,10 +806,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-                predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1)
+                predicted_tokens_dec = torch.cat(
+                    [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
+                )
             else:
-                log_probs = torch.zeros((predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=torch.float).cuda()
-                predicted_tokens_dec = torch.zeros((predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1), dtype=predicted_tokens_dec.dtype).cuda()
+                log_probs = torch.zeros(
+                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=torch.float
+                ).cuda()
+                predicted_tokens_dec = torch.zeros(
+                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
+                    dtype=predicted_tokens_dec.dtype,
+                ).cuda()
 
             torch.distributed.broadcast(predicted_tokens_dec, get_last_rank())
             torch.distributed.broadcast(log_probs, get_last_rank())
