@@ -59,6 +59,7 @@ def get_args():
     parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
     parser.add_argument("--vocab_file", type=str, default=None, required=False, help="Path to vocab file.")
     parser.add_argument("--merge_file", type=str, default=None, required=False, help="Path to merge file.")
+    parser.add_argument("--tokenizer_model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer for mT5.")
 
     args = parser.parse_args()
     return args
@@ -105,6 +106,8 @@ if __name__ == '__main__':
             conf.cfg.tokenizer.vocab_file = vocab_file
         if merge_file is not None:
             conf.cfg.tokenizer.merge_file = merge_file
+        if tokenizer_model is not None:
+            conf.cfg.tokenizer.model = tokenizer_model
 
         if is_global_rank_zero():
             with open(hparams_override_file, 'w') as f:

@@ -95,6 +95,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     pipeline_model_parallel_size = model_cfg.get("pipeline_model_parallel_size")
     vocab_file = model_cfg.get("vocab_file")
     merge_file = model_cfg.get("merge_file")
+    tokenizer_model = model_cfg.get("tokenizer_model")
 
     os.makedirs(output_path, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
@@ -110,7 +111,8 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
            f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
            f"--pipeline_model_parallel_size={pipeline_model_parallel_size} " \
            f"--vocab_file={vocab_file} " \
-           f"--merge_file={merge_file}"
+           f"--merge_file={merge_file} " \
+           f"--tokenizer_model={tokenizer_model}"
 
     args = args.replace(" ", " \\\n  ")
     cmd_str = f"python3 -u {code_path} \\\n  {args}"
