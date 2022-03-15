@@ -19,7 +19,7 @@ class TestTrainingT5Config:
           num_nodes: 4
           gpus: 8
           accelerator: ddp
-          precision: 16
+          precision: bf16
           amp_backend: native
           logger: False # logger provided by exp_manager
           checkpoint_callback: False
@@ -225,7 +225,7 @@ class TestTrainingT5Config:
           num_nodes: 20
           gpus: 8
           accelerator: ddp
-          precision: 16
+          precision: bf16
           amp_backend: native
           logger: False # logger provided by exp_manager
           checkpoint_callback: False

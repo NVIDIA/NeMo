@@ -16,7 +16,7 @@ class TestTrainingGPT3Config:
           num_nodes: 8
           gpus: 8
           accelerator: ddp
-          precision: 16
+          precision: bf16
           amp_backend: native
           logger: False
           checkpoint_callback: False
@@ -207,7 +207,7 @@ class TestTrainingGPT3Config:
           num_nodes: 20
           gpus: 8
           accelerator: ddp
-          precision: 16
+          precision: bf16
           amp_backend: native
           logger: False
           checkpoint_callback: False

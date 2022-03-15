@@ -11,7 +11,7 @@ trainer:
   gpus: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
   num_nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8}
   accelerator: ddp
-  precision: 16
+  precision: bf16
   logger: False # logger provided by exp_manager
   checkpoint_callback: False
   replace_sampler_ddp: False
