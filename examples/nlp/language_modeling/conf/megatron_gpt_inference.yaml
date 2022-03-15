@@ -7,10 +7,19 @@ inference:
   tokens_to_generate: 30
   all_probs: False
 
-precision: 16
+trainer:
+  devices: 1
+  num_nodes: 1
+  accelerator: gpu
+  logger: False # logger provided by exp_manager
+  precision: 16 # 16 or 32
+
 tensor_model_parallel_size: 1
 pipeline_model_parallel_size: 1
-model_file: ???  # GPT nemo file path
+model_file: null  # GPT nemo file path
+checkpoint_dir: null # checkpoint dir
+checkpoint_name: null # checkpoint name, only used for checkpoint loading
+hparams_file: null # model configuration file, only used for checkpoint loading
 prompts: ['', ''] # prompts for GPT inference
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server

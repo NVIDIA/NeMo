@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import torch
 from omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -24,6 +26,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from apex.transformer import parallel_state
@@ -49,34 +52,32 @@ class RequestDataSet(Dataset):
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
-    # cast precision to int if 32 or 16
-    if cfg.precision in ["32", "16"]:
-        cfg.precision = int(float(cfg.precision))
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(
-        plugins=NLPDDPPlugin(),
-        devices=cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size,
-        accelerator='gpu',
-        precision=cfg.precision,
-    )
+    trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
 
-    app_state = AppState()
-    if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-        app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
-        (
-            app_state.tensor_model_parallel_rank,
-            app_state.pipeline_model_parallel_rank,
-            app_state.model_parallel_size,
-            _,
-        ) = fake_initialize_model_parallel(
-            world_size=app_state.model_parallel_size,
-            rank=trainer.global_rank,
-            tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
-            pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
-        )
+    if cfg.model_file:
+        model = MegatronGPTModel.restore_from(restore_path=cfg.model_file, trainer=trainer)
+    elif cfg.checkpoint_dir:
+        app_state = AppState()
+        if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
+            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            (
+                app_state.tensor_model_parallel_rank,
+                app_state.pipeline_model_parallel_rank,
+                app_state.model_parallel_size,
+                _,
+            ) = fake_initialize_model_parallel(
+                world_size=app_state.model_parallel_size,
+                rank=trainer.global_rank,
+                tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
+                pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
+            )
+        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+    else:
+        raise ValueError("need at least a nemo file or checkpoint dir")
 
-    model = MegatronGPTModel.restore_from(restore_path=cfg.model_file, trainer=trainer)
     model.freeze()
 
     ds = RequestDataSet(cfg.prompts)
