@@ -169,13 +169,13 @@ def main():
     # else:
     #     onnx_model = None
 
-    # if hasattr(asr_model, "decoding"):
-    #     decoding_cfg = asr_model.cfg.decoding
-    #     with open_dict(decoding_cfg):
-    #         decoding_cfg.strategy = "greedy"
-    #         decoding_cfg.preserve_alignments = True
-    #         # decoding_cfg.greedy.max_symbols = 5
-    #     asr_model.change_decoding_strategy(decoding_cfg)
+    if hasattr(asr_model, "decoding"):
+        decoding_cfg = asr_model.cfg.decoding
+        with open_dict(decoding_cfg):
+            decoding_cfg.strategy = "greedy"
+            decoding_cfg.preserve_alignments = True
+            # decoding_cfg.greedy.max_symbols = 5
+        asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)
     asr_model.eval()
@@ -203,7 +203,7 @@ def main():
             )
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream {len(streaming_buffer)} samples starting from {sample_idx}...")
-                final_streaming_tran, final_streaming_tran = perform_streaming(
+                final_streaming_tran, final_offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
