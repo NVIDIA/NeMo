@@ -2131,7 +2131,7 @@ pipeline {
             prompts=['How to fix GPU memory? A:'] \
             tensor_model_parallel_size=1 \
             inference.tokens_to_generate=32 \
-            precision=16"
+            trainer.precision=16"
       }
     }
   
