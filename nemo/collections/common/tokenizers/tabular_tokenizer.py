@@ -130,8 +130,22 @@ class TabularTokenizer(TokenizerSpec):
         sizes = self.code_column.sizes
         ids_size = sum(sizes)
         cindex = 0
-        if self.eor in ids:
-            idd = ids.index(self.eor)
+        try:
+            eor_pos = ids.index(self.eor)
+        except ValueError:
+            eor_pos = -1
+        try:
+            eod_pos = ids.index(self.eod)
+        except ValueError:
+            eod_pos = -1
+        if eor_pos >= 0 and eod_pos >= 0:
+            idd = min(eor_pos, eod_pos)
+            cindex = (ids_size - idd) % ids_size
+        elif eor_pos >= 0 and eod_pos < 0:
+            idd = eor_pos
+            cindex = (ids_size - idd) % ids_size
+        elif eod_pos >= 0 and eor_pos < 0:
+            idd = eod_pos
             cindex = (ids_size - idd) % ids_size
         cum_sizes = numpy.cumsum(sizes)
         old_column_index = -1
