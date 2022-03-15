@@ -31,6 +31,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
+from nemo.collections.asr.metrics.wer import word_error_rate
 
 
 def extract_transcribtions(hyps):
@@ -192,6 +193,10 @@ def main():
         )
     else:
         samples = []
+        all_streaming_tran = []
+        all_offline_tran = []
+        all_refs_text = []
+
         with open(args.manifest_file, 'r') as f:
             for line in f:
                 item = json.loads(line)
@@ -203,13 +208,22 @@ def main():
             )
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream {len(streaming_buffer)} samples starting from {sample_idx}...")
-                final_streaming_tran, final_offline_tran = perform_streaming(
+                streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
                 )
+                all_streaming_tran.append(streaming_tran)
+                if args.compare_vs_offline:
+                    all_offline_tran.append(offline_tran)
+                all_refs_text.append(sample["text"])
                 streaming_buffer.reset_buffer()
+        if args.compare_vs_offline:
+            offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
+            logging.info(f"WER of offline mode:{offline_wer}")
+        streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
+        logging.info(f"WER of streaming mode:{streaming_wer}")
 
 
 if __name__ == '__main__':
