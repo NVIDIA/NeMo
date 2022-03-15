@@ -20,8 +20,8 @@ python -- build_regex_tokenizer.py \
 """
 import argparse
 
-from nemo.utils import logging
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
+from nemo.utils import logging
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -48,11 +48,7 @@ if __name__ == "__main__":
         help='Type of input file: text, csv',
     )
     parser.add_argument(
-        '--input_csv_col',
-        type=str,
-        required=False,
-        default="smiles",
-        help='Column of data in CSV file',
+        '--input_csv_col', type=str, required=False, default="smiles", help='Column of data in CSV file',
     )
     args = parser.parse_args()
 
@@ -68,14 +64,9 @@ if __name__ == "__main__":
     logging.info(f"Saving vocabulary in file: {vocab_fname}")
     if args.input_type == "csv":
         RegExTokenizer.create_vocab_from_csv(
-            data_csv_file=model_fname,
-            vocab_file=vocab_fname,
-            regex=args.regex,
-            col=args.input_csv_col,
+            data_csv_file=model_fname, vocab_file=vocab_fname, regex=args.regex, col=args.input_csv_col,
         )
     elif args.input_type == "text":
         RegExTokenizer.create_vocab_from_text(
-            data_text_file=model_fname,
-            vocab_file=vocab_fname,
-            regex=args.regex,
+            data_text_file=model_fname, vocab_file=vocab_fname, regex=args.regex,
         )
