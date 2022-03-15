@@ -149,9 +149,9 @@ def main():
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         try:
-            asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name=args.asr_model)
         except:
-            asr_model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name=args.asr_model)
+            asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
     global autocast
     if (
