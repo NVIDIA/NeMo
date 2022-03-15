@@ -558,7 +558,6 @@ class MegatronGPTModel(NLPModel):
             return
 
         logging.info('Building GPT datasets.')
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size / self.cfg.tensor_model_parallel_size
         global_batch_size = self.cfg.global_batch_size
         max_train_steps = self.trainer.max_steps
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
