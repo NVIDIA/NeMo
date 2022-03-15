@@ -52,7 +52,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -758,19 +758,28 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
+        app_state = AppState()
         predicted_tokens_dec = (
-            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).unsqueeze(0).to(tokens_enc.device)
+            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
         )
         encoder_seq_length = tokens_enc.size(1)
         tensor_shape = [encoder_seq_length, tokens_enc.size(0), self.cfg.hidden_size]
 
-        for _ in range(num_tokens_to_generate):
+        for idx in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
+            micro_batch_size = tokens_enc.size(0)
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=1,
+            )
 
             batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
-
+            # import ipdb; ipdb.set_trace()
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=self.get_forward_output_only_func(),
@@ -796,14 +805,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor), dim=-1)
-                tokens = torch.cat([tokens, torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
+                predicted_tokens_dec = torch.cat([predicted_tokens_dec.to(token_ids.device), torch.unsqueeze(token_ids[:, -1], 1)], dim=1)
             else:
-                log_probs = torch.zeros((tokens.shape[0], tokens.shape[1]), dtype=torch.float).cuda()
-                tokens = torch.zeros((tokens.shape[0], tokens.shape[1] + 1), dtype=tokens.dtype).cuda()
+                log_probs = torch.zeros((predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=torch.float).cuda()
+                predicted_tokens_dec = torch.zeros((predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1), dtype=predicted_tokens_dec.dtype).cuda()
 
-            torch.distributed.broadcast(tokens, get_last_rank())
+            torch.distributed.broadcast(predicted_tokens_dec, get_last_rank())
             torch.distributed.broadcast(log_probs, get_last_rank())
             predicted_tokens_dec = torch.cat([predicted_tokens_dec, token_ids[:, -1].unsqueeze(1)], 1)
 
@@ -838,10 +846,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
         enc_mask = tokens_enc != self.tokenizer.pad_id
-
-        # Unsqueeze to set num_microbatches to 1
-        tokens_enc = tokens_enc.unsqueeze(0)
-        enc_mask = enc_mask.unsqueeze(0)
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()

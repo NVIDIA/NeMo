@@ -339,9 +339,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
                     else:
                         tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
-
-                # print(f'Loss at rank : {torch.distributed.get_rank()}', tokens_loss.size())
-                return tokens_loss
+                    return tokens_loss
+                else:
+                    return token_logits
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
