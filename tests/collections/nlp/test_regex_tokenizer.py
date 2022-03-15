@@ -49,7 +49,7 @@ class TestRegexTokenizer:
             vocab_file=vocab_file_path,
             regex=DEFAULT_REGEX,
         )
-        tokenizer.create_vocab(
+        tokenizer.create_vocab_from_csv(
             data_csv_file=data_file_path,
             vocab_file=vocab_file_path,
             regex=DEFAULT_REGEX
