@@ -176,10 +176,7 @@ class RegExTokenizer(TokenizerSpec):
             fp.close()
 
         df = pd.read_csv(data_csv_file)
-        tokenizer = RegExTokenizer(
-            vocab_file=vocab_file,
-            regex=regex,
-        )
+        tokenizer = RegExTokenizer(vocab_file=vocab_file, regex=regex,)
 
         vocab = {
             DEFAULT_PAD_TOKEN: 0,  # pad_token
@@ -203,7 +200,6 @@ class RegExTokenizer(TokenizerSpec):
             for token in vocab:
                 fp.write(f"{token[0]}\n")
 
-
     @staticmethod
     def create_vocab_from_text(data_text_file, vocab_file, regex):
         """
@@ -218,10 +214,7 @@ class RegExTokenizer(TokenizerSpec):
             fp = open(vocab_file, 'w')
             fp.close()
 
-        tokenizer = RegExTokenizer(
-            vocab_file=vocab_file,
-            regex=regex,
-        )
+        tokenizer = RegExTokenizer(vocab_file=vocab_file, regex=regex,)
 
         vocab = {
             DEFAULT_PAD_TOKEN: 0,  # pad_token
@@ -246,6 +239,7 @@ class RegExTokenizer(TokenizerSpec):
             for token in vocab:
                 fp.write(f"{token[0]}\n")
 
+
 # module can be used as a script to learn vocabulary
 if __name__ == "__main__":
     import argparse
@@ -254,16 +248,10 @@ if __name__ == "__main__":
         description="Builds vocabulary from regex tokenizer. Outputs .model (regular expression) and .vocab (learned vocabualry)",
     )
     parser.add_argument(
-        '--regex',
-        type=str,
-        required=True,
-        help='Regular expression to split text',
+        '--regex', type=str, required=True, help='Regular expression to split text',
     )
     parser.add_argument(
-        '--input_file',
-        type=str,
-        required=True,
-        help='Input text/csv file',
+        '--input_file', type=str, required=True, help='Input text/csv file',
     )
     parser.add_argument(
         '--input_type',
