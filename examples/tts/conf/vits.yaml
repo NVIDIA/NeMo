@@ -50,7 +50,6 @@ model:
   inter_channels: 192
   hidden_channels: 192
   filter_channels: 768
-  filter_length: 1024
   n_heads: 2
   p_dropout: 0.1
   n_layers_q: 3
@@ -80,13 +79,17 @@ model:
     g2p:
       _target_: nemo.collections.tts.torch.g2ps.IPAG2p
       strip: true
-      # phoneme_dict: ${phoneme_dict_path}
-      # heteronyms: ${heteronyms_path}
   # text_tokenizer:
-  #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishCharsTokenizer
+  #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
   #   punct: true
+  #   stresses: true
+  #   chars: true
   #   apostrophe: true
   #   pad_with_space: true
+  #   g2p:
+  #     _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+  #     phoneme_dict: ${phoneme_dict_path}
+  #     heteronyms: ${heteronyms_path}
 
   train_ds:
     dataset:
@@ -200,10 +203,10 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 200
   flush_logs_every_n_steps: 1000
-  check_val_every_n_epoch: 2
+  check_val_every_n_epoch: 5
 
 exp_manager:
-  exp_dir: vits_ipa_ngc
+  exp_dir: vits_ipa_fix
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -212,7 +215,7 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: VITS_ipa_ngc
+    name: vits_ipa_fix
     project: ${name}
     entity: treacker15
   resume_if_exists: false

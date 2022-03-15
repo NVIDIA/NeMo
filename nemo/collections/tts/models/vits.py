@@ -174,9 +174,8 @@ class VitsModel(TextToWaveform):
         scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
+    # only for inference
     def forward(self, batch, batch_idx):
-        # TODO: Check if this is correct forward
-        # only for inference
         with torch.no_grad():
             (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
 
@@ -243,7 +242,6 @@ class VitsModel(TextToWaveform):
             loss_disc_all = loss_disc
 
 
-
         # train discriminator
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
@@ -270,7 +268,7 @@ class VitsModel(TextToWaveform):
         optim_g.step()
 
         schedulers = self.lr_schedulers()
-        if schedulers is not None:
+        if schedulers is not None and self.trainer.is_last_batch:
             sch1, sch2 = schedulers
             sch1.step()
             sch2.step()
