@@ -238,32 +238,3 @@ class RegExTokenizer(TokenizerSpec):
         with open(vocab_file, 'w') as fp:
             for token in vocab:
                 fp.write(f"{token[0]}\n")
-
-
-# module can be used as a script to learn vocabulary
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Builds vocabulary from regex tokenizer. Outputs .model (regular expression) and .vocab (learned vocabualry)",
-    )
-    parser.add_argument(
-        '--regex', type=str, required=True, help='Regular expression to split text',
-    )
-    parser.add_argument(
-        '--input_file', type=str, required=True, help='Input text/csv file',
-    )
-    parser.add_argument(
-        '--input_type',
-        type=str,
-        required=False,
-        choices=["text", "csv"],
-        default="text",
-        help='Type of input file: text, csv',
-    )
-    parser.add_argument(
-        '--output_file',
-        type=str,
-        required=True,
-        help='Output base file name. Two files will be created: .vocab (learned vocabulary), .model (the regex)',
-    )
