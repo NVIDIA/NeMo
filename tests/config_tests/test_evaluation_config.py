@@ -19,7 +19,7 @@ class TestEvaluationT5Config:
           gpus: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           num_nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8}
           accelerator: ddp
-          precision: 16
+          precision: bf16
           logger: False # logger provided by exp_manager
           checkpoint_callback: False
           replace_sampler_ddp: False
@@ -64,7 +64,6 @@ class TestEvaluationGPT3Config:
           time_limit: "4:00:00"
           nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
           ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
-          gpus_per_task: null
           eval_name: eval_all
           model_train_name: 5b
           train_dir: ${base_results_dir}/${.model_train_name}
@@ -79,7 +78,7 @@ class TestEvaluationGPT3Config:
           tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
           pipeline_model_parallel_size: 1
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-          precision: 16 # must match training precision - 32, 16 or bf16
+          precision: bf16 # must match training precision - 32, 16 or bf16
           eval_batch_size: 16
           vocab_file: ${data_dir}/bpe/vocab.json
           merge_file: ${data_dir}/bpe/merges.txt
@@ -95,7 +94,6 @@ class TestEvaluationGPT3Config:
           time_limit: "4:00:00"
           nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
           ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
-          gpus_per_task: null
           eval_name: eval_lambada
           model_train_name: 5b
           train_dir: ${base_results_dir}/${.model_train_name}
@@ -110,7 +108,7 @@ class TestEvaluationGPT3Config:
           tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
           pipeline_model_parallel_size: 1
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-          precision: 16 # must match training precision - 32, 16 or bf16
+          precision: bf16 # must match training precision - 32, 16 or bf16
           eval_batch_size: 16
           vocab_file: ${data_dir}/bpe/vocab.json
           merge_file: ${data_dir}/bpe/merges.txt

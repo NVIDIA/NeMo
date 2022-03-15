@@ -58,10 +58,13 @@ def create_bcp_file(
     train_cmd,
     num_nodes,
     log_file,
-    new_script_path
+    new_script_path,
+    env_exports=None,
 ):
     with open(new_script_path, "w") as f:
-        f.writelines(f'bcprun -n {num_nodes} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
+        if env_exports is not None:
+            env_cmd = f"--env {env_exports}"
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -107,7 +110,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
-    train_cmd = f"PYTHONPATH={bignlp_path}" + ":${PYTHONPATH} \\\n" + f"python3 -u {code_path} \\\n  {hydra_args}"
+    base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.gpus
@@ -124,6 +127,8 @@ def run_training(cfg, hydra_args="", dependency=None):
         if dependency is None:
             dependency = run_cfg.get("dependency")
         job_name = job_name_prefix + name
+
+        train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
@@ -160,11 +165,13 @@ def run_training(cfg, hydra_args="", dependency=None):
 
     # BCP parameters
     if cfg.get("cluster_type") == "bcp":
+        env_exports = f"PYTHONPATH=${{PYTHONPATH}}:{bignlp_path}"
         create_bcp_file(
             new_script_path=new_script_path,
-            train_cmd=train_cmd,
+            train_cmd=base_cmd,
             num_nodes=nodes,
             log_file=f"{results_dir}/{name}.log",
+            env_exports=env_exports,
         )
         submit_cmd = f"NGC_NTASKS_PER_NODE={ntasks_per_node} {new_script_path}"
         subprocess.check_output([f"{submit_cmd}"], shell=True)

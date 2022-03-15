@@ -19,7 +19,7 @@ class TestFinetuningT5Config:
           gpus: 8
           num_nodes: 1
           accelerator: ddp
-          precision: 16
+          precision: bf16
           logger: False # logger provided by exp_manager
           checkpoint_callback: False
           replace_sampler_ddp: False
