@@ -219,13 +219,11 @@ def main():
                 if args.compare_vs_offline:
                     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
-                if sample_idx > 400:
-                    break
         if args.compare_vs_offline:
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
-            logging.info(f"WER of offline mode:{offline_wer}")
+            logging.info(f"WER% of offline mode:{round(offline_wer * 100, 2)}")
         streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
-        logging.info(f"WER of streaming mode:{streaming_wer}")
+        logging.info(f"WER% of streaming mode:{round(streaming_wer*100, 2)}")
 
 
 if __name__ == '__main__':
