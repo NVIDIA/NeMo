@@ -66,7 +66,7 @@ def numa_mapping(dgxa100_gpu2core, dgxa100_gpu2mem):
 def convert_args_to_hydra_train_args(args, prefix="training."):
     for index, arg in enumerate(args):
         k, v = arg.split("=", 1)
-        if "splits_string" in k:
+        if "splits_string" in k and "\\" not in v:
             args[index] = "{}={}".format(k, v.replace("'", "\\'"))
 
     train_args = [x.replace(prefix, "") for x in args if x.startswith(prefix)]
