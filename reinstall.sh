@@ -28,7 +28,7 @@ else
   then
     NUMBA_VERSION=0.55
     echo 'Installing numba=='${NUMBA_VERSION}
-    conda install -y -c conda-forge numba==${NUMBA_VERSION}
+    # conda install -y -c conda-forge numba==${NUMBA_VERSION}
   fi
 fi
 
@@ -44,6 +44,6 @@ else
 fi
 
 echo 'Installing additional nemo_text_processing dependency'
-bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
+# bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
 
 echo 'All done!'

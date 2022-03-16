@@ -845,7 +845,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         response['completion'] = {}
         tokens_enc = request['masked_sample']
 
-        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0].numpy().tolist()))
+        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0].cpu().numpy().tolist()))
         enc_mask = tokens_enc != self.tokenizer.pad_id
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
@@ -856,6 +856,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             predicted_tokens_ids = predicted_tokens_ids[:idx]
         else:
             predicted_tokens_ids = [id for id in predicted_tokens_ids if id != self.tokenizer.pad_id]
+        if self.tokenizer.eos_id in predicted_tokens_ids:
+            idx = predicted_tokens_ids.index(self.tokenizer.eos_id)
+            predicted_tokens_ids = predicted_tokens_ids[:idx]
+        # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
+        if hasattr(self.tokenizer, 'special_token_to_id'):
+            predicted_tokens_ids = [id for id in predicted_tokens_ids if id not in self.tokenizer.special_token_to_id.values()]
+
         predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_ids)
         response['completion']['text'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
         response['completion']['tokens'] = list(zip(predicted_tokens_ids, predicted_tokens_dec, log_probs))
