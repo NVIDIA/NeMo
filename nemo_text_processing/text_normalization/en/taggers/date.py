@@ -89,6 +89,7 @@ def get_four_digit_year_graph(deterministic: bool = True):
     )
 
     graph = graph_ties + insert_space + graph_ties
+    graph |= (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred")
 
     thousand_graph = (
         graph_digit
@@ -195,10 +196,8 @@ class DateFst(GraphFst):
 
         year_graph = _get_year_graph(cardinal_graph=cardinal_graph, deterministic=deterministic)
 
-        # year_graph_standalone = pynini.closure(pynini.union("in ", "In ", "IN "), 0, 1) + year_graph
-
-        three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
-        year_graph |= three_digit_year
+        # three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
+        # year_graph |= three_digit_year
 
         month_graph = pynutil.insert("month: \"") + month_graph + pynutil.insert("\"")
         month_numbers_graph = pynutil.insert("month: \"") + month_numbers_labels + pynutil.insert("\"")
@@ -310,7 +309,6 @@ class DateFst(GraphFst):
         else:
             final_graph += pynutil.insert(" preserve_order: true")
 
-        # year_graph_standalone = pynutil.insert(" year: \"") + year_graph_standalone + pynutil.insert("\"")
         final_graph |= graph_ymd | year_graph
 
         if not deterministic or lm:
@@ -378,6 +376,5 @@ class DateFst(GraphFst):
 
             final_graph |= mdy_to_dmy_graph | md_to_dm_graph | ymd_to_mdy_graph | ymd_to_dmy_graph
 
-        self.year_graph_standalone = year_graph
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

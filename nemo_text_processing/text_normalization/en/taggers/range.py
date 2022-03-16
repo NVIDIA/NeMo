@@ -41,6 +41,7 @@ class RangeFst(GraphFst):
         if not deterministic:
             cardinal = cardinal.graph
             range_graph = cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
+            range_graph |= cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
 
             for x in ["+", " + "]:
                 range_graph |= cardinal + pynini.closure(pynini.cross(x, " plus ") + cardinal, 1)
