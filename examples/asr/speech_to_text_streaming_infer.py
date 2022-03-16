@@ -153,6 +153,7 @@ def main():
         except:
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
+    asr_model.encoder.setup_streaming_params(init_chunk_size=17, init_shift_size=17, chunk_size=17, shift_size=17, cache_drop_size=0)
     global autocast
     if (
         args.use_amp
