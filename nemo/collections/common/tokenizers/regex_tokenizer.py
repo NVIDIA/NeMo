@@ -86,7 +86,7 @@ class RegExTokenizer(TokenizerSpec):
 
     def _update_cache(self):
         # Cache data/attributes required for tokenization
-        self._unk_id = self.vocab.get(unk_token, DEFAULT_UNK_TOKEN)
+        self._unk_id = self.vocab.get(self.unk_token, DEFAULT_UNK_TOKEN)
         self._decode_vocab = {i: t for t, i in self.vocab.items()}
 
     def _compile_regex(self):
@@ -247,6 +247,7 @@ class RegExTokenizer(TokenizerSpec):
         logging.debug(f"Vocab: {sorted_vocab}")
 
         self.vocab = vocab
+        self._update_cache()
 
     @staticmethod
     def create_vocab_from_text(data_text_file):
@@ -272,3 +273,4 @@ class RegExTokenizer(TokenizerSpec):
         logging.debug(f"Vocab: {sorted_vocab}")
 
         self.vocab = vocab
+        self._update_cache()
