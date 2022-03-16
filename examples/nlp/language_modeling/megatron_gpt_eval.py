@@ -35,7 +35,8 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-assert torch.cuda.is_available()
+if not torch.cuda.is_available():
+    raise EnvironmentError("GPU is needed for the inference")
 
 
 class RequestDataSet(Dataset):

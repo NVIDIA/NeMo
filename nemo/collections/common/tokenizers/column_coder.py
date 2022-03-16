@@ -257,7 +257,7 @@ class CategoryCode(Code):
 column_map = {"int": IntCode, "float": FloatCode, "category": CategoryCode}
 
 
-class ColumnCodes:
+class ColumnCodes(object):
     def __init__(self):
         self.column_codes: Dict[str, Code] = {}
         self.columns = []
