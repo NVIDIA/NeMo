@@ -30,13 +30,25 @@ from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchVAD
 from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
 
 
-def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
+def get_wer_feat(
+    mfst, 
+    asr, 
+    frame_len, 
+    tokens_per_chunk, 
+    delay, 
+    preprocessor_cfg, 
+    model_stride_in_secs, 
+    device,
+    vad=None, 
+    vad_delay=None,
+    threshold: float = 0.4,
+    look_back: int = 4):
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
     # Do not normalize whatever the model's preprocessor setting is
@@ -45,24 +57,78 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
     preprocessor.to(device)
     hyps = []
     refs = []
+    total_durations_to_asr = []
+    original_durations = []
+    total_speech_segments = []
+    total_streaming_vad_logits = []
 
     with open(mfst, "r") as mfst_f:
         for l in mfst_f:
             asr.reset()
             row = json.loads(l.strip())
-            asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
-            hyp = asr.transcribe(tokens_per_chunk, delay)
-            hyps.append(hyp)
-            refs.append(row['text'])
+            if vad:
+                vad.reset()
+                vad.read_audio_file(row['audio_filepath'], offset=0, duration=0, delay=vad_delay, model_stride_in_secs=1)          
+                streaming_vad_logits, speech_segments = vad.decode(threshold=threshold)
+                speech_segments = [list(i) for i in speech_segments]
+                speech_segments.sort(key=lambda x: x[0])
+
+                final_hyp = " "
+                total_duration_to_asr = 0
+                for i in range(len(speech_segments)): 
+                    asr.reset()
+                    offset = max(speech_segments[i][0] - frame_len * look_back, 0)
+
+                    if row['duration'] and speech_segments[i][1] > row['duration']:
+                        end = row['duration']
+                        speech_segments[i][1] = end
+                    else:
+                        end = speech_segments[i][1]
+
+                    duration = end - speech_segments[i][0] + frame_len * look_back
+                    
+                    asr.read_audio_file(row['audio_filepath'], offset, duration, delay, model_stride_in_secs)
+                    hyp = asr.transcribe(tokens_per_chunk, delay) + " "
+                    # there should be some better method to merge the hyps of segments.
+                    final_hyp += hyp
+                    total_duration_to_asr += duration
+
+                final_hyp = final_hyp[1:-1]
+                # final_hyp = clean_label(final_hyp, num_to_words)
+                # ref_clean = clean_label(row['text'], num_to_words)
+
+                hyps.append(final_hyp)
+                refs.append(row['text'])
+                total_durations_to_asr.append(total_duration_to_asr)
+                original_durations.append(row['duration'])
+                total_speech_segments.append(speech_segments)
+                total_streaming_vad_logits.append(streaming_vad_logits)
+
+            else:
+                asr.read_audio_file(row['audio_filepath'], offset=0, duration=0, delay=delay, model_stride_in_secs=model_stride_in_secs)
+                hyp = asr.transcribe(tokens_per_chunk, delay)
+                hyps.append(hyp)
+                refs.append(row['text'])
+
+                total_durations_to_asr.append(row['duration'])
+                speech_segments = "ALL"
+                total_speech_segments.append(speech_segments)
 
     wer = word_error_rate(hypotheses=hyps, references=refs)
-    return hyps, refs, wer
+
+    if vad:
+        print(f"VAD reduces total durations for ASR inference from {int(sum(original_durations))} seconds to {int(sum(total_durations_to_asr))} seconds, by filtering out some noise or music")
+    
+    return hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits
 
 
 def main():
     parser = ArgumentParser()
     parser.add_argument(
         "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
+    )
+    parser.add_argument(
+        "--vad_model", type=str, required=False, help="Path to asr model .nemo file",
     )
     parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--batch_size", type=int, default=32)
@@ -72,6 +138,12 @@ def main():
         default=4.0,
         help="Length of buffer (chunk + left and right padding) in seconds ",
     )
+    parser.add_argument(
+        "--total_vad_buffer_in_secs",
+        type=float,
+        default=0.63,
+        help="Used for streaming VAD, Length of buffer (chunk + left and right padding) in seconds ",
+    )
     parser.add_argument("--chunk_len_in_ms", type=int, default=1600, help="Chunk length in milliseconds")
     parser.add_argument("--output_path", type=str, help="path to output file", default=None)
     parser.add_argument(
@@ -80,7 +152,24 @@ def main():
         default=8,
         help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
     )
-
+    parser.add_argument(
+        "--vad_before_asr",
+        help="Whether to perform VAD before ASR",
+        action='store_true',
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.4,
+        help="threshold",
+    )
+    
+    parser.add_argument(
+        "--look_back",
+        type=int,
+        default=4,
+        help="look back int",
+    )
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     if args.asr_model.endswith('.nemo'):
@@ -89,6 +178,17 @@ def main():
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+
+    if args.vad_model:
+        if args.vad_model.endswith('.nemo'):
+            logging.info(f"Using local ASR model from {args.vad_model}")
+            vad_model = nemo_asr.models.EncDecClassificationModel.restore_from(restore_path=args.vad_model)
+        elif args.vad_model.endswith('.ckpt'):
+            logging.info(f"Using local ASR model from {args.vad_model}")
+            vad_model = nemo_asr.models.EncDecClassificationModel.load_from_checkpoint(args.vad_model)
+        else:
+            logging.info(f"Using NGC cloud ASR model {args.vad_model}")
+            vad_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name=args.vad_model)
 
     cfg = copy.deepcopy(asr_model._cfg)
     OmegaConf.set_struct(cfg.preprocessor, False)
@@ -108,18 +208,34 @@ def main():
     feature_stride = cfg.preprocessor['window_stride']
     model_stride_in_secs = feature_stride * args.model_stride
     total_buffer = args.total_buffer_in_secs
-
+    
     chunk_len = args.chunk_len_in_ms / 1000
 
     tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
-    print(tokens_per_chunk, mid_delay)
+    vad_mid_delay=None
+    frame_vad = None
+
+    if args.vad_before_asr and args.vad_model:
+        total_vad_buffer = args.total_vad_buffer_in_secs
+        vad_mid_delay = math.ceil((chunk_len + (total_vad_buffer - chunk_len) / 2) / 1)
+        
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        vad_model.eval()
+        vad_model = vad_model.to(vad_model.device)
+        # note feature sent into VAD model is none normalized
+        frame_vad = FrameBatchVAD(
+            vad_model=vad_model, 
+            frame_len=chunk_len, 
+            total_buffer=args.total_vad_buffer_in_secs, 
+            batch_size=args.batch_size,
+        )
 
     frame_asr = FrameBatchASR(
         asr_model=asr_model, frame_len=chunk_len, total_buffer=args.total_buffer_in_secs, batch_size=args.batch_size,
     )
 
-    hyps, refs, wer = get_wer_feat(
+    hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits = get_wer_feat(
         args.test_manifest,
         frame_asr,
         chunk_len,
@@ -128,8 +244,12 @@ def main():
         cfg.preprocessor,
         model_stride_in_secs,
         asr_model.device,
+        frame_vad,
+        vad_mid_delay,
+        args.threshold,
+        args.look_back,
     )
-    logging.info(f"WER is {round(wer, 2)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
+    logging.info(f"WER is {round(wer * 100, 2)} % when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
 
     if args.output_path is not None:
 
@@ -147,11 +267,24 @@ def main():
         os.makedirs(args.output_path, exist_ok=True)
         with open(hyp_json, "w") as out_f:
             for i, hyp in enumerate(hyps):
-                record = {
-                    "pred_text": hyp,
-                    "text": refs[i],
-                    "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
-                }
+                if args.vad_before_asr:
+                    record = {
+                        "pred_text": hyp,
+                        "text": refs[i],
+                        "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
+                        "total_duration_to_asr": total_durations_to_asr[i],
+                        "total_speech_segments": total_speech_segments[i],
+                        "total_streaming_vad_logits": str(total_streaming_vad_logits[i]),
+                    }
+                else:
+                    record = {
+                        "pred_text": hyp,
+                        "text": refs[i],
+                        "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
+                        "total_duration_to_asr": total_durations_to_asr[i],
+                        "total_speech_segments": total_speech_segments[i],
+                    }
+                
                 out_f.write(json.dumps(record) + '\n')
 
 
