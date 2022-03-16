@@ -262,7 +262,7 @@ class RegExTokenizer(TokenizerSpec):
         vocab = self.vocab
         for d in open(data_text_file, encoding="utf-8").readlines():
             d = d.rstrip()
-            tokens = tokenizer.text_to_tokens(d)
+            tokens = self.text_to_tokens(d)
             logging.debug(f"Text: {d}, Tokens: {d}")
             for token in tokens:
                 if token not in vocab:
