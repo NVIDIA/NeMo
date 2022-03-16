@@ -17,11 +17,12 @@ import glob
 import json
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import Optional
+from typing import List, Optional
 
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
+from tqdm.auto import tqdm
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import ASRModel
@@ -96,7 +97,6 @@ class TranscriptionConfig:
 def transcribe_partial_audio(
     asr_model,
     path2manifest: str,
-    num_files: int,
     batch_size: int = 4,
     logprobs: bool = False,
     return_hypotheses: bool = False,
@@ -132,9 +132,7 @@ def transcribe_partial_audio(
 
         config = {
             'manifest_filepath': path2manifest,
-            'num_files': num_files,
             'batch_size': batch_size,
-            'temp_dir': tmpdir,
             'num_workers': num_workers,
         }
 
@@ -245,7 +243,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 if "duration" not in item:
                     partial_audio = False
                 filepaths.append(item['audio_filepath'])
-        num_files = len(filepaths)
         if not partial_audio:
             logging.warning(
                 f"The duration of some entries might be missing in {cfg.dataset_manifest}. Transcribing whole samples!"
@@ -287,7 +284,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 transcriptions = transcribe_partial_audio(
                     asr_model=asr_model,
                     path2manifest=cfg.dataset_manifest,
-                    num_files=num_files,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
                 )
