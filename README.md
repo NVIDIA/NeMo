@@ -749,7 +749,7 @@ run:
   ntasks_per_node: ${conversion.model.tensor_model_parallel_size}
   gpus_per_task: 1
   convert_name: convert_nemo
-  model_train_name: 5b
+  model_train_name: gpt3_5b
   results_dir: ${base_results_dir}/${.model_train_name}/${.convert_name}
   output_path: ${base_results_dir}/${.model_train_name}/${.convert_name}
   nemo_file_name: megatron_gpt.nemo # name of nemo checkpoint; must be .nemo file
@@ -838,7 +838,7 @@ run:
   gpus_per_task: 1
   eval_name: eval_all
   convert_name: convert_nemo
-  model_train_name: 5b
+  model_train_name: gpt3_5b
   tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
   results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
 ```

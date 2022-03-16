@@ -65,7 +65,7 @@ class TestEvaluationGPT3Config:
           nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
           ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           eval_name: eval_all
-          model_train_name: 5b
+          model_train_name: gpt3_5b
           train_dir: ${base_results_dir}/${.model_train_name}
           tasks: all_tasks  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
           results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
@@ -95,7 +95,7 @@ class TestEvaluationGPT3Config:
           nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
           ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
           eval_name: eval_lambada
-          model_train_name: 5b
+          model_train_name: gpt3_5b
           train_dir: ${base_results_dir}/${.model_train_name}
           tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
           results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
