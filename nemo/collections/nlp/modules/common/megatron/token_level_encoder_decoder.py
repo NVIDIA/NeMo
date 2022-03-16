@@ -139,10 +139,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 )
                 self._encoder_embedding_key = "encoder_embedding"
 
-            # print('==================================')
-            # print(f"Creating encoder ...")
-            # print('==================================')
-
             encoder = get_encoder_model(
                 arch=encoder_arch,
                 hidden_size=hidden_size,
@@ -199,10 +195,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                 self._decoder_embedding_key = "decoder_embedding"
 
-            # print('==================================')
-            # print(f"Creating decoder ...")
-            # print('==================================')
-
             decoder = get_decoder_model(
                 arch=decoder_arch,
                 hidden_size=hidden_size,
@@ -251,11 +243,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         """ See megatron.model.transformer.set_input_tensor()"""
         # This is usually handled in schedules.py but some inference code still
         # gives us non-lists or None
-        # print('==================================')
-        # print('Setting input tensor')
-        # print(input_tensor)
-        # print('Encoder : ', self.add_encoder, 'Decoder : ', self.add_decoder)
-        # print('==================================')
+
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
 
@@ -345,11 +333,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
             elif self.add_decoder and not self.add_encoder:
                 decoder_output, _ = output
-                # print(f'Dec output at rank : {torch.distributed.get_rank()}', decoder_output.size())
                 return decoder_output
             else:
                 encoder_output = output
-                # print(f'Enc output at rank : {torch.distributed.get_rank()}', encoder_output.size())
                 return encoder_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):

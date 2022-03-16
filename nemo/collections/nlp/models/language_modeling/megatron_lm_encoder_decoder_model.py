@@ -280,7 +280,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
-        # print(f'Rank : {torch.distributed.get_rank()}, loss: {loss_mean}, broacasting from {get_last_rank()}')
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
         if self.cfg.precision == 16:
@@ -562,17 +561,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         dec_mask_list = []
         for micro_batch in global_batch:
             text_enc, text_dec, labels, loss_mask, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
-            # micro_batch_size = text_enc.shape[0]
             text_enc_list.append(text_enc)
             text_dec_list.append(text_dec)
             labels_list.append(labels)
             loss_mask_list.append(loss_mask)
             enc_mask_list.append(enc_mask)
             dec_mask_list.append(dec_mask)
-            # enc_mask_repeat = torch.concat([enc_mask for _ in range(micro_batch_size)])
-            # dec_mask_repeat = torch.concat([dec_mask for _ in range(micro_batch_size)])
-            # enc_mask_list.append(enc_mask_repeat)
-            # dec_mask_list.append(dec_mask_repeat)
 
         # Concatenate to (num_microbatches x micro_batch_size x seq_len)
         tokens_enc_tensor = torch.concat(text_enc_list, dim=0)
@@ -767,7 +761,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_seq_length = tokens_enc.size(1)
         tensor_shape = [encoder_seq_length, tokens_enc.size(0), self.cfg.hidden_size]
 
-        for idx in range(num_tokens_to_generate):
+        for _ in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
@@ -781,7 +775,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
 
             batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
-            # import ipdb; ipdb.set_trace()
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=self.get_forward_output_only_func(),
@@ -852,7 +845,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         response['completion'] = {}
         tokens_enc = request['masked_sample']
 
-        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
+        response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0].numpy().tolist()))
         enc_mask = tokens_enc != self.tokenizer.pad_id
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
