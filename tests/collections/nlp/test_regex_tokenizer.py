@@ -57,7 +57,9 @@ class TestRegexTokenizer:
 
     @pytest.mark.unit
     def test_text_2_ids(self):
+        data_file_path = self.create_test_data()
         tokenizer = RegExTokenizer(regex=DEFAULT_REGEX)
+        tokenizer.build_vocab_from_csv(data_csv_file=data_file_path)
 
         ids = tokenizer.text_to_ids("Zc")
         assert ''.join(list(map(lambda x: str(x), ids))) == '1562'
