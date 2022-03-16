@@ -48,7 +48,7 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
   tensor_model_parallel_size: 1
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
-  eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance.
+  eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
 
   data:
     train_ds: # XNLI task use mnli training data
@@ -71,7 +71,7 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
 
     test_ds:
       task_name: 'xnli'
-      file_path: ${data_dir}/glue_data/xnli/xnli.dev.tsv # Path to the TSV file for XNLI test
+      file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
       batch_size: 32
       shuffle: False
       num_workers: 8

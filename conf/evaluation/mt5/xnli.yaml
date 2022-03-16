@@ -3,7 +3,7 @@ run:
   time_limit: "0-04:00:00"
   dependency: "singleton"
   model_train_name: t5_220m
-  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+  task_name: "xnli"
   finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 
@@ -21,7 +21,7 @@ trainer:
 exp_manager:
   explicit_log_dir: ${evaluation.run.results_dir}
   exp_dir: null
-  name: megatron_t5_glue_eval
+  name: megatron_t5_glue_xnli_eval
   create_checkpoint_callback: False
 
 model:
@@ -29,13 +29,14 @@ model:
   tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
+  eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
 
   data:
-    validation_ds:
-      task_name: ${evaluation.run.task_name}
-      file_path: ${data_dir}/glue_data/${evaluation.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not evaluating MNLI
+    test_ds:
+      task_name: 'xnli'
+      file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
       batch_size: 32
       shuffle: False
-      num_workers: 4
+      num_workers: 8
       pin_memory: True
       max_seq_length: 512
