@@ -1,8 +1,8 @@
 run:
   name: eval_${.task_name}_${.model_train_name}
-  time_limit: "0-04:00:00"
+  time_limit: "04:00:00"
   dependency: "singleton"
-  model_train_name: t5_220m
+  model_train_name: mt5_220m
   task_name: "xnli"
   finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval

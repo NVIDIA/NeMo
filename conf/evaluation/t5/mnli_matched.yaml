@@ -1,6 +1,6 @@
 run:
   name: eval_${.task_name}_${.model_train_name}
-  time_limit: "0-04:00:00"
+  time_limit: "04:00:00"
   dependency: "singleton"
   model_train_name: t5_220m
   task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
