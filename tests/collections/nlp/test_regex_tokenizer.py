@@ -38,10 +38,6 @@ class TestRegexTokenizer:
 
     @pytest.mark.unit
     def test_create_vocab(self):
-        vocab_file = tempfile.NamedTemporaryFile(mode='w+', delete=False)
-        vocab_file_path = str(vocab_file.name)
-        vocab_file.close()
-
         data_file_path = self.create_test_data()
         tokenizer = RegExTokenizer(regex=DEFAULT_REGEX)
         tokenizer.build_vocab_from_csv(data_csv_file=data_file_path)
@@ -62,7 +58,7 @@ class TestRegexTokenizer:
         tokenizer.build_vocab_from_csv(data_csv_file=data_file_path)
 
         ids = tokenizer.text_to_ids("Zc")
-        assert ''.join(list(map(lambda x: str(x), ids))) == '1562'
+        assert ','.join(list(map(lambda x: str(x), ids))) == '2,1,11,3'
 
     @pytest.mark.unit
     def test_tokens_2_text(self):
