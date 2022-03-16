@@ -249,8 +249,7 @@ class RegExTokenizer(TokenizerSpec):
         self.vocab = vocab
         self._update_cache()
 
-    @staticmethod
-    def create_vocab_from_text(data_text_file):
+    def build_vocab_from_text(self, data_text_file):
         """
         Learns vocabulary from a text file. Can be called multiple times to update vocabulary.
         """
