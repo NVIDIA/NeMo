@@ -5,7 +5,6 @@ import subprocess
 import hydra
 import omegaconf
 from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
-from bignlp.train_scripts.train_utils import generate_mt5_data_blend
 from bignlp.finetune_scripts.data import download_glue
 
 
@@ -95,11 +94,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
 
     # Shared between BCP and BCM 
     new_script_path = os.path.join(bignlp_path, f"bignlp/finetune_scripts/{name}.sh")
-    # TODO: better way to decide model
-    if task_name == 'xnli':
-        code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_mt5.py")
-    else:
-        code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
+    code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
 
     hydra_args = hydra_args.replace(" ", " \\\n  ")
     train_cmd = f"PYTHONPATH={bignlp_path}" + ":${PYTHONPATH} \\\n" + f"python3 -u {code_path} \\\n  {hydra_args}"

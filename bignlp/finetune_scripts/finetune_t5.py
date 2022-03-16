@@ -21,9 +21,15 @@ def main(cfg):
     gpu_mapping, core_mapping = numa_mapping(cfg.dgxa100_gpu2core, cfg.dgxa100_gpu2mem)
 
     code_dir = "/opt/bignlp/NeMo"
-    code_path = (
-        f"{code_dir}/examples/nlp/language_modeling/megatron_t5_glue.py"
-    )
+    if "mt5" in cfg.finetuning_config:
+        code_path = (
+            f"{code_dir}/examples/nlp/language_modeling/megatron_t5_xnli.py"
+        )
+    else:
+        code_path = (
+            f"{code_dir}/examples/nlp/language_modeling/megatron_t5_glue.py"
+        )
+    
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
     # Write command to launch training.
     if cfg.cluster_type == "bcm":

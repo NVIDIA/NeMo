@@ -70,7 +70,6 @@ def main(cfg):
             dependency = evaluate_t5.run_evaluation(cfg, hydra_args=hydra_args, dependency=dependency)
         else:
             raise ValueError(f"Unrecognized model in evaluation config `{cfg.evaluation_config}`.")
-
     else:
         cfg_copy._content.pop("evaluation", None)
 
