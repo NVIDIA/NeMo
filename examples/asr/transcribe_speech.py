@@ -17,15 +17,15 @@ import glob
 import json
 import os
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional
+from typing import Optional
 
 import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
@@ -94,86 +94,6 @@ class TranscriptionConfig:
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
 
-def transcribe_partial_audio(
-    asr_model,
-    path2manifest: str,
-    batch_size: int = 4,
-    logprobs: bool = False,
-    return_hypotheses: bool = False,
-    num_workers: int = 0,
-) -> List[str]:
-    if return_hypotheses and logprobs:
-        raise ValueError(
-            "Either `return_hypotheses` or `logprobs` can be True at any given time."
-            "Returned hypotheses will contain the logprobs."
-        )
-
-    if num_workers is None:
-        num_workers = min(batch_size, os.cpu_count() - 1)
-
-    # We will store transcriptions here
-    hypotheses = []
-    # Model's mode and device
-    mode = asr_model.training
-    device = next(asr_model.parameters()).device
-    dither_value = asr_model.preprocessor.featurizer.dither
-    pad_to_value = asr_model.preprocessor.featurizer.pad_to
-
-    try:
-        asr_model.preprocessor.featurizer.dither = 0.0
-        asr_model.preprocessor.featurizer.pad_to = 0
-        # Switch model to evaluation mode
-        asr_model.eval()
-        # Freeze the encoder and decoder modules
-        asr_model.encoder.freeze()
-        asr_model.decoder.freeze()
-        logging_level = logging.get_verbosity()
-        logging.set_verbosity(logging.WARNING)
-
-        config = {
-            'manifest_filepath': path2manifest,
-            'batch_size': batch_size,
-            'num_workers': num_workers,
-        }
-
-        temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-        for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            logits, logits_len, greedy_predictions = asr_model.forward(
-                input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-            )
-            if logprobs:
-                # dump log probs per file
-                for idx in range(logits.shape[0]):
-                    lg = logits[idx][: logits_len[idx]]
-                    hypotheses.append(lg.cpu().numpy())
-            else:
-                current_hypotheses = asr_model._wer.ctc_decoder_predictions_tensor(
-                    greedy_predictions, predictions_len=logits_len, return_hypotheses=return_hypotheses,
-                )
-
-                if return_hypotheses:
-                    # dump log probs per file
-                    for idx in range(logits.shape[0]):
-                        current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
-
-                hypotheses += current_hypotheses
-
-            del greedy_predictions
-            del logits
-            del test_batch
-
-    finally:
-        # set mode back to its original value
-        asr_model.train(mode=mode)
-        asr_model.preprocessor.featurizer.dither = dither_value
-        asr_model.preprocessor.featurizer.pad_to = pad_to_value
-        if mode is True:
-            asr_model.encoder.unfreeze()
-            asr_model.decoder.unfreeze()
-        logging.set_verbosity(logging_level)
-    return hypotheses
-
-
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
@@ -240,13 +160,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             partial_audio = True
             for line in f:
                 item = json.loads(line)
-                if "duration" not in item:
+                if "offset" not in item or "duration" not in item:
                     partial_audio = False
                 filepaths.append(item['audio_filepath'])
-        if not partial_audio:
-            logging.warning(
-                f"The duration of some entries might be missing in {cfg.dataset_manifest}. Transcribing whole samples!"
-            )
 
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 

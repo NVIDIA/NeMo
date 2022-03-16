@@ -884,18 +884,13 @@ def init_vad_model(model_path):
 
 
 def stitch_segmented_asr_output(
-    segmented_output_manifest: str, speech_segments_tensor_dir: str = None, stitched_output_manifest: str = None
+    segmented_output_manifest: str,
+    speech_segments_tensor_dir: str = "speech_segments",
+    stitched_output_manifest: str = "asr_stitched_output_manifest.json",
 ) -> str:
     """
     Stitch the prediction of speech segments.
     """
-
-    if not stitched_output_manifest:
-        stitched_output_manifest = "asr_stitched_output_manifest.json"
-
-    if not speech_segments_tensor_dir:
-        speech_segments_tensor_dir = "speech_segments"
-
     if not os.path.exists(speech_segments_tensor_dir):
         os.mkdir(speech_segments_tensor_dir)
 
@@ -964,16 +959,13 @@ def stitch_segmented_asr_output(
 
 
 def contruct_manfiest_eval(
-    input_manifest: str, stitched_output_manifest: str, aligned_vad_asr_output_manifest: str = None
+    input_manifest: str, stitched_output_manifest: str, aligned_vad_asr_output_manifest: str = "vad_asr_out.json"
 ) -> str:
 
     """
     Generate aligned manifest for evaluation.
     Because some pure noise samples might not appears in stitched_output_manifest.
     """
-    if not aligned_vad_asr_output_manifest:
-        aligned_vad_asr_output_manifest = "vad_asr_out.json"
-
     stitched_output = dict()
     for line in open(stitched_output_manifest, 'r', encoding='utf-8'):
         file = json.loads(line)
