@@ -15,7 +15,6 @@ from typing import List
 
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.utils import logging
 
@@ -29,9 +28,7 @@ def transcribe_partial_audio(
     num_workers: int = 0,
 ) -> List[str]:
 
-    assert (
-        type(asr_model) == EncDecCTCModelBPE or type(asr_model) == EncDecCTCModel
-    ), "Currently support CTC model only."
+    assert isinstance(asr_model, EncDecCTCModel), "Currently support CTC model only."
 
     if return_hypotheses and logprobs:
         raise ValueError(

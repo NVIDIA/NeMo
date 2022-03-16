@@ -197,12 +197,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     with autocast():
         with torch.no_grad():
             if partial_audio:
-                transcriptions = transcribe_partial_audio(
-                    asr_model=asr_model,
-                    path2manifest=cfg.dataset_manifest,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                )
+                if isinstance(asr_model, EncDecCTCModel):
+                    transcriptions = transcribe_partial_audio(
+                        asr_model=asr_model,
+                        path2manifest=cfg.dataset_manifest,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                    )
+                else:
+                    logging.warning(
+                        "RNNT models do not support transcribe partial audio for now. Transcribing full audio."
+                    )
+                    transcriptions = asr_model.transcribe(
+                        paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
+                    )
             else:
                 transcriptions = asr_model.transcribe(
                     paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
