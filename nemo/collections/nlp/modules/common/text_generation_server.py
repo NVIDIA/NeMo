@@ -22,9 +22,14 @@ from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.utils import logging
 
 GENERATE_NUM = 0
 lock = threading.Lock()
+
+API_ALLOWED_KEYS = set(
+    ['all_probs', 'sentences', "tokens_to_generate", "temperature", "add_BOS", "greedy", "top_k", "top_p"]
+)
 
 
 class MegatronGenerate(Resource):
@@ -37,9 +42,12 @@ class MegatronGenerate(Resource):
         torch.distributed.broadcast(choice, 0)
 
     def put(self):
-        print("request IP: " + str(request.remote_addr))
-        print(json.dumps(request.get_json()), flush=True)
-        print("current time: ", datetime.datetime.now())
+        logging.info("request IP: " + str(request.remote_addr))
+        logging.info(json.dumps(request.get_json()))
+        # check keys
+        for key in request.get_json().keys():
+            if key not in API_ALLOWED_KEYS:
+                logging.error(f"The request key {key} is not allowed")
 
         sentences = request.get_json()["sentences"]
         if len(sentences) > 128:
