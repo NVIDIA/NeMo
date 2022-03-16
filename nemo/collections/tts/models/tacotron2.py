@@ -36,7 +36,7 @@ from nemo.core.neural_types.elements import (
     SequenceToSequenceAlignmentType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 @dataclass
@@ -60,9 +60,29 @@ class Tacotron2Model(SpectrogramGenerator):
     """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
+        
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+        
+
+         # setup normalizer
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
+
+        # setup tokenizer
+        self.tokenizer = None
+        self._setup_tokenizer(cfg)
+        assert self.tokenizer is not None
+
+        num_tokens = len(self.tokenizer.tokens)
+        self.tokenizer_pad = self.tokenizer.pad
+        self.tokenizer_unk = self.tokenizer.oov
+
         super().__init__(cfg=cfg, trainer=trainer)
+
+
 
         schema = OmegaConf.structured(Tacotron2Config)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
@@ -73,17 +93,16 @@ class Tacotron2Model(SpectrogramGenerator):
         # Ensure passed cfg is compliant with schema
         try:
             OmegaConf.merge(cfg, schema)
-            self.pad_value = self._cfg.preprocessor.pad_value
+            self.pad_value = cfg.preprocessor.pad_value
         except ConfigAttributeError:
-            self.pad_value = self._cfg.preprocessor.params.pad_value
+            self.pad_value = cfg.preprocessor.params.pad_value
             logging.warning(
                 "Your config is using an old NeMo yaml configuration. Please ensure that the yaml matches the "
                 "current version in the main branch for future compatibility."
             )
-
         self._parser = None
-        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
-        self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
+        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
+        self.text_embedding = nn.Embedding(num_tokens, 512)
         self.encoder = instantiate(self._cfg.encoder)
         self.decoder = instantiate(self._cfg.decoder)
         self.postnet = instantiate(self._cfg.postnet)
@@ -271,6 +290,39 @@ class Tacotron2Model(SpectrogramGenerator):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss)
 
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
+            normalizer_kwargs = {}
+
+            if "whitelist" in cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
+                )
+
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
+
+    def _setup_tokenizer(self, cfg):
+        text_tokenizer_kwargs = {}
+        if "g2p" in cfg.text_tokenizer and cfg.text_tokenizer.g2p is not None:
+            g2p_kwargs = {}
+
+            if "phoneme_dict" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["phoneme_dict"] = self.register_artifact(
+                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                )
+
+            if "heteronyms" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["heteronyms"] = self.register_artifact(
+                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                )
+
+            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+
+        self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
+
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")
@@ -289,11 +341,16 @@ class Tacotron2Model(SpectrogramGenerator):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        labels = self._cfg.labels
+        # labels = self._cfg.labels
 
         dataset = instantiate(
-            cfg.dataset, labels=labels, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2
+            cfg.dataset, text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer,
+            # labels=labels, bos_id=len(labels), 
+            # eos_id=len(labels) + 1, pad_id=len(labels) + 2
         )
+
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):

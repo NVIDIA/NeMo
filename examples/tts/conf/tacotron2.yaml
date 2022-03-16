@@ -80,7 +80,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 32
+      batch_size: 48
       num_workers: 4
       pin_memory: false
   
@@ -106,9 +106,9 @@ model:
       pitch_fmax: ${model.pitch_fmax}
     dataloader_params:
       drop_last: false
-      shuffle: true
-      batch_size: 32
-      num_workers: 4
+      shuffle: false
+      batch_size: 1
+      num_workers: 8
       pin_memory: false
   
   # train_ds:
@@ -162,7 +162,7 @@ model:
     n_window_size: ${model.n_window_size}
     n_window_stride: ${model.n_window_stride}
     pad_to: 16
-    pad_value: {model.pad_value}
+    pad_value: ${model.pad_value}
     sample_rate: ${model.sample_rate}
     window: ${model.window}
     normalize: null
@@ -234,7 +234,7 @@ trainer:
   check_val_every_n_epoch: 25
 
 exp_manager:
-  exp_dir: null
+  exp_dir: '..local_exps/tacotron/'
   name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
