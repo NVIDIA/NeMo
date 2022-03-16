@@ -93,6 +93,89 @@ class TranscriptionConfig:
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
 
+def transcribe_partial_audio(
+    asr_model,
+    path2manifest: str,
+    num_files: int,
+    batch_size: int = 4,
+    logprobs: bool = False,
+    return_hypotheses: bool = False,
+    num_workers: int = 0,
+) -> List[str]:
+    if return_hypotheses and logprobs:
+        raise ValueError(
+            "Either `return_hypotheses` or `logprobs` can be True at any given time."
+            "Returned hypotheses will contain the logprobs."
+        )
+
+    if num_workers is None:
+        num_workers = min(batch_size, os.cpu_count() - 1)
+
+    # We will store transcriptions here
+    hypotheses = []
+    # Model's mode and device
+    mode = asr_model.training
+    device = next(asr_model.parameters()).device
+    dither_value = asr_model.preprocessor.featurizer.dither
+    pad_to_value = asr_model.preprocessor.featurizer.pad_to
+
+    try:
+        asr_model.preprocessor.featurizer.dither = 0.0
+        asr_model.preprocessor.featurizer.pad_to = 0
+        # Switch model to evaluation mode
+        asr_model.eval()
+        # Freeze the encoder and decoder modules
+        asr_model.encoder.freeze()
+        asr_model.decoder.freeze()
+        logging_level = logging.get_verbosity()
+        logging.set_verbosity(logging.WARNING)
+
+        config = {
+            'manifest_filepath': path2manifest,
+            'num_files': num_files,
+            'batch_size': batch_size,
+            'temp_dir': tmpdir,
+            'num_workers': num_workers,
+        }
+
+        temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+        for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
+            logits, logits_len, greedy_predictions = asr_model.forward(
+                input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+            )
+            if logprobs:
+                # dump log probs per file
+                for idx in range(logits.shape[0]):
+                    lg = logits[idx][: logits_len[idx]]
+                    hypotheses.append(lg.cpu().numpy())
+            else:
+                current_hypotheses = asr_model._wer.ctc_decoder_predictions_tensor(
+                    greedy_predictions, predictions_len=logits_len, return_hypotheses=return_hypotheses,
+                )
+
+                if return_hypotheses:
+                    # dump log probs per file
+                    for idx in range(logits.shape[0]):
+                        current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+
+                hypotheses += current_hypotheses
+
+            del greedy_predictions
+            del logits
+            del test_batch
+
+    finally:
+        # set mode back to its original value
+        asr_model.train(mode=mode)
+        asr_model.preprocessor.featurizer.dither = dither_value
+        asr_model.preprocessor.featurizer.pad_to = pad_to_value
+        if mode is True:
+            asr_model.encoder.unfreeze()
+            asr_model.decoder.unfreeze()
+        logging.set_verbosity(logging_level)
+    return hypotheses
+
+
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
@@ -152,16 +235,21 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         # get filenames from manifest
         filepaths = []
         if os.stat(cfg.dataset_manifest).st_size == 0:
-            logging.warning(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+            logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
 
         with open(cfg.dataset_manifest, 'r') as f:
-            full_manifest = True
+            partial_audio = True
             for line in f:
                 item = json.loads(line)
                 if "duration" not in item:
-                    full_manifest = False
+                    partial_audio = False
                 filepaths.append(item['audio_filepath'])
+        num_files = len(filepaths)
+        if not partial_audio:
+            logging.warning(
+                f"The duration of some entries might be missing in {cfg.dataset_manifest}. Transcribing whole samples!"
+            )
 
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
@@ -195,23 +283,17 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # transcribe audio
     with autocast():
         with torch.no_grad():
-            if full_manifest:
-                transcriptions = asr_model.transcribe(
+            if partial_audio:
+                transcriptions = transcribe_partial_audio(
+                    asr_model=asr_model,
                     path2manifest=cfg.dataset_manifest,
+                    num_files=num_files,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
-                    num_files=len(filepaths),
                 )
-
             else:
-                logging.info(
-                    "The input manifest is not complete. Will use audio_filepath from input manifest to generate temporary manifest"
-                )
                 transcriptions = asr_model.transcribe(
-                    paths2audio_files=filepaths,
-                    batch_size=cfg.batch_size,
-                    num_workers=cfg.num_workers,
-                    num_files=len(filepaths),
+                    paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")
