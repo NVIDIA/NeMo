@@ -3,6 +3,8 @@ import sys
 
 import hydra
 
+from bignlp.bignlp_utils import convert_to_cli
+from bignlp.train_scripts.train_utils import generate_mt5_data_blend
 from bignlp.train_scripts.train_utils import pause_and_prime_dns_connections, generate_cmd_prefix, numa_mapping, \
     convert_args_to_hydra_train_args
 
@@ -13,9 +15,19 @@ def main(cfg):
     hydra_train_args = convert_args_to_hydra_train_args(args)
 
     bignlp_path = cfg.bignlp_path
+    train_cfg = cfg.get("training")
     training_config = cfg.training_config.rsplit('/', 1)[1]
     training_config_path = os.path.join(bignlp_path, "conf/training", cfg.training_config.rsplit('/', 1)[0])
     flags = f"--config-path={training_config_path} --config-name={training_config} "
+
+    # Re-build the hydra args to add dataset blend
+    if "mt5" in cfg.training_config:
+        model_cfg = train_cfg.get("model")
+        model_data_cfg = model_cfg.get("data")
+        if model_data_cfg.get("data_prefix") is None:
+            cfg.training.model.data.data_prefix = generate_mt5_data_blend(cfg)
+            hydra_args = convert_to_cli(cfg)
+            hydra_train_args = convert_args_to_hydra_train_args(hydra_args.split())
 
     gpu_mapping, core_mapping = numa_mapping(cfg.dgxa100_gpu2core, cfg.dgxa100_gpu2mem)
 
