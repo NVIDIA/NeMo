@@ -143,7 +143,7 @@ def run_evaluation(cfg, hydra_args="", dependency=None):
             [f"sbatch --parsable {new_script_path}"], shell=True
         )
         dependency = job_id = job_id.decode("utf-8")
-        print(f"Submitted Training script with job id: {dependency}")
+        print(f"Submitted Evaluation script with job id: {dependency}")
         return dependency
 
     # BCP parameters
