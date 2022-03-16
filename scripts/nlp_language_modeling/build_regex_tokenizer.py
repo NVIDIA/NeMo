@@ -58,9 +58,9 @@ if __name__ == "__main__":
     # build vocabulary from all files
     for input_file in args.input_files:
         if args.input_type == "csv":
-            tokenizer.create_vocab_from_csv(data_csv_file=input_file, col=args.input_csv_col)
+            tokenizer.build_vocab_from_csv(data_csv_file=input_file, col=args.input_csv_col)
         elif args.input_type == "text":
-            tokenizer.create_vocab_from_text(data_text_file=input_file)
+            tokenizer.build_vocab_from_text(data_text_file=input_file)
         else:
             raise ValueError(f"Unknown input_type = {args.input_type}")
 
