@@ -24,7 +24,11 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     delete_space,
     insert_space,
 )
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels, augment_labels_with_punct_at_end
+from nemo_text_processing.text_normalization.en.utils import (
+    augment_labels_with_punct_at_end,
+    get_abs_path,
+    load_labels,
+)
 
 try:
     import pynini
@@ -74,11 +78,17 @@ def get_four_digit_year_graph(deterministic: bool = True):
     """
     graph_ties = get_ties_graph(deterministic)
 
-    graph = ((graph_ties + insert_space + graph_ties)
-             | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")))) + pynutil.delete("0s")
+    graph_with_s = (
+        (graph_ties + insert_space + graph_ties)
+        | (graph_teen + insert_space + (ties_graph | pynini.cross("1", "ten")))
+    ) + pynutil.delete("0s")
 
-    graph |= (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred") + pynutil.delete("s")
-    graph = graph @ pynini.cdrewrite(pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA)
+    graph_with_s |= (graph_teen | graph_ties) + insert_space + pynini.cross("00", "hundred") + pynutil.delete("s")
+    graph_with_s = graph_with_s @ pynini.cdrewrite(
+        pynini.cross("y", "ies") | pynutil.insert("s"), "", "[EOS]", NEMO_SIGMA
+    )
+
+    graph = graph_ties + insert_space + graph_ties
 
     thousand_graph = (
         graph_digit
@@ -93,6 +103,8 @@ def get_four_digit_year_graph(deterministic: bool = True):
         + pynini.closure(pynutil.delete(" "), 0, 1)
         + pynini.accep("s")
     )
+
+    graph |= graph_with_s
     if deterministic:
         graph = plurals._priority_union(thousand_graph, graph, NEMO_SIGMA)
     else:
@@ -183,7 +195,7 @@ class DateFst(GraphFst):
 
         year_graph = _get_year_graph(cardinal_graph=cardinal_graph, deterministic=deterministic)
 
-        year_graph_standalone = pynini.closure(pynini.union("in ", "In ", "IN "), 0, 1) + year_graph
+        # year_graph_standalone = pynini.closure(pynini.union("in ", "In ", "IN "), 0, 1) + year_graph
 
         three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
         year_graph |= three_digit_year
@@ -298,8 +310,8 @@ class DateFst(GraphFst):
         else:
             final_graph += pynutil.insert(" preserve_order: true")
 
-        year_graph_standalone = pynutil.insert(" year: \"") + year_graph_standalone + pynutil.insert("\"")
-        final_graph |= graph_ymd | year_graph_standalone
+        # year_graph_standalone = pynutil.insert(" year: \"") + year_graph_standalone + pynutil.insert("\"")
+        final_graph |= graph_ymd | year_graph
 
         if not deterministic or lm:
             ymd_to_mdy_graph = None
@@ -366,6 +378,6 @@ class DateFst(GraphFst):
 
             final_graph |= mdy_to_dmy_graph | md_to_dm_graph | ymd_to_mdy_graph | ymd_to_dmy_graph
 
-        self.year_graph_standalone = year_graph_standalone
+        self.year_graph_standalone = year_graph
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
