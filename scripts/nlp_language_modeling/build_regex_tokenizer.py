@@ -14,9 +14,10 @@
 """
 python -- build_regex_tokenizer.py \
   --regex '\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]' \
-  --input_file text_data_file.txt \
   --input_type text \
-  --output_file regex_tokenizer
+  --output_file regex_tokenizer -- \
+  text_data_file1.txt text_data_file2.txt
+
 """
 import argparse
 
@@ -31,7 +32,7 @@ if __name__ == "__main__":
         '--regex', type=str, required=True, help='Regular expression to split text',
     )
     parser.add_argument(
-        '--input_file', type=str, required=True, help='Input text/csv file',
+        'input_files', type=str, required=True, nargs='+', help='Input text/csv file',
     )
     parser.add_argument(
         '--output_file',
@@ -52,21 +53,16 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    model_fname = args.output_file + ".model"
-    vocab_fname = args.output_file + ".vocab"
+    tokenizer = RegExTokenizer(regex=args.regex)
 
-    # save .model with regex string
-    logging.info(f"Saving regex in model file: {model_fname}")
-    with open(model_fname, 'w') as fp:
-        fp.write(args.regex)
+    # build vocabulary from all files
+    for input_file in args.input_files:
+        if args.input_type == "csv":
+            tokenizer.create_vocab_from_csv(data_csv_file=input_file, col=args.input_csv_col)
+        elif args.input_type == "text":
+            tokenizer.create_vocab_from_text(data_text_file=input_file)
+        else:
+            raise ValueError(f"Unknown input_type = {args.input_type}")
 
-    # learn vocabulary and save to .vocab
-    logging.info(f"Saving vocabulary in file: {vocab_fname}")
-    if args.input_type == "csv":
-        RegExTokenizer.create_vocab_from_csv(
-            data_csv_file=model_fname, vocab_file=vocab_fname, regex=args.regex, col=args.input_csv_col,
-        )
-    elif args.input_type == "text":
-        RegExTokenizer.create_vocab_from_text(
-            data_text_file=model_fname, vocab_file=vocab_fname, regex=args.regex,
-        )
+    # save model
+    tokenizer.save_tokenizer(args.output_file)

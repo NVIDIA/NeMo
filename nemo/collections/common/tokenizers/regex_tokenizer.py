@@ -31,14 +31,15 @@ DEFAULT_PAD_TOKEN = '<PAD>'
 DEFAULT_SEP_TOKEN = '<SEP>'
 DEFAULT_UNK_TOKEN = '?'
 
+# TODO: add support in multiple input files
+
 
 class RegExTokenizer(TokenizerSpec):
     "A regular expression-based tokenizer at word boundary"
 
     def __init__(
         self,
-        vocab_file: str,
-        regex: str,
+        regex: Optional[str] = "",
         mask_token: Optional[str] = DEFAULT_MASK_TOKEN,
         bos_token: Optional[str] = DEFAULT_BOS_TOKEN,
         eos_token: Optional[str] = DEFAULT_EOS_TOKEN,
@@ -48,8 +49,7 @@ class RegExTokenizer(TokenizerSpec):
     ):
         """
         Args:
-            vocab_file: path to file with vocabulary which consists
-                of characters separated by \n
+            regex: regular expression that defined tokenization rules
             mask_token: mask token
             bos_token: the beginning of sequence token
             eos_token: the end of sequence token. Usually equal to sep_token
@@ -58,10 +58,6 @@ class RegExTokenizer(TokenizerSpec):
             cls_token: class token. Usually equal to bos_token
             unk_token: token to use for unknown tokens
         """
-        # support loading regex from a file
-        if os.path.exists(regex):
-            regex = open(regex, encoding="utf-8").read().rstrip()
-
         self.regex = regex
         self.mask_token = mask_token
         self.bos_token = bos_token
@@ -70,15 +66,25 @@ class RegExTokenizer(TokenizerSpec):
         self.sep_token = sep_token
         self.unk_token = unk_token
 
-        if not vocab_file or not os.path.exists(vocab_file):
-            raise ValueError(f"Vocab file: {vocab_file} is invalid")
-        self.vocab_file = vocab_file
-        self.load_vocab()
+        # holds base name of .model/.vocab files
+        self.base_fname = None
+
+        # initialize with default vocab
+        self.vocab = {
+            DEFAULT_PAD_TOKEN: 0,  # pad_token
+            DEFAULT_UNK_TOKEN: 1,  # unk_token
+            DEFAULT_BOS_TOKEN: 2,  # begin_token
+            DEFAULT_EOS_TOKEN: 3,  # end_token
+            DEFAULT_MASK_TOKEN: 4,  # mask_token
+            DEFAULT_SEP_TOKEN: 5,  # sep_token
+        }
+        self._update_cache()
 
         # Computed attributes
         self._compiled_regex = None
         self._compile_regex()
 
+    def _update_cache(self):
         # Cache data/attributes required for tokenization
         self._unk_id = self.vocab.get(unk_token, DEFAULT_UNK_TOKEN)
         self._decode_vocab = {i: t for t, i in self.vocab.items()}
@@ -152,78 +158,108 @@ class RegExTokenizer(TokenizerSpec):
         tokens = self.ids_to_tokens(ids)
         return self.tokens_to_text(tokens)
 
-    def load_vocab(self):
-        vocab = {}
-        with open(self.vocab_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    vocab[line] = len(vocab)
-        self.vocab = vocab
+    def save_tokenizer(self, base_fname=None):
+        """
+        Saves tokenizer's regex (base_fname.model) and vocab (base_fname.vocab) files
+        """
+        if base_fname.endswith(".model"):
+            base_fname = os.path.splitext(base_fname)[0]
 
-    @staticmethod
-    def create_vocab_from_csv(data_csv_file, vocab_file, regex, col="smiles"):
+        if base_fname:
+            self.base_fname = base_fname
+
+        if not self.base_fname:
+            raise ValueError(f"base_fname must be specified")
+
+        vocab_file = self.base_fname + '.vocab'
+        regex_file = self.base_fname + '.model'
+
+        logging.debug(f"Saving vocabulary to file = {vocab_file}")
+        with open(vocab_file, 'w') as fp:
+            for token in self.vocab:
+                fp.write(f"{token[0]}\n")
+
+        logging.debug(f"Saving regex to file = {regex_file}")
+        open(regex_file, 'w').write(self.regex)
+
+    def load_tokenizer(self, base_fname):
         """
-        Learns vocabulary from a CSV file
+        Loads tokenizer's regex (base_fname.model) and vocab (base_fname.vocab) files
         """
+        if base_fname.endswith(".model"):
+            base_fname = os.path.splitext(base_fname)[0]
+
+        if base_fname:
+            self.base_fname = base_fname
+
+        if not self.base_fname:
+            raise ValueError(f"base_fname must be specified")
+
+        vocab_file = self.base_fname + '.vocab'
+        regex_file = self.base_fname + '.model'
+
+        # load vocab file
+        # vocab_file: path to file with vocabulary which consists
+        # of characters separated by \n (None/"" for empty vocab)
+
+        logging.debug(f"Loading vocabulary from file = {vocab_file}")
+        if os.path.exists(vocab_file):
+            vocab = {}
+            with open(vocab_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        vocab[line] = len(vocab)
+            self.vocab = vocab
+        else:
+            raise RuntimeError(f"Missing vocab_file = {vocab_file}")
+
+        # load regex from a file
+        if os.path.exists(regex_file):
+            logging.debug(f"Loading regex from file = {regex_file}")
+            regex = open(regex_file, encoding="utf-8").read().strip()
+        else:
+            raise RuntimeError(f"Missing regex_file = {regex_file}")
+
+        return self
+
+    def build_vocab_from_csv(self, data_csv_file, col="smiles"):
+        """
+        Learns vocabulary from a CSV file. Can be called multiple times to update vocabulary.
+        """
+        logging.debug(f"Building vocabulary from CSV col = {col} file = {data_csv_file}")
+
         # NOTE this has to be run on each CSV file
         if not os.path.exists(data_csv_file):
-            raise ValueError(f"Data file: {data_csv_file} is invalid")
-
-        # Create empty vocab file
-        if not os.path.exists(vocab_file):
-            fp = open(vocab_file, 'w')
-            fp.close()
+            raise ValueError(f"Data file: {data_csv_file} is missing")
 
         df = pd.read_csv(data_csv_file)
-        tokenizer = RegExTokenizer(vocab_file=vocab_file, regex=regex,)
 
-        vocab = {
-            DEFAULT_PAD_TOKEN: 0,  # pad_token
-            DEFAULT_UNK_TOKEN: 1,  # unk_token
-            DEFAULT_BOS_TOKEN: 2,  # begin_token
-            DEFAULT_EOS_TOKEN: 3,  # end_token
-            DEFAULT_MASK_TOKEN: 4,  # mask_token
-            DEFAULT_SEP_TOKEN: 5,  # sep_token
-        }
+        vocab = self.vocab
         for d in df[col]:
-            tokens = tokenizer.text_to_tokens(d)
+            tokens = self.text_to_tokens(d)
             logging.debug(f"Text: {d}, Tokens: {tokens}")
             for token in tokens:
                 if token not in vocab:
                     vocab[token] = len(vocab)
 
-        vocab = sorted(vocab.items(), key=lambda k_v: k_v[1])
-        logging.debug(f"Vocab: {vocab}")
+        sorted_vocab = sorted(vocab.items(), key=lambda k_v: k_v[1])
+        logging.debug(f"Vocab: {sorted_vocab}")
 
-        with open(vocab_file, 'w') as fp:
-            for token in vocab:
-                fp.write(f"{token[0]}\n")
+        self.vocab = vocab
 
     @staticmethod
-    def create_vocab_from_text(data_text_file, vocab_file, regex):
+    def create_vocab_from_text(data_text_file):
         """
-        Learns vocabulary from a text file
+        Learns vocabulary from a text file. Can be called multiple times to update vocabulary.
         """
-        # NOTE this has to be run on each CSV file
-        if not os.path.exists(data_csv_file):
-            raise ValueError(f"Data file: {data_text_file} is invalid")
+        logging.debug(f"Building vocabulary from TEXT file = {data_text_file}")
 
-        # Create empty vocab file
-        if not os.path.exists(vocab_file):
-            fp = open(vocab_file, 'w')
-            fp.close()
+        # NOTE this has to be run on each text file
+        if not os.path.exists(data_text_file):
+            raise ValueError(f"Data file: {data_text_file} is missing")
 
-        tokenizer = RegExTokenizer(vocab_file=vocab_file, regex=regex,)
-
-        vocab = {
-            DEFAULT_PAD_TOKEN: 0,  # pad_token
-            DEFAULT_UNK_TOKEN: 1,  # unk_token
-            DEFAULT_BOS_TOKEN: 2,  # begin_token
-            DEFAULT_EOS_TOKEN: 3,  # end_token
-            DEFAULT_MASK_TOKEN: 4,  # mask_token
-            DEFAULT_SEP_TOKEN: 5,  # sep_token
-        }
+        vocab = self.vocab
         for d in open(data_text_file, encoding="utf-8").readlines():
             d = d.rstrip()
             tokens = tokenizer.text_to_tokens(d)
@@ -232,9 +268,7 @@ class RegExTokenizer(TokenizerSpec):
                 if token not in vocab:
                     vocab[token] = len(vocab)
 
-        vocab = sorted(vocab.items(), key=lambda k_v: k_v[1])
-        logging.debug(f"Vocab: {vocab}")
+        sorted_vocab = sorted(vocab.items(), key=lambda k_v: k_v[1])
+        logging.debug(f"Vocab: {sorted_vocab}")
 
-        with open(vocab_file, 'w') as fp:
-            for token in vocab:
-                fp.write(f"{token[0]}\n")
+        self.vocab = vocab
