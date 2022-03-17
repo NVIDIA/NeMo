@@ -25,10 +25,10 @@ trainer:
 exp_manager:
   explicit_log_dir: ${finetuning.run.results_dir}
   exp_dir: null
-  name: megatron_t5_glue_xnli
+  name: megatron_mt5_glue_xnli
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: megatron_t5_glue_xnli
+    project: megatron_mt5_glue_xnli
     name: ${finetuning.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -39,12 +39,12 @@ exp_manager:
     mode: max
     always_save_nemo: False
     save_nemo_on_train_end: True # Set to true for subsequent validation runs.
-    filename: 'megatron_t5--{validation_acc:.3f}-{step}'
+    filename: 'megatron_mt5--{validation_acc:.3f}-{step}'
     model_parallel_size: ${finetuning.model.tensor_model_parallel_size}
     save_best_model: True
 
 model: # For different finetuning tasks, tuning the hyper parameters accordingly
-  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_mt5.nemo # Path to a trained mt5 .nemo file
   tensor_model_parallel_size: 1
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp

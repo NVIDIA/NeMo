@@ -21,11 +21,11 @@ trainer:
 exp_manager:
   explicit_log_dir: ${evaluation.run.results_dir}
   exp_dir: null
-  name: megatron_t5_glue_xnli_eval
+  name: megatron_mt5_glue_xnli_eval
   create_checkpoint_callback: False
 
 model:
-  restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+  restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mt5 .nemo file
   tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
