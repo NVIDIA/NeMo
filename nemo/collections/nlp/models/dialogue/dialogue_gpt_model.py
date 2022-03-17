@@ -30,16 +30,10 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
-    DialogueGPTDataset,
-    DialogueSGDDataProcessor,
-    Schema,
-)
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.assistant_data_processor import (
-    DialogueAssistantDataProcessor,
-)
+from nemo.collections.nlp.data.dialogue import DialogueGPTDataset, DialogueSGDDataProcessor, Schema
+from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_metrics import IntentSlotMetrics
+from nemo.collections.nlp.metrics.dialogue_metrics import IntentSlotMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -612,7 +606,7 @@ class DialogueGPTModel(NLPModel):
             if is_global_rank_zero():
                 overwrite_dial_files = not self._cfg.dataset.use_cache
                 self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
-        elif self._cfg.dataset.task == 'assistant':
+        elif self._cfg.dataset.task in ['assistant', "zero_shot"]:
             self.dialogues_processor = DialogueAssistantDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )

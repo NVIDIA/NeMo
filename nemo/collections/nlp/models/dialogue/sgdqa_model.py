@@ -26,13 +26,9 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative import (
-    DialogueSGDBERTDataset,
-    DialogueSGDDataProcessor,
-    Schema,
-)
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.evaluate import evaluate, get_in_domain_services
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.prediction_utils import write_predictions_to_file
+from nemo.collections.nlp.data.dialogue import DialogueSGDBERTDataset, DialogueSGDDataProcessor, Schema
+from nemo.collections.nlp.data.dialogue.sgd.evaluate import evaluate, get_in_domain_services
+from nemo.collections.nlp.data.dialogue.sgd.prediction_utils import write_predictions_to_file
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
@@ -49,7 +45,7 @@ NUM_TASKS = 6  # number of multi-head tasks
 
 
 class SGDQAModel(NLPModel):
-    """Dialogue State Tracking Model SGD-QA"""
+    """Dialogue State Tracking Model SGD-QA (https://arxiv.org/abs/2105.08049)"""
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

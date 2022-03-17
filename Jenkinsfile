@@ -724,7 +724,7 @@ pipeline {
         }
       }
     }
-    stage('L2: SGD-GEN') {
+    stage('L2: Dialogue') {
       when {
         anyOf {
           branch 'main'
@@ -733,10 +733,10 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('SGD-GEN') {
+        stage('Dialogue: Intent and slot classification using GPT') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
             model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
@@ -760,10 +760,10 @@ pipeline {
             rm -rf sgd_gen_outputs'
           }
         }
-        stage('SGD-GEN Backward compatible with SGDQA') {
+        stage('Intent and slot classification using SGDQA') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
             model.dataset.task_name=debug_sample \
@@ -782,10 +782,10 @@ pipeline {
             rm -rf sgd_gen_bert_outputs'
           }
         }
-        stage('SGD-GEN Backward compatible with IntentSlotClassificationModel') {
+        stage('Intent and slot classification using IntentSlotClassificationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/processed_assistant \
             model.dataset.dialogues_example_dir=sgd_gen_bert_intent_classification_outputs \
             model.dataset.task=assistant \
@@ -804,10 +804,10 @@ pipeline {
             rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
-        stage('SGD-GEN Backward compatible with ZeroShotIntentModel') {
+        stage('Intent classification using ZeroShotIntentModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/drive_thru_revised \
             model.original_nemo_checkpoint=/home/TestData/nlp/drive_thru_revised/zeroshotintent_en_bert_base_uncased.nemo \

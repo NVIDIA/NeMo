@@ -26,7 +26,7 @@ import os
 
 import numpy as np
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.metrics import (
+from nemo.collections.nlp.metrics.sgd_metrics import (
     ACTIVE_INTENT_ACCURACY,
     JOINT_CAT_ACCURACY,
     JOINT_GOAL_ACCURACY,

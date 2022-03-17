@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """
-This script contains an example of how to train and test the NeMo SGD-QA Model (https://arxiv.org/abs/2105.08049).
+This script contains an example of how to train and test dialogue models in NeMo.
 The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
 The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
 The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
@@ -104,14 +104,10 @@ import os
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_gpt_model import DialogueGPTModel
-from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
-from nemo.collections.nlp.models.intent_slot_classification_refactor.intent_slot_classification_model import (
-    IntentSlotClassificationModel,
-)
-from nemo.collections.nlp.models.zero_shot_intent_recognition_refactor.zero_shot_intent_model import (
-    ZeroShotIntentModel,
-)
+from nemo.collections.nlp.models.dialogue.dialogue_gpt_model import DialogueGPTModel
+from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
+from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
+from nemo.collections.nlp.models.dialogue.zero_shot_intent_model import ZeroShotIntentModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner

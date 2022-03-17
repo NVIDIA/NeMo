@@ -21,13 +21,11 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.assistant_data_processor import (
-    DialogueAssistantDataProcessor,
-)
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.dialogue_bert_dataset import DialogueBERTDataset
+from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc, IntentSlotInferenceDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_metrics import IntentSlotMetrics
+from nemo.collections.nlp.metrics.dialogue_metrics import IntentSlotMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -433,8 +431,8 @@ class IntentSlotClassificationModel(NLPModel):
                     new_tokens.append(token)
         else:
             raise ValueError(
-                "Difference of more than 3 ({}) encountered. please extend this method for utterance {} with slots {}".format(
-                    diff, utterance_tokens, slot_names
+                "Difference of more than 3 ({}, utterance has {}, predicted slots has {}) encountered. please extend this method for utterance {} with slots {}".format(
+                    diff, len(utterance_tokens), len(slot_names), utterance_tokens, slot_names
                 )
             )
 

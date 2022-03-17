@@ -24,7 +24,7 @@ import os
 from collections import OrderedDict, defaultdict
 from typing import Dict, List, Optional
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import (
+from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import (
     STATUS_ACTIVE,
     STATUS_DONTCARE,
     STR_DONTCARE,

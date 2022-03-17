@@ -20,42 +20,16 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 from typing import List
 
+from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 from nemo.utils import logging
 
 __all__ = [
-    'DialogueInputExample',
-    'SGDInputExample',
     'SGDInputExample',
     'STR_DONTCARE',
     'STATUS_OFF',
     'STATUS_ACTIVE',
     'STATUS_DONTCARE',
 ]
-
-
-class DialogueInputExample(object):
-    """
-    Generic Dialogue Input Example
-    Uses data: dict as a flexible interface to support various input types.
-    This ranges from classification labels, to complex nested labels such as those in SGD
-
-    {
-        "utterance": <utterance>,
-        "labels": { 
-            "intent": <intent>,
-            "slots": { ... },
-        }
-    }
-    """
-
-    def __init__(self, data: dict):
-        self.data = data
-
-    def __repr__(self):
-        return self.data
-
-    def __str__(self):
-        return self.data
 
 
 class DialogueSGDInputExample(DialogueInputExample):

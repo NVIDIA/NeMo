@@ -26,11 +26,11 @@ from typing import Dict, List
 
 import numpy as np
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
+from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 from nemo.utils import logging
 
-__all__ = ['DialogueDataProcessor', 'DialogueSGDDataProcessor']
+__all__ = ['DialogueSGDDataProcessor']
 
 FILE_RANGES = {
     "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
@@ -40,41 +40,6 @@ FILE_RANGES = {
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
     "debug_sample": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
 }
-
-
-class DialogueDataProcessor(DataProcessor):
-    """
-    Base class for Data Processing for all data sources
-
-    Data Processor is designed to be Model-independent (but Data-dependent) so that
-        - Encourages experimentation with a variety of models \
-            (BERT-style; GPT-style; T5-style), \
-            which have different tokenization/preprocessing requirements
-        - Facilitates experiments with a variety of data sources, 
-           as data is processed into a common format
-        
-    Roles 
-        1. Processes raw files into Dialogue Input Examples. 
-        2. Keeps all possibly relevant information from the raw files, which 
-            the Dataset class can then determine which labels to use
-    
-    """
-
-    def __init__(self):
-        raise NotImplementedError()
-
-    # common interface for Data Processor
-    def get_train_examples(self):
-        """Gets a collection of `InputExample`s for the train set."""
-        raise NotImplementedError()
-
-    def get_dev_examples(self):
-        """Gets a collection of `InputExample`s for the dev set."""
-        raise NotImplementedError()
-
-    def get_test_examples(self):
-        """Gets a collection of `InputExample`s for the test set."""
-        raise NotImplementedError()
 
 
 class DialogueSGDDataProcessor(DialogueDataProcessor):

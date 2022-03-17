@@ -13,58 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
-"""
-
-
 import os
 
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.data_processor import DialogueDataProcessor
-from nemo.collections.nlp.data.dialogue_state_tracking_generative.sgd.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
+from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 
 __all__ = ['DialogueAssistantDataProcessor']
-
-
-class DialogueAssistantInputExample(DialogueInputExample):
-    """
-    Template for DialogueAssistantInputExample
-    {
-        
-        "utterance": <utterance>,
-        "labels": {
-            "service": <service>,
-            "intent": <intent>,
-            "slots": {
-                "<slot-name1>": [<slot-value1>, <slot-value2>],
-                "<slot-name2>": [<slot-value2>],
-            }
-        },
-        "label_positions":{
-            "slots": {
-                "<slot-name1>": { 
-                    # note for the Assistant dataset, start and end are word positions rather than char position
-                    # these are whitespace-delimited word positions rather than tokenization-specific sub-word tokens.
-                    "exclusive_end": 3, 
-                    "slot": "restaurant_name",
-                    "start": 1 
-                },
-            }
-        },
-        "possible_labels": {
-            "service": [<service1>, <service2>, ...],
-            "intent": [<intent1>, <intent2>, ...],
-            "slots": {
-                # all slots for categorical variables
-                # empty list for extractive slots
-                # Assistant only support extractive slots
-                "<slot-name1>": [],
-                "<slot-name2>": [],
-            }
-        }
-    }
-    """
 
 
 class DialogueAssistantDataProcessor(DialogueDataProcessor):
@@ -86,6 +40,7 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
             unified_slots,
         ) = DialogueAssistantDataProcessor.map_bio_format_slots_to_unified_slots(self.slots)
         self.slots = unified_slots
+
         self.bio_slot_ids_to_unified_slot_ids = bio_slot_ids_to_unified_slot_ids
         self.services = sorted(list(set([intent.split('_')[0] for intent in self.intents])))
         self.empty_slot_id = [str(idx) for idx, slot_name in enumerate(self.slots) if slot_name == "O"][0]
