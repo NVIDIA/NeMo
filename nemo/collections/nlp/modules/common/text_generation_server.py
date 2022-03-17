@@ -87,13 +87,13 @@ class MegatronGenerate(Resource):
             if not isinstance(greedy, bool):
                 return "greedy must be a boolean value"
 
-        top_k = 0.0
+        top_k = 0
         if "top_k" in request.get_json():
             top_k = request.get_json()["top_k"]
             if not (type(top_k) == int or type(top_k) == float):
-                return "top_k must be a positive number less than or equal to 1.0"
-            if not (0.0 <= top_k <= 1.0):
-                return "top_k must be a positive number less than or equal to 1.0"
+                return "top_k must be a positive integer number"
+            if not (0 <= top_k):
+                return "top_k must be a positive integer number"
 
         top_p = 0.9
         if "top_p" in request.get_json():

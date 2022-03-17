@@ -174,7 +174,7 @@ def synced_generate(
     tokens_to_generate,
     all_probs,
     temperature,
-    top_k=0.0,
+    top_k=0,
     top_p=0.0,
     greedy=False,
 ):
@@ -248,7 +248,7 @@ def generate(
     all_probs=False,
     temperature=1.0,
     add_BOS=False,
-    top_k=0.0,
+    top_k=0,
     top_p=0.0,
     greedy=False,
 ):
