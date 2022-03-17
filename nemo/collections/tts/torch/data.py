@@ -44,6 +44,8 @@ from nemo.collections.tts.torch.tts_data_types import (
     LMTokens,
     LogMel,
     Pitch,
+    Voiced_mask,
+    P_voiced,
     SpeakerID,
     TTSDataType,
     WithLens,
@@ -360,6 +362,14 @@ class TTSDataset(Dataset):
         self.pitch_mean = kwargs.pop("pitch_mean", None)
         self.pitch_std = kwargs.pop("pitch_std", None)
         self.pitch_norm = kwargs.pop("pitch_norm", False)
+        
+    #saving voiced_mask and p_voiced with pitch
+    def add_voiced_mask(self, **kwargs):
+        pass
+    
+    def add_p_voiced(self, **kwargs):
+        pass
+
 
     def add_energy(self, **kwargs):
         self.energy_folder = kwargs.pop('energy_folder', None)
@@ -452,11 +462,13 @@ class TTSDataset(Dataset):
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
             pitch_path = self.pitch_folder / f"{rel_audio_path_as_text_id}.pt"
-
             if pitch_path.exists():
-                pitch = torch.load(pitch_path).float()
+                dikt = torch.load(pitch_path)
+                pitch = dikt['pitch'].float()
+                p_voiced = dikt['p_voiced'].float()
+                voiced_mask = dikt['voiced_mask'].float()
             else:
-                pitch, _, _ = librosa.pyin(
+                pitch, voiced_mask, p_voiced = librosa.pyin(
                     audio.numpy(),
                     fmin=self.pitch_fmin,
                     fmax=self.pitch_fmax,
@@ -465,7 +477,12 @@ class TTSDataset(Dataset):
                     fill_na=0.0,
                 )
                 pitch = torch.from_numpy(pitch).float()
-                torch.save(pitch, pitch_path)
+                voiced_mask = torch.from_numpy(voiced_mask).float()
+                p_voiced = torch.from_numpy(p_voiced).float()
+                torch.save({'pitch': pitch,
+                            'voiced_mask': voiced_mask,
+                            'p_voiced': p_voiced}, pitch_path)
+
 
             if self.pitch_mean is not None and self.pitch_std is not None and self.pitch_norm:
                 pitch -= self.pitch_mean
@@ -504,6 +521,8 @@ class TTSDataset(Dataset):
             align_prior_matrix,
             pitch,
             pitch_length,
+            voiced_mask, 
+            p_voiced,
             energy,
             energy_length,
             speaker_id,
@@ -534,6 +553,8 @@ class TTSDataset(Dataset):
             align_prior_matrices_list,
             pitches,
             pitches_lengths,
+            voiced_masks, 
+            p_voiceds,
             energies,
             energies_lengths,
             _,
@@ -547,7 +568,7 @@ class TTSDataset(Dataset):
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
-            log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
+            log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
         align_prior_matrices = (
             torch.zeros(
@@ -558,7 +579,7 @@ class TTSDataset(Dataset):
             if AlignPriorMatrix in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids = [], [], [], [], [], [], []
+        audios, tokens, log_mels, durations_list, pitches, voiced_masks, p_voiceds, energies, speaker_ids = [], [], [], [], [], [], [], [], []
 
         for i, sample_tuple in enumerate(batch):
             (
@@ -572,6 +593,8 @@ class TTSDataset(Dataset):
                 align_prior_matrix,
                 pitch,
                 pitch_length,
+                voiced_mask, 
+                p_voiced,
                 energy,
                 energy_length,
                 speaker_id,
@@ -593,6 +616,12 @@ class TTSDataset(Dataset):
                 ] = align_prior_matrix
             if Pitch in self.sup_data_types_set:
                 pitches.append(general_padding(pitch, pitch_length.item(), max_pitches_len))
+                
+            if Pitch in self.sup_data_types_set:
+                voiced_masks.append(general_padding(voiced_mask, pitch_length.item(), max_pitches_len))
+            if Pitch in self.sup_data_types_set:
+                p_voiceds.append(general_padding(voiced_mask, pitch_length.item(), max_pitches_len))
+                
             if Energy in self.sup_data_types_set:
                 energies.append(general_padding(energy, energy_length.item(), max_energies_len))
             if SpeakerID in self.sup_data_types_set:
@@ -609,6 +638,8 @@ class TTSDataset(Dataset):
             "align_prior_matrix": align_prior_matrices if AlignPriorMatrix in self.sup_data_types_set else None,
             "pitch": torch.stack(pitches) if Pitch in self.sup_data_types_set else None,
             "pitch_lens": torch.stack(pitches_lengths) if Pitch in self.sup_data_types_set else None,
+            "voiced_mask": torch.stack(voiced_masks) if Pitch in self.sup_data_types_set else None,
+            "p_voiced": torch.stack(p_voiceds) if Pitch in self.sup_data_types_set else None,
             "energy": torch.stack(energies) if Energy in self.sup_data_types_set else None,
             "energy_lens": torch.stack(energies_lengths) if Energy in self.sup_data_types_set else None,
             "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
