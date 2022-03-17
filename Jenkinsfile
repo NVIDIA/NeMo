@@ -2331,7 +2331,7 @@ pipeline {
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
-        sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
+        sh "python examples/nlp/language_modeling/megatron_bart_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
