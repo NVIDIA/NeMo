@@ -43,24 +43,33 @@ model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   use_lm_finetune: False # whether fine tune the language model
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
+  soft_prompt_style: ??? # either 'prompt-tuning' or 'p-tuning'
   max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
 
   language_model:
     nemo_file: null
 
-  prompt_encoder:
-    template: [3, 3, 3]
-    dropout: 0.0
-    num_layers: 2
-    task_dependent: true # whether the prompt encoder conditions on the task name or not, useful for multiple tasks
-  
-  task_processors:
-    - taskname: qa-task
-      template: "{v0} Context: {context}{v1} Question: {question}?{v2} Answer:"
-      limit_length_field: 'context' 
-    - taskname: sentiment-task  
-      template: "{v0}{v1} Sentence: {sentence}{v2} Sentiment:"
-      limit_length_field: 'sentence' 
+  prompt_tuning:
+    prompt_table_path: None
+    num_prompt_tokens: 
+    new_prompt_tags:
+    new_prompt_init_methods: 
+    new_prompt_init_text:
+
+  p_tuning:
+    prompt_encoder:
+      template: [3, 3, 3]
+      dropout: 0.0
+      num_layers: 2
+      task_dependent: true # whether the prompt encoder conditions on the task name or not, useful for multiple tasks
+    
+    task_processors:
+      - taskname: qa-task
+        template: "{v0} Context: {context}{v1} Question: {question}?{v2} Answer:"
+        limit_length_field: 'context' 
+      - taskname: sentiment-task  
+        template: "{v0}{v1} Sentence: {sentence}{v2} Sentiment:"
+        limit_length_field: 'sentence' 
 
   data:
     train_ds:
