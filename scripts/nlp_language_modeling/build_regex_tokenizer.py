@@ -12,12 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-python -- build_regex_tokenizer.py \
+In order to build a regexp tokenizer model use the following command.
+The script will create:
+
+.vocab file - with learned vocabulary
+.model file - with provided regex
+To build vocabulary from text files:
+
+python -- scripts/nlp_language_modeling/build_regex_tokenizer.py \
   --regex '\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]' \
   --input_type text \
   --output_file regex_tokenizer -- \
-  text_data_file1.txt text_data_file2.txt
+  data_file1.txt data_file2.txt
 
+To build vocabulary from CSV files ("smiles" column):
+
+python -- scripts/nlp_language_modeling/build_regex_tokenizer.py \
+  --regex '\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\\\|\/|:|~|@|\?|>|\*|\$|\%[0-9]{2}|[0-9]' \
+  --input_type csv \
+  --input_csv_col smiles \
+  --output_file regex_tokenizer -- \
+  data_file1.csv data_file2.csv
 """
 import argparse
 
