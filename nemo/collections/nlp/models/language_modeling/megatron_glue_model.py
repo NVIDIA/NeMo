@@ -27,11 +27,17 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
 from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
-from nemo.utils import logging
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.modules.common.megatron.utils import get_params_for_weight_decay_optimization
+from nemo.utils import logging, AppState
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.schedules.common import _get_params_for_weight_decay_optimization
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator, get_micro_batch_size
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -59,10 +65,13 @@ class MegatronT5FineTuneModel(NLPModel):
         t5_cfg = MegatronT5Model.restore_from(
             self.register_artifact('t5_base_model', cfg.restore_from_path), trainer=trainer, return_config=True
         )
+        # Override some base model config attributes with finetune model config values.
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
             t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+            t5_cfg.hidden_dropout = cfg.get('hidden_dropout', 0.1)
+            t5_cfg.attention_dropout = cfg.get('attention_dropout', 0.1)
 
         self.model = MegatronT5Model.restore_from(
             self.register_artifact('t5_base_model', cfg.restore_from_path),
@@ -80,8 +89,11 @@ class MegatronT5FineTuneModel(NLPModel):
     def validation_epoch_end(self, outputs):
         pass
 
-    def process_batch(self, batch):
-        return self.model.process_batch(batch)
+    def process_micro_batch(self, batch):
+        return self.model.process_micro_batch(batch)
+    
+    def process_global_batch(self, batch):
+        return self.model.process_global_batch(batch)
 
     def build_train_valid_test_datasets(self):
         pass
@@ -109,13 +121,16 @@ class MegatronT5FineTuneModel(NLPModel):
             if self.cfg.precision == 'bf16':
                 fp32_grad_accum = True
                 contiguous_grad_bucket = True
-                async_grad_allreduce = True
 
             elif self.cfg.precision == 16:
                 fp32_grad_accum = False
                 # TODO: contiguous grad bucket for fp16 is also planned to be supported
                 contiguous_grad_bucket = False
-                async_grad_allreduce = False
+
+            # TODO: this should be true when not using pipeline parallelism
+            # we will support that for bf16 when we have async handler from apex
+            # and we will support it for fp16 when we have it implemented in the O2 recipe
+            async_grad_allreduce = False
 
             self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
@@ -135,10 +150,23 @@ class MegatronT5FineTuneModel(NLPModel):
             return self._optimizer
         else:
             return [self._optimizer], [self._scheduler]
+    
+    def backward(self, *args, **kwargs):
+        """ LightningModule hook to do backward.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            No need to call it here.
+        """
+        return
+
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing as we are zeroing grads during the training_step.
+        """
+        return
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model.enc_dec_model])
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model.enc_dec_model])
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         return self.model.prediction_step(batch, batch_idx, dataloader_idx)
@@ -158,37 +186,128 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         self.cfg = cfg
         self.acc_metric = ExactStringPerCategoryMatchMetric()
 
-    def training_step(self, batch, batch_idx):
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
-
-        tokens_loss = itemgetter("tokens_loss")(
-            self.model(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+    def on_validation_model_eval(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
+        return super().on_validation_model_eval()
 
-        loss = self.model.loss_func(loss_mask, tokens_loss)
-        self.log('train_loss', loss)
-        # Reduced loss for logging.
-        reduced_loss = average_losses_across_data_parallel_group([loss])
-        # cache reduced loss while accumulating gradients
-        self.model._reduced_loss_buffer.append(reduced_loss[0])
+    def on_validation_model_train(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.train_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_validation_model_train()
 
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
-            # Reduced loss for logging.
-            average_reduced_loss = sum(self.model._reduced_loss_buffer) / len(self.model._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self.model._reduced_loss_buffer = []
+    def training_step(self, batch, batch_idx):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            Batch should be a list of microbatches and those microbatches should on CPU.
+            Microbatches are then moved to GPU during the pipeline.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        app_state = AppState()
+        self._optimizer.zero_grad()
 
-        return loss
+        # we prepare the micro batches for the apex fwd/bwd function
+        batch_for_pipeline = self.model.process_global_batch(batch)
+        encoder_seq_length = batch_for_pipeline[0].size(1)
+        decoder_seq_length = batch_for_pipeline[1].size(1)
+        micro_batch_size = batch_for_pipeline[0].size(0)
+
+        # This happens on epoch boundaries where micro batch size can be less than what is specified in the config.
+        # TODO: For training, should we drop_last or do this?
+        if micro_batch_size != get_micro_batch_size():
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size * get_num_microbatches(), # TODO: What if global_batch // micro_batch_size != num_microbatches?
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+        # TODO: Accessing hidden size like this doesn't seem nice.
+        tensor_shape = [encoder_seq_length, micro_batch_size, self.model._cfg.hidden_size]
+
+        if self.model._cfg.get('pipeline_model_parallel_size', 1) > 1:
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.model.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model.enc_dec_model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.model.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.model.get_forward_output_and_loss_func(),
+                batch=batch_for_pipeline,
+                model=self.model.enc_dec_model,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.model.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            loss_mean = torch.tensor(0.0).cuda()
+
+        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
+        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
+        if self.megatron_amp_o2:
+            # main grads are stored in the MainParamsOptimizer wrapper
+            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
+
+            self.model.allreduce_word_and_position_embeddings()
+        else:
+
+            self.model.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+            self.model.allreduce_word_and_position_embeddings()
+
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
+
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+        return loss_mean
 
     def inference_step(self, batch, batch_idx):
-        loss = self.model.validation_step(batch, batch_idx)
+        loss = self.model.validation_step(batch, batch_idx, reconfigure_microbatch_size=True)
 
-        tokens_enc, _, _, labels, enc_mask, _ = self.process_batch(batch)
+        tokens_enc, _, _, labels, enc_mask, _ = self.process_global_batch(batch)
 
-        predicted_token_ids, log_probs = self.model.decode(
+        predicted_token_ids, _ = self.model.decode(
             tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
         )
 
@@ -259,7 +378,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         logging.info(f'Finished building T5 datasets.')
         return self._train_ds, self._validation_ds
 
-    def build_pretraining_data_loader(self, dataset, batch_size, shuffle, num_workers, pin_memory):
+    def build_pretraining_data_loader(self, dataset, batch_size, shuffle, num_workers, pin_memory, drop_last):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -279,7 +398,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
             sampler=sampler,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            drop_last=False,
+            drop_last=drop_last,
         )
 
     def setup(self, stage=None):
@@ -296,19 +415,21 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
     def setup_training_data(self, train_data_config=None):
         self._train_dl = self.build_pretraining_data_loader(
             self._train_ds,
-            self.cfg.data.train_ds.batch_size,
+            self.cfg.data.train_ds.micro_batch_size,
             shuffle=self.cfg.data.train_ds.shuffle,
             num_workers=self.cfg.data.train_ds.num_workers,
             pin_memory=self.cfg.data.train_ds.pin_memory,
+            drop_last=self.cfg.data.train_ds.drop_last,
         )
 
     def setup_validation_data(self, validation_data_config=None):
         self._validation_dl = self.build_pretraining_data_loader(
             self._validation_ds,
-            self.cfg.data.validation_ds.batch_size,
+            self.cfg.data.validation_ds.micro_batch_size,
             shuffle=self.cfg.data.validation_ds.shuffle,
             num_workers=self.cfg.data.validation_ds.num_workers,
             pin_memory=self.cfg.data.validation_ds.pin_memory,
+            drop_last=self.cfg.data.validation_ds.drop_last,
         )
 
     @classmethod

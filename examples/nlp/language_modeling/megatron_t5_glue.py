@@ -16,11 +16,16 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDataConnector,
+    NLPDDPPlugin,
+    PipelineMixedPrecisionPlugin,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -34,9 +39,7 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [
         NLPDDPPlugin(
-            no_ddp_communication_hook=(
-                megatron_amp_o2 and cfg.trainer.precision == 'bf16'
-            ),  # Only bf16 uses fp32_grad_accum.
+            no_ddp_communication_hook=True,
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
         )
@@ -52,17 +55,23 @@ def main(cfg) -> None:
         if megatron_amp_o2:
             plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
         else:
-            plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
+    # NLPDataConnector used to provide global batches which are needed
+    # for Apex fwd/bwd functions
+    trainer._data_connector = NLPDataConnector(trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
-    resume_from_checkpoint = trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+    if cfg.model.resume_from_checkpoint is not None:
+        resume_from_checkpoint = cfg.model.resume_from_checkpoint
+    else:
+        resume_from_checkpoint = trainer.checkpoint_connector.resume_from_checkpoint_fit_path
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
     trainer.checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)

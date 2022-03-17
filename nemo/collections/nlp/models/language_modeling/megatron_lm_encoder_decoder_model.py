@@ -42,7 +42,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
-from nemo.utils import AppState, app_state, logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -53,8 +53,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator
-
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator, get_micro_batch_size
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
@@ -230,7 +229,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        tensor_shape = [encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        micro_batch_size = batch_for_pipeline[0].size(0)
+        tensor_shape = [encoder_seq_length, micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -452,11 +452,24 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, reconfigure_microbatch_size=False):
+        app_state = AppState()
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        tensor_shape = [encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
+        micro_batch_size = batch_for_pipeline[0].size(0)
+
+        # This happens on epoch boundaries where micro batch size can be less than what is specified in the config.
+        if reconfigure_microbatch_size and micro_batch_size != get_micro_batch_size():
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size * get_num_microbatches(), # TODO: What if global_batch // micro_batch_size != num_microbatches?
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+        tensor_shape = [encoder_seq_length, micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
