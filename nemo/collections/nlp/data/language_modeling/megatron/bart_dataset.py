@@ -14,10 +14,7 @@
 
 """BART Style dataset."""
 
-import collections
-
 import numpy as np
-import torch
 
 from nemo.collections.common.tokenizers import SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
@@ -202,7 +199,7 @@ def build_training_sample(
 
     # Masking.
     max_predictions_per_seq = max_num_tokens
-    (output_tokens, masked_positions, masked_labels, _, masked_spans) = create_masked_lm_predictions(
+    lm_pred = create_masked_lm_predictions(
         tokens=tokens,
         vocab_id_list=vocab_id_list,
         vocab_id_to_token_dict=vocab_id_to_token_dict,
@@ -221,6 +218,12 @@ def build_training_sample(
         masking_style="bart",
         tokenizer_type=tokenizer_type,
     )
+
+    if masked_lm_prob == 0:
+        (output_tokens, masked_positions, masked_labels, _) = lm_pred
+        masked_spans = None
+    else:
+        (output_tokens, masked_positions, masked_labels, _, masked_spans) = lm_pred
 
     # Padding.
     tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_to_numpy(
@@ -268,21 +271,24 @@ def pad_and_convert_to_numpy(
     bart_decoder_in = [bos_id] + tokens[:-1]
     bart_decoder_out = tokens
 
-    # construct bart input by collapsing multiple <mask> into one, and delete randomly
-    bart_input = []
-    (start_index, end_index) = (0, None)
-    for span in masked_spans:
-        end_index = span.index[0]
-        bart_input.extend(output_tokens[start_index:end_index])
-        # delete mask with probability delete_mask_prob
-        if np_rng.rand() >= delete_mask_prob:
-            bart_input.append(mask_id)
+    if masked_spans is not None:
+        # construct bart input by collapsing multiple <mask> into one, and delete randomly
+        bart_input = []
+        (start_index, end_index) = (0, None)
+        for span in masked_spans:
+            end_index = span.index[0]
+            bart_input.extend(output_tokens[start_index:end_index])
+            # delete mask with probability delete_mask_prob
+            if np_rng.rand() >= delete_mask_prob:
+                bart_input.append(mask_id)
 
-        # the next start index is the token after the last span token
-        start_index = span.index[-1] + 1
+            # the next start index is the token after the last span token
+            start_index = span.index[-1] + 1
 
-    # Add the remaining tokens to the BART input
-    bart_input.extend(output_tokens[start_index:])
+        # Add the remaining tokens to the BART input
+        bart_input.extend(output_tokens[start_index:])
+    else:
+        bart_input = output_tokens
 
     # Some checks.
     # Encoder-side padding mask.
