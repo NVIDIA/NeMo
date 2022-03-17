@@ -57,19 +57,44 @@ class TextClassificationModel(NLPModel, Exportable):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=cfg.language_model.config,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-            trainer=trainer,
-        )
+        # Initialize Bert model
+        if cfg.tokenizer.get('library','') == 'megatron':
+            import torch
 
-        if cfg.language_model.get('nemo_file', None) is not None:
+            from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+
+            class Identity(torch.nn.Module):
+                def __init__(self):
+                    super(Identity, self).__init__()
+
+                def forward(self, x, *args):
+                    return x
+
+            # For finetuning a different Text Classification dataset
+            if cfg.language_model.get('downstream'):
+                model = MegatronBertModel(cfg=cfg, trainer=trainer)
+            # For finetuning on Text Classification dataset for the first time
+            else:
+                cfg.language_model.downstream = True
+                super().cfg.language_model.downstream = True
+                model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
+
+            # remove the headers that are only revelant for pretraining
+            model.model.lm_head = Identity()
+            model.model.binary_head = Identity()
+            model.model.language_model.pooler = Identity()
+
+            self.bert_model = model
             hidden_size = self.bert_model.cfg.hidden_size
         else:
+            self.bert_model = get_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
+                config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+                checkpoint_file=cfg.language_model.lm_checkpoint,
+                vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
+                trainer=trainer,
+            )
             hidden_size = self.bert_model.config.hidden_size
 
         self.classifier = SequenceClassifier(
@@ -109,7 +134,7 @@ class TextClassificationModel(NLPModel, Exportable):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        if self._cfg.language_model.get('nemo_file', None) is not None:
+        if self._cfg.tokenizer.get('library','') == 'megatron':
             hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
         else:
             hidden_states = self.bert_model(

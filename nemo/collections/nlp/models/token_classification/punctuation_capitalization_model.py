@@ -110,16 +110,49 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-        )
+
+        # Initialize Bert model
+        if cfg.tokenizer.get('library','') == 'megatron':
+            import torch
+
+            from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+
+            class Identity(torch.nn.Module):
+                def __init__(self):
+                    super(Identity, self).__init__()
+
+                def forward(self, x, *args):
+                    return x
+
+            # For finetuning a different Punctuation and Capitalization dataset
+            if cfg.language_model.get('downstream'):
+                model = MegatronBertModel(cfg=cfg, trainer=trainer)
+            # For finetuning on Punctuation and Capitalization dataset for the first time
+            else:
+                cfg.language_model.downstream = True
+                super().cfg.language_model.downstream = True
+                model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
+
+            # remove the headers that are only revelant for pretraining
+            model.model.lm_head = Identity()
+            model.model.binary_head = Identity()
+            model.model.language_model.pooler = Identity()
+
+            self.bert_model = model
+            self.hidden_size = self.bert_model.cfg.hidden_size
+        else:
+            self.bert_model = get_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
+                config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+                checkpoint_file=cfg.language_model.lm_checkpoint,
+                vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
+                trainer=trainer,
+            )
+            self.hidden_size = self.bert_model.config.hidden_size
 
         self.punct_classifier = TokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=self.hidden_size,
             num_classes=len(self.punct_label_ids),
             activation=cfg.punct_head.activation,
             log_softmax=False,
@@ -129,7 +162,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         )
 
         self.capit_classifier = TokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=self.hidden_size,
             num_classes=len(self.capit_label_ids),
             activation=cfg.capit_head.activation,
             log_softmax=False,
@@ -166,9 +199,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
                   ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
         """
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if self._cfg.tokenizer.get('library','') == 'megatron':
+            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+
         punct_logits = self.punct_classifier(hidden_states=hidden_states)
         capit_logits = self.capit_classifier(hidden_states=hidden_states)
         return punct_logits, capit_logits

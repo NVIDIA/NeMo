@@ -54,18 +54,49 @@ class QAModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
-            if cfg.tokenizer is not None
-            else None,
-        )
+
+        # Initialize Bert model
+        if cfg.tokenizer.get('library','') == 'megatron':
+            import torch
+
+            from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+
+            class Identity(torch.nn.Module):
+                def __init__(self):
+                    super(Identity, self).__init__()
+
+                def forward(self, x, *args):
+                    return x
+
+            # For finetuning a different Question Answering dataset
+            if cfg.language_model.get('downstream'):
+                model = MegatronBertModel(cfg=cfg, trainer=trainer)
+            # For finetuning on Question Answering dataset for the first time
+            else:
+                cfg.language_model.downstream = True
+                super().cfg.language_model.downstream = True
+                model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
+
+            # remove the headers that are only revelant for pretraining
+            model.model.lm_head = Identity()
+            model.model.binary_head = Identity()
+            model.model.language_model.pooler = Identity()
+
+            self.bert_model = model
+            self.hidden_size = self.bert_model.cfg.hidden_size
+        else:
+            self.bert_model = get_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
+                config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
+                checkpoint_file=cfg.language_model.lm_checkpoint,
+                vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
+                trainer=trainer,
+            )
+            self.hidden_size = self.bert_model.config.hidden_size
 
         self.classifier = TokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
             num_layers=cfg.token_classifier.num_layers,
             activation=cfg.token_classifier.activation,
@@ -78,9 +109,13 @@ class QAModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if self._cfg.tokenizer.get('library','') == 'megatron':
+            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 
