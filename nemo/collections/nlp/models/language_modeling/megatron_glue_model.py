@@ -24,12 +24,14 @@ from nemo.collections.common.metrics.classification_accuracy import ExactStringP
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization,
+)
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
 from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.nlp.modules.common.megatron.utils import get_params_for_weight_decay_optimization
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -37,7 +39,11 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator, get_micro_batch_size
+    from apex.transformer.pipeline_parallel.utils import (
+        get_num_microbatches,
+        _reconfigure_microbatch_calculator,
+        get_micro_batch_size,
+    )
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -91,7 +97,7 @@ class MegatronT5FineTuneModel(NLPModel):
 
     def process_micro_batch(self, batch):
         return self.model.process_micro_batch(batch)
-    
+
     def process_global_batch(self, batch):
         return self.model.process_global_batch(batch)
 
@@ -150,7 +156,7 @@ class MegatronT5FineTuneModel(NLPModel):
             return self._optimizer
         else:
             return [self._optimizer], [self._scheduler]
-    
+
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
             We want this to do nothing since we run backward in the fwd/bwd functions from apex.
@@ -225,21 +231,22 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         batch_for_pipeline = self.model.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        micro_batch_size = batch_for_pipeline[0].size(0)
+        global_batch_size = batch_for_pipeline[0].size(0)
 
         # This happens on epoch boundaries where micro batch size can be less than what is specified in the config.
         # TODO: For training, should we drop_last or do this?
-        if micro_batch_size != get_micro_batch_size():
+        if (global_batch_size // get_num_microbatches()) != get_micro_batch_size():
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size * get_num_microbatches(), # TODO: What if global_batch // micro_batch_size != num_microbatches?
-                micro_batch_size=micro_batch_size,
+                global_batch_size=global_batch_size,
+                * get_num_microbatches(),  # TODO: What if global_batch // micro_batch_size != num_microbatches?
+                micro_batch_size=global_batch_size // get_num_microbatches(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
         # TODO: Accessing hidden size like this doesn't seem nice.
-        tensor_shape = [encoder_seq_length, micro_batch_size, self.model._cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.model._cfg.hidden_size]
 
         if self.model._cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -307,9 +314,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
 
         tokens_enc, _, _, labels, enc_mask, _ = self.process_global_batch(batch)
 
-        predicted_token_ids, _ = self.model.decode(
-            tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
-        )
+        predicted_token_ids, _ = self.model.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10)
 
         preds = predicted_token_ids.cpu().numpy().tolist()
         labels = labels.cpu().numpy().tolist()

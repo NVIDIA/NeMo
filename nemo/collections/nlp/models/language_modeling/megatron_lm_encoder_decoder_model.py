@@ -53,7 +53,12 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator, get_micro_batch_size
+    from apex.transformer.pipeline_parallel.utils import (
+        get_num_microbatches,
+        _reconfigure_microbatch_calculator,
+        get_micro_batch_size,
+    )
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
@@ -229,8 +234,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        micro_batch_size = batch_for_pipeline[0].size(0)
-        tensor_shape = [encoder_seq_length, micro_batch_size, self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -457,19 +461,20 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-        micro_batch_size = batch_for_pipeline[0].size(0)
+        global_batch_size = batch_for_pipeline[0].size(0)
 
         # This happens on epoch boundaries where micro batch size can be less than what is specified in the config.
-        if reconfigure_microbatch_size and micro_batch_size != get_micro_batch_size():
+        if reconfigure_microbatch_size and (global_batch_size // get_num_microbatches()) != get_micro_batch_size():
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size * get_num_microbatches(), # TODO: What if global_batch // micro_batch_size != num_microbatches?
-                micro_batch_size=micro_batch_size,
+                global_batch_size=global_batch_size
+                * get_num_microbatches(),  # TODO: What if global_batch // micro_batch_size != num_microbatches?
+                micro_batch_size=batch_for_pipeline[0] // get_num_microbatches(),
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-        tensor_shape = [encoder_seq_length, micro_batch_size, self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
@@ -572,8 +577,30 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         loss_mask_list = []
         enc_mask_list = []
         dec_mask_list = []
+
+        # Determine the maximum encoder and decoder sequence lengths amongst microbatches and pad each microbatch to the max seq length.
+        # NOTE: This should only happen for model finetuning where we pad dynamically. Training uses fixed training shapes.
+
+        max_enc_seq_lenth = max([micro_batch['text_enc'].shape[1] for micro_batch in global_batch])
+        max_dec_seq_lenth = max([micro_batch['text_dec'].shape[1] for micro_batch in global_batch])
+
         for micro_batch in global_batch:
-            text_enc, text_dec, labels, loss_mask, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
+            text_enc, text_dec, loss_mask, labels, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
+            # Check if encoder sequence length < max encoder sequence length of the global batch and pad.
+            if text_enc.shape[1] < max_enc_seq_lenth:
+                text_enc = torch.nn.functional.pad(
+                    text_enc, (0, max_enc_seq_lenth - text_enc.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                enc_mask = torch.nn.functional.pad(
+                    enc_mask, (0, max_enc_seq_lenth - enc_mask.shape[1], 0, 0), 'constant', 0
+                )
+            if text_dec.shape[1] < max_dec_seq_lenth:
+                text_dec = torch.nn.functional.pad(
+                    text_dec, (0, max_dec_seq_lenth - text_dec.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                dec_mask = torch.nn.functional.pad(
+                    dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
+                )
             text_enc_list.append(text_enc)
             text_dec_list.append(text_dec)
             labels_list.append(labels)
@@ -589,7 +616,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_mask_tensor = torch.concat(enc_mask_list, dim=0)
         dec_mask_tensor = torch.concat(dec_mask_list, dim=0)
 
-        return tokens_enc_tensor, tokens_dec_tensor, labels_tensor, loss_mask_tensor, enc_mask_tensor, dec_mask_tensor
+        return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor
 
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
@@ -874,7 +901,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             predicted_tokens_ids = predicted_tokens_ids[:idx]
         # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
         if hasattr(self.tokenizer, 'special_token_to_id'):
-            predicted_tokens_ids = [id for id in predicted_tokens_ids if id not in self.tokenizer.special_token_to_id.values()]
+            predicted_tokens_ids = [
+                id for id in predicted_tokens_ids if id not in self.tokenizer.special_token_to_id.values()
+            ]
 
         predicted_tokens_dec = self.tokenizer.ids_to_tokens(predicted_tokens_ids)
         response['completion']['text'] = self.tokenizer.tokens_to_text(predicted_tokens_dec)
