@@ -86,6 +86,16 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     return logits
 
 
+def repetition_penalty(logits, repetition_penalty, used_tokens):
+    """ Implement the repetition penalty, check paper 
+    https://arxiv.org/pdf/1909.05858.pdf
+    """
+    if used_tokens is not None and repetition_penalty != 1.0:
+        logits_update = torch.gather(logits, 1, used_tokens)
+        logits = torch.scatter(logits, 1, used_tokens, logits_update / repetition_penalty)
+    return logits
+
+
 def pad_batch(batch, pad_id, max_len):
     context_lengths = []
     max_context_length = max([len(tokens) for tokens in batch])
@@ -109,7 +119,15 @@ def tokenize_batch(tokenizer, sentences, max_len, add_BOS):
 
 
 def send_generate_info(
-    context_tokens_tensor, context_length_tensor, tokens_to_generate, all_probs, temperature, top_k, top_p, greedy
+    context_tokens_tensor,
+    context_length_tensor,
+    tokens_to_generate,
+    all_probs,
+    temperature,
+    top_k,
+    top_p,
+    greedy,
+    repetition_penalty,
 ):
     """
     Needs to be synced up with receive_generate_info
@@ -124,6 +142,7 @@ def send_generate_info(
         top_k,
         top_p,
         greedy,
+        repetition_penalty,
     ]
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, 0)
@@ -137,16 +156,17 @@ def receive_generate_info():
     """
     Needs to be synced up with send_generate_info
     """
-    input_info_tensor = torch.empty(8, dtype=torch.float32, device=torch.cuda.current_device())
+    input_info_tensor = torch.empty(9, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, 0)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
     tokens_to_generate = int(input_info_tensor[2].item())
     all_probs = bool(input_info_tensor[3].item())
     temperature = float(input_info_tensor[4].item())
-    top_k = float(input_info_tensor[5].item())
+    top_k = int(input_info_tensor[5].item())
     top_p = float(input_info_tensor[6].item())
     greedy = bool(input_info_tensor[7].item())
+    repetition_penalty = float(input_info_tensor[8].item())
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
@@ -164,6 +184,7 @@ def receive_generate_info():
         top_k,
         top_p,
         greedy,
+        repetition_penalty,
     )
 
 
@@ -177,6 +198,7 @@ def synced_generate(
     top_k=0,
     top_p=0.0,
     greedy=False,
+    repetition_penalty=1.2,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -202,7 +224,7 @@ def synced_generate(
             tokens_to_generate,
             all_probs,
             temperature=temperature,
-            extra={"top_p": top_p, "top_k": top_k, "greedy": greedy},
+            extra={"top_p": top_p, "top_k": top_k, "greedy": greedy, "repetition_penalty": repetition_penalty},
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -251,6 +273,7 @@ def generate(
     top_k=0,
     top_p=0.0,
     greedy=False,
+    repetition_penalty=1.2,
 ):
     model.eval()
     tokenizer = model.tokenizer
@@ -267,6 +290,7 @@ def generate(
             top_k,
             top_p,
             greedy,
+            repetition_penalty,
         )
     else:
         (
@@ -278,6 +302,7 @@ def generate(
             top_k,
             top_p,
             greedy,
+            repetition_penalty,
         ) = receive_generate_info()
 
     output = synced_generate(
@@ -290,6 +315,7 @@ def generate(
         top_k=top_k,
         top_p=top_p,
         greedy=greedy,
+        repetition_penalty=repetition_penalty,
     )
     if output is not None:
         decode_tokens, output_logits, full_logits = output
@@ -382,7 +408,7 @@ def sample_sequence_batch(
         is_done = torch.zeros([batch_size]).byte().cuda()
         tokens = context_tokens
         output_logits = None
-
+        all_generated_indices = None  # used to track all generated indices
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + context_lengths.max().item()
 
@@ -429,6 +455,8 @@ def sample_sequence_batch(
                 else:
                     logits = logits.float()
                     logits /= temperature
+                    # handle repetition penality
+                    logits = repetition_penalty(logits, extra.get('repetition_penalty', 1.2), all_generated_indices)
                     logits = top_k_logits(logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9))
                     log_probs = F.softmax(logits, dim=-1)
                     prev = torch.multinomial(log_probs, num_samples=1).view(-1)
@@ -444,6 +472,7 @@ def sample_sequence_batch(
                     output_context = F.log_softmax(output[:, :context_length, :], 2)
                     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
                     output_logits = torch.gather(output_context, 2, indices).squeeze(2)
+                    all_generated_indices = indices[:, :, 0]
                     if all_probs:
                         full_logits = output_context
                 else:
@@ -453,6 +482,7 @@ def sample_sequence_batch(
 
                     # TODO(rprenger) we're copying output_logits every time.  Should pre-allocate
                     output_logits = torch.cat([output_logits, new_output_logits], 1)
+                    all_generated_indices = torch.cat([all_generated_indices, indices[:, :, 0]], 1)
                     if all_probs:
                         full_logits = torch.cat([full_logits, output_context], 1)
 

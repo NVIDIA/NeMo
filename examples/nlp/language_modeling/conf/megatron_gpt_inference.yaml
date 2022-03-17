@@ -6,6 +6,7 @@ inference:
   add_BOS: True
   tokens_to_generate: 30
   all_probs: False
+  repetition_penalty: 1.2
 
 trainer:
   devices: 1

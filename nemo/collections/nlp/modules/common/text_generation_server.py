@@ -28,7 +28,17 @@ GENERATE_NUM = 0
 lock = threading.Lock()
 
 API_ALLOWED_KEYS = set(
-    ['all_probs', 'sentences', "tokens_to_generate", "temperature", "add_BOS", "greedy", "top_k", "top_p"]
+    [
+        'all_probs',
+        'sentences',
+        "tokens_to_generate",
+        "temperature",
+        "add_BOS",
+        "greedy",
+        "top_k",
+        "top_p",
+        "repetition_penalty",
+    ]
 )
 
 
@@ -103,10 +113,27 @@ class MegatronGenerate(Resource):
             if not (0.0 <= top_p <= 1.0):
                 return "top_p must be a positive number less than or equal to 1.0"
 
+        repetition_penalty = 1.2
+        if "repetition_penalty" in request.get_json():
+            repetition_penalty = request.get_json()["repetition_penalty"]
+            if not (type(repetition_penalty) == int or type(repetition_penalty) == float):
+                return "repetition_penalty must be a positive number no less than 1.0"
+            if not (1.0 <= repetition_penalty):
+                return "repetition_penalty must be a positive number no less than 1.0"
+
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             resp_sentences, resp_sentences_seg, output_logits, full_logits, tokens = generate(
-                self.model, sentences, tokens_to_generate, all_probs, temperature, add_BOS, top_k, top_p, greedy
+                self.model,
+                sentences,
+                tokens_to_generate,
+                all_probs,
+                temperature,
+                add_BOS,
+                top_k,
+                top_p,
+                greedy,
+                repetition_penalty,
             )
 
         if all_probs:
