@@ -25,6 +25,7 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
@@ -141,6 +142,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
+    partial_audio = False
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
@@ -157,12 +159,15 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             return None
 
         with open(cfg.dataset_manifest, 'r') as f:
-            partial_audio = True
+            has_two_fields = []
             for line in f:
                 item = json.loads(line)
-                if "offset" not in item or "duration" not in item:
-                    partial_audio = False
+                if "offset" in item and "duration" in item:
+                    has_two_fields.append(True)
+                else:
+                    has_two_fields.append(False)
                 filepaths.append(item['audio_filepath'])
+        partial_audio = all(has_two_fields)
 
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
