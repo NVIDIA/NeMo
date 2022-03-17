@@ -22,7 +22,6 @@ python -- build_regex_tokenizer.py \
 import argparse
 
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
-from nemo.utils import logging
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

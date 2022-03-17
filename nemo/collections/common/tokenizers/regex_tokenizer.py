@@ -15,11 +15,11 @@
 
 import os
 import re
-from typing import List, Optional
+from typing import Optional
 
 import pandas as pd
 
-from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer, TokenizerSpec
+from nemo.collections.common.tokenizers.char_tokenizer import TokenizerSpec
 from nemo.utils import logging
 
 __all__ = ['RegExTokenizer']
@@ -81,7 +81,6 @@ class RegExTokenizer(TokenizerSpec):
         self._update_cache()
 
         # Computed attributes
-        self._compiled_regex = None
         self._compile_regex()
 
     def _update_cache(self):
@@ -217,7 +216,7 @@ class RegExTokenizer(TokenizerSpec):
         # load regex from a file
         if os.path.exists(regex_file):
             logging.debug(f"Loading regex from file = {regex_file}")
-            regex = open(regex_file, encoding="utf-8").read().strip()
+            self.regex = open(regex_file, encoding="utf-8").read().strip()
         else:
             raise RuntimeError(f"Missing regex_file = {regex_file}")
 
