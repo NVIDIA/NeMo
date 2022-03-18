@@ -16,20 +16,22 @@
 ###############################################################################
 import torch
 from torch import nn
+
 from nemo.collections.tts.helpers.common import DenseLayer, SplineTransformationLayerAR
 
 
 class AR_Back_Step(torch.nn.Module):
-    def __init__(self, n_attr_channels, n_speaker_dim, n_text_dim,
-                 n_hidden, n_lstm_layers, scaling_fn, spline_flow_params=None):
+    def __init__(
+        self, n_attr_channels, n_speaker_dim, n_text_dim, n_hidden, n_lstm_layers, scaling_fn, spline_flow_params=None
+    ):
         super(AR_Back_Step, self).__init__()
-        self.ar_step = AR_Step(n_attr_channels, n_speaker_dim, n_text_dim,
-                               n_hidden, n_lstm_layers, scaling_fn,
-                               spline_flow_params)
+        self.ar_step = AR_Step(
+            n_attr_channels, n_speaker_dim, n_text_dim, n_hidden, n_lstm_layers, scaling_fn, spline_flow_params
+        )
 
     def forward(self, mel, context, lens):
-        mel = torch.flip(mel, (0, ))
-        context = torch.flip(context, (0, ))
+        mel = torch.flip(mel, (0,))
+        context = torch.flip(context, (0,))
         # backwards flow, send padded zeros back to end
         for k in range(mel.size(1)):
             mel[:, k] = mel[:, k].roll(lens[k].item(), dims=0)
@@ -41,39 +43,42 @@ class AR_Back_Step(torch.nn.Module):
         for k in range(mel.size(1)):
             mel[:, k] = mel[:, k].roll(-lens[k].item(), dims=0)
 
-        return torch.flip(mel, (0, )), log_s
+        return torch.flip(mel, (0,)), log_s
 
     def infer(self, residual, context):
-        residual = self.ar_step.infer(
-            torch.flip(residual, (0, )), torch.flip(context, (0, )))
-        residual = torch.flip(residual, (0, ))
+        residual = self.ar_step.infer(torch.flip(residual, (0,)), torch.flip(context, (0,)))
+        residual = torch.flip(residual, (0,))
         return residual
 
 
 class AR_Step(torch.nn.Module):
-    def __init__(self, n_attr_channels, n_speaker_dim, n_text_channels,
-                 n_hidden, n_lstm_layers, scaling_fn, spline_flow_params=None):
+    def __init__(
+        self,
+        n_attr_channels,
+        n_speaker_dim,
+        n_text_channels,
+        n_hidden,
+        n_lstm_layers,
+        scaling_fn,
+        spline_flow_params=None,
+    ):
         super(AR_Step, self).__init__()
         if spline_flow_params is not None:
-            self.spline_flow = SplineTransformationLayerAR(
-                **spline_flow_params)
+            self.spline_flow = SplineTransformationLayerAR(**spline_flow_params)
         else:
             self.n_out_dims = n_attr_channels
-            self.conv = torch.nn.Conv1d(n_hidden, 2*n_attr_channels, 1)
+            self.conv = torch.nn.Conv1d(n_hidden, 2 * n_attr_channels, 1)
             self.conv.weight.data = 0.0 * self.conv.weight.data
             self.conv.bias.data = 0.0 * self.conv.bias.data
 
         self.attr_lstm = torch.nn.LSTM(n_attr_channels, n_hidden)
-        self.lstm = torch.nn.LSTM(n_hidden + n_text_channels + n_speaker_dim,
-                                  n_hidden, n_lstm_layers)
+        self.lstm = torch.nn.LSTM(n_hidden + n_text_channels + n_speaker_dim, n_hidden, n_lstm_layers)
 
         if spline_flow_params is None:
-            self.dense_layer = DenseLayer(in_dim=n_hidden,
-                                          sizes=[n_hidden, n_hidden])
+            self.dense_layer = DenseLayer(in_dim=n_hidden, sizes=[n_hidden, n_hidden])
             self.scaling_fn = scaling_fn
 
-    def run_padded_sequence(self, sorted_idx, unsort_idx, lens, padded_data,
-                            recurrent_model):
+    def run_padded_sequence(self, sorted_idx, unsort_idx, lens, padded_data, recurrent_model):
         """Sorts input data by previded ordering (and un-ordering) and runs the
         packed data through the recurrent model
 
@@ -91,8 +96,7 @@ class AR_Step(torch.nn.Module):
         # sort the data by decreasing length using provided index
         # we assume batch index is in dim=1
         padded_data = padded_data[:, sorted_idx]
-        padded_data = nn.utils.rnn.pack_padded_sequence(
-            padded_data, lens.cpu())
+        padded_data = nn.utils.rnn.pack_padded_sequence(padded_data, lens.cpu())
         hidden_vectors = recurrent_model(padded_data)[0]
         hidden_vectors, _ = nn.utils.rnn.pad_packed_sequence(hidden_vectors)
         # unsort the results at dim=1 and return
@@ -101,8 +105,8 @@ class AR_Step(torch.nn.Module):
 
     def get_scaling_and_logs(self, scale_unconstrained):
         if self.scaling_fn == 'translate':
-            s = torch.exp(scale_unconstrained*0)
-            log_s = scale_unconstrained*0
+            s = torch.exp(scale_unconstrained * 0)
+            log_s = scale_unconstrained * 0
         elif self.scaling_fn == 'exp':
             s = torch.exp(scale_unconstrained)
             log_s = scale_unconstrained  # log(exp
@@ -132,8 +136,7 @@ class AR_Step(torch.nn.Module):
             for i, ids_i in enumerate(ids):
                 original_ids[ids_i] = i
             # mel_seq_len x batch x hidden_dim
-            mel_hidden = self.run_padded_sequence(
-                ids, original_ids, lens, mel0, self.attr_lstm)
+            mel_hidden = self.run_padded_sequence(ids, original_ids, lens, mel0, self.attr_lstm)
         else:
             mel_hidden = self.attr_lstm(mel0)[0]
 
@@ -141,8 +144,7 @@ class AR_Step(torch.nn.Module):
 
         if lens is not None:
             # reorder, run padded sequence and undo reordering
-            lstm_hidden = self.run_padded_sequence(
-                ids, original_ids, lens, decoder_input, self.lstm)
+            lstm_hidden = self.run_padded_sequence(ids, original_ids, lens, decoder_input, self.lstm)
         else:
             lstm_hidden = self.lstm(decoder_input)[0]
 
@@ -157,9 +159,8 @@ class AR_Step(torch.nn.Module):
             lstm_hidden = self.dense_layer(lstm_hidden).permute(1, 2, 0)
             decoder_output = self.conv(lstm_hidden).permute(2, 0, 1)
 
-            scale, log_s = self.get_scaling_and_logs(
-                decoder_output[:, :, :self.n_out_dims])
-            bias = decoder_output[:, :, self.n_out_dims:]
+            scale, log_s = self.get_scaling_and_logs(decoder_output[:, :, : self.n_out_dims])
+            bias = decoder_output[:, :, self.n_out_dims :]
 
             mel = scale * mel + bias
 
@@ -169,8 +170,7 @@ class AR_Step(torch.nn.Module):
         total_output = []  # seems 10FPS faster than pre-allocation
 
         output = None
-        dummy = torch.cuda.FloatTensor(
-            1, residual.size(1), residual.size(2)).zero_()
+        dummy = torch.cuda.FloatTensor(1, residual.size(1), residual.size(2)).zero_()
         self.attr_lstm.flatten_parameters()
 
         for i in range(0, residual.size(0)):
@@ -190,17 +190,16 @@ class AR_Step(torch.nn.Module):
             if hasattr(self, 'spline_flow'):
                 # expects inputs to be batch, channel, time
                 lstm_hidden = lstm_hidden.permute(1, 2, 0)
-                output = residual[i:i+1].permute(1, 2, 0)
+                output = residual[i : i + 1].permute(1, 2, 0)
                 output = self.spline_flow(output, lstm_hidden, inverse=True)
                 output = output.permute(2, 0, 1)
             else:
                 lstm_hidden = self.dense_layer(lstm_hidden).permute(1, 2, 0)
                 decoder_output = self.conv(lstm_hidden).permute(2, 0, 1)
 
-                s, log_s = self.get_scaling_and_logs(
-                    decoder_output[:, :, :decoder_output.size(2)//2])
-                b = decoder_output[:, :, decoder_output.size(2)//2:]
-                output = (residual[i:i+1] - b)/s
+                s, log_s = self.get_scaling_and_logs(decoder_output[:, :, : decoder_output.size(2) // 2])
+                b = decoder_output[:, :, decoder_output.size(2) // 2 :]
+                output = (residual[i : i + 1] - b) / s
             total_output.append(output)
 
         total_output = torch.cat(total_output, 0)

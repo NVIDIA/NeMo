@@ -17,11 +17,11 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+
 from nemo.collections.tts.helpers.common import get_mask_from_lengths
 
 
-def compute_flow_loss(z, log_det_W_list, log_s_list, n_elements, n_dims, mask,
-                     sigma=1.0):
+def compute_flow_loss(z, log_det_W_list, log_s_list, n_elements, n_dims, mask, sigma=1.0):
 
     log_det_W_total = 0.0
     for i, log_s in enumerate(log_s_list):
@@ -38,7 +38,7 @@ def compute_flow_loss(z, log_det_W_list, log_s_list, n_elements, n_dims, mask,
         log_det_W_total *= n_elements
 
     z = z * mask
-    prior_NLL = torch.sum(z*z)/(2*sigma*sigma)
+    prior_NLL = torch.sum(z * z) / (2 * sigma * sigma)
 
     loss = prior_NLL - log_s_total - log_det_W_total
 
@@ -87,14 +87,20 @@ class AttributePredictionLoss(torch.nn.Module):
             n_dims = model_output['z'].size(1)
 
             loss, loss_prior = compute_flow_loss(
-                model_output['z'], model_output['log_det_W_list'],
-                model_output['log_s_list'], n_elements, n_dims, mask,
-                self.sigma)
-            loss_dict = {"loss_{}".format(self.name): (loss, self.loss_weight),
-                         "loss_prior_{}".format(self.name): (loss_prior, 0.0)}
+                model_output['z'],
+                model_output['log_det_W_list'],
+                model_output['log_s_list'],
+                n_elements,
+                n_dims,
+                mask,
+                self.sigma,
+            )
+            loss_dict = {
+                "loss_{}".format(self.name): (loss, self.loss_weight),
+                "loss_prior_{}".format(self.name): (loss_prior, 0.0),
+            }
         elif 'x_hat' in model_output:
-            loss_dict = compute_regression_loss(
-                    model_output['x_hat'], model_output['x'], mask, self.name)
+            loss_dict = compute_regression_loss(model_output['x_hat'], model_output['x'], mask, self.name)
             for k, v in loss_dict.items():
                 loss_dict[k] = (v, self.loss_weight)
 
@@ -114,20 +120,20 @@ class AttentionCTCLoss(torch.nn.Module):
     def forward(self, attn_logprob, in_lens, out_lens):
         key_lens = in_lens
         query_lens = out_lens
-        attn_logprob_padded = F.pad(
-            input=attn_logprob, pad=(1, 0, 0, 0, 0, 0, 0, 0),
-            value=self.blank_logprob)
+        attn_logprob_padded = F.pad(input=attn_logprob, pad=(1, 0, 0, 0, 0, 0, 0, 0), value=self.blank_logprob)
         cost_total = 0.0
         for bid in range(attn_logprob.shape[0]):
-            target_seq = torch.arange(1, key_lens[bid]+1).unsqueeze(0)
-            curr_logprob = attn_logprob_padded[bid].permute(1, 0, 2)[
-                :query_lens[bid], :, :key_lens[bid]+1]
+            target_seq = torch.arange(1, key_lens[bid] + 1).unsqueeze(0)
+            curr_logprob = attn_logprob_padded[bid].permute(1, 0, 2)[: query_lens[bid], :, : key_lens[bid] + 1]
             curr_logprob = self.log_softmax(curr_logprob[None])[0]
-            ctc_cost = self.CTCLoss(curr_logprob, target_seq,
-                                    input_lengths=query_lens[bid:bid+1],
-                                    target_lengths=key_lens[bid:bid+1])
+            ctc_cost = self.CTCLoss(
+                curr_logprob,
+                target_seq,
+                input_lengths=query_lens[bid : bid + 1],
+                target_lengths=key_lens[bid : bid + 1],
+            )
             cost_total += ctc_cost
-        cost = cost_total/attn_logprob.shape[0]
+        cost = cost_total / attn_logprob.shape[0]
         return cost
 
 
@@ -141,9 +147,16 @@ class AttentionBinarizationLoss(torch.nn.Module):
 
 
 class RADTTSLoss(torch.nn.Module):
-    def __init__(self, sigma=1.0, n_group_size=1, dur_model_config=None,
-                 f0_model_config=None, energy_model_config=None,
-                 vpred_model_config=None, loss_weights=None):
+    def __init__(
+        self,
+        sigma=1.0,
+        n_group_size=1,
+        dur_model_config=None,
+        f0_model_config=None,
+        energy_model_config=None,
+        vpred_model_config=None,
+        loss_weights=None,
+    ):
         super(RADTTSLoss, self).__init__()
         self.sigma = sigma
         self.n_group_size = n_group_size
@@ -153,21 +166,23 @@ class RADTTSLoss(torch.nn.Module):
         self.loss_fns = {}
         if dur_model_config is not None:
             self.loss_fns['duration_model_outputs'] = AttributePredictionLoss(
-                'duration', dur_model_config, loss_weights['dur_loss_weight'])
+                'duration', dur_model_config, loss_weights['dur_loss_weight']
+            )
 
         if f0_model_config is not None:
             self.loss_fns['f0_model_outputs'] = AttributePredictionLoss(
-                'f0', f0_model_config, loss_weights['f0_loss_weight'],
-                sigma=1.0)
+                'f0', f0_model_config, loss_weights['f0_loss_weight'], sigma=1.0
+            )
 
         if energy_model_config is not None:
             self.loss_fns['energy_model_outputs'] = AttributePredictionLoss(
-                'energy',
-                energy_model_config, loss_weights['energy_loss_weight'])
+                'energy', energy_model_config, loss_weights['energy_loss_weight']
+            )
 
         if vpred_model_config is not None:
             self.loss_fns['vpred_model_outputs'] = AttributePredictionLoss(
-                'vpred', vpred_model_config, loss_weights['vpred_loss_weight'])
+                'vpred', vpred_model_config, loss_weights['vpred_loss_weight']
+            )
 
     def forward(self, model_output, in_lens, out_lens):
         loss_dict = {}
@@ -177,16 +192,19 @@ class RADTTSLoss(torch.nn.Module):
             mask = mask[:, None].float()
             n_dims = model_output['z_mel'].size(1)
             loss_mel, loss_prior_mel = compute_flow_loss(
-                model_output['z_mel'], model_output['log_det_W_list'],
-                model_output['log_s_list'], n_elements, n_dims, mask,
-                self.sigma)
+                model_output['z_mel'],
+                model_output['log_det_W_list'],
+                model_output['log_s_list'],
+                n_elements,
+                n_dims,
+                mask,
+                self.sigma,
+            )
             loss_dict['loss_mel'] = (loss_mel, 1.0)  # loss, weight
             loss_dict['loss_prior_mel'] = (loss_prior_mel, 0.0)
 
-        ctc_cost = self.attn_ctc_loss(
-            model_output['attn_logprob'], in_lens, out_lens)
-        loss_dict['loss_ctc'] = (
-            ctc_cost, self.loss_weights['ctc_loss_weight'])
+        ctc_cost = self.attn_ctc_loss(model_output['attn_logprob'], in_lens, out_lens)
+        loss_dict['loss_ctc'] = (ctc_cost, self.loss_weights['ctc_loss_weight'])
 
         for k in model_output:
             if k in self.loss_fns:

@@ -2,11 +2,15 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from nemo.collections.tts.helpers.common import get_mask_from_lengths
-from nemo.collections.tts.helpers.common import ConvNorm, Invertible1x1Conv
-from nemo.collections.tts.helpers.common import AffineTransformationLayer, SplineTransformationLayer
-from nemo.collections.tts.helpers.common import ConvLSTMLinear
-from nemo.collections.tts.modules.autoregressive_flow import AR_Step, AR_Back_Step
+from nemo.collections.tts.helpers.common import (
+    AffineTransformationLayer,
+    ConvLSTMLinear,
+    ConvNorm,
+    Invertible1x1Conv,
+    SplineTransformationLayer,
+    get_mask_from_lengths,
+)
+from nemo.collections.tts.modules.autoregressive_flow import AR_Back_Step, AR_Step
 
 
 def get_attribute_prediction_model(config):
@@ -20,7 +24,7 @@ def get_attribute_prediction_model(config):
     return model
 
 
-class AttributeProcessing():
+class AttributeProcessing:
     def __init__(self, take_log_of_input=False):
         super(AttributeProcessing).__init__()
         self.take_log_of_input = take_log_of_input
@@ -37,8 +41,7 @@ class AttributeProcessing():
 
 
 class BottleneckLayerLayer(nn.Module):
-    def __init__(self, in_dim, reduction_factor, norm='weightnorm',
-                 non_linearity='relu', use_pconv=False):
+    def __init__(self, in_dim, reduction_factor, norm='weightnorm', non_linearity='relu', use_pconv=False):
         super(BottleneckLayerLayer, self).__init__()
 
         self.reduction_factor = reduction_factor
@@ -49,8 +52,7 @@ class BottleneckLayerLayer(nn.Module):
             if norm == 'weightnorm':
                 fn = torch.nn.utils.weight_norm(fn.conv, name='weight')
             elif norm == 'instancenorm':
-                fn = nn.Sequential(
-                    fn, nn.InstanceNorm1d(reduced_dim, affine=True))
+                fn = nn.Sequential(fn, nn.InstanceNorm1d(reduced_dim, affine=True))
 
             self.projection_fn = fn
             self.non_linearity = non_linearity
@@ -66,8 +68,7 @@ class BottleneckLayerLayer(nn.Module):
 
 
 class DAP(nn.Module):
-    def __init__(self, n_speaker_dim, bottleneck_hparams, take_log_of_input,
-                 arch_hparams):
+    def __init__(self, n_speaker_dim, bottleneck_hparams, take_log_of_input, arch_hparams):
         super(DAP, self).__init__()
         self.attribute_processing = AttributeProcessing(take_log_of_input)
         self.bottleneck_layer = BottleneckLayerLayer(**bottleneck_hparams)
@@ -92,4 +93,3 @@ class DAP(nn.Module):
         x_hat = self.forward(txt_enc, spk_emb, x=None, lens=lens)['x_hat']
         x_hat = self.attribute_processing.denormalize(x_hat)
         return x_hat
-

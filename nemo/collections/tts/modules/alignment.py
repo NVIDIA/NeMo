@@ -1,7 +1,9 @@
 import sys
+
 import numpy as np
 from matplotlib import pylab as plt
 from numba import jit
+
 
 def save_figure_to_numpy(fig):
     # save it to a numpy array.
@@ -10,14 +12,12 @@ def save_figure_to_numpy(fig):
     return data
 
 
-def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None,
-                            vmin=None, vmax=None):
+def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None):
     if phoneme_seq:
         fig, ax = plt.subplots(figsize=(15, 10))
     else:
         fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(alignment, aspect='auto', origin='lower',
-                   interpolation='none', vmin=vmin, vmax=vmax)
+    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
     xlabel = 'Decoder timestep'
@@ -39,11 +39,10 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None,
     return data
 
 
-
-
 def save_plot(fname, attn_map):
     plt.imshow(attn_map)
     plt.savefig(fname)
+
 
 @jit(nopython=True)
 def mas_width1(attn_map):
@@ -57,23 +56,24 @@ def mas_width1(attn_map):
     prev_ind = np.zeros_like(attn_map, dtype=np.int64)
     for i in range(1, attn_map.shape[0]):
         for j in range(attn_map.shape[1]):  # for each text dim
-            prev_log = log_p[i-1, j]
+            prev_log = log_p[i - 1, j]
             prev_j = j
 
-            if j-1 >= 0 and log_p[i-1, j-1] >= log_p[i-1, j]:
-                prev_log = log_p[i-1, j-1]
-                prev_j = j-1
+            if j - 1 >= 0 and log_p[i - 1, j - 1] >= log_p[i - 1, j]:
+                prev_log = log_p[i - 1, j - 1]
+                prev_j = j - 1
 
             log_p[i, j] = attn_map[i, j] + prev_log
             prev_ind[i, j] = prev_j
 
     # now backtrack
-    curr_text_idx = attn_map.shape[1]-1
-    for i in range(attn_map.shape[0]-1, -1, -1):
+    curr_text_idx = attn_map.shape[1] - 1
+    for i in range(attn_map.shape[0] - 1, -1, -1):
         opt[i, curr_text_idx] = 1
         curr_text_idx = prev_ind[i, curr_text_idx]
     opt[0, curr_text_idx] = 1
     return opt
+
 
 if __name__ == '__main__':
     attn_ = np.load(sys.argv[1])
