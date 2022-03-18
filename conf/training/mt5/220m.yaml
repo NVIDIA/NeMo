@@ -8,7 +8,7 @@ name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 4
+  num_nodes: 8
   gpus: 8
   accelerator: ddp
   precision: bf16
@@ -53,7 +53,7 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 64
+  micro_batch_size: 32
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
 
@@ -125,7 +125,7 @@ model:
     seq_length: ${training.model.seq_length}
     seq_length_dec: 128
     skip_warmup: True
-    num_workers: 4
+    num_workers: 8
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     dataset_type: 't5'
