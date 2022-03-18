@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf.omegaconf import OmegaConf
+from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
@@ -65,7 +65,19 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    model = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_finetuned_path, trainer=trainer)
+    # Get the T5 Base configuration.
+    t5_cfg = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True)
+
+    # Override the T5 configuration with the one from the config file.
+    OmegaConf.set_struct(t5_cfg, True)
+    with open_dict(t5_cfg):
+        t5_cfg.masked_softmax_fusion = False
+        t5_cfg.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        t5_cfg.hidden_dropout = cfg.get('hidden_dropout', 0.1)
+        t5_cfg.attention_dropout = cfg.get('attention_dropout', 0.1)
+        t5_cfg.data = cfg.data
+
+    model = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg)
     model.freeze()
 
     trainer.validate(model)

@@ -26,20 +26,34 @@ from nemo.utils import logging
 __all__ = ['MegatronXNlIModel']
 
 
-class MegatronXNlIModel(MegatronT5GLUEModel):
+class MegatronT5XNLIModel(MegatronT5GLUEModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
         self.acc_metrics = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
 
-    def process_batch(self, batch):
-        """Build the batch."""
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = super().process_batch(batch)
+    def process_micro_batch(self, batch):
+        """Process a microbatch."""
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = super().process_micro_batch(batch)
         if 'lang' in batch:
             lang = batch['lang']
             return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, lang
         else:
             return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
+
+    def process_global_batch(self, global_batch):
+        """Process a list of microbatches into a global batch."""
+        if len(global_batch[0]) == 6:
+            return super().process_global_batch(global_batch)
+        else:
+            assert len(global_batch[0]) == 7
+            langs_list = []
+            tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor = super().process_global_batch(
+                [micro_batch[:-1] for micro_batch in global_batch]
+            )
+            for micro_batch in global_batch:
+                langs_list.extend(micro_batch[-1])
+            return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor, langs_list
 
     def inference_step(self, batch, batch_idx):
         loss = self.model.validation_step(batch, batch_idx)
@@ -121,7 +135,7 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
         logging.info(f"Test accuracy: {test_acc['acc']}")
 
     def build_train_valid_test_datasets(self, test_only=False):
-        logging.info('Building GLUE datasets.')
+        logging.info('Building XNLI datasets.')
         self._test_ds = TextToTextXNlIDataset(
             self.cfg.data.test_ds.file_path,
             task_name=self.cfg.data.test_ds.task_name,
@@ -147,5 +161,5 @@ class MegatronXNlIModel(MegatronT5GLUEModel):
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
         logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building T5 datasets.')
+        logging.info(f'Finished building XNLI datasets.')
         return self._train_ds, self._validation_ds, self._test_ds

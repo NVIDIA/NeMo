@@ -80,11 +80,22 @@ def main(cfg) -> None:
         if isinstance(callback, Timer):
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
-    # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
-    with open_dict(cfg):
-        cfg.model.precision = cfg.trainer.precision
+    # Get the T5 Base configuration.
+    t5_cfg = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True)
 
-    model = MegatronT5GLUEModel(cfg.model, trainer)
+    # Override the T5 configuration with the one from the config file.
+    OmegaConf.set_struct(t5_cfg, True)
+    with open_dict(t5_cfg):
+        t5_cfg.masked_softmax_fusion = False
+        t5_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
+        t5_cfg.hidden_dropout = cfg.model.get('hidden_dropout', 0.1)
+        t5_cfg.attention_dropout = cfg.model.get('attention_dropout', 0.1)
+        t5_cfg.data = cfg.model.data
+        t5_cfg.precision = cfg.trainer.precision
+        t5_cfg.optim = cfg.model.optim
+
+    model = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg)
+
     trainer.fit(model)
     trainer.validate(model)
 
