@@ -132,7 +132,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         self._fp32_grad_accum = fp32_grad_accum
         self._contiguous_grad_bucket = contiguous_grad_bucket
         self._async_grad_allreduce = async_grad_allreduce
-        self._require_backward_grad_sync = False
+
+        # use @no_sync to disable backward grad sync
+        self._require_backward_grad_sync = True
 
         # Dummy tensor needed for apex multi-apply tensor.
         self._dummy_overflow_buf = None
@@ -348,11 +350,11 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             self._main_grad_buffers[i].allreduce_buffer()
 
     @contextmanager
-    def grad_sync(self):
+    def no_sync(self):
         """ A context manager to disable gradient synchronizations across
         data-parallel ranks."""
         old_require_backward_grad_sync = self._require_backward_grad_sync
-        self._require_backward_grad_sync = True
+        self._require_backward_grad_sync = False
         try:
             yield
         finally:

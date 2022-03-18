@@ -524,13 +524,7 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
 
         if self.scaler is None:
             assert optimizer.fp32_grad_accumulation, "BF16 uses FP32 grad accumulation"
-            if optimizer.async_master_grads_allreudce:
-                # Execute the last step with asynchronous master gradients all-reduce
-                with optimizer.grad_sync():
-                    _ = closure()
-            else:
-                _ = closure()
-
+            _ = closure()
             self._after_closure(model, optimizer, optimizer_idx)
             return optimizer.step(**kwargs)
 

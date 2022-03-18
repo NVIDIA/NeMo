@@ -258,7 +258,6 @@ class MegatronGPTModel(NLPModel):
             tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -269,6 +268,12 @@ class MegatronGPTModel(NLPModel):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
+            # no pipeline parallelism so we use reduce grads asynchronously
+            if self.megatron_amp_o2:
+                custom_sync_context_handler = self._optimizer.no_sync
+            else:
+                # sync is done with DDP
+                custom_sync_context_handler = None
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -277,6 +282,7 @@ class MegatronGPTModel(NLPModel):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                custom_sync_context_handler=custom_sync_context_handler,
             )
 
         # only the last stages of the pipeline return losses
@@ -288,16 +294,12 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
-        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
-        if self.megatron_amp_o2:
-            # main grads are stored in the MainParamsOptimizer wrapper
-            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
-
-            self.allreduce_first_last_embeddings()
-        else:
-
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if self.megatron_amp_o2:
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
+            else:
+                self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
             self.allreduce_first_last_embeddings()
 

@@ -37,9 +37,14 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+
+    # if using pipeline parallelism grads should be synced after the pipeline
+    # also megatron_amp_o2 has its own sync handler so we don't use DDP's
+    no_ddp_communication_hook = cfg.model.pipeline_model_parallel_size > 1 or megatron_amp_o2
+
     plugins = [
         NLPDDPPlugin(
-            no_ddp_communication_hook=True,
+            no_ddp_communication_hook=no_ddp_communication_hook,
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
         )
