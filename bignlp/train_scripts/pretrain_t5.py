@@ -14,22 +14,22 @@ def main(cfg):
     args = sys.argv[1:]
     hydra_train_args = convert_args_to_hydra_train_args(args)
 
-    bignlp_path = cfg.bignlp_path
+    bignlp_path = cfg.get("bignlp_path")
     train_cfg = cfg.get("training")
-    training_config = cfg.training_config.rsplit('/', 1)[1]
-    training_config_path = os.path.join(bignlp_path, "conf/training", cfg.training_config.rsplit('/', 1)[0])
+    training_config = cfg.get("training_config").rsplit('/', 1)[1]
+    training_config_path = os.path.join(bignlp_path, "conf/training", cfg.get("training_config").rsplit('/', 1)[0])
     flags = f"--config-path={training_config_path} --config-name={training_config} "
 
     # Re-build the hydra args to add dataset blend
-    if "mt5" in cfg.training_config:
+    if "mt5" in cfg.get("training_config"):
         model_cfg = train_cfg.get("model")
         model_data_cfg = model_cfg.get("data")
         if model_data_cfg.get("data_prefix") is None:
-            cfg.training.model.data.data_prefix = generate_mt5_data_blend(cfg)
+            cfg.get("training").model.data.data_prefix = generate_mt5_data_blend(cfg)
             hydra_args = convert_to_cli(cfg)
             hydra_train_args = convert_args_to_hydra_train_args(hydra_args.split())
 
-    gpu_mapping, core_mapping = numa_mapping(cfg.dgxa100_gpu2core, cfg.dgxa100_gpu2mem)
+    gpu_mapping, core_mapping = numa_mapping(cfg.get("dgxa100_gpu2core"), cfg.get("dgxa100_gpu2mem"))
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
@@ -37,9 +37,9 @@ def main(cfg):
     )
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
     # Write command to launch training.
-    if cfg.cluster_type == "bcm":
+    if cfg.get("cluster_type") == "bcm":
         cmd = f'{cmd_prefix} {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
-    elif cfg.cluster_type == "bcp":
+    elif cfg.get("cluster_type") == "bcp":
         pause_and_prime_dns_connections()
         cmd = f'{cmd_prefix} {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     os.system(f"{cmd}")

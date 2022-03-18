@@ -109,7 +109,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     ntasks_per_node = finetune_cfg.trainer.gpus
 
     # BCM parameters
-    if cfg.cluster_type == "bcm":
+    if cfg.get("cluster_type") == "bcm":
         partition = cluster_cfg.get("partition")
         account = cluster_cfg.get("account")
         exclusive = cluster_cfg.get("exclusive")

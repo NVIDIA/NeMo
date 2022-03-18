@@ -12,19 +12,19 @@ def main(cfg) -> None:
     Arguments:
         cfg: main config file.
     """
-    bignlp_path = cfg.bignlp_path
-    data_cfg = cfg.data_preparation
-    data_dir = cfg.data_dir
-    rm_downloaded = data_cfg.rm_downloaded
+    bignlp_path = cfg.get("bignlp_path")
+    data_cfg = cfg.get("data_preparation")
+    data_dir = cfg.get("data_dir")
+    rm_downloaded = data_cfg.get("rm_downloaded")
     assert data_dir is not None, "data_dir must be a valid path."
 
-    if cfg.cluster_type == "bcm":
+    if cfg.get("cluster_type") == "bcm":
         file_number = int(os.environ.get("SLURM_ARRAY_TASK_ID"))
         downloaded_path = os.path.join(data_dir, f"{file_number:02d}.jsonl.zst")
         output_file = f"{file_number:02d}.jsonl"
         utils.extract_single_zst_file(downloaded_path, data_dir, output_file, rm_downloaded)
-    elif cfg.cluster_type == "bcp":
-        file_numbers = data_cfg.file_numbers
+    elif cfg.get("cluster_type") == "bcp":
+        file_numbers = data_cfg.get("file_numbers")
         # Downloading the files
         files_list = utils.convert_file_numbers(file_numbers)
         # Assumes launched via mpirun:

@@ -80,8 +80,8 @@ def generate_mt5_data_blend(cfg, alpha=0.3):
     if train_cfg.model.data.data_prefix is not None:
         return train_cfg.model.data.data_prefix
 
-    data_cfg = cfg.data_preparation
-    data_dir = data_cfg.preprocessed_dir
+    data_cfg = cfg.get("data_preparation")
+    data_dir = data_cfg.get("preprocessed_dir")
 
     data_files = os.listdir(data_dir)
     lang_size = defaultdict(int)
