@@ -8,7 +8,7 @@ class TestEvaluationT5Config:
         s = """
         run:
           name: eval_${.task_name}_${.model_train_name}
-          time_limit: "0-04:00:00"
+          time_limit: "04:00:00"
           dependency: "singleton"
           model_train_name: t5_220m
           task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
@@ -16,8 +16,8 @@ class TestEvaluationT5Config:
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
         trainer:
-          gpus: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
-          num_nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8}
+          gpus: 8
+          num_nodes: 1
           accelerator: ddp
           precision: bf16
           logger: False # logger provided by exp_manager
@@ -35,8 +35,6 @@ class TestEvaluationT5Config:
         model:
           restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
           tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
-          pipeline_model_parallel_size: 1
-          model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
         

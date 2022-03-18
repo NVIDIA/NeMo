@@ -9,16 +9,16 @@ import utils
 
 @hydra.main(config_path="../../../conf", config_name="config")
 def main(cfg):
-    bignlp_path = cfg.bignlp_path
-    data_config = cfg.data_config
-    data_cfg = cfg.data_preparation
-    data_dir = cfg.data_dir
-    rm_extracted = data_cfg.rm_extracted
-    tokenizer_type = data_cfg.tokenizer_type
+    bignlp_path = cfg.get("bignlp_path")
+    data_config = cfg.get("data_config")
+    data_cfg = cfg.get("data_preparation")
+    data_dir = cfg.get("data_dir")
+    rm_extracted = data_cfg.get("rm_extracted")
+    tokenizer_type = data_cfg.get("tokenizer_type")
     assert data_dir is not None, "data_dir must be a valid path"
 
     # Vocab
-    vocab_dir = data_cfg.vocab_save_dir
+    vocab_dir = data_cfg.get("vocab_save_dir")
     assert vocab_dir is not None, "vocab_save_dir must be a valid path."
     if 'gpt' in tokenizer_type.lower():
         vocab_path = os.path.join(bignlp_path, vocab_dir, "vocab.json")
@@ -26,7 +26,7 @@ def main(cfg):
         vocab_path = os.path.join(bignlp_path, vocab_dir, "vocab.txt")
 
     # Merges
-    merges_dir = data_cfg.merges_save_dir
+    merges_dir = data_cfg.get("merges_save_dir")
     assert merges_dir is not None, "merges_save_dir must be a valid path."
     merges_path = os.path.join(bignlp_path, merges_dir, "merges.txt")
 
@@ -49,7 +49,7 @@ def main(cfg):
         f'CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} ' + '{flags}'
     )
 
-    if cfg.cluster_type == "bcm":
+    if cfg.get("cluster_type") == "bcm":
         file_number = int(os.environ.get("SLURM_ARRAY_TASK_ID"))
         extracted_path = os.path.join(data_dir, f"{file_number:02d}.jsonl")
         # TODO: find better way to do this
@@ -70,8 +70,8 @@ def main(cfg):
         os.system(runcmd.format(flags=flags))
         if rm_extracted:
             os.remove(extracted_path)
-    elif cfg.cluster_type == "bcp":
-        file_numbers = data_cfg.file_numbers
+    elif cfg.get("cluster_type") == "bcp":
+        file_numbers = data_cfg.get("file_numbers")
         files_list = utils.convert_file_numbers(file_numbers)
         # Assumes launched via mpirun:
         #   mpirun -N <nnodes> -npernode 1 ...

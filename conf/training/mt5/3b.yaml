@@ -1,10 +1,10 @@
 run:
-  name: t5_3b
+  name: mt5_3b
   results_dir: ${base_results_dir}/${.name}
   time_limit: "15-00:00:00"
   dependency: "singleton"
 
-name: megatron_t5
+name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -17,7 +17,7 @@ trainer:
   checkpoint_callback: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   max_time: "14:23:30:00"
   log_every_n_steps: 10
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
@@ -30,10 +30,10 @@ trainer:
 exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
-  name: megatron_t5
+  name: megatron_mt5
   create_wandb_logger: True
   wandb_logger_kwargs:
-    project: nemo_t5
+    project: nemo_mt5
     name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -44,7 +44,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_mt5--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${training.model.tensor_model_parallel_size}
   log_step_timing: True
   step_timing_kwargs:
@@ -53,9 +53,9 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 27
+  micro_batch_size: 24
   tensor_model_parallel_size: 2
-  pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
+  pipeline_model_parallel_size: 1 # mt5 PP is not supported yet. Use 1 for now.
 
   # model architecture
   make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -83,10 +83,10 @@ model:
   activation: 'gelu'
 
   tokenizer:
-    library: 'megatron'
-    type: 'BertWordPieceCase'
-    model: null
-    vocab_file: ${data_dir}/bpe/vocab.txt
+    library: 'sentencepiece'
+    type: null
+    model: ${data_dir}/mc4/bpe/mt5_tokenizer.model
+    vocab_file: null
     merge_file: null
     num_sentinel_tokens: 100
 
@@ -136,64 +136,4 @@ model:
     permutation: False
     whole_word_masking: True
     favor_longer_ngrams: False
-    data_prefix: # Should be weight path weight path... for a blended dataset
-      - .0333
-      - ${data_dir}/my-t5_00_text_document
-      - .0333
-      - ${data_dir}/my-t5_01_text_document
-      - .0333
-      - ${data_dir}/my-t5_02_text_document
-      - .0333
-      - ${data_dir}/my-t5_03_text_document
-      - .0333
-      - ${data_dir}/my-t5_04_text_document
-      - .0333
-      - ${data_dir}/my-t5_05_text_document
-      - .0333
-      - ${data_dir}/my-t5_06_text_document
-      - .0333
-      - ${data_dir}/my-t5_07_text_document
-      - .0333
-      - ${data_dir}/my-t5_08_text_document
-      - .0333
-      - ${data_dir}/my-t5_09_text_document
-      - .0333
-      - ${data_dir}/my-t5_10_text_document
-      - .0333
-      - ${data_dir}/my-t5_11_text_document
-      - .0333
-      - ${data_dir}/my-t5_12_text_document
-      - .0333
-      - ${data_dir}/my-t5_13_text_document
-      - .0333
-      - ${data_dir}/my-t5_14_text_document
-      - .0333
-      - ${data_dir}/my-t5_15_text_document
-      - .0333
-      - ${data_dir}/my-t5_16_text_document
-      - .0333
-      - ${data_dir}/my-t5_17_text_document
-      - .0333
-      - ${data_dir}/my-t5_18_text_document
-      - .0333
-      - ${data_dir}/my-t5_19_text_document
-      - .0333
-      - ${data_dir}/my-t5_20_text_document
-      - .0333
-      - ${data_dir}/my-t5_21_text_document
-      - .0333
-      - ${data_dir}/my-t5_22_text_document
-      - .0333
-      - ${data_dir}/my-t5_23_text_document
-      - .0333
-      - ${data_dir}/my-t5_24_text_document
-      - .0333
-      - ${data_dir}/my-t5_25_text_document
-      - .0333
-      - ${data_dir}/my-t5_26_text_document
-      - .0333
-      - ${data_dir}/my-t5_27_text_document
-      - .0333
-      - ${data_dir}/my-t5_28_text_document
-      - .0334
-      - ${data_dir}/my-t5_29_text_document
+    data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.

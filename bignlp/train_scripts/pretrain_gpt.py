@@ -12,9 +12,9 @@ def main(cfg):
     args = sys.argv[1:]
     hydra_train_args = convert_args_to_hydra_train_args(args)
 
-    bignlp_path = cfg.bignlp_path
-    dgxa100_gpu2core = cfg.dgxa100_gpu2core
-    dgxa100_gpu2mem = cfg.dgxa100_gpu2mem
+    bignlp_path = cfg.get("bignlp_path")
+    dgxa100_gpu2core = cfg.get("dgxa100_gpu2core")
+    dgxa100_gpu2mem = cfg.get("dgxa100_gpu2mem")
     training_config = cfg.training_config.rsplit('/', 1)[1]
     training_config_path = os.path.join(bignlp_path, "conf/training", cfg.training_config.rsplit('/', 1)[0])
     flags = f"--config-path={training_config_path} --config-name={training_config} "

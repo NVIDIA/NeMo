@@ -50,6 +50,20 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
+def create_bcp_file(
+        cmd_str1,
+        cmd_str2,
+        num_nodes,
+        ntasks_per_node,
+        log_file,
+        new_script_path
+):
+    with open(new_script_path, "w") as f:
+        f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str1}; {cmd_str2}" >> {log_file} 2>&1\n\n')
+        f.writelines("set +x\n")
+    os.chmod(new_script_path, 0o755)
+
+
 def run_evaluation(cfg, dependency=None):
     # Read config
     bignlp_path = cfg.get("bignlp_path")
@@ -60,7 +74,7 @@ def run_evaluation(cfg, dependency=None):
     base_results_dir = cfg.get("base_results_dir")
     run_cfg = eval_cfg.get("run")
     model_cfg = eval_cfg.get("model")
-    cluster_cfg = cfg.cluster
+    cluster_cfg = cfg.get("cluster")
 
     # Model parameters
     model_type = model_cfg.get("model_type")
@@ -71,15 +85,15 @@ def run_evaluation(cfg, dependency=None):
     pipeline_model_parallel_size = model_cfg.get("pipeline_model_parallel_size")
     precision = model_cfg.get("precision")
     batch_size = model_cfg.get("eval_batch_size")
-    vocab_file = model_cfg.vocab_file
-    merge_file = model_cfg.merge_file
+    vocab_file = model_cfg.get("vocab_file")
+    merge_file = model_cfg.get("merge_file")
 
     # Run parameters
     name = run_cfg.get("name")
     time_limit = run_cfg.get("time_limit")
     nodes = run_cfg.get("nodes")
     ntasks_per_node = run_cfg.get("ntasks_per_node")
-    gpus_per_task = cluster_cfg.gpus_per_task
+    gpus_per_task = cluster_cfg.get("gpus_per_task")
     eval_name = run_cfg.get("eval_name")
     convert_name = run_cfg.get("convert_name")
     model_train_name = run_cfg.get("model_train_name")
@@ -160,9 +174,16 @@ def run_evaluation(cfg, dependency=None):
         return dependency
 
     elif cfg.get("cluster_type") == "bcp":
-        print(f"Evaluation dataset download job submitted with command: \n{eval_cmd1}")
-        subprocess.check_output([f"{eval_cmd1}"], shell=True)
+        create_bcp_file(
+            new_script_path=new_script_path,
+            cmd_str1=eval_cmd1,
+            cmd_str2=eval_cmd2,
+            num_nodes=nodes,
+            ntasks_per_node=ntasks_per_node,
+            log_file=f"{results_dir}/eval_log.txt",
+        )
 
-        print(f"Evaluation job submitted with command: \n{eval_cmd2}")
-        subprocess.check_output([f"{eval_cmd2}"], shell=True)
-        return None
+        submit_cmd = f"NGC_TASKS_PER_NODE={ntasks_per_node} {new_script_path}"
+        job_id = subprocess.check_output([f"{submit_cmd}"], shell=True)
+        print(f"Evaluation job submitted with command: \n{submit_cmd}")
+        return job_id

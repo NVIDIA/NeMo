@@ -5,7 +5,6 @@ import subprocess
 import hydra
 import omegaconf
 from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
-from bignlp.train_scripts.train_utils import generate_mt5_data_blend
 
 
 def create_slurm_file(
@@ -97,13 +96,6 @@ def run_training(cfg, hydra_args="", dependency=None):
     training_config = cfg.get("training_config")
     if "gpt" in training_config:
         code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_gpt.py")
-    elif "mt5" in training_config:
-        model_cfg = train_cfg.get("model")
-        model_data_cfg = model_cfg.get("data")
-        if model_data_cfg.get("data_prefix") is None:
-            cfg.training.model.data.data_prefix = generate_mt5_data_blend(cfg)
-            hydra_args = convert_to_cli(cfg)
-        code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
     elif "t5" in training_config:
         code_path = os.path.join(bignlp_path, "bignlp/train_scripts/pretrain_t5.py")
     else:

@@ -1,0 +1,90 @@
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: mt5_220m
+  task_name: "xnli"
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+
+trainer:
+  gpus: 8
+  num_nodes: 1
+  accelerator: ddp
+  precision: bf16
+  logger: False # logger provided by exp_manager
+  checkpoint_callback: False
+  replace_sampler_ddp: False
+  max_epochs: 4
+  max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  log_every_n_steps: 10
+  val_check_interval: 500
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+
+exp_manager:
+  explicit_log_dir: ${finetuning.run.results_dir}
+  exp_dir: null
+  name: megatron_mt5_glue_xnli
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: megatron_mt5_glue_xnli
+    name: ${finetuning.run.name}
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: validation_acc
+    save_top_k: 5
+    mode: max
+    always_save_nemo: False
+    save_nemo_on_train_end: True # Set to true for subsequent validation runs.
+    filename: 'megatron_mt5--{validation_acc:.3f}-{step}'
+    model_parallel_size: ${finetuning.model.tensor_model_parallel_size}
+    save_best_model: True
+
+model: # For different finetuning tasks, tuning the hyper parameters accordingly
+  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_mt5.nemo # Path to a trained mt5 .nemo file
+  tensor_model_parallel_size: 1
+  gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  megatron_amp_O2: False # Enable O2 optimization for megatron amp
+  eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
+
+  data:
+    train_ds: # XNLI task use mnli training data
+      task_name: 'mnli'
+      file_path: ${data_dir}/glue_data/mnli/train.tsv # Path to the TSV file for MNLI train
+      batch_size: 16
+      shuffle: True
+      num_workers: 4
+      pin_memory: True
+      max_seq_length: 512
+
+    validation_ds:
+      task_name: 'xnli'
+      file_path: ${data_dir}/glue_data/xnli/xnli.dev.tsv # Path to the TSV file for XNLI dev
+      batch_size: 32
+      shuffle: False
+      num_workers: 8
+      pin_memory: True
+      max_seq_length: 512
+
+    test_ds:
+      task_name: 'xnli'
+      file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
+      batch_size: 32
+      shuffle: False
+      num_workers: 8
+      pin_memory: True
+      max_seq_length: 512
+
+  optim:
+    name: fused_adam
+    lr: 2.0e-5
+    weight_decay: 0.1
+    sched:
+      name: WarmupAnnealing
+      min_lr: 0.0
+      last_epoch: -1
+      warmup_ratio: 0.0
+

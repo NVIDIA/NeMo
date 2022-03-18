@@ -9,7 +9,7 @@ import io
 
 URLLIB = urllib.request
 
-TASKS = ["CoLA", "SST-2", "MRPC", "QQP", "STS-B", "MNLI", "QNLI", "RTE", "WNLI", "diagnostic"]
+TASKS = ["CoLA", "SST-2", "MRPC", "QQP", "STS-B", "MNLI", "QNLI", "RTE", "WNLI", "XNLI", "diagnostic"]
 TASK2PATH = {"CoLA": 'https://dl.fbaipublicfiles.com/glue/data/CoLA.zip',
              "SST-2": 'https://dl.fbaipublicfiles.com/glue/data/SST-2.zip',
              "MRPC": 'https://raw.githubusercontent.com/MegEngine/Models/master/official/nlp/bert/glue_data/MRPC/dev_ids.tsv',
@@ -19,6 +19,7 @@ TASK2PATH = {"CoLA": 'https://dl.fbaipublicfiles.com/glue/data/CoLA.zip',
              "QNLI": 'https://dl.fbaipublicfiles.com/glue/data/QNLIv2.zip',
              "RTE": 'https://dl.fbaipublicfiles.com/glue/data/RTE.zip',
              "WNLI": 'https://dl.fbaipublicfiles.com/glue/data/WNLI.zip',
+             "XNLI": 'https://dl.fbaipublicfiles.com/XNLI/XNLI-1.0.zip',
              "diagnostic": 'https://dl.fbaipublicfiles.com/glue/data/AX.tsv'}
 
 MRPC_TRAIN = 'https://dl.fbaipublicfiles.com/senteval/senteval_data/msr_paraphrase_train.txt'
@@ -26,7 +27,7 @@ MRPC_TEST = 'https://dl.fbaipublicfiles.com/senteval/senteval_data/msr_paraphras
 
 
 def download_and_extract(task, data_dir):
-    if os.path.exists(os.path.join(data_dir, task)):
+    if os.path.exists(os.path.join(data_dir, task if task != "XNLI" else "XNLI-1.0")):
         print("Skipped downloading %s. Already exists." % task)
         return
 
@@ -41,7 +42,7 @@ def download_and_extract(task, data_dir):
 
 def create_softlinks(tasks, data_dir):
     for task in tasks:
-        src = os.path.join(data_dir, task)
+        src = os.path.join(data_dir, task if task != "XNLI" else "XNLI-1.0")
         dst = os.path.join(data_dir, task.lower())
         if os.path.exists(dst):
             os.remove(dst)
@@ -126,7 +127,10 @@ def get_tasks(task_names):
             else:
                 raise ValueError("Task %s not found!" % task_name)
 
-    return tasks
+    tasks = set(tasks)
+    if "XNLI" in tasks:
+        tasks.add("MNLI")
+    return list(tasks)
 
 
 def download_glue(data_dir='glue_data', tasks='all', path_to_mrpc=None):
@@ -165,6 +169,7 @@ def main(arguments):
             download_diagnostic(args.data_dir)
         else:
             download_and_extract(task, args.data_dir)
+    create_softlinks(tasks, args.data_dir)
 
 
 if __name__ == '__main__':

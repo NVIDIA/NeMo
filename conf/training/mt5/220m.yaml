@@ -8,7 +8,7 @@ name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 4
+  num_nodes: 8
   gpus: 8
   accelerator: ddp
   precision: bf16
@@ -19,7 +19,7 @@ trainer:
   max_epochs: null
   max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   max_time: "06:23:30:00"
-  log_every_n_steps: 100
+  log_every_n_steps: 10
   val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
   limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
   limit_test_batches: ${multiply:500, ${.accumulate_grad_batches}}
@@ -55,10 +55,16 @@ model:
   # model parallelism
   micro_batch_size: 32
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 # PP is not supported yet. Use 1 for now.
+  pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
 
   # model architecture
-  seq_length: 1024
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+
+  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+
+  seq_length: 512
   max_position_embeddings: ${.seq_length}
   num_layers: 12
   hidden_size: 768
@@ -70,13 +76,11 @@ model:
   kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
-  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
-
-  pre_process: True # add embedding
-  post_process: True # add pooler
-  activations_checkpoint_method: null
-  activations_checkpoint_num_layers: 1
-
+  persist_layer_norm: True # Use of persistent fused layer norm kernel.
+  gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  encoder_arch: 'transformer'
+  decoder_arch: 'transformer'
+  activation: 'gelu'
 
   tokenizer:
     library: 'sentencepiece'
@@ -87,7 +91,6 @@ model:
     num_sentinel_tokens: 100
 
   # precision
-  megatron_amp_O2: False
   native_amp_init_scale: 4294967296 # 2 ** 32
   native_amp_growth_interval: 1000
   fp32_residual_connection: False # Move residual connections to fp32
@@ -120,17 +123,17 @@ model:
     data_impl: mmap
     splits_string: "999982,9,9"
     seq_length: ${training.model.seq_length}
-    seq_length_dec: 256
+    seq_length_dec: 128
     skip_warmup: True
-    num_workers: 4
+    num_workers: 8
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     dataset_type: 't5'
     short_seq_prob: 0.0
-    max_ngram_size: 256
+    max_ngram_size: 10
     mean_ngram_size: null
     geometric_dist: True
     permutation: False
-    whole_word_masking: True
+    whole_word_masking: False
     favor_longer_ngrams: False
     data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.

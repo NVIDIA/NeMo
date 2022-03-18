@@ -66,7 +66,7 @@ def numa_mapping(dgxa100_gpu2core, dgxa100_gpu2mem):
 def convert_args_to_hydra_train_args(args, prefix="training."):
     for index, arg in enumerate(args):
         k, v = arg.split("=", 1)
-        if "splits_string" in k:
+        if "splits_string" in k and "\\" not in v:
             args[index] = "{}={}".format(k, v.replace("'", "\\'"))
 
     train_args = [x.replace(prefix, "") for x in args if x.startswith(prefix)]
@@ -80,8 +80,8 @@ def generate_mt5_data_blend(cfg, alpha=0.3):
     if train_cfg.model.data.data_prefix is not None:
         return train_cfg.model.data.data_prefix
 
-    data_cfg = cfg.data_preparation
-    data_dir = data_cfg.preprocessed_dir
+    data_cfg = cfg.get("data_preparation")
+    data_dir = data_cfg.get("preprocessed_dir")
 
     data_files = os.listdir(data_dir)
     lang_size = defaultdict(int)

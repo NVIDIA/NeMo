@@ -7,7 +7,8 @@ download_tokenizer_url: https://storage.googleapis.com/t5-data/vocabs/mc4.250000
 vocab_save_dir: ${.mc4_dir}/bpe
 tokenizer_save_dir: ${.mc4_dir}/bpe
 tokenizer_model: ${.tokenizer_save_dir}/mt5_tokenizer.model
-languages: all # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
+languages: cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
+use_cleaned_english: True # whether to use cleaned version of english data
 softlinks_dir: ${.mc4_dir}/softlinks # Path to languages soft links for preprocessing
 preprocessed_dir: ${.mc4_dir}/preprocessed
 download_worker_mapping: ${.mc4_dir}/download_mapping

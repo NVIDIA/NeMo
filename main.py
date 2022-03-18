@@ -64,13 +64,12 @@ def main(cfg):
 
     # TODO: merge evaluation harness
     if run_evaluation:
-        if "gpt" in cfg.evaluation_config:
+        if "gpt" in cfg.get("evaluation_config"):
             dependency = evaluate_gpt.run_evaluation(cfg, dependency=dependency)
-        elif "t5" in cfg.evaluation_config:
+        elif "t5" in cfg.get("evaluation_config"):
             dependency = evaluate_t5.run_evaluation(cfg, hydra_args=hydra_args, dependency=dependency)
         else:
             raise ValueError(f"Unrecognized model in evaluation config `{cfg.evaluation_config}`.")
-
     else:
         cfg_copy._content.pop("evaluation", None)
 
