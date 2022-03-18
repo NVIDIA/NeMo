@@ -215,7 +215,7 @@ class TestTrainingT5Config:
         run:
           name: t5_3b
           results_dir: ${base_results_dir}/${.name}
-          time_limit: "12-00:00:00"
+          time_limit: "15-00:00:00"
           dependency: "singleton"
         
         name: megatron_t5
@@ -232,7 +232,7 @@ class TestTrainingT5Config:
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-          max_time: "11:23:30:00"
+          max_time: "14:23:30:00"
           log_every_n_steps: 100
           val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
           limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
