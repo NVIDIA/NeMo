@@ -3,7 +3,7 @@ sample_rate: 22050
 
 train_dataset: "/ngc_workspace/ljspeech_train.json"
 validation_datasets: "/ngc_workspace/ljspeech_val.json"
-sup_data_path: "/raid/try/test_sup_data"
+sup_data_path: "./raid/try/test_sup_data"
 sup_data_types: ["log_mel", "align_prior_matrix", "pitch", "voiced_mask", "p_voiced", "energy"] 
 
 whitelist_path: "/ngc_workspace/nemo_radtts/NeMo/nemo_text_processing/text_normalization/en/data/whitelist.tsv"
@@ -258,13 +258,13 @@ trainer:
   check_val_every_n_epoch: 5
 
 exp_manager:
-  exp_dir: /ngc_workspace/v_cleanup_radtts_nemo/1e6_bs32_decoder/output/
+  exp_dir: /ngc_workspace/from_110_pc/1e6_bs32_decoder/output/
   name: ${name}
   create_tensorboard_logger: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
     monitor: val/loss_ctc
     mode: min
-    filepath: /ngc_workspace/v_cleanup_radtts_nemo/1e6_bs32_decoder/output/
+    filepath: /ngc_workspace/from_110_pc/1e6_bs32_decoder/output/
     filename: model_checkpoint
 
