@@ -57,7 +57,7 @@ def prepare_model_weights(model, unfreeze_modules):
 
 
 
-@hydra_runner(config_path="/ngc_workspace/very_clean_up_radtts_nemo/NeMo/examples/tts/conf", config_name="rad-tts_dec")
+@hydra_runner(config_path="/home/add_radtts_to_nemo/NeMo/examples/tts/conf", config_name="rad-tts_dec")
 
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
