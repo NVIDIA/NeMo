@@ -100,7 +100,7 @@ if __name__ == "__main__":
                                                              "for preprocessing, the size of each shard is less than "
                                                              "max-split-size. (unit in GB)", type=int)
     parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
-    parser.add_argument("--cleaned-en", action="store_true", help="Whether to cleaned C4 en dataset instead "
+    parser.add_argument("--cleaned-en", action="store_true", help="Whether to use cleaned C4 en dataset instead."
                                                                   "of uncleaned mC4 en")
     args = parser.parse_args()
 

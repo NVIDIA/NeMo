@@ -115,7 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--node-array-size", help="Size of node array in download step", required=True,
                         type=int)
     parser.add_argument("--worker-mapping-file", help="Where to save worker mapping file", required=True)
-    parser.add_argument("--cleaned-en", action="store_true", help="Whether to cleaned C4 en dataset instead "
+    parser.add_argument("--cleaned-en", action="store_true", help="Whether to use cleaned C4 en dataset instead."
                                                                   "of uncleaned mC4 en")
     args = parser.parse_args()
     avail_nodes = args.node_array_size
