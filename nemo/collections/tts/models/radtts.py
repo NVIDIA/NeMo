@@ -313,7 +313,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         """Omitted."""
         pass
    
-   def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
+    def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
         self.eval()
         #s = [0]
         if self.training:
