@@ -16,22 +16,22 @@
 # ##########################################################################
 # import argparse
 import os
-import torch
-from nemo.collections.tts.losses.radttsloss import RADTTSLoss
-from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss
-from nemo.collections.tts.modules.alignment import plot_alignment_to_numpy
-from nemo.collections.tts.helpers.radam import RAdam
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer
 
-from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingWarmRestarts
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-from nemo.collections.tts.models.base import SpectrogramGenerator
+import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, ExponentialLR, ReduceLROnPlateau, StepLR
+
+from nemo.collections.tts.helpers.radam import RAdam
+from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
+from nemo.collections.tts.models.base import SpectrogramGenerator
+from nemo.collections.tts.modules.alignment import plot_alignment_to_numpy
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer
 from nemo.core.classes import Exportable
 from nemo.utils import logging
+
 torch.cuda.empty_cache()
 
 
@@ -39,34 +39,39 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
-        
+
         self._setup_tokenizer(cfg.validation_ds.dataset)
-        
+
         assert self.tokenizer is not None
 
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
-        
+
         self.text_tokenizer_pad_id = None
         self.tokens = None
-        
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.feat_loss_weight = 1.0
         self.model_config = cfg.modelConfig
         self.train_config = cfg.trainerConfig
         self.optim = cfg.optim
-        self.criterion = RADTTSLoss(self.train_config.sigma,self.model_config.n_group_size,
-                                      self.model_config.dur_model_config, self.model_config.f0_model_config,
-                                      self.model_config.energy_model_config,
-                                      vpred_model_config=self.model_config.v_model_config,
-                                      loss_weights=self.train_config.loss_weights)
-        
+        self.criterion = RADTTSLoss(
+            self.train_config.sigma,
+            self.model_config.n_group_size,
+            self.model_config.dur_model_config,
+            self.model_config.f0_model_config,
+            self.model_config.energy_model_config,
+            vpred_model_config=self.model_config.v_model_config,
+            loss_weights=self.train_config.loss_weights,
+        )
+
         self.attention_kl_loss = AttentionBinarizationLoss()
         self.model = instantiate(cfg.modelConfig)
         self._parser = None
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
+
     def batch_dict(self, batch_data):
         batch_data_dict = {
             "audio": batch_data[0],
@@ -77,14 +82,15 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "log_mel_lens": batch_data[5],
             "align_prior_matrix": batch_data[6],
             "pitch": batch_data[7],
-            "pitch_lens":batch_data[8],
+            "pitch_lens": batch_data[8],
             "voiced_mask": batch_data[9],
             "p_voiced": batch_data[10],
             "energy": batch_data[11],
-            "energy_lens":batch_data[12],}
-            #"speaker_id": batch_data[13],}
+            "energy_lens": batch_data[12],
+        }
+        # "speaker_id": batch_data[13],}
         return batch_data_dict
-    
+
     def forward(self, batch):
         batch = self.batch_dict(batch)
         mel = batch['log_mel']
@@ -98,23 +104,38 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         voiced_mask = batch['voiced_mask']
         p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
-        if self.train_config.binarization_start_iter >= 0 and self.global_step >= self.train_config.binarization_start_iter:
+        if (
+            self.train_config.binarization_start_iter >= 0
+            and self.global_step >= self.train_config.binarization_start_iter
+        ):
             # binarization training phase
             binarize = True
         else:
             # no binarization, soft-only
             binarize = False
-        
-        return self.model(mel=mel, speaker_ids=speaker_ids , text=text, in_lens =in_lens, out_lens=out_lens,
-            binarize_attention=binarize, attn_prior=attn_prior,
-            aug_idxs=aug_idxs, f0=f0, energy_avg=energy_avg,
-            voiced_mask=voiced_mask, p_voiced=p_voiced)
-    
+
+        return self.model(
+            mel=mel,
+            speaker_ids=speaker_ids,
+            text=text,
+            in_lens=in_lens,
+            out_lens=out_lens,
+            binarize_attention=binarize,
+            attn_prior=attn_prior,
+            aug_idxs=aug_idxs,
+            f0=f0,
+            energy_avg=energy_avg,
+            voiced_mask=voiced_mask,
+            p_voiced=p_voiced,
+        )
+
     def training_step(self, batch, batch_idx):
         batch = self.batch_dict(batch)
         mel = batch['log_mel']
-        speaker_ids = torch.tensor([0]*(batch['text']).size(0)).cuda().to(self.device)#batch['speaker_id'] single speaker for now
-        text = batch['text']#batch['lm_token']
+        speaker_ids = (
+            torch.tensor([0] * (batch['text']).size(0)).cuda().to(self.device)
+        )  # batch['speaker_id'] single speaker for now
+        text = batch['text']  # batch['lm_token']
         in_lens = batch['text_lens']
         out_lens = batch['log_mel_lens']
         attn_prior = batch['align_prior_matrix']
@@ -122,44 +143,55 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         voiced_mask = batch['voiced_mask']
         p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
-                       
-        if self.train_config.binarization_start_iter >= 0 and self.global_step >= self.train_config.binarization_start_iter:
+
+        if (
+            self.train_config.binarization_start_iter >= 0
+            and self.global_step >= self.train_config.binarization_start_iter
+        ):
             # binarization training phase
             binarize = True
         else:
             # no binarization, soft-only
             binarize = False
-    
+
         outputs = self.model(
-            mel, speaker_ids, text, in_lens, out_lens,
-            binarize_attention=binarize, attn_prior=attn_prior,
-           f0=f0, energy_avg=energy_avg,
-            voiced_mask=voiced_mask, p_voiced=p_voiced)
+            mel,
+            speaker_ids,
+            text,
+            in_lens,
+            out_lens,
+            binarize_attention=binarize,
+            attn_prior=attn_prior,
+            f0=f0,
+            energy_avg=energy_avg,
+            voiced_mask=voiced_mask,
+            p_voiced=p_voiced,
+        )
         loss_outputs = self.criterion(outputs, in_lens, out_lens)
-        
+
         loss = None
         for k, (v, w) in loss_outputs.items():
             if w > 0:
                 loss = v * w if loss is None else loss + v * w
 
-        
-        if binarize  and self.global_step >= self.train_config.kl_loss_start_iter:
-            binarization_loss = self.attention_kl_loss(
-                outputs['attn'], outputs['attn_soft'])
+        if binarize and self.global_step >= self.train_config.kl_loss_start_iter:
+            binarization_loss = self.attention_kl_loss(outputs['attn'], outputs['attn_soft'])
             loss += binarization_loss
         else:
             binarization_loss = torch.zeros_like(loss)
         loss_outputs['binarization_loss'] = (binarization_loss, 1.0)
-        
+
         for k, (v, w) in loss_outputs.items():
-            self.log("train/"+k, loss_outputs[k][0])
-        
+            self.log("train/" + k, loss_outputs[k][0])
+
         return {'loss': loss}
-    
+
     def validation_step(self, batch, batch_idx):
         batch = self.batch_dict(batch)
-        speaker_ids = torch.tensor([0]*(batch['text']).size(0)).cuda().to(self.device)#batch['speaker_id'] single speaker for now
-        text = batch['text']#batch['text']
+        speaker_ids = (
+            torch.tensor([0] * (batch['text']).size(0)).cuda().to(self.device)
+        )  # batch['speaker_id'] single speaker for now
+        text = batch['text']  # batch['text']
         in_lens = batch['text_lens']
         out_lens = batch['log_mel_lens']
         attn_prior = batch['align_prior_matrix']
@@ -168,62 +200,80 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         p_voiced = batch['p_voiced']
         energy_avg = batch['energy']
         mel = batch['log_mel']
-        if self.train_config.binarization_start_iter >= 0 and self.global_step >= self.train_config.binarization_start_iter:
+        if (
+            self.train_config.binarization_start_iter >= 0
+            and self.global_step >= self.train_config.binarization_start_iter
+        ):
             # binarization training phase
             binarize = True
         else:
             # no binarization, soft-only
             binarize = False
         outputs = self.model(
-            mel, speaker_ids, text, in_lens, out_lens,
-            binarize_attention=True, attn_prior=attn_prior,
-            f0=f0, energy_avg=energy_avg,
-            voiced_mask=voiced_mask, p_voiced=p_voiced)
+            mel,
+            speaker_ids,
+            text,
+            in_lens,
+            out_lens,
+            binarize_attention=True,
+            attn_prior=attn_prior,
+            f0=f0,
+            energy_avg=energy_avg,
+            voiced_mask=voiced_mask,
+            p_voiced=p_voiced,
+        )
         loss_outputs = self.criterion(outputs, in_lens, out_lens)
-        
+
         loss = None
         for k, (v, w) in loss_outputs.items():
             if w > 0:
                 loss = v * w if loss is None else loss + v * w
 
-       
-    
-        if binarize and self.train_config.kl_loss_start_iter >= 0 and self.global_step >= self.train_config.kl_loss_start_iter:
-            binarization_loss = self.attention_kl_loss(
-                outputs['attn'], outputs['attn_soft'])
+        if (
+            binarize
+            and self.train_config.kl_loss_start_iter >= 0
+            and self.global_step >= self.train_config.kl_loss_start_iter
+        ):
+            binarization_loss = self.attention_kl_loss(outputs['attn'], outputs['attn_soft'])
             loss += binarization_loss
         else:
             binarization_loss = torch.zeros_like(loss)
         loss_outputs['binarization_loss'] = binarization_loss
-        
-        return {"loss_outputs":loss_outputs,
-                "attn": outputs["attn"] if batch_idx == 0 else None,
-                "attn_soft": outputs["attn_soft"] if batch_idx == 0 else None,
-                "audiopaths": "audio_1" if batch_idx == 0 else None,}
-        
+
+        return {
+            "loss_outputs": loss_outputs,
+            "attn": outputs["attn"] if batch_idx == 0 else None,
+            "attn_soft": outputs["attn_soft"] if batch_idx == 0 else None,
+            "audiopaths": "audio_1" if batch_idx == 0 else None,
+        }
+
     def validation_epoch_end(self, outputs):
 
         loss_outputs = outputs[0]["loss_outputs"]
 
         for k, v in loss_outputs.items():
-            if k!="binarization_loss":
-                self.log("val/"+k, loss_outputs[k][0])
-                
+            if k != "binarization_loss":
+                self.log("val/" + k, loss_outputs[k][0])
+
         attn = outputs[0]["attn"]
         attn_soft = outputs[0]["attn_soft"]
-        
-        
-        self.tb_logger.add_image(
-            'attention_weights_mas',plot_alignment_to_numpy(attn[0, 0].data.cpu().numpy().T, title="audio"), self.global_step, dataformats='HWC')
-        
 
-        
         self.tb_logger.add_image(
-            'attention_weights',plot_alignment_to_numpy(attn_soft[0, 0].data.cpu().numpy().T, title="audio"), self.global_step, dataformats='HWC')
-        
+            'attention_weights_mas',
+            plot_alignment_to_numpy(attn[0, 0].data.cpu().numpy().T, title="audio"),
+            self.global_step,
+            dataformats='HWC',
+        )
+
+        self.tb_logger.add_image(
+            'attention_weights',
+            plot_alignment_to_numpy(attn_soft[0, 0].data.cpu().numpy().T, title="audio"),
+            self.global_step,
+            dataformats='HWC',
+        )
+
         self.log_train_images = True
-        
-    
+
     def configure_optimizers(self):
         logging.info("Initializing %s optimizer" % (self.optim.name))
         if len(self.train_config.finetune_layers):
@@ -234,22 +284,21 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                 else:
                     param.requires_grad = False
         if self.optim.name == 'Adam':
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.optim.lr,
-                                         weight_decay=self.optim.weight_decay)
+            optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
+            )
         elif self.optim.name == 'RAdam':
-            optimizer = RAdam(self.model.parameters(), lr=self.optim.lr,
-                              weight_decay=self.optim.weight_decay)
+            optimizer = RAdam(self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay)
         else:
             logging.info("Unrecognized optimizer %s!" % (self.optim.name))
             exit(1)
-    
+
         if self.optim.sched.name == 'cosine':
             # keeping init restart at epoch = 2
             # operate at iteration level instead of epoch level.
             restart_iteration = 1500
-            lr_scheduler = CosineAnnealingWarmRestarts(
-                optimizer, T_0=restart_iteration, T_mult=2, eta_min=1e-5)
-    
+            lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=restart_iteration, T_mult=2, eta_min=1e-5)
+
         elif self.optim.sched.name == 'exp_decay':
             # Decays at epoch level, 10k steps / epoch
             # gamma = Multiplicative factor of learning rate decay.
@@ -268,14 +317,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             else:
                 max_decay_steps = 100000
             # decay every 500 steps, calculated gamma using eq: 0.0035 * gamma ^ 50k = 1e-5
-            lr_scheduler = StepLR(
-                optimizer, step_size=500, gamma=0.99, last_epoch=max_decay_steps)
+            lr_scheduler = StepLR(optimizer, step_size=500, gamma=0.99, last_epoch=max_decay_steps)
         else:
             lr_scheduler = None
             # force set the learning rate to what is specified
             for param_group in optimizer.param_groups:
                 param_group['lr'] = self.optim.lr
-    
+
         return optimizer
 
     @staticmethod
@@ -300,26 +348,24 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def setup_test_data(self, cfg):
         """Omitted."""
         pass
-   
+
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
         self.eval()
-        #s = [0]
+        # s = [0]
         if self.training:
             logging.warning("generate_spectrogram() is meant to be called in eval mode.")
         speaker = torch.tensor([speaker]).long().cuda().to(self.device)
-        outputs = self.model.infer(
-                speaker, tokens, sigma=sigma)
+        outputs = self.model.infer(speaker, tokens, sigma=sigma)
 
         spect = outputs['mel']
         return spect
 
-    
     @property
     def parser(self):
         if self._parser is not None:
             return self._parser
         return self._parser
-    
+
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
         if "g2p" in cfg.text_tokenizer:
@@ -350,14 +396,14 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
             self.tokens = tokens
-        
+
     def parse(self, text: str, normalize=False) -> torch.Tensor:
         if self.training:
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
         return torch.tensor(self.tokenizer(text)).long().unsqueeze(0).cuda().to(self.device)
-    
+
     @property
     def tb_logger(self):
         if self._tb_logger is None:

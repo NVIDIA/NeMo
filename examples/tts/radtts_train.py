@@ -1,4 +1,3 @@
-  
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +15,11 @@
 import pytorch_lightning as pl
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.models.radtts import RadTTSModel 
+from nemo.collections.tts.models.radtts import RadTTSModel
 from nemo.core.config import hydra_runner
-from nemo.utils.exp_manager import exp_manager
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
+
 
 def freeze(model):
     for p in model.parameters():
@@ -29,10 +29,11 @@ def freeze(model):
 def unfreeze(model):
     for p in model.parameters():
         p.requires_grad = True
-        
+
+
 def prepare_model_weights(model, unfreeze_modules):
     if unfreeze_modules != 'all':
-        model.freeze() # freeze everything
+        model.freeze()  # freeze everything
         logging.info("module freezed, about to unfreeze modules to be trained")
         if 'dur' in unfreeze_modules and hasattr(model.model, 'dur_pred_layer'):
             logging.info("Training duration prediction")
@@ -56,12 +57,10 @@ def prepare_model_weights(model, unfreeze_modules):
         logging.info("Training everything")
 
 
-
 @hydra_runner(config_path="/home/add_radtts_to_nemo/NeMo/examples/tts/conf", config_name="rad-tts_dec")
-
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.exp_manager)    
+    exp_manager(trainer, cfg.exp_manager)
     model = RadTTSModel(cfg=cfg.model, trainer=trainer)
     if cfg.model.load_from_checkpoint:
         model.maybe_init_from_pretrained_checkpoint(cfg=cfg.model)
@@ -73,4 +72,4 @@ def main(cfg):
 
 
 if __name__ == '__main__':
-    main()   
+    main()
