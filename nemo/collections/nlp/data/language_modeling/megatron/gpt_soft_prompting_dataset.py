@@ -30,7 +30,7 @@ anywhere the user wants virtual tokens to be inserted.
 
 prompt_token_splits specifies how many virtual tokens to insert
 at each <|SOFT_PROMPT|> location. The total number of virtual
-tokens inserted into your input must add up to the total_prompt_tokens
+tokens inserted into your input must add up to the total_soft_tokens
 value specified by the user in the config. 
 
 The other fields in the json that are not in the first four listed 
@@ -85,19 +85,18 @@ class GPTSoftPromptDataset(Dataset):
         self,
         dataset_path,
         tokenizer,
-        prompt_templates: dict,
-        total_prompt_tokens: int,
+        task_templates: dict,
+        total_soft_tokens: int,
         pseudo_token: str,
         taskname_to_id: dict,
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos: bool = False,
         add_eos: bool = True,
-        calc_loss_on_answer_only=False,
     ):
         self.tokenizer = tokenizer
-        self.prompt_templates = prompt_templates
-        self.total_prompt_tokens = total_prompt_tokens
+        self.task_templates = task_templates
+        self.total_soft_tokens = total_soft_tokens
         self.pseudo_token = pseudo_token
         self.pseudo_token_id = self.tokenizer.token_to_id(pseudo_token)
         self.taskname_to_id = taskname_to_id
@@ -105,7 +104,6 @@ class GPTSoftPromptDataset(Dataset):
         self.min_seq_length = min_seq_length
         self.add_bos = add_bos
         self.add_eos = add_eos
-        self.calc_loss_on_answer_only = calc_loss_on_answer_only
         self.examples = []
 
         assert min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
@@ -122,11 +120,11 @@ class GPTSoftPromptDataset(Dataset):
             # Load the information for a single example from .json file
             doc = json.loads(json_line)
             taskname = doc["taskname"]
-            prompt_template = prompt_templates[taskname]["prompt_template"]
-            prompt_token_splits = prompt_templates[taskname]["prompt_token_splits"]
+            prompt_template = task_templates[taskname]["prompt_template"]
+            prompt_token_splits = task_templates[taskname]["prompt_token_splits"]
             input_example = prompt_template
 
-            assert sum(prompt_token_splits) == self.total_prompt_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
+            assert sum(prompt_token_splits) == self.total_soft_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
             assert prompt_template.count('<|SOFT_PROMPT_') == len(prompt_token_splits), "The number of '<|SOFT_PROMPT_n|>' markers and the number of prompt token splits must match"
 
             # Format the input example according to the template

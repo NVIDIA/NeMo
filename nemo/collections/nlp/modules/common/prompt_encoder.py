@@ -40,26 +40,25 @@ class PromptEncoder(NeuralModule, Exportable):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
 
-    def __init__(self, template: List[int], hidden_size: int, lstm_dropout: float, num_layers: int):
+    def __init__(self, total_soft_tokens: int, hidden_size: int, lstm_dropout: float, num_layers: int):
         """
         Initializes the PromptEncoder module.
         Args:
-            template: the template sizes of the vitural tokens for different clozes
+            total_soft_tokens: the total number of vitural tokens
             hidden_size: hidden dimension
             lstm_dropout: the dropout used for the LSTM
             num_layers: number of layers used in the LSTM
         """
         super().__init__()
-        self.spell_length = sum(template)
         self.hidden_size = hidden_size
-        # ent embedding
-        self.cloze_length = template
-        self.cloze_mask = [1] * sum(self.cloze_length)
-        self.cloze_mask = torch.LongTensor(self.cloze_mask).bool()
-        self.register_buffer('seq_indices', torch.LongTensor(list(range(len(self.cloze_mask)))))
+        self.total_soft_tokens = total_soft_tokens
+
+        # Set fixed indicies for forward pass
+        self.register_buffer('indices', torch.LongTensor(list(range(self.total_soft_tokens))))
 
         # embedding
-        self.embedding = torch.nn.Embedding(len(self.cloze_mask), self.hidden_size)
+        self.embedding = torch.nn.Embedding(self.total_soft_tokens, self.hidden_size)
+
         # LSTM
         self.lstm_head = torch.nn.LSTM(
             input_size=self.hidden_size,
@@ -74,13 +73,13 @@ class PromptEncoder(NeuralModule, Exportable):
         )
 
     @typecheck()
-    def forward(self, enc_taskname) -> torch.Tensor:
-        input_embeds = self.embedding(self.seq_indices).unsqueeze(0)
-        if enc_taskname is not None:
-            bz, task_seq, _ = enc_taskname.shape
-            _, seq, emb = input_embeds.shape
-            input_embeds = input_embeds.expand(bz, seq, emb).clone()
-            length = min(task_seq, seq)
-            input_embeds[:, 0:length, :] = enc_taskname[:, 0:length, :]
+    def forward(self, taskname_embeddings) -> torch.Tensor:
+        input_embeds = self.embedding(self.indices).unsqueeze(0)
+        batch_size, task_seq_length, _ = taskname_embeddings.shape
+        input_embeds = input_embeds.expand(batch_size, self.total_soft_tokens, self.hidden_size).clone()
+        length = min(task_seq_length, self.total_soft_tokens)
+
+        # Replace general input with task specific embeddings to specify the correct task
+        input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
         output_embeds = self.mlp_head(self.lstm_head(input_embeds)[0])
         return output_embeds

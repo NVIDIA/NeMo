@@ -32,11 +32,11 @@ __all__ = ['PromptTable']
 
 class PromptTable(ModelPT, Exportable):
     def __init__(
-        self, num_prompt_tokens, hidden_size,
+        self, total_soft_tokens, hidden_size,
     ):
         super().__init__()
 
-        self.num_prompt_tokens = num_prompt_tokens
+        self.total_soft_tokens = total_soft_tokens
         self.hidden_size = hidden_size
         self.prompt_table = torch.nn.ModuleDict()
         self.taskname_id_to_name = {}
@@ -67,7 +67,7 @@ class PromptTable(ModelPT, Exportable):
         """
         # Initalize prompt embeddings from a pytorch random init method
         self.prompt_table[taskname] = PromptEmbedding(
-            init_from_prompt_text=False, hidden_size=self.hidden_size, num_prompt_tokens=self.num_prompt_tokens,
+            init_from_prompt_text=False, hidden_size=self.hidden_size, total_soft_tokens=self.total_soft_tokens,
         )
 
         self.taskname_id_to_name[taskname_id] = taskname
@@ -77,14 +77,14 @@ class PromptTable(ModelPT, Exportable):
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
         """
-        # Trim or iterate until num_text_tokens matches num_prompt_tokens
+        # Trim or iterate until num_text_tokens matches total_soft_tokens
         num_text_tokens = len(init_token_ids)
-        num_prompt_tokens = self.num_prompt_tokens
+        total_soft_tokens = self.total_soft_tokens
 
-        if num_text_tokens > num_prompt_tokens:
-            init_token_ids = init_token_ids[:num_prompt_tokens]
-        elif num_text_tokens < num_prompt_tokens:
-            num_reps = math.ceil(num_prompt_tokens / num_text_tokens)
+        if num_text_tokens > total_soft_tokens:
+            init_token_ids = init_token_ids[:total_soft_tokens]
+        elif num_text_tokens < total_soft_tokens:
+            num_reps = math.ceil(total_soft_tokens / num_text_tokens)
             init_token_ids = init_token_ids * num_reps
 
         # Set dictionary item keys and datatypes for broadcasting
@@ -92,11 +92,11 @@ class PromptTable(ModelPT, Exportable):
         datatype = torch.int64
 
         # Broadcast int ids across gpus for tensor parallel
-        init_token_ids = init_token_ids[:num_prompt_tokens]
+        init_token_ids = init_token_ids[:total_soft_tokens]
         init_token_ids = {'text': torch.tensor(init_token_ids, dtype=torch.int64)}
         init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
         init_token_ids = init_token_ids_b['text'].long()
-        init_position_ids = torch.arange(self.num_prompt_tokens, dtype=torch.long, device=init_token_ids.device)
+        init_position_ids = torch.arange(self.total_soft_tokens, dtype=torch.long, device=init_token_ids.device)
 
         # Use a copy of token embedding weights to initalize the prompt embeddings
         word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
@@ -104,11 +104,14 @@ class PromptTable(ModelPT, Exportable):
         self.prompt_table[taskname] = PromptEmbedding(
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
-            num_prompt_tokens=self.num_prompt_tokens,
+            total_soft_tokens=self.total_soft_tokens,
             word_embedding_weights=word_embedding_weights,
         )
 
         self.taskname_id_to_name[taskname_id] = taskname
+
+    def init_prompt_from_p_tuning_encoder(self):
+        pass
 
 class PromptEmbedding(MegatronModule):
     """Prompt embeddings
@@ -118,7 +121,7 @@ class PromptEmbedding(MegatronModule):
                                from from certain lm embeddings
                                corresponding to a prompt string
         hidden_size: hidden size should match lm embedding size
-        num_prompt_tokens: length of prompt initalized from torch init method
+        total_soft_tokens: length of prompt initalized from torch init method
         word_embedding_weights: token embedding vectors for text init option
         init_method: pytorch init method
         prompt_embedding_dropout_prob: dropout probablity
@@ -128,7 +131,7 @@ class PromptEmbedding(MegatronModule):
         self,
         init_from_prompt_text,
         hidden_size,
-        num_prompt_tokens,
+        total_soft_tokens,
         word_embedding_weights=None,
         init_method=init.xavier_normal_,
         prompt_embedding_dropout_prob=0.1,
@@ -136,25 +139,23 @@ class PromptEmbedding(MegatronModule):
         super().__init__()
 
         self.hidden_size = hidden_size
-        self.num_prompt_tokens = num_prompt_tokens
+        self.total_soft_tokens = total_soft_tokens
 
         # Randomly init token and position embeddings
-        self.prompt_embeddings = torch.nn.Embedding(self.num_prompt_tokens, self.hidden_size)
+        self.prompt_embeddings = torch.nn.Embedding(self.total_soft_tokens, self.hidden_size)
         init_method(self.prompt_embeddings.weight)
 
         # Set embedding weights to be embeddings from prompt tokens
         if init_from_prompt_text:
             self.prompt_embeddings.weight = nn.Parameter(word_embedding_weights)
 
-        # Set keys for loading and saving weights
-        self._prompt_embeddings_key = 'prompt_embeddings'
-        self.ids = torch.arange(self.num_prompt_tokens, dtype=torch.int64)
+        # Set fixed indicies for forward pass
+        self.register_buffer('indices', torch.LongTensor(list(range(self.total_soft_tokens))))
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
     def forward(self):
         # Just get embeddings and dropout
-        device = next(self.prompt_embeddings.parameters()).device
-        prompt_embeddings = self.prompt_embeddings(self.ids.to(device))
+        prompt_embeddings = self.prompt_embeddings(seq_indices)
         prompt_embeddings = self.embedding_dropout(prompt_embeddings)
 
         return prompt_embeddings

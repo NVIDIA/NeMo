@@ -45,31 +45,39 @@ model:
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
   soft_prompt_style: ??? # either 'prompt-tuning' or 'p-tuning'
   max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
+  total_soft_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
 
   language_model:
     nemo_file: null
-
+  
+  prompt_table_path: None
   prompt_tuning:
-    prompt_table_path: None
-    num_prompt_tokens: 
-    new_prompt_tags:
+    new_tasknames:
     new_prompt_init_methods: 
     new_prompt_init_text:
 
   p_tuning:
-    prompt_encoder:
-      template: [3, 3, 3]
-      dropout: 0.0
-      num_layers: 2
-      task_dependent: true # whether the prompt encoder conditions on the task name or not, useful for multiple tasks
-    
-    task_processors:
-      - taskname: qa-task
-        template: "{v0} Context: {context}{v1} Question: {question}?{v2} Answer:"
-        limit_length_field: 'context' 
-      - taskname: sentiment-task  
-        template: "{v0}{v1} Sentence: {sentence}{v2} Sentiment:"
-        limit_length_field: 'sentence' 
+    template: [3, 3, 3]
+    dropout: 0.0
+    num_layers: 2
+
+  task_templates: # Add more as needed
+    - taskname: 
+      prompt_template:
+      prompt_token_splits: 
+    - taskname: 
+      prompt_template:
+      prompt_token_splits: 
+
+  
+  
+    # task_processors:
+    #   - taskname: qa-task
+    #     template: "{v0} Context: {context}{v1} Question: {question}?{v2} Answer:"
+    #     limit_length_field: 'context' 
+    #   - taskname: sentiment-task  
+    #     template: "{v0}{v1} Sentence: {sentence}{v2} Sentiment:"
+    #     limit_length_field: 'sentence' 
 
   data:
     train_ds:

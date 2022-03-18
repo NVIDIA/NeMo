@@ -20,11 +20,12 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
-from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset, GPTPTuneInferenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
+# from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset, GPTPTuneInferenceDataset
+# from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
+#     make_attention_mask_3d,
+#     make_history_mask_3d,
+# )
+from.nemo.collections.nlp.data.language_modeling.megatron import GPTSoftPromptDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
@@ -89,7 +90,8 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
 
         self.hidden_size = self.model.cfg.hidden_size
         self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
-        self.prompt_template = cfg.prompt_encoder.template        
+        self.task_templates = self.load_task_templates(cfg.task_templates)        
+        self.total_soft_tokens = cfg.total_soft_tokens
         self.soft_prompt_style = cfg.soft_prompt_style.lower()
 
         # Prompt tuning stores soft prompts in a table and tunes their weight directly
@@ -103,7 +105,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                 )
             else:
                 self.prompt_table = PromptTable(
-                    num_prompt_tokens=cfg.num_prompt_tokens,
+                    num_prompt_tokens=self.total_soft_tokens,
                     hidden_size=self.hidden_size,
                 )
 
@@ -111,10 +113,10 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         elif self.soft_prompt_style == 'p-tuning':
             self.virtual_token_source = 'prompt-encoder'
             self.prompt_encoder = PromptEncoder(
-                template=self.prompt_template,
+                total_soft_tokens=self.total_soft_tokens,
                 hidden_size=self.hidden_size,
-                lstm_dropout=cfg.prompt_encoder.dropout,
-                num_layers=cfg.prompt_encoder.num_layers,
+                lstm_dropout=cfg.p_tuning.dropout,
+                num_layers=cfg.p_tuning.num_layers,
             )
         else:
             raise ValueError(
@@ -126,7 +128,6 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         self.tokenizer.add_special_tokens({'additional_special_tokens': [cfg.pseudo_token]})
         self.pseudo_token_id = self.tokenizer.token_to_id(cfg.pseudo_token)
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.spell_length = sum(self.template)
         self.special_tokens = set(
             [
                 self.tokenizer.eos_id,
@@ -159,14 +160,31 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                                         please use one of text or random'
                 )
 
+    def load_task_templates(self, task_templates):
+        """
+        Takes in the task template portion of the config and turns  
+        it into a lookup table where each task's prompt template and 
+        the number of virtual tokens to insert in a given part of 
+        the prompt template are specified. 
+        """
+        templates = {}
+
+        for task in task_templates:
+            templates[task.taskname] = {
+                "prompt_template": task.prompt_template,
+                "prompt_token_splits": task.prompt_token_splits,
+            }
+
+        return templates
+
     def add_ptuned_prompts_to_prompt_table(self):
         pass
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor):
         """
-        This method will replace the virtual tokens in the input_ids with
-        embeddings calculated from either the 'prompt_table' or 
-        'prompt_encoder'. The virtual token placeholders have the token_id 
+        Replaces the virtual tokens in the input_ids with embeddings 
+        calculated from either the 'prompt_table' or 'prompt_encoder'. 
+        The virtual token placeholders have the token_id 
         `self.pseudo_token_id`.
 
         params:
@@ -187,25 +205,30 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                 virtual_token_embeddings = torch.stack(virtual_token_embeddings)
 
         elif self.virtual_token_source == 'prompt-encoder':
-            tasknames = self.word_embeddings(taskname_ids)
+            taskname_embeddings = self.word_embeddings(taskname_ids)
             with torch.autocast(device_type="cuda", dtype=self.float_type):
-                virtual_token_embeddings = self.prompt_encoder(enc_taskname=tasknames)
+                virtual_token_embeddings = self.prompt_encoder(taskname_embeddings)
 
         # Find the indicies where virtual tokens should be inserted
-        virtual_token_indices = input_ids == self.pseudo_token_id
+        virtual_token_locations = input_ids == self.pseudo_token_id
 
         # Create index template specifying where virtual token embeddings should be placed
         batch_size, seq_length, embedding_size = discrete_token_embeds.shape
-        virtual_token_template = virtual_token_indices.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_template = virtual_token_template.expand(batch_size, seq_length, embedding_size)
+        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
+        virtual_token_index = virtual_token_index.expand(batch_size, seq_length, embedding_size)
 
         # Insert virtual token embeddings where they belong amoung discrete token embeddings
-        discrete_token_embeds.scatter_(1, virtual_token_template, virtual_token_embeddings)
+        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
         input_embeds = discrete_token_embeds
 
         return input_embeds
 
     def soft_prompt_forward(self, batch):
+        """
+        Special forward method for p-tuning/prompt-tuning pretrained
+        GPT style models. Bypasses the vocab token preprocessing done
+        in the MegatronGPT class.
+        """
         input_ids, labels, loss_mask, attention_mask, position_ids, taskname_ids = batch
 
         # Get embeddings for text tokens and insert virtual token embeddings
@@ -255,6 +278,15 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
             self._reduced_loss_buffer = []
 
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        with torch.no_grad():
+            output_tensor, encoder_hidden_states = self.soft_prompt_forward(batch)
+            loss = self.model.loss_func(loss_mask, output_tensor)
+            self.log('validation_loss', loss)
+
+            # Reduced loss for logging.
+            reduced_loss = average_losses_across_data_parallel_group([loss])
 
     def inference_step(self, batch, batch_ix):
         loss = self.get_loss(batch)
@@ -368,110 +400,80 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         logging.info(f'Test loss: {test_loss}')
         logging.info(f'Test accuracy: {test_acc}')
 
-    def build_train_valid_test_datasets(self, test_only=False):
-        logging.info('Building P-Tune datasets.')
-        self._test_ds = GPTPTuneDataset(
-            self.cfg.data.test_ds.file_path,
-            data_type="test",
-            tokenizer=self.tokenizer,
-            templates=self.template,
-            pseudo_token_id=self.pseudo_token_id,
-            pad_id=self.pad_token_id,
-            max_seq_length=self.model.cfg.encoder_seq_length,
-            max_seq_length_decoder=self.cfg.get('max_decode_length', None),
-        )
-        # update the num_tokens_to_gen from dataset
-        length_for_test = self._test_ds.max_seq_length_decoder
-        if test_only:
-            self.num_tokens_to_gen = length_for_test
-            return None, None, self._test_ds
-        self._train_ds = GPTPTuneDataset(
-            self.cfg.data.train_ds.file_path,
-            data_type="train",
-            tokenizer=self.tokenizer,
-            templates=self.template,
-            pseudo_token_id=self.pseudo_token_id,
-            pad_id=self.pad_token_id,
-            max_seq_length=self.model.cfg.encoder_seq_length,
-            max_seq_length_decoder=length_for_test,
-        )
-        # update the num_tokens_to_gen from dataset
-        length_for_train = self._train_ds.max_seq_length_decoder
-        self._validation_ds = GPTPTuneDataset(
-            self.cfg.data.validation_ds.file_path,
-            data_type="validation",
-            tokenizer=self.tokenizer,
-            templates=self.template,
-            pseudo_token_id=self.pseudo_token_id,
-            pad_id=self.pad_token_id,
-            max_seq_length=self.model.cfg.encoder_seq_length,
-            max_seq_length_decoder=length_for_train,
-        )
-        length_for_validation = self._validation_ds.max_seq_length_decoder
-        self.num_tokens_to_gen = min(length_for_validation, length_for_train)
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
-        logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-        logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building T5 datasets.')
-        return self._train_ds, self._validation_ds, self._test_ds
-
-    def build_pretraining_data_loader(self, dataset, batch_size, shuffle, num_workers, pin_memory):
-        """Buld dataloader given an input dataset."""
-
-        if dataset is None:
-            return None
-
-        # Torch dataloader.
-        return torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=dataset.collate_fn,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            drop_last=False,
-        )
-
     def setup(self, stage=None):
         if stage == 'predict':
             return
         
+        # New soft prompt init needs to happen before building datasets
         if self.soft_prompt_style == 'prompt-tuning':
             self.init_new_prompts()
 
-        self.build_train_valid_test_datasets(test_only=stage == 'test')
         self.setup_test_data()
         if stage == 'test':
             return
+
         self.setup_training_data()
         self.setup_validation_data()
 
     def setup_training_data(self, training_data_config=None):
-        self._train_dl = self.build_pretraining_data_loader(
-            self._train_ds,
-            self.cfg.data.train_ds.batch_size,
-            shuffle=True,
-            num_workers=self.cfg.data.train_ds.num_workers,
-            pin_memory=True,
-        )
+        if self.cfg.data.get('train_ds', None):
+            self._train_ds, self._train_dl = self.build_soft_prompt_dataset(
+                dataset_path=self.cfg.data.train_ds,
+                batch_size=self.cfg.batch_size,
+                drop_last=True,
+                shuffle=True,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
 
     def setup_validation_data(self, validation_data_config=None):
-        self._validation_dl = self.build_pretraining_data_loader(
-            self._validation_ds,
-            self.cfg.data.validation_ds.batch_size,
-            shuffle=False,
-            num_workers=self.cfg.data.validation_ds.num_workers,
-            pin_memory=True,
-        )
+        if self.cfg.data.get('validation_ds', None):
+            self._validation_ds, self._validation_dl = self.build_soft_prompt_dataset(
+                dataset_path=self.cfg.data.validation_ds,
+                batch_size=self.cfg.batch_size,
+                drop_last=True,
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
 
     def setup_test_data(self, test_data_config=None):
-        self._test_dl = self.build_pretraining_data_loader(
-            self._test_ds,
-            self.cfg.data.test_ds.batch_size,
-            shuffle=False,
-            num_workers=self.cfg.data.test_ds.num_workers,
-            pin_memory=True,
+        if self.cfg.data.get('test_ds', None):
+            self._test_ds, self._test_dl = self.build_soft_prompt_dataset(
+                dataset_path=self.cfg.data.test_ds,
+                batch_size=self.cfg.batch_size,
+                drop_last=False,
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def build_soft_prompt_dataset(self, dataset_path, batch_size, drop_last, shuffle, num_workers, pin_memory):
+        dataset = GPTSoftPromptDataset(
+            dataset_path=dataset_path,
+            tokenizer=self.tokenizer,
+            prompt_templates=self.prompt_templates,
+            total_soft_tokens=self.total_soft_tokens,
+            pseudo_token=self.pseudo_token,
+            taskname_to_id=self.taskname_to_id,
+            max_seq_length=self.cfg.data.get('max_seq_length', self.cfg.max_position_embeddings),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True)
         )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=self.cfg.global_batch_size,
+            drop_last=drop_last,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+
+        return dataset, dataloader
+
 
     @classmethod
     def list_available_models(cls):
