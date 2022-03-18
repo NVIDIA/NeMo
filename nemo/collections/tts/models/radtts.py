@@ -17,28 +17,19 @@
 # import argparse
 import os
 import torch
-from torch.utils.data import DataLoader
-from torch.cuda import amp
 from nemo.collections.tts.losses.radttsloss import RADTTSLoss
 from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss
-from nemo.collections.tts.modules.radtts import RadTTSModule
 from nemo.collections.tts.modules.alignment import plot_alignment_to_numpy
-from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy
-
 from nemo.collections.tts.helpers.radam import RAdam
-from timeit import default_timer as timer
-import hashlib
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer
 
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingWarmRestarts
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-import pytorch_lightning as pl
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.core.classes import Exportable
 from nemo.utils import logging
 torch.cuda.empty_cache()
@@ -53,7 +44,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         
         assert self.tokenizer is not None
 
-        num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
         
@@ -123,12 +113,11 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         batch = self.batch_dict(batch)
         mel = batch['log_mel']
-        speaker_ids = speaker_ids = torch.tensor([0]*(batch['text']).size(0)).cuda().to(self.device)#batch['speaker_id'] single speaker for now
+        speaker_ids = torch.tensor([0]*(batch['text']).size(0)).cuda().to(self.device)#batch['speaker_id'] single speaker for now
         text = batch['text']#batch['lm_token']
         in_lens = batch['text_lens']
         out_lens = batch['log_mel_lens']
         attn_prior = batch['align_prior_matrix']
-        aug_idxs = None
         f0 = batch['pitch']
         voiced_mask = batch['voiced_mask']
         p_voiced = batch['p_voiced']
@@ -174,7 +163,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         in_lens = batch['text_lens']
         out_lens = batch['log_mel_lens']
         attn_prior = batch['align_prior_matrix']
-        aug_idxs = None
         f0 = batch['pitch']
         voiced_mask = batch['voiced_mask']
         p_voiced = batch['p_voiced']
