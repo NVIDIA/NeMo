@@ -22,6 +22,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
@@ -39,6 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.transformer.text_generable_model import TextGenerableModelInterface
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
@@ -90,7 +92,7 @@ def _get_params_for_weight_decay_optimization(
     return weight_decay_params, no_weight_decay_params
 
 
-class MegatronGPTModel(NLPModel):
+class MegatronGPTModel(NLPModel, TextGenerableModelInterface):
     """
     Megatron GPT pretraining and prompt tuning
     """
@@ -874,6 +876,10 @@ class MegatronGPTModel(NLPModel):
             for param in param_group['params']:
                 params.append(param)
         return params
+
+    def generate(self, inputs: Union[List[str], Tensor, List[dict]], sampling_params: SamplingParam) -> OutputType:
+        # no implementation
+        return super().generate(inputs, sampling_params)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
