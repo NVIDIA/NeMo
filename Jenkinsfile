@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:22.01-py3'
+      image 'gitlab-master.nvidia.com/sandeepsub/nemo_containers:nemo-180-2202-ci-apex-2998a235292bdf1c7de1500ff3baaa96732b6a4f'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -779,7 +779,29 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf sgd_gen_bert_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf sgd_gen_bert_outputs'
+          }
+        }
+        stage('SGD-GEN Backward compatible with IntentSlotClassificationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
+            python sgd_gen.py \
+            model.dataset.data_dir=/home/TestData/nlp/processed_assistant \
+            model.dataset.dialogues_example_dir=sgd_gen_bert_intent_classification_outputs \
+            model.dataset.task=assistant \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[1] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
       }
@@ -2181,33 +2203,34 @@ pipeline {
     }
 
 
-    stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "python -m torch.distributed.launch --nproc_per_node=2 \
-        examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
-        --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
-        --checkpoint_name=model_optim_rng.pt \
-        --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
-        --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
-        --model_type=gpt \
-        --pipeline_model_parallel_size=1 \
-        --gpus_per_node=2 \
-        --tensor_model_parallel_size=2"
-        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-        --model_file=examples/nlp/language_modeling/small_gpt.nemo \
-        --tokens_to_generate=32 \
-        --tensor_model_parallel_size=2 \
-        --prompt='This is a test.'"
-        sh "rm examples/nlp/language_modeling/small_gpt.nemo"
-      }
-    }
+    // TODO: Add this test back. Test was failing on CI machines due to HW error
+    // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   steps {
+    //     sh "python -m torch.distributed.launch --nproc_per_node=2 \
+    //     examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
+    //     --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
+    //     --checkpoint_name=model_optim_rng.pt \
+    //     --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
+    //     --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
+    //     --model_type=gpt \
+    //     --pipeline_model_parallel_size=1 \
+    //     --gpus_per_node=2 \
+    //     --tensor_model_parallel_size=2"
+    //     sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+    //     --model_file=examples/nlp/language_modeling/small_gpt.nemo \
+    //     --tokens_to_generate=32 \
+    //     --tensor_model_parallel_size=2 \
+    //     --prompt='This is a test.'"
+    //     sh "rm examples/nlp/language_modeling/small_gpt.nemo"
+    //   }
+    // }
     stage('L2: Megatron Change Partitions') {
       when {
         anyOf {

@@ -144,7 +144,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
+        enc_output_mask=None,
         output_enc_hidden_only=False,
+        enc_input=None,
     ):
         ret_dict = self.enc_dec_model(
             enc_input_ids=encoder_input_ids,
@@ -154,7 +156,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             tokentype_ids=tokentype_ids,
             labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
+            enc_output_mask=enc_output_mask,
             output_enc_hidden_only=output_enc_hidden_only,
+            enc_input=enc_input,
         )
 
         return ret_dict
@@ -321,7 +325,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
-        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
+        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
             try:
                 init_consumed_samples = int(
@@ -403,9 +407,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
         # TODO: move method into a class inside MegatronTokenLevelEncoderDecoderModule (?)
-        encoder_hidden_states = itemgetter("enc_output")(
+        encoder_hidden_states, enc_output_mask = itemgetter("enc_output", "enc_output_mask")(
             self(
                 encoder_input_ids=tokens_enc,
                 decoder_input_ids=None,
@@ -414,7 +418,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tokentype_ids=None,
                 lm_labels=None,
                 enc_hidden_states=None,
+                enc_output_mask=None,
                 output_enc_hidden_only=True,
+                enc_input=enc_input,
             )
         )
         predicted_tokens_dec = (
@@ -431,7 +437,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     tokentype_ids=None,
                     lm_labels=None,
                     enc_hidden_states=encoder_hidden_states,
+                    enc_output_mask=enc_output_mask,
                     output_enc_hidden_only=False,
+                    enc_input=enc_input,
                 )
             )
             token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
@@ -467,7 +475,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
         enc_mask = tokens_enc != self.tokenizer.pad_id
-        enc_mask = enc_mask < 0.5
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()
