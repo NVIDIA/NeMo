@@ -1,4 +1,4 @@
-name: AttentionIsAllYouNeed
+name: MegatronNMT
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
 
@@ -30,20 +30,20 @@ exp_manager:
   checkpoint_callback_params:
     monitor: val_loss
     save_top_k: 10
-    mode: max
+    mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: 'megatron_nmt--{val_sacreBLEU:.3f}-{step}'
+    filename: 'megatron_nmt--{val_loss:.3f}-{step}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
   # NMT Params
   multilingual: False
-  label_smoothing: 0.1
+  label_smoothing: 0.1 # TODO: Implement this.
   shared_tokenizer: True # train tokenizer model across src and tgt train data
   preproc_out_dir: null # path to store data preprocessing outputs
   src_language: 'en'
   tgt_language: 'de'
-  max_generation_delta: 20
+  max_generation_delta: 20 # Maximum decoder sequence length is encoder sequence length + this parameter.
   micro_batch_size: 0 # This is just here to keep compute_consumed_samples() happy.
 
   # Megatron params
@@ -66,7 +66,7 @@ model:
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
   activation: 'gelu'
-  masked_softmax_fusion: False
+  masked_softmax_fusion: False # This needs to be False to avoid an issue with the fused softmax kernel with variable sequence lengths.
   bias_gelu_fusion: True
 
   train_ds:
@@ -76,7 +76,7 @@ model:
     # config for preprocessing training data and creating a tarred datset automatically
     tar_file_prefix: parallel # prefix for tar file names
     tar_files: null # if data has already been preprocessed (rest of config ignored)
-    metadata_file: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/tarred_dataset_en_de_16k_tokens/metadata.tokens.16000.json # metadata for tarred dataset
+    metadata_file: null # metadata for tarred dataset
     lines_per_dataset_fragment: 1000000 # Number of lines to consider for bucketing and padding
     num_batches_per_tarfile: 100 # Number of batches (pickle files) within each tarfile
     tar_shuffle_n: 100 # How many samples to look ahead and load to be shuffled
@@ -95,8 +95,8 @@ model:
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
 
   validation_ds:
-    src_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.src
-    tgt_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.ref
+    src_file_name: ???
+    tgt_file_name: ???
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
@@ -107,8 +107,8 @@ model:
     num_workers: 8
 
   test_ds:
-    src_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.src
-    tgt_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.ref
+    src_file_name: ???
+    tgt_file_name: ???
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
@@ -133,7 +133,7 @@ model:
 
   encoder_tokenizer:
     library: yttm
-    tokenizer_model: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/tarred_dataset_en_de_16k_tokens/shared_tokenizer.32000.BPE.model
+    tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
@@ -143,7 +143,7 @@ model:
 
   decoder_tokenizer:
     library: yttm
-    tokenizer_model: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/tarred_dataset_en_de_16k_tokens/shared_tokenizer.32000.BPE.model
+    tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null

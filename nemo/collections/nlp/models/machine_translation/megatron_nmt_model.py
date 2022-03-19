@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import torch
 from typing import Optional
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from omegaconf.dictconfig import DictConfig
@@ -20,6 +21,14 @@ from nemo.collections.nlp.modules.common.megatron.utils import average_losses_ac
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 
 __all__ = ["MegatronNMTModel"]
 
@@ -77,6 +86,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
         self.init_consumed_samples = 0 # This is just to keep the parent class happy.
+        if stage == 'predict':
+            return
+        
+        # If the user wants to manually override train and validation dataloaders before calling `.fit()`
+        if self._train_dl is not None and self._validation_dl is not None:
+            return
         self.build_train_valid_test_datasets()
         self.setup_training_data(self._cfg.train_ds)
         self.setup_validation_data(self._cfg.validation_ds)
@@ -202,20 +217,34 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def _setup_eval_dataloader_from_config(
         self, cfg: DictConfig, dataset
     ):
-        return MTEncDecModel._setup_eval_dataloader_from_config(
-            cfg=cfg,
-            datasets=dataset
-        )
+
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        dataloaders = []
+        for _dataset in dataset:
+            sampler = torch.utils.data.distributed.DistributedSampler(
+                _dataset, num_replicas=world_size, rank=rank, shuffle=False
+            )
+            dataloaders.append(torch.utils.data.DataLoader(
+                dataset=_dataset,
+                batch_size=1,
+                sampler=sampler,
+                num_workers=cfg.get("num_workers", 2),
+                pin_memory=cfg.get("pin_memory", False),
+                drop_last=cfg.get("drop_last", False),
+            ))
+
+        return dataloaders
 
     def validation_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs)
+        return self.eval_epoch_end(outputs, 'val')
 
     def test_epoch_end(self, outputs):
-        return self.eval_epoch_end(outputs)
+        return self.eval_epoch_end(outputs, 'test')
 
-    def eval_epoch_end(self, outputs):
+    def eval_epoch_end(self, outputs, mode):
         averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in outputs])
-        self.log('val_loss', averaged_loss[0], prog_bar=True)
+        self.log(f'{mode}_loss', averaged_loss[0], prog_bar=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):
@@ -251,8 +280,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             cfg=self._cfg.train_ds,
             encoder_tokenizer=self.encoder_tokenizer,
             decoder_tokenizer=self.decoder_tokenizer,
-            global_rank=self.trainer.global_rank,
-            world_size=self.trainer.world_size,
+            global_rank=parallel_state.get_data_parallel_rank(),
+            world_size=parallel_state.get_data_parallel_world_size(),
             multilingual=self.multilingual,
             multilingual_ids=self.multilingual_ids,
         )
