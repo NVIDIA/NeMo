@@ -92,6 +92,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     time_limit = data_cfg.get("time_limit")
     cpus_per_node = data_cfg.get("cpus_per_node")
     workers_per_node = data_cfg.get("workers_per_node")
+    max_split_size = 200  # TODO: maybe add this to config
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -131,6 +132,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                             f"{cleaned_en}" \
                             f"--node-array-size={nodes} " \
                             f"--workers-per-node={workers_per_node} " \
+                            f"--max-split-size={max_split_size} " \
                             f"--worker-mapping-file={preprocess_worker_mapping}"
 
     preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/preprocess.py")
