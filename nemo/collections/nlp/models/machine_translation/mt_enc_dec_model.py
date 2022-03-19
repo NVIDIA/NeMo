@@ -16,6 +16,7 @@ import itertools
 import json
 import os
 import random
+import webdataset as wd
 from multiprocessing import Value
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -759,6 +760,12 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         else:
             sampler = pt_data.SequentialSampler(dataset)
 
+        return wd.WebLoader(
+            dataset=dataset,
+            batch_size=1,
+            num_workers=cfg.get("num_workers", 2),
+        )
+        '''
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
@@ -767,6 +774,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
         )
+        '''
 
     def replace_beam_with_sampling(self, topk=500):
         self.beam_search = TopKSequenceGenerator(
