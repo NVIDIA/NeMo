@@ -11,16 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 from typing import Optional
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+
+import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
 try:
     from apex.transformer import parallel_state
@@ -69,26 +71,27 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         # We can setup pre and post-processors once the parent constructor initializes tokenizers.
         if self.multilingual:
-            self.source_processor_list, self.target_processor_list, self.multilingual_ids = MTEncDecModel.setup_multilingual_ids_and_processors(
-                self.src_language,
-                self.tgt_language,
-                self.encoder_tokenizer,
+            (
+                self.source_processor_list,
+                self.target_processor_list,
+                self.multilingual_ids,
+            ) = MTEncDecModel.setup_multilingual_ids_and_processors(
+                self.src_language, self.tgt_language, self.encoder_tokenizer,
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language, self.tgt_language,
-                self.encoder_tokenizer_library, self.decoder_tokenizer_library
+                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library
             )
             self.multilingual_ids = [None]
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
-        self.init_consumed_samples = 0 # This is just to keep the parent class happy.
+        self.init_consumed_samples = 0  # This is just to keep the parent class happy.
         if stage == 'predict':
             return
-        
+
         # If the user wants to manually override train and validation dataloaders before calling `.fit()`
         if self._train_dl is not None and self._validation_dl is not None:
             return
@@ -101,8 +104,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # Instantiates tokenizers and register to be saved with NeMo Model archive
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
-        encoder_tokenizer_model = self.register_artifact("encoder_tokenizer.tokenizer_model", self._cfg.encoder_tokenizer.get('tokenizer_model'))
-        decoder_tokenizer_model = self.register_artifact("decoder_tokenizer.tokenizer_model", self._cfg.decoder_tokenizer.get('tokenizer_model'))
+        encoder_tokenizer_model = self.register_artifact(
+            "encoder_tokenizer.tokenizer_model", self._cfg.encoder_tokenizer.get('tokenizer_model')
+        )
+        decoder_tokenizer_model = self.register_artifact(
+            "decoder_tokenizer.tokenizer_model", self._cfg.decoder_tokenizer.get('tokenizer_model')
+        )
 
         self.encoder_tokenizer, self.decoder_tokenizer = MTEncDecModel.setup_enc_dec_tokenizers(
             encoder_tokenizer_library=self.encoder_tokenizer_library,
@@ -125,16 +132,17 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         # Set up pre and post processors as well.
         if self.multilingual:
-            self.source_processor_list, self.target_processor_list, self.multilingual_ids = MTEncDecModel.setup_multilingual_ids_and_processors(
-                self.src_language,
-                self.tgt_language,
-                self.encoder_tokenizer,
+            (
+                self.source_processor_list,
+                self.target_processor_list,
+                self.multilingual_ids,
+            ) = MTEncDecModel.setup_multilingual_ids_and_processors(
+                self.src_language, self.tgt_language, self.encoder_tokenizer,
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
             MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language, self.tgt_language,
-                self.encoder_tokenizer_library, self.decoder_tokenizer_library,
+                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library,
             )
             self.multilingual_ids = [None]
 
@@ -160,8 +168,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         predicted_tokens_ids, _ = self.decode(
             tokens_enc,
             enc_mask,
-            tokens_enc.size(1) + self._cfg.max_generation_delta, # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
-            tokenizer=self.decoder_tokenizer
+            tokens_enc.size(1)
+            + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+            tokenizer=self.decoder_tokenizer,
         )
 
         # Post-process the translations and inputs to log.
@@ -214,9 +223,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         """
         return self.eval_step(batch, batch_idx, dataloader_idx)
 
-    def _setup_eval_dataloader_from_config(
-        self, cfg: DictConfig, dataset
-    ):
+    def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
 
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
@@ -225,14 +232,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             sampler = torch.utils.data.distributed.DistributedSampler(
                 _dataset, num_replicas=world_size, rank=rank, shuffle=False
             )
-            dataloaders.append(torch.utils.data.DataLoader(
-                dataset=_dataset,
-                batch_size=1,
-                sampler=sampler,
-                num_workers=cfg.get("num_workers", 2),
-                pin_memory=cfg.get("pin_memory", False),
-                drop_last=cfg.get("drop_last", False),
-            ))
+            dataloaders.append(
+                torch.utils.data.DataLoader(
+                    dataset=_dataset,
+                    batch_size=1,
+                    sampler=sampler,
+                    num_workers=cfg.get("num_workers", 2),
+                    pin_memory=cfg.get("pin_memory", False),
+                    drop_last=cfg.get("drop_last", False),
+                )
+            )
 
         return dataloaders
 
@@ -248,7 +257,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):
-            self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config, dataset=self._validation_ds)
+            self._validation_dl = self._setup_eval_dataloader_from_config(
+                cfg=val_data_config, dataset=self._validation_ds
+            )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if hasattr(self, '_test_ds'):
@@ -257,10 +268,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         # TODO: Figure out how to set global rank and world size for model parallel.
         if hasattr(self, '_train_ds'):
-            self._train_dl = MTEncDecModel._setup_dataloader_from_config(
-                cfg=train_data_config,
-                dataset=self._train_ds
-            )
+            self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds)
 
     def process_batch(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
@@ -269,9 +277,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             'text_enc': src_ids,
             'text_dec': tgt_ids,
             'labels': labels,
-            'enc_mask': src_mask.long(), # super().process_batch() expects torch.int64
-            'dec_mask': tgt_mask.long(), # super().process_batch() expects torch.int64
-            'loss_mask': tgt_mask.long(), # super().process_batch() expects torch.int64
+            'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
+            'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
+            'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
         }
         return super().process_batch(batch)
 
@@ -290,7 +298,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             multilingual=self.multilingual,
             multilingual_ids=self.multilingual_ids,
             encoder_tokenizer=self.encoder_tokenizer,
-            decoder_tokenizer=self.decoder_tokenizer
+            decoder_tokenizer=self.decoder_tokenizer,
         )
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
@@ -299,7 +307,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 multilingual=self.multilingual,
                 multilingual_ids=self.multilingual_ids,
                 encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer
+                decoder_tokenizer=self.decoder_tokenizer,
             )
 
     def list_available_models(self):
