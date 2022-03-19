@@ -407,8 +407,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None, tokenizer=None):
         # TODO: move method into a class inside MegatronTokenLevelEncoderDecoderModule (?)
+        tokenizer = self.tokenizer if tokenizer is None else tokenizer
         encoder_hidden_states, enc_output_mask = itemgetter("enc_output", "enc_output_mask")(
             self(
                 encoder_input_ids=tokens_enc,
@@ -424,10 +425,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
         )
         predicted_tokens_dec = (
-            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
+            torch.LongTensor([tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
         )
         for _ in range(num_tokens_to_generate):
-            dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
+            dec_mask = predicted_tokens_dec != tokenizer.pad_id
             token_logits = itemgetter("token_logits")(
                 self(
                     encoder_input_ids=tokens_enc,

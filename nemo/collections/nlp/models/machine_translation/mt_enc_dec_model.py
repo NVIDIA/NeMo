@@ -542,7 +542,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         return encoder_tokenizer, decoder_tokenizer
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = MTEncDecModel._setup_dataloader_from_config(
+        self._train_ds = MTEncDecModel._setup_dataset_from_config(
             cfg=train_data_config,
             encoder_tokenizer=self.encoder_tokenizer,
             decoder_tokenizer=self.decoder_tokenizer,
@@ -550,6 +550,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             world_size=self.world_size,
             multilingual=self.multilingual,
             multilingual_ids=self.multilingual_ids,
+        )
+        self._train_dl = MTEncDecModel._setup_dataloader_from_config(
+            cfg=train_data_config,
+            dataset=self._train_ds,
         )
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
@@ -559,12 +563,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.setup_test_data(test_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = MTEncDecModel._setup_eval_dataloader_from_config(
+        self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
             cfg=val_data_config,
             multilingual=self.multilingual,
             multilingual_ids=self.multilingual_ids,
             encoder_tokenizer=self.encoder_tokenizer,
             decoder_tokenizer=self.decoder_tokenizer
+        )
+        self._validation_dl = MTEncDecModel._setup_eval_dataloader_from_config(
+            cfg=val_data_config,
+            datasets=self._validation_ds
         )
         # instantiate Torchmetric for each val dataloader
         if self._validation_dl is not None:
@@ -581,7 +589,17 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config)
+        self._test_ds = MTEncDecModel._setup_eval_dataset_from_config(
+            cfg=test_data_config,
+            multilingual=self.multilingual,
+            multilingual_ids=self.multilingual_ids,
+            encoder_tokenizer=self.encoder_tokenizer,
+            decoder_tokenizer=self.decoder_tokenizer
+        )
+        self._test_dl = MTEncDecModel._setup_eval_dataloader_from_config(
+            cfg=test_data_config,
+            datasets=self._test_ds
+        )
         # instantiate Torchmetric for each test dataloader
         if self._test_dl is not None:
             for dataloader_idx in range(len(self._test_dl)):
@@ -597,7 +615,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     )
 
     @classmethod
-    def _setup_dataloader_from_config(
+    def _setup_dataset_from_config(
         cls, cfg: DictConfig,
         encoder_tokenizer,
         decoder_tokenizer,
@@ -723,6 +741,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             else:
                 dataset = datasets[0]
 
+        return dataset
+
+    @classmethod    
+    def _setup_dataloader_from_config(cls, cfg, dataset):
         if cfg.shuffle:
             sampler = pt_data.RandomSampler(dataset)
         else:
@@ -750,7 +772,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         )
 
     @classmethod
-    def _setup_eval_dataloader_from_config(
+    def _setup_eval_dataset_from_config(
         cls,
         cfg: DictConfig,
         multilingual: bool,
@@ -782,7 +804,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         if len(src_file_list) != len(tgt_file_list):
             raise ValueError('The same number of filepaths must be passed in for source and target validation.')
 
-        dataloaders = []
+        datasets = []
         prepend_idx = 0
         for idx, src_file in enumerate(src_file_list):
             if multilingual:
@@ -803,22 +825,28 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 prepend_id=multilingual_ids[prepend_idx] if multilingual else None,
             )
             dataset.batchify(encoder_tokenizer, decoder_tokenizer)
+            datasets.append(dataset)
 
-            if cfg.shuffle:
-                sampler = pt_data.RandomSampler(dataset)
-            else:
-                sampler = pt_data.SequentialSampler(dataset)
+        return datasets
 
-            dataloader = torch.utils.data.DataLoader(
+    @classmethod
+    def _setup_eval_dataloader_from_config(cls, cfg, datasets):
+        if cfg.shuffle:
+            sampler = pt_data.RandomSampler(datasets[0])
+        else:
+            sampler = pt_data.SequentialSampler(datasets[0])
+
+        dataloaders = []
+        for dataset in datasets:
+            dataloaders.append(torch.utils.data.DataLoader(
                 dataset=dataset,
                 batch_size=1,
-                sampler=sampler,
+                sampler=None if (cfg.get("use_tarred_dataset", False) or isinstance(datasets[0], ConcatDataset)) else sampler,
                 num_workers=cfg.get("num_workers", 2),
                 pin_memory=cfg.get("pin_memory", False),
                 drop_last=cfg.get("drop_last", False),
-            )
-            dataloaders.append(dataloader)
-
+            ))
+        
         return dataloaders
 
     @classmethod
@@ -865,7 +893,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         filter_beam_ids=True
     ):
         if filter_beam_ids:
-            beam_ids = MTEncDecModel.filter_predicted_ids(beam_ids)
+            beam_ids = MTEncDecModel.filter_predicted_ids(beam_ids, decoder_tokenizer=tokenizer)
         translations = [tokenizer.ids_to_text(tr) for tr in beam_ids.cpu().numpy()]
         if processor is not None:
             translations = [processor.detokenize(translation.split(' ')) for translation in translations]

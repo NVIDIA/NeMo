@@ -11,28 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import torch
-from operator import itemgetter
 from typing import Optional
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
-
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
-
-from nemo.utils import logging
-
-try:
-    from apex.transformer import tensor_parallel
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
 
 __all__ = ["MegatronNMTModel"]
 
@@ -43,7 +30,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        # This needs to be set when the parent calls self._build_tokenizer()
+        # All of the lines below need to be set when the parent calls self._build_tokenizer()
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
         self.special_tokens = {}
@@ -71,7 +58,26 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         super().__init__(cfg, trainer=trainer)
 
+        # We can setup pre and post-processors once the parent constructor initializes tokenizers.
+        if self.multilingual:
+            self.source_processor_list, self.target_processor_list, self.multilingual_ids = MTEncDecModel.setup_multilingual_ids_and_processors(
+                self.src_language,
+                self.tgt_language,
+                self.encoder_tokenizer,
+            )
+        else:
+            # After this call, the model will have  self.source_processor and self.target_processor objects
+            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
+                self.src_language, self.tgt_language,
+                self.encoder_tokenizer_library, self.decoder_tokenizer_library
+            )
+            self.multilingual_ids = [None]
+
     def setup(self, stage=None):
+        # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
+        # We then set things up for real only once setup() of this class is called.
+        self.init_consumed_samples = 0 # This is just to keep the parent class happy.
+        self.build_train_valid_test_datasets()
         self.setup_training_data(self._cfg.train_ds)
         self.setup_validation_data(self._cfg.validation_ds)
         self.setup_test_data(self._cfg.test_ds)
@@ -124,46 +130,60 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
         )
 
+    def training_step(self, batch, batch_idx):
+        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+        batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
+        return super().training_step(batch, batch_idx)
+
     def eval_step(self, batch, batch_idx, dataloader_idx):
-        """
-        Validation step
-        """
+        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+        batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
+
+        # This returns the averaged loss across data-parallel groups.
+        reduced_loss = super().validation_step(batch, batch_idx)
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
-        tokens_loss = itemgetter("tokens_loss")(
-            super().validation_step(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+        predicted_tokens_ids, _ = self.decode(
+            tokens_enc,
+            enc_mask,
+            tokens_enc.size(1) + self._cfg.max_generation_delta, # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+            tokenizer=self.decoder_tokenizer
         )
-        predicted_tokens_ids, _ = self.decode(tokens_enc, enc_mask, self._cfg.data.seq_length_dec)
+
+        # Post-process the translations and inputs to log.
+
+        # Convert ids to lists.
         preds = predicted_tokens_ids.cpu().numpy().tolist()
         labels = labels.cpu().numpy().tolist()
+        encoder_inputs = tokens_enc.cpu().numpy().tolist()
+
+        # Filter out the special tokens and de-tokenize.
+        inputs = []
         translations = []
         ground_truths = []
-        for _, (pred, label) in enumerate(zip(preds, labels)):
+        for _, (pred, label, input) in enumerate(zip(preds, labels, encoder_inputs)):
             if self.decoder_tokenizer.eos_id in pred:
                 idx = pred.index(self.decoder_tokenizer.eos_id)
                 pred = pred[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
-            if hasattr(self.model.tokenizer, 'special_token_to_id'):
+            if hasattr(self.decoder_tokenizer, 'special_token_to_id'):
                 pred = [id for id in pred if id not in self.decoder_tokenizer.special_token_to_id.values()]
                 label = [id for id in label if id not in self.decoder_tokenizer.special_token_to_id.values()]
 
             pred = self.decoder_tokenizer.ids_to_text(pred)
+            label = self.decoder_tokenizer.ids_to_text(label)
+            input = self.encoder_tokenizer.ids_to_text(input)
             translations.append(pred)
+            ground_truths.append(label)
+            inputs.append(input)
 
-        np_tgt = label.detach().cpu().numpy()
-        np_src = tokens_enc.detach().cpu().numpy()
-
-        inputs = [self.encoder_tokenizer.ids_to_text(src) for src in np_src]
-        inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
-
-        ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
-        ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
-
+        # De-tokenize inputs, translations and ground truths.
         if self.target_processor is not None:
+            ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
             translations = [self.target_processor.detokenize(translation.split(' ')) for translation in translations]
 
-        loss = self.loss_func(loss_mask, tokens_loss)
-        reduced_loss = average_losses_across_data_parallel_group([loss])
+        if self.source_processor is not None:
+            inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
 
         return {
             'inputs': inputs,
@@ -177,38 +197,40 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
+        return self.eval_step(batch, batch_idx, dataloader_idx)
 
     def _setup_eval_dataloader_from_config(
-        self, cfg: DictConfig,
+        self, cfg: DictConfig, dataset
     ):
         return MTEncDecModel._setup_eval_dataloader_from_config(
             cfg=cfg,
-            encoder_tokenizer=self.encoder_tokenizer,
-            decoder_tokenizer=self.decoder_tokenizer,
-            multilingual=self.multilingual,
-            multilingual_ids=self.multilingual_ids,
+            datasets=dataset
         )
+
+    def validation_epoch_end(self, outputs):
+        return self.eval_epoch_end(outputs)
+
+    def test_epoch_end(self, outputs):
+        return self.eval_epoch_end(outputs)
+
+    def eval_epoch_end(self, outputs):
+        averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in outputs])
+        self.log('val_loss', averaged_loss[0], prog_bar=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):
-            self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
+            self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config, dataset=self._validation_ds)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if hasattr(self, '_test_ds'):
-            self._validation_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config)
+            self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config, dataset=self._test_ds)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         # TODO: Figure out how to set global rank and world size for model parallel.
         if hasattr(self, '_train_ds'):
             self._train_dl = MTEncDecModel._setup_dataloader_from_config(
                 cfg=train_data_config,
-                encoder_tokenizer=self.encoder_tokenizer,
-                decoder_tokenizer=self.decoder_tokenizer,
-                global_rank=self.trainer.global_rank,
-                world_size=self.trainer.world_size,
-                multilingual=self.multilingual,
-                multilingual_ids=self.multilingual_ids,
+                dataset=self._train_ds
             )
 
     def process_batch(self, batch):
@@ -218,11 +240,38 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             'text_enc': src_ids,
             'text_dec': tgt_ids,
             'labels': labels,
-            'enc_mask': src_mask,
-            'dec_mask': tgt_mask,
-            'loss_mask': tgt_mask,
+            'enc_mask': src_mask.long(), # super().process_batch() expects torch.int64
+            'dec_mask': tgt_mask.long(), # super().process_batch() expects torch.int64
+            'loss_mask': tgt_mask.long(), # super().process_batch() expects torch.int64
         }
         return super().process_batch(batch)
+
+    def build_train_valid_test_datasets(self):
+        self._train_ds = MTEncDecModel._setup_dataset_from_config(
+            cfg=self._cfg.train_ds,
+            encoder_tokenizer=self.encoder_tokenizer,
+            decoder_tokenizer=self.decoder_tokenizer,
+            global_rank=self.trainer.global_rank,
+            world_size=self.trainer.world_size,
+            multilingual=self.multilingual,
+            multilingual_ids=self.multilingual_ids,
+        )
+        self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
+            cfg=self._cfg.validation_ds,
+            multilingual=self.multilingual,
+            multilingual_ids=self.multilingual_ids,
+            encoder_tokenizer=self.encoder_tokenizer,
+            decoder_tokenizer=self.decoder_tokenizer
+        )
+        # Test data config is optional.
+        if hasattr(self._cfg, 'test_ds'):
+            self._test_ds = MTEncDecModel._setup_eval_dataset_from_config(
+                cfg=self._cfg.validation_ds,
+                multilingual=self.multilingual,
+                multilingual_ids=self.multilingual_ids,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer
+            )
 
     def list_available_models(self):
         pass

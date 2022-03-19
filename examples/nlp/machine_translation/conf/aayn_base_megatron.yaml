@@ -28,7 +28,7 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: val_sacreBLEU
+    monitor: val_loss
     save_top_k: 10
     mode: max
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
@@ -43,6 +43,8 @@ model:
   preproc_out_dir: null # path to store data preprocessing outputs
   src_language: 'en'
   tgt_language: 'de'
+  max_generation_delta: 20
+  micro_batch_size: 0 # This is just here to keep compute_consumed_samples() happy.
 
   # Megatron params
   tensor_model_parallel_size: 1
@@ -64,6 +66,8 @@ model:
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
   activation: 'gelu'
+  masked_softmax_fusion: False
+  bias_gelu_fusion: True
 
   train_ds:
     src_file_name: null
@@ -91,8 +95,8 @@ model:
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
 
   validation_ds:
-    src_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-de-en.clean.tok.src
-    tgt_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-de-en.clean.tok.ref
+    src_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.src
+    tgt_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.ref
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
@@ -103,8 +107,8 @@ model:
     num_workers: 8
 
   test_ds:
-    src_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-de-en.clean.tok.src
-    tgt_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-de-en.clean.tok.ref
+    src_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.src
+    tgt_file_name: /raid/Data/NMT/Datasets/wmt/wmt18_en_de/81315/data/wmt/newstest2014-en-de.clean.tok.ref
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
