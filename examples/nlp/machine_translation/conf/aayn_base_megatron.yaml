@@ -31,6 +31,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 10
     mode: min
+    save_best_model: True
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     filename: 'megatron_nmt--{val_loss:.3f}-{step}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
