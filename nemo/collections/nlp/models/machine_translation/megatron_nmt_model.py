@@ -313,6 +313,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             else:
                 bleu_score = 0.0
 
+            loss_list.append(averaged_loss[0].cpu().numpy())
+            bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
                 self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
                 if self.multilingual:
