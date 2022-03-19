@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+from itertools import combinations
 import json
 import os
 from typing import Any, Dict, List, Optional, Union
@@ -470,7 +471,7 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
 class DiarizationLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset',)
+    OUTPUT_TYPE = collections.namedtuple(typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset tup_spks',)
 
     def __init__(
         self,
@@ -478,6 +479,8 @@ class DiarizationLabel(_Collection):
         durations: List[float],
         rttm_files: List[Union[int, str]],
         offsets: List[Optional[float]],
+        max_spks: List[Optional[float]],
+        tuple_2ch: List[Optional[float]],
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
@@ -502,20 +505,11 @@ class DiarizationLabel(_Collection):
             self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        for audio_file, duration, rttm_file, offset in zip(audio_files, durations, rttm_files, offsets):
+        for audio_file, duration, rttm_file, offset, tup_spks in zip(audio_files, durations, rttm_files, offsets, tuple_2ch):
             if duration == None:
                 duration = 0
-            # Duration filters.
-            # import ipdb; ipdb.set_trace()
-            # if min_duration is not None and duration < min_duration:
-                # duration_filtered += duration
-                # continue
 
-            # if max_duration is not None and duration > max_duration:
-                # duration_filtered += duration
-                # continue
-
-            data.append(output_type(audio_file, duration, rttm_file, offset))
+            data.append(output_type(audio_file, duration, rttm_file, offset, tup_spks))
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
@@ -551,6 +545,7 @@ class TSVADSpeechLabel(DiarizationLabel):
                  is_regression_task=False, 
                  subsample_rate=4,
                  max_spks=5,
+                 bi_ch_infer=False,
                  *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
@@ -564,48 +559,59 @@ class TSVADSpeechLabel(DiarizationLabel):
         self.emb_dict = emb_dict
         self.clus_label_dict = clus_label_dict
         self.subsample_rate = subsample_rate
-        audio_files, durations, rttm_files, offsets = [], [], [], []
-        for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
-            audio_files.append(item['audio_file'])
-            durations.append(item['duration'])
-            rttm_files.append(item['rttm_file'])
-            offsets.append(item['offset'])
+        self.bi_ch_infer=bi_ch_infer
+        audio_files, durations, rttm_files, offsets, tuple_2ch = [], [], [], [], []
+        if self.bi_ch_infer:
+            for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
+                uniq_id = self.get_uniq_id(item['rttm_file'])
+                # Use the estimated speakers (mapping is calculated from evaluation)
+                _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
+                if len(_sess_spk_dict) == 1:
+                    spk_comb_list = [(0,1)]
+                else:
+                    sess_spk_dict = { int(v.split('_')[-1]) : k for k, v in _sess_spk_dict.items() }
+                    spk_digits = [ int(v.split('_')[1]) for k, v in _sess_spk_dict.items() ]
+                    spk_comb_list = [x for x in combinations(spk_digits, 2)]  
+                # if uniq_id == "iaaw":
+                    # import ipdb; ipdb.set_trace()
+                for tup_spks in spk_comb_list:
+                    audio_files.append(item['audio_file'])
+                    durations.append(item['duration'])
+                    rttm_files.append(item['rttm_file'])
+                    offsets.append(item['offset'])
+                    tuple_2ch.append([tup_spks, sess_spk_dict])
 
-        super().__init__(audio_files, durations, rttm_files, offsets, max_spks, *args, **kwargs)
+        else:
+            for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
+                audio_files.append(item['audio_file'])
+                durations.append(item['duration'])
+                rttm_files.append(item['rttm_file'])
+                offsets.append(item['offset'])
+                tuple_2ch.append(None)
 
-    # def parse_rttm(self, rttm_path):
-        # max_spks = 5
-        # def str2num(x):
-            # ROUND=2
-            # return round(float(x),ROUND)
-        # rttm_lines = self.read_rttm_file(rttm_path)
-        # uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
-        # stt_list, end_list, speaker_list = [], [], []
-        # for line in rttm_lines:
-            # rttm = line.strip().split()
-            # start, end, speaker = str2num(rttm[3]), str2num(rttm[4]) + str2num(rttm[3]), rttm[7]
-            # end_list.append(end)
-            # stt_list.append(start)
-            # speaker_list.append(speaker)
-
-        # max_len = max(end_list)
-        # total_fr_len = int(max_len*100)
-        # spk_num = len(set(speaker_list))
-        # assert spk_num <= max_spks
-        # total_fr_len_ceil = -(-total_fr_len//self.subsample_rate)
-        # target = torch.zeros(total_fr_len_ceil, max_spks)
-        # for stt, end, spk in zip(stt_list, end_list, speaker_list):
-            # spk = int(self.emb_dict[uniq_id]['mapping'][spk].split('_')[1])
-            # stt, end, spk = round(int(stt), 2), round(int(end), 2), int(spk)
-            # target[stt:end, spk] = 1
-
-        # target_downsample = target.view(self.subsample_rate, -1, max_spks)
-        # target_subsampled = torch.mode(target_downsample, dim=0)[0]
-        # return target_subsampled
-
+        super().__init__(audio_files, durations, rttm_files, offsets, max_spks, tuple_2ch, *args, **kwargs)
 
     def read_rttm_file(self, rttm_path):
         return open(rttm_path).readlines()
+    
+    def s2n(self, x):
+        return round(float(x), 2)
+    
+    def get_uniq_id(self, rttm_path):
+        return rttm_path.split('/')[-1].split('.rttm')[0]
+    
+    def get_speakers_from_rttm(self, rttm_path):
+        rttm_lines = self.read_rttm_file(rttm_path)
+        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
+        uniq_id = self.get_uniq_id(rttm_path)
+        speaker_list = set()
+        for line in rttm_lines:
+            rttm = line.strip().split()
+            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+            speaker_list.add(speaker)
+
+        spk_num = len(set(speaker_list))
+        return spk_num, sorted(list(speaker_list))
 
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)

@@ -101,8 +101,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self._init_speaker_model()
         self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
         self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
-        shutil.rmtree(self._speaker_dir, ignore_errors=True)
-        os.makedirs(self._speaker_dir)
+        # shutil.rmtree(self._speaker_dir, ignore_errors=True)
+        if not os.path.exists(self._speaker_dir):
+            os.makedirs(self._speaker_dir)
 
         # Clustering params
         self._cluster_params = self._diarizer_params.clustering.parameters
@@ -153,7 +154,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 model_path = "ecapa_tdnn"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
-
+        
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
