@@ -46,7 +46,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        # All of the lines below need to be set when the parent calls self._build_tokenizer()
+        # All of the lines below need to be set when the parent class calls self._build_tokenizer()
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
         self.special_tokens = {}
@@ -73,22 +73,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 )
 
         super().__init__(cfg, trainer=trainer)
-
-        # We can setup pre and post-processors once the parent constructor initializes tokenizers.
-        if self.multilingual:
-            (
-                self.source_processor_list,
-                self.target_processor_list,
-                self.multilingual_ids,
-            ) = MTEncDecModel.setup_multilingual_ids_and_processors(
-                self.src_language, self.tgt_language, self.encoder_tokenizer,
-            )
-        else:
-            # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library
-            )
-            self.multilingual_ids = [None]
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
@@ -142,7 +126,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 self.target_processor_list,
                 self.multilingual_ids,
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
-                self.src_language, self.tgt_language, self.encoder_tokenizer,
+                src_language=self.src_language,
+                tgt_language=self.tgt_language,
+                tokenizer=self.encoder_tokenizer, # Multilingual training requires shared tokenizers.
+                tokenizer_library=self.encoder_tokenizer_library
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -205,6 +192,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             translations.append(pred)
             ground_truths.append(label)
             inputs.append(input)
+
+        if self.multilingual:
+            self.source_processor = self.source_processor_list[dataloader_idx]
+            self.target_processor = self.target_processor_list[dataloader_idx]
 
         # De-tokenize inputs, translations and ground truths.
         if self.target_processor is not None:
@@ -286,10 +277,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 _translations = []
                 _ground_truths = []
                 _inputs = []
+
+                # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+                gt_inp_set = set()
                 for rank in range(0, parallel_state.get_data_parallel_world_size()):
-                    _translations += [t for (t, g, i) in tr_gt_inp[rank]]
-                    _ground_truths += [g for (t, g, i) in tr_gt_inp[rank]]
-                    _inputs += [i for (t, g, i) in tr_gt_inp[rank]]
+                    for t, g, i in tr_gt_inp[rank]:
+                        if g + i not in gt_inp_set:
+                            gt_inp_set.add(g + i)
+                            _translations.append(t)
+                            _ground_truths.append(g)
+                            _inputs.append(i)
 
                 if self.tgt_language in ['ja']:
                     sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
@@ -302,7 +299,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
                 dataset_name = "Validation" if mode == 'val' else "Test"
                 logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(_translations)}")
-                logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score}")
+                logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score / parallel_state.get_data_parallel_world_size()}")
                 logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:")
                 logging.info('============================================================')
                 for example_idx in range(0, 3):
@@ -318,12 +315,30 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
             if dataloader_idx == 0:
                 self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
+                if self.multilingual:
+                    self._log_multilingual_bleu(dataloader_idx, bleu_score, mode)
             else:
-                self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, sync_dist=True)
+                if self.multilingual:
+                    self._log_multilingual_bleu(dataloader_idx, bleu_score, mode)
+                else:
+                    self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, sync_dist=True)
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), sync_dist=True)
+
+    def _log_multilingual_bleu(self, dataloader_idx, bleu_score, mode):
+        """
+        Function to log multilingual BLEU scores with the right source-target language string instead of just the dataloader idx.
+        """
+        # Check if one-many or many-one and log with lang ids instead of dataloader_idx
+        reverse_lang_direction = self._cfg.train_ds.reverse_lang_direction
+        if isinstance(self.src_language, ListConfig):
+            translation_lang_string = f'{self.src_language[dataloader_idx]}-{self.tgt_language}' if not reverse_lang_direction else f'{self.tgt_language}-{self.src_language[dataloader_idx]}'
+            self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
+        else:
+            translation_lang_string = f'{self.src_language}-{self.tgt_language[dataloader_idx]}' if not reverse_lang_direction else f'{self.tgt_language[dataloader_idx]}-{self.src_language}'
+            self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):

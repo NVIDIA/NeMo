@@ -250,7 +250,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
     @classmethod
-    def setup_multilingual_ids_and_processors(cls, src_language, tgt_language, tokenizer):
+    def setup_multilingual_ids_and_processors(
+        cls,
+        src_language,
+        tgt_language,
+        tokenizer,
+        tokenizer_library
+    ):
         multilingual_ids = []
         if isinstance(src_language, ListConfig):
             for lng in src_language:
@@ -267,7 +273,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         source_processor_list = []
         target_processor_list = []
         for src_lng, tgt_lng in zip(src_language, tgt_language):
-            src_prcsr, tgt_prscr = MTEncDecModel.setup_pre_and_post_processing_utils(src_lng, tgt_lng)
+            src_prcsr, tgt_prscr = MTEncDecModel.setup_pre_and_post_processing_utils(
+                src_lng, tgt_lng, tokenizer_library, tokenizer_library
+            )
             source_processor_list.append(src_prcsr)
             target_processor_list.append(tgt_prscr)
 
