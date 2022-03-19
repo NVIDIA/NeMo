@@ -394,7 +394,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         """
         return self.eval_step(batch, batch_idx, 'val', dataloader_idx)
 
-    def eval_epoch_end(self, outputs, mode):
+    def eval_epoch_end(self, outputs, mode, global_rank):
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
         if isinstance(outputs[0], dict):
             outputs = [outputs]
@@ -419,7 +419,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             dist.all_gather_object(
                 tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
             )
-            if self.global_rank == 0:
+            if global_rank == 0:
                 _translations = []
                 _ground_truths = []
                 for rank in range(0, self.world_size):
@@ -478,10 +478,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.eval_epoch_end(outputs, 'val')
+        self.eval_epoch_end(outputs, 'val', self.global_rank)
 
     def test_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs, 'test')
+        self.eval_epoch_end(outputs, 'test', self.global_rank)
 
     @classmethod
     def setup_enc_dec_tokenizers(

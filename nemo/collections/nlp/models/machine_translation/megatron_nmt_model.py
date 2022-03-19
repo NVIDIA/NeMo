@@ -14,6 +14,10 @@
 from typing import Optional
 
 import torch
+import numpy as np
+import random
+import itertools
+from sacrebleu import corpus_bleu
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
@@ -23,6 +27,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
@@ -237,7 +242,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     dataset=_dataset,
                     batch_size=1,
                     sampler=sampler,
-                    num_workers=cfg.get("num_workers", 2),
+                    num_workers=cfg.get("num_workers", 0),
                     pin_memory=cfg.get("pin_memory", False),
                     drop_last=cfg.get("drop_last", False),
                 )
@@ -252,8 +257,78 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return self.eval_epoch_end(outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
-        averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in outputs])
-        self.log(f'{mode}_loss', averaged_loss[0], prog_bar=True)
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
+        loss_list = []
+        bleu_score_list = []
+        for dataloader_idx, output in enumerate(outputs):
+            averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in output])
+            if dataloader_idx == 0:
+                self.log(f'{mode}_loss', averaged_loss[0], prog_bar=True)
+            else:
+                self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss[0], prog_bar=False)
+            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
+            translations = list(itertools.chain(*[x['translations'] for x in output]))
+            ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            assert len(translations) == len(inputs)
+            assert len(translations) == len(ground_truths)
+
+            # Gather translations and ground truths from all workers
+            tr_gt_inp = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            # we also need to drop pairs where ground truth is an empty string
+            torch.distributed.all_gather_object(
+                tr_gt_inp, [(t, g, i) for (t, g, i) in zip(translations, ground_truths, inputs)],
+                group=parallel_state.get_data_parallel_group()
+            )
+            if parallel_state.get_data_parallel_rank() == 0:
+                _translations = []
+                _ground_truths = []
+                _inputs = []
+                for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                    _translations += [t for (t, g, i) in tr_gt_inp[rank]]
+                    _ground_truths += [g for (t, g, i) in tr_gt_inp[rank]]
+                    _inputs += [i for (t, g, i) in tr_gt_inp[rank]]
+
+                if self.tgt_language in ['ja']:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
+                elif self.tgt_language in ['zh']:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+                else:
+                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+
+                bleu_score = sacre_bleu.score * parallel_state.get_data_parallel_world_size()
+
+                dataset_name = "Validation" if mode == 'val' else "Test"
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(_translations)}"
+                )
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score}"
+                )
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:"
+                )
+                logging.info('============================================================')
+                for example_idx in range(0, 3):
+                    random_index = random.randint(0, len(_translations) - 1)
+                    logging.info("    " + '\u0332'.join(f"Example {example_idx}:"))
+                    logging.info(f"    Input:        {_inputs[random_index]}")
+                    logging.info(f"    Prediction:   {_translations[random_index]}")
+                    logging.info(f"    Ground Truth: {_ground_truths[random_index]}")
+                    logging.info('============================================================')
+
+            else:
+                bleu_score = 0.0
+
+            if dataloader_idx == 0:
+                self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
+            else:
+                self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, sync_dist=True)
+
+        if len(loss_list) > 1:
+            self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
+            self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), sync_dist=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):
