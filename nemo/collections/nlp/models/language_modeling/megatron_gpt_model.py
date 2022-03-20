@@ -40,7 +40,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_ltor_masks_and_position_ids,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.transformer.text_generable_model import TextGenerableModelInterface
+from nemo.collections.nlp.modules.common.transformer.text_generable_model import OutputType, SamplingParam, TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
@@ -92,7 +92,7 @@ def _get_params_for_weight_decay_optimization(
     return weight_decay_params, no_weight_decay_params
 
 
-class MegatronGPTModel(NLPModel, TextGenerableModelInterface):
+class MegatronGPTModel(NLPModel, TextGeneration):
     """
     Megatron GPT pretraining and prompt tuning
     """
