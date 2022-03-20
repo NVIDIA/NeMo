@@ -329,7 +329,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), sync_dist=True)
 
-    def _log_multilingual_bleu(self, dataloader_idx, bleu_score, loss, mode):
+    def _log_multilingual_bleu_and_loss(self, dataloader_idx, bleu_score, loss, mode):
         """
         Function to log multilingual BLEU scores with the right source-target language string instead of just the dataloader idx.
         """
