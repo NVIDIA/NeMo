@@ -255,10 +255,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         bleu_score_list = []
         for dataloader_idx, output in enumerate(outputs):
             averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in output])
-            if dataloader_idx == 0:
-                self.log(f'{mode}_loss', averaged_loss[0], prog_bar=True)
-            else:
-                self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss[0], prog_bar=False)
             inputs = list(itertools.chain(*[x['inputs'] for x in output]))
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
@@ -319,19 +315,21 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
                 self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
+                self.log(f'{mode}_loss', averaged_loss[0], prog_bar=True)
                 if self.multilingual:
-                    self._log_multilingual_bleu(dataloader_idx, bleu_score, mode)
+                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss[0], mode)
             else:
                 if self.multilingual:
-                    self._log_multilingual_bleu(dataloader_idx, bleu_score, mode)
+                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss[0], mode)
                 else:
                     self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, sync_dist=True)
+                    self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss[0], prog_bar=False)
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), sync_dist=True)
 
-    def _log_multilingual_bleu(self, dataloader_idx, bleu_score, mode):
+    def _log_multilingual_bleu(self, dataloader_idx, bleu_score, loss, mode):
         """
         Function to log multilingual BLEU scores with the right source-target language string instead of just the dataloader idx.
         """
@@ -344,6 +342,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 else f'{self.tgt_language}-{self.src_language[dataloader_idx]}'
             )
             self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
+            self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True)
         else:
             translation_lang_string = (
                 f'{self.src_language}-{self.tgt_language[dataloader_idx]}'
@@ -351,6 +350,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 else f'{self.tgt_language[dataloader_idx]}-{self.src_language}'
             )
             self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
+            self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if hasattr(self, '_validation_ds'):
