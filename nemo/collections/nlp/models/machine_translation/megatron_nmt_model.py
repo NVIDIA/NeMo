@@ -128,8 +128,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
                 src_language=self.src_language,
                 tgt_language=self.tgt_language,
-                tokenizer=self.encoder_tokenizer, # Multilingual training requires shared tokenizers.
-                tokenizer_library=self.encoder_tokenizer_library
+                tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
+                tokenizer_library=self.encoder_tokenizer_library,
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -299,7 +299,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
                 dataset_name = "Validation" if mode == 'val' else "Test"
                 logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(_translations)}")
-                logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score / parallel_state.get_data_parallel_world_size()}")
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score / parallel_state.get_data_parallel_world_size()}"
+                )
                 logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:")
                 logging.info('============================================================')
                 for example_idx in range(0, 3):
@@ -336,10 +338,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # Check if one-many or many-one and log with lang ids instead of dataloader_idx
         reverse_lang_direction = self._cfg.train_ds.reverse_lang_direction
         if isinstance(self.src_language, ListConfig):
-            translation_lang_string = f'{self.src_language[dataloader_idx]}-{self.tgt_language}' if not reverse_lang_direction else f'{self.tgt_language}-{self.src_language[dataloader_idx]}'
+            translation_lang_string = (
+                f'{self.src_language[dataloader_idx]}-{self.tgt_language}'
+                if not reverse_lang_direction
+                else f'{self.tgt_language}-{self.src_language[dataloader_idx]}'
+            )
             self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
         else:
-            translation_lang_string = f'{self.src_language}-{self.tgt_language[dataloader_idx]}' if not reverse_lang_direction else f'{self.tgt_language[dataloader_idx]}-{self.src_language}'
+            translation_lang_string = (
+                f'{self.src_language}-{self.tgt_language[dataloader_idx]}'
+                if not reverse_lang_direction
+                else f'{self.tgt_language[dataloader_idx]}-{self.src_language}'
+            )
             self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):

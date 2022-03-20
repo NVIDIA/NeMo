@@ -16,7 +16,6 @@ import itertools
 import json
 import os
 import random
-import webdataset as wd
 from multiprocessing import Value
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -25,6 +24,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
+import webdataset as wd
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
@@ -251,13 +251,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
     @classmethod
-    def setup_multilingual_ids_and_processors(
-        cls,
-        src_language,
-        tgt_language,
-        tokenizer,
-        tokenizer_library
-    ):
+    def setup_multilingual_ids_and_processors(cls, src_language, tgt_language, tokenizer, tokenizer_library):
         multilingual_ids = []
         if isinstance(src_language, ListConfig):
             for lng in src_language:
@@ -760,11 +754,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         else:
             sampler = pt_data.SequentialSampler(dataset)
 
-        return wd.WebLoader(
-            dataset=dataset,
-            batch_size=1,
-            num_workers=cfg.get("num_workers", 2),
-        )
+        return wd.WebLoader(dataset=dataset, batch_size=1, num_workers=cfg.get("num_workers", 2),)
         '''
         return torch.utils.data.DataLoader(
             dataset=dataset,
