@@ -93,7 +93,7 @@ model:
     concat_sampling_technique: temperature # only used with ConcatTranslationDataset 
     concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
-    reverse_lang_direction: False
+    reverse_lang_direction: false
 
   validation_ds:
     src_file_name: ???
