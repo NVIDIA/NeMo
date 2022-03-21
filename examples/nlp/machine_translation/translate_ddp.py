@@ -14,6 +14,7 @@
 
 
 import os
+import time
 from argparse import ArgumentParser
 
 import torch
@@ -72,6 +73,7 @@ def translate(rank, world_size, args):
             world_size=world_size,
             global_rank=rank,
             reverse_lang_direction=args.reverse_lang_direction,
+            shard_shuffle_seed=int((os.getpid() + time.time()) * 1e9), # We don't have trainer.global_step to set the seed here.
         )
     else:
         dataset = TarredSentenceDataset(

@@ -612,6 +612,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     world_size=self.world_size,
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                     prepend_id=self.multilingual_ids[idx] if self.multilingual else None,
+                    shard_shuffle_seed=self.trainer.global_step + self.global_rank
                 )
                 datasets.append(dataset)
 

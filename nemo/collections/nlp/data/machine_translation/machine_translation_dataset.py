@@ -348,6 +348,7 @@ class TarredTranslationDataset(IterableDataset):
         world_size: int = 1,
         reverse_lang_direction: bool = False,
         prepend_id: int = None,
+        shard_shuffle_seed: int = 0
     ):
         super(TarredTranslationDataset, self).__init__()
 
@@ -424,7 +425,7 @@ class TarredTranslationDataset(IterableDataset):
         # 2. shard_strategy = 'replicate' has the same batch across workers (since all workers will start with the same seed). We break this by setting th seed based on the worker's global rank.
         self._dataset = wd.DataPipeline(
             # wd.SimpleShardList(urls=text_tar_filepaths, seed=seed + global_rank),
-            wd.SimpleShardList(urls=text_tar_filepaths),
+            wd.SimpleShardList(urls=text_tar_filepaths, seed=shard_shuffle_seed),
             wd.shuffle(shuffle_n),
             wd.split_by_worker,
             wd.tarfile_to_samples(),
