@@ -41,6 +41,15 @@ class RangeFst(GraphFst):
         if not deterministic:
             cardinal = cardinal.graph
             range_graph = cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
+            up_to_three_morfive_digits = (NEMO_DIGIT ** (1, 3)) | (NEMO_DIGIT ** (5, ...))
+            up_to_three_morfive_digits = pynini.compose(up_to_three_morfive_digits, cardinal)
+            range_graph |= (
+                up_to_three_morfive_digits
+                + delete_space
+                + pynini.cross("-", " to ")
+                + delete_space
+                + up_to_three_morfive_digits
+            )
             range_graph |= cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
 
             for x in ["+", " + "]:

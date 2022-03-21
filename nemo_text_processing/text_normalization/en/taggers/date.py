@@ -300,7 +300,7 @@ class DateFst(GraphFst):
             final_graph += pynini.closure(pynutil.insert(" preserve_order: true"), 0, 1)
             m_sep_d = (
                 month_numbers_graph
-                + pynutil.delete(pynini.union("-", "/", "."))
+                + pynutil.delete(pynini.union("-", "/"))
                 + insert_space
                 + pynini.closure(pynutil.delete("0"), 0, 1)
                 + day_graph
