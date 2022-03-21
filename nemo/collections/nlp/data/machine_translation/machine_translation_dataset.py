@@ -430,7 +430,7 @@ class TarredTranslationDataset(IterableDataset):
             wd.tarfile_to_samples(),
             wd.shuffle(shuffle_n),
             self._build_sample,
-            wd.shuffle(shuffle_n)
+            wd.shuffle(shuffle_n),
         )
 
     def _build_sample(self, fname):
