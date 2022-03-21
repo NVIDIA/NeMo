@@ -687,7 +687,16 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 
 def get_samples_mapping(
-    indexed_dataset, data_prefix, num_epochs, max_num_samples, max_seq_length, short_seq_prob, seed, name, binary_head
+    indexed_dataset,
+    data_prefix,
+    num_epochs,
+    max_num_samples,
+    max_seq_length,
+    short_seq_prob,
+    seed,
+    name,
+    binary_head,
+    index_mapping_dir: str = None,
 ):
     """Get a list that maps a sample index to a starting sentence index, end sentence index, and length"""
 
@@ -699,7 +708,10 @@ def get_samples_mapping(
         max_num_samples = np.iinfo(np.int64).max - 1
 
     # Filename of the index mapping
-    indexmap_filename = data_prefix
+    if index_mapping_dir is not None:
+        indexmap_filename = os.path.join(index_mapping_dir, os.path.basename(data_prefix))
+    else:
+        indexmap_filename = data_prefix
     indexmap_filename += '_{}_indexmap'.format(name)
     if num_epochs != (np.iinfo(np.int32).max - 1):
         indexmap_filename += '_{}ep'.format(num_epochs)
