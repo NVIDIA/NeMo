@@ -240,7 +240,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     num_workers=cfg.get("num_workers", 0),
                     pin_memory=cfg.get("pin_memory", False),
                     drop_last=cfg.get("drop_last", False),
-                    shuffle=False
+                    shuffle=False,
                 )
             )
 
