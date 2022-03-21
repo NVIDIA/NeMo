@@ -409,26 +409,21 @@ class TarredTranslationDataset(IterableDataset):
             raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
 
         self.tarpath = text_tar_filepaths
-        
-        # Seed the order of the samples based on the provided seed and the global rank
-        # This ensures different batches across DDP workers for the following scenarios:
-        # 1. shard_strategy = 'scatter' has different batches across workers, but produces the same order of batches when restarting runs. Setting seed based on `trainer.global_step` should fix this.
-        # 2. shard_strategy = 'replicate' has the same batch across workers (since all workers will start with the same seed). We break this by setting th seed based on the worker's global rank.
-        self._dataset = wd.DataPipeline(
-            # wd.SimpleShardList(urls=text_tar_filepaths, seed=seed + global_rank),
-            wd.SimpleShardList(urls=text_tar_filepaths),
-            wd.shuffle(shuffle_n),
-            wd.split_by_worker,
-            wd.tarfile_to_samples(),
-            wd.shuffle(shuffle_n),
-            self._build_sample,
-            wd.shuffle(shuffle_n)
-        )
+
+        # Put together WebDataset
+        self._dataset = wd.WebDataset(urls=text_tar_filepaths, nodesplitter=None)
+
+        if shuffle_n > 0:
+            self._dataset = self._dataset.shuffle(shuffle_n, initial=shuffle_n)
+        else:
+            logging.info("WebDataset will not shuffle files within the tar files.")
+
+        self._dataset = self._dataset.rename(pkl='pkl', key='__key__').to_tuple('pkl', 'key').map(f=self._build_sample)
 
     def _build_sample(self, fname):
         # Load file
-        pkl_file = next(fname)
-        pkl_file = io.BytesIO(pkl_file['pkl'])
+        pkl_file, _ = fname
+        pkl_file = io.BytesIO(pkl_file)
         data = pickle.load(pkl_file)  # loads np.int64 vector
         pkl_file.close()
         src_ids = data["src"]
@@ -441,7 +436,7 @@ class TarredTranslationDataset(IterableDataset):
             src_ids = np.insert(src_ids, 0, self.prepend_id, axis=-1)
         src_mask = (src_ids != self.src_pad_id).astype(np.int32)
         tgt_mask = (tgt_ids != self.tgt_pad_id).astype(np.int32)
-        yield (src_ids, src_mask, tgt_ids, tgt_mask, labels)
+        return src_ids, src_mask, tgt_ids, tgt_mask, labels
 
     def __iter__(self):
         return self._dataset.__iter__()
