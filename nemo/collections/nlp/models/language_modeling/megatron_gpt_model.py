@@ -325,7 +325,6 @@ class MegatronGPTModel(NLPModel):
 
         return loss_mean
 
-
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, batch, batch_idx)
 
