@@ -41,6 +41,7 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam, TextGeneration
 
 try:
     from apex.transformer import parallel_state
@@ -88,7 +89,7 @@ def _get_params_for_weight_decay_optimization(
     return weight_decay_params, no_weight_decay_params
 
 
-class MegatronGPTModel(NLPModel):
+class MegatronGPTModel(NLPModel, TextGeneration):
     """
     Megatron GPT pretraining and prompt tuning
     """
@@ -907,7 +908,28 @@ class MegatronGPTModel(NLPModel):
             for param in param_group['params']:
                 params.append(param)
         return params
+    
+    def generate(self, inputs: Union[List[str], torch.Tensor, List[dict]], length_params: LengthParam, sampling_params: SamplingParam = None) -> OutputType:
+        if isinstance(inputs, list):
+            if isinstance(inputs[0], str):
+                # set the inference config
+                with open_dict(self.cfg):
+                    self.cfg.inference = cfg.inference
 
+
+                self.trainer.predict()
+                # call generate
+                pass
+            elif isinstance(inputs[0], dict):
+                raise NotImplementedError("json object not implemented")
+            else:
+                raise NotImplementedError("unknown type is not implemented")
+        elif isinstance(inputs, torch.Tensor):
+            # call low level generate
+            pass
+        else:
+            raise NotImplementedError("unknown type is not implemented")
+ 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         config = self.cfg.inference
         config = OmegaConf.to_container(config)

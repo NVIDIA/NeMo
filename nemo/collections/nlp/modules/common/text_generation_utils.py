@@ -128,6 +128,7 @@ def send_generate_info(
     top_p,
     greedy,
     repetition_penalty,
+    min_tokens_to_generate,
 ):
     """
     Needs to be synced up with receive_generate_info
@@ -143,6 +144,7 @@ def send_generate_info(
         top_p,
         greedy,
         repetition_penalty,
+        min_tokens_to_generate,
     ]
     input_info_tensor = torch.cuda.FloatTensor(input_info)
     torch.distributed.broadcast(input_info_tensor, 0)
@@ -156,7 +158,7 @@ def receive_generate_info():
     """
     Needs to be synced up with send_generate_info
     """
-    input_info_tensor = torch.empty(9, dtype=torch.float32, device=torch.cuda.current_device())
+    input_info_tensor = torch.empty(10, dtype=torch.float32, device=torch.cuda.current_device())
     torch.distributed.broadcast(input_info_tensor, 0)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
@@ -167,6 +169,7 @@ def receive_generate_info():
     top_p = float(input_info_tensor[6].item())
     greedy = bool(input_info_tensor[7].item())
     repetition_penalty = float(input_info_tensor[8].item())
+    min_tokens_to_generate = int(input_info_tensor[9].item())
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
@@ -185,6 +188,7 @@ def receive_generate_info():
         top_p,
         greedy,
         repetition_penalty,
+        min_tokens_to_generate,
     )
 
 
@@ -199,6 +203,7 @@ def synced_generate(
     top_p=0.0,
     greedy=False,
     repetition_penalty=1.2,
+    min_tokens_to_generate=0,
 ):
     context_length = context_length_tensor.min().item()
     tokenizer = model.tokenizer
@@ -224,7 +229,7 @@ def synced_generate(
             tokens_to_generate,
             all_probs,
             temperature=temperature,
-            extra={"top_p": top_p, "top_k": top_k, "greedy": greedy, "repetition_penalty": repetition_penalty},
+            extra={"top_p": top_p, "top_k": top_k, "greedy": greedy, "repetition_penalty": repetition_penalty, "min_tokens_to_generate": min_tokens_to_generate},
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -265,7 +270,7 @@ def synced_generate(
 
 def generate(
     model,
-    sentences=None,
+    inputs=None,
     tokens_to_generate=0,
     all_probs=False,
     temperature=1.0,
@@ -274,13 +279,17 @@ def generate(
     top_p=0.0,
     greedy=False,
     repetition_penalty=1.2,
+    min_tokens_to_generate=0,
 ):
     model.eval()
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == 0:
-        context_tokens_tensor, context_length_tensor = tokenize_batch(
-            tokenizer, sentences, tokens_to_generate, add_BOS
-        )
+        if isinstance(inputs, tuple):
+            context_tokens_tensor, context_length_tensor = inputs
+        else:
+            context_tokens_tensor, context_length_tensor = tokenize_batch(
+                tokenizer, inputs, tokens_to_generate, add_BOS
+            )
         send_generate_info(
             context_tokens_tensor,
             context_length_tensor,
@@ -291,6 +300,7 @@ def generate(
             top_p,
             greedy,
             repetition_penalty,
+            min_tokens_to_generate,
         )
     else:
         (
@@ -303,6 +313,7 @@ def generate(
             top_p,
             greedy,
             repetition_penalty,
+            min_tokens_to_generate,
         ) = receive_generate_info()
 
     output = synced_generate(
@@ -316,6 +327,7 @@ def generate(
         top_p=top_p,
         greedy=greedy,
         repetition_penalty=repetition_penalty,
+        min_tokens_to_generate=min_tokens_to_generate,
     )
     if output is not None:
         decode_tokens, output_logits, full_logits = output
@@ -449,6 +461,12 @@ def sample_sequence_batch(
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
+
+                # make sure it will generate at least min_length
+                min_length = extra.get('min_tokens_to_generate', 0)
+                if min_length > 0:
+                    within_min_length = (context_length - context_lengths) < min_length 
+                    logits[within_min_length, eod_id] = -float('Inf')
 
                 if extra.get('greedy', False):  # args.greedy:
                     prev = torch.argmax(logits, dim=-1).view(-1)
