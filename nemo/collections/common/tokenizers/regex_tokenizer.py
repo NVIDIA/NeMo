@@ -33,7 +33,11 @@ DEFAULT_UNK_TOKEN = '?'
 
 
 class RegExTokenizer(TokenizerSpec):
-    "A regular expression-based tokenizer at word boundary"
+    """
+    A regular expression-based tokenizer at word boundary.
+    This tokenizer default to support MegaMolBART.
+    <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/clara/models/megamolbart>
+    """
 
     def __init__(
         self,
