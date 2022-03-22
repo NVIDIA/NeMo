@@ -52,6 +52,13 @@ class RangeFst(GraphFst):
             )
             range_graph |= cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
 
+            # supports "No. 12" -> "Number 12"
+            range_graph |= (
+                (pynini.cross(pynini.union("NO", "No"), "Number") | pynini.cross("no", "number"))
+                + pynini.closure(pynini.union(". ", " "), 0, 1)
+                + cardinal
+            )
+
             for x in ["+", " + "]:
                 range_graph |= cardinal + pynini.closure(pynini.cross(x, " plus ") + cardinal, 1)
             for x in ["/", " / "]:

@@ -111,6 +111,17 @@ class MeasureFst(GraphFst):
             + unit_plural
         )
 
+        # support radio FM/AM
+        subgraph_decimal |= (
+            pynutil.insert("decimal { ")
+            + decimal.final_graph_wo_negative
+            + delete_space
+            + pynutil.insert(" } ")
+            + pynutil.insert("units: \"")
+            + pynini.union("AM", "FM")
+            + pynutil.insert("\"")
+        )
+
         subgraph_cardinal = (
             pynutil.insert("cardinal { ")
             + optional_graph_negative
