@@ -367,6 +367,8 @@ class AudioFeatureIterator(IterableDataset):
         if last <= self._features_len[0]:
             frame = self._features[:, self._start : last].cpu()
             self._start = last
+            if self._start == self._features_len[0]-1:
+                self.output = False
         else:
             frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
             samp_len = self._features_len[0] - self._start
