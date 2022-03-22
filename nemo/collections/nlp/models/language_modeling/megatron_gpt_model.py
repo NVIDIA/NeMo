@@ -106,7 +106,7 @@ class MegatronGPTModel(NLPModel):
         self._validate_trainer()
 
         # used in NVIDIA NGC PyTorch containers
-        # self._enable_nvidia_optimizations()
+        self._enable_nvidia_optimizations()
 
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
@@ -324,6 +324,7 @@ class MegatronGPTModel(NLPModel):
         )
 
         return loss_mean
+
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, batch, batch_idx)
