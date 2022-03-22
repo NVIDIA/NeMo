@@ -443,7 +443,7 @@ class AudioBuffersDataLayer(IterableDataset):
         return 1
 
 
-def get_samples(audio_file, offset=0, duration=0, target_sr=16000):
+def get_samples(audio_file, offset=0, duration=None, target_sr=16000):
     if offset < 0:
         offset = 0 
     with sf.SoundFile(audio_file, 'r') as f:
@@ -451,7 +451,7 @@ def get_samples(audio_file, offset=0, duration=0, target_sr=16000):
         sample_rate = f.samplerate
         if offset > 0:
             f.seek(int(offset * sample_rate))
-        if duration > 0:
+        if duration and duration > 0:
             samples = f.read(int(duration * sample_rate), dtype=dtype)
         else:
             samples = f.read(dtype=dtype)

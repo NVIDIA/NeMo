@@ -115,7 +115,7 @@ def get_wer_feat(
                 total_speech_segments.append(speech_segments)
 
     wer = word_error_rate(hypotheses=hyps, references=refs)
-
+    print(wer)
     if vad:
         print(f"VAD reduces total durations for ASR inference from {int(sum(original_durations))} seconds to {int(sum(total_durations_to_asr))} seconds, by filtering out some noise or music")
     
