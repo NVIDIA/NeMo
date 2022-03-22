@@ -795,24 +795,30 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
         app_state = AppState()
+        micro_batch_size = tokens_enc.size(0)
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=micro_batch_size,
+            micro_batch_size=micro_batch_size,
+            data_parallel_size=1,
+        )
         predicted_tokens_dec = (
-            torch.LongTensor([self.tokenizer.bos_id] * tokens_enc.size(0)).unsqueeze(1).to(tokens_enc.device)
+            torch.LongTensor([self.tokenizer.bos_id] * micro_batch_size).unsqueeze(1).to(tokens_enc.device)
         )
         encoder_seq_length = tokens_enc.size(1)
-        tensor_shape = [encoder_seq_length, tokens_enc.size(0), self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, micro_batch_size, self.cfg.hidden_size]
+        assert predicted_tokens_dec.size(0) == micro_batch_size
 
-        for _ in range(num_tokens_to_generate):
+        for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
-            micro_batch_size = tokens_enc.size(0)
-            _reconfigure_microbatch_calculator(
-                rank=app_state.global_rank,
-                rampup_batch_size=None,
-                global_batch_size=micro_batch_size,
-                micro_batch_size=micro_batch_size,
-                data_parallel_size=1,
-            )
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Predicted Tokens Dec Start - {predicted_tokens_dec.shape}')
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Tokens Enc Start - {tokens_enc.shape}')
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Enc Mask Start - {enc_mask.shape}')
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Dec Mask Start - {dec_mask.shape}')
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Dec Seq Len Start - {decoder_seq_length}')
 
             batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -836,6 +842,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     dtype=self.autocast_dtype,
                 )
 
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} output_tensor - {output_tensor}')
+
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
@@ -846,15 +854,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             else:
                 log_probs = torch.zeros(
-                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=torch.float
-                ).cuda()
+                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]),
+                    dtype=torch.float
+                ).to(tokens_enc.device)
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
-                ).cuda()
+                ).to(tokens_enc.device)
 
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Predicted tokens dec - {predicted_tokens_dec.shape}')
+            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Logprobs - {log_probs.shape}')
             torch.distributed.broadcast(predicted_tokens_dec, get_last_rank())
             torch.distributed.broadcast(log_probs, get_last_rank())
+            torch.distributed.barrier()
 
         return predicted_tokens_dec, log_probs
 

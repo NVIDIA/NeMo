@@ -1,10 +1,10 @@
 name: megatron_t5_glue
 
 trainer:
-  devices: 1
+  devices: 2
   num_nodes: 1
   accelerator: gpu
-  precision: bf16
+  precision: 16
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
@@ -36,7 +36,8 @@ exp_manager:
     save_best_model: True
 
 model:
-  restore_from_path: /raid/Data/NMT/Models/mt5_220m/refactored/seq_1024_drop0/megatron_t5--val_loss=1.45-step=610999-consumed_samples=625643520.0.nemo # Path to a trained T5 .nemo file
+  restore_from_path: /raid/Data/NMT/Models/t5_220m/megatron_t5_tp_1_pp_2.nemo
+  # restore_from_path: /raid/Data/NMT/Models/mt5_220m/refactored/seq_1024_drop0/megatron_t5--val_loss=1.45-step=610999-consumed_samples=625643520.0.nemo # Path to a trained T5 .nemo file
   # restore_from_path: /raid/Data/NMT/Models/t5_220m/refactored/bf16_O1/megatron_t5--val_loss=1.47-step=999999-consumed_samples=2047944704.0.nemo
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1

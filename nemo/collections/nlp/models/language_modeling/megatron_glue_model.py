@@ -39,7 +39,8 @@ class MegatronT5GLUEModel(MegatronT5Model):
     """GLUE Model that Inherits from MegatronT5Model instead.""" 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        self.acc_metric = ExactStringPerCategoryMatchMetric()
+        if parallel_state.is_pipeline_last_stage():
+            self.acc_metric = ExactStringPerCategoryMatchMetric()
 
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
@@ -101,16 +102,12 @@ class MegatronT5GLUEModel(MegatronT5Model):
             label = self.tokenizer.ids_to_text(label)
             _ = self.acc_metric(pred, label)
 
-        return {'loss': loss}
+        return loss
 
     def inference_epoch_end(self, outputs):
-        losses = [x['loss'] for x in outputs]
-        averaged_loss = average_losses_across_data_parallel_group(losses)
-        val_acc = self.acc_metric.compute()
-        self.log('validation_loss', averaged_loss)
-        self.log('validation_acc', val_acc['acc'])
-        self.acc_metric.reset()
-        return averaged_loss[0], val_acc
+        # This will handle logging of the loss.
+        super().validation_epoch_end(outputs)
+        # TODO: Add logging of the accuracy.
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
