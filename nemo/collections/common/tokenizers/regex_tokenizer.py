@@ -31,8 +31,6 @@ DEFAULT_PAD_TOKEN = '<PAD>'
 DEFAULT_SEP_TOKEN = '<SEP>'
 DEFAULT_UNK_TOKEN = '?'
 
-# TODO: add support in multiple input files
-
 
 class RegExTokenizer(TokenizerSpec):
     "A regular expression-based tokenizer at word boundary"
