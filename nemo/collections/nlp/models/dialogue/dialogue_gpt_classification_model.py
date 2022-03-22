@@ -30,27 +30,29 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
-from nemo.collections.nlp.data.dialogue import DialogueGPTDataset, DialogueSGDDataProcessor, Schema
+from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor, Schema
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.metrics.dialogue_metrics import IntentSlotMetrics
+from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-__all__ = ['DialogueGPTModel']
+__all__ = ['DialogueGPTClassificationModel']
 
 NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
 
 
-class DialogueGPTModel(NLPModel):
+class DialogueGPTClassificationModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
     ):
 
         self.cfg = cfg
+        self.eval_mode = cfg.eval_mode
         self.data_prepared = False
 
         self.setup_tokenizer(cfg.tokenizer)
@@ -96,8 +98,6 @@ class DialogueGPTModel(NLPModel):
         self.classification_report = ClassificationReport(
             num_classes=len(self.label_to_ids) + 1, mode='micro', label_ids=self.label_to_ids, dist_sync_on_step=True
         )
-        self.eval_mode = cfg.eval_mode
-        self.cfg = cfg
 
     def training_step(self, batch, batch_idx):
 
@@ -170,17 +170,17 @@ class DialogueGPTModel(NLPModel):
 
         with_slots = self.cfg.dataset.target_template == "with_slots"
 
-        generated_labels, generated_slots = IntentSlotMetrics.split_label_and_slots(
+        generated_labels, generated_slots = DialogueClassificationMetrics.split_label_and_slots(
             generated_field, with_slots=with_slots
         )
-        ground_truth_labels, ground_truth_slots = IntentSlotMetrics.split_label_and_slots(
+        ground_truth_labels, ground_truth_slots = DialogueClassification.split_label_and_slots(
             ground_truth_field, with_slots=with_slots
         )
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions.jsonl")
 
-        IntentSlotMetrics.save_predictions(
+        DialogueClassificationMetrics.save_predictions(
             filename,
             generated_labels,
             generated_slots,
@@ -206,9 +206,12 @@ class DialogueGPTModel(NLPModel):
         precision, recall, f1, report = self.classification_report.compute()
         self.classification_report.reset()
 
-        slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy = IntentSlotMetrics.get_slot_filling_metrics(
-            generated_slots, ground_truth_slots
-        )
+        (
+            slot_precision,
+            slot_recall,
+            slot_f1,
+            slot_joint_goal_accuracy,
+        ) = DialogueClassificationMetrics.get_slot_filling_metrics(generated_slots, ground_truth_slots)
 
         logging.info(report)
 
@@ -610,6 +613,11 @@ class DialogueGPTModel(NLPModel):
             self.dialogues_processor = DialogueAssistantDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
+        elif self._cfg.dataset.task == "ms_marco":
+            self.dialogues_processor = DialogueMSMarcoDataProcessor(
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+            )
+
         self.data_prepared = True
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
@@ -652,7 +660,7 @@ class DialogueGPTModel(NLPModel):
         if not os.path.exists(data_dir):
             raise FileNotFoundError(f"Data directory is not found at: {data_dir}.")
 
-        dataset = DialogueGPTDataset(
+        dataset = DialogueGPTClassificationDataset(
             dataset_split=split,
             dialogues_processor=self.dialogues_processor,
             tokenizer=self.dialogues_processor._tokenizer,

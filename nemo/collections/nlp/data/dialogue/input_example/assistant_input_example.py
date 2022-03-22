@@ -22,7 +22,7 @@ class DialogueAssistantInputExample(DialogueInputExample):
 
     Meant as a descriptor rather than to be instantiated
 
-    Please instantiate using 'DialogueInputExample' 
+    Please instantiate using the base class 'DialogueInputExample'
 
     {
         

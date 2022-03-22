@@ -39,7 +39,6 @@ class DialogueDataProcessor(DataProcessor):
     def __init__(self):
         raise NotImplementedError()
 
-    # common interface for Data Processor
     def get_train_examples(self):
         """Gets a collection of `InputExample`s for the train set."""
         raise NotImplementedError()

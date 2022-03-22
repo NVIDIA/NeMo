@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor 
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc, IntentSlotInferenceDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.metrics.dialogue_metrics import IntentSlotMetrics
+from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
@@ -374,7 +374,7 @@ class IntentSlotClassificationModel(NLPModel):
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "predictions.jsonl")
 
-        IntentSlotMetrics.save_predictions(
+        DialogueClassificationMetrics.save_predictions(
             filename,
             generated_labels,
             all_generated_slots,
@@ -385,9 +385,12 @@ class IntentSlotClassificationModel(NLPModel):
             all_utterances,
         )
 
-        slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy = IntentSlotMetrics.get_slot_filling_metrics(
-            all_generated_slots, all_ground_truth_slots
-        )
+        (
+            slot_precision,
+            slot_recall,
+            slot_f1,
+            slot_joint_goal_accuracy,
+        ) = DialogueClassificationMetrics.get_slot_filling_metrics(all_generated_slots, all_ground_truth_slots)
 
         return slot_precision, slot_recall, slot_f1, slot_joint_goal_accuracy
 

@@ -76,6 +76,8 @@ model:
   dataset:
     task: sgd
     field: intent # intemt, slots, service
+    input_field: response # passage+utterance, utterance, response, utterance+response
+    output_field: fluent_response # response, fluent_response
     prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel
     target_template: default # default, with_description, with_slots
     few_shot: 0 # int ; 0 to 10, for number of examples in prompt

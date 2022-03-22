@@ -13,11 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/google-research/google-research/blob/master/schema_guided_dst
-"""
-
 import copy
 import random
 import re
@@ -28,14 +23,15 @@ import torch
 from nemo.core.classes import Dataset
 
 
-class DialogueGPTDataset(Dataset):
+class DialogueGPTClassificationDataset(Dataset):
     '''
+    Designed for classification tasks such as intent/domain classification as well as slot tagging
+
     Dataset Class 
         1. Performs Model-dependent (but Data-independent) operations (tokenization etc)
         2. This can allow the same model preprocessing for multiple datasources
         3. Users can configurate which labels to use for modelling 
             (e.g. intent classification, slot filling or both together etc)
-        
     '''
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
@@ -125,10 +121,12 @@ class DialogueGPTDataset(Dataset):
         )
 
     def format_target(self, target, slots=None):
-        # this function formats the back part of the training ex, after the base_template
-        # for instance, "restaurant" in  "<utterance> service: restaurant"
-        # or "set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)" in \
-        # "<utterance>\nintent: set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)"
+        """
+        Formats the back part of the training example, after the base_template
+        for instance, "restaurant" in  "<utterance> service: restaurant"
+        or "set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)" in \
+        "<utterance>\nintent: set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)"
+        """
         if self.cfg.target_template == "with_description":
             return target + ' (' + self.label_to_description[target] + ')'
         elif self.cfg.target_template == "default":
@@ -208,6 +206,7 @@ class DialogueGPTDataset(Dataset):
         ex = self.features[idx].data
 
         utterance = ex["utterance"]
+
         utterance_length = self.get_n_tokens_in_sentence(utterance)
 
         label = ex["labels"][self.label_type]

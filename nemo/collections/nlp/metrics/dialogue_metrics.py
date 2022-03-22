@@ -14,11 +14,76 @@
 # limitations under the License.
 
 import json
+from collections import Counter
 
 import numpy as np
+from sacrebleu import corpus_bleu
 
 
-class IntentSlotMetrics(object):
+class DialogueGenerationMetrics(object):
+    @staticmethod
+    def save_predictions(
+        filename, generated_field, ground_truth_field, inputs,
+    ):
+        """
+        Save predictions as a jsonl file
+
+        Args:
+            Each arg is a list of strings (all args have the same length)
+        """
+        docs = []
+        for i in range(len(inputs)):
+            docs.append(
+                {"input": inputs[i], "ground_truth": ground_truth_field[i], "generated": generated_field[i],}
+            )
+        with open(filename, 'w', encoding="UTF-8") as f:
+            for item in docs:
+                f.write(json.dumps(item) + "\n")
+
+    @staticmethod
+    def _get_one_f1(generated_field, ground_truth_field):
+        """
+        Get precision, recall, f1 based on token overlap between generated and ground_truth sequence
+        """
+        generated_tokens = generated_field.split()
+        ground_truth_tokens = ground_truth_field.split()
+
+        common = Counter(generated_tokens) & Counter(ground_truth_tokens)
+        num_same = sum(common.values())
+        if num_same == 0:
+            return 0, 0, 0
+        precision = 1.0 * num_same / len(generated_tokens)
+        recall = 1.0 * num_same / len(ground_truth_tokens)
+        f1 = (2 * precision * recall) / (precision + recall)
+        return np.array([precision * 100, recall * 100, f1 * 100])
+
+    @staticmethod
+    def get_f1(generated_fields, ground_truth_fields):
+        total_p_r_f1 = np.array(
+            [
+                DialogueGenerationMetrics._get_one_f1(generated_fields[i], ground_truth_fields[i])
+                for i in range(len(ground_truth_fields))
+            ]
+        )
+        avg_p_r_f1 = np.mean(total_p_r_f1, axis=0)
+        return avg_p_r_f1
+
+    @staticmethod
+    def get_bleu(generated_field, ground_truth_field):
+        """
+        Referenced from NMT evaluation
+        Note 13a is the default tokenizer for English for WMT
+        Known issue that it doesn't hand edge case of None or '' 
+        https://github.com/mjpost/sacrebleu/issues/161
+        """
+        valid_indices = [i for i in range(len(generated_field)) if generated_field[i] and ground_truth_field[i]]
+        generated_field = [generated_field[i] for i in valid_indices]
+        ground_truth_field = [ground_truth_field[i] for i in valid_indices]
+        sacre_bleu = corpus_bleu(generated_field, [ground_truth_field], tokenize="13a")
+        return sacre_bleu.score
+
+
+class DialogueClassificationMetrics(object):
     @staticmethod
     def save_predictions(
         filename,
@@ -37,7 +102,7 @@ class IntentSlotMetrics(object):
             Each arg is a list of strings (all args have the same length)
         """
         docs = []
-        for i in range(len(generated_labels)):
+        for i in range(len(inputs)):
             docs.append(
                 {
                     "input": inputs[i],

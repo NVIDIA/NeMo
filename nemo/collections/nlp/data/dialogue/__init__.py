@@ -17,6 +17,6 @@ from nemo.collections.nlp.data.dialogue.dataset import (
     DialogueBERTDataset,
     DialogueSGDBERTDataset,
     DialogueZeroShotIntentDataset,
-    DialogueGPTDataset,
+    DialogueGPTClassificationDataset,
 )
 from nemo.collections.nlp.data.dialogue.sgd.schema import Schema

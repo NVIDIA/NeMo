@@ -14,4 +14,4 @@
 
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.sequence_perplexity import SequencePerplexity
-from nemo.collections.nlp.metrics.dialogue_metrics import IntentSlotMetrics
+from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics

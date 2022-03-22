@@ -26,7 +26,7 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
 
     def __init__(self, data_dir: str, tokenizer: object):
         """
-        Constructs SGDDataProcessor
+        Constructs DialogueAssistantDataProcessor
         Args:
             data_dir: path to data directory
             tokenizer: tokenizer object
@@ -89,9 +89,11 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
 
     @staticmethod
     def map_bio_format_slots_to_unified_slots(slots):
-        # maps BIO format slots to unified slots (meaning that B-alarm_time and I-alarm_time both map to alarm_time)
-        # called even slots does not contain BIO, for unified interface
-        # in that case slots == unified_slots and bio_slot_ids_to_unified_slot_ids is an identity mapping i.e. {"0": "0", "1": "1"}
+        """
+        maps BIO format slots to unified slots (meaning that B-alarm_time and I-alarm_time both map to alarm_time)
+        called even slots does not contain BIO, for unified interface
+        in that case slots == unified_slots and bio_slot_ids_to_unified_slot_ids is an identity mapping i.e. {"0": "0", "1": "1"}
+        """
         bio_slot_ids_to_unified_slot_ids = {}
         unified_slots = []
         unified_idx = -1

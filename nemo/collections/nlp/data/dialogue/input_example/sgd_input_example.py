@@ -35,6 +35,12 @@ __all__ = [
 class DialogueSGDInputExample(DialogueInputExample):
 
     """
+    Template for DialogueSGDInputExample
+
+    Meant as a descriptor rather than to be instantiated
+
+    Please instantiate using the base class 'DialogueInputExample' 
+
     {
         "example_id": <example_id>,
         "example_id_num": <example_id_num>,

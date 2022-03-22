@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.dialogue.dialogue_gpt_model import DialogueGPTModel
+from nemo.collections.nlp.models.dialogue.dialogue_gpt_classification_model import DialogueGPTClassificationModel
 from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.zero_shot_intent_model import ZeroShotIntentModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel

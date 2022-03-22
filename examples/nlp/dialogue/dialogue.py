@@ -104,7 +104,8 @@ import os
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.nlp.models.dialogue.dialogue_gpt_model import DialogueGPTModel
+from nemo.collections.nlp.models.dialogue.dialogue_gpt_classification_model import DialogueGPTClassificationModel
+from nemo.collections.nlp.models.dialogue.dialogue_gpt_generation_model import DialogueGPTGenerationModel
 from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
 from nemo.collections.nlp.models.dialogue.zero_shot_intent_model import ZeroShotIntentModel
@@ -139,7 +140,10 @@ def main(cfg: DictConfig) -> None:
         else:
             model_class = IntentSlotClassificationModel
     elif 'gpt' in cfg.model.language_model.pretrained_model_name.lower():
-        model_class = DialogueGPTModel
+        if cfg.model.dataset.task == 'ms_marco':
+            model_class = DialogueGPTGenerationModel
+        else:
+            model_class = DialogueGPTClassificationModel
 
     if cfg.pretrained_model or (cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)):
         if cfg.pretrained_model:

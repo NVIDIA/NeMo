@@ -25,7 +25,7 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
-__all__ = ['DialogueSGDBERTDataset']
+__all__ = ['DialogueBERTDataset']
 
 
 class DialogueBERTDataset(Dataset):
