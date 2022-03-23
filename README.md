@@ -88,7 +88,7 @@ SuperPOD configurations using NVIDIA InfiniBand technology to provide efficient 
 and inferring complex workloads.
 
 <!-- Should this line be removed/replaced -->
-Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 style models on
+Early access to NeMo Megatron is limited to enterprises that want to train and deploy GPT-3 and T5 style models on
 NVIDIA DGX SuperPOD to perform zero-shot tasks such as answering deep domain questions, translating languages,
 comprehending and summarizing complex documents. 
 
@@ -286,7 +286,7 @@ points to the other. They should both be mounted in read and write (RW)
 mode. The parameter `cluster_type` must be set to `bcp` for all the tasks.
 
 `main.py` is the main file that needs to be executed to run the data
-preparation, training, conversion and evaluation pipelines for GPT-3 models. Each of these 
+preparation, training, conversion, finetuning and evaluation pipelines. Each of these 
 pipelines has a parameter in the `conf/config.yaml` file that decides whether 
 to run that pipeline or not. In slurm based clusters, all of them can be set 
 to True at the same time, and they will be executed in order. However, in Base Command Platform, 
@@ -313,7 +313,7 @@ run_evaluation: True
 **Settings for T5 Models** `config/config.yaml` can be modified as following for running T5 models. `main.py` needs to be
 executed to run the data preparation, training, conversion, finetuning and evaluation pipelines
 for T5 models.
-```yaml
+```
 defaults:
   - cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
   - data_preparation: download_t5_pile
@@ -418,7 +418,7 @@ shared by multiple users in the same ACE by setting the permissions of the `bign
 To run the data preparation pipeline for GPT-3 models, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_finetuning=False  \
-run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_log.txt 2>&1
 ```
@@ -552,7 +552,7 @@ bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 #### 4.2.1 Predefined Configurations of GPT-3 models
 <a id="markdown-predefined-configurations-of-gpt-3-models" name="predefined-configurations-of-gpt-3-models"></a>
 
-We provide five configurations for several different model sizes GPT-3 models: 126M, 5B, 20B, 
+We provide five configurations for several different GPT-3 model sizes: 126M, 5B, 20B, 
 40B and 175B parameters. These configurations include carefully selected
 hyper-parameters, which should be used as a guideline for any custom model
 configurations. All these configurations are provided in the `conf/training/gpt3/`
@@ -585,7 +585,7 @@ To train a 126M GPT-3 model on Base Command Platform cluster on 8 nodes, use the
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/126m run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
@@ -624,7 +624,7 @@ To train a 5B GPT-3 model on Base Command Platform cluster on 20 nodes, use the 
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/5b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
@@ -657,7 +657,7 @@ To train a 20B GPT-3 model on Base Command Platform cluster on 80 nodes, use the
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/20b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
@@ -689,7 +689,7 @@ To train a 40B GPT-3 model on Base Command Platform cluster on 80 nodes, use the
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/40b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
@@ -721,7 +721,7 @@ To train a 175B GPT-3 model on Base Command Platform cluster on 128 nodes, use t
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/175b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
 ```
@@ -765,7 +765,7 @@ To train a 220M GPT-3 model on Base Command Platform cluster on 4 nodes, use the
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/220m run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_t5 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
@@ -803,7 +803,7 @@ To train a 3B T5 model on Base Command Platform cluster on 20 nodes, use the com
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/3b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False  run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
-data_dir=/mount/data/the_pile base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+data_dir=/mount/data/the_pile_t5 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
@@ -1089,7 +1089,7 @@ To run the conversion pipeline to convert a 126M checkpoint stored in
 /mount/results/gpt3_126m/checkpoints, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=True run_finetuning=False  \
-run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.json \
 conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/gpt3_126m/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/gpt3_126m/checkpoints conversion.model.tensor_model_parallel_size=1 \
@@ -1186,7 +1186,7 @@ To run the conversion pipeline to convert a T5 220M checkpoint stored in
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py conversion=convert_t5 \
 run_data_preparation=False run_training=False run_conversion=True run_finetuning=False  \
-run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.txt \
 conversion.run.results_dir=/mount/results/t5_220m/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/t5_220m/checkpoints conversion.model.tensor_model_parallel_size=1 \
@@ -1288,7 +1288,7 @@ To run the finetuning pipeline to finetune a 220M T5 model converted checkpoint 
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py finetuning=t5/mnli run_data_preparation=False run_training=False \
 run_conversion=False run_finetuning=True run_evaluation=False cluster_type=bcp \
-bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 base_results_dir=/mount/results \
 finetuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
 >> /results/finetune_log.txt 2>&1
 ```
@@ -1398,7 +1398,7 @@ To run the evaluation pipeline to evaluate a 126M GPT-3 model checkpoint stored 
 /mount/results/gpt3_126m/checkpoints, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False  \
-run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile \
+run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/data/bpe/vocab.json \
 evaluation.model.merge_file=/mount/data/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
 evaluation.model.checkpoint_path=/mount/results/gpt3_126m/checkpoints evaluation.model.eval_batch_size=16 \
@@ -1499,7 +1499,7 @@ on `mnli` task and checkpoint stored in /mount/results/t5_220m/mnli/checkpoints,
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
 run_data_preparation=False run_training=False run_conversion=False run_finetuning=False  \
-run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results evaluation.model.restore_from_finetuned_path=/mount/results/t5_220m/mnli/megatron_t5_glue.nemo \
 >> /results/finetune_log.txt 2>&1
 ```
