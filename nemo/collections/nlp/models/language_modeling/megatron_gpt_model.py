@@ -763,7 +763,11 @@ class MegatronGPTModel(NLPModel):
             # TODO: this should be true when not using pipeline parallelism
             # we will support that for bf16 when we have async handler from apex
             # and we will support it for fp16 when we have it implemented in the O2 recipe
-            async_grad_allreduce = False
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and self.cfg.precision == 'bf16':
+                async_grad_allreduce = True
+            else:
+                # TODO: this should be true when using fp16 but is not supported yet
+                async_grad_allreduce = False
 
             self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
