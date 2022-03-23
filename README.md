@@ -109,6 +109,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 
 ### 2.1. GPT-3 Models
 <a id="markdown-gpt-3-models" name="gpt-3-models"></a>
+
 | Feature                         | Training               | Inference                                                                                                                                                         |
 | ------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Data parallelism                | Yes                    |                                                                                                                                                                   |
@@ -128,22 +129,23 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 
 ### 2.1. T5 Models
 <a id="markdown-t5-models" name="t5-models"></a>
-| Feature                         | Training               | Inference                                                                                                                                                         |
-| ------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Data parallelism                | Yes                    |                                                                                                                                                                   |
-| Tensor parallelism              | Yes                    | No                                                                                                                                                               |
-| Pipeline parallelism            | No                     | No                                                                                                                         |
-| Gradient checkpointing          | Yes                    |                                                                                                                                                                   |
-| Partial gradient checkpointing  | Yes                    |                                                                                                                                                                   |
-| FP32/TF32                       | Yes                    | No                                                                                                                                    |
-| AMP/FP16                        | No??   | Yes                                                                                                                                                               |
-| BF16                            | Yes  | Yes                                                                                                                                                                |
-| Multi-GPU                       | Yes                    | No                                                                                                                                                               |
-| Multi-Node                      | Yes                    | No                                                                                                                                                               |
-| Inference deployment            | N/A                    | No |
-| SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
-| Distributed data preprocessing | Yes (the Pile only)       |                                                                                                                                                                   |
-| NVfuser                         | No             |                                                                                                                                                                   |
+
+| Feature                         | Training               | Inference |
+| ------------------------------- | ---------------------- |:--------:|
+| Data parallelism                | Yes                    |          |
+| Tensor parallelism              | Yes                    |    No    |
+| Pipeline parallelism            | No                     |    No    |
+| Gradient checkpointing          | Yes                    |          |
+| Partial gradient checkpointing  | Yes                    |          |
+| FP32/TF32                       | Yes                    |    No    |
+| AMP/FP16                        | No??   |    No    |
+| BF16                            | Yes  |    No    |
+| Multi-GPU                       | Yes                    |    No    |
+| Multi-Node                      | Yes                    |    No    |
+| Inference deployment            | N/A                    |    No    |
+| SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          |          |
+| Distributed data preprocessing | Yes (the Pile only)       |          |
+| NVfuser                         | No             |          |
 
 
 
