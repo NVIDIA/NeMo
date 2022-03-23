@@ -164,15 +164,15 @@ def main():
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
     asr_model.encoder.setup_streaming_params(
-        init_chunk_size=72,
-        init_shift_size=72,
-        chunk_size=72,
-        shift_size=72,
+        # init_chunk_size=69,
+        # init_shift_size=69,
+        chunk_size=[69, 72],
+        shift_size=[69, 72],
         cache_drop_size=0,
-        init_pre_encode_cache_size=5,
-        pre_encode_cache_size=5,
-        valid_out_len=18,
-        init_valid_out_len=18,
+        #init_pre_encode_cache_size=5,
+        pre_encode_cache_size=[5, 5],
+        valid_out_len=[18, 18],
+        #init_valid_out_len=18,
     )
     global autocast
     if (
