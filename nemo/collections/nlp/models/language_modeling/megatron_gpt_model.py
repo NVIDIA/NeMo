@@ -294,19 +294,19 @@ class MegatronGPTModel(NLPModel):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-            if self.megatron_amp_o2:
-                # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                    # main grads are stored in the MainParamsOptimizer wrapper
-                    self._optimizer.allreduce_main_grads()
-            else:
-                # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
-                # so we allreduce gradients after the pipeline
-                self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-
+        if self.megatron_amp_o2:
+            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                # when using pipeline parallelism the first and last stage must keep embeddings in sync
-                self.allreduce_first_last_embeddings()
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we allreduce gradients after the pipeline
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # when using pipeline parallelism the first and last stage must keep embeddings in sync
+            self.allreduce_first_last_embeddings()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
