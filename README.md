@@ -1290,7 +1290,7 @@ To run the finetuning pipeline to finetune a 220M T5 model converted checkpoint 
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py finetuning=t5/mnli run_data_preparation=False run_training=False \
 run_conversion=False run_finetuning=True run_evaluation=False cluster_type=bcp \
-bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 base_results_dir=/mount/results \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 finetuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
 >> /results/finetune_log.txt 2>&1
 ```
@@ -1501,7 +1501,7 @@ on `mnli` task and checkpoint stored in /mount/results/t5_220m/mnli/checkpoints,
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
 run_data_preparation=False run_training=False run_conversion=False run_finetuning=False  \
-run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
+run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.model.restore_from_finetuned_path=/mount/results/t5_220m/mnli/megatron_t5_glue.nemo \
 >> /results/finetune_log.txt 2>&1
 ```
