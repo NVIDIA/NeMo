@@ -4,6 +4,17 @@ import omegaconf
 
 def convert_to_cli(cfg):
     result = ""
+    if cfg.get("data_config") is not None:
+        result += f"data_preparation={cfg['data_config']} "
+    if cfg.get("training_config") is not None:
+        result += f"training={cfg['training_config']} "
+    if cfg.get("finetuning_config") is not None:
+        result += f"finetuning={cfg['finetuning_config']} "
+    if cfg.get("evaluation_config") is not None:
+        result += f"evaluation={cfg['evaluation_config']} "
+    if cfg.get("conversion_config") is not None:
+        result += f"conversion={cfg['conversion_config']} "
+
     for k, v in cfg.items():
         if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem"]:
             continue
