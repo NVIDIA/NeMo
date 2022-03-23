@@ -15,7 +15,7 @@
 import os
 
 import torch
-from omegaconf import open_dict
+from omegaconf import OmegaConf
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
@@ -23,6 +23,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
+
+# from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
@@ -85,24 +87,47 @@ def main(cfg) -> None:
 
     model.freeze()
 
-    ds = RequestDataSet(cfg.prompts)
-    request_dl = DataLoader(dataset=ds, batch_size=2)
-
     # has to turn off activations_checkpoint_method for inference
     try:
         model.model.language_model.encoder.activations_checkpoint_method = None
     except:
         pass
-    # set the inference config
-    with open_dict(model.cfg):
-        model.cfg.inference = cfg.inference
 
+    length_params = {
+        "max_length": 30,
+        "min_length": 0,
+    }
+
+    sampling_params = {
+        "use_greedy": False,
+        "temperature": 1.0,
+        "top_k": 0,
+        "top_p": 0.9,
+        "repetition_penalty": 1.0,
+        "add_BOS": True,
+        "all_probs": False,
+    }
+
+    # first method of running text generation, call model.generate method
+    response = model.generate(inputs=cfg.prompts, length_params=length_params, sampling_params=sampling_params)
+
+    print("***************************")
+    print(response)
+    print("***************************")
+
+    # second method of running text generation, call trainer.predict
+    ds = RequestDataSet(cfg.prompts)
+    request_dl = DataLoader(dataset=ds, batch_size=2)
+
+    config = OmegaConf.to_container(cfg.inference)
+    model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
 
     print("***************************")
     print(response)
     print("***************************")
 
+    # third method of running text generation, use inference server
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             server = MegatronServer(model.cuda())

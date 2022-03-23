@@ -1,12 +1,12 @@
 import sys
+from typing import List, Tuple, Union
 
-from typing import List, Union, Tuple
+from torch import Tensor
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict
 else:
     from typing_extensions import TypedDict
-from torch import Tensor
 
 
 class LengthParam(TypedDict):
@@ -37,7 +37,12 @@ class TextGeneration:
     Interface for all text generation models.
     """
 
-    def generate(self, inputs: Union[List[str], Tuple[Tensor, Tensor], List[dict]], length_params: LengthParam, sampling_params: SamplingParam = None) -> OutputType:
+    def generate(
+        self,
+        inputs: Union[List[str], Tuple[Tensor, Tensor], List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
+    ) -> OutputType:
         """
         Public method to generate text.
 

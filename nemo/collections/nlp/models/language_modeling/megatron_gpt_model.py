@@ -22,6 +22,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
+from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_tuning_dataset import GPTPromptTuningDataset
@@ -37,11 +38,16 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+    TextGeneration,
+)
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam, TextGeneration
 
 try:
     from apex.transformer import parallel_state
@@ -193,6 +199,15 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             self.autocast_dtype = torch.bfloat16
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+
+        # configuration used for inference
+        self.__inference_config = None
+
+    def set_inference_config(self, inference_config):
+        self.__inference_config = inference_config
+
+    def get_inference_config(self):
+        return self.__inference_config
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -908,33 +923,64 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             for param in param_group['params']:
                 params.append(param)
         return params
-    
-    def generate(self, inputs: Union[List[str], torch.Tensor, List[dict]], length_params: LengthParam, sampling_params: SamplingParam = None) -> OutputType:
-        if isinstance(inputs, list):
-            if isinstance(inputs[0], str):
-                # set the inference config
-                with open_dict(self.cfg):
-                    self.cfg.inference = cfg.inference
 
+    def generate(
+        self,
+        inputs: Union[List[str], torch.Tensor, List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
+    ) -> OutputType:
 
-                self.trainer.predict()
-                # call generate
-                pass
+        # check whether the DDP is initialized
+        if parallel_state.is_unitialized():
+
+            class RequestDataSet(Dataset):
+                def __init__(self, sentences):
+                    super().__init__()
+                    self.sentences = sentences
+
+                def __len__(self):
+                    return len(self.sentences)
+
+                def __getitem__(self, idx):
+                    return self.sentences[idx]
+
+            # TODO, this is a little hacky. need to handle this nicely in the future
+            # run empty predict to initialize the DDP
+            ds = RequestDataSet([""])
+            request_dl = DataLoader(dataset=ds, batch_size=1)
+            self.trainer.predict(self, request_dl)
+
+        if isinstance(inputs, (list, tuple)):
+            if isinstance(inputs[0], (str, torch.Tensor)):
+                output = generate(
+                    self.cuda(),
+                    inputs=inputs,
+                    tokens_to_generate=length_params['max_length'],
+                    all_probs=sampling_params['all_probs'],
+                    temperature=sampling_params['temperature'],
+                    add_BOS=sampling_params['add_BOS'],
+                    top_k=sampling_params['top_k'],
+                    top_p=sampling_params['top_p'],
+                    greedy=sampling_params['use_greedy'],
+                    repetition_penalty=sampling_params['repetition_penalty'],
+                    min_tokens_to_generate=length_params['min_length'],
+                )
+                return output
             elif isinstance(inputs[0], dict):
                 raise NotImplementedError("json object not implemented")
             else:
                 raise NotImplementedError("unknown type is not implemented")
-        elif isinstance(inputs, torch.Tensor):
-            # call low level generate
-            pass
         else:
             raise NotImplementedError("unknown type is not implemented")
- 
+
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        config = self.cfg.inference
-        config = OmegaConf.to_container(config)
-        config['inputs'] = batch
-        return generate(self, **config)
+        inference_config = self.get_inference_config()
+        if inference_config is None:
+            return None
+        else:
+            inference_config['inputs'] = batch
+            return generate(self, **inference_config)
 
     def init_new_prompts(self):
         for idx, tag in enumerate(self.cfg.new_prompt_tags):

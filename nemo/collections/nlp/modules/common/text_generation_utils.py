@@ -230,7 +230,13 @@ def synced_generate(
             tokens_to_generate,
             all_probs,
             temperature=temperature,
-            extra={"top_p": top_p, "top_k": top_k, "greedy": greedy, "repetition_penalty": repetition_penalty, "min_tokens_to_generate": min_tokens_to_generate},
+            extra={
+                "top_p": top_p,
+                "top_k": top_k,
+                "greedy": greedy,
+                "repetition_penalty": repetition_penalty,
+                "min_tokens_to_generate": min_tokens_to_generate,
+            },
         )
 
     for tokens, lengths, output_logits, full_logits in batch_token_iterator:
@@ -378,7 +384,7 @@ def generate(
 
         output = {}
         output['sentences'] = resp_sentences
-        output['tokens'] = resp_sentences_seg 
+        output['tokens'] = resp_sentences_seg
         output['logprob'] = output_logits
         output['full_logprob'] = full_logits
         output['token_ids'] = decode_tokens
@@ -493,7 +499,7 @@ def sample_sequence_batch(
                 # make sure it will generate at least min_length
                 min_length = extra.get('min_tokens_to_generate', 0)
                 if min_length > 0:
-                    within_min_length = (context_length - context_lengths) < min_length 
+                    within_min_length = (context_length - context_lengths) < min_length
                     logits[within_min_length, eod_id] = -float('Inf')
 
                 if extra.get('greedy', False):  # args.greedy:

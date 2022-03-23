@@ -7,6 +7,7 @@ inference:
   tokens_to_generate: 30
   all_probs: False
   repetition_penalty: 1.2
+  min_tokens_to_generate: 0
 
 trainer:
   devices: 1
