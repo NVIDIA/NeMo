@@ -933,7 +933,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         config = self.cfg.inference
         config = OmegaConf.to_container(config)
-        config['sentences'] = batch
+        config['inputs'] = batch
         return generate(self, **config)
 
     def init_new_prompts(self):

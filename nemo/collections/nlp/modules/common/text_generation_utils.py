@@ -19,6 +19,7 @@ import torch.nn.functional as F
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
 from nemo.utils import AppState
 
 try:
@@ -278,9 +279,30 @@ def generate(
     top_k=0,
     top_p=0.0,
     greedy=False,
-    repetition_penalty=1.2,
+    repetition_penalty=1.0,
     min_tokens_to_generate=0,
-):
+) -> OutputType:
+    """
+    Args:
+        model (NLPModel): text generative model
+        inputs (Union[tuple, List[str]]): if it is a tuple, it is assumed to be (context_tokens_tensor, context_length_tensor). Otherwise it it a list of prompt text strings
+        tokens_to_generate (int): The maximum length of the tokens to be generated.
+        all_probs (bool): Return the log prob for all the tokens
+        temperature (float): sampling temperature
+        add_BOS (bool): add the bos token at the begining of the prompt
+        top_k (int): The number of highest probability vocabulary tokens to keep for top-k-filtering.
+        top_p (float): If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
+        greedy (bool):  Whether or not to use sampling ; use greedy decoding otherwise
+        repetition_penalty (float): The parameter for repetition penalty. 1.0 means no penalty
+        min_tokens_to_generate (int): The minimum length of the tokens to be generated
+    Returns:
+        OutputType: It generates the output in a dictionary type. It has the following keys:
+            sentences: List[str], output sentences
+            tokens: List[List[str]], output sentences borken into tokens
+            logprob: List[Tensor], log prob of generated tokens
+            full_logprob: List[Tensor], log prob of all the tokens in the vocab
+            token_ids: List[Tensor], output sentence token ids
+    """
     model.eval()
     tokenizer = model.tokenizer
     if torch.distributed.get_rank() == 0:
@@ -354,7 +376,13 @@ def generate(
         if all_probs:
             full_logits = full_logits.cpu().numpy().tolist()
 
-        return resp_sentences, resp_sentences_seg, output_logits, full_logits, decode_tokens
+        output = {}
+        output['sentences'] = resp_sentences
+        output['tokens'] = resp_sentences_seg 
+        output['logprob'] = output_logits
+        output['full_logprob'] = full_logits
+        output['token_ids'] = decode_tokens
+        return output
 
 
 def switch(val1, val2, boolean):
@@ -551,7 +579,7 @@ def tab_sample_sequence_batch(
     attention_mask,
     position_ids,
     tokens_to_generate,
-    all_probs=False,
+    all_probs=True,
     type_ids=None,
     temperature=None,
 ):

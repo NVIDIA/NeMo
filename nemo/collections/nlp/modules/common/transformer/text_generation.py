@@ -1,5 +1,11 @@
-from typing import List, TypedDict, Union
+import sys
 
+from typing import List, Union, Tuple
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 from torch import Tensor
 
 
@@ -10,17 +16,20 @@ class LengthParam(TypedDict):
 
 class SamplingParam(TypedDict):
     use_greedy: bool  # Whether or not to use sampling ; use greedy decoding otherwise
+    temperature: float  # sampling temperature
     top_k: int  # The number of highest probability vocabulary tokens to keep for top-k-filtering.
     top_p: float  # If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
     repetition_penalty: float  # The parameter for repetition penalty. 1.0 means no penalty.
     add_BOS: bool  # add the bos token at the begining of the prompt
+    all_probs: bool  # whether return the log prob for all the tokens in vocab
 
 
 class OutputType(TypedDict):
     sentences: List[str]  # output sentences
     tokens: List[List[str]]  # output sentences borken into tokens
-    logits: List[Tensor]  # logits output for all the tokens
-    token_ids: List[Tensor]  # output sentence token ids
+    logprob: List[List[float]]  # log prob of generated tokens
+    full_logprob: List[List[float]]  # log prob of all the tokens in the vocab
+    token_ids: List[List[int]]  # output sentence token ids
 
 
 class TextGeneration:
@@ -28,7 +37,7 @@ class TextGeneration:
     Interface for all text generation models.
     """
 
-    def generate(self, inputs: Union[List[str], Tensor, List[dict]], length_params: LengthParam, sampling_params: SamplingParam = None) -> OutputType:
+    def generate(self, inputs: Union[List[str], Tuple[Tensor, Tensor], List[dict]], length_params: LengthParam, sampling_params: SamplingParam = None) -> OutputType:
         """
         Public method to generate text.
 
@@ -37,8 +46,9 @@ class TextGeneration:
                 Can be one of the 3 types: 
                 1. List of strings. Each element of the list provides input prompt. The model will apply tokenizer on it.
                     E.g [‘sentence’, ‘sentence2’ … ]
-                2. Pytorch Tensor of shape (batch_size, seq_length).  The sequence used as a prompt for the generation or as model inputs to the encoder. It will skip the tokenization step.
-                    E.g. torch.tensor([[23,5234,23,35…], [223,323,23,23232,232] …])    
+                2. Tuple of Pytorch Tensors (context_tokens, context_lengths). The `context_tokens` has shape (batch_size, seq_length),  it's the batched sequences of tokens used as a prompst for the generation or as model inputs to the encoder. 
+                   The generative model will skip the tokenization and padding step.  The `context_lengths` has shape (batch_size,), it indicates the length of the context tokens for each of the input sequences.
+                    E.g. ( torch.tensor([[23,5234,23,35,…], [223,323,23,23232,232,...] …]), torch.tensor([20, 30, …]))
                 3. List of python dict objects. Used for prompt/p-tuning inputs where a set of key-value pairs are converted into input token embeddings for the model.
                     E.g. [{"prompt-tag": "sentiment", "sentence": "this is a good movie"},
                           {"prompt-tag": "qa", "context": "some context text", "question": "a simple question"} ... ]
@@ -60,7 +70,8 @@ class TextGeneration:
             OutputType: It generates the output in a dictionary type. It has the following keys:
                 sentences: List[str], output sentences
                 tokens: List[List[str]], output sentences borken into tokens
-                logits: List[Tensor], logits output for all the tokens
-                token_ids: List[Tensor], output sentence token ids
+                logprob: List[List[float]],  log prob of generated tokens
+                full_logprob: List[List[float]], log prob of all the tokens in the vocab
+                token_ids: List[List[int]], output sentence token ids
         """
         raise NotImplementedError("please implement this method")

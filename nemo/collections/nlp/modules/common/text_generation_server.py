@@ -38,6 +38,7 @@ API_ALLOWED_KEYS = set(
         "top_k",
         "top_p",
         "repetition_penalty",
+        "min_tokens_to_generate",
     ]
 )
 
@@ -121,9 +122,17 @@ class MegatronGenerate(Resource):
             if not (1.0 <= repetition_penalty):
                 return "repetition_penalty must be a positive number no less than 1.0"
 
+        min_tokens_to_generate = 0
+        if "min_tokens_to_generate" in request.get_json():
+            min_tokens_to_generate = request.get_json()["min_tokens_to_generate"]
+            if not isinstance(min_tokens_to_generate, int):
+                return "min_tokens_to_generate must be an integer no less than 0"
+            if min_tokens_to_generate < 0:
+                return "min_tokens_to_generate must be an integer no less than 0"
+
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
-            resp_sentences, resp_sentences_seg, output_logits, full_logits, tokens = generate(
+            output = generate(
                 self.model,
                 sentences,
                 tokens_to_generate,
@@ -134,20 +143,11 @@ class MegatronGenerate(Resource):
                 top_p,
                 greedy,
                 repetition_penalty,
+                min_tokens_to_generate,
             )
-
-        if all_probs:
-            return jsonify(
-                {
-                    "sentences": resp_sentences,
-                    "segments": resp_sentences_seg,
-                    "logits": output_logits,
-                    "all_logits": full_logits,
-                    "tokens": tokens,
-                }
-            )
-
-        return jsonify({"sentences": resp_sentences, "segments": resp_sentences_seg, "logits": output_logits})
+        if not all_probs:
+            del output['full_logprob']
+        return jsonify(output)
 
 
 class MegatronServer(object):
