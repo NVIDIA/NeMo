@@ -995,6 +995,18 @@ pipeline {
             exp_manager=null'
           }
         }
+      }
+    }
+
+    stage('L2: Intent and Slot Classification Tasks') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
         stage('L2: Intent and Slot Classification') {
           steps {
             sh 'cd examples/nlp/intent_slot_classification && \
