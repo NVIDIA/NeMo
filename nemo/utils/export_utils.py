@@ -145,7 +145,8 @@ def verify_runtime(
 apex_available = True
 
 try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
@@ -155,7 +156,7 @@ try:
         Returns:
            Equivalent LayerNorm module
         """
-        if not apex_available or not isinstance(n, FusedLayerNorm):
+        if not isinstance(n, FusedLayerNorm) and not isinstance(n, FastLayerNorm) and not isinstance(n, MixedFusedLayerNorm):
             return None
 
         dev = next(n.parameters()).device
@@ -165,7 +166,11 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
-    default_Apex_replacements = {"FusedLayerNorm": replace_FusedLayerNorm}
+    default_Apex_replacements = {
+        "FusedLayerNorm": replace_FusedLayerNorm,
+        "MixedFusedLayerNorm": replace_FusedLayerNorm,
+        "FastLayerNorm": replace_FusedLayerNorm,
+    }
 
 except Exception as e:
     default_Apex_replacements = {}
