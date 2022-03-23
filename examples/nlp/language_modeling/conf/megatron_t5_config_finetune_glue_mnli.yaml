@@ -49,8 +49,8 @@ model:
 
   data:
     train_ds:
-      task_name: 'sst-2'
-      file_path: /raid/Data/GLUE/SST-2/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
+      task_name: 'rte'
+      file_path: /raid/Data/GLUE/RTE/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: True
@@ -60,8 +60,8 @@ model:
       drop_last: True
 
     validation_ds:
-      task_name: 'sst-2'
-      file_path: /raid/Data/GLUE/SST-2/dev.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      task_name: 'rte'
+      file_path: /raid/Data/GLUE/RTE/dev.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: False

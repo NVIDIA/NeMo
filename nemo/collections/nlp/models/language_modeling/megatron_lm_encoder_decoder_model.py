@@ -801,7 +801,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             rampup_batch_size=None,
             global_batch_size=micro_batch_size,
             micro_batch_size=micro_batch_size,
-            data_parallel_size=1,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         predicted_tokens_dec = (
             torch.LongTensor([self.tokenizer.bos_id] * micro_batch_size).unsqueeze(1).to(tokens_enc.device)
@@ -814,11 +814,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Predicted Tokens Dec Start - {predicted_tokens_dec.shape}')
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Tokens Enc Start - {tokens_enc.shape}')
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Enc Mask Start - {enc_mask.shape}')
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Dec Mask Start - {dec_mask.shape}')
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Dec Seq Len Start - {decoder_seq_length}')
 
             batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -842,8 +837,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     dtype=self.autocast_dtype,
                 )
 
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} output_tensor - {output_tensor}')
-
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
@@ -855,18 +848,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 log_probs = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]),
-                    dtype=torch.float
-                ).to(tokens_enc.device)
+                    dtype=self.autocast_dtype
+                ).cuda()
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
                     dtype=predicted_tokens_dec.dtype,
-                ).to(tokens_enc.device)
+                ).cuda()
 
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Predicted tokens dec - {predicted_tokens_dec.shape}')
-            print(f'Rank: {torch.distributed.get_rank()} Loop: {i} Logprobs - {log_probs.shape}')
-            torch.distributed.broadcast(predicted_tokens_dec, get_last_rank())
-            torch.distributed.broadcast(log_probs, get_last_rank())
-            torch.distributed.barrier()
+            # Broadcast from the last pipeline stage to all other model-parallel ranks.
+            torch.distributed.broadcast(predicted_tokens_dec, parallel_state.get_pipeline_model_parallel_last_rank(), group=parallel_state.get_model_parallel_group())
+            torch.distributed.broadcast(log_probs, parallel_state.get_pipeline_model_parallel_last_rank(), group=parallel_state.get_model_parallel_group())
 
         return predicted_tokens_dec, log_probs
 

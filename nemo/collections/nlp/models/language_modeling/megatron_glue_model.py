@@ -39,7 +39,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
     """GLUE Model that Inherits from MegatronT5Model instead.""" 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_first_stage():
             self.acc_metric = ExactStringPerCategoryMatchMetric()
 
     def setup(self, stage=None):

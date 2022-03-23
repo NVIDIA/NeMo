@@ -964,6 +964,7 @@ class MegatronGPTModel(NLPModel):
                     log_probs = torch.zeros((tokens.shape[0], tokens.shape[1]), dtype=torch.float).cuda()
                     tokens = torch.zeros((tokens.shape[0], tokens.shape[1] + 1), dtype=tokens.dtype).cuda()
 
+                # TODO: Modify this to support data parallel size > 1 (see the T5 decode method)
                 torch.distributed.broadcast(tokens, get_last_rank())
                 torch.distributed.broadcast(log_probs, get_last_rank())
 
