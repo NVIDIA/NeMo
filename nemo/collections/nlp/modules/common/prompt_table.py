@@ -19,8 +19,7 @@ import torch.nn.init as init
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
-from nemo.core.classes import Exportable, NeuralModule #TODO: See if I need to add these
-ModelPT
+from nemo.core.classes import Exportable, NeuralModule, ModelPT
 
 try:
     from apex.transformer import tensor_parallel
@@ -30,7 +29,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['PromptTable']
 
-class PromptTable(ModelPT, Exportable):
+class PromptTable(NeuralModule, Exportable):
     def __init__(
         self, total_soft_tokens, hidden_size,
     ):
@@ -39,28 +38,28 @@ class PromptTable(ModelPT, Exportable):
         self.total_soft_tokens = total_soft_tokens
         self.hidden_size = hidden_size
         self.prompt_table = torch.nn.ModuleDict()
-        self.taskname_id_to_name = {}
+        self.task_id_num_to_name = {}
 
-    def forward(self, taskname_id):
-        taskname_id = taskname_id.item()
-        taskname = self.taskname_id_to_name[taskname_id]
+    def forward(self, task_id_num):
+        task_id_num = task_id_num.item()
+        taskname = self.task_id_num_to_name[task_id_num]
         return self.prompt_table[taskname]()
 
     def remove_prompt(self, taskname):
         if taskname not in prompt_table:
             return
 
-        # find the taskname_id assocaited with the tag to delete
-        taskname_id = None
-        for key, value in taskname_id_to_name.items():
+        # find the task_id_num assocaited with the tag to delete
+        task_id_num = None
+        for key, value in task_id_num_to_name.items():
             if value == taskname:
-                taskname_id = key
+                task_id_num = key
                 break
 
-        del self.taskname_id_to_name[taskname_id]
+        del self.task_id_num_to_name[task_id_num]
         del self.prompt_table[taskname]
 
-    def init_prompt_from_random(self, taskname):
+    def init_prompt_from_random(self, taskname, task_id_num):
         """Add new soft prompt to be tuned.
            Intialize prompt weights using pytorch init method
 
@@ -70,9 +69,9 @@ class PromptTable(ModelPT, Exportable):
             init_from_prompt_text=False, hidden_size=self.hidden_size, total_soft_tokens=self.total_soft_tokens,
         )
 
-        self.taskname_id_to_name[taskname_id] = taskname
+        self.task_id_num_to_name[task_id_num] = taskname
 
-    def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings):
+    def init_prompt_from_text(self, taskname, task_id_num, init_token_ids, word_embeddings):
         """Add new soft prompt to be tuned.
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
@@ -96,7 +95,6 @@ class PromptTable(ModelPT, Exportable):
         init_token_ids = {'text': torch.tensor(init_token_ids, dtype=torch.int64)}
         init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
         init_token_ids = init_token_ids_b['text'].long()
-        init_position_ids = torch.arange(self.total_soft_tokens, dtype=torch.long, device=init_token_ids.device)
 
         # Use a copy of token embedding weights to initalize the prompt embeddings
         word_embedding_weights = word_embeddings(init_token_ids).detach().clone()
@@ -108,12 +106,23 @@ class PromptTable(ModelPT, Exportable):
             word_embedding_weights=word_embedding_weights,
         )
 
-        self.taskname_id_to_name[taskname_id] = taskname
+        self.task_id_num_to_name[task_id_num] = taskname
 
-    def init_prompt_from_p_tuning_encoder(self):
-        pass
+    def add_prompt_from_p_tuning_encoder(self, taskname, task_id_num, soft_prompt_embeddings):
+        """
+        Add soft prompts that have already been tuned using p-tuning. 
+        """
+        self.prompt_table[taskname] = PromptEmbedding(
+            init_from_prompt_text=True,
+            hidden_size=self.hidden_size,
+            total_soft_tokens=self.total_soft_tokens,
+            word_embedding_weights=soft_prompt_embeddings,
+        )
 
-class PromptEmbedding(MegatronModule):
+        self.task_id_num_to_name[task_id_num] = taskname
+        
+
+class PromptEmbedding(NeuralModule, Exportable):
     """Prompt embeddings
 
     Arugments:
@@ -134,7 +143,7 @@ class PromptEmbedding(MegatronModule):
         total_soft_tokens,
         word_embedding_weights=None,
         init_method=init.xavier_normal_,
-        prompt_embedding_dropout_prob=0.1,
+        prompt_embedding_dropout_prob=0.0,
     ):
         super().__init__()
 
@@ -155,7 +164,7 @@ class PromptEmbedding(MegatronModule):
 
     def forward(self):
         # Just get embeddings and dropout
-        prompt_embeddings = self.prompt_embeddings(seq_indices)
+        prompt_embeddings = self.prompt_embeddings(self.indices)
         prompt_embeddings = self.embedding_dropout(prompt_embeddings)
 
         return prompt_embeddings

@@ -33,7 +33,7 @@ class PromptEncoder(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "enc_taskname": NeuralType(('B', 'T', 'C'), ChannelType(), optional=True),
+            "taskname_embeddings": NeuralType(('B', 'T', 'C'), ChannelType(), optional=False),
         }
 
     @property
