@@ -39,7 +39,7 @@ class TestTrainingT5Config:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
           name: megatron_t5
-          create_wandb_logger: True
+          create_wandb_logger: False
           wandb_logger_kwargs:
             project: nemo_t5
             name: ${training.run.name}
@@ -245,7 +245,7 @@ class TestTrainingT5Config:
           explicit_log_dir: ${training.run.results_dir}
           exp_dir: null
           name: megatron_t5
-          create_wandb_logger: True
+          create_wandb_logger: False
           wandb_logger_kwargs:
             project: nemo_t5
             name: ${training.run.name}

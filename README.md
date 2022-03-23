@@ -825,7 +825,7 @@ For Base Command Platform, this file can be stored in a dataset or workspace mou
 To enable the logging of the training metrics to W&B, the following training parameters must be set:
 ```yaml
 exp_manager:
-    create_wandb_logger: true
+    create_wandb_logger: False
     wandb_logger_kwargs:
       project: [W&B project name]
       name: [W&B run name]

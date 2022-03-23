@@ -34,7 +34,7 @@ class TestFinetuningT5Config:
           explicit_log_dir: ${finetuning.run.results_dir}
           exp_dir: null
           name: megatron_t5_glue
-          create_wandb_logger: True
+          create_wandb_logger: False
           wandb_logger_kwargs:
             project: nemo_t5_glue
             name: ${finetuning.run.name}
