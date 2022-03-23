@@ -41,6 +41,8 @@ class StreamingEncoderMixin(ABC):
         valid_out_len=None,
         drop_extra_pre_encoded=None,
     ):
+        if self.streaming_cfg is None:
+            self.setup_streaming_params()
         if drop_extra_pre_encoded is not None:
             prev_drop_extra_pre_encoded = self.streaming_cfg.drop_extra_pre_encoded
             self.streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded

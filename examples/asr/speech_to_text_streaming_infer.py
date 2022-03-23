@@ -28,10 +28,10 @@ import torch
 from omegaconf import OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingAudioBuffer
 from nemo.utils import logging
-from nemo.collections.asr.metrics.wer import word_error_rate
 
 
 def extract_transcribtions(hyps):
@@ -88,7 +88,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     cache_last_time=cache_last_time,
                     previous_hypotheses=previous_hypotheses,
                     previous_pred_out=pred_out_stream,
-                    drop_extra_pre_encoded=True if step_num > 0 else False,
+                    drop_extra_pre_encoded=True,  # True if step_num > 0 else False,
                     return_transcribtion=True,
                 )
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
@@ -103,8 +103,18 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
 
     if compare_vs_offline:
-        diff_num = torch.sum(torch.cat(pred_out_stream) != torch.cat(pred_out_offline)).cpu().numpy()
-        logging.info(f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode.")
+        pred_out_stream_cat = torch.cat(pred_out_stream)
+        pred_out_offline_cat = torch.cat(pred_out_offline)
+        if pred_out_stream_cat.size() == pred_out_offline_cat.size():
+            diff_num = torch.sum(pred_out_stream_cat != pred_out_stream_cat).cpu().numpy()
+            logging.info(
+                f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
+            )
+        else:
+            logging.info(
+                f"The shape of the outputs of the model in streaming mode ({pred_out_stream_cat.size()}) is different from offline mode ({pred_out_offline_cat.size()})."
+            )
+
     return final_streaming_tran, final_offline_tran
 
 
@@ -153,7 +163,17 @@ def main():
         except:
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
-    asr_model.encoder.setup_streaming_params(init_chunk_size=17, init_shift_size=17, chunk_size=17, shift_size=17, cache_drop_size=0)
+    asr_model.encoder.setup_streaming_params(
+        init_chunk_size=72,
+        init_shift_size=72,
+        chunk_size=72,
+        shift_size=72,
+        cache_drop_size=0,
+        init_pre_encode_cache_size=5,
+        pre_encode_cache_size=5,
+        valid_out_len=18,
+        init_valid_out_len=18,
+    )
     global autocast
     if (
         args.use_amp
@@ -214,7 +234,9 @@ def main():
             )
             all_refs_text.append(sample["text"])
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
-                logging.info(f"Starting to stream samples from {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+                logging.info(
+                    f"Starting to stream samples from {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."
+                )
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,

@@ -281,7 +281,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
 
-        self.setup_streaming_params()
+        # self.setup_streaming_params()
+        self.streaming_cfg = None
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -449,7 +450,16 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         return mask
 
     def setup_streaming_params(
-        self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None
+        self,
+        init_chunk_size=None,
+        init_shift_size=None,
+        chunk_size=None,
+        shift_size=None,
+        cache_drop_size=None,
+        init_pre_encode_cache_size=None,
+        pre_encode_cache_size=None,
+        init_valid_out_len=None,
+        valid_out_len=None,
     ):
         MAX_LOOK_AHEAD = 10000
         streaming_cfg = FramewiseStreamingConfig()
@@ -501,12 +511,25 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             streaming_cfg.shift_size = shift_size
 
-        streaming_cfg.init_valid_out_len = (streaming_cfg.init_shift_size - 1) // self.subsampling_factor + 1
-        streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
+        if init_valid_out_len is None:
+            streaming_cfg.init_valid_out_len = (streaming_cfg.init_shift_size - 1) // self.subsampling_factor + 1
+        else:
+            streaming_cfg.init_valid_out_len = init_valid_out_len
+
+        if valid_out_len is None:
+            streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
+        else:
+            streaming_cfg.valid_out_len = valid_out_len
 
         streaming_cfg.drop_extra_pre_encoded = False
-        streaming_cfg.pre_encode_cache_size = 5
-        streaming_cfg.init_pre_encode_cache_size = 0
+        if pre_encode_cache_size is None:
+            streaming_cfg.pre_encode_cache_size = self.subsampling_factor + 1
+        else:
+            streaming_cfg.pre_encode_cache_size = pre_encode_cache_size
+        if init_pre_encode_cache_size is None:
+            streaming_cfg.init_pre_encode_cache_size = 0
+        else:
+            streaming_cfg.init_pre_encode_cache_size = init_pre_encode_cache_size
 
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0
