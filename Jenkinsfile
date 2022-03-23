@@ -829,6 +829,35 @@ pipeline {
             rm -rf sgd_gen_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
+        stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+            model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
+            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
+            model.dataset.dialogues_example_dir=answer_extender \
+            model.dataset.task=ms_marco \
+            model.dataset.debug_mode=True \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[0] \
+            model.dataset.use_cache=false \
+            model.tokenizer.special_tokens={pad_token:"endoftext"} \
+            model.tokenizer.tokenizer_name=gpt2 \
+            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
+            model.language_model.pretrained_model_name=gpt2 \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf answer_extender'
+          }
+        }
 
       }
     }

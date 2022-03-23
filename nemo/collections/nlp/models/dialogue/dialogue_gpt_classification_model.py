@@ -613,10 +613,8 @@ class DialogueGPTClassificationModel(NLPModel):
             self.dialogues_processor = DialogueAssistantDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
-        elif self._cfg.dataset.task == "ms_marco":
-            self.dialogues_processor = DialogueMSMarcoDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
-            )
+        else:
+            raise ValueError("Only sgd, assistant, zero_shot supported for Dialogue GPT Classification Model")
 
         self.data_prepared = True
 

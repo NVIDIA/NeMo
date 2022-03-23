@@ -74,7 +74,7 @@ model:
   original_nemo_checkpoint: null
 
   dataset:
-    task: sgd
+    task: sgd # sgd, assistant, zero_shot, ms_marco
     field: intent # intemt, slots, service
     input_field: response # passage+utterance, utterance, response, utterance+response
     output_field: fluent_response # response, fluent_response
