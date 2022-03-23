@@ -739,7 +739,7 @@ configurations. All these configurations are provided in the `conf/training/t5`
 directory. The desired configuration can be chosen by selecting the training
  parameter in the `conf/config.yaml` file.
 
-On Base Command Platform, the training scripts must be ran in multi-node mode, 
+On Base Command Platform, the training scripts must be run in multi-node mode, 
 with at least 2 nodes.
 
 **220M configuration:**
