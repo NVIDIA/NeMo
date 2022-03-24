@@ -127,7 +127,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Distributed data preprocessing | Yes (the Pile only)       |                                                                                                                                                                   |
 | NVfuser                         | No             |                                                                                                                                                                   |
 
-### 2.1. T5 Models
+### 2.2. T5 Models
 <a id="markdown-t5-models" name="t5-models"></a>
 
 | Feature                         | Training               | Inference |
