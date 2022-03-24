@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPDataConnector
 from nemo.utils.app_state import AppState
 
 assert torch.cuda.is_available()
@@ -60,6 +60,7 @@ def main():
         accelerator='gpu',
         precision=args.precision,
     )
+    trainer._data_connector = NLPDataConnector(trainer)
 
     app_state = AppState()
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
