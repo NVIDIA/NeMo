@@ -201,13 +201,13 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         # configuration used for inference
-        self.__inference_config = None
+        self._inference_config = None
 
     def set_inference_config(self, inference_config):
-        self.__inference_config = inference_config
+        self._inference_config = inference_config
 
     def get_inference_config(self):
-        return self.__inference_config
+        return self._inference_config
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
@@ -885,7 +885,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 params.append(param)
         return params
 
-    def __get_computeprob_response(self, response, inputs):
+    def _get_computeprob_response(self, response, inputs):
         compute_prob_response = {}
         new_token_ids = []
         new_tokens = []
@@ -983,7 +983,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
             )
-            compute_prob_response = self.__get_computeprob_response(response, inputs)
+            compute_prob_response = self._get_computeprob_response(response, inputs)
             return compute_prob_response
 
         if isinstance(inputs, (list, tuple)):
@@ -1023,7 +1023,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
                 response = generate(self, **inference_config)
-                compute_prob_response = self.__get_computeprob_response(response, batch)
+                compute_prob_response = self._get_computeprob_response(response, batch)
                 return compute_prob_response
             else:
                 del inference_config['compute_logprob']
