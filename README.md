@@ -1502,7 +1502,7 @@ on `mnli` task and checkpoint stored in /mount/results/t5_220m/mnli/checkpoints,
 python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
 run_data_preparation=False run_training=False run_conversion=False run_finetuning=False  \
 run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
-base_results_dir=/mount/results evaluation.model.restore_from_finetuned_path=/mount/results/t5_220m/mnli/megatron_t5_glue.nemo \
+base_results_dir=/mount/results evaluation.model.restore_from_finetuned_path=/mount/results/t5_220m/mnli/checkpoints/megatron_t5_glue.nemo \
 >> /results/eval_t5_log.txt.txt 2>&1
 ```
 
