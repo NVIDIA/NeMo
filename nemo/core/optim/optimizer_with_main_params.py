@@ -131,10 +131,15 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         self._fp32_grad_accum = fp32_grad_accum
         self._contiguous_grad_bucket = contiguous_grad_bucket
+
+        # used with tensor parallel only (no pipeline parallelism)
         self._async_grad_allreduce = async_grad_allreduce
 
-        # use @no_sync to disable backward grad sync
-        self._require_backward_grad_sync = True
+        if self._async_grad_allreduce:
+            # use @no_sync to disable backward grad sync during gradient accumulation
+            self._require_backward_grad_sync = True
+        else:
+            self._require_backward_grad_sync = False
 
         # Dummy tensor needed for apex multi-apply tensor.
         self._dummy_overflow_buf = None
