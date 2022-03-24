@@ -313,8 +313,6 @@ def create_masked_lm_predictions(
                         masked_token = vocab_id_list[np_rng.randint(0, len(vocab_id_list))]
             elif masking_style == "t5":
                 masked_token = mask_id
-            elif masking_style == "bart":
-                masked_token = mask_id
             else:
                 raise ValueError("invalid value of masking style")
 
