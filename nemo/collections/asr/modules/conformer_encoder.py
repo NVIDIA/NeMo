@@ -281,7 +281,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
 
-        # self.setup_streaming_params()
+        self.setup_streaming_params()
         self.streaming_cfg = None
 
     def set_max_audio_length(self, max_audio_length):
