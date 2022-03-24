@@ -2457,7 +2457,7 @@ given Global Batch Size (GBS).
 
 | \#GPUs | GBS  | Seq Length | \#Tokens | Loss  | Throughput (Tokens/sec) | Time to Train (days) |
 | ------ | ---- | ---------- | -------- | ----- | ----------------------- | -------------------- |
-| 160    | 1440 | 2048       | 300B     | 1.685 | 703,847                 | 5                    |
+| 160    | 1440 | 2048       | 300B     | 1.685 | 726,384                 | 4.8                  |
 
 
 #### 6.1.2. Training Performance Results
@@ -2466,15 +2466,15 @@ Training performance: DGX SuperPOD (20 x 8 x A100 80GB for 5B model)
 
 We measured the throughput of training a 5B parameter GPT-3 model on a DGX
 SuperPOD using a different number of nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.25x
+scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.32x
 speedup. The table and chart below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |        |        |
 | ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
 |      |                                 | 1      | 2      | 5      | 9      | 10     | 18     | 20     |
-|      | Tokens per Second               | 38575  | 76720  | 189410 | 333610 | 370027 | 639722 | 703847 |
-| 5B   | Perfect Linear Scaling (Tokens) | 38575  | 77151  | 192879 | 347182 | 385758 | 694364 | 771516 |
-|      | Speed-up                        | 1x     | 1.99x  | 4.91x  | 8.65x  | 9.59x  | 16.58x | 18.25  |
+|      | Tokens per Second               | 39660  | 78769  | 193258 | 342920 | 383500 | 652460 | 726384 |
+| 5B   | Perfect Linear Scaling (Tokens) | 39660  | 79320  | 198300 | 356940 | 396600 | 713880 | 793200 |
+|      | Speed-up                        | 1x     | 1.99x  | 4.87x  | 8.65x  | 9.67x  | 16.45x | 18.32  |
 
 <img src="img/5B_GPT_3_throughput.svg"/>
 
