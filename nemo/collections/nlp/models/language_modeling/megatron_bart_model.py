@@ -31,11 +31,13 @@ class MegatronBARTModel(MegatronT5Model):
         super().__init__(cfg, trainer=trainer)
 
         if self._cfg.data.get('dataset_type', None) != 'bart':
-            raise ValueError(f"cfg.data.dataset_type = {self._cfg.data.get('dataset_type', None)} but 'bart' is expected")
+            raise ValueError(
+                f"cfg.data.dataset_type = {self._cfg.data.get('dataset_type', None)} but 'bart' is expected"
+            )
 
-        self.build_train_valid_test_datasets_kwargs.update(dict(
-            delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),
-        ))
+        self.build_train_valid_test_datasets_kwargs.update(
+            dict(delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),)
+        )
 
     def _build_vocab(self):
         self._add_special_tokens_to_tokenizer()

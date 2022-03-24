@@ -135,7 +135,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             whole_word_masking=self._cfg.data.get('whole_word_masking', True),
             favor_long_ngrams=self._cfg.data.get('favor_long_ngrams', False),
             # additional arguments from child classes
-            **self.build_train_valid_test_datasets_kwargs
+            **self.build_train_valid_test_datasets_kwargs,
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')
