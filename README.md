@@ -991,7 +991,7 @@ almost identical, regardless of the number of nodes. The number of nodes selecte
 compatible with the rest of the parameters: GBS must be a multiple of 
 (MBS * num_gpus) / (tensor_parallelism * pipeline parallelism)
 
-Where MBS is the micro batch size. For instance, the default GBS for the 5B
+Where MBS is the micro batch size. For instance, the default GBS for the 5B GPT-3
 model is 1440; the MBS is 2; the number of GPUs is 20\*8 = 160; 
 the `tensor_parallelism` value is set to 2; and the `pipeline_parallelism` value is set to 1
 Therefore, the GBS is set to a valid value:
