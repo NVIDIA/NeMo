@@ -1179,3 +1179,17 @@ class ModelPT(LightningModule, Model):
             cls._save_restore_connector = save_restore_connector
         else:
             setattr(cls, '_save_restore_connector', save_restore_connector)
+
+    def on_after_backward(self):
+        super().on_after_backward()
+        if "skip_nan_grad" in self._cfg and self._cfg["skip_nan_grad"]:
+            valid_gradients = True
+            for param_name, param in self.named_parameters():
+                if param.grad is not None:
+                    valid_gradients = not (torch.isnan(param.grad).any() or torch.isinf(param.grad).any())
+                    if not valid_gradients:
+                        break
+
+            if not valid_gradients:
+                logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
+                self.zero_grad()

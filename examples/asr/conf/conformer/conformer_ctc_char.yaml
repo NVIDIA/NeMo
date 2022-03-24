@@ -11,6 +11,7 @@ model:
             "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
   log_prediction: true # enables logging sample predictions in the output during training
   ctc_reduction: 'mean_batch'
+  skip_nan_grad: false
 
   train_ds:
     manifest_filepath: ???

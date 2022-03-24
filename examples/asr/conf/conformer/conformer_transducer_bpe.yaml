@@ -26,6 +26,7 @@ model:
   sample_rate: &sample_rate 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
   log_prediction: true # enables logging sample predictions in the output during training
+  skip_nan_grad: false
 
   model_defaults:
     enc_hidden: ${model.encoder.d_model}
