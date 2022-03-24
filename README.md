@@ -2474,7 +2474,7 @@ speedup. The table and chart below show the performance results.
 |      |                                 | 1      | 2      | 5      | 9      | 10     | 18     | 20     |
 |      | Tokens per Second               | 39660  | 78769  | 193258 | 342920 | 383500 | 652460 | 726384 |
 | 5B   | Perfect Linear Scaling (Tokens) | 39660  | 79320  | 198300 | 356940 | 396600 | 713880 | 793200 |
-|      | Speed-up                        | 1x     | 1.99x  | 4.87x  | 8.65x  | 9.67x  | 16.45x | 18.32  |
+|      | Speed-up                        | 1x     | 1.99x  | 4.87x  | 8.65x  | 9.67x  | 16.45x | 18.32x |
 
 <img src="img/5B_GPT_3_throughput.svg"/>
 
