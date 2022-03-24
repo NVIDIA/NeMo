@@ -359,7 +359,7 @@ preprocessing each file takes approximately 1 hour assuming a 30 MB/s download
 speed. The data preparation can be parallelized by using up to 30 nodes. 
 
 
-##### 4.1.2.1. Data Preparation for GPT-3 Model
+##### 4.1.2.1. Data Preparation for GPT-3 Models
 <a id="markdown-data-preparation-for-gpt-3-model" name="data-preparation-for-gpt-3-model"></a>
 The `data_preparation` parameter in `conf/config.yaml` specifies which file to use for data preparation
 configuration purposes. The default value is set to `download_gpt3_pile`, which can be
@@ -422,12 +422,12 @@ To run the data preparation pipeline for GPT-3 models, run:
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_finetuning=False  \
 run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
-data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_log.txt 2>&1
+data_preparation.vocab_save_dir=/mount/data/bpe data_preparation.merges_save_dir=/mount/data/bpe >> /results/data_gpt3_log.txt 2>&1
 ```
 
 The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
 workspace in `/mount/data`, and the results workspace in `/mount/results`. The stdout and stderr outputs will
-also be redirected to the `/results/data_log.txt` file, to be able to download the logs from NGC. 
+also be redirected to the `/results/data_gpt3_log.txt` file, to be able to download the logs from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
 ##### 4.1.2.1.3. Common
@@ -458,7 +458,7 @@ bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 The `data_preparation` parameter in `conf/config.yaml` specifies which file to use for data preparation
 configuration purposes. The `data_preparation` parameter needs to be specified as `download_t5_pile` for
 preparing The Pile dataset for T5 models. The config file can be found in 
-`conf/data_preparation/download_t5_pile.yaml`. GPT-3 models and T5-models use
+`conf/data_preparation/download_t5_pile.yaml`. GPT-3 models and T5 models use
 different tokenizer and vocab files. The default parameters can be found in
 corresponding config files.
 
@@ -517,12 +517,12 @@ python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_t5_pile run
 run_training=False run_conversion=False run_finetuning=False  run_evaluation=False run_finetuning=False \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
-data_preparation.vocab_save_dir=/mount/data/bpe >> /results/data_log.txt 2>&1
+data_preparation.vocab_save_dir=/mount/data/bpe >> /results/data_t5_log.txt 2>&1
 ```
 
 The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
 workspace in `/mount/data`, and the results workspace in `/mount/results`. The stdout and stderr outputs will
-also be redirected to the `/results/data_log.txt` file, to be able to download the logs from NGC. 
+also be redirected to the `/results/data_t5_log.txt` file, to be able to download the logs from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
 ##### 4.1.2.2.3. Common
@@ -1095,10 +1095,10 @@ run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts dat
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.json \
 conversion.model.merge_file=/mount/data/bpe/merges.txt conversion.run.results_dir=/mount/results/gpt3_126m/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/gpt3_126m/checkpoints conversion.model.tensor_model_parallel_size=1 \
->> /results/convert_log.txt 2>&1
+>> /results/convert_gpt3_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
-The stdout and stderr outputs will also be redirected to the /results/convert_log.txt file, to be able to download the logs from NGC.
+The stdout and stderr outputs will also be redirected to the /results/convert_gpt3_log.txt file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 #### 4.7.2. T5 Conversion
@@ -1192,10 +1192,10 @@ run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts dat
 base_results_dir=/mount/results conversion.model.vocab_file=/mount/data/bpe/vocab.txt \
 conversion.run.results_dir=/mount/results/t5_220m/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/t5_220m/checkpoints conversion.model.tensor_model_parallel_size=1 \
->> /results/convert_log.txt 2>&1
+>> /results/convert_t5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
-The stdout and stderr outputs will also be redirected to the /results/convert_log.txt file, to be able to download the logs from NGC.
+The stdout and stderr outputs will also be redirected to the /results/convert_t5_log.txt file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 ### 4.8. Model Finetuning
@@ -1292,11 +1292,11 @@ python3 /opt/bignlp/bignlp-scripts/main.py finetuning=t5/mnli run_data_preparati
 run_conversion=False run_finetuning=True run_evaluation=False cluster_type=bcp \
 bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
 finetuning.model.restore_from_path=/mount/results/t5_220m/convert_nemo/megatron_t5.nemo \
->> /results/finetune_log.txt 2>&1
+>> /results/finetune_t5_log.txt 2>&1
 ```
 
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
-The stdout and stderr outputs will also be redirected to the /results/finetune_log.txt file, to be able to download the logs from NGC.
+The stdout and stderr outputs will also be redirected to the /results/finetune_t5_log.txt file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 
@@ -1405,11 +1405,11 @@ base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/data/bpe
 evaluation.model.merge_file=/mount/data/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
 evaluation.model.checkpoint_path=/mount/results/gpt3_126m/checkpoints evaluation.model.eval_batch_size=16 \
 evaluation.model.tensor_model_parallel_size=1 \
->> /results/eval_log.txt 2>&1
+>> /results/eval_gpt3_log.txt 2>&1
 ```
 
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
-The stdout and stderr outputs will also be redirected to the /results/eval_log.txt file, to be able to download the logs from NGC.
+The stdout and stderr outputs will also be redirected to the /results/eval_gpt3_log.txt file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 
@@ -1503,11 +1503,11 @@ python3 /opt/bignlp/bignlp-scripts/main.py evaluation=t5/mnli_matched \
 run_data_preparation=False run_training=False run_conversion=False run_finetuning=False  \
 run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
 base_results_dir=/mount/results evaluation.model.restore_from_finetuned_path=/mount/results/t5_220m/mnli/megatron_t5_glue.nemo \
->> /results/finetune_log.txt 2>&1
+>> /results/eval_t5_log.txt.txt 2>&1
 ```
 
 The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
-The stdout and stderr outputs will also be redirected to the /results/finetune_log.txt file, to be able to download the logs from NGC.
+The stdout and stderr outputs will also be redirected to the /results/eval_t5_log.txt.txt file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 
