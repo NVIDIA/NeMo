@@ -91,22 +91,17 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         self.total_soft_tokens = self.cfg.total_soft_tokens
         
         # Prompt table stores all task embeddings, p-tuning soft prompts get added to the table after training
-        if cfg.get('prompt_table_path', None) and path.exists(self.cfg.prompt_table_path): 
-            # Load existing prompt table if one exists
-            self.prompt_table = PromptTable.restore_from(
-                self.register_artifact('prompt_table_path', src=self.cfg.prompt_table_path)
-            )
-        else:
-            self.prompt_table = PromptTable(
-                total_soft_tokens=self.total_soft_tokens,
-                hidden_size=self.hidden_size,
-            )
+        self.prompt_table = PromptTable(
+            existing_tasks=self.cfg.get('existing_tasks', None),
+            total_soft_tokens=self.total_soft_tokens,
+            hidden_size=self.hidden_size,
+        )
 
         # Load templates for assiging soft prompt token positions
         self.load_task_templates(self.cfg.task_templates) 
         self.soft_prompt_style = cfg.soft_prompt_style.lower()
 
-        # Prompt tuning stores soft prompts in a table and tunes their weight directly
+        # Prompt tuning stores soft prompts in the prompt table and tunes their weight directly
         if self.soft_prompt_style == 'prompt-tuning':
             self.soft_token_source = 'prompt-table'
             
@@ -135,17 +130,16 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         """
         Initialize new soft prompts to be tuned using prompt tuning 
         """
-        for idx, taskname in enumerate(self.new_tasknames):
-            task_id_num = self.task_templates[taskname]["task_id_num"]
+        for idx, taskname in enumerate(self.cfg.new_tasks):
             init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
 
             if init_method == "text":
                 init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
                 init_text_ids = self.tokenizer.text_to_ids(init_text)
-                self.prompt_table.init_prompt_from_text(taskname, task_id_num, init_text_ids, self.word_embeddings)
+                self.prompt_table.init_prompt_from_text(taskname, init_text_ids, self.word_embeddings)
 
             elif init_method == 'random':
-                self.prompt_table.init_prompt_from_random(taskname, task_id_num)
+                self.prompt_table.init_prompt_from_random(taskname)
 
             else:
                 raise AttributeError(
@@ -153,13 +147,17 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                                         please use one of text or random'
                 )
 
+        # Add new tags to existing tag list for loading during inference later
+        with open_dict(self.cfg):
+            self.cfg.existing_tasks = self.cfg.existing_tasks + self.cfg.new_tasks
+               
+
     def load_task_templates(self, task_templates):
         """
         Takes in the task template portion of the config and turns  
         it into a table where each task's prompt template and 
         the number of virtual tokens to insert in a given part of 
-        the prompt template are specified. Also identifies which
-        tasks are new and need to be initalized in the prompt table.
+        the prompt template are specified. 
         """
         self.task_templates = {}
         self.new_tasknames = []
@@ -172,10 +170,6 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                 "prompt_token_splits": task.prompt_token_splits,
                 "task_id_num": task_id_num
             }
-
-            # Compare task templates with prompt table to see which tasks are new
-            if task.taskname not in self.prompt_table.prompt_table:
-                self.new_tasknames.append(task.taskname)
             
             task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
@@ -332,6 +326,19 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
 
         self.setup_training_data()
         self.setup_validation_data()
+        self.freeze_existing_soft_prompt_params()
+
+    def freeze_existing_soft_prompt_params(self):
+        """Freeze params of existing soft prompts that should not be tuned more
+        """
+        # Only want new prompt tags to be tunable, leave existing prompt tags alone
+        for taskname in self.prompt_table.prompt_table.keys():
+            if taskname in set(self.cfg.new_tasks):
+                for params in self.prompt_table.prompt_table[taskname].parameters():
+                    params.requires_grad = True
+            else:
+                for params in self.prompt_table.prompt_table[taskname].parameters():
+                    params.requires_grad = False
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
@@ -396,204 +403,3 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
     @classmethod
     def list_available_models(cls):
         pass
-
-    # def inference_step(self, batch, batch_ix):
-    #     loss = self.get_loss(batch)
-    #     enc_query = batch['enc_query']
-    #     enc_taskname = batch['enc_taskname']
-    #     labels = batch['labels']
-    #     label_position = batch['label_position']
-    #     # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
-    #     predicted_token_ids, log_probs = self.decode(
-    #         enc_query=enc_query,
-    #         enc_taskname=enc_taskname,
-    #         label_position=label_position,
-    #         num_tokens_to_generate=self.num_tokens_to_gen,
-    #     )
-
-    #     return {
-    #         'loss': loss,
-    #         'predicted_token_ids': predicted_token_ids,
-    #         'labels': labels,
-    #         'label_position': label_position,
-    #     }
-
-    # def decode(self, enc_query, enc_taskname, label_position, num_tokens_to_generate):
-    #     with torch.no_grad():
-    #         predicted_tokens_dec = enc_query
-
-    #         label_start = label_position[:, 0].clone()
-
-    #         for _ in range(num_tokens_to_generate):
-    #             attn_mask = make_attention_mask_3d(predicted_tokens_dec, predicted_tokens_dec, self.pad_token_id)
-    #             attn_mask = attn_mask * make_history_mask_3d(predicted_tokens_dec)
-    #             attn_mask = attn_mask < 0.5
-    #             attn_mask = attn_mask.unsqueeze(1)
-
-    #             input_embeds = self.embed_input(predicted_tokens_dec, enc_taskname)
-
-    #             encoder_position_ids = build_position_ids(predicted_tokens_dec)
-    #             position_embeddings = self.model.model.language_model.embedding.position_embeddings(
-    #                 encoder_position_ids
-    #             )
-
-    #             encoder_input = input_embeds + position_embeddings
-
-    #             if self.float_type == torch.float32:
-    #                 output = self.model.model(None, None, encoder_input=encoder_input, attention_mask=attn_mask,)
-    #             else:
-    #                 with torch.autocast(device_type="cuda", dtype=self.float_type):
-    #                     output = self.model.model(None, None, encoder_input=encoder_input, attention_mask=attn_mask,)
-
-    #             output_tensor = output
-    #             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
-
-    #             # TODO, add logic to use the allowed labels if it is defined
-    #             log_probs, token_ids = torch.max(nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
-    #             new_pred = torch.full_like(token_ids[:, 0:1], self.pad_token_id)
-    #             predicted_tokens_dec = torch.cat([predicted_tokens_dec, new_pred], 1)
-    #             predicted = torch.gather(token_ids, 1, label_start.view(-1, 1))
-
-    #             # need to scatter the token id at the right position
-    #             label_start += 1
-    #             predicted_tokens_dec.scatter_(1, label_start.view(-1, 1), predicted)
-
-    #     return predicted_tokens_dec, log_probs
-
-    # def inference_epoch_end(self, outputs):
-    #     losses = [x['loss'] for x in outputs]
-    #     averaged_loss = average_losses_across_data_parallel_group(losses)
-    #     all_preds = []
-    #     all_labels = []
-    #     for item in outputs:
-    #         preds = item['predicted_token_ids'].cpu().numpy().tolist()
-    #         labels = item['labels'].cpu().numpy().tolist()
-    #         label_positions = item['label_position'].cpu().numpy().tolist()
-    #         for i, (pred, label, label_position) in enumerate(zip(preds, labels, label_positions)):
-    #             start_position = label_position[0] + 1
-    #             pred = pred[start_position:]
-    #             if self.tokenizer.eos_id in pred:
-    #                 idx = pred.index(self.tokenizer.eos_id)
-    #                 pred = pred[:idx]
-    #             pred = [id for id in pred if id not in self.special_tokens]
-    #             label = [id for id in label[label_position[0] : label_position[1]] if id not in self.special_tokens]
-    #             pred = self.tokenizer.ids_to_text(pred)
-    #             label = self.tokenizer.ids_to_text(label)
-    #             all_preds.append(pred)
-    #             all_labels.append(label)
-
-    #     correct = 0
-    #     for pred, label in zip(all_preds, all_labels):
-    #         if pred == label:
-    #             correct += 1
-    #     acc = correct / len(all_preds)
-    #     return averaged_loss[0], acc
-
-    # def validation_step(self, batch, batch_idx):
-    #     return self.inference_step(batch, batch_idx)
-
-    # def validation_epoch_end(self, outputs):
-    #     val_loss, val_acc = self.inference_epoch_end(outputs)
-    #     self.log('val_loss', val_loss, prog_bar=True)
-    #     self.log('val_acc', val_acc, prog_bar=True)
-    #     logging.info(f'Validation loss: {val_loss}')
-    #     logging.info(f'Validation accuracy: {val_acc}')
-
-    # def test_step(self, batch, batch_idx):
-    #     return self.inference_step(batch, batch_idx)
-
-    # def test_epoch_end(self, outputs):
-    #     test_loss, test_acc = self.inference_epoch_end(outputs)
-    #     self.log('test_loss', test_loss, prog_bar=True)
-    #     self.log('test_acc', test_acc, prog_bar=True)
-    #     logging.info(f'Test loss: {test_loss}')
-    #     logging.info(f'Test accuracy: {test_acc}')
-
-
-    # @classmethod
-    # def list_available_models(cls):
-    #     pass
-
-    # @torch.no_grad()
-    # def ptune_inference(self, queries: List[Dict], batch_size: int = 1, decode_token_len: int = 5) -> List[str]:
-    #     """
-    #     Get prediction for the queries
-    #     Args:
-    #         queries: List of data samples without labels
-    #         batch_size: batch size to use during inference
-    #         decode_token_len: max number of tokens to generate during inference
-    #     Returns:
-    #         all_preds: model predictions
-    #     """
-    #     # store predictions for all queries in a single list
-    #     all_preds = []
-    #     mode = self.training
-    #     try:
-    #         # Switch model to evaluation mode
-    #         self.eval()
-    #         logging_level = logging.get_verbosity()
-    #         logging.set_verbosity(logging.WARNING)
-    #         dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
-    #         infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, decode_token_len)
-    #         for i, batch in enumerate(infer_datalayer):
-    #             enc_query = batch['enc_query'].to(self.device)
-    #             label_position = batch['label_position'].to(self.device)
-    #             enc_taskname = batch['enc_taskname'].to(self.device)
-    #             # loss, tokens_enc, labels, enc_mask, encoder_input = self.get_loss(batch)
-    #             predicted_token_ids, _ = self.decode(
-    #                 enc_query=enc_query,
-    #                 enc_taskname=enc_taskname,
-    #                 label_position=label_position,
-    #                 num_tokens_to_generate=self.num_tokens_to_gen,
-    #             )
-    #             preds = predicted_token_ids.cpu().numpy().tolist()
-    #             label_positions = label_position.cpu().numpy().tolist()
-    #             for i, (pred, label_position) in enumerate(zip(preds, label_positions)):
-    #                 start_position = label_position[0] + 1
-    #                 pred = pred[start_position:]
-    #                 if self.tokenizer.eos_id in pred:
-    #                     idx = pred.index(self.tokenizer.eos_id)
-    #                     pred = pred[:idx]
-    #                 pred = [id for id in pred if id not in self.special_tokens]
-    #                 pred = self.tokenizer.ids_to_text(pred)
-    #                 all_preds.append(pred)
-    #     finally:
-    #         # set mode back to its original value
-    #         self.train(mode=mode)
-    #         logging.set_verbosity(logging_level)
-    #     return all_preds
-
-    # def _setup_infer_dataloader(
-    #     self, cfg: Dict, queries: List[str], decode_token_len: int
-    # ) -> 'torch.utils.data.DataLoader':
-    #     """
-    #     Setup function for a infer data loader.
-
-    #     Args:
-    #         cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
-    #         queries: queries object
-    #     Returns:
-    #         A pytorch DataLoader.
-    #     """
-    #     # dataset = PTuneTextClassificationDataset(None, queries, prompt)
-    #     dataset = GPTPTuneInferenceDataset(
-    #         queries=queries,
-    #         data_type="test",
-    #         tokenizer=self.tokenizer,
-    #         templates=self.template,
-    #         pseudo_token_id=self.pseudo_token_id,
-    #         pad_id=self.pad_token_id,
-    #         max_seq_length=self.model.cfg.encoder_seq_length,
-    #         max_seq_length_decoder=decode_token_len,
-    #     )
-
-    #     # Torch dataloader.
-    #     return torch.utils.data.DataLoader(
-    #         dataset,
-    #         collate_fn=dataset.collate_fn,
-    #         batch_size=cfg["batch_size"],
-    #         shuffle=False,
-    #         num_workers=cfg.get("num_workers", 0),
-    #         pin_memory=cfg.get("pin_memory", False),
-    #         drop_last=False,
-    #     )

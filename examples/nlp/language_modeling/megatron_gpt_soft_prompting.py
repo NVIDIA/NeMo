@@ -85,9 +85,8 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = MegatronGPTPSoftPromptModel(cfg.model, trainer=trainer)
+    model = MegatronGPTPSoftPromptModel.restore_from("models/megatron_gpt_soft_prompting.nemo", cfg.model, trainer=trainer)
     trainer.fit(model)
-
 
 if __name__ == '__main__':
     main()

@@ -31,7 +31,7 @@ __all__ = ['PromptTable']
 
 class PromptTable(NeuralModule, Exportable):
     def __init__(
-        self, total_soft_tokens, hidden_size,
+        self, existing_tasks, total_soft_tokens, hidden_size,
     ):
         super().__init__()
 
@@ -39,6 +39,15 @@ class PromptTable(NeuralModule, Exportable):
         self.hidden_size = hidden_size
         self.prompt_table = torch.nn.ModuleDict()
         self.task_id_num_to_name = {}
+
+        # Need to init prompt embeddings for each existing task before loading tuned weights
+        if existing_tasks and existing_tasks[0] != None:
+            for taskname in existing_tasks:
+                self.prompt_table[taskname] = PromptEmbedding(
+                    init_from_prompt_text=False,
+                    hidden_size=self.hidden_size,
+                    total_soft_tokens=self.total_soft_tokens,
+                )
 
     def forward(self, task_id_num):
         task_id_num = task_id_num.item()
@@ -59,7 +68,7 @@ class PromptTable(NeuralModule, Exportable):
         del self.task_id_num_to_name[task_id_num]
         del self.prompt_table[taskname]
 
-    def init_prompt_from_random(self, taskname, task_id_num):
+    def init_prompt_from_random(self, taskname):
         """Add new soft prompt to be tuned.
            Intialize prompt weights using pytorch init method
 
@@ -69,9 +78,7 @@ class PromptTable(NeuralModule, Exportable):
             init_from_prompt_text=False, hidden_size=self.hidden_size, total_soft_tokens=self.total_soft_tokens,
         )
 
-        self.task_id_num_to_name[task_id_num] = taskname
-
-    def init_prompt_from_text(self, taskname, task_id_num, init_token_ids, word_embeddings):
+    def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings):
         """Add new soft prompt to be tuned.
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
@@ -106,9 +113,7 @@ class PromptTable(NeuralModule, Exportable):
             word_embedding_weights=word_embedding_weights,
         )
 
-        self.task_id_num_to_name[task_id_num] = taskname
-
-    def add_prompt_from_p_tuning_encoder(self, taskname, task_id_num, soft_prompt_embeddings):
+    def add_prompt_from_p_tuning_encoder(self, taskname, soft_prompt_embeddings):
         """
         Add soft prompts that have already been tuned using p-tuning. 
         """
@@ -118,9 +123,6 @@ class PromptTable(NeuralModule, Exportable):
             total_soft_tokens=self.total_soft_tokens,
             word_embedding_weights=soft_prompt_embeddings,
         )
-
-        self.task_id_num_to_name[task_id_num] = taskname
-        
 
 class PromptEmbedding(NeuralModule, Exportable):
     """Prompt embeddings
