@@ -878,51 +878,44 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
         self._optimizer_param_groups = weight_decay_params, no_weight_decay_params
 
-    @classmethod
-    def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
-        batch_tokens, lens, tokens_to_generate, compute_logprobs = batch[:4]
-        batch_size = len(batch_tokens)
-        tokens_to_generate = tokens_to_generate[0]
-        batch_tokens = batch_tokens.tolist()
-
-        if use_soft_prompts:
-            prompt_tags = batch[4]
-
-        # unpad tokens
-        indxs = [index for index in range(batch_size)]
-        for lenn, index in zip(lens, indxs):
-            batch_tokens[index] = batch_tokens[index][:lenn]
-
-        # chunk tokens by same length
-        pre_buckets, lens = [], list(set(lens.tolist()))
-        for lenn in lens:
-            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
-
-        buckets, positions, bucket_prompt_tags = [], [], []
-
-        # get buckets and prompts initial positions
-        for bucket in pre_buckets:
-            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
-            positions.append([item[1] for item in bucket])
-
-            # bucket prompt tags identically to their corresponding examples
-            if use_soft_prompts:
-                bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
-
-        # Flatten position list
-        positions = [item for sublist in positions for item in sublist]
-
-        # Form request
-        request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
-
-        return request, positions, tokens_to_generate, compute_logprobs[0]
-
     def get_parameters(self):
         params = []
         for param_group in self._optimizer_param_groups:
             for param in param_group['params']:
                 params.append(param)
         return params
+
+    def __get_computeprob_response(self, response, inputs):
+        compute_prob_response = {}
+        new_token_ids = []
+        new_tokens = []
+        new_texts = []
+        log_probs = []
+        full_logprobs = []
+        offsets = []
+        for batch_id in range(len(response['tokens'])):
+            if isinstance(inputs, (list, tuple)):
+                if isinstance(inputs[0], str):
+                    new_token_id = self.tokenizer.text_to_ids(inputs[batch_id])
+                    new_text = inputs[batch_id]
+                    token_len = len(new_token_id)
+                elif isinstance(inputs[0], torch.Tensor):
+                    token_len = int(inputs[1][batch_id].item())
+                    new_token_id = inputs[0][batch_id][:token_len].tolist()
+                    new_text = self.tokenizer.ids_to_text(new_token_id)
+            new_token_ids.append(new_token_id)
+            new_tokens.append(response['tokens'][batch_id][:token_len])
+            new_texts.append(new_text)
+            log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
+            full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
+            offsets.append(response['offsets'][batch_id][:-1])
+        compute_prob_response['sentences'] = new_texts
+        compute_prob_response['tokens'] = new_tokens
+        compute_prob_response['token_ids'] = new_token_ids
+        compute_prob_response['logprob'] = log_probs
+        compute_prob_response['full_logprob'] = full_logprobs
+        compute_prob_response['offsets'] = offsets
+        return compute_prob_response
 
     def generate(
         self,
@@ -990,35 +983,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
             )
-            compute_prob_response = {}
-            new_token_ids = []
-            new_tokens = []
-            new_texts = []
-            log_probs = []
-            full_logprobs = []
-            offsets = []
-            for batch_id in range(len(response['tokens'])):
-                if isinstance(inputs, (list, tuple)):
-                    if isinstance(inputs[0], str):
-                        new_token_id = self.tokenizer.text_to_ids(inputs[batch_id])
-                        new_text = inputs[batch_id]
-                        token_len = len(new_token_id)
-                    elif isinstance(inputs[0], torch.Tensor):
-                        token_len = int(inputs[1][batch_id].item())
-                        new_token_id = inputs[0][batch_id][:token_len].tolist()
-                        new_text = self.tokenizer.ids_to_text(new_token_id)
-                new_token_ids.append(new_token_id)
-                new_tokens.append(response['tokens'][batch_id][:token_len])
-                new_texts.append(new_text)
-                log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
-                full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
-                offsets.append(response['offsets'][batch_id][:-1])
-            compute_prob_response['sentences'] = new_texts
-            compute_prob_response['tokens'] = new_tokens
-            compute_prob_response['token_ids'] = new_token_ids
-            compute_prob_response['logprob'] = log_probs
-            compute_prob_response['full_logprob'] = full_logprobs
-            compute_prob_response['offsets'] = offsets
+            compute_prob_response = self.__get_computeprob_response(response, inputs)
             return compute_prob_response
 
         if isinstance(inputs, (list, tuple)):
@@ -1049,8 +1014,21 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         if inference_config is None:
             return None
         else:
-            inference_config['inputs'] = batch
-            return generate(self, **inference_config)
+            compute_logprob = inference_config['compute_logprob']
+            if compute_logprob:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                inference_config['tokens_to_generate'] = 1
+                inference_config['all_probs'] = True
+                inference_config["add_BOS"] = False
+                inference_config['use_greedy'] = True
+                response = generate(self, **inference_config)
+                compute_prob_response = self.__get_computeprob_response(response, batch)
+                return compute_prob_response
+            else:
+                del inference_config['compute_logprob']
+                inference_config['inputs'] = batch
+                return generate(self, **inference_config)
 
     def init_new_prompts(self):
         for idx, tag in enumerate(self.cfg.new_prompt_tags):

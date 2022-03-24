@@ -95,19 +95,19 @@ def main(cfg) -> None:
         pass
 
     length_params: LengthParam = {
-        "max_length": 30,
-        "min_length": 0,
+        "max_length": cfg.inference.tokens_to_generate,
+        "min_length": cfg.inference.min_tokens_to_generate,
     }
 
     sampling_params: SamplingParam = {
-        "use_greedy": False,
-        "temperature": 1.0,
-        "top_k": 0,
-        "top_p": 0.9,
-        "repetition_penalty": 1.0,
-        "add_BOS": True,
-        "all_probs": False,
-        "compute_logprob": False,
+        "use_greedy": cfg.inference.greedy,
+        "temperature": cfg.inference.temperature,
+        "top_k": cfg.inference.top_k,
+        "top_p": cfg.inference.top_p,
+        "repetition_penalty": cfg.inference.repetition_penalty,
+        "add_BOS": cfg.inference.add_BOS,
+        "all_probs": cfg.inference.all_probs,
+        "compute_logprob": cfg.inference.compute_logprob,
     }
 
     # first method of running text generation, call model.generate method
@@ -132,7 +132,7 @@ def main(cfg) -> None:
     print("***************************")
 
     ########## example code to run the old `compute_logprob`
-    # compatible with old `compute_logprob`
+    # compatible with old `compute_logprob` method
     """
     sampling_params["compute_logprob"] = True
     response = model.generate(inputs=['this is', 'okay, a good test it is'], length_params=length_params, sampling_params=sampling_params)
