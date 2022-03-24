@@ -227,12 +227,12 @@ def main():
         frame_vad = FrameBatchVAD(
             vad_model=vad_model, 
             frame_len=chunk_len, 
-            total_buffer=args.total_vad_buffer_in_secs, 
+            total_buffer=total_vad_buffer, 
             batch_size=args.batch_size,
         )
 
     frame_asr = FrameBatchASR(
-        asr_model=asr_model, frame_len=chunk_len, total_buffer=args.total_buffer_in_secs, batch_size=args.batch_size,
+        asr_model=asr_model, frame_len=chunk_len, total_buffer=total_buffer, batch_size=args.batch_size,
     )
 
     hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits = get_wer_feat(
@@ -265,16 +265,20 @@ def main():
         )
         hyp_json = os.path.join(args.output_path, fname)
         os.makedirs(args.output_path, exist_ok=True)
+        os.makedirs("vad_logits", exist_ok=True)
+        
         with open(hyp_json, "w") as out_f:
             for i, hyp in enumerate(hyps):
                 if args.vad_before_asr:
+                    vad_output_file = os.path.join("vad_logits", str(i) + ".npy")
+                    np.save(vad_output_file, total_streaming_vad_logits[i])
                     record = {
                         "pred_text": hyp,
                         "text": refs[i],
                         "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
                         "total_duration_to_asr": total_durations_to_asr[i],
                         "total_speech_segments": total_speech_segments[i],
-                        "total_streaming_vad_logits": str(total_streaming_vad_logits[i]),
+                        "total_streaming_vad_logits": vad_output_file,
                     }
                 else:
                     record = {

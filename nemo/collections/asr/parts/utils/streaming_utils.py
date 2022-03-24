@@ -726,11 +726,11 @@ class FrameBatchVAD:
         )
 
         self.vad_model = vad_model
-
+        self.patience = patience
         self.batch_size = batch_size
         self.all_vad_preds = []
-        self.vad_decision_buffer = [0] * (patience+1)
-        self.vad_decision_buffer_filtered = [0] * (patience+1)
+        self.vad_decision_buffer = [0] * (self.patience+1)
+        self.vad_decision_buffer_filtered = [0] * (self.patience+1)
         self.speech_segment = set()
         self.start = 0
         self.end=0
@@ -749,7 +749,7 @@ class FrameBatchVAD:
         self.raw_preprocessor = EncDecClassificationModel.from_config_dict(cfg.preprocessor)
         self.raw_preprocessor.to(vad_model.device)
 
-    def reset(self, patience=25):
+    def reset(self):
         """
         Reset frame_history and decoder's state
         """
@@ -757,8 +757,8 @@ class FrameBatchVAD:
         self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
 
         self.all_vad_preds = []
-        self.vad_decision_buffer = [0] * (patience+1)
-        self.vad_decision_buffer_filtered = [0] * (patience+1)
+        self.vad_decision_buffer = [0] * (self.patience+1)
+        self.vad_decision_buffer_filtered = [0] * (self.patience+1)
         self.speech_segment = set()
         self.start = 0
         self.end=0
