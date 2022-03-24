@@ -514,7 +514,7 @@ def sample_sequence_batch(
                     logits[within_min_length, eod_id] = -float('Inf')
 
                 # make sure it won't sample outside the vocab_size range
-                logits[:, tokenizer.vocab_size:] = -float('Inf')
+                logits[:, tokenizer.vocab_size :] = -float('Inf')
 
                 if extra.get('greedy', False):  # args.greedy:
                     prev = torch.argmax(logits, dim=-1).view(-1)
