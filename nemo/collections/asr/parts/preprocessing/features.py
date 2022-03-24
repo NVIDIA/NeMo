@@ -455,4 +455,6 @@ class FilterbankFeatures(nn.Module):
         elif self.pre_pad > 0:
             x = nn.functional.pad(x, (self.pre_pad, 0), value=self.pad_value)
 
+        if self.pre_pad > 0:
+            seq_len = seq_len + self.pre_pad
         return x, seq_len
