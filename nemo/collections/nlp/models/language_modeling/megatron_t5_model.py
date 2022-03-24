@@ -32,6 +32,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
+        self.build_train_valid_test_datasets_kwargs = {}
+
     def _build_vocab(self):
         # T5-related construction
         self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
@@ -40,11 +42,12 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         super()._build_vocab()
 
     def _add_special_tokens_to_tokenizer(self):
-        if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
-            additional_tokens = {
-                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-            }
-            self.tokenizer.add_special_tokens(additional_tokens)
+        if getattr(self, "num_sentinel_tokens", 0):
+            if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
+                additional_tokens = {
+                    'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
+                }
+                self.tokenizer.add_special_tokens(additional_tokens)
 
         if self._cfg.tokenizer.library == 'sentencepiece':
             # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.
@@ -131,6 +134,8 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             permutation=self._cfg.data.get('permutation', False),
             whole_word_masking=self._cfg.data.get('whole_word_masking', True),
             favor_long_ngrams=self._cfg.data.get('favor_long_ngrams', False),
+            # additional arguments from child classes
+            **self.build_train_valid_test_datasets_kwargs
         )
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Length of val dataset: {len(self._validation_ds)}')

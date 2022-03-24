@@ -16,15 +16,13 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
-    MegatronLMEncoderDecoderModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_t5 import MegatronT5Model
 from nemo.utils import logging
 
 __all__ = ["MegatronBARTModel"]
 
 
-class MegatronBARTModel(MegatronLMEncoderDecoderModel):
+class MegatronBARTModel(MegatronT5Model):
     """
     Megatron BART pretraining
     """
@@ -32,90 +30,17 @@ class MegatronBARTModel(MegatronLMEncoderDecoderModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
 
+        if self._cfg.data.get('dataset_type', None) != 'bart':
+            raise ValueError(f"cfg.data.dataset_type = {self._cfg.data.get('dataset_type', None)} but 'bart' is expected")
+
+        self.build_train_valid_test_datasets_kwargs.update(dict(
+            delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),
+        ))
+
     def _build_vocab(self):
         self._add_special_tokens_to_tokenizer()
 
         super()._build_vocab()
-
-    def _add_special_tokens_to_tokenizer(self):
-        """BART related tokens (and Megatron regquired tokens)"""
-        if self._cfg.tokenizer.library == 'sentencepiece':
-            # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.
-            # If cls, sep and mask are not attributes of the tokenizer, add it.
-            if not hasattr(self.tokenizer, 'cls_token'):
-                self.tokenizer.add_special_tokens({'cls_token': '<cls>'})
-            if not hasattr(self.tokenizer.tokenizer, 'sep_id'):
-                self.tokenizer.add_special_tokens({'sep_token': '<sep>'})
-            if not hasattr(self.tokenizer.tokenizer, 'mask_id'):
-                self.tokenizer.add_special_tokens({'mask_token': '<mask>'})
-
-            # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
-            if not hasattr(self.tokenizer, 'pad_token'):
-                if hasattr(self.tokenizer.tokenizer, 'pad_id') and self.tokenizer.tokenizer.pad_id() > 0:
-                    self.tokenizer.pad_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.pad_id())
-                else:
-                    self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-            else:
-                self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-
-            if not hasattr(self.tokenizer, 'bos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'bos_id') and self.tokenizer.tokenizer.bos_id() > 0:
-                    self.tokenizer.bos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.bos_id())
-                else:
-                    self.tokenizer.add_special_tokens({'bos_token': '<bos>'})
-            else:
-                self.tokenizer.add_special_tokens({'bos_token': '<s>'})
-
-            if not hasattr(self.tokenizer, 'eos_token'):
-                if hasattr(self.tokenizer.tokenizer, 'eos_id') and self.tokenizer.tokenizer.eos_id() > 0:
-                    self.tokenizer.eos_token = self.tokenizer.tokenizer.id_to_piece(self.tokenizer.tokenizer.eos_id())
-                else:
-                    self.tokenizer.add_special_tokens({'eos_token': '<eos>'})
-            else:
-                self.tokenizer.add_special_tokens({'eos_token': '</s>'})
-
-    def build_train_valid_test_datasets(self):
-        logging.info('Building BART datasets.')
-
-        global_batch_size = self.trainer.world_size * self._cfg.micro_batch_size / self._cfg.tensor_model_parallel_size
-        eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
-        train_valid_test_num_samples = [
-            self.trainer.max_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
-        # Make sure the user specifies dataset type as 'bart' only.
-        if self._cfg.data.get('dataset_type', None) is not None:
-            if self._cfg.data.get('dataset_type') not in ['bart']:
-                raise ValueError(f"dataset_type must be 'bart'. found {self._cfg.data.get('dataset_type')}")
-        self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            cfg=self._cfg,
-            trainer=self.trainer,
-            tokenizer=self.tokenizer,
-            data_prefix=self._cfg.data.data_prefix,
-            data_impl=self._cfg.data.data_impl,
-            splits_string=self._cfg.data.splits_string,
-            train_valid_test_num_samples=train_valid_test_num_samples,
-            max_seq_length=self._cfg.data.seq_length,
-            masked_lm_prob=self._cfg.data.masked_lm_prob,
-            short_seq_prob=self._cfg.data.short_seq_prob,
-            seed=self._cfg.seed,
-            skip_warmup=self._cfg.data.skip_warmup,
-            dataset_type=self._cfg.data.get('dataset_type', 'bart'),
-            max_ngram_size=self._cfg.data.get('max_ngram_size', 10),
-            mean_ngram_size=self._cfg.data.get('mean_ngram_size', None),
-            geometric_dist=self._cfg.data.get('geometric_dist', True),
-            permutation=self._cfg.data.get('permutation', False),
-            whole_word_masking=self._cfg.data.get('whole_word_masking', True),
-            favor_long_ngrams=self._cfg.data.get('favor_long_ngrams', False),
-            delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),
-        )
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
-        logging.info(f'Length of val dataset: {len(self._validation_ds)}')
-        logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building BART datasets.')
-        return self._train_ds, self._validation_ds, self._test_ds
 
     def list_available_models(self):
         pass
