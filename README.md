@@ -1209,7 +1209,7 @@ on GLUE tasks for T5 models. Finetuning for GPT3 models are not supported.
 <a id="markdown-t5-finetuning" name="t5-finetuning"></a>
 
 The following downstream GLUE tasks are supported for T5 models: 
-`cola`, `sst-2`, `mrpc`, `sts-b`, `qqp`, `mnli`, `qnli`, and `rte`.
+`cola`, `sst-2`, `mrpc`, `qqp`, `mnli`, `qnli`, and `rte`.
 
 The configuration used for the finetuning needs to be specified in the
 `conf/config.yaml` file, specifying the `finetuning` parameter, which specifies the
@@ -1234,7 +1234,7 @@ run:
   dependency: "singleton"
   convert_name: convert_nemo
   model_train_name: t5_220m
-  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 ```
 
@@ -1419,7 +1419,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 On top of finetuned checkpoint, you can run the evaluation scripts to
 evaluate the capabilities of the finetuned T5 model on the following 
-downstream evaluation tasks: `cola`, `sst-2`, `mrpc`, `sts-b`, `qqp`, 
+downstream evaluation tasks: `cola`, `sst-2`, `mrpc`, `qqp`, 
 `mnli`, `qnli`, and `rte`. Usually the task of finetuning and evaluation
 should be the same.
 
@@ -1444,7 +1444,7 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   model_train_name: t5_220m
-  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
   finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
 ```
@@ -2417,8 +2417,8 @@ Triton parameters table
 ## 6. Performance
 <a id="markdown-performance" name="performance"></a>
 
-### 6.1. Results
-<a id="markdown-results" name="results"></a>
+### 6.1. GPT-3 Results
+<a id="markdown-gpt-3-results" name="gpt-3-results"></a>
 
 #### 6.1.1 Training Accuracy Results
 Training accuracy: DGX SuperPOD (20 x 8 x A100 80GB for 5B model)
@@ -2709,6 +2709,73 @@ Performance for different model sizes in offline scenario
 | 530B                    | 8660                   | 1.8               | 256        | 8               | 2                              | 16             | 20936                    | 0.003             | 1          | 8                           | 2                              | 16             |
 
 </details>
+
+
+### 6.2. T5 Results
+<a id="markdown-t5-results" name="t5-results"></a>
+
+#### 6.2.1. Training Accuracy Results
+Training accuracy: DGX SuperPOD 
+
+(4 x 8 x A100 80GB for T5 220M model; 20 x 8 x A100 80GB for T5 3B model)
+
+We evaluated the 220M parameter and 3B parameter T5 models on 2 GLUE
+tasks. The results can be found in the table below. The user can 
+finetune on top of any `.nemo` trained checkpoint file on all available 
+GLUE tasks mentioned in T5 finetuning section with their own recipes.
+
+| Task    |Metric            | 220M  | 3B (75% trained) |
+|---------| ---------------- |-------|------------------|
+| MNLI-m  |Accuracy          | 86.8% | 90.5%            |
+| MNLI-mm |Accuracy          | 86.8% | 90.5%            |
+| SST-2   |Accuracy          | 94.3% | 97.2%            |
+
+Training the 220M T5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
+
+<img src="img/220M_T5_loss_final.svg"/>
+
+The table below shows the converged training loss, the throughput, and the
+total time to train for the 220M T5 model, using a given number of GPUs and a
+given Global Batch Size (GBS).
+
+| \#GPUs | GBS  | Seq Length | \#Tokens | Loss  | Throughput (Tokens/sec) | Time to Train (days) |
+|--------|------|------------|----------|-------|-------------------------|----------------------|
+| 32     | 2048 | 512        | 1T       | 1.501 | 3,273,728               | 4                    |
+
+
+Training the 3B T5 model to convergence takes 11 days, and the loss curve of a 75% trained model can be seen in the figure below:
+
+<img src="img/3B_T5_loss_75percent.svg"/>
+
+The table below shows the converged training loss, the throughput, and the
+total time to train for the 3B T5 model, using a given number of GPUs and a
+given Global Batch Size (GBS).
+
+| \#GPUs | GBS  | Seq Length | \#Tokens | Loss (75% Trained) | Throughput (Tokens/sec) | Time to Train (days) |
+|--------|------|------------|----------|--------------------|-------------------------|----------------------|
+| 160    | 2160 | 512        | 1T       | 1.147              | 1,395,131               | 11                   |
+
+
+
+#### 6.2.2. Training Performance Results
+<a id="markdown-training-performance-results" name="training-performance-results"></a>
+Training performance: DGX SuperPOD (20 x 8 x A100 80GB for 3B model)
+
+We measured the throughput of training a 3B parameter T5 model on a DGX
+SuperPOD using a different number of nodes, and we achieved near-linear
+scaling. For example, when scaling from 1 node to 20 nodes, we achieve 15.67x
+speedup. The table and chart below show the performance results.
+
+
+|     |                                 |              |        |        | Nodes  |        |         |
+|-----| ------------------------------- |--------------|--------|--------|--------|--------|---------|
+|     |                                 | 1            | 2      | 4      | 5      | 10     | 20      |
+|     | Tokens per Second               | 89029        | 175682 | 349422 | 433354 | 820050 | 1395131 |
+| 3B  | Perfect Linear Scaling (Tokens) | 89029        | 178058 | 356117 | 445146 | 890291 | 1780583 |
+|     | Speed-up                        | 1x           | 1.97x  | 3.92x  | 4.87x  | 9.21x  | 15.67x  |
+
+<img src="img/3B_T5_throughput_2203.svg"/>
+
 
 ## 7. Changelog
 <a id="markdown-changelog" name="changelog"></a>
