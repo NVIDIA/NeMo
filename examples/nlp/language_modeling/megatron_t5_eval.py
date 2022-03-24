@@ -70,13 +70,12 @@ def main():
             app_state.model_parallel_size,
             app_state.data_parallel_size,
             app_state.pipeline_model_parallel_split_rank,
-            _,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
             tensor_model_parallel_size_=args.tensor_model_parallel_size,
             pipeline_model_parallel_size_=args.pipeline_model_parallel_size,
-            pipeline_model_parallel_spit_rank=args.pipeline_model_parallel_split_rank,
+            pipeline_model_parallel_split_rank_=args.pipeline_model_parallel_split_rank,
         )
 
     model = MegatronT5Model.restore_from(restore_path=args.model_file, trainer=trainer)

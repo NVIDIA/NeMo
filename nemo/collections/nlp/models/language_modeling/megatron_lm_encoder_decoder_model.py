@@ -526,6 +526,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             rank_zero_only=True,
         )
 
+        return averaged_loss
+
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 

@@ -39,8 +39,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
     """GLUE Model that Inherits from MegatronT5Model instead.""" 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if parallel_state.is_pipeline_first_stage():
-            self.acc_metric = ExactStringPerCategoryMatchMetric()
+        self.acc_metric = ExactStringPerCategoryMatchMetric()
 
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
@@ -104,17 +103,21 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
         return loss
 
-    def inference_epoch_end(self, outputs):
+    def inference_epoch_end(self, outputs, mode):
         # This will handle logging of the loss.
-        super().validation_epoch_end(outputs)
-        # TODO: Add logging of the accuracy.
+        if mode == 'validation':
+            averaged_loss = super().validation_epoch_end(outputs)
+        else:
+            averaged_loss = super().test_epoch_end(outputs)
+        accuracy = self.acc_metric.compute()
+        self.acc_metric.reset()
+        return averaged_loss, accuracy
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
-        val_loss, val_acc = self.inference_epoch_end(outputs)
-        self.log('val_loss', val_loss, prog_bar=True)
+        val_loss, val_acc = self.inference_epoch_end(outputs, 'validation')
         self.log('val_acc', val_acc, prog_bar=True)
         logging.info(f'Validation loss: {val_loss}')
         logging.info(f'Validation accuracy: {val_acc}')
