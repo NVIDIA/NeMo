@@ -45,6 +45,7 @@ class TestConfig:
         training_config: ${hydra:runtime.choices.training}
         finetuning_config: ${hydra:runtime.choices.finetuning}
         evaluation_config: ${hydra:runtime.choices.evaluation}
+        conversion_config: ${hydra:runtime.choices.conversion}
 
         # GPU Mapping
         dgxa100_gpu2core:
