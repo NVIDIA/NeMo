@@ -88,7 +88,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     cache_last_time=cache_last_time,
                     previous_hypotheses=previous_hypotheses,
                     previous_pred_out=pred_out_stream,
-                    drop_extra_pre_encoded=True,  # True if step_num > 0 else False,
+                    drop_extra_pre_encoded=True, #True if step_num > 0 else False,
                     return_transcribtion=True,
                 )
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
@@ -164,16 +164,21 @@ def main():
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
     asr_model.encoder.setup_streaming_params(
-        # init_chunk_size=69,
-        # init_shift_size=69,
-        chunk_size=[69, 72],
-        shift_size=[69, 72],
+        chunk_size=72,
+        shift_size=72,
         cache_drop_size=0,
-        #init_pre_encode_cache_size=5,
-        pre_encode_cache_size=[5, 5],
-        valid_out_len=[18, 18],
-        #init_valid_out_len=18,
+        pre_encode_cache_size=5,
+        valid_out_len=18,
     )
+    logging.info(asr_model.encoder.streaming_cfg)
+    # asr_model.encoder.setup_streaming_params(
+    #     chunk_size=[69, 72],
+    #     shift_size=[69, 72],
+    #     cache_drop_size=0,
+    #     pre_encode_cache_size=[0, 5],
+    #     valid_out_len=[18, 18],
+    # )
+
     global autocast
     if (
         args.use_amp
@@ -199,7 +204,7 @@ def main():
         with open_dict(decoding_cfg):
             decoding_cfg.strategy = "greedy"
             decoding_cfg.preserve_alignments = True
-            # decoding_cfg.greedy.max_symbols = 5
+            decoding_cfg.greedy.max_symbols = 10
         asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)

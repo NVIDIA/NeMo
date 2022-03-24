@@ -216,6 +216,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         log_zero_guard_value=2 ** -24,
         dither=1e-5,
         pad_to=16,
+        pre_pad=0,
         frame_splicing=1,
         exact_pad=False,
         stft_exact_pad=False,
@@ -256,6 +257,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             log_zero_guard_value=log_zero_guard_value,
             dither=dither,
             pad_to=pad_to,
+            pre_pad=pre_pad,
             frame_splicing=frame_splicing,
             exact_pad=exact_pad,
             stft_exact_pad=stft_exact_pad,
@@ -609,6 +611,7 @@ class AudioToMelSpectrogramPreprocessorConfig:
     log_zero_guard_value: float = 2 ** -24
     dither: float = 1e-5
     pad_to: int = 16
+    pre_pad: int = 0
     frame_splicing: int = 1
     exact_pad: bool = False
     stft_exact_pad: bool = False

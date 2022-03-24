@@ -1198,24 +1198,27 @@ class FramewiseStreamingAudioBuffer:
             if self.buffer_idx >= self.buffer.size(-1):
                 return
                 # raise StopIteration
-            if self.buffer_idx == 0 and len(self.streaming_cfg.chunk_size) > 1:
-                # chunk_size = self.streaming_cfg.init_chunk_size
-                # shift_size = self.streaming_cfg.init_shift_size
+            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.chunk_size, list):
                 chunk_size = self.streaming_cfg.chunk_size[0]
             else:
-                chunk_size = self.streaming_cfg.chunk_size[1] if len(self.streaming_cfg.chunk_size) > 1 else self.streaming_cfg.chunk_size
+                chunk_size = (
+                    self.streaming_cfg.chunk_size[1]
+                    if isinstance(self.streaming_cfg.chunk_size, list)
+                    else self.streaming_cfg.chunk_size
+                )
 
-            if self.buffer_idx == 0 and len(self.streaming_cfg.shift_size) > 1:
-                # chunk_size = self.streaming_cfg.init_chunk_size
-                # shift_size = self.streaming_cfg.init_shift_size
+            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.shift_size, list):
                 shift_size = self.streaming_cfg.shift_size[0]
             else:
-                shift_size = self.streaming_cfg.shift_size[1] if len(
-                    self.streaming_cfg.shift_size) > 1 else self.streaming_cfg.shift_size
+                shift_size = (
+                    self.streaming_cfg.shift_size[1]
+                    if isinstance(self.streaming_cfg.shift_size, list)
+                    else self.streaming_cfg.shift_size
+                )
 
             audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
 
-            if self.buffer_idx == 0 and len(self.streaming_cfg.pre_encode_cache_size) > 1:
+            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                 init_cache_pre_encode = torch.zeros(
                     (audio_chunk.size(0), self.input_features, self.streaming_cfg.pre_encode_cache_size[0]),
                     device=audio_chunk.device,
@@ -1224,7 +1227,7 @@ class FramewiseStreamingAudioBuffer:
                 audio_chunk = torch.cat((init_cache_pre_encode, audio_chunk), dim=-1)
                 added_len = init_cache_pre_encode.size(-1)
             else:
-                if len(self.streaming_cfg.pre_encode_cache_size) > 1:
+                if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
                 else:
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
@@ -1271,12 +1274,12 @@ class FramewiseStreamingAudioBuffer:
 
     def get_valid_out_len(self):
         if self.step <= 1:
-            if len(self.streaming_cfg.valid_out_len) > 1:
+            if isinstance(self.streaming_cfg.valid_out_len, list):
                 valid_out_len = self.streaming_cfg.valid_out_len[0]
             else:
                 valid_out_len = self.streaming_cfg.valid_out_len
         elif self.buffer_idx >= self.buffer.size(-1):
-            if len(self.streaming_cfg.valid_out_len) > 1:
+            if isinstance(self.streaming_cfg.valid_out_len, list):
                 valid_out_len = self.streaming_cfg.valid_out_len[1]
             else:
                 valid_out_len = self.streaming_cfg.valid_out_len
