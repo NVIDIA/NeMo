@@ -1021,7 +1021,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 inference_config['tokens_to_generate'] = 1
                 inference_config['all_probs'] = True
                 inference_config["add_BOS"] = False
-                inference_config['use_greedy'] = True
+                inference_config['greedy'] = True
                 response = generate(self, **inference_config)
                 compute_prob_response = self.__get_computeprob_response(response, batch)
                 return compute_prob_response
