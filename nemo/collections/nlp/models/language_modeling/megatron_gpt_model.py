@@ -951,6 +951,76 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             request_dl = DataLoader(dataset=ds, batch_size=1)
             self.trainer.predict(self, request_dl)
 
+        # set the default sampling params if it is None.
+        # default do greedy sampling
+        if sampling_params is None:
+            sampling_params: SamplingParam = {
+                "use_greedy": True,
+                "temperature": 1.0,
+                "top_k": 0,
+                "top_p": 1.0,
+                "repetition_penalty": 1.0,
+                "add_BOS": True,
+                "all_probs": False,
+                "compute_logprob": False,
+            }
+
+        # set the default length params if it is None.
+        # default do greedy sampling
+        if length_params is None:
+            length_params: LengthParam = {"min_length": 0, "max_length": 30}
+
+        # reproduce the old compute_prob method
+        # a very special case
+        if sampling_params['compute_logprob']:
+            length_params['max_length'] = 1
+            sampling_params['all_probs'] = True
+            sampling_params["add_BOS"] = False
+            sampling_params['use_greedy'] = True
+            response = generate(
+                self.cuda(),
+                inputs=inputs,
+                tokens_to_generate=length_params['max_length'],
+                all_probs=sampling_params['all_probs'],
+                temperature=sampling_params['temperature'],
+                add_BOS=sampling_params['add_BOS'],
+                top_k=sampling_params['top_k'],
+                top_p=sampling_params['top_p'],
+                greedy=sampling_params['use_greedy'],
+                repetition_penalty=sampling_params['repetition_penalty'],
+                min_tokens_to_generate=length_params['min_length'],
+            )
+            compute_prob_response = {}
+            new_token_ids = []
+            new_tokens = []
+            new_texts = []
+            log_probs = []
+            full_logprobs = []
+            offsets = []
+            for batch_id in range(len(response['tokens'])):
+                if isinstance(inputs, (list, tuple)):
+                    if isinstance(inputs[0], str):
+                        new_token_id = self.tokenizer.text_to_ids(inputs[batch_id])
+                        new_text = inputs[batch_id]
+                        token_len = len(new_token_id)
+                    elif isinstance(inputs[0], torch.Tensor):
+                        token_len = int(inputs[1][batch_id].item())
+                        new_token_id = inputs[0][batch_id][:token_len].tolist()
+                        new_text = self.tokenizer.ids_to_text(new_token_id)
+                new_token_ids.append(new_token_id)
+                new_tokens.append(response['tokens'][batch_id][:token_len])
+                new_texts.append(new_text)
+                log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
+                full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
+                offsets.append(response['offsets'][batch_id][:-1])
+            compute_prob_response['sentences'] = new_texts
+            compute_prob_response['tokens'] = new_tokens
+            compute_prob_response['token_ids'] = new_token_ids
+            compute_prob_response['logprob'] = log_probs
+            compute_prob_response['full_logprob'] = full_logprobs
+            compute_prob_response['offsets'] = offsets
+            return compute_prob_response
+
         if isinstance(inputs, (list, tuple)):
             if isinstance(inputs[0], (str, torch.Tensor)):
                 output = generate(
@@ -1088,3 +1158,127 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             raise ValueError(
                 f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
             )
+
+    def compute_logprobs(self, request: Dict, positions: List):
+        """
+            Only logprobs computation without generation tokens
+        Args:
+            request:
+                * tokens: List of "buckets" with unpadded tokens of the same length
+                * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
+                                    specifying the prompt tag to use (optional)
+            positions: List with initial prompts positions
+        Returns:
+            response: A python list of tuples
+            (text, tokens, log_probs, offsets)
+            * text: string, inputted prompt + generated text by model
+            * tokens: list of tokens correspond to text
+            * log_probs: list of log_softmax's from output_tensor in respect to text tokens
+            * offsets: list of tokens start positions in text
+        """
+        app_state = AppState()
+
+        results = []
+        request_tokens = request["tokens"]
+        for idx, tokens in enumerate(request_tokens):
+            tokens_cut = tokens[:, :-1]
+            micro_batch_size = tokens_cut.shape[0]
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=1,
+            )
+            # For prompt tuned GPT models
+            if self.use_soft_prompts:
+                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                    raise ValueError('compute_logprobs method is not yet supported for pipeline with soft prompts')
+                prompt_tags = request["prompt_tags"][idx]
+                prompt_tags_to_ids = dict(self.prompt_table)
+                prompt_ids = torch.tensor([prompt_tags_to_ids[tag] for tag in prompt_tags])
+            else:
+                prompt_ids = None
+
+            if self.use_soft_prompts:
+                batch_size = len(tokens_cut)
+                full_length = len(tokens_cut[0]) + self.num_prompt_tokens
+                # Get postion ids for text after soft prompt
+                position_ids = torch.arange(
+                    start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
+                )
+                position_ids = position_ids.unsqueeze(0).expand_as(tokens_cut).clone()
+                # Make attention mask starting with first token in soft prompt
+                attention_mask = torch.tril(
+                    torch.ones((batch_size, full_length, full_length), device=self.device)
+                ).view(batch_size, 1, full_length, full_length)
+                attention_mask = attention_mask < 0.5
+
+            else:
+                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                    data=tokens_cut,
+                    eod_token=self.tokenizer.eos_id,
+                    reset_position_ids=self.cfg.get('reset_position_ids', False),
+                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                )
+
+            # we repeat attention mask to work with apex fwd/bwd function
+            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            if self.use_soft_prompts:
+                batch = [tokens_cut, attention_mask_repeat, position_ids, prompt_ids]
+            else:
+                batch = [tokens_cut, attention_mask_repeat, position_ids]
+            tensor_shape = [tokens_cut.shape[1], micro_batch_size, self.cfg.hidden_size]
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                output_tensor = forward_backward_pipelining_without_interleaving(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    batch=batch,
+                    model=self.model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                )
+            else:
+                output_tensor = forward_backward_no_pipelining(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    batch=batch,
+                    model=self.model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                )
+
+            # get output tensor
+            if parallel_state.is_pipeline_last_stage():
+                output_tensor = output_tensor[0]['logits']
+                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+
+            else:
+                output_tensor = torch.zeros(
+                    (tokens_cut.shape[0], tokens_cut.shape[1], self.padded_vocab_size), dtype=torch.float
+                ).cuda()
+
+            torch.distributed.broadcast(output_tensor, get_last_rank())
+
+            log_probs = []
+            for output in output_tensor:
+                probs = F.log_softmax(output, dim=1)
+                probs = probs[-len(tokens_cut[0]) :]
+                log_probs.append(probs)
+
+            for token, prob in zip(tokens, log_probs):
+                results.append((self.tokenizer.ids_to_text(token), self.tokenizer.ids_to_tokens(token), prob, [0]))
+
+        # offsets calculation
+        for item in results:
+            for index, token in enumerate(item[1]):
+                if index != len(item[1]) - 1:
+                    item[3].append(len(token) + item[3][-1])
+
+        # return prompts in order they were inputted
+        response = [0 for i in range(len(positions))]
+        for item, index in zip(results, positions):
+            response[index] = item
+
+        return response

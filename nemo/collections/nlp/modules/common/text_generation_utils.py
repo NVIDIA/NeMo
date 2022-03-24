@@ -308,6 +308,7 @@ def generate(
             logprob: List[Tensor], log prob of generated tokens
             full_logprob: List[Tensor], log prob of all the tokens in the vocab
             token_ids: List[Tensor], output sentence token ids
+            offsets: List[List[int]]  # list of tokens start positions in text
     """
     model.eval()
     tokenizer = model.tokenizer
@@ -382,12 +383,22 @@ def generate(
         if all_probs:
             full_logits = full_logits.cpu().numpy().tolist()
 
+        # offsets calculation
+        all_offsets = []
+        for item in resp_sentences_seg:
+            offsets = [0]
+            for index, token in enumerate(item):
+                if index != len(item) - 1:
+                    offsets.append(len(token) + offsets[-1])
+            all_offsets.append(offsets)
+
         output = {}
         output['sentences'] = resp_sentences
         output['tokens'] = resp_sentences_seg
         output['logprob'] = output_logits
         output['full_logprob'] = full_logits
         output['token_ids'] = decode_tokens
+        output['offsets'] = all_offsets
         return output
 
 

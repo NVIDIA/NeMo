@@ -36,6 +36,7 @@ class SamplingParam(TypedDict):
     repetition_penalty: float  # The parameter for repetition penalty. 1.0 means no penalty.
     add_BOS: bool  # add the bos token at the begining of the prompt
     all_probs: bool  # whether return the log prob for all the tokens in vocab
+    compute_logprob: bool  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
 
 
 class OutputType(TypedDict):
@@ -44,6 +45,7 @@ class OutputType(TypedDict):
     logprob: List[List[float]]  # log prob of generated tokens
     full_logprob: List[List[float]]  # log prob of all the tokens in the vocab
     token_ids: List[List[int]]  # output sentence token ids
+    offsets: List[List[int]]  # list of tokens start positions in text
 
 
 class TextGeneration:
@@ -84,6 +86,8 @@ class TextGeneration:
                     top_p: float, If set to float < 1, only the most probable tokens with probabilities that add up to top_p or higher are kept for generation.
                     repetition_penalty: float, The parameter for repetition penalty. 1.0 means no penalty. 
                     add_BOS: bool, Whether add the bos token at the begining of the prompt
+                    all_probs: bool  # whether return the log prob for all the tokens in vocab
+                    compute_logprob: bool  # a flag used to compute logprob of all the input text, a very special case of running inference, default False
                 Default None, If it is None, use_greedy will be "True".
         Returns:
             OutputType: It generates the output in a dictionary type. It has the following keys:
@@ -92,5 +96,6 @@ class TextGeneration:
                 logprob: List[List[float]],  log prob of generated tokens
                 full_logprob: List[List[float]], log prob of all the tokens in the vocab
                 token_ids: List[List[int]], output sentence token ids
+                offsets: List[List[int]]  # list of tokens start positions in text
         """
         raise NotImplementedError("please implement this method")

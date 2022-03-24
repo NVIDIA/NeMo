@@ -23,6 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 
 # from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
@@ -93,12 +94,12 @@ def main(cfg) -> None:
     except:
         pass
 
-    length_params = {
+    length_params: LengthParam = {
         "max_length": 30,
         "min_length": 0,
     }
 
-    sampling_params = {
+    sampling_params: SamplingParam = {
         "use_greedy": False,
         "temperature": 1.0,
         "top_k": 0,
@@ -106,17 +107,20 @@ def main(cfg) -> None:
         "repetition_penalty": 1.0,
         "add_BOS": True,
         "all_probs": False,
+        "compute_logprob": False,
     }
 
     # first method of running text generation, call model.generate method
-    response = model.generate(inputs=cfg.prompts, length_params=length_params, sampling_params=sampling_params)
+    response = model.generate(
+        inputs=OmegaConf.to_container(cfg.prompts), length_params=length_params, sampling_params=sampling_params
+    )
 
     print("***************************")
     print(response)
     print("***************************")
 
     # second method of running text generation, call trainer.predict
-    ds = RequestDataSet(cfg.prompts)
+    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
     request_dl = DataLoader(dataset=ds, batch_size=2)
 
     config = OmegaConf.to_container(cfg.inference)
@@ -127,6 +131,26 @@ def main(cfg) -> None:
     print(response)
     print("***************************")
 
+    ########## example code to run the old `compute_logprob`
+    # compatible with old `compute_logprob`
+    """
+    sampling_params["compute_logprob"] = True
+    response = model.generate(inputs=['this is', 'okay, a good test it is'], length_params=length_params, sampling_params=sampling_params)
+
+    print("***************************")
+    print(response)
+    print("***************************")
+
+    # compatible with old `compute_logprob`, input tensor ids
+    sampling_params["compute_logprob"] = True
+    i_ids = torch.tensor([[5661, 318, model.tokenizer.eos_id, model.tokenizer.eos_id, model.tokenizer.eos_id, model.tokenizer.eos_id, model.tokenizer.eos_id, model.tokenizer.eos_id, model.tokenizer.eos_id], [482, 323, 11, 257, 922, 1332, 340, 318, model.tokenizer.eos_id]], dtype=torch.int64)
+    lens = torch.tensor([2, 8], dtype=torch.int64)
+    response = model.generate(inputs=(i_ids.cuda(), lens.cuda()), length_params=length_params, sampling_params=sampling_params)
+
+    print("***************************")
+    print(response)
+    print("***************************")
+    """
     # third method of running text generation, use inference server
     if cfg.server:
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
