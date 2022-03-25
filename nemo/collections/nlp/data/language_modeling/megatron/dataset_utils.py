@@ -634,6 +634,7 @@ def _build_train_valid_test_datasets(
             elif dataset_type == DSET_TYPE_BERT:
                 logging.info("Instatiating BERT Dataset ...")
                 dataset = BertDataset(
+                    cfg=cfg,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     short_seq_prob=short_seq_prob,
