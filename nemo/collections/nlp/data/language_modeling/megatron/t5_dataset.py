@@ -126,7 +126,7 @@ class T5Dataset(MegatronDataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        training_sample = build_training_sample(sample=sample, target_seq_length=seq_length, np_rng=np_rng,)
+        training_sample = self.build_training_sample(sample=sample, target_seq_length=seq_length, np_rng=np_rng,)
         return training_sample
 
     def build_training_sample(
