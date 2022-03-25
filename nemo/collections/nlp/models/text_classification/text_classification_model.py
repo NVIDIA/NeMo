@@ -96,7 +96,7 @@ class TextClassificationModel(NLPModel, Exportable):
                 self.loss = CrossEntropyLoss()
 
     @typecheck()
-    def forward(self, attention_mask, input_ids, token_type_ids):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
