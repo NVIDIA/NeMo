@@ -22,6 +22,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 
 class TestGPTEval:
+    @pytest.mark.run_only_on('GPU')
     def setup_method(self, test_method):
         trainer_config = {
             "devices": 1,
@@ -52,6 +53,7 @@ class TestGPTEval:
 
         self.model = model
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_gpt_eval(self):
         # test greedy
