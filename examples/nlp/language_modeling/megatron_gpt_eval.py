@@ -119,7 +119,7 @@ Usage:
         data = {
             "sentences": [""] * batch_size,
             "tokens_to_generate": 300,
-            "temperate": 1.0,
+            "temperature": 1.0,
             "add_BOS": True,
             "top_k": 0,
             "top_p": 0.9,
