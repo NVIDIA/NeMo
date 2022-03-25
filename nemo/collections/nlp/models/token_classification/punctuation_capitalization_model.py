@@ -82,11 +82,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     """
 
     @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Neural types of a :meth:`forward` method input."""
-        return self.bert_model.input_types
-
-    @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Neural types of a :meth:`forward` method output."""
         return {
@@ -1153,10 +1148,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ),
         ]
         return result
-
-    @property
-    def input_module(self) -> Any:
-        return self.bert_model
 
     @property
     def output_module(self):

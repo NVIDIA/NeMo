@@ -52,12 +52,8 @@ class SGDQAModel(NLPModel):
     """Dialogue State Tracking Model SGD-QA"""
 
     @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.decoder.output_types
+    def output_module(self):
+        return self.decoder
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
@@ -77,7 +73,7 @@ class SGDQAModel(NLPModel):
         self.loss = SGDDialogueStateLoss(reduction="mean")
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         token_embeddings = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )

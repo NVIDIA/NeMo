@@ -43,14 +43,6 @@ class QAModel(NLPModel):
     BERT encoder with QA head training.
     """
 
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
@@ -77,7 +69,7 @@ class QAModel(NLPModel):
         self.loss = SpanningLoss()
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )

@@ -36,14 +36,6 @@ __all__ = ['TextClassificationModel']
 
 
 class TextClassificationModel(NLPModel, Exportable):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the BERTTextClassifier model."""
 
@@ -104,7 +96,7 @@ class TextClassificationModel(NLPModel, Exportable):
                 self.loss = CrossEntropyLoss()
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, attention_mask, input_ids, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.

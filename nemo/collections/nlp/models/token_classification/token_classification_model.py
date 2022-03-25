@@ -42,14 +42,6 @@ __all__ = ['TokenClassificationModel']
 class TokenClassificationModel(NLPModel):
     """Token Classification Model with BERT, applicable for tasks such as Named Entity Recognition"""
 
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
         # extract str to int labels mapping if a mapping file provided
@@ -128,9 +120,11 @@ class TokenClassificationModel(NLPModel):
         return loss
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         if self._cfg.language_model.get('nemo_file', None) is not None:
-            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
+            hidden_states, _ = self.bert_model(
+                input_ids=input_ids, attention_mask=attention_mask, tokentype_ids=token_type_ids, lm_labels=None
+            )
         else:
             hidden_states = self.bert_model(
                 input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
