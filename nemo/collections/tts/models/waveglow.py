@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
 from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
@@ -34,34 +32,18 @@ from nemo.core.neural_types.elements import (
     VoidType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils import logging
-
-
-@dataclass
-class WaveglowConfig:
-    waveglow: Dict[Any, Any] = MISSING
-    preprocessor: Dict[Any, Any] = MISSING
-    sigma: float = MISSING
-    train_ds: Optional[Dict[Any, Any]] = None
-    validation_ds: Optional[Dict[Any, Any]] = None
+from nemo.utils import logging, model_utils
 
 
 class WaveGlowModel(GlowVocoder, Exportable):
-    """Waveglow model used to convert betweeen spectrograms and audio"""
+    """WaveGlow model (https://arxiv.org/abs/1811.00002) that is used to generate audio from mel spectrogram."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
-        super().__init__(cfg=cfg, trainer=trainer)
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
-        schema = OmegaConf.structured(WaveglowConfig)
-        # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
-        elif not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
-        # Ensure passed cfg is compliant with schema
-        OmegaConf.merge(cfg, schema)
+        super().__init__(cfg=cfg, trainer=trainer)
 
         self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
@@ -76,31 +58,6 @@ class WaveGlowModel(GlowVocoder, Exportable):
             self.eval()
         self._mode = new_mode
         self.waveglow.mode = new_mode
-
-    @property
-    def input_types(self):
-        return {
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(('B'), LengthsType()),
-            "run_inverse": NeuralType(optional=True),
-        }
-
-    @property
-    def output_types(self):
-        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
-            output_dict = {
-                "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": [NeuralType(('B', 'flowgroup', 'T'), VoidType())],  # TODO: Figure out a good typing
-                "log_det_W_list": [NeuralType(elements_type=LogDeterminantType())],
-            }
-            if self.mode == OperationMode.validation:
-                output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
-                output_dict["spec"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
-                output_dict["spec_len"] = NeuralType(('B'), LengthsType())
-            return output_dict
-        return {
-            "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
-        }
 
     @typecheck()
     def forward(self, *, audio, audio_len, run_inverse=True):
@@ -236,6 +193,16 @@ class WaveGlowModel(GlowVocoder, Exportable):
         list_of_models.append(model)
         return list_of_models
 
+    def load_state_dict(self, state_dict, strict=True):
+        # Remove convinv.inv_conv weights since they are not initialized until forward is called during training
+        # and can be computed from convinv.conv.weight
+        # Ideally, we should remove this during saving instead of ignoring during loading
+        for i in range(self._cfg.waveglow.n_flows):
+            if f"waveglow.convinv.{i}.inv_conv.weight" in state_dict:
+                del state_dict[f"waveglow.convinv.{i}.inv_conv.weight"]
+        super().load_state_dict(state_dict, strict=strict)
+
+    # Methods for model exportability
     @property
     def input_module(self):
         return self.waveglow
@@ -248,14 +215,30 @@ class WaveGlowModel(GlowVocoder, Exportable):
         self.update_bias_spect()
         self.waveglow._prepare_for_export(**kwargs)
 
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_len": NeuralType(('B'), LengthsType()),
+            "run_inverse": NeuralType(optional=True),
+        }
+
+    @property
+    def output_types(self):
+        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
+            output_dict = {
+                "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
+                "log_s_list": [NeuralType(('B', 'flowgroup', 'T'), VoidType())],  # TODO: Figure out a good typing
+                "log_det_W_list": [NeuralType(elements_type=LogDeterminantType())],
+            }
+            if self.mode == OperationMode.validation:
+                output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
+                output_dict["spec"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
+                output_dict["spec_len"] = NeuralType(('B'), LengthsType())
+            return output_dict
+        return {
+            "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
+        }
+
     def forward_for_export(self, spec, z=None):
         return self.waveglow(spec, z)
-
-    def load_state_dict(self, state_dict, strict=True):
-        # Remove convinv.inv_conv weights since they are not initialized until forward is called during training
-        # and can be computed from convinv.conv.weight
-        # Ideally, we should remove this during saving instead of ignoring during loading
-        for i in range(self._cfg.waveglow.n_flows):
-            if f"waveglow.convinv.{i}.inv_conv.weight" in state_dict:
-                del state_dict[f"waveglow.convinv.{i}.inv_conv.weight"]
-        super().load_state_dict(state_dict, strict=strict)

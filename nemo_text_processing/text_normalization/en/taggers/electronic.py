@@ -40,7 +40,7 @@ class ElectronicFst(GraphFst):
 
         def get_input_symbols(f):
             accepted_symbols = []
-            with open(f, 'r') as f:
+            with open(f, 'r', encoding='utf-8') as f:
                 for line in f:
                     symbol, _ = line.split('\t')
                     accepted_symbols.append(pynini.accep(symbol))

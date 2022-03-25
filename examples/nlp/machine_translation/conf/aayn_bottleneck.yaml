@@ -34,7 +34,7 @@ model:
   recon_per_token: true # when false reconstruction is computed per sample, not per token
 
   encoder:
-    mask_future: true
+    mask_future: false
     arch: perceiver # avg_pool, max_pool, seq2seq, bridge, perceiver (see description above)
     hidden_steps: 32 # fixed number of hidden steps
     hidden_blocks: 1 # number of repeat blocks (see classes for description)

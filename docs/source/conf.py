@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
+templates_path = ["_templates"]
 
 autodoc_mock_imports = [
     'torch',
@@ -112,8 +113,8 @@ extensions = [
 bibtex_bibfiles = [
     'asr/asr_all.bib',
     'nlp/nlp_all.bib',
+    'nlp/text_normalization/tn_itn_all.bib',
     'tools/tools_all.bib',
-    'nemo_text_processing/textprocessing_all.bib',
     'tts_all.bib',
 ]
 
@@ -139,7 +140,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "© 2020-2021 NVIDIA Corporation & Affiliates. All rights reserved."
+copyright = "© 2021-2022 NVIDIA Corporation & Affiliates. All rights reserved."
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for

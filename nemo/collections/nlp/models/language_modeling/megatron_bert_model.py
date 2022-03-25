@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from typing import Any, Dict, Optional
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -29,13 +29,17 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import b
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_init import (
-    initialize_model_parallel_for_nemo,
-    set_jit_fusion_options,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import AppState, logging
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 class MegatronBertModel(NLPModel):
@@ -44,8 +48,15 @@ class MegatronBertModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         super().__init__(cfg, trainer=trainer)
         self.cfg = cfg
+
+        # used in NVIDIA NGC PyTorch containers
+        self._enable_nvidia_optimizations()
 
         if self.cfg.get('use_cpu_initialization', False) is False:
             torch.cuda.set_device(trainer.local_rank)
@@ -62,8 +73,6 @@ class MegatronBertModel(NLPModel):
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
             seed=self.cfg.get('seed', 1234),
         )
-
-        set_jit_fusion_options()
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
@@ -146,7 +155,11 @@ class MegatronBertModel(NLPModel):
             lr = self._optimizer.param_groups[0]['lr']
             self.log('lr', lr)
             self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+            self.log(
+                'consumed_samples',
+                self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+                prog_bar=True,
+            )
             self._reduced_loss_buffer = []
             self._reduced_lm_loss_buffer = []
             self._reduced_sop_loss_buffer = []
@@ -171,7 +184,7 @@ class MegatronBertModel(NLPModel):
     def validation_epoch_end(self, outputs):
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -236,15 +249,17 @@ class MegatronBertModel(NLPModel):
             test_iters * global_batch_size,
         ]
         self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-            self.cfg.data.data_prefix,
-            self.cfg.data.data_impl,
-            self.cfg.data.splits_string,
-            train_valid_test_num_samples,
-            self.cfg.data.seq_length,
-            self.cfg.data.masked_lm_prob,
-            self.cfg.data.short_seq_prob,
-            self.cfg.seed,
-            self.cfg.data.get('skip_warmup', True),
+            cfg=self.cfg,
+            trainer=self.trainer,
+            data_prefix=self.cfg.data.data_prefix,
+            data_impl=self.cfg.data.data_impl,
+            splits_string=self.cfg.data.splits_string,
+            train_valid_test_num_samples=train_valid_test_num_samples,
+            max_seq_length=self.cfg.data.seq_length,
+            masked_lm_prob=self.cfg.data.masked_lm_prob,
+            short_seq_prob=self.cfg.data.short_seq_prob,
+            seed=self.cfg.seed,
+            skip_warmup=self.cfg.data.get('skip_warmup', True),
             binary_head=self.cfg.bert_binary_head,
             max_seq_length_dec=None,
             dataset_type='standard_bert',
@@ -295,6 +310,19 @@ class MegatronBertModel(NLPModel):
         )
 
     def setup(self, stage=None):
+        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            try:
+                init_consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
+            except (ValueError, TypeError):
+                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+                init_consumed_samples = 0
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+
         if stage == 'predict':
             return
         # TODO: consider adding a ModelPT guard to check if model is being restored.
@@ -306,13 +334,7 @@ class MegatronBertModel(NLPModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
-            if resume_checkpoint_path:
-                consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            else:
-                consumed_samples = 0
+            consumed_samples = self.compute_consumed_samples(0)
             logging.info(
                 f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
             )
@@ -334,10 +356,16 @@ class MegatronBertModel(NLPModel):
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def compute_consumed_samples(self, global_step):
+    def on_pretrain_routine_start(self) -> None:
+        # keep a copy of init_global_step
+        self.init_global_step = self.trainer.global_step
+        return super().on_pretrain_routine_start()
+
+    def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
-            global_step
+            self.init_consumed_samples
+            + steps_since_resume
             * app_state.data_parallel_size
             * self.cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
@@ -374,3 +402,30 @@ class MegatronBertModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
+
+    def _enable_nvidia_optimizations(self):
+        "These optimizations are present in NVIDIA NGC PyTorch Containers"
+
+        # Version check
+        nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
+        if nvidia_torch_version is not None:
+            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+
+            # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
+            if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
+                self.cfg.persist_layer_norm = False
+
+            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
+                # NVFUSER
+                torch._C._jit_set_profiling_executor(True)
+                torch._C._jit_set_profiling_mode(True)
+                torch._C._jit_override_can_fuse_on_cpu(False)
+                torch._C._jit_override_can_fuse_on_gpu(False)
+                torch._C._jit_set_texpr_fuser_enabled(False)
+                torch._C._jit_set_nvfuser_enabled(True)
+                torch._C._debug_set_autodiff_subgraph_inlining(False)
+
+        else:
+            # Not a Nvidia container. Dependency check is on users
+            pass

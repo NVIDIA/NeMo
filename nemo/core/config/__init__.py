@@ -39,6 +39,7 @@ from nemo.core.config.schedulers import (
     SchedulerParams,
     SquareAnnealingParams,
     SquareRootAnnealingParams,
+    SquareRootConstantSchedulerParams,
     WarmupAnnealingParams,
     WarmupHoldSchedulerParams,
     WarmupSchedulerParams,

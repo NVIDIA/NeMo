@@ -19,29 +19,38 @@ import collections
 import numpy as np
 import torch
 
+from nemo.collections.common.tokenizers import SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
 )
-
-# from megatron import get_tokenizer
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 
 
-class T5Dataset(torch.utils.data.Dataset):
+class T5Dataset(MegatronDataset):
     def __init__(
         self,
+        cfg,
+        trainer,
+        tokenizer,
         name,
         indexed_dataset,
         data_prefix,
         num_epochs,
         max_num_samples,
-        masked_lm_prob,
         max_seq_length,
         max_seq_length_dec,
-        short_seq_prob,
         seed,
+        masked_lm_prob=0.15,
+        short_seq_prob=0.1,
+        max_ngram_size=10,
+        mean_ngram_size=None,
+        geometric_dist=True,
+        permutation=False,
+        whole_word_masking=True,
+        favor_long_ngrams=False,
     ):
+        super().__init__(cfg, trainer=trainer)
 
         # Params to store.
         self.name = name
@@ -49,35 +58,56 @@ class T5Dataset(torch.utils.data.Dataset):
         self.masked_lm_prob = masked_lm_prob
         self.max_seq_length = max_seq_length
         self.max_seq_length_dec = max_seq_length_dec
+        self.short_seq_prob = short_seq_prob
+        self.max_ngram_size = max_ngram_size
+        self.mean_ngram_size = mean_ngram_size
+        self.geometric_dist = geometric_dist
+        self.permutation = permutation
+        self.whole_word_masking = whole_word_masking
+        self.favor_long_ngrams = favor_long_ngrams
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
 
         # Build the samples mapping.
         self.samples_mapping = get_samples_mapping(
-            self.indexed_dataset,
-            data_prefix,
-            num_epochs,
-            max_num_samples,
-            self.max_seq_length - 2,  # account for added tokens
-            short_seq_prob,
-            self.seed,
-            self.name,
-            False,
+            indexed_dataset=self.indexed_dataset,
+            data_prefix=data_prefix,
+            num_epochs=num_epochs,
+            max_num_samples=max_num_samples,
+            max_seq_length=self.max_seq_length - 2,  # account for added tokens
+            short_seq_prob=self.short_seq_prob,
+            seed=self.seed,
+            name=self.name,
+            binary_head=False,
         )
 
-        # Vocab stuff.
-        tokenizer = get_tokenizer()
-        self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        self.vocab_id_to_token_dict = tokenizer.inv_vocab
-        self.cls_id = tokenizer.cls
-        self.sep_id = tokenizer.sep
-        self.mask_id = tokenizer.mask
-        self.pad_id = tokenizer.pad
-        self.bos_id = tokenizer.bos_token_id
-        self.eos_id = tokenizer.eos_token_id
+        self.tokenizer = tokenizer
+        self.tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
+        if isinstance(self.tokenizer, YouTokenToMeTokenizer):
+            raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
+
+        if isinstance(self.tokenizer, SentencePieceTokenizer):
+            if not self.tokenizer.legacy:
+                raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
+            self.tokenizer_type = 'sentencepiece'
+            if whole_word_masking:
+                raise ValueError(
+                    "Whole word masking is not supported with sentencepiece tokenizers and only with wordpiece tokenizers. Please set it to False."
+                )
+
+        self.cls_id = tokenizer.cls_id
+        self.sep_id = tokenizer.sep_id
+        self.mask_id = tokenizer.mask_id
+        self.pad_id = tokenizer.pad_id
+        self.bos_id = tokenizer.bos_id
+        self.eos_id = tokenizer.eos_id
+
+        self.vocab_id_list = self.tokenizer.vocab
+        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
+
         self.sentinel_tokens = tokenizer.additional_special_tokens_ids
-        assert len(self.sentinel_tokens) > 0, "Provide the argument --vocab-extra-ids 100 to the script"
+        assert len(self.sentinel_tokens) > 0
 
     def __len__(self):
         return self.samples_mapping.shape[0]
@@ -91,23 +121,31 @@ class T5Dataset(torch.utils.data.Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        return build_training_sample(
-            sample,
-            seq_length,
-            self.max_seq_length,  # needed for padding
-            self.max_seq_length_dec,
-            self.vocab_id_list,
-            self.vocab_id_to_token_dict,
-            self.cls_id,
-            self.sep_id,
-            self.mask_id,
-            self.pad_id,
-            self.masked_lm_prob,
-            np_rng,
-            self.bos_id,
-            self.eos_id,
-            self.sentinel_tokens,
+        training_sample = build_training_sample(
+            sample=sample,
+            target_seq_length=seq_length,
+            max_seq_length=self.max_seq_length,
+            max_seq_length_dec=self.max_seq_length_dec,
+            vocab_id_list=self.vocab_id_list,
+            vocab_id_to_token_dict=self.vocab_id_to_token_dict,
+            cls_id=self.cls_id,
+            sep_id=self.sep_id,
+            mask_id=self.mask_id,
+            pad_id=self.pad_id,
+            masked_lm_prob=self.masked_lm_prob,
+            max_ngram_size=self.max_ngram_size,
+            mean_ngram_size=self.mean_ngram_size,
+            geometric_dist=self.geometric_dist,
+            permutation=self.permutation,
+            whole_word_masking=self.whole_word_masking,
+            favor_long_ngrams=self.favor_long_ngrams,
+            np_rng=np_rng,
+            bos_id=self.bos_id,
+            eos_id=self.eos_id,
+            sentinel_tokens=self.sentinel_tokens,
+            tokenizer_type=self.tokenizer_type,
         )
+        return training_sample
 
 
 def build_training_sample(
@@ -122,13 +160,19 @@ def build_training_sample(
     mask_id,
     pad_id,
     masked_lm_prob,
+    max_ngram_size,
+    mean_ngram_size,
+    geometric_dist,
+    permutation,
+    whole_word_masking,
+    favor_long_ngrams,
     np_rng,
     bos_id=None,
     eos_id=None,
     sentinel_tokens=None,
+    tokenizer_type="wordpiece",
 ):
     """Build training sample.
-
     Arguments:
         sample: A list of sentences in which each sentence is a list token ids.
         target_seq_length: Desired sequence length.
@@ -147,8 +191,14 @@ def build_training_sample(
         bos_id: start of decoder example id
         eos_id: end of generation id
         sentinel_tokens: unique value to be substituted for every replaced span
+        tokenizer_type: wordpiece (BERT-style) or sentencepiece tokenizer. Used for whole word masking logic.
+        max_ngram_size: maximum size of ngrams to be masked.
+        mean_ngram_size: mean size of ngrams to be masked (only used if geometric_dist=True).
+        geometric_dist: Uses a geometric distribution to sample ngram size.
+        permutation: Permutes the ngrams.
+        whole_word_masking: Always masks entire words instead of individual sub-word tokens.
+        favor_long_ngrams: Favor longer ngrams over shorter ones.
     """
-
     assert target_seq_length <= max_seq_length
 
     # flatten sentences into one list
@@ -162,22 +212,27 @@ def build_training_sample(
     # Masking.
     max_predictions_per_seq = masked_lm_prob * max_num_tokens
     (tokens, masked_positions, masked_labels, _, masked_spans) = create_masked_lm_predictions(
-        tokens,
-        vocab_id_list,
-        vocab_id_to_token_dict,
-        masked_lm_prob,
-        cls_id,
-        sep_id,
-        mask_id,
-        max_predictions_per_seq,
-        np_rng,
-        max_ngrams=10,
-        geometric_dist=True,
+        tokens=tokens,
+        vocab_id_list=vocab_id_list,
+        vocab_id_to_token_dict=vocab_id_to_token_dict,
+        masked_lm_prob=masked_lm_prob,
+        cls_id=cls_id,
+        sep_id=sep_id,
+        mask_id=mask_id,
+        max_predictions_per_seq=max_predictions_per_seq,
+        np_rng=np_rng,
+        max_ngram_size=max_ngram_size,
+        whole_word_masking=whole_word_masking,
+        favor_long_ngrams=favor_long_ngrams,
+        mean_ngram_size=mean_ngram_size,
+        permutation=permutation,
+        geometric_dist=geometric_dist,
         masking_style="t5",
+        tokenizer_type=tokenizer_type,
     )
 
     # Padding.
-    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask = pad_and_convert_to_numpy(
+    tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = pad_and_convert_to_numpy(
         tokens,
         masked_positions,
         masked_labels,
@@ -198,7 +253,6 @@ def build_training_sample(
         'truncated': int(truncated),
         'enc_mask': enc_mask,
         'dec_mask': dec_mask,
-        'enc_dec_mask': enc_dec_mask,
     }
     return train_sample
 
@@ -216,7 +270,6 @@ def pad_and_convert_to_numpy(
     sentinel_tokens=None,
 ):
     """Pad sequences and convert them to numpy."""
-
     sentinel_tokens = collections.deque(sentinel_tokens)
     t5_input = []
     (t5_decoder_in, t5_decoder_out) = ([bos_id], [])
@@ -266,10 +319,8 @@ def pad_and_convert_to_numpy(
     tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
     # Create attention masks
-    enc_mask = make_attention_mask(tokens_enc, tokens_enc)
-    enc_dec_mask = make_attention_mask(tokens_dec_in, tokens_enc)
-    dec_mask = make_attention_mask(tokens_dec_in, tokens_dec_in)
-    dec_mask = dec_mask * make_history_mask(tokens_dec_in)
+    enc_mask = (tokens_enc != pad_id).astype(np.int64)
+    dec_mask = (tokens_dec_in != pad_id).astype(np.int64)
 
     # Labels mask.
     labels = t5_decoder_out + ([-1] * padding_length_dec)
@@ -279,28 +330,28 @@ def pad_and_convert_to_numpy(
     loss_mask = ([1] * num_tokens_dec) + ([0] * padding_length_dec)
     loss_mask = np.array(loss_mask, dtype=np.int64)
 
-    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, enc_dec_mask, loss_mask
+    return tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask
 
 
-def make_attention_mask(source_block, target_block):
+def make_attention_mask(source_block, target_block, pad_id):
     """
     Returns a 2-dimensional (2-D) attention mask
     :param source_block: 1-D array
     :param target_block: 1-D array
     """
-    mask = (target_block[None, :] >= 1) * (source_block[:, None] >= 1)
+    mask = (target_block[None, :] != pad_id) * (source_block[:, None] != pad_id)
     mask = mask.astype(np.int64)
     # (source_length, target_length)
     return mask
 
 
-def make_attention_mask_3d(source_block, target_block):
+def make_attention_mask_3d(source_block, target_block, pad_id):
     """
     Returns a 3-dimensional (3-D) attention mask
     :param source_block: 1-D array
     :param target_block: 1-D array
     """
-    mask = (target_block[:, None, :] >= 1) * (source_block[:, :, None] >= 1)
+    mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
     # (batch, source_length, target_length)
     # mask = mask.astype(np.int64)
     return mask

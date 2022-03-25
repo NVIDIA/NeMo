@@ -15,12 +15,25 @@
 """GPT-2 model."""
 
 import torch
-from apex.transformer import tensor_parallel
-from apex.transformer.enums import AttnMaskType
 
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    init_method_normal,
+    parallel_lm_logits,
+    scaled_init_method_normal,
+)
+
+try:
+    from apex.transformer import tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 def post_language_model_processing(
@@ -31,6 +44,7 @@ def post_language_model_processing(
     parallel_output,
     forward_method_parallel_output,
     fp16_lm_cross_entropy,
+    return_logits=False,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -52,7 +66,10 @@ def post_language_model_processing(
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
 
-        return loss
+        if return_logits:
+            return loss, output
+        else:
+            return loss
 
 
 class GPTModel(MegatronModule):
@@ -82,12 +99,14 @@ class GPTModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         bias_gelu_fusion=True,
+        persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
         use_soft_prompts=False,
         num_prompt_tokens=10,
-        prompt_tags=None,
+        existing_prompt_tags=None,
     ):
+
         super(GPTModel, self).__init__()
 
         self.parallel_output = parallel_output
@@ -126,11 +145,12 @@ class GPTModel(MegatronModule):
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
             bias_gelu_fusion=bias_gelu_fusion,
+            persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             use_soft_prompts=use_soft_prompts,
             num_prompt_tokens=num_prompt_tokens,
-            prompt_tags=prompt_tags,
+            existing_prompt_tags=existing_prompt_tags,
         )
 
         self.initialize_word_embeddings(
@@ -147,20 +167,22 @@ class GPTModel(MegatronModule):
         position_ids,
         attention_mask,
         labels=None,
-        prompt_tags=None,
+        prompt_ids=None,
         tokentype_ids=None,
         layer_past=None,
         get_key_value=False,
         forward_method_parallel_output=None,
+        encoder_input=None,
     ):
 
         lm_output = self.language_model(
             input_ids,
             position_ids,
             attention_mask,
-            prompt_tags=prompt_tags,
+            prompt_ids=prompt_ids,
             layer_past=layer_past,
             get_key_value=get_key_value,
+            encoder_input=encoder_input,
         )
 
         if self.post_process:
@@ -172,6 +194,7 @@ class GPTModel(MegatronModule):
                 self.parallel_output,
                 forward_method_parallel_output,
                 self.fp16_lm_cross_entropy,
+                return_logits=encoder_input is not None,
             )
         else:
             return lm_output
@@ -199,8 +222,8 @@ class GPTModel(MegatronModule):
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
 
-    def _init_prompt_from_random(self, prompt_tag):
-        self.language_model._init_prompt_from_random(prompt_tag)
+    def _init_prompt_from_random(self, prompt_tag, prompt_id):
+        self.language_model._init_prompt_from_random(prompt_tag, prompt_id)
 
-    def _init_prompt_from_text(self, prompt_tag, init_token_ids):
-        self.language_model._init_prompt_from_text(prompt_tag, init_token_ids)
+    def _init_prompt_from_text(self, prompt_tag, prompt_id, init_token_ids):
+        self.language_model._init_prompt_from_text(prompt_tag, prompt_id, init_token_ids)

@@ -35,7 +35,6 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.states import RunningStage
 from pytorch_lightning.utilities.distributed import rank_zero_info
-from pytorch_lightning.utilities.types import _METRIC
 
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
@@ -44,6 +43,7 @@ from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
+from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
 
 class NotFoundError(NeMoBaseException):
@@ -76,12 +76,13 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    every_n_val_epochs: Optional[int] = 1
+    every_n_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
     always_save_nemo: bool = False
-    model_parallel_size: Optional[int] = None
+    save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
+    model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
 
 
 @dataclass
@@ -90,7 +91,7 @@ class StepTimingParams:
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
-    buffer_size: Optional[int] = -1
+    buffer_size: Optional[int] = 1
 
 
 @dataclass
@@ -117,7 +118,6 @@ class ExpManagerConfig:
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
-    model_parallel_size: Optional[int] = None
 
 
 class TimingCallback(Callback):
@@ -139,10 +139,10 @@ class TimingCallback(Callback):
         self.timer.stop(name)
         pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
 
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
@@ -328,13 +328,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 copy(Path(_file), log_dir)
 
         # Create files for cmd args and git info
-        with open(log_dir / 'cmd-args.log', 'w') as _file:
+        with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
             _file.write(" ".join(sys.argv))
 
         # Try to get git hash
         git_repo, git_hash = get_git_hash()
         if git_repo:
-            with open(log_dir / 'git-info.log', 'w') as _file:
+            with open(log_dir / 'git-info.log', 'w', encoding='utf-8') as _file:
                 _file.write(f'commit hash: {git_hash}')
                 _file.write(get_git_diff())
 
@@ -433,8 +433,9 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        if 'mp_rank' in str(last_checkpoints[0]):
+        if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
             checkpoint = last_checkpoints[0]
+            checkpoint = uninject_model_parallel_rank(checkpoint)
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
@@ -670,6 +671,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     def __init__(
         self,
         always_save_nemo=False,
+        save_nemo_on_train_end=True,
         save_best_model=False,
         postfix=".nemo",
         n_resume=False,
@@ -678,7 +680,15 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     ):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
+        self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
+        if self.save_best_model and not self.save_nemo_on_train_end:
+            logging.warning(
+                (
+                    "Found save_best_model is True and save_nemo_on_train_end is False. "
+                    "Set save_nemo_on_train_end to True to automatically save the best model."
+                )
+            )
         self.postfix = postfix
         self.previous_best_path = ""
         self.model_parallel_size = model_parallel_size
@@ -711,8 +721,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
-            if self.model_parallel_size is not None and self.model_parallel_size > 1:
-                checkpoint = self._uninject_mp_rank(checkpoint)
+            if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
+                checkpoint = uninject_model_parallel_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
                 continue
@@ -746,18 +756,11 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
 
-    @staticmethod
-    def _uninject_mp_rank(filepath):
-        dirname = os.path.dirname(os.path.dirname(filepath))
-        basename = os.path.basename(filepath)
-        filepath = os.path.join(dirname, basename)
-        return filepath
-
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # output = None
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-
         else:
             # Load the best model and then re-save it
             app_state = AppState()
@@ -804,15 +807,14 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             else:
                 trainer.checkpoint_connector.restore(self.best_model_path)
 
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
+        if self.save_nemo_on_train_end:
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+            filepath = inject_model_parallel_rank(filepath)
 
         # each model parallel rank needs to remove its model
         if is_global_rank_zero() or (app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0):
@@ -884,10 +886,8 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_from_checkpoint_fit_path or ""
-    if params.model_parallel_size is not None and params.model_parallel_size > 1:
-        checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
-            checkpoint_callback.last_model_path
-        )
+    if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
+        checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
 
 

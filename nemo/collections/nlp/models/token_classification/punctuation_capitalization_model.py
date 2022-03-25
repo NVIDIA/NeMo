@@ -102,10 +102,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_gpus
-        self.metrics = None
-        self.label_ids_are_set = False
-        self.punct_label_ids = None
-        self.capit_label_ids = None
+        # For structure of `self.metrics` attribute see `self._setup_metrics_dictionary` method.
+        self.metrics: Optional[torch.nn.ModuleDict] = None
+        self.label_ids_are_set: bool = False
+        self.punct_label_ids: Optional[Dict[str, int]] = None
+        self.capit_label_ids: Optional[Dict[str, int]] = None
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
@@ -681,13 +682,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"The artifact `class_labels.punct_labels_file` was not found in checkpoint. Will rely on "
                     f"`punct_label_ids` parameter"
                 )
-                self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
+                self.punct_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.punct_label_ids)
             else:
                 self.punct_label_ids = load_label_ids(
                     self.register_artifact('class_labels.punct_labels_file', str(punct_label_vocab_file))
                 )
         elif self._cfg.common_dataset_parameters.punct_label_ids is not None:
-            self.punct_label_ids = self._cfg.common_dataset_parameters.punct_label_ids
+            self.punct_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.punct_label_ids)
         else:
             raise ValueError(
                 f"Could not set attribute `punct_label_ids`. Config parameters "
@@ -703,13 +704,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     f"The artifact `class_labels.capit_labels_file` was not found in checkpoint. Will rely on "
                     f"`capit_label_ids` parameter"
                 )
-                self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
+                self.capit_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.capit_label_ids)
             else:
                 self.capit_label_ids = load_label_ids(
                     self.register_artifact('class_labels.capit_labels_file', str(capit_label_vocab_file))
                 )
         elif self._cfg.common_dataset_parameters.capit_label_ids is not None:
-            self.capit_label_ids = self._cfg.common_dataset_parameters.capit_label_ids
+            self.capit_label_ids = OmegaConf.to_container(self._cfg.common_dataset_parameters.capit_label_ids)
         else:
             raise ValueError(
                 f"Could not set attribute `capit_label_ids`. Config parameters "

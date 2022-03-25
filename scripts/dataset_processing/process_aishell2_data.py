@@ -19,7 +19,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 
 parser = argparse.ArgumentParser(description="Processing Aishell2 Data")
 parser.add_argument("--audio_folder", default=None, type=str, required=True, help="Audio (wav) data directory.")

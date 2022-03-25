@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 from argparse import ArgumentParser
 
 import torch
@@ -20,12 +21,13 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_request_dataset import GPTRequestDataset
+from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import GPTRequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 """
 Usage:
@@ -77,14 +79,51 @@ assert torch.cuda.is_available()
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--use_soft_prompts", action="store_true", help="Use model's existing soft prompts")
-    parser.add_argument("--model_file", type=str, default="", required=True, help="Pass path to model's .nemo file")
+
+    # args for loading the model, either from .nemo file or from PTL checkpoint
+    parser.add_argument("--model_file", type=str, default="", required=False, help="Pass path to model's .nemo file")
+    parser.add_argument(
+        "--checkpoint_dir",
+        type=str,
+        default=None,
+        required=False,
+        help="If not using a .nemo file. Path to PTL checkpoints saved during training. Ex: /raid/nemo_experiments/megatron_gpt/checkpoints",
+    )
+    parser.add_argument(
+        "--checkpoint_name",
+        type=str,
+        default=None,
+        required=False,
+        help="If not using a .nemo file. Name of checkpoint to be used. Ex: megatron_gpt--val_loss=6.34-step=649-last.ckpt",
+    )
+
+    parser.add_argument(
+        "--hparams_file",
+        type=str,
+        default=None,
+        required=False,
+        help="If not using a .nemo file. Path to config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
+    )
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, default=1, required=False, help="Needed if not using a .nemo file"
+    )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, default=1, required=False, help="Needed if not using a .nemo file",
+    )
+
+    # PTL Trainer args
+    parser.add_argument("--devices", default=1, type=int, help="PyTorch Lightning Trainer devices flag")
+    parser.add_argument("--num_nodes", default=1, type=int, help="PyTorch Lightning Trainer num_nodes flag")
+    parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
+
+    # evaluation args
     parser.add_argument(
         "--path_to_file", type=str, default="", required=False, help="Path to file with prompts (a text to complete)"
     )
     parser.add_argument(
         "--prompt", type=str, default="", required=False, help="Prompt for the model (a text to complete)"
     )
+    parser.add_argument("--use_soft_prompts", action="store_true", help="Use model's existing soft prompts")
     parser.add_argument(
         "--prompt_tag", type=str, default="", required=False, help="Prompt tag string for task specific soft prompt"
     )
@@ -98,30 +137,57 @@ def main():
         required=False,
         help="True/False: whether to stop after full sentence has been generated.",
     )
-    parser.add_argument(
-        "--tensor_model_parallel_size", type=int, default=1, required=False,
-    )
-    parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
-    parser.add_argument("--batch_size", default=1, required=False, help="Evaluation batch_size")
+    parser.add_argument("--batch_size", default=1, type=int, required=False, help="Evaluation batch_size")
     parser.add_argument(
         "--compute_logprobs", type=bool, default=False, required=False, help="Method for logprobs computation"
     )
 
     args = parser.parse_args()
 
+    assert (
+        args.devices * args.num_nodes == args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+    ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
+
+    if args.model_file and args.checkpoint_dir:
+        raise ValueError("Only one of model_file or checkpoint_dir should be used")
+
     # cast precision to int if 32 or 16
     if args.precision in ["32", "16"]:
         args.precision = int(float(args.precision))
 
     # trainer required for restoring model parallel models
-    trainer = Trainer(plugins=NLPDDPPlugin(), gpus=args.tensor_model_parallel_size, precision=args.precision)
+    trainer = Trainer(
+        plugins=[NLPDDPPlugin()],
+        devices=args.devices,
+        num_nodes=args.num_nodes,
+        accelerator='gpu',
+        precision=args.precision,
+    )
 
-    app_state = AppState()
-    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
-        app_state.model_parallel_size = args.tensor_model_parallel_size
-        app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
+    if args.model_file:
+        model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
+    elif args.checkpoint_dir:
+        app_state = AppState()
+        if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
+            app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
+            app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
+            app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+            (
+                app_state.tensor_model_parallel_rank,
+                app_state.pipeline_model_parallel_rank,
+                app_state.model_parallel_size,
+                _,
+            ) = fake_initialize_model_parallel(
+                world_size=app_state.model_parallel_size,
+                rank=trainer.global_rank,
+                tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
+                pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+            )
+        # inject model parallel rank
+        checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_dir, args.checkpoint_name))
 
-    model = MegatronGPTModel.restore_from(restore_path=args.model_file, trainer=trainer)
+        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+
     model.freeze()
 
     def pad_collate(batch):
@@ -147,7 +213,7 @@ def main():
     # defining type of request
     if args.path_to_file != "":
         request = []
-        prompts = open(args.path_to_file, 'r')
+        prompts = open(args.path_to_file, 'r', encoding='utf-8')
 
         for prompt in prompts.readlines():
             prompt = prompt.split('\n')[0]
@@ -178,6 +244,8 @@ def main():
     print("***************************")
     print(response)
     print("***************************")
+    if args.prompt and not args.compute_logprobs:
+        print(f'Prompt: {args.prompt}\n\nResponse: {response[0][0][0]}')
 
 
 if __name__ == '__main__':

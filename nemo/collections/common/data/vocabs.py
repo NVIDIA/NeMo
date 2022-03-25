@@ -19,6 +19,7 @@ import string
 import time
 import unicodedata
 from builtins import str as unicode
+from contextlib import contextmanager
 from typing import List
 
 import nltk
@@ -375,3 +376,8 @@ class Phonemes(Base):
             ps = [space] + ps + [space]
 
         return [self._label2id[p] for p in ps]
+
+    @contextmanager
+    def set_phone_prob(self, prob=None):
+        # Add do nothing since this class doesn't support mixed g2p
+        yield

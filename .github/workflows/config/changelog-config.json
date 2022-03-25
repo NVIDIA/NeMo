@@ -1,0 +1,114 @@
+{
+    "categories": [
+      {
+        "title": "## ASR",
+        "labels": ["asr"]
+      },
+      {
+        "title": "## TTS",
+        "labels": ["tts"]
+      },
+      {
+        "title": "## NLP / NMT",
+        "labels": ["nlp", "nmt", "megatron"]
+      },
+      {
+        "title": "## Text Normalization / Inverse Text Normalization",
+        "labels": ["tn", "itn"]
+      },
+      {
+        "title": "## NeMo Tools",
+        "labels": ["tools"]
+      },
+      {
+        "title": "## Export",
+        "labels": ["export"]
+      },
+      {
+        "title": "## Documentation",
+        "labels": ["docs"]
+      },
+      {
+        "title": "## Bugfixes",
+        "labels": ["bug"]
+      }
+    ],
+    "ignore_labels": [
+      "ignore"
+    ],
+    "sort": "ASC",
+    "template": "${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
+    "pr_template": "- ${{TITLE}} by @${{AUTHOR}} :: PR: #${{NUMBER}}",
+    "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
+    "label_extractor": [
+      {
+        "pattern": "(.*tts.*)|(.*g2p.*)",
+        "target": "tts",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)|(.*k2.*)",
+        "target": "asr",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
+        "target": "nlp",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
+        "target": "nmt",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
+        "target": "tn",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*sde.*)|(.*ctc segment.*)",
+        "target": "tools",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*trt.*)|(.*onnx.*)|(.*export.*)",
+        "target": "export",
+        "flags": "gimu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*\\[x\\] Documentation.*)",
+        "target": "docs",
+        "flags": "gmu",
+        "on_property": ["title", "body"]
+      },
+      {
+        "pattern": "(.*\\[x\\] Bugfix.*)|(.*patch.*)",
+        "target": "bug",
+        "flags": "gmu",
+        "on_property": ["title", "body"]
+      }
+    ],
+    "duplicate_filter": {
+      "pattern": ".+",
+      "on_property": "title",
+      "method": "match"
+    },
+    "transformers": [
+    ],
+    "max_tags_to_fetch": 100,
+    "max_pull_requests": 500,
+    "max_back_track_time_days": 365,
+    "exclude_merge_branches": [
+    ],
+    "tag_resolver": {
+      "method": "semver"
+    }
+}

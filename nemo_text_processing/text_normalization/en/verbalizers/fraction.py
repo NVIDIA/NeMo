@@ -46,6 +46,7 @@ class FractionFst(GraphFst):
         denominator = pynutil.delete("denominator: \"") + (
             pynini.closure(NEMO_NOT_QUOTE) @ suffix | pynutil.add_weight(pynini.cross('four', 'quarter'), -1)
         )
+
         conjunction = pynutil.insert("and ")
         if not deterministic:
             conjunction = pynini.closure(conjunction, 0, 1)
@@ -61,6 +62,7 @@ class FractionFst(GraphFst):
         fraction_default = pynutil.add_weight(
             numerator + insert_space + denominator + pynutil.insert("s") + pynutil.delete("\""), 0.001
         )
+
         fraction_with_one = pynutil.add_weight(
             numerator_one + insert_space + denominator + pynutil.delete("\""), 0.0001
         )

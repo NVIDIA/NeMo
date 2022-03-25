@@ -1,17 +1,17 @@
 Speaker Diarization
 ==================================
 
-Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, that is Who Speaks When?
+Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, which is figuring out "Who spoke when?".
 
 .. image:: images/sd_pipeline.png
         :align: center
+        :scale: 75%
         :alt: Speaker Diarization pipeline [todo]
-        :scale: 50%
 
 
-A diarization system consists of a **Voice Activity Detection (VAD)** model to get the time stamps of audio where speech is being spoken while ignoring the background noise and 
-a **Speaker Embeddings** model to get speaker embeddings on speech segments obtained from VAD time stamps. 
-These speaker embeddings would then be clustered into clusters based on number of speakers present in the audio recording.
+A speaker diarization system consists of a **Voice Activity Detection (VAD)** model to get the timestamps of audio where speech is being spoken while ignoring the background noise and 
+a **Speaker Embedding extractor** model to get speaker embeddings on speech segments obtained from VAD time stamps. 
+These speaker embeddings would then be clustered into clusters based on the number of speakers present in the audio recording.
 
 In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization. 
 
@@ -32,7 +32,7 @@ Resource and Documentation Guide
 
 Hands-on speaker diarization tutorial notebooks can be found under ``<NeMo_git_root>/tutorials/speaker_tasks/``.
 
-There are tutorials for peformming inference using :ref:`MarbleNet_model` and :ref:`SpeakerNet_model`, 
+There are tutorials for performing inference using :ref:`MarbleNet_model` and :ref:`TitaNet_model`, 
 and how one can get ASR transcriptions combined with Speaker labels along with voice activity time stamps with NeMo asr collections.
 
 Most of the tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.

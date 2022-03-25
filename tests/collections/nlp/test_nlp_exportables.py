@@ -84,7 +84,7 @@ class TestExportableClassifiers:
     #         config = OmegaConf.load(config_file)
     #         config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
     #         config.model.data_dir = dummy_data
-    #         config.trainer.gpus = 1
+    #         config.trainer.devices = 1
     #         config.trainer.precision = 32
     #         config.trainer.accelerator = None
     #         trainer = pl.Trainer(**config.trainer)
@@ -113,9 +113,9 @@ class TestExportableClassifiers:
             config = OmegaConf.load(config_file)
             config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
             config.model.data_dir = dummy_data
-            config.trainer.gpus = 1
+            config.trainer.devices = 1
             config.trainer.precision = 32
-            config.trainer.accelerator = None
+            config.trainer.strategy = None
             trainer = pl.Trainer(**config.trainer)
             model = IntentSlotClassificationModel(config.model, trainer=trainer)
             filename = os.path.join(tmpdir, 'isc.pt')
@@ -142,6 +142,8 @@ class TestExportableClassifiers:
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
+            assert onnx_model.graph.input[1].name == 'attention_mask'
+            assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
     @pytest.mark.with_downloads()
@@ -155,7 +157,7 @@ class TestExportableClassifiers:
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
-            # assert onnx_model.graph.input[2].name == 'token_type_ids'
+            assert onnx_model.graph.input[1].name == 'attention_mask'
             assert onnx_model.graph.output[0].name == 'punct_logits'
             assert onnx_model.graph.output[1].name == 'capit_logits'
 
@@ -170,7 +172,8 @@ class TestExportableClassifiers:
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
-            assert onnx_model.graph.input[1].name == 'token_type_ids'
+            assert onnx_model.graph.input[1].name == 'attention_mask'
+            assert onnx_model.graph.input[2].name == 'token_type_ids'
             assert onnx_model.graph.output[0].name == 'logits'
 
 

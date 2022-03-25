@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import omegaconf
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
@@ -20,12 +21,10 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.tts.helpers.helpers import binarize_attention, get_mask_from_lengths, plot_alignment_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.core.classes import ModelPT
-from nemo.core.classes.common import typecheck
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
 try:
@@ -35,23 +34,73 @@ except ModuleNotFoundError:
 
 
 class AlignerModel(ModelPT):
-    """Speech-to-text alignment pipeline."""
+    """Speech-to-text alignment model (https://arxiv.org/pdf/2108.10447.pdf) that is used to learn alignments between mel spectrogram and text."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        super().__init__(cfg=cfg, trainer=trainer)
-        typecheck.set_typecheck_enabled(enabled=False)
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
-        cfg = self._cfg
-        self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
-        self.embed = nn.Embedding(len(self.vocab.labels), cfg.d_char)
+        # Setup normalizer
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
+
+        # Setup tokenizer
+        self.tokenizer = None
+        self._setup_tokenizer(cfg)
+        assert self.tokenizer is not None
+
+        num_tokens = len(self.tokenizer.tokens)
+        self.tokenizer_pad = self.tokenizer.pad
+        self.tokenizer_unk = self.tokenizer.oov
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.embed = nn.Embedding(num_tokens, cfg.symbols_embedding_dim)
         self.preprocessor = instantiate(cfg.preprocessor)
         self.alignment_encoder = instantiate(cfg.alignment_encoder)
 
         self.forward_sum_loss = ForwardSumLoss()
         self.bin_loss = BinLoss()
-
-        self.bin_start_ratio = cfg.bin_start_ratio
         self.add_bin_loss = False
+        self.bin_loss_scale = 0.0
+        self.bin_loss_start_ratio = cfg.bin_loss_start_ratio
+        self.bin_loss_warmup_epochs = cfg.bin_loss_warmup_epochs
+
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
+            normalizer_kwargs = {}
+
+            if "whitelist" in cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
+                )
+
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
+
+    def _setup_tokenizer(self, cfg):
+        text_tokenizer_kwargs = {}
+        if "g2p" in cfg.text_tokenizer:
+            g2p_kwargs = {}
+
+            if "phoneme_dict" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["phoneme_dict"] = self.register_artifact(
+                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                )
+
+            if "heteronyms" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["heteronyms"] = self.register_artifact(
+                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                )
+
+            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+
+        self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     def forward(self, *, spec, spec_len, text, text_len, attn_prior=None):
         with torch.cuda.amp.autocast(enabled=False):
@@ -65,39 +114,47 @@ class AlignerModel(ModelPT):
         return attn_soft, attn_logprob
 
     def _metrics(self, attn_soft, attn_logprob, spec_len, text_len):
-        loss, bin_loss, attn_hard = 0.0, 0.0, None
+        loss, bin_loss, attn_hard = 0.0, None, None
 
-        forward_sum_loss = self.forward_sum_loss(attn_logprob, text_len, spec_len)
+        forward_sum_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_len, out_lens=spec_len)
         loss += forward_sum_loss
 
         if self.add_bin_loss:
             attn_hard = binarize_attention(attn_soft, text_len, spec_len)
-            bin_loss = self.bin_loss(attn_hard, attn_soft)
+            bin_loss = self.bin_loss(hard_attention=attn_hard, soft_attention=attn_soft)
             loss += bin_loss
 
         return loss, forward_sum_loss, bin_loss, attn_hard
 
     def on_train_epoch_start(self):
-        # Add bin loss when current_epoch >= bin_start_ratio * max_epochs
-        if not self.add_bin_loss and self.current_epoch >= np.ceil(self.bin_start_ratio * self._trainer.max_epochs):
+        bin_loss_start_epoch = np.ceil(self.bin_loss_start_ratio * self._trainer.max_epochs)
+
+        # Add bin loss when current_epoch >= bin_start_epoch
+        if not self.add_bin_loss and self.current_epoch >= bin_loss_start_epoch:
             logging.info(f"Using hard attentions after epoch: {self.current_epoch}")
             self.add_bin_loss = True
 
+        if self.add_bin_loss:
+            self.bin_loss_scale = min((self.current_epoch - bin_loss_start_epoch) / self.bin_loss_warmup_epochs, 1.0)
+
     def training_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, attn_prior = batch
-        spec, spec_len = self.preprocessor(audio, audio_len)
+        spec, spec_len = self.preprocessor(input_signal=audio, length=audio_len)
         attn_soft, attn_logprob = self(
             spec=spec, spec_len=spec_len, text=text, text_len=text_len, attn_prior=attn_prior
         )
 
         loss, forward_sum_loss, bin_loss, _ = self._metrics(attn_soft, attn_logprob, spec_len, text_len)
 
-        train_log = {'train_forward_sum_loss': forward_sum_loss, 'train_bin_loss': bin_loss}
-        return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
+        train_log = {
+            'train_forward_sum_loss': forward_sum_loss,
+            'train_bin_loss': torch.tensor(1.0).to(forward_sum_loss.device) if bin_loss is None else bin_loss,
+        }
+        return {'loss': loss, 'progress_bar': {k: v.detach() for k, v in train_log.items()}, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, attn_prior = batch
-        spec, spec_len = self.preprocessor(audio, audio_len)
+        spec, spec_len = self.preprocessor(input_signal=audio, length=audio_len)
         attn_soft, attn_logprob = self(
             spec=spec, spec_len=spec_len, text=text, text_len=text_len, attn_prior=attn_prior
         )
@@ -131,12 +188,26 @@ class AlignerModel(ModelPT):
 
             self.logger.experiment.log({"attn_matrices": attn_matrices})
 
-        val_log = {'val_loss': loss, 'val_forward_sum_loss': forward_sum_loss, 'val_bin_loss': bin_loss}
+        val_log = {
+            'val_loss': loss,
+            'val_forward_sum_loss': forward_sum_loss,
+            'val_bin_loss': torch.tensor(1.0).to(forward_sum_loss.device) if bin_loss is None else bin_loss,
+        }
         self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
 
-    @staticmethod
-    def _loader(cfg):
-        dataset = instantiate(cfg.dataset)
+    def _loader(self, cfg):
+        try:
+            _ = cfg.dataset.manifest_filepath
+        except omegaconf.errors.MissingMandatoryValue:
+            logging.warning("manifest_filepath was skipped. No dataset for this model.")
+            return None
+
+        dataset = instantiate(
+            cfg.dataset,
+            text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer,
+        )
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )

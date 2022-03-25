@@ -49,6 +49,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_st
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
 TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
@@ -101,10 +102,11 @@ class PunctuationCapitalizationDataConfigBase:
     parameter equals ``-1``, then all samples are used."""
 
     use_cache: bool = True
-    """Whether to use pickled features. If pickled features does not exist, then pickled features will be created.
-    For large regular datasets, pickled features may considerably reduce time for training starting. Tokenization
-    of source sequences is not fast because sequences are split into words before tokenization. For even larger
-    datasets (~4M), tarred datasets are recommended."""
+    """Whether to use pickled features. If pickled features file does not exist or ``use_cache=False``, then features
+    are pickled in ``cache_dir``. Pickled features include input ids, subtokens mask (mask of first tokens in words),
+    encoded punctuation and capitalization labels, label ids. Features creation consumes considerable time and this
+    ``use_cache=True`` significantly speeds up training starting. Pickled features are also used for sharing features
+    between processes if data parallel training is used."""
 
     cache_dir: Optional[str] = None
     """A path to a directory containing cache or directory where newly created cache is saved. By default, it is
@@ -807,18 +809,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
             ``[True, False]``, and if ``ignore_extra_tokens=False``, then loss mask is ``[True, True]``.
         ignore_start_end (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to ignore [CLS] and [SEP] tokens
             in the loss_mask.
-        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to use pickled features or not. If
-            pickled features does not exist and ``use_cache=True``, then pickled features will be created. Pickled
-            features are looked for and stored in ``cache_dir``. Pickled features include input ids, subtokens mask
-            (mask of first tokens in words), encoded punctuation and capitalization labels, label ids. Features
-            creation consumes considerable time and this ``use_cache=True`` significantly speeds up training starting.
-
-            .. warning::
-                If you spawned more then 1 processes BEFORE dataset creation, then the ``use_cache`` parameter
-                has to be ``True``. In PyTorch Lightning spawning is performed when `Trainer.fit()
-                <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#fit>`_ or
-                `Trainer.test() <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#test>`_
-                are called.
+        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to use pickled features already present
+            in ``cache_dir`` or not. If pickled features file does not exist or ``use_cache=False``, then features are
+            pickled in ``cache_dir``. Pickled features include input ids, subtokens mask (mask of first tokens in
+            words), encoded punctuation and capitalization labels, label ids. Features creation consumes considerable
+            time and this ``use_cache=True`` significantly speeds up training starting. Pickled features are also
+            used for sharing features between processes if data parallel training is used.
         cache_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where cache (pickled features)
             is stored. By default, ``text_file`` parent directory is used. This parameter is useful if dataset
             directory is read-only and you wish to pickle features. In such a case specify a path to directory which
@@ -879,8 +875,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         num_samples: int = -1,
         tokens_in_batch: int = 5000,
         pad_label: str = 'O',
-        punct_label_ids: Optional[Dict[str, int]] = None,
-        capit_label_ids: Optional[Dict[str, int]] = None,
+        punct_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
+        capit_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = True,
         use_cache: bool = True,
@@ -897,6 +893,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         batch_building_progress_queue: Optional[mp.Queue] = None,
     ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
+        if isinstance(punct_label_ids, DictConfig):
+            punct_label_ids = OmegaConf.to_container(punct_label_ids)
+        if isinstance(capit_label_ids, DictConfig):
+            capit_label_ids = OmegaConf.to_container(capit_label_ids)
         self._check_constructor_parameters(
             text_file,
             labels_file,
@@ -929,10 +929,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
         self.batch_building_progress_queue = batch_building_progress_queue
 
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
+        master_device = is_global_rank_zero()
+        self.features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
         features = None
-        if master_device and not (features_pkl.is_file() and use_cache):
+        if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(f'Processing {text_file}')
             res = self._read_dataset(text_file, labels_file, num_samples)
@@ -962,27 +962,26 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 progress_queue=tokenization_progress_queue,
                 n_jobs=n_jobs,
             )
-            if use_cache:
-                features_pkl.parent.mkdir(parents=True, exist_ok=True)
-                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
-                if self.verbose:
-                    logging.info(f'Features saved to {features_pkl}')
+            self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
+            pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), self.features_pkl.open("wb"))
+            if self.verbose:
+                logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
         if features is None:
-            features = pickle.load(open(features_pkl, 'rb'))
+            features = pickle.load(self.features_pkl.open('rb'))
             li = features[-2:]
             self._check_label_ids_loaded_from_pkl(
-                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file, features_pkl
+                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file
             )
             punct_label_ids, capit_label_ids = li[-2], li[-1]
             if tokenization_progress_queue is not None:
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
-                logging.info(f'Features restored from {features_pkl}')
+                logging.info(f'Features restored from {self.features_pkl}')
             features = features[:-2]
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
@@ -1033,9 +1032,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and'
-                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with'
-                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are'
+                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and '
+                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with '
+                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are '
                 f'separated with spaces. Each line of the files should follow the format:\n'
                 f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
                 f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
@@ -1079,19 +1078,18 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f"Negative `num_samples` is for using all samples in a dataset."
             )
 
-    @staticmethod
     def _check_label_ids_loaded_from_pkl(
+        self,
         parameter_punct_label_ids: Dict[str, int],
         parameter_capit_label_ids: Dict[str, int],
         pkl_punct_label_ids: Any,
         pkl_capit_label_ids: Any,
         punct_label_vocab_file: Optional[Path],
         capit_label_vocab_file: Optional[Path],
-        features_file: Path,
     ) -> None:
         if not isinstance(pkl_punct_label_ids, dict):
             raise ValueError(
-                f"Punctuation label ids loaded from features file {features_file} has wrong type "
+                f"Punctuation label ids loaded from features file {self.features_pkl} has wrong type "
                 f"{type(pkl_punct_label_ids)}"
             )
         if parameter_punct_label_ids is not None:
@@ -1102,11 +1100,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
                     if punct_label_vocab_file is None
                     else f"Punctuation labels loaded from file {punct_label_vocab_file}",
-                    second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
+                    second_labels_desc=f"Punctuation label ids loaded from features file {self.features_pkl}",
                 )
         if not isinstance(pkl_capit_label_ids, dict):
             raise ValueError(
-                f"Capitalization label ids loaded from features file {features_file} has wrong type "
+                f"Capitalization label ids loaded from features file {self.features_pkl} has wrong type "
                 f"{type(pkl_capit_label_ids)}"
             )
         if parameter_capit_label_ids is not None:
@@ -1117,7 +1115,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
                     if capit_label_vocab_file is None
                     else f"Capitalization labels loaded from file {capit_label_vocab_file}",
-                    second_labels_desc=f"Capitalization label ids loaded from features file {features_file}",
+                    second_labels_desc=f"Capitalization label ids loaded from features file {self.features_pkl}",
                 )
 
     @staticmethod

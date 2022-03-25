@@ -18,3 +18,8 @@ h t t p colon slash slash w w w dot o u r d a i l y n e w s dot com dot s m~http
 h t t p colon slash slash w w w dot c o m d a i l y n e w s dot a b dot s m~http://www.comdailynews.ab.sm
 h t t p colon slash slash w w w dot c o m d a i l y n e w s dot a b slash s m~http://www.comdailynews.ab/sm
 w w w dot c o m d a i l y n e w s dot a b slash s m~www.comdailynews.ab/sm
+c o m d a i l y n e w s dot a b slash s m~comdailynews.ab/sm
+n vidia dot com~nvidia.com
+abc at gmail dot com~abc@gmail.com
+athreed at gmail dot com~athreed@gmail.com
+kore dot ai~kore.ai

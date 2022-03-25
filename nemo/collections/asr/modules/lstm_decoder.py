@@ -75,15 +75,13 @@ class LSTMDecoder(NeuralModule, Exportable):
         output = self.linear_layer(output)
         return torch.nn.functional.log_softmax(output, dim=-1)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
         return tuple([input_example])
 
     @property

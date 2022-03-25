@@ -15,11 +15,14 @@
 """Processing data for megatron pretraining."""
 
 import argparse
+import gzip
 import json
 import multiprocessing
+import os
 import sys
 import time
 
+import ftfy
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
@@ -85,6 +88,8 @@ class Encoder(object):
         ids = {}
         for key in self.args.json_keys:
             text = data[key]
+            if self.args.apply_ftfy:
+                text = ftfy.fix_text(text)
             doc_ids = []
             for sentence in Encoder.splitter.tokenize(text):
                 sentence_ids = Encoder.tokenizer.text_to_ids(sentence)
@@ -99,7 +104,12 @@ class Encoder(object):
 def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
-    group.add_argument('--input', type=str, required=True, help='Path to input JSON')
+    group.add_argument(
+        '--input',
+        type=str,
+        required=True,
+        help='Path to the input json or json.gz file. If preprocessing an entire folder, set the --preproc-folder flag and provide the path to the folder in this arg.',
+    )
     group.add_argument(
         '--json-keys', nargs='+', default=['text'], help='space separate listed of keys to extract from json'
     )
@@ -131,6 +141,12 @@ def get_args():
     group = parser.add_argument_group(title='runtime')
     group.add_argument('--workers', type=int, default=1, help='Number of worker processes to launch')
     group.add_argument('--log-interval', type=int, default=100, help='Interval between progress updates')
+    group.add_argument(
+        '--preproc-folder',
+        action='store_true',
+        help='If set, will preprocess all .json or .json.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
+    )
+    group.add_argument('--apply-ftfy', action='store_true', help='If set, will apply ftfy to the input text')
     args = parser.parse_args()
     args.keep_empty = False
 
@@ -151,9 +167,20 @@ def get_args():
 def main():
     args = get_args()
     startup_start = time.time()
-
-    print("Opening", args.input)
-    fin = open(args.input, 'r', encoding='utf-8')
+    if args.preproc_folder:
+        print('Searching folder for .json or .json.gz files...')
+        assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
+        files_in_folder = os.listdir(args.input)
+        json_files = [
+            os.path.join(args.input, f) for f in files_in_folder if f.endswith('.json') or f.endswith('.json.gz')
+        ]
+        if len(json_files) == 0:
+            raise FileNotFoundError('No .json or .json.gz files found in folder.')
+        else:
+            print(f'Found {len(json_files)} .json or .json.gz files.')
+    else:
+        assert os.path.exists(args.input), f'File does not exist: {args.input}'
+        json_files = [args.input]
 
     if nltk_available and args.split_sentences:
         nltk.download("punkt", quiet=True)
@@ -167,9 +194,6 @@ def main():
         vocab_file=args.vocab_file,
         merges_file=args.merge_file,
     )
-    pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
-    encoded_docs = pool.imap(encoder.encode, fin, 25)
-    # encoded_docs = map(encoder.encode, fin)
 
     level = "document"
     if args.split_sentences:
@@ -192,19 +216,30 @@ def main():
     total_bytes_processed = 0
     print("Time to startup:", startup_end - startup_start)
 
-    for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
-        total_bytes_processed += bytes_processed
-        for key, sentences in doc.items():
-            if len(sentences) == 0:
-                continue
-            for sentence in sentences:
-                builders[key].add_item(torch.IntTensor(sentence))
-            builders[key].end_document()
-        if i % args.log_interval == 0:
-            current = time.time()
-            elapsed = current - proc_start
-            mbs = total_bytes_processed / elapsed / 1024 / 1024
-            print(f"Processed {i} documents", f"({i/elapsed} docs/s, {mbs} MB/s).", file=sys.stderr)
+    pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
+
+    for idx, json_file in enumerate(json_files):
+        print(f'Processing file {json_file} {idx + 1}/{len(json_files)}')
+        if json_file.endswith('.gz'):
+            fin = gzip.open(json_file, 'r')
+        else:
+            fin = open(args.input, 'r', encoding='utf-8')
+
+        encoded_docs = pool.imap(encoder.encode, fin, 25)
+
+        for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
+            total_bytes_processed += bytes_processed
+            for key, sentences in doc.items():
+                if len(sentences) == 0:
+                    continue
+                for sentence in sentences:
+                    builders[key].add_item(torch.IntTensor(sentence))
+                builders[key].end_document()
+            if i % args.log_interval == 0:
+                current = time.time()
+                elapsed = current - proc_start
+                mbs = total_bytes_processed / elapsed / 1024 / 1024
+                print(f"Processed {i} documents", f"({i/elapsed} docs/s, {mbs} MB/s).", file=sys.stderr)
 
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])

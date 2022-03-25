@@ -21,9 +21,13 @@ model:
     labels: ${model.labels}
     batch_size: 128
     shuffle: True
-    is_tarred: False
+    # tarred datasets
+    is_tarred: false
     tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
     augmentor:
       shift:
         prob: 1.0
@@ -164,13 +168,14 @@ model:
       last_epoch: -1
 
 trainer:
-  gpus: 0 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 200
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations

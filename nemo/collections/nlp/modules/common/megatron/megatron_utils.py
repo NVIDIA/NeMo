@@ -13,17 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import glob
-import json
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import torch
 import wget
 from torch.hub import _get_torch_home
 
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 __all__ = [
     "get_megatron_lm_model",
@@ -97,112 +94,6 @@ MEGATRON_CONFIG_MAP = {
         "tokenizer_name": "bert-large-cased",
     },
 }
-
-
-def get_megatron_lm_model(
-    pretrained_model_name: str,
-    config_dict: Optional[dict] = None,
-    config_file: Optional[str] = None,
-    checkpoint_file: Optional[str] = None,
-    vocab_file: Optional[str] = None,
-    merges_file: Optional[str] = None,
-) -> Tuple[MegatronBertEncoder, str]:
-    """
-    Returns MegatronBertEncoder and a default or user specified path to the checkpoint file
-
-    Args:
-        pretrained_mode_name: model name from MEGATRON_CONFIG_MAP
-            for example: megatron-bert-cased
-        config_dict: model configuration parameters
-        config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
-        checkpoint_file: path to checkpoint file or directory if using model parallel.
-        vocab_file: path to vocab file
-
-    Returns:
-        model: MegatronBertEncoder
-        checkpoint_file: path to checkpoint file or directory
-    """
-    raise ValueError(
-        f'megatron-lm bert has been deprecated in NeMo 1.5. Please use an earlier release of NeMo. Megatron bert support will be added back to NeMo in a future release.'
-    )
-    # config = None
-    # # get default config and checkpoint
-    # if config_file:
-    #     with open(config_file) as f:
-    #         config = json.load(f)
-    #         # replace dashes with underscores in config keys
-    #         fixed_config = {}
-    #         for key in config.keys():
-    #             fixed_key = key.replace("-", "_")
-    #             if fixed_key == 'max_seq_length':
-    #                 fixed_key = 'max_position_embeddings'
-    #             fixed_config[fixed_key] = config[key]
-    #         # 'vocab_size" no longer used.
-    #         if 'vocab_size' in fixed_config:
-    #             fixed_config.pop('vocab_size')
-    #         config = fixed_config
-    # elif config_dict:
-    #     config = config_dict
-    # elif pretrained_model_name in get_megatron_lm_models_list():
-    #     config = get_megatron_config(pretrained_model_name)
-    # else:
-    #     raise ValueError(f"{pretrained_model_name} is not supported")
-
-    # if config is None:
-    #     raise ValueError(f"config_file or config_dict is required for {pretrained_model_name}")
-
-    # if not checkpoint_file:
-    #     checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
-
-    # if not vocab_file:
-    #     vocab_file = get_megatron_vocab_file(pretrained_model_name)
-
-    # if not merges_file:
-    #     merges_file = get_megatron_merges_file(pretrained_model_name)
-
-    # app_state = AppState()
-    # if app_state.model_parallel_size is not None and app_state.model_parallel_rank is not None:
-    #     # model parallel already known from .nemo restore
-    #     model_parallel_size = app_state.model_parallel_size
-    #     model_parallel_rank = app_state.model_parallel_rank
-    # elif os.path.isdir(checkpoint_file):
-    #     # starting training from megatron-lm checkpoint
-    #     mp_ranks = glob.glob(os.path.join(checkpoint_file, 'mp_rank*'))
-    #     model_parallel_size = len(mp_ranks)
-    #     app_state.model_parallel_size = model_parallel_size
-    #     logging.info(
-    #         (
-    #             f'restore_path: {checkpoint_file} is a directory. '
-    #             f'Assuming megatron model parallelism with '
-    #             f'model_parallel_size: {model_parallel_size}'
-    #         )
-    #     )
-    #     # try to get local rank from global
-    #     local_rank = None
-    #     try:
-    #         local_rank = int(os.environ['LOCAL_RANK'])
-    #     except:
-    #         logging.info('Global variable LOCAL_RANK not yet specified')
-    #     if local_rank is not None:
-    #         app_state.local_rank = local_rank
-    #     else:
-    #         # if local is None then we are on the main process
-    #         local_rank = 0
-    #     model_parallel_rank = compute_model_parallel_rank(local_rank, model_parallel_size)
-    #     app_state.model_parallel_rank = model_parallel_rank
-    # else:
-    #     model_parallel_size = None
-    #     model_parallel_rank = None
-
-    # model = MegatronBertEncoder(
-    #     model_name=pretrained_model_name,
-    #     config=config,
-    #     vocab_file=vocab_file,
-    #     model_parallel_size=model_parallel_size,
-    #     model_parallel_rank=model_parallel_rank,
-    # )
-
-    # return model, checkpoint_file
 
 
 def compute_model_parallel_rank(local_rank, model_parallel_size):

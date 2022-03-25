@@ -60,7 +60,7 @@ def fuse_conv_and_bn(conv, bn):
         b_conv = torch.zeros(conv.weight.size(0))
     b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
     b_bn = torch.unsqueeze(b_bn, 1)
-    bn_3 = b_bn.expand(-1, 3)
+    bn_3 = b_bn.repeat(1, 3)
     b = torch.matmul(w_conv, torch.transpose(bn_3, 0, 1))[range(b_bn.size()[0]), range(b_bn.size()[0])]
     fusedconv.bias.data = b_conv + b
     return fusedconv

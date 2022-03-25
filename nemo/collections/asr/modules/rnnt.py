@@ -112,17 +112,19 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=1):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        length = 1
-        targets = torch.full(fill_value=self.blank_idx, size=(1, length), dtype=torch.int32).to(
+        length = max_dim
+        targets = torch.full(fill_value=self.blank_idx, size=(max_batch, length), dtype=torch.int32).to(
             next(self.parameters()).device
         )
-        target_length = torch.randint(0, length, size=(1,), dtype=torch.int32).to(next(self.parameters()).device)
+        target_length = torch.randint(0, length, size=(max_batch,), dtype=torch.int32).to(
+            next(self.parameters()).device
+        )
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
@@ -703,13 +705,13 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self.log_softmax = False
         super()._prepare_for_export(**kwargs)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=8192):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        B, T, U = 1, 8192, 1
+        B, T, U = max_batch, max_dim, max_batch
         encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
         decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
         return (encoder_outputs, decoder_outputs)
@@ -1068,12 +1070,11 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def fuse_loss_wer(self):
         return self._fuse_loss_wer
 
-    def set_fuse_loss_wer(self, fuse_loss_wer):
+    def set_fuse_loss_wer(self, fuse_loss_wer, loss=None, metric=None):
         self._fuse_loss_wer = fuse_loss_wer
 
-        if self._fuse_loss_wer is False:
-            self._loss = None
-            self._wer = None
+        self._loss = loss
+        self._wer = metric
 
     @property
     def fused_batch_size(self):
@@ -1106,8 +1107,8 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
 
         return mytypes
 
-    def input_example(self):
-        decoder_example = self.decoder.input_example()
+    def input_example(self, max_batch=1, max_dim=1):
+        decoder_example = self.decoder.input_example(max_batch=max_batch, max_dim=max_dim)
         state1, state2 = decoder_example[-1]
         return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
 

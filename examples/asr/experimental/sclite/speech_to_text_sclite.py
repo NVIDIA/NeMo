@@ -62,10 +62,10 @@ def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm=""):
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), rfilter_path)
         hypglm = os.path.join(out_dir, os.path.basename(hyp_fname)) + ".glm"
         rfilt_cmd = [rfilter_path] + [glm]
-        with open(hypglm, "w") as hypf, open(hyp_fname, "r") as hyp_in:
+        with open(hypglm, "w", encoding='utf-8') as hypf, open(hyp_fname, "r", encoding='utf-8') as hyp_in:
             subprocess.run(rfilt_cmd, stdin=hyp_in, stdout=hypf)
         refglm = os.path.join(out_dir, os.path.basename(ref_fname)) + ".glm"
-        with open(refglm, "w") as reff, open(ref_fname, "r") as ref_in:
+        with open(refglm, "w", encoding='utf-8') as reff, open(ref_fname, "r", encoding='utf-8') as ref_in:
             subprocess.run(rfilt_cmd, stdin=ref_in, stdout=reff)
     else:
         refglm = ref_fname
@@ -76,7 +76,7 @@ def score_with_sctk(sctk_dir, ref_fname, hyp_fname, out_dir, glm=""):
 
 def read_manifest(manifest_path):
     manifest_data = []
-    with open(manifest_path, 'r') as f:
+    with open(manifest_path, 'r', encoding='utf-8') as f:
         for line in f:
             data = json.loads(line)
             manifest_data.append(data)
@@ -90,7 +90,7 @@ can_gpu = torch.cuda.is_available()
 
 def get_utt_info(manifest_path):
     info_list = []
-    with open(manifest_path, "r") as utt_f:
+    with open(manifest_path, "r", encoding='utf-8') as utt_f:
         for line in utt_f:
             utt = json.loads(line)
             info_list.append(utt)

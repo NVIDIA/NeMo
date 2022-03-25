@@ -51,9 +51,9 @@ the class will handle iteration and constructing masks and token types for BERT 
 Example of usage:
 
 python create_punctuation_capitalization_tarred_dataset.py \
-  --text <PATH_TO_TEXT_FILE> \
-  --labels <PATH_TO_LABELS_FILE> \
-  --output_dir <PATH_TO_OUTPUT_DIR> \
+  --text <PATH/TO/TEXT/FILE> \
+  --labels <PATH/TO/LABELS/FILE> \
+  --output_dir <PATH/TO/OUTPUT/DIR> \
   --lines_per_dataset_fragment 10000 \
   --tokens_in_batch 8000 \
   --num_batches_per_tarfile 5 \

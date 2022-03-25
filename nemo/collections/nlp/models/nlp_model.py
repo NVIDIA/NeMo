@@ -34,15 +34,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
 
-try:
-    import apex
-
-    HAVE_APEX = True
-
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
-
 __all__ = ['NLPModel']
 
 NEMO_NLP_TMP = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), "nemo_nlp_tmp")
@@ -59,8 +50,6 @@ class NLPModel(ModelPT, Exportable):
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
         self.set_world_size(trainer)
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
@@ -244,18 +233,24 @@ class NLPModel(ModelPT, Exportable):
             if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
                 checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
             # override the hparams with values that were passed in
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
             # TODO: can we do this without overriding?
             config_kwargs = kwargs.copy()
             if 'trainer' in config_kwargs:
                 config_kwargs.pop('trainer')
-            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
+            cfg.update(config_kwargs)
+
+            if cfg.get('megatron_amp_O2', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
 
             if 'cfg' in kwargs:
                 model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
             else:
-                model = cls._load_model_state(
-                    checkpoint, strict=strict, cfg=checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY], **kwargs
-                )
+                model = cls._load_model_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
             checkpoint = model
 
         finally:

@@ -38,48 +38,33 @@ import time
 
 import numpy as np
 import torch
-from apex.transformer import parallel_state
 
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+    get_train_valid_test_split_,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+
+    HAVE_APEX = False
+
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
 DSET_TYPE_T5 = 't5'
+DSET_TYPE_T5_LM = 't5_prefix_lm'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5]
-
-
-def get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples):
-
-    # The data prefix should be in the format of:
-    #   weight-1, data-prefix-1, weight-2, data-prefix-2, ..
-    assert len(data_prefix) % 2 == 0
-    num_datasets = len(data_prefix) // 2
-    weights = [0] * num_datasets
-    prefixes = [0] * num_datasets
-    for i in range(num_datasets):
-        weights[i] = float(data_prefix[2 * i])
-        prefixes[i] = (data_prefix[2 * i + 1]).strip()
-    # Normalize weights
-    weight_sum = 0.0
-    for weight in weights:
-        weight_sum += weight
-    assert weight_sum > 0.0
-    weights = [weight / weight_sum for weight in weights]
-
-    # Add 0.5% (the 1.005 factor) so in case the bleding dataset does
-    # not uniformly distribute the number of samples, we still have
-    # samples left to feed to the network.
-    datasets_train_valid_test_num_samples = []
-    for weight in weights:
-        datasets_train_valid_test_num_samples.append(
-            [int(math.ceil(val * weight * 1.005)) for val in train_valid_test_num_samples]
-        )
-
-    return prefixes, weights, datasets_train_valid_test_num_samples
+DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM]
 
 
 def compile_helper():
@@ -178,7 +163,7 @@ MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"]
 
 
 def is_start_piece(piece):
-    """Check if the current word piece is the starting piece (BERT)."""
+    """Check if the current word piece is the starting piece. (BERT)"""
     # When a word has been split into
     # WordPieces, the first token does not have any marker and any subsequence
     # tokens are prefixed with ##. So whenever we see the ## token, we
@@ -196,15 +181,20 @@ def create_masked_lm_predictions(
     mask_id,
     max_predictions_per_seq,
     np_rng,
-    max_ngrams=3,
-    do_whole_word_mask=True,
-    favor_longer_ngram=False,
-    do_permutation=False,
+    max_ngram_size=3,
+    mean_ngram_size=None,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
+    permutation=False,
     geometric_dist=False,
     masking_style="bert",
+    tokenizer_type="wordpiece",
 ):
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
+
+    if not geometric_dist and mean_ngram_size is not None:
+        raise ValueError(f"Mean ngram size is only supported for geometric distribution.")
 
     cand_indexes = []
     # Note(mingdachen): We create a list for recording if the piece is
@@ -222,7 +212,7 @@ def create_masked_lm_predictions(
         # Note that Whole Word Masking does *not* change the training code
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
-        if do_whole_word_mask and len(cand_indexes) >= 1 and not is_start_piece(vocab_id_to_token_dict[token]):
+        if whole_word_masking and len(cand_indexes) >= 1 and not is_start_piece(vocab_id_to_token_dict[token]):
             cand_indexes[-1].append(i)
         else:
             cand_indexes.append([i])
@@ -239,13 +229,13 @@ def create_masked_lm_predictions(
 
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
 
-    ngrams = np.arange(1, max_ngrams + 1, dtype=np.int64)
+    ngrams = np.arange(1, max_ngram_size + 1, dtype=np.int64)
     if not geometric_dist:
         # Note(mingdachen):
         # By default, we set the probilities to favor shorter ngram sequences.
-        pvals = 1.0 / np.arange(1, max_ngrams + 1)
+        pvals = 1.0 / np.arange(1, max_ngram_size + 1)
         pvals /= pvals.sum(keepdims=True)
-        if favor_longer_ngram:
+        if favor_long_ngrams:
             pvals = pvals[::-1]
 
     ngram_indexes = []
@@ -280,7 +270,10 @@ def create_masked_lm_predictions(
             # Sampling "n" from the geometric distribution and clipping it to
             # the max_ngrams. Using p=0.2 default from the SpanBERT paper
             # https://arxiv.org/pdf/1907.10529.pdf (Sec 3.1)
-            n = min(np_rng.geometric(0.2), max_ngrams)
+
+            # The expectation of a geometric distribution is E[X] = 1 / p
+            p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
+            n = min(np_rng.geometric(p), max_ngram_size)
 
         index_set = sum(cand_index_set[n - 1], [])
         n -= 1
@@ -331,7 +324,7 @@ def create_masked_lm_predictions(
     np_rng.shuffle(ngram_indexes)
 
     select_indexes = set()
-    if do_permutation:
+    if permutation:
         for cand_index_set in ngram_indexes:
             if len(select_indexes) >= num_to_predict:
                 break
@@ -422,6 +415,8 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
 
 def build_train_valid_test_datasets(
+    cfg,
+    trainer,
     data_prefix,
     data_impl,
     splits_string,
@@ -435,10 +430,18 @@ def build_train_valid_test_datasets(
     max_seq_length_dec=None,
     dataset_type='standard_bert',
     tokenizer=None,
+    max_ngram_size=3,
+    mean_ngram_size=None,
+    geometric_dist=True,
+    permutation=False,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
 ):
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
+            cfg,
+            trainer,
             data_prefix[0],
             data_impl,
             splits_string,
@@ -452,6 +455,12 @@ def build_train_valid_test_datasets(
             max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
+            max_ngram_size=max_ngram_size,
+            mean_ngram_size=mean_ngram_size,
+            geometric_dist=geometric_dist,
+            permutation=permutation,
+            whole_word_masking=whole_word_masking,
+            favor_long_ngrams=favor_long_ngrams,
         )
     # Blending dataset.
     # Parse the values.
@@ -464,6 +473,8 @@ def build_train_valid_test_datasets(
     test_datasets = []
     for i in range(len(prefixes)):
         train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
             prefixes[i],
             data_impl,
             splits_string,
@@ -477,6 +488,12 @@ def build_train_valid_test_datasets(
             max_seq_length_dec,
             dataset_type=dataset_type,
             tokenizer=tokenizer,
+            max_ngram_size=max_ngram_size,
+            mean_ngram_size=mean_ngram_size,
+            geometric_dist=geometric_dist,
+            permutation=permutation,
+            whole_word_masking=whole_word_masking,
+            favor_long_ngrams=favor_long_ngrams,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -500,6 +517,8 @@ def build_train_valid_test_datasets(
 
 
 def _build_train_valid_test_datasets(
+    cfg,
+    trainer,
     data_prefix,
     data_impl,
     splits_string,
@@ -513,6 +532,12 @@ def _build_train_valid_test_datasets(
     max_seq_length_dec,
     dataset_type='standard_bert',
     tokenizer=None,
+    max_ngram_size=3,
+    mean_ngram_size=None,
+    geometric_dist=True,
+    permutation=False,
+    whole_word_masking=True,
+    favor_long_ngrams=False,
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -522,7 +547,6 @@ def _build_train_valid_test_datasets(
     indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
 
     if dataset_type == DSET_TYPE_ICT:
-        args = get_args()
         title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
@@ -552,6 +576,7 @@ def _build_train_valid_test_datasets(
     print_split_stats('test', 2)
 
     def build_dataset(index, name):
+        # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
@@ -575,21 +600,57 @@ def _build_train_valid_test_datasets(
                 seed=seed,
             )
 
-            if dataset_type == DSET_TYPE_T5:
+            if dataset_type == DSET_TYPE_ICT:
+                raise NotImplementedError("ICT dataset is not implemented yet.")
+                '''
+                dataset = ICTDataset(
+                    block_dataset=indexed_dataset,
+                    title_dataset=title_dataset,
+                    query_in_block_prob=args.query_in_block_prob,
+                    use_one_sent_docs=args.use_one_sent_docs,
+                    binary_head=binary_head,
+                    **kwargs,
+                )
+                '''
+            elif dataset_type == DSET_TYPE_T5:
+                assert tokenizer is not None, "Tokenizer is required for T5 dataset"
+                logging.info("Instatiating T5 Dataset ...")
                 dataset = T5Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     max_seq_length_dec=max_seq_length_dec,
                     short_seq_prob=short_seq_prob,
+                    max_ngram_size=max_ngram_size,
+                    mean_ngram_size=mean_ngram_size,
+                    geometric_dist=geometric_dist,
+                    permutation=permutation,
+                    whole_word_masking=whole_word_masking,
+                    favor_long_ngrams=favor_long_ngrams,
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BERT:
+                logging.info("Instatiating BERT Dataset ...")
                 dataset = BertDataset(
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     short_seq_prob=short_seq_prob,
                     binary_head=binary_head,
                     tokenizer=tokenizer,
+                    **kwargs,
+                )
+            elif dataset_type == DSET_TYPE_T5_LM:
+                documents = np.arange(start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32)
+                logging.info("Instatiating T5 Prefix-LM Dataset ...")
+                dataset = T5LMAdaptedDataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
+                    documents=documents,
+                    indexed_dataset=indexed_dataset,
+                    num_samples=int(train_valid_test_num_samples[index]),
                     **kwargs,
                 )
             else:
@@ -623,33 +684,6 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
     logging.info('    number of sentences: {}'.format(indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
-
-
-def get_train_valid_test_split_(splits_string, size):
-    """ Get dataset splits from comma or '/' separated string list."""
-
-    splits = []
-    if splits_string.find(',') != -1:
-        splits = [float(s) for s in splits_string.split(',')]
-    elif splits_string.find('/') != -1:
-        splits = [float(s) for s in splits_string.split('/')]
-    else:
-        splits = [float(splits_string)]
-    while len(splits) < 3:
-        splits.append(0.0)
-    splits = splits[:3]
-    splits_sum = sum(splits)
-    assert splits_sum > 0.0
-    splits = [split / splits_sum for split in splits]
-    splits_index = [0]
-    for index, split in enumerate(splits):
-        splits_index.append(splits_index[index] + int(round(split * float(size))))
-    diff = splits_index[-1] - size
-    for index in range(1, len(splits_index)):
-        splits_index[index] -= diff
-    assert len(splits_index) == 4
-    assert splits_index[-1] == size
-    return splits_index
 
 
 def get_samples_mapping(
@@ -692,13 +726,15 @@ def get_samples_mapping(
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
-
         try:
             if is_global_rank_zero():
                 compile_helper()
             from nemo.collections.nlp.data.language_modeling.megatron import helpers
-        except:
-            raise Exception(f'Could not compile helpers.')
+        except ImportError:
+            raise ImportError(
+                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+            )
+
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
@@ -717,10 +753,8 @@ def get_samples_mapping(
         logging.info(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
+
     torch.distributed.barrier()
-    # This should be a barrier but nccl barrier assumes
-    # device_index=rank which is not the case for model
-    # parallel case
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())

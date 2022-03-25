@@ -28,13 +28,13 @@ This script is for restoring punctuation and capitalization.
 Usage example:
 
 python punctuate_capitalize.py \
-    --input_manifest <PATH_TO_INPUT_MANIFEST> \
-    --output_manifest <PATH_TO_OUTPUT_MANIFEST>
+    --input_manifest <PATH/TO/INPUT/MANIFEST> \
+    --output_manifest <PATH/TO/OUTPUT/MANIFEST>
 
-<PATH_TO_INPUT_MANIFEST> is a path to NeMo ASR manifest. Usually it is an output of
+<PATH/TO/INPUT/MANIFEST> is a path to NeMo ASR manifest. Usually it is an output of
     NeMo/examples/asr/transcribe_speech.py but can be a manifest with 'text' key. Alternatively you can use
     --input_text parameter for passing text for inference.
-<PATH_TO_OUTPUT_MANIFEST> is a path to NeMo ASR manifest into which script output will be written. Alternatively
+<PATH/TO/OUTPUT/MANIFEST> is a path to NeMo ASR manifest into which script output will be written. Alternatively
     you can use parameter --output_text.
 
 For more details on this script usage look in argparse help.

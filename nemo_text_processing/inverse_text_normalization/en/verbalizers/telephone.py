@@ -35,5 +35,13 @@ class TelephoneFst(GraphFst):
         super().__init__(name="telephone", kind="verbalize")
 
         number_part = pynutil.delete("number_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-        delete_tokens = self.delete_tokens(number_part)
+        optional_country_code = pynini.closure(
+            pynutil.delete("country_code: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + pynini.accep(" "),
+            0,
+            1,
+        )
+        delete_tokens = self.delete_tokens(optional_country_code + number_part)
         self.fst = delete_tokens.optimize()

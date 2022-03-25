@@ -324,7 +324,7 @@ def download_song(basepath, id, name, download_url):
     # Delete and then re-download
     if os.path.exists(fp):
         try:
-            _ = librosa.load(fp)
+            _ = librosa.load(path=fp)
         except Exception:
             # File is currupted, delete and re-download.
             os.remove(fp)
