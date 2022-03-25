@@ -19,11 +19,11 @@ import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from omegaconf.errors import ConfigAttributeError
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
+from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, WandbLogger
 from torch import nn
 
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func, tacotron2_log_to_wandb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -278,15 +278,20 @@ class Tacotron2Model(SpectrogramGenerator):
 
     def validation_epoch_end(self, outputs):
         if self.logger is not None and self.logger.experiment is not None:
-            tb_logger = self.logger.experiment
+            logger = self.logger.experiment
             if isinstance(self.logger, LoggerCollection):
                 for logger in self.logger:
                     if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
+                        logger = logger.experiment
                         break
-            tacotron2_log_to_tb_func(
-                tb_logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
-            )
+            if isinstance(logger, TensorBoardLogger):
+                tacotron2_log_to_tb_func(
+                    logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                )
+            elif isinstance(logger, WandbLogger):
+                tacotron2_log_to_wandb_func(
+                    logger, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False,
+                )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()  # This reduces across batches, not workers!
         self.log('val_loss', avg_loss)
 
