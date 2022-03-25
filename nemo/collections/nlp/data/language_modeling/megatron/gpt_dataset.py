@@ -206,8 +206,13 @@ class GPTDataset(MegatronDataset):
 
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
-        if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
-            os.makedirs(self.index_mapping_dir)
+
+        # create index_mapping_dir on rank 0
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
+                    os.makedirs(self.index_mapping_dir)
+            torch.distributed.barrier()
 
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
