@@ -8,7 +8,7 @@ download_merges_url: null
 vocab_save_dir: ${data_dir}/bpe
 merges_save_dir: ${data_dir}/bpe
 tokenizer_type: BertWordPieceCase # T5 model uses BertWordPieceCase tokenizer
-log_dir: ${base_results_dir}/data_preparation/logs  # Where to save the logs
+log_dir: ${base_results_dir}/data_preparation/t5_pile_logs  # Where to save the logs
 rm_downloaded: True # Extract script will remove downloaded zst after extraction
 rm_extracted: True # Preprocess script will remove extracted files after preproc.
 nodes: 30

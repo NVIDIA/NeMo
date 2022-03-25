@@ -8,7 +8,7 @@ download_merges_url: "https://huggingface.co/gpt2/resolve/main/merges.txt"  # UR
 vocab_save_dir: ${data_dir}/bpe
 merges_save_dir: ${data_dir}/bpe
 tokenizer_type: GPT2BPETokenizer
-log_dir: ${base_results_dir}/data_preparation/logs  # Where to save the logs
+log_dir: ${base_results_dir}/data_preparation/gpt3_pile_logs  # Where to save the logs
 rm_downloaded: True # Extract script will remove downloaded zst after extraction
 rm_extracted: True # Preprocess script will remove extracted files after preproc.
 nodes: 30
