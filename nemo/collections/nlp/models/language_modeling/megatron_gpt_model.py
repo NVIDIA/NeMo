@@ -41,6 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
@@ -1173,8 +1174,22 @@ class MegatronGPTModel(NLPModel):
         if hasattr(self, 'prompt_table'):
             return self.prompt_table
 
-    def list_available_models(self):
-        return None
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="megatron_gpt_345m",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_gpt_345m/versions/1/files/megatron_gpt_345m.nemo",
+                description="345M parameter GPT generative Megatron model.",
+            )
+        )
+        return result
 
     def _get_next_prompt_id(self):
         self.next_prompt_id += 1
