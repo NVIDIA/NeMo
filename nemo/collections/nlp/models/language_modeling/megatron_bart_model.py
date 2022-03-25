@@ -15,9 +15,7 @@
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_t5 import MegatronT5Model
-from nemo.utils import logging
 
 __all__ = ["MegatronBARTModel"]
 
