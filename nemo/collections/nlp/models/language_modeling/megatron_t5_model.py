@@ -140,8 +140,3 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
     def list_available_models(self):
         pass
-
-class MegatronT5GLUEModel(MegatronT5Model):
-    """Testing ..."""
-    def __init__(self, cfg: DictConfig, trainer: Trainer):
-        super().__init__(cfg, trainer=trainer)

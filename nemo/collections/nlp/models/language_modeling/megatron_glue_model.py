@@ -104,21 +104,21 @@ class MegatronT5GLUEModel(MegatronT5Model):
         return loss
 
     def inference_epoch_end(self, outputs, mode):
-        # This will handle logging of the loss.
+        # Parent class will handle logging of the loss.
         if mode == 'validation':
             averaged_loss = super().validation_epoch_end(outputs)
         else:
             averaged_loss = super().test_epoch_end(outputs)
         accuracy = self.acc_metric.compute()
         self.acc_metric.reset()
-        return averaged_loss, accuracy
+        return averaged_loss, accuracy['acc']
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
         val_loss, val_acc = self.inference_epoch_end(outputs, 'validation')
-        self.log('val_acc', val_acc, prog_bar=True)
+        self.log('validation_acc', val_acc, prog_bar=True)
         logging.info(f'Validation loss: {val_loss}')
         logging.info(f'Validation accuracy: {val_acc}')
 
