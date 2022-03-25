@@ -1,8 +1,11 @@
-# It contains the default values for training a RNN-CTC ASR model, large size (~130M) with CTC loss and sub-word encoding.
+# It contains the default values for training an RNN-CTC ASR model, large size (~170M for bidirectional and ~130M for unidirectional) with CTC loss and sub-word encoding.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
 # batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+
+# Followed the architecture suggested in the following paper:
+# 'STREAMING END-TO-END SPEECH RECOGNITION FOR MOBILE DEVICES' by Yanzhang He et al. (https://arxiv.org/pdf/1811.06621.pdf)
 
 # You may find more info about RNN-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#rnn-transducer
 # Pre-trained models of RNN-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
@@ -20,7 +23,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: true
-    num_workers: 8
+    num_workers: 4
     pin_memory: true
     use_start_end_token: false
     trim_silence: false
@@ -39,7 +42,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: false
-    num_workers: 8
+    num_workers: 4
     pin_memory: true
     use_start_end_token: false
 
@@ -48,7 +51,7 @@ model:
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: false
-    num_workers: 8
+    num_workers: 4
     pin_memory: true
     use_start_end_token: false
 
@@ -59,7 +62,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: *sample_rate
+    sample_rate: ${model.sample_rate}
     normalize: "per_feature"
     window_size: 0.025
     window_stride: 0.01
@@ -87,8 +90,8 @@ model:
     bidirectional: true # need to set it to false if you want to make the model causal
 
     # Sub-sampling params
-    subsampling: striding # vggnet or striding
-    subsampling_factor: 4 # must be power of 2
+    subsampling: stacking # stacking, vggnet or striding
+    subsampling_factor: 4
     subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
 
     ### regularization

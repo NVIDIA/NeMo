@@ -167,7 +167,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
-            proj_size=proj_size
+            proj_size=proj_size,
         )
         self._rnnt_export = False
 
@@ -330,7 +330,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                     dropout=dropout,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-                    proj_size=proj_size
+                    proj_size=proj_size,
                 ),
             }
         )

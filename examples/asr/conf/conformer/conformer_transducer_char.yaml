@@ -42,7 +42,7 @@ model:
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 8
-    pin_memory: false
+    pin_memory: true
     trim_silence: false
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
@@ -60,7 +60,7 @@ model:
     batch_size: 16
     shuffle: false
     num_workers: 8
-    pin_memory: false
+    pin_memory: true
 
   test_ds:
     manifest_filepath: null
@@ -68,7 +68,7 @@ model:
     batch_size: 16
     shuffle: false
     num_workers: 8
-    pin_memory: false
+    pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor

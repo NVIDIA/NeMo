@@ -21,7 +21,6 @@ from nemo.collections.asr.modules.audio_preprocessing import (
 )
 from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.asr.modules.rnn_encoder import RNNEncoder
 from nemo.collections.asr.modules.conv_asr import (
     ConvASRDecoder,
     ConvASRDecoderClassification,
@@ -33,4 +32,5 @@ from nemo.collections.asr.modules.conv_asr import (
 )
 from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
 from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
+from nemo.collections.asr.modules.rnn_encoder import RNNEncoder
 from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint

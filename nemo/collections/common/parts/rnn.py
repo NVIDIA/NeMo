@@ -33,7 +33,7 @@ def rnn(
     t_max: Optional[int] = None,
     weights_init_scale: float = 1.0,
     hidden_hidden_bias_scale: float = 0.0,
-    proj_size: int = 0
+    proj_size: int = 0,
 ) -> torch.nn.Module:
     """
     Utility function to provide unified interface to common LSTM RNN modules.
@@ -85,7 +85,7 @@ def rnn(
             t_max=t_max,
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-            proj_size=proj_size
+            proj_size=proj_size,
         )
 
     if norm == "batch":
@@ -100,7 +100,7 @@ def rnn(
             norm_first_rnn=norm_first_rnn,
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-            proj_size=proj_size
+            proj_size=proj_size,
         )
 
     if norm == "layer":
@@ -159,7 +159,7 @@ class LSTMDropout(torch.nn.Module):
         t_max: Optional[int] = None,
         weights_init_scale: float = 1.0,
         hidden_hidden_bias_scale: float = 0.0,
-        proj_size: int = 0
+        proj_size: int = 0,
     ):
         """Returns an LSTM with forget gate bias init to `forget_gate_bias`.
         Args:
@@ -248,7 +248,7 @@ class RNNLayer(torch.nn.Module):
         t_max: Optional[int] = None,
         weights_init_scale: float = 1.0,
         hidden_hidden_bias_scale: float = 0.0,
-        proj_size: int = 0
+        proj_size: int = 0,
     ):
         super().__init__()
 
@@ -266,7 +266,7 @@ class RNNLayer(torch.nn.Module):
                 t_max=t_max,
                 weights_init_scale=weights_init_scale,
                 hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-                proj_size=proj_size
+                proj_size=proj_size,
             )
         else:
             self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size, bias=not batch_norm)
@@ -305,7 +305,7 @@ class BNRNNSum(torch.nn.Module):
         t_max: Optional[int] = None,
         weights_init_scale: float = 1.0,
         hidden_hidden_bias_scale: float = 0.0,
-        proj_size: int = 0
+        proj_size: int = 0,
     ):
         super().__init__()
         self.rnn_layers = rnn_layers
@@ -324,7 +324,7 @@ class BNRNNSum(torch.nn.Module):
                     t_max=t_max,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-                    proj_size=proj_size
+                    proj_size=proj_size,
                 )
             )
 
