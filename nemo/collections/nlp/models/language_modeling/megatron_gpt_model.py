@@ -17,7 +17,6 @@ import re
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -36,7 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_no
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.modules.common.text_generation_utils import generate
+from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
@@ -885,38 +884,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 params.append(param)
         return params
 
-    def _get_computeprob_response(self, response, inputs):
-        compute_prob_response = {}
-        new_token_ids = []
-        new_tokens = []
-        new_texts = []
-        log_probs = []
-        full_logprobs = []
-        offsets = []
-        for batch_id in range(len(response['tokens'])):
-            if isinstance(inputs, (list, tuple)):
-                if isinstance(inputs[0], str):
-                    new_token_id = self.tokenizer.text_to_ids(inputs[batch_id])
-                    new_text = inputs[batch_id]
-                    token_len = len(new_token_id)
-                elif isinstance(inputs[0], torch.Tensor):
-                    token_len = int(inputs[1][batch_id].item())
-                    new_token_id = inputs[0][batch_id][:token_len].tolist()
-                    new_text = self.tokenizer.ids_to_text(new_token_id)
-            new_token_ids.append(new_token_id)
-            new_tokens.append(response['tokens'][batch_id][:token_len])
-            new_texts.append(new_text)
-            log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
-            full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
-            offsets.append(response['offsets'][batch_id][:-1])
-        compute_prob_response['sentences'] = new_texts
-        compute_prob_response['tokens'] = new_tokens
-        compute_prob_response['token_ids'] = new_token_ids
-        compute_prob_response['logprob'] = log_probs
-        compute_prob_response['full_logprob'] = full_logprobs
-        compute_prob_response['offsets'] = offsets
-        return compute_prob_response
-
     def generate(
         self,
         inputs: Union[List[str], torch.Tensor, List[dict]],
@@ -983,7 +950,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
             )
-            compute_prob_response = self._get_computeprob_response(response, inputs)
+            compute_prob_response = get_computeprob_response(self.tokenizer, response, inputs)
             return compute_prob_response
 
         if isinstance(inputs, (list, tuple)):
@@ -1023,7 +990,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 inference_config["add_BOS"] = False
                 inference_config['greedy'] = True
                 response = generate(self, **inference_config)
-                compute_prob_response = self._get_computeprob_response(response, batch)
+                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
                 return compute_prob_response
             else:
                 del inference_config['compute_logprob']

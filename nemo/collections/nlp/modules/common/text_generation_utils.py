@@ -34,6 +34,41 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+__all__ = ["get_computeprob_response", "generate"]
+
+
+def get_computeprob_response(tokenizer, response, inputs):
+    compute_prob_response = {}
+    new_token_ids = []
+    new_tokens = []
+    new_texts = []
+    log_probs = []
+    full_logprobs = []
+    offsets = []
+    for batch_id in range(len(response['tokens'])):
+        if isinstance(inputs, (list, tuple)):
+            if isinstance(inputs[0], str):
+                new_token_id = tokenizer.text_to_ids(inputs[batch_id])
+                new_text = inputs[batch_id]
+                token_len = len(new_token_id)
+            elif isinstance(inputs[0], torch.Tensor):
+                token_len = int(inputs[1][batch_id].item())
+                new_token_id = inputs[0][batch_id][:token_len].tolist()
+                new_text = tokenizer.ids_to_text(new_token_id)
+        new_token_ids.append(new_token_id)
+        new_tokens.append(response['tokens'][batch_id][:token_len])
+        new_texts.append(new_text)
+        log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
+        full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
+        offsets.append(response['offsets'][batch_id][:-1])
+    compute_prob_response['sentences'] = new_texts
+    compute_prob_response['tokens'] = new_tokens
+    compute_prob_response['token_ids'] = new_token_ids
+    compute_prob_response['logprob'] = log_probs
+    compute_prob_response['full_logprob'] = full_logprobs
+    compute_prob_response['offsets'] = offsets
+    return compute_prob_response
+
 
 def get_batch(model, tokenizer, context_tokens):
     """Generate batch from context tokens."""
