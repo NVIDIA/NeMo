@@ -1,11 +1,11 @@
 # TODO(Oktai15): update this config in 1.8.0 version
 
-name: Tacotron2
+name: Tacotron2_retrain
 # <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
-labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-        'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-        'u', 'v', 'w', 'x', 'y', 'z']
+# labels: [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+#         'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']',
+#         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
+#         'u', 'v', 'w', 'x', 'y', 'z']
 
 train_dataset: "../datasets/ljspeech_ds/LJSpeech-1.1/train_manifest.json"
 validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
@@ -19,7 +19,6 @@ whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_sp
 
 
 model:
-  labels: ${labels}
   pitch_fmin: 65.40639132514966
   pitch_fmax: 2093.004522404789
 
@@ -221,8 +220,8 @@ model:
 
 
 trainer:
-  devices: 1 # number of gpus
-  max_epochs: 3
+  devices: 4 # number of gpus
+  max_epochs: 10000
   num_nodes: 1
   accelerator: gpu
   strategy: ddp
@@ -230,11 +229,22 @@ trainer:
   enable_checkpointing: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   gradient_clip_val: 1.0
-  log_every_n_steps: 200
-  check_val_every_n_epoch: 25
+  log_every_n_steps: 60
+  check_val_every_n_epoch: 2
+
 
 exp_manager:
-  exp_dir: '..local_exps/tacotron/'
+  exp_dir: 'tacotron2_retrain/'
   name: ${name}
-  create_tensorboard_logger: True
-  create_checkpoint_callback: True
+  create_tensorboard_logger: false
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: val_loss
+    mode: min
+  create_wandb_logger: true
+  wandb_logger_kwargs:
+    name: tacotron_retrain
+    project: ${name}
+    entity: nvidia
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
