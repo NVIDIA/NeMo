@@ -127,6 +127,21 @@ You may find the example config files of Conformer-Transducer model with charact
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
 
+RNN-Transducer (RNNT)
+---------------------
+
+RNNT-Transducer (RNNT) is a model which uses RNNs (eg. LSTM) in the encoder. The architecture of this model is followed from suggestions in :cite:`asr-models-he2019streaming`.
+It uses RNNT/Transducer loss/decoder. The encoder consists of RNN layers (LSTM as default) with lower projection size to increase the efficiency.
+Layer norm is added between the layers to stabilize the training.
+It can be trained/used in unidirectional or bidirectional mode. The unidirectional mode is fully causal and can be used easily for simple and efficient frame-wise streaming. However the accuracy of this model is generally lower than other models like Conformer and Citrinet.
+
+This model supports both the sub-word level and character level encodings. You may find the example config file of RNNT model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/rnn_transducer_bpe.yaml``.
+
+RNN-CTC
+-------
+
+RNN-CTC model is a CTC-variant of the RNNT model which uses CTC loss/decoding instead of Transducer.
+You may find the example config file of RNN-CTC model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/rnn_ctc_bpe.yaml``.
 
 References
 ----------

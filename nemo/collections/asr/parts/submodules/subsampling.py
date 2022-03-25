@@ -19,6 +19,13 @@ import torch.nn as nn
 
 
 class StackingSubsampling(torch.nn.Module):
+    """Stacking subsampling which simply stacks consecutive frames to reduce the sampling rate
+    Args:
+        subsampling_factor (int): The subsampling factor
+        feat_in (int): size of the input features
+        feat_out (int): size of the output features
+    """
+
     def __init__(self, subsampling_factor, feat_in, feat_out):
         super(StackingSubsampling, self).__init__()
         self.subsampling_factor = subsampling_factor
@@ -37,9 +44,8 @@ class StackingSubsampling(torch.nn.Module):
 
 class ConvSubsampling(torch.nn.Module):
     """Convolutional subsampling which supports VGGNet and striding approach introduced in:
-    VGGNet Subsampling: https://arxiv.org/pdf/1910.12977.pdf
-    Striding Subsampling:
-        "Speech-Transformer: A No-Recurrence Sequence-to-Sequence Model for Speech Recognition" by Linhao Dong et al.
+    VGGNet Subsampling: Transformer-transducer: end-to-end speech recognition with self-attention (https://arxiv.org/pdf/1910.12977.pdf)
+    Striding Subsampling: "Speech-Transformer: A No-Recurrence Sequence-to-Sequence Model for Speech Recognition" by Linhao Dong et al. (https://ieeexplore.ieee.org/document/8462506)
     Args:
         subsampling (str): The subsampling technique from {"vggnet", "striding"}
         subsampling_factor (int): The subsampling factor which should be a power of 2
