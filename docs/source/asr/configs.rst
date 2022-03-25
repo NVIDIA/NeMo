@@ -511,8 +511,8 @@ Conformer-Transducer
 
 Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
 
-RNN-Transducer (RNNT)
-~~~~~~~~~~~~~~~~~~~~~
+RNN-Transducer
+~~~~~~~~~~~~~~
 
 The config files for RNN-Transducer (RNNT) and RNN-CTC models can be found at ``<NeMo_git_root>/examples/asr/conf/rnn/rnn_transducer_bpe.yaml`` and ``<NeMo_git_root>/examples/asr/conf/rnn/rnn_ctc_bpe.yaml`` respectively.
 Most of the of the configs of are similar to other ctc or transducer models. The main difference is the encoder part.
@@ -526,7 +526,7 @@ Transducer Configurations
 All CTC-based ASR model configs can be modified to support Transducer loss training. Below, we discuss the modifications required in the config to enable Transducer training. All modifications are made to the ``model`` config.
 
 Model Defaults
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 It is a subsection to the model config representing the default values shared across the entire model represented as ``model.model_defaults``.
 
