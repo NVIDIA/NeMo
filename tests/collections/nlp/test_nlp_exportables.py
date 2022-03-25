@@ -106,7 +106,7 @@ class TestExportableClassifiers:
         model = nemo_nlp.models.TokenClassificationModel.from_pretrained(model_name="ner_en_bert")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'ner.onnx')
-            model.export(output=filename)
+            model.export(output=filename, check_trace=True)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
@@ -121,7 +121,7 @@ class TestExportableClassifiers:
         model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(model_name="punctuation_en_distilbert")
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'puncap.onnx')
-            model.export(output=filename)
+            model.export(output=filename, check_trace=True)
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'input_ids'
