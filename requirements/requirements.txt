@@ -1,4 +1,4 @@
-numpy>=1.21
+numpy==1.21
 onnx>=1.7.0
 python-dateutil
 torch
