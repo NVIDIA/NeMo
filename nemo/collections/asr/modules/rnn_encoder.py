@@ -110,6 +110,7 @@ class RNNEncoder(NeuralModule, Exportable):
         n_layers,
         d_model,
         proj_out=-1,
+        rnn_type='lstm',
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
@@ -141,17 +142,25 @@ class RNNEncoder(NeuralModule, Exportable):
         self._feat_out = proj_out
 
         self.layers = nn.ModuleList()
+
+        SUPPORTED_RNN = {"lstm": nn.LSTM, "gru": nn.GRU, "rnn": nn.RNN}
+        if rnn_type not in SUPPORTED_RNN:
+            raise ValueError(f"rnn_type can be one from the following:{SUPPORTED_RNN.keys()}")
+        else:
+            rnn_module = SUPPORTED_RNN[rnn_type]
+
         for i in range(n_layers):
             rnn_proj_out = proj_out//2 if bidirectional else proj_out
-            layer = nn.LSTM(
-                input_size=self._feat_out,
-                hidden_size=d_model,
-                num_layers=1,
-                batch_first=True,
-                bidirectional=bidirectional,
-#                dropout=dropout,
-                proj_size=rnn_proj_out
-            )
+            if rnn
+            if rnn_type == "lstm":
+                layer = rnn_module(
+                    input_size=self._feat_out,
+                    hidden_size=d_model,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=bidirectional,
+                    proj_size=rnn_proj_out
+                )
             self.layers.append(layer)
             self.layers.append(nn.LayerNorm(proj_out))
             self.layers.append(nn.Dropout(p=dropout))

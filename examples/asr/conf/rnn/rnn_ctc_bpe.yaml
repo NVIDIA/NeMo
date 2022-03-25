@@ -1,24 +1,19 @@
-# It contains the default values for training a RNN-Transducer (RNNT) ASR model, large size (~130M) with Transducer loss and sub-word encoding.
+# It contains the default values for training a RNN-CTC ASR model, large size (~130M) with CTC loss and sub-word encoding.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
 # batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
-# You may find more info about RNN-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#rnn-transducer
-# Pre-trained models of RNN-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+# You may find more info about RNN-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#rnn-transducer
+# Pre-trained models of RNN-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 
-name: "RNN-Transducer-BPE"
+name: "RNN-CTC-BPE"
 
 model:
-  sample_rate: &sample_rate 16000
-  compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
+  sample_rate: 16000
   log_prediction: true # enables logging sample predictions in the output during training
+  ctc_reduction: 'mean_batch'
   skip_nan_grad: false
-
-  model_defaults:
-    enc_hidden: ${model.encoder.proj_out}
-    pred_hidden: 2048
-    joint_hidden: 640
 
   train_ds:
     manifest_filepath: ???
@@ -93,66 +88,10 @@ model:
     dropout: 0.2 # The dropout used in most of the Conformer Modules
 
   decoder:
-    _target_: nemo.collections.asr.modules.RNNTDecoder
-    normalization_mode: null # Currently only null is supported for export.
-    random_state_sampling: false # Random state sampling: https://arxiv.org/pdf/1910.11455.pdf
-    blank_as_pad: true # This flag must be set in order to support exporting of RNNT models + efficient inference.
-
-    prednet:
-      pred_hidden: ${model.model_defaults.pred_hidden}
-      pred_rnn_layers: 1
-      t_max: null
-      dropout: 0.2
-      proj_size: 640
-
-  joint:
-    _target_: nemo.collections.asr.modules.RNNTJoint
-    log_softmax: null  # 'null' would set it automatically according to CPU/GPU device
-    preserve_memory: false  # dramatically slows down training, but might preserve some memory
-
-    # Fuses the computation of prediction net + joint net + loss + WER calculation
-    # to be run on sub-batches of size `fused_batch_size`.
-    # When this flag is set to true, consider the `batch_size` of *_ds to be just `encoder` batch size.
-    # `fused_batch_size` is the actual batch size of the prediction net, joint net and transducer loss.
-    # Using small values here will preserve a lot of memory during training, but will make training slower as well.
-    # An optimal ratio of fused_batch_size : *_ds.batch_size is 1:1.
-    # However, to preserve memory, this ratio can be 1:8 or even 1:16.
-    # Extreme case of 1:B (i.e. fused_batch_size=1) should be avoided as training speed would be very slow.
-    fuse_loss_wer: true
-    fused_batch_size: 8
-
-    jointnet:
-      joint_hidden: ${model.model_defaults.joint_hidden}
-      activation: "relu"
-      dropout: 0.2
-
-  decoding:
-    strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
-
-    # greedy strategy config
-    greedy:
-      max_symbols: 30
-
-    # beam strategy config
-    beam:
-      beam_size: 2
-      return_best_hypothesis: False
-      score_norm: true
-      tsd_max_sym_exp: 50  # for Time Synchronous Decoding
-      alsd_max_target_len: 2.0  # for Alignment-Length Synchronous Decoding
-
-  loss:
-    loss_name: "default"
-
-    warprnnt_numba_kwargs:
-      # FastEmit regularization: https://arxiv.org/abs/2010.11148
-      # You may enable FastEmit to reduce the latency of the model for streaming
-      fastemit_lambda: 0.0  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
-
-  # Adds Gaussian noise to the gradients of the decoder to avoid overfitting
-  variational_noise:
-    start_step: 0
-    std: 0.0
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    feat_in: null
+    num_classes: -1
+    vocabulary: []
 
   optim:
     name: adamw
@@ -173,7 +112,7 @@ model:
 trainer:
   gpus: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
-  max_epochs: 300
+  max_epochs: 1000
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: ddp
