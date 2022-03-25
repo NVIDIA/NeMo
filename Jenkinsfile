@@ -858,7 +858,30 @@ pipeline {
             rm -rf answer_extender'
           }
         }
-
+        stage('Dialogue: Answer Extender using DialogueS2SGenerationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+            model.dataset.dialogues_example_dir=answer_extender_s2s \
+            model.dataset.task=ms_marco \
+            model.dataset.debug_mode=True \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[1] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=facebook/bart-large \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf answer_extender_s2s'
+          }
+        }
       }
     }
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {

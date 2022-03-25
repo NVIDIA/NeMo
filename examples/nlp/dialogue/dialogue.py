@@ -106,6 +106,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models.dialogue.dialogue_gpt_classification_model import DialogueGPTClassificationModel
 from nemo.collections.nlp.models.dialogue.dialogue_gpt_generation_model import DialogueGPTGenerationModel
+from nemo.collections.nlp.models.dialogue.dialogue_s2s_generation_model import DialogueS2SGenerationModel
 from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
 from nemo.collections.nlp.models.dialogue.zero_shot_intent_model import ZeroShotIntentModel
@@ -144,6 +145,13 @@ def main(cfg: DictConfig) -> None:
             model_class = DialogueGPTGenerationModel
         else:
             model_class = DialogueGPTClassificationModel
+    elif (
+        'bart' in cfg.model.language_model.pretrained_model_name.lower()
+        or 't5' in cfg.model.language_model.pretrained_model_name.lower()
+    ):
+        # please use bf16/32 with t5-large and above
+        # see https://github.com/huggingface/transformers/pull/10956
+        model_class = DialogueS2SGenerationModel
 
     if cfg.pretrained_model or (cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)):
         if cfg.pretrained_model:

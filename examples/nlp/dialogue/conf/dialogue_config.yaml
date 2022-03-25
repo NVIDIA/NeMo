@@ -76,7 +76,7 @@ model:
   dataset:
     task: sgd # sgd, assistant, zero_shot, ms_marco
     field: intent # intemt, slots, service
-    input_field: response # passage+utterance, utterance, response, utterance+response
+    input_field: utterance+response # passage+utterance, utterance, response, utterance+response
     output_field: fluent_response # response, fluent_response
     prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel
     target_template: default # default, with_description, with_slots
