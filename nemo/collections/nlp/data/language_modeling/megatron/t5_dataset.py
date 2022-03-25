@@ -111,7 +111,7 @@ class T5Dataset(MegatronDataset):
         """
         Class-specific build method to be overridden by child classes.
         """
-        self.sentinel_tokens = tokenizer.additional_special_tokens_ids
+        self.sentinel_tokens = self.tokenizer.additional_special_tokens_ids
         assert len(self.sentinel_tokens) > 0
 
     def __len__(self):
