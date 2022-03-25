@@ -53,7 +53,12 @@ from numba import jit, prange
 from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
-import wandb
+
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 from nemo.utils import logging
 
@@ -327,6 +332,8 @@ def tacotron2_log_to_wandb_func(
     fmax=8000,
 ):
     _, spec_target, mel_postnet, gate, gate_target, alignments = tensors
+    if not HAVE_WANDB:
+        return
     if log_images and step % log_images_freq == 0:
         alignments = []
         specs = []
