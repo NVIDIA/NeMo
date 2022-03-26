@@ -393,9 +393,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     _translations += [t for (t, g) in tr_and_gt[rank]]
                     _ground_truths += [g for (t, g) in tr_and_gt[rank]]
 
-                if self.tgt_language in ['ja', 'ja-mecab']:
+                if self.multilingual and isinstance(self.tgt_language, ListConfig):
+                    tgt_language = self.tgt_language[dataloader_idx]
+                else:
+                    tgt_language = self.tgt_language
+                if tgt_language in ['ja', 'ja-mecab']:
                     sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
-                elif self.tgt_language in ['zh']:
+                elif tgt_language in ['zh']:
                     sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
                 else:
                     sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
