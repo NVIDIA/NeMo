@@ -28,6 +28,18 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
+class ApexGuardDefaults(object):
+    """
+    This class can be used to replace missing classes when apex is missing.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def __getattr__(self, item):
+        return None
+
+
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
     """LM logits using word embedding weights."""
     # Parallel logits.
@@ -229,9 +241,9 @@ def build_attention_mask_3d_causal(source_mask, target_mask):
     :param source_mask - True for non-masked, else masked [batch, src length]
     :param target_mask - True for non-masked, else masked [batch, tgt length]
     """
-    casual_mask = make_inference_history_mask_3d(target_mask)
+    causal_mask = make_inference_history_mask_3d(target_mask)
     mask = make_attention_mask_3d(source_mask, target_mask)
-    mask = mask * casual_mask
+    mask = mask * causal_mask
     # invert mask for Megatron
     return mask < 0.5
 

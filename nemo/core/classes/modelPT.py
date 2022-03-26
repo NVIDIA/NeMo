@@ -120,6 +120,7 @@ class ModelPT(LightningModule, Model):
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
+        self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
         self.trainer = trainer  # reference required for self.*_rank
@@ -438,6 +439,10 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
                 will be built and supplied to instantiate the optimizer.
         """
+
+        if self._optimizer_param_groups is None:
+            self.setup_optimizer_param_groups()
+
         # If config was not explicitly passed to us
         if optim_config is None:
             # See if internal config has `optim` namespace
@@ -544,7 +549,7 @@ class ModelPT(LightningModule, Model):
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
-                optimizer = optimizer_cls(self.parameters(), **optimizer_args)
+                optimizer = optimizer_cls(self._optimizer_param_groups, **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
                 self._optimizer = optimizer
@@ -560,7 +565,7 @@ class ModelPT(LightningModule, Model):
                     optimizer_config.update(optimizer_args)
 
                     optimizer_instance = hydra.utils.instantiate(
-                        optimizer_cls, self.parameters(), **optimizer_config
+                        optimizer_cls, self._optimizer_param_groups, **optimizer_config
                     )  # type: DictConfig
 
                     logging.info("Optimizer config = %s", str(optimizer_instance))
@@ -577,7 +582,7 @@ class ModelPT(LightningModule, Model):
 
         else:
             optimizer = optim.get_optimizer(optimizer_name)
-            optimizer = optimizer(self.parameters(), **optimizer_args)
+            optimizer = optimizer(self._optimizer_param_groups, **optimizer_args)
 
             logging.info("Optimizer config = %s", str(optimizer))
 
@@ -591,6 +596,23 @@ class ModelPT(LightningModule, Model):
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created
         return self._optimizer, self._scheduler
+
+    def setup_optimizer_param_groups(self):
+        """
+            Used to create param groups for the optimizer.
+            As an example, this can be used to specify per-layer learning rates:
+            optim.SGD([
+                        {'params': model.base.parameters()},
+                        {'params': model.classifier.parameters(), 'lr': 1e-3}
+                        ], lr=1e-2, momentum=0.9)
+            See https://pytorch.org/docs/stable/optim.html for more information.
+            By default, ModelPT will use self.parameters().
+            Override this method to add custom param groups.
+    """
+        param_groups = None
+        if hasattr(self, 'parameters'):
+            param_groups = [{'params': self.parameters()}]
+        self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
         self.setup_optimization()
@@ -1179,8 +1201,7 @@ class ModelPT(LightningModule, Model):
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
                     "with single GPU and no DDP to obtain accurate results.
                     "Following pattern should be used: "
-                    "gpu = 1 if cfg.trainer.gpus != 0 else 0"
-                    "trainer = Trainer(gpus=gpu)"
+                    "trainer = Trainer(devices=1, accelerator='gpu')" 
                     "if model.prepare_test(trainer):"
                     "  trainer.test(model)\n\n"""
 

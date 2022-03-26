@@ -384,7 +384,7 @@ def citrinet_model():
     modelConfig = DictConfig(
         {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
     )
-    citri_model = EncDecSpeakerLabelModel(cfg=modelConfig)
+    citri_model = EncDecCTCModel(cfg=modelConfig)
     return citri_model
 
 
@@ -516,5 +516,5 @@ def conformer_model():
     modelConfig = DictConfig(
         {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
     )
-    citri_model = EncDecSpeakerLabelModel(cfg=modelConfig)
-    return citri_model
+    conformer_model = EncDecCTCModel(cfg=modelConfig)
+    return conformer_model

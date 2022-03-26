@@ -124,7 +124,6 @@ class ConformerLayer(torch.nn.Module):
         Returns:
             x (torch.Tensor): (B, T, d_model)
         """
-        dtype = x.dtype
         residual = x
         x = self.norm_feed_forward1(x)
         x = self.feed_forward1(x)
@@ -158,7 +157,7 @@ class ConformerLayer(torch.nn.Module):
         residual = residual + self.dropout(x) * self.fc_factor
 
         x = self.norm_out(residual)
-        return x.to(dtype=dtype)
+        return x
 
 
 class ConformerConvolution(nn.Module):
@@ -217,7 +216,7 @@ class ConformerConvolution(nn.Module):
         x = nn.functional.glu(x, dim=1)
 
         if pad_mask is not None:
-            x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
+            x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
 
         if cache is not None:
             x = self.depthwise_conv(x, cache=cache, cache_next=cache_next)

@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
     build_position_ids,
     init_method_normal,
     parallel_lm_logits,
@@ -35,6 +36,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 __all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule"]
@@ -88,6 +91,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         fp16_cross_entropy=False,
         use_cpu_initialization=False,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
@@ -97,6 +101,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         bias_gelu_fusion=True,
         masked_softmax_fusion=True,
         openai_gelu=False,
+        activation='gelu',
         onnx_safe=False,
         hidden_steps=-1,
         hidden_blocks=1,
@@ -145,6 +150,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
@@ -157,6 +163,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_blocks,
+            activation=activation,
         )
 
         decoder = get_decoder_model(
@@ -175,6 +182,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             init_method_std=init_method_std,
             use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
@@ -187,6 +195,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             hidden_steps=hidden_steps,
             hidden_blocks=hidden_blocks,
+            activation=activation,
         )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder,)
@@ -210,7 +219,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         tokentype_ids=None,
         labels=None,
         enc_hidden_states=None,
+        enc_output_mask=None,
         output_enc_hidden_only=False,
+        enc_input=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -218,8 +229,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         ret_dict = {}
 
         # encoder embeddings
-        enc_position_ids = build_position_ids(enc_input_ids)
-        enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
+        if enc_input is None:
+            enc_position_ids = build_position_ids(enc_input_ids)
+            enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
 
         if output_enc_hidden_only:
             enc_output, enc_output_mask = self.enc_dec_model.encode(
@@ -239,8 +251,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     dec_attn_mask=dec_attn_mask,
                     enc_layer_past=None,
                     enc_get_key_value=False,
-                    enc_output=None,
-                    enc_output_mask=None,
+                    enc_output=enc_hidden_states,
+                    enc_output_mask=enc_output_mask,
                     dec_layer_past=None,
                     dec_get_key_value=False,
                 )

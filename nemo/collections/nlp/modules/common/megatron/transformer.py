@@ -27,7 +27,8 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -39,6 +40,8 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+    # fake missing classes with None attributes
+    AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -74,21 +77,42 @@ class ParallelMLP(MegatronModule):
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
+        activation='gelu',
     ):
         super(ParallelMLP, self).__init__()
+        self.activation = activation
+
+        if activation not in ['gelu', 'geglu']:
+            raise ValueError(f"Activation {activation} not supported. Only gelu and geglu are supported.")
 
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
             hidden_size,
-            ffn_hidden_size,
+            ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
         )
 
+        if activation == 'geglu':
+            # Separate linear layer for GEGLU activation.
+            # Source: https://github.com/huggingface/transformers/blob/bee361c6f1f7704f8c688895f2f86f6e5ff84727/src/transformers/models/t5/modeling_t5.py#L292
+            self.dense_h_to_4h_2 = tensor_parallel.ColumnParallelLinear(
+                hidden_size,
+                ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+                gather_output=False,
+                init_method=init_method,
+                skip_bias_add=True,
+                use_cpu_initialization=use_cpu_initialization,
+            )
+
         self.bias_gelu_fusion = bias_gelu_fusion
         self.activation_func = F.gelu
+        if activation == 'geglu':
+            self.activation_func = 'geglu'  # Implemented using F.gelu
+            if bias_gelu_fusion:
+                logging.warning("Bias Gelu Fusion is not supported for GEGLU activation. Running with pytorch F.gelu")
         if openai_gelu:
             self.activation_func = openai_gelu
         elif onnx_safe:
@@ -109,7 +133,14 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.bias_gelu_fusion:
+        if self.activation == 'geglu':
+            intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
+
+        if self.activation == 'geglu':
+            intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (
+                intermediate_parallel_2 + bias_parallel_2
+            )
+        elif self.bias_gelu_fusion and self.activation == 'gelu':
             intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
             intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
@@ -409,6 +440,7 @@ class ParallelTransformerLayer_(MegatronModule):
         onnx_safe=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        activation='gelu',
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -421,7 +453,8 @@ class ParallelTransformerLayer_(MegatronModule):
         self.layer_number = layer_number
         self.layer_type = layer_type
 
-        self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm  # if true apply residual connection post layer norm (like original bert)
+        # if true apply residual connection post layer norm (like original bert)
+        self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm
 
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
@@ -445,6 +478,7 @@ class ParallelTransformerLayer_(MegatronModule):
             attention_dropout=attention_dropout,
         )
         self.hidden_dropout = hidden_dropout
+        self.attention_dropout = attention_dropout
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Layernorm on the attention output
@@ -479,6 +513,7 @@ class ParallelTransformerLayer_(MegatronModule):
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            activation=activation,
         )
 
     def forward(
@@ -623,12 +658,14 @@ class ParallelTransformer(MegatronModule):
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
+        attention_dropout=0.1,
         use_cpu_initialization=False,
         bias_gelu_fusion=True,
         masked_softmax_fusion=True,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
+        activation='gelu',
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -671,37 +708,37 @@ class ParallelTransformer(MegatronModule):
                 fp32_residual_connection=fp32_residual_connection,
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
+                attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_gelu_fusion=bias_gelu_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
+                activation=activation,
             )
 
-        # TODO: get virtual_pipeline_model_parallel_size from apex.mpu
-        # if parallel_state.get_virtual_pipeline_model_parallel_rank() is not None:
-        #     assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, (
-        #         'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
-        #     )
-        #     # Number of layers in each model chunk is the number of layers in the stage,
-        #     # divided by the number of model chunks in a stage.
-        #     self.num_layers = self.num_layers // args.virtual_pipeline_model_parallel_size
-        #     # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
-        #     # layers to stages like (each list is a model chunk):
-        #     # Stage 0: [0]  [2]  [4]  [6]
-        #     # Stage 1: [1]  [3]  [5]  [7]
-        #     # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
-        #     # layers to stages like (each list is a model chunk):
-        #     # Stage 0: [0, 1]  [4, 5]
-        #     # Stage 1: [2, 3]  [6, 7]
-        #     offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
-        #         args.num_layers // args.virtual_pipeline_model_parallel_size
-        #     ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
-        # else:
-        #     # Each stage gets a contiguous set of layers.
-        #     offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
-        offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+        if parallel_state.get_virtual_pipeline_model_parallel_rank() is not None:
+            assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
+                'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
+            )
+            # Number of layers in each model chunk is the number of layers in the stage,
+            # divided by the number of model chunks in a stage.
+            self.num_layers = self.num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
+            # layers to stages like (each list is a model chunk):
+            # Stage 0: [0]  [2]  [4]  [6]
+            # Stage 1: [1]  [3]  [5]  [7]
+            # With 8 layers, 2 stages, and 2 virtual stages, we want an assignment of
+            # layers to stages like (each list is a model chunk):
+            # Stage 0: [0, 1]  [4, 5]
+            # Stage 1: [2, 3]  [6, 7]
+            offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
+                num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
+        else:
+            # Each stage gets a contiguous set of layers.
+            offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 

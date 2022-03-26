@@ -440,7 +440,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
 
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
-        mask = self.seq_range[:max_audio_length].repeat(seq_lens.size(0), 1) < seq_lens.unsqueeze(-1)
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
         return mask
 
     def enable_pad_mask(self, on=True):

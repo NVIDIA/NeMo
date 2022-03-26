@@ -281,13 +281,11 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[])
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
             hypothesis.y_sequence = partial_hypotheses.y_sequence.cpu().tolist()
-            # if len(partial_hypotheses.y_sequence) > 0:
-            #     hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
             if partial_hypotheses.dec_state is not None:
                 hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
                 hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
@@ -315,12 +313,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     last_label = self._SOS
                 else:
                     last_label = label_collate([[hypothesis.last_token]])
-
-                # last_label = (
-                #     self._SOS
-                #     if (hypothesis.y_sequence == [] or hypothesis.dec_state is None) #do we need second part
-                #     else hypothesis.y_sequence[-1]
-                # )
 
                 # Perform prediction network and joint network steps.
                 g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
@@ -367,10 +359,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         # Unpack the hidden states
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
-
-        # Remove the original input label if partial hypothesis was provided
-        # if partial_hypotheses is not None and len(partial_hypotheses.y_sequence) > 0:
-        #     hypothesis.y_sequence = hypothesis.y_sequence[1:]
 
         return hypothesis
 

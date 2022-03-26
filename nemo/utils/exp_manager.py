@@ -43,6 +43,7 @@ from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
+from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
 
 class NotFoundError(NeMoBaseException):
@@ -75,13 +76,13 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    every_n_val_epochs: Optional[int] = 1
+    every_n_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
     always_save_nemo: bool = False
     save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
-    model_parallel_size: Optional[int] = None
+    model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
 
 
 @dataclass
@@ -117,7 +118,6 @@ class ExpManagerConfig:
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
-    model_parallel_size: Optional[int] = None
 
 
 class TimingCallback(Callback):
@@ -139,10 +139,10 @@ class TimingCallback(Callback):
         self.timer.stop(name)
         pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
 
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
@@ -433,8 +433,9 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        if 'mp_rank' in str(last_checkpoints[0]):
+        if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
             checkpoint = last_checkpoints[0]
+            checkpoint = uninject_model_parallel_rank(checkpoint)
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
@@ -720,8 +721,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
-            if self.model_parallel_size is not None and self.model_parallel_size > 1:
-                checkpoint = self._uninject_mp_rank(checkpoint)
+            if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
+                checkpoint = uninject_model_parallel_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
                 continue
@@ -754,25 +755,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.kth_best_model_path = best_k_models[-1]
         self.best_model_path = best_k_models[0]
         self.best_model_score = self.best_k_models[self.best_model_path]
-
-    @staticmethod
-    def _uninject_mp_rank(filepath):
-        dirname = os.path.dirname(os.path.dirname(filepath))
-        basename = os.path.basename(filepath)
-        filepath = os.path.join(dirname, basename)
-        return filepath
-
-    # TODO remove _save_last_checkpoint after fix for issue #https://github.com/PyTorchLightning/pytorch-lightning/issues/11451
-    def _save_last_checkpoint(self, trainer, monitor_candidates) -> None:
-        if not self.save_last:
-            return
-
-        filepath = self.format_checkpoint_name(monitor_candidates, self.CHECKPOINT_NAME_LAST)
-        if self.last_model_path and self.last_model_path != filepath:
-            trainer.training_type_plugin.remove_checkpoint(self.last_model_path)
-
-        self.last_model_path = filepath
-        trainer.save_checkpoint(filepath, self.save_weights_only)
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         # output = None
@@ -832,9 +814,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         app_state = AppState()
         if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+            filepath = inject_model_parallel_rank(filepath)
 
         # each model parallel rank needs to remove its model
         if is_global_rank_zero() or (app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0):
@@ -906,10 +886,8 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_from_checkpoint_fit_path or ""
-    if params.model_parallel_size is not None and params.model_parallel_size > 1:
-        checkpoint_callback.last_model_path = NeMoModelCheckpoint._uninject_mp_rank(
-            checkpoint_callback.last_model_path
-        )
+    if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
+        checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
 
 

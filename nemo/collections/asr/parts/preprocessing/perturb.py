@@ -162,7 +162,9 @@ class SpeedPerturbation(Perturbation):
             return
 
         new_sr = int(self._sr * speed_rate)
-        data._samples = librosa.core.resample(data._samples, self._sr, new_sr, res_type=self._res_type)
+        data._samples = librosa.core.resample(
+            data._samples, orig_sr=self._sr, target_sr=new_sr, res_type=self._res_type
+        )
 
 
 class TimeStretchPerturbation(Perturbation):
