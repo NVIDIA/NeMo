@@ -46,7 +46,7 @@ def main():
     parser.add_argument(
         "--pipeline_model_parallel_split_rank", type=int, default=0, required=False,
     )
-    parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
+    parser.add_argument("--precision", default="16", type=str, help="PyTorch Lightning Trainer precision flag")
     args = parser.parse_args()
 
     # cast precision to int if 32 or 16
