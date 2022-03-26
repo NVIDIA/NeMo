@@ -772,7 +772,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         self.pred_hidden = jointnet['pred_hidden']
         self.joint_hidden = jointnet['joint_hidden']
         self.activation = jointnet['activation']
-        self.proj_size = jointnet['proj_size']
 
         # Optional arguments
         dropout = jointnet.get('dropout', 0.0)
