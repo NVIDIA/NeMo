@@ -525,7 +525,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.setup_test_data(test_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)  
+        self._validation_dl = self._setup_eval_dataloader_from_config(cfg=val_data_config)
         # instantiate Torchmetric for each val dataloader
         if self._validation_dl is not None:
             for dataloader_idx in range(len(self._validation_dl)):
