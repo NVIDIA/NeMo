@@ -22,10 +22,12 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
 )
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler, MegatronPretrainingSampler
 
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -138,18 +140,28 @@ class MegatronT5GLUEModel(MegatronT5Model):
         if dataset is None:
             return None
 
-        rank = parallel_state.get_data_parallel_rank()
-        world_size = parallel_state.get_data_parallel_world_size()
+        # rank = parallel_state.get_data_parallel_rank()
+        # world_size = parallel_state.get_data_parallel_world_size()
+        sampler = MegatronPretrainingSampler(
+            total_samples=0,
+            consumed_samples=0,
+            micro_batch_size=batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=drop_last
+        )
+        '''
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
-
+        sampler.num_samples = sampler.num_samples // get_num_microbatches()
+        '''
         # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
             batch_size=batch_size,
-            sampler=sampler,
+            batch_sampler=sampler,
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
