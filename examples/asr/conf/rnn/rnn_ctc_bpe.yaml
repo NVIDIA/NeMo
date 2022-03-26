@@ -85,7 +85,7 @@ model:
     feat_in: ${model.preprocessor.features}
     n_layers: 8
     d_model: 2048
-    proj_out: 640 # you may set it if you need different output size other than the default d_model
+    proj_size: 640 # you may set it if you need different output size other than the default d_model
     rnn_type: "lstm" # it can be lstm, gru or rnn
     bidirectional: true # need to set it to false if you want to make the model causal
 

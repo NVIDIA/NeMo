@@ -41,7 +41,7 @@ class RNNEncoder(NeuralModule, Exportable):
         feat_in (int): the size of feature channels
         n_layers (int): number of layers of RNN
         d_model (int): the hidden size of the model
-        proj_out (int): the size of the output projection after each RNN layer
+        proj_size (int): the size of the output projection after each RNN layer
         rnn_type (str): the type of the RNN layers, choices=['lstm, 'gru', 'rnn']
         bidirectional (float): specifies whether RNN layers should be bidirectional or not
             Defaults to True.
@@ -94,7 +94,7 @@ class RNNEncoder(NeuralModule, Exportable):
         feat_in,
         n_layers,
         d_model,
-        proj_out=-1,
+        proj_size=-1,
         rnn_type='lstm',
         bidirectional=True,
         subsampling='striding',
@@ -108,25 +108,25 @@ class RNNEncoder(NeuralModule, Exportable):
         self._feat_in = feat_in
 
         if subsampling_conv_channels == -1:
-            subsampling_conv_channels = proj_out
+            subsampling_conv_channels = proj_size
         if subsampling and subsampling_factor > 1:
             if subsampling == 'stacking':
                 self.pre_encode = StackingSubsampling(
-                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=proj_out
+                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=proj_size
                 )
             else:
                 self.pre_encode = ConvSubsampling(
                     subsampling=subsampling,
                     subsampling_factor=subsampling_factor,
                     feat_in=feat_in,
-                    feat_out=proj_out,
+                    feat_out=proj_size,
                     conv_channels=subsampling_conv_channels,
                     activation=nn.ReLU(),
                 )
         else:
-            self.pre_encode = nn.Linear(feat_in, proj_out)
+            self.pre_encode = nn.Linear(feat_in, proj_size)
 
-        self._feat_out = proj_out
+        self._feat_out = proj_size
 
         self.layers = nn.ModuleList()
 
@@ -137,7 +137,7 @@ class RNNEncoder(NeuralModule, Exportable):
             rnn_module = SUPPORTED_RNN[rnn_type]
 
         for i in range(n_layers):
-            rnn_proj_out = proj_out // 2 if bidirectional else proj_out
+            rnn_proj_size = proj_size // 2 if bidirectional else proj_size
             if rnn_type == "lstm":
                 layer = rnn_module(
                     input_size=self._feat_out,
@@ -145,16 +145,16 @@ class RNNEncoder(NeuralModule, Exportable):
                     num_layers=1,
                     batch_first=True,
                     bidirectional=bidirectional,
-                    proj_size=rnn_proj_out,
+                    proj_size=rnn_proj_size,
                 )
             self.layers.append(layer)
-            self.layers.append(nn.LayerNorm(proj_out))
+            self.layers.append(nn.LayerNorm(proj_size))
             self.layers.append(nn.Dropout(p=dropout))
-            self._feat_out = proj_out
+            self._feat_out = proj_size
 
-        if proj_out > 0 and self._feat_out != proj_out:
-            self.out_proj = nn.Linear(self._feat_out, proj_out)
-            self._feat_out = proj_out
+        if proj_size > 0 and self._feat_out != proj_size:
+            self.out_proj = nn.Linear(self._feat_out, proj_size)
+            self._feat_out = proj_size
         else:
             self.out_proj = None
 
