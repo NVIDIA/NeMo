@@ -160,9 +160,6 @@ def __build_document_from_manifests(
                 for line in in_reader:
                     item = json.loads(line)
                     text = item['text']
-                    w.update(set(item['text']))
-                    # if "2019" in text:
-                    #    print(text)
                     out_writer.write(text + '\n')
                     out_writer.flush()
 
@@ -171,7 +168,6 @@ def __build_document_from_manifests(
             logging.info(f"Finished extracting manifest : {manifest}")
 
         logging.info("Finished extracting all manifests ! Number of sentences : {}".format(num_lines))
-    print(w)
     return document_path
 
 
