@@ -29,7 +29,6 @@ from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing impo
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType
@@ -44,18 +43,7 @@ class QAModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
-            if cfg.tokenizer is not None
-            else None,
-        )
-
         self.classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,
             num_classes=cfg.token_classifier.num_classes,

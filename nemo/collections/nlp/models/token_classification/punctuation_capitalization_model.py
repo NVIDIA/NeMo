@@ -46,7 +46,6 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
     legacy_model_config_to_new_model_config,
 )
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LogitsType, NeuralType
@@ -93,10 +92,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         """Initializes BERT Punctuation and Capitalization model."""
         if is_legacy_model_config(cfg):
             cfg = legacy_model_config_to_new_model_config(cfg)
-        self.setup_tokenizer(cfg.tokenizer)
-        self.world_size = 1
-        if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         # For structure of `self.metrics` attribute see `self._setup_metrics_dictionary` method.
         self.metrics: Optional[torch.nn.ModuleDict] = None
         self.label_ids_are_set: bool = False
@@ -105,13 +101,6 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-        )
 
         self.punct_classifier = TokenClassifier(
             hidden_size=self.bert_model.config.hidden_size,

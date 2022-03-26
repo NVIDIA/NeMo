@@ -30,7 +30,6 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.models.dialogue_state_tracking_generative.dialogue_metrics import IntentSlotMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
@@ -44,9 +43,6 @@ class IntentSlotClassificationModel(NLPModel):
         """
         self.max_seq_length = cfg.language_model.max_seq_length
 
-        # Setup tokenizer.
-        self.setup_tokenizer(cfg.tokenizer)
-        self.cfg = cfg
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
             # Disable setup methods.
@@ -60,17 +56,6 @@ class IntentSlotClassificationModel(NLPModel):
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # Initialize Bert model
-        self.bert_model = get_lm_model(
-            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
-            if self.cfg.language_model.config
-            else None,
-            checkpoint_file=self.cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-        )
 
         # Enable setup methods.
         IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)

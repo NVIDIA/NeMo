@@ -30,7 +30,6 @@ from nemo.collections.nlp.data.token_classification.token_classification_utils i
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType
@@ -54,27 +53,11 @@ class TokenClassificationModel(NLPModel):
             else:
                 raise ValueError(f'{cfg.label_ids} not found.')
 
-        self.setup_tokenizer(cfg.tokenizer)
         self.class_weights = None
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-            trainer=trainer,
-        )
-
-        if cfg.language_model.get('nemo_file', None) is not None:
-            hidden_size = self.bert_model.cfg.hidden_size
-        else:
-            hidden_size = self.bert_model.config.hidden_size
-
         self.classifier = TokenClassifier(
-            hidden_size=hidden_size,
+            hidden_size=self.hidden_size,
             num_classes=len(self._cfg.label_ids),
             num_layers=self._cfg.head.num_fc_layers,
             activation=self._cfg.head.activation,

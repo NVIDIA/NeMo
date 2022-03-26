@@ -29,6 +29,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
@@ -45,11 +46,55 @@ class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, no_lm_init = False):
+
+        self.hidden_size = None
+        self.bert_model = None
+        vocab_file=None
+        nemo_file=None
+        config_dict=None
+
+        # tokenizer needs to get initialized before the super.__init__()
+        # as dataloaders and datasets need it to process the data
+        if cfg.get('tokenizer'):
+            # Some models have their own tokenizer setup
+            if not hasattr(self, 'tokenizer'):
+                self.setup_tokenizer(cfg.tokenizer)
+            if cfg.get('tokenizer.vocab_file'):
+                vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
+            
         super().__init__(cfg, trainer)
+                
+        if cfg.get('language_model') and not no_lm_init:
+            if cfg.get('language_model.nemo_file'):
+                nemo_file=self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
+            if cfg.get('language_model.config'):
+                config_dict=OmegaConf.to_container(cfg.language_model.config)
+            self.bert_model = get_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
+                config_dict=config_dict,
+                checkpoint_file=cfg.language_model.lm_checkpoint,
+                nemo_file=nemo_file,
+                vocab_file=vocab_file,
+                trainer=trainer,
+            )
+            # register encoder config
+            self.register_bert_model()
+            if cfg.language_model.get('nemo_file'):
+                self.hidden_size = self.bert_model.cfg.hidden_size
+            else:
+                self.hidden_size = self.bert_model.config.hidden_size    
+            
+
+
+
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
-        self.set_world_size(trainer)
+        if trainer is None:
+            self.world_size=1
+        else:
+            self.set_world_size(trainer)
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
@@ -63,11 +108,8 @@ class NLPModel(ModelPT, Exportable):
         """Adds encoder config to .nemo archive for Jarvis.
         """
         # check if there is an encoder, warn if not
-        if self.bert_model is None:
-            raise ValueError('Instantiate self.bert_model before registering it.')
-        else:
+        if self.bert_model is not None:
             # get encoder config and create source for artifact
-
             if isinstance(self.bert_model, BertModule):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
