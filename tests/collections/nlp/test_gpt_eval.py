@@ -82,35 +82,35 @@ class TestGPTEval:
             284,
             6889,
             257,
-            968,
-            7133,
-            351,
-            257,
-            968,
-            20432,
+            17427,
+            11,
+            16789,
+            11,
+            290,
+            16789,
+            12,
+            1462,
+            12,
+            11041,
+            2034,
             198,
             198,
             40,
             716,
             257,
-            649,
-            12590,
-            284,
-            7133,
+            31516,
+            287,
+            5565,
             2478,
-            13,
+            290,
             314,
             716,
             2045,
-            329,
-            257,
-            835,
-            284,
         ]
 
         assert np.array_equal(np.array(response['token_ids'][0]), gt_token_ids)
 
-        gt_text = '\n\nHow to Make a New iPhone with a New Camera\n\nI am a newbie to iPhone development. I am looking for a way to'
+        gt_text = '\n\nHow to Make a Simple, Easy, and Easy-to-Use App\n\nI am a beginner in Android development and I am looking'
         assert response['sentences'][0] == gt_text
 
         # test top_p
@@ -165,11 +165,11 @@ class TestGPTEval:
         assert np.array_equal(np.array(response['token_ids'][0]), gt_token_ids)
         assert len(response['full_logprob'][0]) == 5
         gt_log_prob = [
-            -7.956912517547607,
-            -7.195938587188721,
-            -5.2673797607421875,
-            -12.754342079162598,
-            -4.635880470275879,
+            -7.9579081535339355,
+            -7.195970058441162,
+            -5.269130706787109,
+            -12.75404167175293,
+            -4.631799697875977,
         ]
         assert np.array_equal(np.array(response['logprob'][0]), gt_log_prob)
         gt_offsets = [0, 3, 5, 7, 10, 20]
