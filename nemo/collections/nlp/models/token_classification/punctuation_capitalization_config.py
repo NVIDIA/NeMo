@@ -328,4 +328,3 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
         for key in retain_during_legacy_conversion.keys():
             omega_conf[key] = retain_during_legacy_conversion[key]
     return omega_conf
-

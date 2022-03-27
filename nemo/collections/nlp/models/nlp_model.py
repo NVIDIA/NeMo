@@ -65,7 +65,7 @@ class NLPModel(ModelPT, Exportable):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
         super().__init__(cfg, trainer)
- 
+
         if cfg.get('language_model') and not no_lm_init:
             if cfg.get('language_model.config'):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
@@ -83,7 +83,7 @@ class NLPModel(ModelPT, Exportable):
                 self.hidden_size = self.bert_model.cfg.hidden_size
             else:
                 self.hidden_size = self.bert_model.config.hidden_size    
-            
+
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
         if trainer is None:
