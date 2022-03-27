@@ -62,7 +62,9 @@ class EntityLinkingModel(NLPModel, Exportable):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.bert_model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
 
         # normalize to unit sphere
         logits = torch.nn.functional.normalize(hidden_states[:, self._idx_conditioned_on], p=2, dim=1)

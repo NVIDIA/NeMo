@@ -155,7 +155,11 @@ try:
         Returns:
            Equivalent LayerNorm module
         """
-        if not isinstance(n, FusedLayerNorm) and not isinstance(n, FastLayerNorm) and not isinstance(n, MixedFusedLayerNorm):
+        if (
+            not isinstance(n, FusedLayerNorm)
+            and not isinstance(n, FastLayerNorm)
+            and not isinstance(n, MixedFusedLayerNorm)
+        ):
             return None
 
         dev = next(n.parameters()).device

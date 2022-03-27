@@ -80,7 +80,7 @@ class TextClassificationModel(NLPModel, Exportable):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        if self._cfg.tokenizer.get('library','') == 'megatron':
+        if self._cfg.tokenizer.get('library', '') == 'megatron':
             hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
         else:
             hidden_states = self.bert_model(

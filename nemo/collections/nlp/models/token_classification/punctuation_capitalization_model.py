@@ -150,7 +150,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
                   ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
         """
-        if self._cfg.tokenizer.get('library','') == 'megatron':
+        if self._cfg.tokenizer.get('library', '') == 'megatron':
             hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
         else:
             hidden_states = self.bert_model(

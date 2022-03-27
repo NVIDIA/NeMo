@@ -17,9 +17,8 @@ import os
 from typing import List, Optional, Union
 
 from attr import asdict
-from pytorch_lightning import Trainer
-
 from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -54,7 +53,7 @@ def get_lm_model(
     config_file: Optional[str] = None,
     vocab_file: Optional[str] = None,
     trainer: Optional[Trainer] = None,
-    cfg: DictConfig = None
+    cfg: DictConfig = None,
 ) -> BertModule:
     """
     Helper function to instantiate a language model encoder, either from scratch or a pretrained model.
@@ -72,7 +71,10 @@ def get_lm_model(
     """
 
     # check valid model type
-    if not cfg.language_model.pretrained_model_name or cfg.language_model.pretrained_model_name not in get_pretrained_lm_models_list(include_external=False):
+    if (
+        not cfg.language_model.pretrained_model_name
+        or cfg.language_model.pretrained_model_name not in get_pretrained_lm_models_list(include_external=False)
+    ):
         logging.warning(
             f'{cfg.language_model.pretrained_model_name} is not in get_pretrained_lm_models_list(include_external=False), '
             f'will be using AutoModel from HuggingFace.'
@@ -84,7 +86,7 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    if cfg.tokenizer.get("library","") == 'megatron':
+    if cfg.tokenizer.get("library", "") == 'megatron':
         import torch
 
         from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -110,7 +112,9 @@ def get_lm_model(
 
     else:
         model = get_huggingface_lm_model(
-            config_dict=config_dict, config_file=config_file, pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_dict=config_dict,
+            config_file=config_file,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
         )
 
         if cfg.language_model.lm_checkpoint:

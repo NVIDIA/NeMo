@@ -21,7 +21,6 @@ import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
@@ -33,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_no
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
 
 try:
@@ -67,7 +67,7 @@ class MegatronBertModel(NLPModel):
         self._reduced_lm_loss_buffer = []
         self._reduced_sop_loss_buffer = []
 
-        #not saved as part of nemo model graph but required during export to ONNX
+        # not saved as part of nemo model graph but required during export to ONNX
         input_names = ['input_ids', 'attention_mask', 'token_type_ids']
 
         initialize_model_parallel_for_nemo(
@@ -436,7 +436,7 @@ class MegatronBertModel(NLPModel):
             # Not a Nvidia container. Dependency check is on users
             pass
 
-    #Required for ONNX export
+    # Required for ONNX export
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -445,7 +445,7 @@ class MegatronBertModel(NLPModel):
             "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
-    #Required for ONNX export
+    # Required for ONNX export
     def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.

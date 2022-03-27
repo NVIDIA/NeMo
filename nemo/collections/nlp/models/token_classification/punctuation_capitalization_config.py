@@ -324,7 +324,8 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
         )
     )
     with open_dict(omega_conf):
-        retain_during_legacy_conversion = model_cfg.get('retain_during_legacy_conversion',{})
+        retain_during_legacy_conversion = model_cfg.get('retain_during_legacy_conversion', {})
         for key in retain_during_legacy_conversion.keys():
             omega_conf[key] = retain_during_legacy_conversion[key]
     return omega_conf
+
