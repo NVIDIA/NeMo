@@ -20,7 +20,6 @@ from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
@@ -66,11 +65,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.vocab = None
             self.ds_class_name = cfg.train_ds.dataset._target_.split(".")[-1]
 
-            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
-                input_fft_kwargs["n_embed"] = len(self.vocab.labels)
-                input_fft_kwargs["padding_idx"] = self.vocab.pad
-            elif self.ds_class_name == "TTSDataset":
+            if self.ds_class_name == "TTSDataset":
                 self._setup_tokenizer(cfg)
                 assert self.vocab is not None
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
@@ -178,13 +173,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
             # TODO(Oktai15): remove it in 1.8.0 version
-            if ds_class_name == "AudioToCharWithPriorAndPitchDataset" or ds_class_name == "TTSDataset":
+            if ds_class_name == "TTSDataset":
                 self._parser = self.vocab.encode
             else:
                 raise ValueError(f"Unknown dataset class: {ds_class_name}")
         else:
             # TODO(Oktai15): remove it in 1.8.0 version
-            # ds_class_name == "FastPitchDataset"
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
                 name='en',
@@ -271,9 +265,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
             # TODO(Oktai15): remove it in 1.8.0 version
-            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
-            elif self.ds_class_name == "TTSDataset":
+            if self.ds_class_name == "TTSDataset":
                 if SpeakerID in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
                 else:
@@ -349,10 +341,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
-            elif self.ds_class_name == "TTSDataset":
+            if self.ds_class_name == "TTSDataset":
                 if SpeakerID in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
                 else:
@@ -439,9 +428,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         # TODO(Oktai15): remove it in 1.8.0 version
-        if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
-            dataset = instantiate(cfg.dataset, parser=self.parser)
-        elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
+        if cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
             phon_mode = contextlib.nullcontext()
             if hasattr(self.vocab, "set_phone_prob"):
                 phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
