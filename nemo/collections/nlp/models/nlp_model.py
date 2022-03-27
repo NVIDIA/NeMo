@@ -82,7 +82,7 @@ class NLPModel(ModelPT, Exportable):
             if cfg.tokenizer.get("library", "") == 'megatron':
                 self.hidden_size = self.bert_model.cfg.hidden_size
             else:
-                self.hidden_size = self.bert_model.config.hidden_size    
+                self.hidden_size = self.bert_model.config.hidden_size
 
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
