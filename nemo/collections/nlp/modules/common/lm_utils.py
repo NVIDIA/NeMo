@@ -117,7 +117,7 @@ def get_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
         )
 
-        if cfg.language_model.lm_checkpoint:
+        if cfg.language_model.get("lm_checkpoint"):
             app_state = AppState()
             if not app_state.is_model_being_restored and not os.path.exists(cfg.language_model.lm_checkpoint):
                 raise ValueError(f'{cfg.language_model.lm_checkpoint} not found')
