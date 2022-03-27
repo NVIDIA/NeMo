@@ -100,15 +100,11 @@ def parse_input_example(input_example):
     return input_list, input_dict
 
 
-def to_onnxrt_input(input_names, input_list, input_dict):
+def to_onnxrt_input(input_names, input_dict):
     odict = {}
-    for k, v in input_dict.items():
-        odict[k] = v.cpu().numpy()
-    for i, input in enumerate(input_list):
-        if type(input) in (list, tuple):
-            odict[input_names[i]] = tuple([ip.cpu().numpy() for ip in input])
-        else:
-            odict[input_names[i]] = input.cpu().numpy()
+    for k in input_names:
+        if k in input_dict:
+            odict[k] = input_dict[k].cpu().numpy()
     return odict
 
 
@@ -116,7 +112,10 @@ def verify_runtime(
     output, input_list, input_dict, input_names, output_names, output_example, check_tolerance=0.01,
 ):
     # Verify the model can be read, and is valid
+
     onnx_model = onnx.load(output)
+    input_names = [node.name for node in onnx_model.graph.input]
+
     global ort_available
     if not ort_available:
         logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
@@ -128,7 +127,7 @@ def verify_runtime(
     sess = onnxruntime.InferenceSession(
         onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
     )
-    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_list, input_dict))
+    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_dict))
     all_good = True
 
     for i, out in enumerate(ort_out[0]):

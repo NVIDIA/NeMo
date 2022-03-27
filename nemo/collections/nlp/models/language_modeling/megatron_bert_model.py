@@ -118,6 +118,8 @@ class MegatronBertModel(NLPModel):
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
+            masked_softmax_fusion=cfg.get('masked_softmax_fusion', False),
+            bias_gelu_fusion=cfg.get('bias_gelu_fusion', False),
             onnx_safe=cfg.get('onnx_safe', False),
             add_binary_head=cfg.bert_binary_head,
         )

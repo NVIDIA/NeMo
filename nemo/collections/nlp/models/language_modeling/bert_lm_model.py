@@ -115,7 +115,7 @@ class BERTLMModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.

@@ -25,7 +25,6 @@ from nemo.collections.nlp.data.text_classification import TextClassificationData
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -36,69 +35,16 @@ __all__ = ['TextClassificationModel']
 
 
 class TextClassificationModel(NLPModel, Exportable):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the BERTTextClassifier model."""
-
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-        # tokenizer needs to get initialized before the super.__init__()
-        # as dataloaders and datasets need it to process the data
-        self.setup_tokenizer(cfg.tokenizer)
-
         self.class_weights = None
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Initialize Bert model
-        if cfg.tokenizer.get('library','') == 'megatron':
-            import torch
-
-            from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-
-            class Identity(torch.nn.Module):
-                def __init__(self):
-                    super(Identity, self).__init__()
-
-                def forward(self, x, *args):
-                    return x
-
-            # For finetuning a different Text Classification dataset
-            if cfg.language_model.get('downstream'):
-                model = MegatronBertModel(cfg=cfg, trainer=trainer)
-            # For finetuning on Text Classification dataset for the first time
-            else:
-                cfg.language_model.downstream = True
-                super().cfg.language_model.downstream = True
-                model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
-
-            # remove the headers that are only revelant for pretraining
-            model.model.lm_head = Identity()
-            model.model.binary_head = Identity()
-            model.model.language_model.pooler = Identity()
-
-            self.bert_model = model
-            hidden_size = self.bert_model.cfg.hidden_size
-        else:
-            self.bert_model = get_lm_model(
-                pretrained_model_name=cfg.language_model.pretrained_model_name,
-                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-                config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-                checkpoint_file=cfg.language_model.lm_checkpoint,
-                vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-                trainer=trainer,
-            )
-            hidden_size = self.bert_model.config.hidden_size
-
         self.classifier = SequenceClassifier(
-            hidden_size=hidden_size,
+            hidden_size=self.hidden_size,
             num_classes=cfg.dataset.num_classes,
             num_layers=cfg.classifier_head.num_output_layers,
             activation='relu',
@@ -129,7 +75,7 @@ class TextClassificationModel(NLPModel, Exportable):
                 self.loss = CrossEntropyLoss()
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.

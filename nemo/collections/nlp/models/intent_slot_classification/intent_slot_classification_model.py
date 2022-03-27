@@ -30,7 +30,6 @@ from nemo.collections.nlp.data.intent_slot_classification import (
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
@@ -39,79 +38,20 @@ from nemo.utils import logging
 
 
 class IntentSlotClassificationModel(NLPModel):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
         self.max_seq_length = cfg.language_model.max_seq_length
-
-        # Setup tokenizer.
-        self.setup_tokenizer(cfg.tokenizer)
-
+        # init superclass
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
-            # Disable setup methods.
-            IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
             # Set default values of data_desc.
             self._set_defaults_data_desc(cfg)
         else:
             self.data_dir = cfg.data_dir
             # Update configuration of data_desc.
             self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
-
-        # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # Initialize Bert model
-        if cfg.tokenizer.get('library','') == 'megatron':
-            import torch
-
-            from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-
-            class Identity(torch.nn.Module):
-                def __init__(self):
-                    super(Identity, self).__init__()
-
-                def forward(self, x, *args):
-                    return x
-
-            # For finetuning a different Intent slot classification dataset
-            if cfg.language_model.get('downstream'):
-                model = MegatronBertModel(cfg=cfg, trainer=trainer)
-            # For finetuning on Intent slot classification dataset for the first time
-            else:
-                cfg.language_model.downstream = True
-                super().cfg.language_model.downstream = True
-                model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
-
-            # remove the headers that are only revelant for pretraining
-            model.model.lm_head = Identity()
-            model.model.binary_head = Identity()
-            model.model.language_model.pooler = Identity()
-
-            self.bert_model = model
-            self.hidden_size = self.bert_model.cfg.hidden_size
-        else:
-            self.bert_model = get_lm_model(
-                pretrained_model_name=cfg.language_model.pretrained_model_name,
-                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-                config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-                checkpoint_file=cfg.language_model.lm_checkpoint,
-                vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-                trainer=trainer,
-            )
-            self.hidden_size = self.bert_model.config.hidden_size
-
-        # Enable setup methods.
-        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
-
         # Initialize Classifier.
         self._reconfigure_classifier()
 
@@ -242,7 +182,7 @@ class IntentSlotClassificationModel(NLPModel):
         self.data_dir = data_dir
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
