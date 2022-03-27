@@ -76,7 +76,8 @@ class NLPModel(ModelPT, Exportable):
                 trainer=trainer,
                 cfg=cfg,
             )
-            cfg.language_model.downstream = True
+            if cfg.language_model.get('downstream'):
+                cfg.language_model.downstream = True
             # register encoder config
             self.register_bert_model()
             if cfg.tokenizer.get("library", "") == 'megatron':
