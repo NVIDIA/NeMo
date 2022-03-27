@@ -33,14 +33,15 @@ class MegatronBARTModel(MegatronT5Model):
                 f"cfg.data.dataset_type = {self._cfg.data.get('dataset_type', None)} but 'bart' is expected"
             )
 
+        if self.num_sentinel_tokens != 0:
+            raise ValueError(
+                f"cfg.tokenizer.num_sentinel_tokens = {self.num_sentinel_tokens} but 0 is expected for 'bart'"
+            )
+
+        # add BART specific data augmentation (deletion)
         self.build_train_valid_test_datasets_kwargs.update(
             dict(delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),)
         )
-
-    def _build_vocab(self):
-        self._add_special_tokens_to_tokenizer()
-
-        super()._build_vocab()
 
     def list_available_models(self):
         pass

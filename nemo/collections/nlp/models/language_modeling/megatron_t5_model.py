@@ -33,21 +33,20 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         super().__init__(cfg, trainer=trainer)
 
         self.build_train_valid_test_datasets_kwargs = {}
-
-    def _build_vocab(self):
         # T5-related construction
         self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
+
+    def _build_vocab(self):
         self._add_special_tokens_to_tokenizer()
 
         super()._build_vocab()
 
     def _add_special_tokens_to_tokenizer(self):
-        if getattr(self, "num_sentinel_tokens", 0):
-            if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
-                additional_tokens = {
-                    'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
-                }
-                self.tokenizer.add_special_tokens(additional_tokens)
+        if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
+            additional_tokens = {
+                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
+            }
+            self.tokenizer.add_special_tokens(additional_tokens)
 
         if self._cfg.tokenizer.library == 'sentencepiece':
             # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.

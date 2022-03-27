@@ -74,7 +74,7 @@ model:
     model: null
     vocab_file: null
     merge_file: null
-    num_sentinel_tokens: 100
+    num_sentinel_tokens: 0 # expected to be 0 for BART
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
