@@ -144,7 +144,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokentype_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
+        enc_output_mask=None,
         output_enc_hidden_only=False,
+        enc_input=None,
     ):
         ret_dict = self.enc_dec_model(
             enc_input_ids=encoder_input_ids,
@@ -154,7 +156,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             tokentype_ids=tokentype_ids,
             labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
+            enc_output_mask=enc_output_mask,
             output_enc_hidden_only=output_enc_hidden_only,
+            enc_input=enc_input,
         )
 
         return ret_dict
@@ -226,7 +230,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             lr = self._optimizer.param_groups[0]['lr']
             self.log('lr', lr)
             self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), prog_bar=True)
+            self.log(
+                'consumed_samples',
+                self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+                prog_bar=True,
+            )
             self._reduced_loss_buffer = []
 
         return loss
@@ -244,7 +252,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def validation_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         self.log('val_loss', averaged_loss[0], prog_bar=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step))
+        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -317,6 +325,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
     def setup(self, stage=None):
+        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            try:
+                init_consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
+            except (ValueError, TypeError):
+                logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+                init_consumed_samples = 0
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
+
         """A PTL method to setup the training, validation and test datasets."""
         if stage == 'predict':
             return
@@ -327,15 +348,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)
 
+    def on_pretrain_routine_start(self) -> None:
+        # keep a copy of init_global_step
+        self.init_global_step = self.trainer.global_step
+        return super().on_pretrain_routine_start()
+
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_checkpoint_path
-            if resume_checkpoint_path:
-                consumed_samples = int(
-                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
-                )
-            else:
-                consumed_samples = 0
+            consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
@@ -348,10 +368,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def compute_consumed_samples(self, global_step):
+    def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
-            global_step
+            self.init_consumed_samples
+            + steps_since_resume
             * app_state.data_parallel_size
             * self._cfg.micro_batch_size
             * self.trainer.accumulate_grad_batches
@@ -386,9 +407,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
         # TODO: move method into a class inside MegatronTokenLevelEncoderDecoderModule (?)
-        encoder_hidden_states = itemgetter("enc_output")(
+        encoder_hidden_states, enc_output_mask = itemgetter("enc_output", "enc_output_mask")(
             self(
                 encoder_input_ids=tokens_enc,
                 decoder_input_ids=None,
@@ -397,7 +418,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 tokentype_ids=None,
                 lm_labels=None,
                 enc_hidden_states=None,
+                enc_output_mask=None,
                 output_enc_hidden_only=True,
+                enc_input=enc_input,
             )
         )
         predicted_tokens_dec = (
@@ -414,7 +437,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     tokentype_ids=None,
                     lm_labels=None,
                     enc_hidden_states=encoder_hidden_states,
+                    enc_output_mask=enc_output_mask,
                     output_enc_hidden_only=False,
+                    enc_input=enc_input,
                 )
             )
             token_logits = tensor_parallel.gather_from_tensor_model_parallel_region(token_logits)
@@ -450,7 +475,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         response['masked_input'] = ' '.join(self.tokenizer.ids_to_tokens(tokens_enc[0]))
         enc_mask = tokens_enc != self.tokenizer.pad_id
-        enc_mask = enc_mask < 0.5
 
         predicted_tokens_ids, log_probs = self.decode(tokens_enc, enc_mask, int(request['tokens_to_generate']))
         predicted_tokens_ids = predicted_tokens_ids.cpu().numpy()[0].tolist()

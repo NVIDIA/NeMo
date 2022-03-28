@@ -23,7 +23,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
-    NLPDataConnector,
     NLPDDPPlugin,
     PipelineMixedPrecisionPlugin,
 )
@@ -40,9 +39,9 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [
         NLPDDPPlugin(
-            num_nodes=cfg.trainer.num_nodes,
             no_ddp_communication_hook=True,
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+            find_unused_parameters=False,
         )
     ]
     if cfg.trainer.precision in [16, 'bf16']:
@@ -62,10 +61,6 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
-
-    # NLPDataConnector used to provide global batches which are needed
-    # for Apex fwd/bwd functions
-    trainer._data_connector = NLPDataConnector(trainer)
 
     exp_manager(trainer, cfg.exp_manager)
 
