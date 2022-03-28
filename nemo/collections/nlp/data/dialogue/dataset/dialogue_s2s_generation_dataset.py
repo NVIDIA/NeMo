@@ -102,7 +102,6 @@ class DialogueS2SGenerationDataset(Dataset):
         ex = self.features[idx].data
 
         input_sentence = self.format_prompt(ex)
-
         output_sentence = ex["labels"][self.output_label_type]
 
         _, input_ids, attn_masks = self.default_encode(input_sentence)

@@ -15,6 +15,11 @@
 
 import argparse
 import json
+import re
+
+import numpy as np
+
+from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 
 
 def read_jsonl(filename):
@@ -51,7 +56,41 @@ def get_incorrect_slots(docs):
     return incorrect_slots_docs
 
 
-def main(filename):
+def sort_by_f1(docs):
+    for i in range(len(docs)):
+        doc = docs[i]
+        generated_field = doc["generated"]
+        ground_truth_field = doc["ground_truth"]
+        generated_field = remove_punctation(generated_field.lower())
+        ground_truth_field = remove_punctation(ground_truth_field.lower())
+        p, r, f1 = DialogueGenerationMetrics._get_one_f1(generated_field, ground_truth_field)
+        docs[i]["f1"] = f1
+        docs[i]["generated"] = generated_field
+        docs[i]["ground_truth"] = ground_truth_field
+    docs.sort(key=lambda x: x["f1"])
+    return docs
+
+
+def remove_punctation(sentence):
+    return re.sub(r'[^\w\s]', '', sentence)
+
+
+def generation_main(filename):
+    docs = read_jsonl(filename)
+    docs = sort_by_f1(docs)
+    bleu = DialogueGenerationMetrics.get_bleu(
+        [doc["generated"] for doc in docs], [doc["ground_truth"] for doc in docs]
+    )
+    acc = np.mean([int(doc["generated"] == doc["ground_truth"]) for doc in docs]) * 100
+    f1 = np.mean([doc["f1"] for doc in docs])
+    print("Token level F1 is {:.3}".format(f1))
+    print("BLEU is {:.3}".format(bleu))
+    print("Exact match accuracy is {:.3}".format(acc))
+    for i in range(0):
+        print(docs[i])
+
+
+def classification_main(filename):
     docs = read_jsonl(filename)
     incorrect_labels_docs = get_incorrect_labels(docs)
     incorrect_slots_docs = get_incorrect_slots(docs)
@@ -65,21 +104,10 @@ def main(filename):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("prediction_filename")
+    parser.add_argument("--prediction_filename")
+    parser.add_argument("--mode", choices=['generation', 'classification'], default='classification')
     args = parser.parse_args()
-    main(args.prediction_filename)
-
-
-"""
-docs.append(
-                {
-                    "input": inputs[i],
-                    "ground_truth": ground_truth_field[i],
-                    "ground_truth_slots": ground_truth_slots[i],
-                    "ground_truth_labels": ground_truth_labels[i],
-                    "generated": generated_field[i],
-                    "generated_slots": generated_slots[i],
-                    "generated_labels": generated_labels[i],
-                }
-            )
-"""
+    if args.mode == 'classification':
+        classification_main(args.prediction_filename)
+    else:
+        generation_main(args.prediction_filename)

@@ -48,6 +48,8 @@ class DialogueS2SGenerationModel(NLPModel):
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelForSeq2SeqLM.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
+            if self.cfg.language_model.lm_checkpoint:
+                self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
             raise ValueError("Megatron Seq2Seq is not yet supported")
 
