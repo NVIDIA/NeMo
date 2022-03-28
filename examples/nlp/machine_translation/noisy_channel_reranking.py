@@ -296,7 +296,12 @@ def main():
             src_lines = []
             for line in src_f:
                 src_lines.append(line.strip().split('\t'))
-            assert len(all_reverse_scores) == len(all_lm_scores) == len(all_forward_scores) == len(src_lines)
+            assert len(all_reverse_scores) == len(all_lm_scores) == len(all_forward_scores) == len(src_lines), (
+                len(all_reverse_scores),
+                len(all_lm_scores),
+                len(all_forward_scores),
+                len(src_lines),
+            )
             for f, r, lm, sl, tl, src in zip(
                 all_forward_scores, all_reverse_scores, all_lm_scores, all_src_lens, all_tgt_lens, src_lines
             ):
