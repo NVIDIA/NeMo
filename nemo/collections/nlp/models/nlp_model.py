@@ -136,7 +136,7 @@ class NLPModel(ModelPT, Exportable):
             cfg (DictConfig): Tokenizer config
         """
         vocab_file = None
-        if cfg.vocab_file:
+        if cfg.get('vocab_file'):
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
