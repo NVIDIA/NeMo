@@ -54,6 +54,13 @@ class NLPModel(ModelPT, Exportable):
         nemo_file = None
         config_dict = None
 
+        # handles model parallel save and restore logic
+        self._save_restore_connector = NLPSaveRestoreConnector()
+        if trainer is None:
+            self.world_size = 1
+        else:
+            self.set_world_size(trainer)
+
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
         if cfg.get('tokenizer'):
@@ -86,12 +93,6 @@ class NLPModel(ModelPT, Exportable):
             else:
                 self.hidden_size = self.bert_model.config.hidden_size
 
-        # handles model parallel save and restore logic
-        self._save_restore_connector = NLPSaveRestoreConnector()
-        if trainer is None:
-            self.world_size = 1
-        else:
-            self.set_world_size(trainer)
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
