@@ -70,7 +70,7 @@ pipeline {
     // TODO: remove this when PTL 1.6.0 is released on PyPi
     stage('Install PTL 1.6.0rc1') {
       steps {
-        sh 'pip install -y pytorch-lightning==1.6.0rc1'
+        sh 'pip install pytorch-lightning==1.6.0rc1'
       }
     }
 
