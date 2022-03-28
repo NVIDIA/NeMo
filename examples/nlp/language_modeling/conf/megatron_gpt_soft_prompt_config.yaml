@@ -1,4 +1,4 @@
-name: megatron_ptune_gpt
+name: megatron_soft_prompt_gpt
 
 trainer:
   devices: 1
@@ -20,7 +20,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_gpt_soft_prompting
+  name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -32,7 +32,8 @@ exp_manager:
     monitor: val_loss
     save_top_k: 2
     mode: min
-    always_save_nemo: yes # TODO: add support
+    save_nemo_on_train_end: True
+    always_save_nemo: True # TODO: add support
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -42,16 +43,17 @@ model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   lm_finetune: False # whether fine tune the language model
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
-  soft_prompt_style: 'prompt-tuning' # either 'prompt-tuning' or 'p-tuning'
+  soft_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
   max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
   total_soft_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   batch_size: 16
 
-  language_model_path: /prompt-tuning/refactor/NeMo/examples/nlp/language_modeling/models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file  
-  
-  prompt_table_path: prompt_table.nemo
+  restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
+  language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
+  existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for. Needed when a restore path is given
+  new_tasks: ['squad'] # List of new tasknames to be prompt-tuned
 
   task_templates: # Add more as needed
     - taskname: 'boolq'
@@ -64,17 +66,18 @@ model:
       prompt_template: '<|SOFT_PROMPT_0|> intent options: {intent_options} <|SOFT_PROMPT_1|> slot options: {slot_options} <|SOFT_PROMPT_2|> {utterance} <|SOFT_PROMPT_3|> intent: {intent} slot: {slot}' 
       prompt_token_splits: [25, 25, 25, 25]
 
-  prompt_tuning:
-    new_prompt_init_methods: ['text', 'random', 'text'] # List of 'text' or 'random'
-    new_prompt_init_text: ['some init text goes here', None, 'more init text here'] # some init text if init method is text, or None if init method is random
+  prompt_tuning: # Prompt tunin specific params
+    new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
+    new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
-  p_tuning:
+  p_tuning: # P-tuning specific params
     dropout: 0.0
     num_layers: 2
+    save_tuned_prompts_to_prompt_table: True
 
   data:
-    train_ds: data/boolq_gpt3_format_train.jsonl
-    validation_ds: data/boolq_gpt3_format_val.jsonl
+    train_ds: data/squad_train.jsonl
+    validation_ds: data/squad_val.jsonl
     add_eos: True
     shuffle: True
     num_workers: 1
@@ -95,12 +98,3 @@ model:
       min_lr: 1e-6
       monitor: val_loss
       reduce_on_plateau: false
-
-
-  # Some dataset examples so you can see how the prompt template fits with the dataset formatting:
-  #   - {"prompt_tag": "boolq-full-text", "sentence": "Slave states and free states -- In the 1770s, blacks throughout New England began sending petitions to northern legislatures demanding freedom. Five of the Northern self-declared states adopted policies to at least gradually abolish slavery: Pennsylvania (1780), New Hampshire and Massachusetts (1783), Connecticut and Rhode Island (1784). Vermont had abolished slavery in 1777, while it was still independent, and when it joined the United States as the 14th state in 1791, it was the first state to join untainted by slavery. These state jurisdictions thus enacted the first abolition laws in the Americas. By 1804 (including, New York (1799), New Jersey (1804)), all of the northern states had abolished slavery or set measures in place to gradually abolish it.", "question": "were the new england states free states in 1854"}
-  #   - {"prompt_tag": "boolq-full-text", "sentence": "Titius\u2013Bode law -- Recent astronomical research suggests that planetary systems around some other stars may follow Titius--Bode-like laws. Bovaird and Lineweaver applied a generalized Titius--Bode relation to 68 exoplanet systems that contain four or more planets. They showed that 96% of these exoplanet systems adhere to a generalized Titius--Bode relation to a similar or greater extent than the Solar System does. The locations of potentially undetected exoplanets are predicted in each system.", "question": "do exoplanetary systems follow the titus bode rule"}
-  #   - {"prompt_tag": "boolq-full-text", "sentence": "Bipolar disorder -- Bipolar disorder, previously known as manic depression, is a mental disorder that causes periods of depression and periods of abnormally elevated mood. The elevated mood is significant and is known as mania or hypomania, depending on its severity, or whether symptoms of psychosis are present. During mania, an individual behaves or feels abnormally energetic, happy, or irritable. Individuals often make poorly thought out decisions with little regard to the consequences. The need for sleep is usually reduced during manic phases. During periods of depression, there may be crying, a negative outlook on life, and poor eye contact with others. The risk of suicide among those with the illness is high at greater than 6 percent over 20 years, while self-harm occurs in 30--40 percent. Other mental health issues such as anxiety disorders and substance use disorder are commonly associated.", "question": "is manic depression the same as bi polar"}
-  #   - {"prompt_tag": "boolq-full-text", "sentence": "SS Politician -- SS Politician was an 8000-ton cargo ship owned by T & J Harrison of Liverpool. It left Liverpool on 3 February 1941, bound for Kingston, Jamaica and New Orleans with a cargo including 28,000 cases of malt whisky. The ship sank off the north coast of Eriskay in the Outer Hebrides, off the west coast of Scotland, and much of the wreck's cargo was salvaged by the island's inhabitants. The story of the wreck and looting was the basis for the book and film Whisky Galore!.", "question": "was whiskey galore based on a true story"}
-  #   - {"prompt_tag": "boolq-full-text", "sentence": "Plants in space -- Plant research continued on the International Space Station. Biomass Production System was used on the ISS Expedition 4. The Vegetable Production System (Veggie) system was later used aboard ISS. Plants tested in Veggie before going into space included lettuce, Swiss chard, radishes, Chinese cabbage and peas. Red Romaine lettuce was grown in space on Expedition 40 which were harvested when mature, frozen and tested back on Earth. Expedition 44 members became the first American astronauts to eat plants grown in space on 10 August 2015, when their crop of Red Romaine was harvested. Since 2003 Russian cosmonauts have been eating half of their crop while the other half goes towards further research. In 2012, a sunflower bloomed aboard the ISS under the care of NASA astronaut Donald Pettit. In January 2016, US astronauts announced that a zinnia had blossomed aboard the ISS.", "question": "are there plants on the international space station"}
-  #   - {"prompt_tag": "boolq-full-text", "sentence": "Goal (ice hockey) -- In ice hockey, a goal is scored when the puck entirely crosses the goal line between the two goal posts and below the goal crossbar. A goal awards one point to the team attacking the goal scored upon, regardless of which team the player who actually deflected the puck into the goal belongs to (see also own goal). Typically, a player on the team attempting to score shoots the puck with his/her stick towards the goal net opening, and a player on the opposing team called a goaltender tries to block the shot to prevent a goal from being scored against his/her team.", "question": "does the hockey puck have to cross the line to be a goal"}

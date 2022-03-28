@@ -17,6 +17,7 @@ from typing import Dict, List
 
 import torch
 from omegaconf.dictconfig import DictConfig
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
@@ -89,48 +90,69 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         self.hidden_size = self.model.cfg.hidden_size
         self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
         self.total_soft_tokens = self.cfg.total_soft_tokens
+        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
+        self.new_tasks = list(self.cfg.get('new_tasks', []))
         
         # Prompt table stores all task embeddings, p-tuning soft prompts get added to the table after training
         self.prompt_table = PromptTable(
-            existing_tasks=self.cfg.get('existing_tasks', None),
+            existing_tasks=self.existing_tasks,
             total_soft_tokens=self.total_soft_tokens,
             hidden_size=self.hidden_size,
         )
 
         # Load templates for assiging soft prompt token positions
         self.load_task_templates(self.cfg.task_templates) 
-        self.soft_prompt_style = cfg.soft_prompt_style.lower()
-
-        # Prompt tuning stores soft prompts in the prompt table and tunes their weight directly
-        if self.soft_prompt_style == 'prompt-tuning':
-            self.soft_token_source = 'prompt-table'
-            
-        # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
-        elif self.soft_prompt_style == 'p-tuning':
-            self.soft_token_source = 'prompt-encoder'
-            self.prompt_encoder = PromptEncoder(
-                total_soft_tokens=self.total_soft_tokens,
-                hidden_size=self.hidden_size,
-                lstm_dropout=cfg.p_tuning.dropout,
-                num_layers=cfg.p_tuning.num_layers,
-            )
-        else:
-            raise ValueError(
-                f"\nSoft prompt style '{cfg.soft_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
-
-        self._reduced_loss_buffer = []
 
         # Setup special tokens 
         self.pseudo_token = cfg.pseudo_token
         self.tokenizer.add_special_tokens({'additional_special_tokens': [self.pseudo_token]})
         self.pseudo_token_id = self.tokenizer.token_to_id(self.pseudo_token)
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        self.soft_prompt_style = cfg.soft_prompt_style.lower()
+
+        # Prompt tuning stores soft prompts in the prompt table and tunes their weight directly
+        if self.soft_prompt_style in ['prompt-tuning', 'inference']:
+            self.soft_token_source = 'prompt-table'
+
+        # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
+        elif self.soft_prompt_style == 'p-tuning':
+            self.soft_token_source = 'prompt-encoder'    
+        else:
+            raise ValueError(
+                f"\nSoft prompt style '{cfg.soft_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
+
+        self._reduced_loss_buffer = []
+
+    def load_task_templates(self, task_templates):
+        """
+        Takes in the task template portion of the config and turns  
+        it into a table where each task's prompt template and 
+        the number of virtual tokens to insert in a given part of 
+        the prompt template are specified. 
+        """
+        self.task_templates = {}
+        task_id_num_to_name = {}
+        task_id_num = 0
+
+        for task in task_templates:
+            self.task_templates[task.taskname] = {
+                "prompt_template": task.prompt_template,
+                "prompt_token_splits": task.prompt_token_splits,
+                "task_id_num": task_id_num
+            }
+            
+            task_id_num_to_name[task_id_num] = task.taskname
+            task_id_num += 1
+
+        # Make sure tasknames and task id nums line up correctly in prompt table
+        self.prompt_table.task_id_num_to_name = task_id_num_to_name
+
 
     def init_new_prompts(self):
         """
         Initialize new soft prompts to be tuned using prompt tuning 
         """
-        for idx, taskname in enumerate(self.cfg.new_tasks):
+        for idx, taskname in enumerate(self.new_tasks):
             init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
 
             if init_method == "text":
@@ -149,46 +171,54 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
 
         # Add new tags to existing tag list for loading during inference later
         with open_dict(self.cfg):
-            self.cfg.existing_tasks = self.cfg.existing_tasks + self.cfg.new_tasks
-               
+            self.cfg.existing_tasks = self.existing_tasks + self.new_tasks
+            self.cfg.new_tasks = []
 
-    def load_task_templates(self, task_templates):
+    def init_prompt_encoder(self):
         """
-        Takes in the task template portion of the config and turns  
-        it into a table where each task's prompt template and 
-        the number of virtual tokens to insert in a given part of 
-        the prompt template are specified. 
+        Init the prompt encoder needed for p-tuning on a new task
         """
-        self.task_templates = {}
-        self.new_tasknames = []
-        task_id_num_to_name = {}
-        task_id_num = 0
-
-        for task in task_templates:
-            self.task_templates[task.taskname] = {
-                "prompt_template": task.prompt_template,
-                "prompt_token_splits": task.prompt_token_splits,
-                "task_id_num": task_id_num
-            }
-            
-            task_id_num_to_name[task_id_num] = task.taskname
-            task_id_num += 1
-
-        # Make sure tasknames and task id nums line up correctly in prompt table
-        self.prompt_table.task_id_num_to_name = task_id_num_to_name
+        self.prompt_encoder = PromptEncoder(
+                total_soft_tokens=self.total_soft_tokens,
+                hidden_size=self.hidden_size,
+                lstm_dropout=self.cfg.p_tuning.dropout,
+                num_layers=self.cfg.p_tuning.num_layers,
+            )
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
         Adds all newly p-tuned soft prompts to the prompt table 
         for inference. p-tuned soft prompts WILL NOT be further
-        tuned once added to the prompt table.
+        tuned once added to the prompt table. After p-tuned prompts
+        are added to the prompt table, the prompt encoder weights
+        are moved from the model to avoid needing to load unnecessary
+        weights during inference or future p-tuning/prompt-tuning.
         """
-        for taskname in self.new_tasknames:
+        # Save p-tuned prompts to prompt table
+        for taskname in self.new_tasks:
             tokenized_taskname = self.tokenizer.text_to_ids(taskname)
-            taskname_embeddings = self.word_embeddings(torch.tensor(tokenized_taskname))
-            soft_prompt_embeddings = self.prompt_encoder(taskname_embeddings)
-            task_id_num = self.prompt_template[taskname]["task_id_num"]
-            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, task_id_num, soft_prompt_embeddings)
+            taskname_embeddings = self.word_embeddings(torch.tensor(tokenized_taskname)).unsqueeze(0)
+            soft_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
+            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, soft_prompt_embeddings)
+
+        # Add new tags to existing tag list for loading during inference later
+        with open_dict(self.cfg):
+            self.cfg.existing_tasks = self.existing_tasks + self.new_tasks
+            self.cfg.new_tasks = []
+
+        # Remove prompt encoder from model
+        self.prompt_encoder = None
+
+    def get_model_tasks(self):
+        """
+        For user to inspect which tasks the model has been
+        p-tuned/prompt-tuned to preform.
+        """
+        tasks = {}
+        for taskname in self.existing_tasks:
+            tasks[taskname] = self.task_templates[taskname].copy()
+
+        return tasks
 
     def embed_input(self, input_ids: Tensor, taskname_ids: Tensor):
         """
@@ -315,14 +345,15 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
     def setup(self, stage=None):
         if stage == 'predict':
             return
-        
-        # New soft prompt init needs to happen before building datasets
-        if self.soft_prompt_style == 'prompt-tuning':
-            self.init_new_prompts()
 
         self.setup_test_data()
         if stage == 'test':
             return
+
+        if self.soft_prompt_style.lower() == 'prompt-tuning':
+            self.init_new_prompts()
+        elif self.soft_prompt_style.lower() == 'p-tuning':
+            self.init_prompt_encoder()
 
         self.setup_training_data()
         self.setup_validation_data()
@@ -333,7 +364,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         """
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
         for taskname in self.prompt_table.prompt_table.keys():
-            if taskname in set(self.cfg.new_tasks):
+            if taskname in set(self.new_tasks):
                 for params in self.prompt_table.prompt_table[taskname].parameters():
                     params.requires_grad = True
             else:

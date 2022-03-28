@@ -1012,6 +1012,9 @@ class MegatronGPTModel(NLPModel):
 
         return response
 
+    def list_available_models(self):
+        return None
+
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
         still having GPU friendly size."""

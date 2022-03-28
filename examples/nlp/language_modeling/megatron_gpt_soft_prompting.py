@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -20,7 +22,6 @@ from nemo.collections.nlp.models.language_modeling import MegatronGPTPSoftPrompt
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
-    MegatronHalfPrecisionPlugin,
     NLPDDPPlugin,
     PipelineMixedPrecisionPlugin,
 )
@@ -29,31 +30,24 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
-
 @hydra_runner(config_path="conf", config_name="soft_prompt_test")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [
         NLPDDPPlugin(
             no_ddp_communication_hook=True,
             find_unused_parameters=False,
         )
     ]
-    if cfg.trainer.precision in [16, 'bf16']:
-        scaler = None
-        if cfg.trainer.precision == 16:
-            scaler = GradScaler(
-                init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
-                growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
-                hysteresis=cfg.model.get('hysteresis', 2),
-            )
-        if megatron_amp_o2:
-            plugins.append(MegatronHalfPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
-        else:
-            plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+    if cfg.trainer.precision == 16:
+        scaler = GradScaler(
+            init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
+            growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+            hysteresis=cfg.model.get('hysteresis', 2),
+        )
+        plugins.append(PipelineMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
     if cfg.get('cluster_type', None) == 'BCP':
         plugins.append(TorchElasticEnvironment())
@@ -85,8 +79,21 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = MegatronGPTPSoftPromptModel.restore_from("models/megatron_gpt_soft_prompting.nemo", cfg.model, trainer=trainer)
+    # load existing or init new soft prompt GPT model
+    if cfg.model.get("restore_path", None):
+        model = MegatronGPTPSoftPromptModel.restore_from(cfg.model.restore_path, cfg.model, trainer=trainer)
+    else:
+        model = MegatronGPTPSoftPromptModel(cfg.model, trainer=trainer)
+
     trainer.fit(model)
+
+    # Save p-tuned prompts to prompt table for inference or future task training
+    if cfg.model.soft_prompt_style.lower() == "p-tuning" and cfg.model.p_tuning.save_tuned_prompts_to_prompt_table:
+        model.add_ptuned_prompts_to_prompt_table()
+        save_path = os.path.join(app_state.exp_dir, app_state.name, "checkpoints", app_state.name + ".nemo")
+        model.save_to(save_path=save_path)
+
+        logging.info(f"All p-tuned prompts where moved to the prompt table. Final model saved to {save_path}")
 
 if __name__ == '__main__':
     main()
