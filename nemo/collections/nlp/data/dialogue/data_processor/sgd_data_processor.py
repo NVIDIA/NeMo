@@ -24,8 +24,6 @@ import os
 import pickle
 from typing import Dict, List
 
-import numpy as np
-
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 from nemo.utils import logging

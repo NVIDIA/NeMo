@@ -18,7 +18,7 @@ from typing import Dict, Optional
 
 from nemo.collections.nlp.data.glue_benchmark.data_processors import InputExample
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUEDataset
-from nemo.core.neural_types import CategoricalValuesType, ChannelType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType
 
 __all__ = ['DialogueZeroShotIntentDataset']
 

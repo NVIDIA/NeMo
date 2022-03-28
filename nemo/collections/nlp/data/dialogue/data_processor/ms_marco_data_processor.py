@@ -17,13 +17,10 @@ import json
 import os
 from ast import literal_eval
 
-from tqdm import trange
-
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 
-__all__ = ['DialogueAssistantDataProcessor']
-
+__all__ = ['DialogueMSMarcoDataProcessor']
 
 class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
     """Data Processor for MS Marco dialogues. (https://github.com/microsoft/MSMARCO-Question-Answering)

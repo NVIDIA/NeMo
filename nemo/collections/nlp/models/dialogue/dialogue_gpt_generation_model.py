@@ -23,8 +23,6 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
-from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor, Schema
-from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_generation_dataset import DialogueGPTGenerationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
@@ -32,7 +30,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueGPTGenerationModel']
 

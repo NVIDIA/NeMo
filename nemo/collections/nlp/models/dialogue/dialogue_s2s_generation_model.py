@@ -29,7 +29,6 @@ from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetr
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueS2SGenerationModel']
 
