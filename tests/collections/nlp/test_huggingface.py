@@ -17,7 +17,7 @@ import tempfile
 
 import pytest
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
