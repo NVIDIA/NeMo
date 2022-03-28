@@ -33,7 +33,7 @@ class TestGPTEval:
         }
         tensor_model_parallel_size = 1
         pipeline_model_parallel_size = 1
-        model_file = '/raid/Data/NMT/Models/ci_test/megatron_gpt.nemo'
+        model_file = '/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo'
 
         # trainer required for restoring model parallel models
         trainer = Trainer(plugins=NLPDDPPlugin(), **trainer_config)
