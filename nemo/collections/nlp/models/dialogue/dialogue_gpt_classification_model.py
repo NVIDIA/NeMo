@@ -173,7 +173,7 @@ class DialogueGPTClassificationModel(NLPModel):
         generated_labels, generated_slots = DialogueClassificationMetrics.split_label_and_slots(
             generated_field, with_slots=with_slots
         )
-        ground_truth_labels, ground_truth_slots = DialogueClassification.split_label_and_slots(
+        ground_truth_labels, ground_truth_slots = DialogueClassificationMetrics.split_label_and_slots(
             ground_truth_field, with_slots=with_slots
         )
 

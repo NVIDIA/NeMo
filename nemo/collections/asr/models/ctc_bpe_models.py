@@ -194,6 +194,20 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         )
         results.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_hi_conformer_ctc_medium",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_hi_conformer_ctc_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_hi_conformer_ctc_medium/versions/1.6.0/files/stt_hi_conformer_ctc_medium.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_mr_conformer_ctc_medium",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_mr_conformer_ctc_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_mr_conformer_ctc_medium/versions/1.6.0/files/stt_mr_conformer_ctc_medium.nemo",
+        )
+        results.append(model)
+
         return results
 
     def __init__(self, cfg: DictConfig, trainer=None):
@@ -324,9 +338,16 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': batch_size,
             'shuffle': False,

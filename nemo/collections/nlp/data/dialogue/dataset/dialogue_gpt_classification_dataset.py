@@ -206,7 +206,6 @@ class DialogueGPTClassificationDataset(Dataset):
         ex = self.features[idx].data
 
         utterance = ex["utterance"]
-
         utterance_length = self.get_n_tokens_in_sentence(utterance)
 
         label = ex["labels"][self.label_type]

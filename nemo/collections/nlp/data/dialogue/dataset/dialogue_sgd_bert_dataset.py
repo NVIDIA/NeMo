@@ -20,7 +20,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 import os
 import re
-from typing import List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -28,6 +28,8 @@ from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import S
 from nemo.collections.nlp.data.glue_benchmark.data_processors import InputExample
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUEDataset
 from nemo.core.classes import Dataset
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.utils import logging
 
 __all__ = ['DialogueSGDBERTDataset']
 
