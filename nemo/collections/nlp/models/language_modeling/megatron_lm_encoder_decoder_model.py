@@ -408,7 +408,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None, tokenizer=None):
-        # TODO: move method into a class inside MegatronTokenLevelEncoderDecoderModule (?)
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         encoder_hidden_states, enc_output_mask = itemgetter("enc_output", "enc_output_mask")(
             self(

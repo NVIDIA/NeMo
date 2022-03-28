@@ -56,7 +56,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         self.multilingual = cfg.get("multilingual", False)
         self.multilingual_ids = []
 
-        self.train_hash_buffer = set()
         self.validate_input_ids = cfg.get("validate_input_ids", True)
         if self.multilingual:
             if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
@@ -92,7 +91,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def _build_tokenizer(self):
         # Instantiates tokenizers and register to be saved with NeMo Model archive
-        # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
+        # After this call, there will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         encoder_tokenizer_model = self.register_artifact(
             "encoder_tokenizer.tokenizer_model", self._cfg.encoder_tokenizer.get('tokenizer_model')
@@ -149,9 +148,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def training_step(self, batch, batch_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
-        hashitem = batch[0].sum().cpu().numpy().tolist()
-        assert hashitem not in self.train_hash_buffer
-        self.train_hash_buffer.add(hashitem)
         return super().training_step(batch, batch_idx)
 
     def eval_step(self, batch, batch_idx, dataloader_idx):
