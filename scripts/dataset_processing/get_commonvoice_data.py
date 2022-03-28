@@ -169,8 +169,6 @@ def main():
 
     folder_path = os.path.join(target_unpacked_dir, args.version + f'/{args.language}/')
 
-    print(args.files_to_process)
-
     for csv_file in args.files_to_process:
         data = process_files(
             csv_file=os.path.join(folder_path, csv_file),
