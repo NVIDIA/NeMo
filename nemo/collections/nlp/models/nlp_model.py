@@ -65,8 +65,12 @@ class NLPModel(ModelPT, Exportable):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
         super().__init__(cfg, trainer)
+        # handles model parallel save and restore logic
+        self._save_restore_connector = NLPSaveRestoreConnector()
 
         if cfg.get('language_model') and not no_lm_init:
+            if cfg.get('language_model.nemo_file'):
+                nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
             if cfg.get('language_model.config'):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
             self.bert_model = get_lm_model(
@@ -89,13 +93,6 @@ class NLPModel(ModelPT, Exportable):
                 self.hidden_size = self.bert_model.cfg.hidden_size
             else:
                 self.hidden_size = self.bert_model.config.hidden_size
-
-        # handles model parallel save and restore logic
-        self._save_restore_connector = NLPSaveRestoreConnector()
-        if trainer is None:
-            self.world_size = 1
-        else:
-            self.set_world_size(trainer)
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
@@ -158,7 +155,7 @@ class NLPModel(ModelPT, Exportable):
             cfg (DictConfig): Tokenizer config
         """
         vocab_file = None
-        if cfg.vocab_file:
+        if cfg.get('vocab_file'):
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -312,6 +309,14 @@ class NLPModel(ModelPT, Exportable):
                 model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
             else:
                 model = cls._load_model_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
+                # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+            if cfg.tokenizer.model is not None:
+                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
+            if cfg.tokenizer.vocab_file is not None:
+                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
+            if cfg.tokenizer.merge_file is not None:
+                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
+
             checkpoint = model
 
         finally:

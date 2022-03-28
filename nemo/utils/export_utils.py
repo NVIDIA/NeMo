@@ -100,11 +100,13 @@ def parse_input_example(input_example):
     return input_list, input_dict
 
 
-def to_onnxrt_input(input_names, input_dict):
+def to_onnxrt_input(input_names, input_dict, input_list):
     odict = {}
-    for k in input_names:
+    for k in reversed(input_names):
         if k in input_dict:
             odict[k] = input_dict[k].cpu().numpy()
+        else:
+            odict[k] = input_list.pop().cpu().numpy()
     return odict
 
 
@@ -127,7 +129,7 @@ def verify_runtime(
     sess = onnxruntime.InferenceSession(
         onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
     )
-    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_dict))
+    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_dict, input_list))
     all_good = True
 
     for i, out in enumerate(ort_out[0]):
@@ -139,6 +141,7 @@ def verify_runtime(
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+    return all_good
 
 
 apex_available = True
