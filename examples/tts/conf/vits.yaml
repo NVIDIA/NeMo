@@ -206,7 +206,7 @@ trainer:
   check_val_every_n_epoch: 5
 
 exp_manager:
-  exp_dir: vits_ipa_fix
+  exp_dir: vits_full
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -215,8 +215,8 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: vits_ipa_fix
+    name: vits_full
     project: ${name}
-    entity: treacker15
+    entity: nvidia
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
