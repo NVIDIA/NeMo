@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 from typing import List
+
 import ipadic
 import MeCab
-import re
 from pangu import spacing
 from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
 
@@ -58,6 +59,7 @@ class EnJaProcessor:
             return self.normalizer.normalize(text)
         else:
             return text
+
 
 class JaMecabProcessor:
     """
