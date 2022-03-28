@@ -2,12 +2,12 @@ name: megatron_t5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  gpus: 1
+  devices: 1
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
   precision: 16
   logger: False # logger provided by exp_manager
-  checkpoint_callback: False
+  enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
@@ -101,6 +101,7 @@ model:
     #   - .5
     #   - /raid/data/pile/my-t5_01_text_document
     data_prefix: ???
+    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 949,45,5
     seq_length: ${model.seq_length}

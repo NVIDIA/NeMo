@@ -249,7 +249,8 @@ A NeMo configuration file should look similar to the following:
     # PyTorch Lightning Trainer configuration
     # any argument of the Trainer object can be set here
     trainer:
-        gpus: 1 # number of gpus per node
+        devices: 1 # number of gpus per node
+        accelerator: gpu
         num_nodes: 1 # number of nodes
         max_epochs: 10 # how many training epochs to run
         val_check_interval: 1.0 # run validation after every epoch
@@ -308,7 +309,8 @@ With Hydra, arguments are set using the ``=`` operator:
     python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50
 
 We can use the ``+`` operator to add arguments from the CLI:
@@ -318,7 +320,8 @@ We can use the ``+`` operator to add arguments from the CLI:
     python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
@@ -330,7 +333,8 @@ We can use the ``~`` operator to remove configurations:
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
@@ -344,7 +348,8 @@ We can specify configuration files using the ``--config-path`` and ``--config-na
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
@@ -553,6 +558,7 @@ To restore a NeMo model, run:
 
 .. code-block:: Python
 
+    # Here, you should usually use the class of the model, or simply use ModelPT.restore_from() for simplicity.
     model.restore_from('/path/to/model.nemo')
 
 When using the PyTorch Lightning Trainer, a PyTorch Lightning checkpoint is created. These are mainly used within NeMo to auto-resume 
@@ -561,6 +567,32 @@ training. Since NeMo models are ``LightningModules``, the PyTorch Lightning meth
 checkpoint to be restored. For these models, the user will have to override ``load_from_checkpoint`` if they want to use it.
 
 It's highly recommended to use ``restore_from`` to load NeMo models.
+
+Restore with Modified Config
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sometimes, there may be a need to modify the model (or it's sub-components) prior to restoring a model. A common case is when
+the model's internal config must be updated due to various reasons (such as deprecation, newer versioning, support a new feature).
+As long as the model has the same parameters as compared to the original config, the parameters can once again be restored safely.
+
+In NeMo, as part of the .nemo file, the model's internal config will be preserved. This config is used during restoration, and
+as shown below we can update this config prior to restoring the model.
+
+.. code-block::
+
+    # When restoring a model, you should generally use the class of the model
+    # Obtain the config (as an OmegaConf object)
+    config = model_class.restore_from('/path/to/model.nemo', return_config=True)
+    # OR
+    config = model_class.from_pretrained('name_of_the_model', return_config=True)
+
+    # Modify the config as needed
+    config.x.y = z
+
+    # Restore the model from the updated config
+    model = model_class.restore_from('/path/to/model.nemo', override_config_path=config)
+    # OR
+    model = model_class.from_pretrained('name_of_the_model', override_config_path=config)
 
 Register Artifacts
 ------------------
