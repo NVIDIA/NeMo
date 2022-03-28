@@ -143,6 +143,7 @@ def verify_runtime(
     logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
     return all_good
 
+
 apex_available = True
 
 try:
