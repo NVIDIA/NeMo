@@ -13,7 +13,6 @@
 # limitations under the License.
 """Utilities for generating text."""
 
-import datetime
 import json
 import threading
 

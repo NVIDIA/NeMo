@@ -26,6 +26,15 @@ END_OF_TEXT = '<|endoftext|>'
 NEW_LINE = '\n'
 
 
+def find_index_of(list_input, item):
+    output = -1
+    try:
+        output = list_input.index(item)
+    except ValueError:
+        pass
+    return output
+
+
 class TabularTokenizer(TokenizerSpec):
     def __init__(self, coder, special_tokens=[END_OF_TEXT, NEW_LINE], delimiter=','):
         if isinstance(coder, ColumnCodes):
@@ -130,14 +139,8 @@ class TabularTokenizer(TokenizerSpec):
         sizes = self.code_column.sizes
         ids_size = sum(sizes)
         cindex = 0
-        try:
-            eor_pos = ids.index(self.eor)
-        except ValueError:
-            eor_pos = -1
-        try:
-            eod_pos = ids.index(self.eod)
-        except ValueError:
-            eod_pos = -1
+        eor_pos = find_index_of(ids, self.eor)
+        eod_pos = find_index_of(ids, self.eod)
         if eor_pos >= 0 and eod_pos >= 0:
             idd = min(eor_pos, eod_pos)
             cindex = (ids_size - idd) % ids_size

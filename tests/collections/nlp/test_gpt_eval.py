@@ -48,7 +48,7 @@ class TestGPTEval:
         # has to turn off activations_checkpoint_method for inference
         try:
             model.model.language_model.encoder.activations_checkpoint_method = None
-        except:
+        except AttributeError:
             pass
 
         self.model = model

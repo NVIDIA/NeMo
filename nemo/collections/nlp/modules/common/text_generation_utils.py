@@ -510,21 +510,23 @@ def sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length < maxlen:
-            types2use = None
+            # types2use = None
             if counter == 0:
                 # Allocate memory for the entire context.
                 set_inference_key_value_memory = True
                 tokens2use = tokens[:, :context_length]
                 positions2use = position_ids[:, :context_length]
-                if type_ids is not None:
-                    types2use = type_ids[:, :context_length]
+                # not using type2use. uncomment it if it is used
+                # if type_ids is not None:
+                #     types2use = type_ids[:, :context_length]
             else:
                 # Set this to false so the memory is not reallocated.
                 set_inference_key_value_memory = False
                 tokens2use = tokens[:, context_length - 1].view(batch_size, -1)
                 positions2use = position_ids[:, context_length - 1].view(batch_size, -1)
-                if type_ids is not None:
-                    types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+                # not using type2use. uncomment it if it is used
+                # if type_ids is not None:
+                #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
 
             attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
             setkey_value_array = torch.tensor(
@@ -691,21 +693,23 @@ def tab_sample_sequence_batch(
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length < maxlen:
-            types2use = None
+            # types2use = None
             if counter == 0:
                 # Allocate memory for the entire context.
                 set_inference_key_value_memory = True
                 tokens2use = tokens[:, :context_length]
                 positions2use = position_ids[:, :context_length]
-                if type_ids is not None:
-                    types2use = type_ids[:, :context_length]
+                # not using type2use. uncomment it if it is used
+                # if type_ids is not None:
+                #     types2use = type_ids[:, :context_length]
             else:
                 # Set this to false so the memory is not reallocated.
                 set_inference_key_value_memory = False
                 tokens2use = tokens[:, context_length - 1].view(batch_size, -1)
                 positions2use = position_ids[:, context_length - 1].view(batch_size, -1)
-                if type_ids is not None:
-                    types2use = type_ids[:, context_length - 1].view(batch_size, -1)
+                # not using type2use. uncomment it if it is used
+                # if type_ids is not None:
+                #     types2use = type_ids[:, context_length - 1].view(batch_size, -1)
             # micro_batch_size = 2
             attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
             setkey_value_array = torch.tensor(
@@ -723,29 +727,22 @@ def tab_sample_sequence_batch(
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
                 token_in_row = (counter + offset) % tokens_per_row
-                if False:  # args.greedy:
-                    prev = torch.argmax(logits, dim=-1).view(-1)
+                logits = logits.float()
+                logits /= temperature
+                if token_in_row == tokens_per_row - 1:
+                    # line break
+                    eor_id = tokenizer.eor
+                    eod_id = tokenizer.eos_id
+                    min_id = min(eor_id, eod_id)
+                    max_id = max(eor_id, eod_id) + 1
+                    logits = tab_logits(logits, min_id, max_id)
                 else:
-                    logits = logits.float()
-                    logits /= temperature
-                    if token_in_row == tokens_per_row - 1:
-                        # line break
-                        eor_id = tokenizer.eor
-                        eod_id = tokenizer.eos_id
-                        min_id = min(eor_id, eod_id)
-                        max_id = max(eor_id, eod_id) + 1
-                        logits = tab_logits(logits, min_id, max_id)
-                    else:
-                        # limit the range
-                        min_id, max_id = tokenid_range[token_in_row]
-                        logits = tab_logits(logits, min_id, max_id)
-                    log_probs = F.softmax(logits, dim=-1)
-                    prev = torch.multinomial(log_probs, num_samples=1).view(-1)
-                    # simulate the eos_id
-                    # if counter == 59:
-                    #     prev[:] = eos_id
+                    # limit the range
+                    min_id, max_id = tokenid_range[token_in_row]
+                    logits = tab_logits(logits, min_id, max_id)
+                log_probs = F.softmax(logits, dim=-1)
+                prev = torch.multinomial(log_probs, num_samples=1).view(-1)
                 started = context_lengths <= context_length
-
                 # Clamp the out of vocabulary tokens.
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
 
