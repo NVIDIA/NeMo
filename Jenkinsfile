@@ -812,7 +812,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/drive_thru_revised \
             model.original_nemo_checkpoint=/home/TestData/nlp/drive_thru_revised/zeroshotintent_en_bert_base_uncased.nemo \
             model.dataset.dialogues_example_dir=sgd_gen_zero_shot_intent_classification_outputs \
-            model.dataset.task=assistant \
+            model.dataset.task=zero_shot \
             model.dataset.prompt_template="This example is" \
             trainer.max_steps=1 \
             trainer.max_epochs=1 \
