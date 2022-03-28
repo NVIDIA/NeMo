@@ -125,6 +125,8 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self.trainer = trainer  # reference required for self.*_rank
         self._trainer = self.trainer  # alias for backward compatibility
+        self.set_trainer(trainer)
+
         self._save_restore_connector = SaveRestoreConnector()
 
         self._set_model_guid()
@@ -1223,7 +1225,10 @@ class ModelPT(LightningModule, Model):
         """
         self.trainer = trainer
         self._trainer = trainer
-        self.set_world_size(self._trainer)
+        if trainer is None:
+            self.world_size = 1
+        else:
+            self.set_world_size(self._trainer)
 
     def set_world_size(self, trainer: Trainer):
         """
@@ -1236,8 +1241,8 @@ class ModelPT(LightningModule, Model):
         # Update AppState with world information from trainer
         if isinstance(trainer, Trainer):
             app_state = AppState()
-            if self._trainer.num_gpus and self._trainer.num_nodes:
-                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
+            if trainer.num_gpus and trainer.num_nodes:
+                app_state.world_size = trainer.num_gpus * trainer.num_nodes
         else:
             logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
 
