@@ -22,6 +22,7 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import Dialo
 
 __all__ = ['DialogueMSMarcoDataProcessor']
 
+
 class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
     """Data Processor for MS Marco dialogues. (https://github.com/microsoft/MSMARCO-Question-Answering)
        Please agree to the Terms of Use before downloading data at 
