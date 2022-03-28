@@ -15,8 +15,8 @@
 from nemo.collections.nlp.data.dialogue.data_processor.sgd_data_processor import DialogueSGDDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset import (
     DialogueBERTDataset,
+    DialogueGPTClassificationDataset,
     DialogueSGDBERTDataset,
     DialogueZeroShotIntentDataset,
-    DialogueGPTClassificationDataset,
 )
 from nemo.collections.nlp.data.dialogue.sgd.schema import Schema

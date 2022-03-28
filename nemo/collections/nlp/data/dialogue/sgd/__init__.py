@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.dialogue.sgd.schema import Schema
 from nemo.collections.nlp.data.dialogue.sgd.evaluate import evaluate, get_in_domain_services
+from nemo.collections.nlp.data.dialogue.sgd.schema import Schema

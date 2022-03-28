@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 from nemo.collections.nlp.data.dialogue.input_example.assistant_input_example import DialogueAssistantInputExample
+from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
 from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import DialogueSGDInputExample, SGDInputExample

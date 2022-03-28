@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_classification_dataset import (
     DialogueGPTClassificationDataset,
 )
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_sgd_bert_dataset import DialogueSGDBERTDataset
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_zero_shot_intent_dataset import DialogueZeroShotIntentDataset
