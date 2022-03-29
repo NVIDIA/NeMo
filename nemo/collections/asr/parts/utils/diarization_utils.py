@@ -1048,7 +1048,6 @@ class ASR_DIAR_OFFLINE(object):
                 time_str = f'[{start_point_str} - {end_point_str}] '
             else:
                 time_str = ''
-
             # string out concatenation
             string_out += f'{color}{time_str}{speaker}: {text}\n'
 
