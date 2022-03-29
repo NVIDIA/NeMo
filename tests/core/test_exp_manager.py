@@ -185,7 +185,7 @@ class TestExpManager:
                 "create_checkpoint_callback": False,
                 "exp_dir": str(tmp_path),
                 "create_wandb_logger": True,
-                "wandb_logger_kwargs": {"name": "", "project": ""},
+                "wandb_logger_kwargs": {"name": "", "project": "", "offline": True},
             },
         )
         assert isinstance(test_trainer.logger, pl.loggers.WandbLogger)
