@@ -56,7 +56,7 @@ class NLPModel(ModelPT, Exportable):
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
-        if cfg.get('tokenizer') and cfg.get('tokenizer_name'):
+        if cfg.get('tokenizer'):
             # Some models have their own tokenizer setup
             if not hasattr(self, 'tokenizer'):
                 self.setup_tokenizer(cfg.tokenizer)
@@ -134,7 +134,7 @@ class NLPModel(ModelPT, Exportable):
         if cfg.get('vocab_file'):
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
+            tokenizer_name=cfg.get('tokenizer_name'),
             vocab_file=vocab_file,
             special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
             tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
