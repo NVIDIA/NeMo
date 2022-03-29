@@ -17,9 +17,8 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
-from nemo.core.classes import Exportable, NeuralModule, ModelPT
+from nemo.core.classes import Exportable, NeuralModule
 
 try:
     from apex.transformer import tensor_parallel

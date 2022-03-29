@@ -33,7 +33,6 @@ exp_manager:
     save_top_k: 2
     mode: min
     save_nemo_on_train_end: True
-    always_save_nemo: True # TODO: add support
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -51,7 +50,7 @@ model:
   batch_size: 16
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
+  language_model_path: megatron_5B_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
   existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for. Needed when a restore path is given
   new_tasks: ['squad'] # List of new tasknames to be prompt-tuned
 
@@ -76,8 +75,8 @@ model:
     save_tuned_prompts_to_prompt_table: True
 
   data:
-    train_ds: data/squad_train.jsonl
-    validation_ds: data/squad_val.jsonl
+    train_ds: [data/squad_train.jsonl,]
+    validation_ds: [data/squad_val.jsonl,]
     add_eos: True
     shuffle: True
     num_workers: 1

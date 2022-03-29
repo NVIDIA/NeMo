@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -23,6 +21,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_init
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     NLPDDPPlugin,
+    NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
@@ -81,19 +80,15 @@ def main(cfg) -> None:
 
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
-        model = MegatronGPTPSoftPromptModel.restore_from(cfg.model.restore_path, cfg.model, trainer=trainer)
+        model = MegatronGPTPSoftPromptModel.restore_from(cfg.model.restore_path,
+                                                         cfg.model, 
+                                                         trainer=trainer, 
+                                                         save_restore_connector=NLPSaveRestoreConnector()
+        )
     else:
         model = MegatronGPTPSoftPromptModel(cfg.model, trainer=trainer)
 
     trainer.fit(model)
-
-    # Save p-tuned prompts to prompt table for inference or future task training
-    if cfg.model.soft_prompt_style.lower() == "p-tuning" and cfg.model.p_tuning.save_tuned_prompts_to_prompt_table:
-        model.add_ptuned_prompts_to_prompt_table()
-        save_path = os.path.join(app_state.exp_dir, app_state.name, "checkpoints", app_state.name + ".nemo")
-        model.save_to(save_path=save_path)
-
-        logging.info(f"All p-tuned prompts where moved to the prompt table. Final model saved to {save_path}")
 
 if __name__ == '__main__':
     main()

@@ -1,7 +1,7 @@
-name: squad_boolq_intent_and_slot
+name: megatron_gpt_1.3B_prompt_tune
 
 trainer:
-  devices: 1
+  devices: 2
   accelerator: gpu
   num_nodes: 1
   precision: 16
@@ -11,7 +11,7 @@ trainer:
   max_epochs: 1
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 200
+  val_check_interval: 75
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
@@ -32,26 +32,26 @@ exp_manager:
     monitor: val_loss
     save_top_k: 2
     mode: min
-    always_save_nemo: yes # TODO: add support
+    save_nemo_on_train_end: False
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
 
 model:
   seed: 1234
-  nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  nemo_path: ${name}.nemo # .nemo filename and path to where the model and associated artifacts should be saved
   lm_finetune: False # whether fine tune the language model
   pseudo_token: '[PROMPT]' # pseudo prompt tokens
   soft_prompt_style: 'prompt-tuning' # either 'prompt-tuning' or 'p-tuning'
   max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
   total_soft_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
-  tensor_model_parallel_size: 1 # intra-layer model parallelism
+  tensor_model_parallel_size: 2 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  batch_size: 16
+  batch_size: 2
 
-  restore_path: models/boolq_intent_and_slot.nemo # Path to an existing p-tuned/prompt tuned model you wish to add new tasks to or run inference with
-  language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file
+  restore_path: models/megatron_gpt_1.3B_prompt_tune.nemo # Path to an existing p-tuned/prompt tuned model you wish to add new tasks to or run inference with
   existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for. Needed when a restore path is given
+  language_model_path: models/megatron_1.3B_gpt_tensor_parallel_2.nemo # Path to the GPT language model .nemo file
   new_tasks: ['squad'] # List of new tasknames to be prompt-tuned
 
   task_templates: # Add more as needed
@@ -75,12 +75,12 @@ model:
     save_tuned_prompts_to_prompt_table: True
 
   data:
-    # train_ds: data/intent_and_slot_train.jsonl
-    # validation_ds: data/intent_and_slot_val.jsonl
-    # train_ds: data/boolq_gpt3_format_train.jsonl
-    # validation_ds: data/boolq_gpt3_format_val.jsonl
-    train_ds: data/squad_train.jsonl
-    validation_ds: data/squad_val.jsonl
+    # train_ds: [data/debug_boolq_train.jsonl] # List of comma seprated .json or .jsonl dataset files for training
+    # validation_ds: [data/debug_boolq_val.jsonl] # List of comma seprated .json or .jsonl dataset files for validation
+    # train_ds: [data/debug_intent_and_slot_train.jsonl]
+    # validation_ds: [data/debug_intent_and_slot_val.jsonl]
+    train_ds: [data/debug_squad_train.jsonl]
+    validation_ds: [data/debug_squad_val.jsonl]
     add_eos: True
     shuffle: True
     num_workers: 1

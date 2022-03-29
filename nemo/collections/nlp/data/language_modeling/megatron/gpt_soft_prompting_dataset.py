@@ -30,7 +30,7 @@ class GPTSoftPromptDataset(Dataset):
     """
     def __init__(
         self,
-        dataset_path,
+        dataset_paths,
         tokenizer,
         soft_token_source: str,
         task_templates: dict,
@@ -61,51 +61,53 @@ class GPTSoftPromptDataset(Dataset):
         assert total_soft_tokens < max_seq_length, "Soft prompt tokens should not exceed max sequence length"
 
         logging.info("Loading and tokenizing dataset ... ")
-        dataset_file = open(dataset_path, 'r', encoding='utf-8')
-        skipped = 0
 
-        for json_line in tqdm(dataset_file):
+        for path in dataset_paths:
+            dataset_file = open(path, 'r', encoding='utf-8')
+            skipped = 0
 
-            # Load the information for a single example from .json file
-            doc = json.loads(json_line)
-            taskname = doc["taskname"]
-            prompt_template = self.task_templates[taskname]["prompt_template"]
-            prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
-            input_example = prompt_template
+            for json_line in tqdm(dataset_file):
 
-            assert sum(prompt_token_splits) == self.total_soft_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
-            assert prompt_template.count('<|SOFT_PROMPT_') == len(prompt_token_splits), "The number of '<|SOFT_PROMPT_n|>' markers and the number of prompt token splits must match"
+                # Load the information for a single example from .json file
+                doc = json.loads(json_line)
+                taskname = doc["taskname"]
+                prompt_template = self.task_templates[taskname]["prompt_template"]
+                prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
+                input_example = prompt_template
 
-            # Format the input example according to the template
-            for field in doc.keys():
-                field_text = doc[field]
-                input_example = input_example.replace('{' + field + '}', field_text)
+                assert sum(prompt_token_splits) == self.total_soft_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
+                assert prompt_template.count('<|SOFT_PROMPT_') == len(prompt_token_splits), "The number of '<|SOFT_PROMPT_n|>' markers and the number of prompt token splits must match"
 
-            # Insert the correct number of pseudo tokens at the <|SOFT_PROMPT_n|> markers
-            for idx in range(len(prompt_token_splits)):
-                input_example = input_example.replace(f'<|SOFT_PROMPT_{idx}|>', self.pseudo_token * prompt_token_splits[idx])
-            input_ids = self.tokenizer.text_to_ids(input_example)
+                # Format the input example according to the template
+                for field in doc.keys():
+                    field_text = doc[field]
+                    input_example = input_example.replace('{' + field + '}', field_text)
 
-            # Add BOS/EOS if desired, adds EOS by default
-            if self.add_bos:
-                input_ids = [self.tokenizer.bos_id] + input_ids
-            if self.add_eos:
-                input_ids = input_ids + [self.tokenizer.eos_id]
+                # Insert the correct number of pseudo tokens at the <|SOFT_PROMPT_n|> markers
+                for idx in range(len(prompt_token_splits)):
+                    input_example = input_example.replace(f'<|SOFT_PROMPT_{idx}|>', self.pseudo_token * prompt_token_splits[idx])
+                input_ids = self.tokenizer.text_to_ids(input_example)
 
-            # Skip example if the final length doesn't fit length requirements
-            if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
-                if self.soft_token_source == "prompt-encoder":
-                    taskname_id = self.tokenizer.text_to_ids(taskname)
+                # Add BOS/EOS if desired, adds EOS by default
+                if self.add_bos:
+                    input_ids = [self.tokenizer.bos_id] + input_ids
+                if self.add_eos:
+                    input_ids = input_ids + [self.tokenizer.eos_id]
 
-                elif self.soft_token_source == "prompt-table":
-                    taskname_id = self.task_templates[taskname]["task_id_num"]
+                # Skip example if the final length doesn't fit length requirements
+                if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
+                    if self.soft_token_source == "prompt-encoder":
+                        taskname_id = self.tokenizer.text_to_ids(taskname)
 
-                self.examples.append((taskname_id, input_ids))
+                    elif self.soft_token_source == "prompt-table":
+                        taskname_id = self.task_templates[taskname]["task_id_num"]
 
-            else:
-                skipped += 1
+                    self.examples.append((taskname_id, input_ids))
 
-        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
+                else:
+                    skipped += 1
+
+            logging.info(f'Skipped {skipped} sentences, sequence length too long or too short in dataset {path}')
 
     def __len__(self):
         return len(self.examples)
