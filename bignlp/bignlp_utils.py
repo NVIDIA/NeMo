@@ -61,3 +61,35 @@ def add_container_mounts(container_mounts):
             if mount is not None and isinstance(mount, str):
                 mounts_str += f",{mount}" if ":" in mount else f",{mount}:{mount}"
     return mounts_str
+
+
+def valid_node_counts(gbs, mbs, tp, pp, gpus_per_node=8, max_node_count=200):
+    """Returns all the possible node counts to use for a given config of
+    GBS, MBS, TP, PP, and gpus_per_node. The maximum number of nodes can 
+    be limited by using the max_node_count parameter.
+
+    Parameters:
+    gbs: int, Global Batch Size.
+    mbs: int, Micro Batch Size.
+    tp: int, Tensor Model Parallelism.
+    pp: int, Pipeline Model Parallelism.
+    gpus_per_node: int, number of GPUs per node.
+    max_node_count: int, numbers of nodes larger than this number will 
+        not be added to the list.
+
+    Returns:
+    valid_nodes: list, all the valid node counts.
+    """
+    assert isinstance(gbs, int) and gbs > 0, "gbs must be an integer larger than zero."
+    assert isinstance(mbs, int) and mbs > 0, "mbs must be an integer larger than zero."
+    assert isinstance(tp, int) and tp > 0, "tp must be an integer larger than zero."
+    assert isinstance(pp, int) and pp > 0, "pp must be an integer larger than zero."
+    assert isinstance(gpus_per_node, int) and gpus_per_node > 0, "gpus_per_node must be an integer larger than zero."
+    assert isinstance(max_node_count, int) and max_node_count > 0, "max_node_count must be an integer larger than zero."
+    
+    highest = int(gbs * pp * tp / (gpus_per_node * mbs))
+    valid_nodes = []
+    for nodes in range(1, min(highest+1, max_node_count+1)):
+        if gbs % (nodes * gpus_per_node * mbs / (tp * pp)) == 0:
+            valid_nodes.append(nodes)
+    return valid_nodes
