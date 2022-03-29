@@ -44,7 +44,7 @@ class TestHuggingFace:
     def test_get_pretrained_bert_model(self):
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name='bert-base-uncased')
         assert isinstance(model, nemo_nlp.modules.BertEncoder)
-        do_export(model, "bert-base-uncased")
+        # do_export(model, "bert-base-uncased")
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
@@ -65,7 +65,7 @@ class TestHuggingFace:
     def test_get_pretrained_albert_model(self):
         model = nemo_nlp.modules.get_lm_model(pretrained_model_name='albert-base-v1')
         assert isinstance(model, nemo_nlp.modules.AlbertEncoder)
-        do_export(model, "albert-base-v1")
+        # do_export(model, "albert-base-v1")
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
