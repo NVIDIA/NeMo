@@ -849,8 +849,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             else:
                 log_probs = torch.zeros(
-                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]),
-                    dtype=self.autocast_dtype
+                    (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
                 ).cuda()
                 predicted_tokens_dec = torch.zeros(
                     (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
@@ -859,8 +858,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 # Broadcast from the last pipeline stage to all other model-parallel ranks.
-                torch.distributed.broadcast(predicted_tokens_dec, parallel_state.get_pipeline_model_parallel_last_rank(), group=parallel_state.get_model_parallel_group())
-                torch.distributed.broadcast(log_probs, parallel_state.get_pipeline_model_parallel_last_rank(), group=parallel_state.get_model_parallel_group())
+                torch.distributed.broadcast(
+                    predicted_tokens_dec,
+                    parallel_state.get_pipeline_model_parallel_last_rank(),
+                    group=parallel_state.get_model_parallel_group(),
+                )
+                torch.distributed.broadcast(
+                    log_probs,
+                    parallel_state.get_pipeline_model_parallel_last_rank(),
+                    group=parallel_state.get_model_parallel_group(),
+                )
 
         return predicted_tokens_dec, log_probs
 

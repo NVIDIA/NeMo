@@ -17,12 +17,13 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import AppState, logging
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler, MegatronPretrainingSampler
 
 try:
     from apex.transformer import parallel_state
@@ -38,7 +39,8 @@ __all__ = ['MegatronT5GLUEModel']
 
 
 class MegatronT5GLUEModel(MegatronT5Model):
-    """GLUE Model that Inherits from MegatronT5Model instead.""" 
+    """GLUE Model that Inherits from MegatronT5Model instead."""
+
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self.acc_metric = ExactStringPerCategoryMatchMetric()
@@ -148,7 +150,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             micro_batch_size=batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=drop_last
+            drop_last=drop_last,
         )
         '''
         sampler = torch.utils.data.distributed.DistributedSampler(

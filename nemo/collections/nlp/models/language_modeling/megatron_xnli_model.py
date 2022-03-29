@@ -48,12 +48,25 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         else:
             assert len(global_batch[0]) == 7
             langs_list = []
-            tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor = super().process_global_batch(
-                [micro_batch[:-1] for micro_batch in global_batch]
-            )
+            (
+                tokens_enc_tensor,
+                tokens_dec_tensor,
+                loss_mask_tensor,
+                labels_tensor,
+                enc_mask_tensor,
+                dec_mask_tensor,
+            ) = super().process_global_batch([micro_batch[:-1] for micro_batch in global_batch])
             for micro_batch in global_batch:
                 langs_list.extend(micro_batch[-1])
-            return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor, langs_list
+            return (
+                tokens_enc_tensor,
+                tokens_dec_tensor,
+                loss_mask_tensor,
+                labels_tensor,
+                enc_mask_tensor,
+                dec_mask_tensor,
+                langs_list,
+            )
 
     def inference_step(self, batch, batch_idx):
         loss = self.model.validation_step(batch, batch_idx)

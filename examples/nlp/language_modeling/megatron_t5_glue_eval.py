@@ -66,7 +66,9 @@ def main(cfg) -> None:
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     # Get the T5 Base configuration.
-    t5_cfg = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True)
+    t5_cfg = MegatronT5GLUEModel.restore_from(
+        restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
+    )
 
     # Override the T5 configuration with the one from the config file.
     OmegaConf.set_struct(t5_cfg, True)
@@ -77,7 +79,9 @@ def main(cfg) -> None:
         t5_cfg.attention_dropout = cfg.get('attention_dropout', 0.1)
         t5_cfg.data = cfg.data
 
-    model = MegatronT5GLUEModel.restore_from(restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg)
+    model = MegatronT5GLUEModel.restore_from(
+        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
+    )
     model.freeze()
 
     trainer.validate(model)

@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPDataConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPDataConnector, NLPDDPPlugin
 from nemo.utils.app_state import AppState
 
 assert torch.cuda.is_available()
