@@ -906,6 +906,9 @@ class MegatronGPTModel(NLPModel):
         # reproduce the old compute_prob method
         # a very special case
         if sampling_params['compute_logprob']:
+            # need to overwrite some configuration, make it immutable
+            sampling_params = sampling_params.copy()
+            length_params = length_params.copy()
             length_params['max_length'] = 1
             sampling_params['all_probs'] = True
             sampling_params["add_BOS"] = False
@@ -954,6 +957,8 @@ class MegatronGPTModel(NLPModel):
         if inference_config is None:
             return None
         else:
+            # need to overwrite some configuration, make it immutable
+            inference_config = inference_config.copy()
             compute_logprob = inference_config['compute_logprob']
             if compute_logprob:
                 del inference_config['compute_logprob']
