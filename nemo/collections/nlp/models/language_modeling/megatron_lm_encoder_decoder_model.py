@@ -74,11 +74,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
-        if not HAVE_APEX:
-            raise ImportError(
-                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
-            )
-
         super().__init__(cfg, trainer=trainer)
 
         # Make sure trainer.accumulate_grad_batches is 1.
