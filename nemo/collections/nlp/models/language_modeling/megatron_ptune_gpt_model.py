@@ -12,22 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List
 
 import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
+from torch import Tensor
 
 from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset, GPTPTuneInferenceDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
     make_attention_mask_3d,
     make_history_mask_3d,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
@@ -48,20 +47,13 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTPTuneModel']
 
 
-class MegatronGPTPTuneModel(NLPModel):
+class MegatronGPTPTuneModel(MegatronBaseModel):
     """
     Megatron GPT P-Tune
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        initialize_model_parallel_for_nemo(
-            world_size=trainer.world_size,
-            global_rank=trainer.global_rank,
-            local_rank=trainer.local_rank,
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            seed=cfg.get('seed', 1234),
-        )
 
         self.model = MegatronGPTModel.restore_from(
             self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
@@ -107,15 +99,26 @@ class MegatronGPTPTuneModel(NLPModel):
             ]
         )
 
-    def embed_input(self, queries, enc_taskname):
-        bz = queries.shape[0]
-        queries_for_embedding = queries.clone()
+    def embed_input(self, enc_input_id: Tensor, enc_taskname_id: Tensor):
+        """
+        This method will replace the virtual tokens in the enc_input_id with
+        embeddings calculated from `prompt_encoder`. If the `enc_taskname_id` is
+        not None, the computed virtual token embeddings are depenedent on it.
+        The virtual token placeholders has the token_id `self.pseudo_token_id`.
+        params:
+            enc_input_id: the input token ids
+            enc_taskname_id: the NLP task tag token ids
+        returns:
+            the token embedding for the LM model.
+        """
+        bz = enc_input_id.shape[0]
+        queries_for_embedding = enc_input_id.clone()
 
-        queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
+        queries_for_embedding[(enc_input_id == self.pseudo_token_id)] = self.pad_token_id
 
         raw_embeds = self.embeddings(queries_for_embedding).clone()
         if self.cfg.prompt_encoder.task_dependent:
-            enc_taskname = self.embeddings(enc_taskname)
+            enc_taskname = self.embeddings(enc_taskname_id)
         else:
             enc_taskname = None
 
@@ -125,7 +128,7 @@ class MegatronGPTPTuneModel(NLPModel):
             with torch.autocast(device_type="cuda", dtype=self.float_type):
                 replace_embeds = self.prompt_encoder(enc_taskname=enc_taskname)
 
-        blocked_indices = queries == self.pseudo_token_id
+        blocked_indices = enc_input_id == self.pseudo_token_id
         raw_embeds = raw_embeds.clone().type(self.float_type)
         # find the index to the psedo-tokens
         index = blocked_indices.nonzero().reshape((bz, -1, 2))[:, :, 1][:, :, None]
@@ -397,7 +400,7 @@ class MegatronGPTPTuneModel(NLPModel):
         self.setup_training_data()
         self.setup_validation_data()
 
-    def setup_training_data(self):
+    def setup_training_data(self, training_data_config=None):
         self._train_dl = self.build_pretraining_data_loader(
             self._train_ds,
             self.cfg.data.train_ds.batch_size,
@@ -406,7 +409,7 @@ class MegatronGPTPTuneModel(NLPModel):
             pin_memory=True,
         )
 
-    def setup_validation_data(self):
+    def setup_validation_data(self, validation_data_config=None):
         self._validation_dl = self.build_pretraining_data_loader(
             self._validation_ds,
             self.cfg.data.validation_ds.batch_size,
@@ -415,7 +418,7 @@ class MegatronGPTPTuneModel(NLPModel):
             pin_memory=True,
         )
 
-    def setup_test_data(self):
+    def setup_test_data(self, test_data_config=None):
         self._test_dl = self.build_pretraining_data_loader(
             self._test_ds,
             self.cfg.data.test_ds.batch_size,
@@ -424,7 +427,8 @@ class MegatronGPTPTuneModel(NLPModel):
             pin_memory=True,
         )
 
-    def list_available_models():
+    @classmethod
+    def list_available_models(cls):
         pass
 
     @torch.no_grad()
