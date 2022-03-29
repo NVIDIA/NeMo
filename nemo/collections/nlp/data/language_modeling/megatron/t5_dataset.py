@@ -184,7 +184,7 @@ class T5Dataset(MegatronDataset):
 
         # Masking.
         max_predictions_per_seq = self.masked_lm_prob * max_num_tokens
-        (output_tokens, masked_positions, masked_labels, _, masked_spans) = create_masked_lm_predictions(
+        lm_pred = create_masked_lm_predictions(
             tokens=tokens,
             vocab_id_list=self.vocab_id_list,
             vocab_id_to_token_dict=self.vocab_id_to_token_dict,
