@@ -37,7 +37,7 @@
       "ignore"
     ],
     "sort": "ASC",
-    "template": "${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
+    "template": "$\n{{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
     "pr_template": "- ${{TITLE}} by @${{AUTHOR}} :: PR: #${{NUMBER}}",
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
