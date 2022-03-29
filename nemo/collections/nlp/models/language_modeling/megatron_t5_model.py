@@ -40,7 +40,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         """Allows child classes to implement models with different data regime"""
         return "T5"
 
-
     def _validate_cfg(self):
         """Class-specific cfg validation"""
         # Make sure the user specifies dataset type as either 't5' or 't5_prefix_lm' only.
@@ -59,7 +58,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
     def _build_train_valid_test_datasets_kwargs(self):
         """allows child classes to add kwargs to dataset building"""
         return {}
-
 
     def _build_vocab(self):
         self._add_special_tokens_to_tokenizer()
