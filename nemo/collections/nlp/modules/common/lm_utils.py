@@ -86,7 +86,7 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    if cfg.tokenizer.get("library", "") == 'megatron':
+    if cfg.tokenizer is not None and cfg.tokenizer.get("library", "") == 'megatron':
         import torch
 
         from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
