@@ -486,13 +486,23 @@ class ASR_DIAR_OFFLINE(object):
         labels = diar_hyp[uniq_id]
         n_spk = self.get_num_of_spk_from_labels(labels)
         riva_dict = od(
-            {'status': 'Success', 'session_id': uniq_id, 'transcription': '', 'speaker_count': n_spk, 'words': [], 'sentences': []}
+            {
+                'status': 'Success',
+                'session_id': uniq_id,
+                'transcription': '',
+                'speaker_count': n_spk,
+                'words': [],
+                'sentences': [],
+            }
         )
         gecko_dict = od({'schemaVersion': 2.0, 'monologues': []})
         start_point, end_point, speaker = labels[0].split()
-        string_out = self.print_time(speaker, start_point, end_point, self.params, previous_string='')
         prev_speaker = speaker
         terms_list = []
+
+        # sentences
+        sentences = []
+        sentence = {'speaker': speaker, 'start_point': float(start_point), 'end_point': float(end_point), 'text': ''}
 
         logging.info(f"Creating results for Session: {uniq_id} n_spk: {n_spk} ")
         for k, line_dict in enumerate(word_dict_seq_list):
@@ -505,21 +515,35 @@ class ASR_DIAR_OFFLINE(object):
                         {'speaker': {'name': None, 'id': prev_speaker}, 'terms': terms_list}
                     )
                     terms_list = []
-                string_out = self.print_time(speaker, start_point, end_point, self.params, previous_string=string_out)
+
+                # remove trailing space in text
+                sentence['text'] = sentence['text'].strip()
+
+                # store last sentence
+                sentences.append(sentence)
+
+                # start construction of a new sentence
+                sentence = {'speaker': speaker, 'start_point': start_point, 'end_point': end_point, 'text': ''}
             else:
-                string_out = self.print_time(
-                    speaker, start_point, end_point, self.params, previous_string=string_out, replace_time=True
-                )
-            stt_sec, end_sec = round(start_point, 2), round(end_point, 2)
+                # correct the ending time
+                sentence['end_point'] = end_point
+
+            stt_sec, end_sec = start_point, end_point
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
-            string_out = self.print_word(string_out, word, self.params)
+
+            # add current work to sentence
+            sentence['text'] += word.strip() + ' '
+
             self.add_json_to_dict(riva_dict, word, stt_sec, end_sec, speaker)
             audacity_label_words.append(self.get_audacity_label(word, stt_sec, end_sec, speaker))
             total_riva_dict[uniq_id] = riva_dict
             prev_speaker = speaker
 
+        # prepare
+        string_out = self.print_sentences(sentences, self.params)
+
         # add sentences to json array
-        self.add_sentences_to_dict(riva_dict, string_out)
+        self.add_sentences_to_dict(riva_dict, sentences)
 
         if self.params['break_lines']:
             string_out = self.break_lines(string_out)
@@ -989,41 +1013,46 @@ class ASR_DIAR_OFFLINE(object):
                 \nSpk. counting acc.: {DER_result_dict['total']['spk_counting_acc']:.4f}"
             )
 
-    def print_time(self, speaker, start_point, end_point, params, previous_string=None, replace_time=False):
+    def print_sentences(self, sentences, params):
         """
         Print a transcript with speaker labels and timestamps.
         """
-        if not previous_string:
-            string_out = ''
-        else:
-            string_out = previous_string
-        if params['colored_text']:
-            color = self.color_palette.get(speaker, '\033[0;37m')
-        else:
-            color = ''
+        # init output
+        string_out = ''
 
-        datetime_offset = 16 * 3600
-        if float(start_point) > 3600:
-            time_str = "%H:%M:%S.%f"
-        else:
-            time_str = "%M:%S.%f"
-        start_point, end_point = max(float(start_point), 0), max(float(end_point), 0)
-        start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
-        end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
+        for sentence in sentences:
+            # extract info
+            speaker = sentence['speaker']
+            start_point = sentence['start_point']
+            end_point = sentence['end_point']
+            text = sentence['text']
 
-        if replace_time:
-            old_start_point_str = string_out.split('\n')[-1].split(' - ')[0].split('[')[-1]
-            word_sequence = string_out.split('\n')[-1].split(' - ')[-1].split(':')[-1].strip() + ' '
-            string_out = '\n'.join(string_out.split('\n')[:-1])
-            time_str = "[{} - {}] ".format(old_start_point_str, end_point_str)
-        else:
-            time_str = "[{} - {}] ".format(start_point_str, end_point_str)
-            word_sequence = ''
+            # color?
+            if params['colored_text']:
+                color = self.color_palette.get(speaker, '\033[0;37m')
+            else:
+                color = ''
 
-        if not params['print_time']:
-            time_str = ''
-        strd = "\n{}{}{}: {}".format(color, time_str, speaker, word_sequence.lstrip())
-        return string_out + strd
+            # cast timestamp to the correct format
+            datetime_offset = 16 * 3600
+            if float(start_point) > 3600:
+                time_str = '%H:%M:%S.%f'
+            else:
+                time_str = '%M:%S.%f'
+            start_point, end_point = max(float(start_point), 0), max(float(end_point), 0)
+            start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
+            end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
+
+            # print time?
+            if params['print_time']:
+                time_str = f'[{start_point_str} - {end_point_str}] '
+            else:
+                time_str = ''
+
+            # string out concatenation
+            string_out += f'{color}{time_str}{speaker}: {text}\n'
+
+        return string_out
 
     @staticmethod
     def threshold_non_speech(source_list, params):
@@ -1053,11 +1082,6 @@ class ASR_DIAR_OFFLINE(object):
         return f'{stt_sec}\t{end_sec}\t[{spk}] {word}'
 
     @staticmethod
-    def print_word(string_out, word, params):
-        word = word.strip()
-        return string_out + word + " "
-
-    @staticmethod
     def softmax(logits):
         e = np.exp(logits - np.max(logits))
         return e / e.sum(axis=-1).reshape([logits.shape[0], 1])
@@ -1073,35 +1097,15 @@ class ASR_DIAR_OFFLINE(object):
 
     @staticmethod
     def add_sentences_to_dict(riva_dict, sentences):
-        # split lines
-        for line in sentences.strip().split('\n'):
-            # extract sentence
-            line_split = line.split(': ')
-            sentence = line_split[1].strip()
-
-            # extract speaker
-            line_split = line_split[0].split('] ')
-            speaker = line_split[1]
-
-            # extract time stamps
-            line_split = line_split[0].split(' - ')
-            start_time = line_split[0].replace('[', '')
-            end_time = line_split[1]
-
-            # convert time stamps to format consistent with how words are stored in the JSON
-            if len(start_time) == 8:
-                m, s = start_time.split(':')
-                start_time = round(int(m) * 60 + float(s), 2)
-            else:
-                h, m, s = start_time.split(':')
-                start_time = round(int(h) * 3600 + int(m) * 60 + float(s), 2)
-
-            if len(end_time) == 8:
-                m, s = end_time.split(':')
-                end_time = round(int(m) * 60 + float(s), 2)
-            else:
-                h, m, s = end_time.split(':')
-                end_time = round(int(h) * 3600 + int(m) * 60 + float(s), 2)
+        # iterate over sentences
+        for sentence in sentences:
+            # extract info
+            speaker = sentence['speaker']
+            start_point = sentence['start_point']
+            end_point = sentence['end_point']
+            text = sentence['text']
 
             # save to riva_dict
-            riva_dict['sentences'].append({'sentence': sentence, 'start_time': start_time, 'end_time': end_time, 'speaker_label': speaker})
+            riva_dict['sentences'].append(
+                {'sentence': text, 'start_time': start_point, 'end_time': end_point, 'speaker_label': speaker}
+            )
