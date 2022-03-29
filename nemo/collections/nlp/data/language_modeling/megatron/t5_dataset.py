@@ -18,6 +18,7 @@ import collections
 import os
 
 import numpy as np
+import torch
 
 from nemo.collections.common.tokenizers import SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
