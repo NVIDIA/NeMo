@@ -15,7 +15,7 @@
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_t5 import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 
 __all__ = ["MegatronBARTModel"]
 
@@ -38,10 +38,25 @@ class MegatronBARTModel(MegatronT5Model):
                 f"cfg.tokenizer.num_sentinel_tokens = {self.num_sentinel_tokens} but 0 is expected for 'bart'"
             )
 
+    @property
+    def model_name(self):
+        """Allows child classes to implement models with different data regime"""
+        return "BART"
+
+    def _validate_cfg(self):
+        """Class-specific cfg validation"""
+        pass
+
+    @property
+    def _build_train_valid_test_datasets_kwargs(self):
+        """allows child classes to add kwargs to dataset building"""
+        build_train_valid_test_datasets_kwargs = super()._build_train_valid_test_datasets_kwargs
         # add BART specific data augmentation (deletion)
-        self.build_train_valid_test_datasets_kwargs.update(
+        build_train_valid_test_datasets_kwargs.update(
             dict(delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),)
         )
+
+        return build_train_valid_test_datasets_kwargs
 
     def list_available_models(self):
         pass
