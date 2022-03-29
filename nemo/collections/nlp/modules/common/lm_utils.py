@@ -71,14 +71,15 @@ def get_lm_model(
     """
 
     # check valid model type
-    if (
-        not cfg.language_model.pretrained_model_name
-        or cfg.language_model.pretrained_model_name not in get_pretrained_lm_models_list(include_external=False)
-    ):
-        logging.warning(
-            f'{cfg.language_model.pretrained_model_name} is not in get_pretrained_lm_models_list(include_external=False), '
-            f'will be using AutoModel from HuggingFace.'
-        )
+    if cfg.language_model.get('pretrained_model_name'):
+        if (
+            not cfg.language_model.pretrained_model_name
+            or cfg.language_model.pretrained_model_name not in get_pretrained_lm_models_list(include_external=False)
+        ):
+            logging.warning(
+                f'{cfg.language_model.pretrained_model_name} is not in get_pretrained_lm_models_list(include_external=False), '
+                f'will be using AutoModel from HuggingFace.'
+            )
 
     # warning when user passes both configuration dict and file
     if config_dict and config_file:

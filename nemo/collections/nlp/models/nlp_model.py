@@ -58,7 +58,7 @@ class NLPModel(ModelPT, Exportable):
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
-        if cfg.get('tokenizer'):
+        if cfg.get('tokenizer') and not no_lm_init:
             # Some models have their own tokenizer setup
             if not hasattr(self, 'tokenizer') and cfg.tokenizer.get('tokenizer_name'):
                 self.setup_tokenizer(cfg.tokenizer)
