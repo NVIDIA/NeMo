@@ -840,12 +840,6 @@ pipeline {
             model.dataset.dialogues_example_dir=answer_extender \
             model.dataset.task=ms_marco \
             model.dataset.debug_mode=True \
-            trainer.max_steps=1 \
-            trainer.max_epochs=1 \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            model.test_ds.batch_size=2 \
-            model.nemo_path=null \
             trainer.val_check_interval=0.0 \
             trainer.devices=[0] \
             model.dataset.use_cache=false \
