@@ -56,6 +56,8 @@ class BERTLMModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         vocab_file = None
+        config_dict = None
+        config_file = None
 
         if cfg.tokenizer is not None:
             if cfg.tokenizer.get('tokenizer_name') and cfg.tokenizer.get('tokenizer_model'):
@@ -67,12 +69,13 @@ class BERTLMModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
+        if cfg.get('language_model.config'):
+            config_dict = OmegaConf.to_container(cfg.language_model.config)
+        if cfg.get('language_model.config_file'):
+            config_file = self.register_artifact('language_model.config_file', cfg.language_model.config_file)
+
         self.bert_model = get_lm_model(
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            vocab_file=vocab_file,
-            trainer=trainer,
-            cfg=cfg,
+            config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
         )
 
         self.hidden_size = self.bert_model.config.hidden_size

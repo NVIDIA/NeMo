@@ -54,6 +54,7 @@ class NLPModel(ModelPT, Exportable):
         vocab_file = None
         nemo_file = None
         config_dict = None
+        config_file = None
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
@@ -73,12 +74,10 @@ class NLPModel(ModelPT, Exportable):
                 nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
             if cfg.get('language_model.config'):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
+            if cfg.get('language_model.config_file'):
+                config_file = self.register_artifact('language_model.config_file', cfg.language_model.config_file)
             self.bert_model = get_lm_model(
-                config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-                config_dict=config_dict,
-                vocab_file=vocab_file,
-                trainer=trainer,
-                cfg=cfg,
+                config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
             )
             if cfg.language_model.get('downstream'):
                 cfg.language_model.downstream = True
