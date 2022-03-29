@@ -204,7 +204,7 @@ class T5Dataset(MegatronDataset):
             tokenizer_type=self.tokenizer_type,
         )
 
-        if masked_lm_prob == 0:
+        if self.masked_lm_prob == 0:
             (output_tokens, masked_positions, masked_labels, _) = lm_pred
             masked_spans = None
         else:
