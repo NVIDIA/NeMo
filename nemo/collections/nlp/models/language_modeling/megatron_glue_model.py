@@ -136,7 +136,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             "Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)"
         )
 
-    def build_pretraining_data_loader(self, dataset, batch_size, shuffle, num_workers, pin_memory, drop_last):
+    def build_megatron_data_loader(self, dataset, micro_batch_size, global_batch_size, num_workers, pin_memory, drop_last):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -145,9 +145,9 @@ class MegatronT5GLUEModel(MegatronT5Model):
         # rank = parallel_state.get_data_parallel_rank()
         # world_size = parallel_state.get_data_parallel_world_size()
         sampler = MegatronPretrainingSampler(
-            total_samples=0,
+            total_samples=len(dataset) // (global_batch_size // micro_batch_size),
             consumed_samples=0,
-            micro_batch_size=batch_size,
+            micro_batch_size=micro_batch_size,
             data_parallel_rank=parallel_state.get_data_parallel_rank(),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=drop_last,
@@ -162,28 +162,26 @@ class MegatronT5GLUEModel(MegatronT5Model):
         return torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
-            batch_size=batch_size,
             batch_sampler=sampler,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            drop_last=drop_last,
         )
 
     def setup_training_data(self):
-        self._train_dl = self.build_pretraining_data_loader(
+        self._train_dl = self.build_megatron_data_loader(
             self._train_ds,
-            self.cfg.data.train_ds.micro_batch_size,
-            shuffle=self.cfg.data.train_ds.shuffle,
+            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+            global_batch_size=self.cfg.data.train_ds.global_batch_size,
             num_workers=self.cfg.data.train_ds.num_workers,
             pin_memory=self.cfg.data.train_ds.pin_memory,
             drop_last=self.cfg.data.train_ds.drop_last,
         )
 
     def setup_validation_data(self):
-        self._validation_dl = self.build_pretraining_data_loader(
+        self._validation_dl = self.build_megatron_data_loader(
             self._validation_ds,
-            self.cfg.data.validation_ds.micro_batch_size,
-            shuffle=self.cfg.data.validation_ds.shuffle,
+            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
             num_workers=self.cfg.data.validation_ds.num_workers,
             pin_memory=self.cfg.data.validation_ds.pin_memory,
             drop_last=self.cfg.data.validation_ds.drop_last,
