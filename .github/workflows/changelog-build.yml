@@ -25,7 +25,7 @@ jobs:
 
       - name: Build Changelog
         id: github_tag
-        uses: mikepenz/release-changelog-builder-action@v2.8.0
+        uses: mikepenz/release-changelog-builder-action@v2.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -38,8 +38,8 @@ jobs:
           repo: "NeMo"
           ignorePreReleases: "false"
           failOnError: "false"
-          fromTag: ${{ steps.previous_tag.outputs.tag_name }}
-          toTag: ${{ github.ref_name }}
+          fromTag: 1.6.0 # ${{ steps.previous_tag.outputs.tag_name }}
+          toTag: 1.7.0 # ${{ github.ref_name }}
 
       - name: Print Changelog
         run: |
