@@ -35,9 +35,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         # validate cfg
         self._validate_cfg()
 
-        # T5-related construction
-        self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
-
     @property
     def model_name(self):
         """Allows child classes to implement models with different data regime"""
@@ -70,6 +67,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         super()._build_vocab()
 
     def _add_special_tokens_to_tokenizer(self):
+        # T5-related construction
+        self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
+
         if self._cfg.tokenizer.library == 'huggingface' or self._cfg.tokenizer.library == 'megatron':
             additional_tokens = {
                 'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
