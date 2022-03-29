@@ -425,7 +425,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
             taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
             soft_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
             self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, soft_prompt_embeddings)
-        
+            
         # Remove prompt encoder from model
         self.prompt_encoder = None
 
