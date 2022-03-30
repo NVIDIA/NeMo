@@ -27,10 +27,6 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
-)
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
@@ -46,6 +42,26 @@ __all__ = [
 SMALL_NUM = -100
 TASK_KEY = 'prompt_tag'
 LABEL_KEY = 'label'
+
+
+def make_attention_mask_3d(source_block, target_block, pad_id):
+    """
+    Returns a 3-dimensional (3-D) attention mask
+    :param source_block: 1-D array
+    :param target_block: 1-D array
+    """
+    mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
+    return mask
+
+
+def make_history_mask_3d(block):
+    batch, length = block.shape
+    arange = torch.arange(length, device=block.device)
+    history_mask = (arange[None,] <= arange[:, None])[
+        None,
+    ]
+    history_mask = history_mask.expand(batch, length, length)
+    return history_mask
 
 
 class DataProcessor(object):
