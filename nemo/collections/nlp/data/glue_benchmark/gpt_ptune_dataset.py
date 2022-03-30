@@ -30,6 +30,10 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    make_inference_attention_mask_3d,
+    make_inference_history_mask_3d,
+)
 
 __all__ = [
     'DataProcessor',
@@ -42,26 +46,6 @@ __all__ = [
 SMALL_NUM = -100
 TASK_KEY = 'prompt_tag'
 LABEL_KEY = 'label'
-
-
-def make_attention_mask_3d(source_block, target_block, pad_id):
-    """
-    Returns a 3-dimensional (3-D) attention mask
-    :param source_block: 1-D array
-    :param target_block: 1-D array
-    """
-    mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
-    return mask
-
-
-def make_history_mask_3d(block):
-    batch, length = block.shape
-    arange = torch.arange(length, device=block.device)
-    history_mask = (arange[None,] <= arange[:, None])[
-        None,
-    ]
-    history_mask = history_mask.expand(batch, length, length)
-    return history_mask
 
 
 class DataProcessor(object):
@@ -384,8 +368,8 @@ class GPTPTuneDataset(TaskDataset):
         label_position = torch.cat([label_start.unsqueeze(1), label_position.unsqueeze(1)], 1)
         loss_mask[labels == SMALL_NUM] = 0
 
-        input_attn_mask = make_attention_mask_3d(enc_input, enc_input, self.pad_id)
-        input_attn_mask = (input_attn_mask * make_history_mask_3d(enc_input)).long()
+        input_attn_mask = make_inference_attention_mask_3d(enc_input, enc_input, self.pad_id)
+        input_attn_mask = (input_attn_mask * make_inference_history_mask_3d(enc_input)).long()
 
         return {
             'enc_input': enc_input,
