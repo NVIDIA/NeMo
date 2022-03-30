@@ -48,9 +48,7 @@ class MegatronBARTModel(MegatronT5Model):
     @property
     def _build_train_valid_test_datasets_kwargs(self):
         """allows child classes to add kwargs to dataset building"""
-        return dict(
-            delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),
-        )
+        return dict(delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),)
 
     def list_available_models(self):
         pass
