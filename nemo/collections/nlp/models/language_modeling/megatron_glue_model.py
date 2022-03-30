@@ -136,35 +136,35 @@ class MegatronT5GLUEModel(MegatronT5Model):
             "Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)"
         )
 
-    def build_megatron_data_loader(self, dataset, micro_batch_size, global_batch_size, num_workers, pin_memory, drop_last):
+    def build_megatron_data_loader(self, dataset, micro_batch_size, global_batch_size, shuffle, num_workers, pin_memory, drop_last, check_validation_interval):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
             return None
 
-        # rank = parallel_state.get_data_parallel_rank()
-        # world_size = parallel_state.get_data_parallel_world_size()
-        sampler = MegatronPretrainingSampler(
-            total_samples=len(dataset) // (global_batch_size // micro_batch_size),
-            consumed_samples=0,
-            micro_batch_size=micro_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=drop_last,
-        )
-        '''
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
-        sampler.num_samples = sampler.num_samples // get_num_microbatches()
-        '''
+        print(f"Check interval : {self.trainer.val_check_interval}, num samples : {sampler.num_samples}")
+        # This check makes sure the val_check_interval is less than the number of global batches.
+        # Normally, PTL would do this check and properly account for gradient accumulation.
+        # But now, it is implicit in the apex fwd/bwd functions and so we need to check for this somewhere.
+        # The consequence of not doing this is that training loop will never run validation.
+        # NOTE: Prog bar is also broken as a result of this.
+        if (self.trainer.val_check_interval > (sampler.num_samples // global_batch_size) and check_validation_interval):
+            raise ValueError(f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}")
+
         # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
-            batch_sampler=sampler,
+            sampler=sampler,
+            batch_size=micro_batch_size,
             num_workers=num_workers,
             pin_memory=pin_memory,
+            drop_last=drop_last
         )
 
     def setup_training_data(self):
@@ -172,9 +172,11 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self._train_ds,
             micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
             global_batch_size=self.cfg.data.train_ds.global_batch_size,
+            shuffle=self.cfg.data.train_ds.shuffle,
             num_workers=self.cfg.data.train_ds.num_workers,
             pin_memory=self.cfg.data.train_ds.pin_memory,
             drop_last=self.cfg.data.train_ds.drop_last,
+            check_validation_interval=True
         )
 
     def setup_validation_data(self):
@@ -182,9 +184,11 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self._validation_ds,
             micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+            shuffle=self.cfg.data.validation_ds.shuffle,
             num_workers=self.cfg.data.validation_ds.num_workers,
             pin_memory=self.cfg.data.validation_ds.pin_memory,
             drop_last=self.cfg.data.validation_ds.drop_last,
+            check_validation_interval=False
         )
 
     def build_train_valid_test_datasets(self, validation_only=False):
