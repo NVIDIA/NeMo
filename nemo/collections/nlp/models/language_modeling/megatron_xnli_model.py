@@ -23,7 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_glue_model import Me
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
 
-__all__ = ['MegatronXNlIModel']
+__all__ = ['MegatronT5XNLIModel']
 
 
 class MegatronT5XNLIModel(MegatronT5GLUEModel):
@@ -69,11 +69,11 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
             )
 
     def inference_step(self, batch, batch_idx):
-        loss = self.model.validation_step(batch, batch_idx)
+        loss = super().validation_step(batch, batch_idx, reconfigure_microbatch_size=True)
 
-        tokens_enc, _, _, labels, enc_mask, _, langs = self.process_batch(batch)
+        tokens_enc, _, _, labels, enc_mask, _, langs = self.process_global_batch(batch)
 
-        predicted_token_ids, _ = self.model.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10)
+        predicted_token_ids, _ = self.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10)
 
         preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
         for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
@@ -142,7 +142,7 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         self._test_ds = TextToTextXNlIDataset(
             self.cfg.data.test_ds.file_path,
             task_name=self.cfg.data.test_ds.task_name,
-            tokenizer=self.model.tokenizer,
+            tokenizer=self.tokenizer,
             max_seq_length=self.cfg.data.test_ds.max_seq_length,
             lang_list=self.cfg.eval_languages,
         )
@@ -151,13 +151,13 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         self._train_ds = TextToTextGLUEDataset(
             self.cfg.data.train_ds.file_path,
             task_name=self.cfg.data.train_ds.task_name,
-            tokenizer=self.model.tokenizer,
+            tokenizer=self.tokenizer,
             max_seq_length=self.cfg.data.train_ds.max_seq_length,
         )
         self._validation_ds = TextToTextXNlIDataset(
             self.cfg.data.validation_ds.file_path,
             task_name=self.cfg.data.validation_ds.task_name,
-            tokenizer=self.model.tokenizer,
+            tokenizer=self.tokenizer,
             max_seq_length=self.cfg.data.validation_ds.max_seq_length,
             lang_list=self.cfg.eval_languages,
         )

@@ -36,11 +36,8 @@ exp_manager:
     save_best_model: True
 
 model:
-  restore_from_path: /raid/Data/NMT/Models/t5_220m/megatron_t5_tp_1_pp_2.nemo
-  # restore_from_path: /raid/Data/NMT/Models/mt5_220m/refactored/seq_1024_drop0/megatron_t5--val_loss=1.45-step=610999-consumed_samples=625643520.0.nemo # Path to a trained T5 .nemo file
-  # restore_from_path: /raid/Data/NMT/Models/t5_220m/refactored/bf16_O1/megatron_t5--val_loss=1.47-step=999999-consumed_samples=2047944704.0.nemo
-  # restore_from_path: /raid/Data/NMT/Models/t5_3b/megatron_t5--val_loss=1.12-step=752950-consumed_samples=1626258816.0.nemo
-  tensor_model_parallel_size: 2
+  restore_from_path: ???
+  tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
@@ -50,8 +47,8 @@ model:
 
   data:
     train_ds:
-      task_name: 'rte'
-      file_path: /raid/Data/GLUE/RTE/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
+      task_name: ???
+      file_path: ??? # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: True
@@ -61,8 +58,8 @@ model:
       drop_last: True
 
     validation_ds:
-      task_name: 'rte'
-      file_path: /raid/Data/GLUE/RTE/dev.tsv # Path to the TSV file for MNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      task_name: ???
+      file_path: ??? # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: False
