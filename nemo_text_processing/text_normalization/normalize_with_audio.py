@@ -99,6 +99,7 @@ class NormalizerWithAudio(Normalizer):
         cache_dir: str = None,
         overwrite_cache: bool = False,
         whitelist: str = None,
+        lm: bool = False,
     ):
 
         super().__init__(
@@ -108,7 +109,9 @@ class NormalizerWithAudio(Normalizer):
             cache_dir=cache_dir,
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
+            lm=lm,
         )
+        self.lm = lm
 
     def normalize(self, text: str, n_tagged: int, punct_post_process: bool = True, verbose: bool = False,) -> str:
         """
@@ -125,9 +128,9 @@ class NormalizerWithAudio(Normalizer):
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
         original_text = text
-
-        if self.lang == "en":
+        if self.lang in ["en", "de"]:
             text = pre_process(text)
+
         text = text.strip()
         if not text:
             if verbose:
@@ -135,22 +138,70 @@ class NormalizerWithAudio(Normalizer):
             return text
         text = pynini.escape(text)
 
-        if n_tagged == -1:
+        if self.lm:
+            if self.lang not in ["en", "de"]:
+                raise ValueError(f"{self.lang} is not supported in LM mode")
+
             if self.lang == "en":
                 try:
-                    tagged_texts = rewrite.rewrites(text, self.tagger.fst_no_digits)
+                    lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
                 except pynini.lib.rewrite.Error:
+                    lattice = rewrite.rewrite_lattice(text, self.tagger.fst)
+                lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
+                tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
+                tagged_texts.sort(key=lambda x: x[1])
+                tagged_texts, weights = list(zip(*tagged_texts))
+            elif self.lang == "de":
+                lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
+                lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
+                tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
+                tagged_texts.sort(key=lambda x: x[1])
+                tagged_texts, tagger_weights = list(zip(*tagged_texts))
+                normalized_texts = []
+                weights = []
+
+                def get_verbalized_text(tagged_text, weight):
+                    lattice = rewrite.rewrite_lattice(tagged_text, self.verbalizer.fst)
+                    lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
+                    tagged_texts = [(x[1], float(x[2]) + weight) for x in lattice.paths().items()]
+                    tagged_texts.sort(key=lambda x: x[1])
+                    tagged_texts, weights = list(zip(*tagged_texts))
+                    return tagged_texts, weights
+
+                for tagged_text, weight in zip(tagged_texts, tagger_weights):
+
+                    self.parser(tagged_text)
+                    tokens = self.parser.parse()
+                    tags_reordered = self.generate_permutations(tokens)
+                    for tagged_text_reordered in tags_reordered:
+                        try:
+                            tagged_text_reordered = pynini.escape(tagged_text_reordered)
+                            norm, w = get_verbalized_text(tagged_text_reordered, weight=weight)
+                            normalized_texts.extend(norm)
+                            weights.extend(w)
+                            if verbose:
+                                print(tagged_text_reordered)
+
+                        except pynini.lib.rewrite.Error:
+                            continue
+
+        else:
+            if n_tagged == -1:
+                if self.lang == "en":
+                    try:
+                        tagged_texts = rewrite.rewrites(text, self.tagger.fst_no_digits)
+                    except pynini.lib.rewrite.Error:
+                        tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+                else:
                     tagged_texts = rewrite.rewrites(text, self.tagger.fst)
             else:
-                tagged_texts = rewrite.rewrites(text, self.tagger.fst)
-        else:
-            if self.lang == "en":
-                try:
-                    tagged_texts = rewrite.top_rewrites(text, self.tagger.fst_no_digits, nshortest=n_tagged)
-                except pynini.lib.rewrite.Error:
+                if self.lang == "en":
+                    try:
+                        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst_no_digits, nshortest=n_tagged)
+                    except pynini.lib.rewrite.Error:
+                        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+                else:
                     tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
-            else:
-                tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
 
         # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
         if self.lang == "en":
@@ -170,6 +221,9 @@ class NormalizerWithAudio(Normalizer):
                 normalized_texts = [
                     post_process_punct(input=original_text, normalized_text=t) for t in normalized_texts
                 ]
+
+        if self.lm:
+            return normalized_texts, weights
 
         normalized_texts = set(normalized_texts)
         return normalized_texts
@@ -312,6 +366,7 @@ def parse_args():
         type=str,
     )
     parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
+    parser.add_argument("--lm", action="store_true", help="Set to True for WFST+LM")
     parser.add_argument("--batch_size", default=200, type=int, help="Number of examples for each process")
     return parser.parse_args()
 
@@ -363,7 +418,7 @@ def normalize_manifest(
             for line in tqdm(batch)
         ]
 
-        with open(f"{dir_name}/{batch_idx}.json", "w") as f_out:
+        with open(f"{dir_name}/{batch_idx:05}.json", "w") as f_out:
             for line in normalized_lines:
                 f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
 
@@ -411,6 +466,7 @@ if __name__ == "__main__":
             cache_dir=args.cache_dir,
             overwrite_cache=args.overwrite_cache,
             whitelist=args.whitelist,
+            lm=args.lm,
         )
 
         if os.path.exists(args.text):
