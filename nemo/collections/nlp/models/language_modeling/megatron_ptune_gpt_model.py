@@ -21,9 +21,9 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 
 from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset, GPTPTuneInferenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-    make_attention_mask_3d,
-    make_history_mask_3d,
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    make_inference_attention_mask_3d,
+    make_inference_history_mask_3d,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
