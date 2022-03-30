@@ -790,7 +790,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, enc_input=None):
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         app_state = AppState()
         micro_batch_size = tokens_enc.size(0)
         _reconfigure_microbatch_calculator(

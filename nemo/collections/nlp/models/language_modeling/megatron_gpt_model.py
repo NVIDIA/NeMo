@@ -50,6 +50,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
@@ -77,8 +78,9 @@ class MegatronGPTModel(NLPModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(cfg, trainer=trainer)
-        self.cfg = cfg
+        # this prevents base constructor from initializing tokenizer
+        self.tokenizer = None
+        super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
 
@@ -1205,3 +1207,20 @@ class MegatronGPTModel(NLPModel):
             response[index] = item
 
         return response
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="megatron_gpt_345m",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_gpt_345m/versions/1/files/megatron_gpt_345m.nemo",
+                description="345M parameter GPT generative Megatron model.",
+            )
+        )
+        return result
