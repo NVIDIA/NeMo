@@ -27,13 +27,13 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.core.classes import Dataset
-from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
-from nemo.utils import logging
 from nemo.collections.nlp.modules.common.megatron.utils import (
     make_inference_attention_mask_3d,
     make_inference_history_mask_3d,
 )
+from nemo.core.classes import Dataset
+from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
+from nemo.utils import logging
 
 __all__ = [
     'DataProcessor',
