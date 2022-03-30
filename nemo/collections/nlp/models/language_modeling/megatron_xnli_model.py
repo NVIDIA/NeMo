@@ -73,9 +73,7 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
 
         tokens_enc, _, _, labels, enc_mask, _, langs = self.process_batch(batch)
 
-        predicted_token_ids, _ = self.model.decode(
-            tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
-        )
+        predicted_token_ids, _ = self.model.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10)
 
         preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
         for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
@@ -118,7 +116,7 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
             num_workers=self.cfg.data.test_ds.num_workers,
             pin_memory=self.cfg.data.test_ds.pin_memory,
             drop_last=self.cfg.data.test_ds.drop_last,
-            check_validation_interval=False
+            check_validation_interval=False,
         )
 
     def validation_epoch_end(self, outputs):

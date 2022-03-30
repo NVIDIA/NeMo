@@ -95,7 +95,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             _ = self.acc_metric(pred, label)
 
         return loss
-    
+
     def preds_and_labels_to_text(self, preds, labels):
         preds = preds.cpu().numpy().tolist()
         labels = labels.cpu().numpy().tolist()
@@ -113,7 +113,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             label = self.tokenizer.ids_to_text(label)
             preds_text.append(pred)
             labels_text.append(label)
-        
+
         return preds_text, labels_text
 
     def inference_epoch_end(self, outputs, mode):
@@ -145,7 +145,17 @@ class MegatronT5GLUEModel(MegatronT5Model):
             "Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)"
         )
 
-    def build_data_loader(self, dataset, micro_batch_size, global_batch_size, shuffle, num_workers, pin_memory, drop_last, check_validation_interval):
+    def build_data_loader(
+        self,
+        dataset,
+        micro_batch_size,
+        global_batch_size,
+        shuffle,
+        num_workers,
+        pin_memory,
+        drop_last,
+        check_validation_interval,
+    ):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -162,8 +172,10 @@ class MegatronT5GLUEModel(MegatronT5Model):
         # But now, it is implicit in the apex fwd/bwd functions and so we need to check for this somewhere.
         # The consequence of not doing this is that training loop will never run validation.
         # NOTE: Prog bar is also broken as a result of this.
-        if (self.trainer.val_check_interval > (sampler.num_samples // global_batch_size) and check_validation_interval):
-            raise ValueError(f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}")
+        if self.trainer.val_check_interval > (sampler.num_samples // global_batch_size) and check_validation_interval:
+            raise ValueError(
+                f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
+            )
 
         # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
@@ -173,7 +185,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             batch_size=micro_batch_size,
             num_workers=num_workers,
             pin_memory=pin_memory,
-            drop_last=drop_last
+            drop_last=drop_last,
         )
 
     def setup_training_data(self):
@@ -185,7 +197,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             num_workers=self.cfg.data.train_ds.num_workers,
             pin_memory=self.cfg.data.train_ds.pin_memory,
             drop_last=self.cfg.data.train_ds.drop_last,
-            check_validation_interval=True
+            check_validation_interval=True,
         )
 
     def setup_validation_data(self):
@@ -197,7 +209,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             num_workers=self.cfg.data.validation_ds.num_workers,
             pin_memory=self.cfg.data.validation_ds.pin_memory,
             drop_last=self.cfg.data.validation_ds.drop_last,
-            check_validation_interval=False
+            check_validation_interval=False,
         )
 
     def build_train_valid_test_datasets(self, validation_only=False):
