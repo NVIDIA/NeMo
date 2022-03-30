@@ -17,18 +17,12 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -166,7 +160,6 @@ class MegatronT5GLUEModel(MegatronT5Model):
         sampler = torch.utils.data.distributed.DistributedSampler(
             dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
         )
-        print(f"Check interval : {self.trainer.val_check_interval}, num samples : {sampler.num_samples}")
         # This check makes sure the val_check_interval is less than the number of global batches.
         # Normally, PTL would do this check and properly account for gradient accumulation.
         # But now, it is implicit in the apex fwd/bwd functions and so we need to check for this somewhere.

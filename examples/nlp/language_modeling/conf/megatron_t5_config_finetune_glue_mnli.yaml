@@ -50,7 +50,7 @@ model:
     train_ds:
       task_name: ???
       file_path: ??? # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
-      global_batch_size: 128
+      global_batch_size: 64
       micro_batch_size: 64
       shuffle: True
       num_workers: 8
@@ -61,7 +61,7 @@ model:
     validation_ds:
       task_name: ???
       file_path: ??? # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
-      global_batch_size: 128
+      global_batch_size: 64
       micro_batch_size: 64
       shuffle: False
       num_workers: 8

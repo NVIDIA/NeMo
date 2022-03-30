@@ -20,7 +20,6 @@ from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextXNlIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.utils import logging
 
 __all__ = ['MegatronT5XNLIModel']
@@ -43,8 +42,11 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
 
     def process_global_batch(self, global_batch):
         """Process a list of microbatches into a global batch."""
+        # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
         if len(global_batch[0]) == 6:
             return super().process_global_batch(global_batch)
+        
+        # For validation data (XNLI), we need to process the global batch and and then deal with language info separately.
         else:
             assert len(global_batch[0]) == 7
             langs_list = []
@@ -55,9 +57,9 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
                 labels_tensor,
                 enc_mask_tensor,
                 dec_mask_tensor,
-            ) = super().process_global_batch([micro_batch[:-1] for micro_batch in global_batch])
+            ) = super().process_global_batch([{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch])
             for micro_batch in global_batch:
-                langs_list.extend(micro_batch[-1])
+                langs_list.extend(micro_batch['lang'])
             return (
                 tokens_enc_tensor,
                 tokens_dec_tensor,
@@ -69,7 +71,14 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
             )
 
     def inference_step(self, batch, batch_idx):
-        loss = super().validation_step(batch, batch_idx, reconfigure_microbatch_size=True)
+        # Remove languages from the global batch before computing the loss. Langs is a list and not a tensor will mess with apex fwd/bwd calls.
+        processed_batch = []
+        for micro_batch in batch:
+            micro_batch = {k: v for k, v in micro_batch.items() if k != 'lang'}
+            processed_batch.append(micro_batch)
+
+        # Call the parent's parent because the parent inference step will compute accuracy metrics.
+        loss = super(MegatronT5GLUEModel, self).validation_step(processed_batch, batch_idx, reconfigure_microbatch_size=True)
 
         tokens_enc, _, _, labels, enc_mask, _, langs = self.process_global_batch(batch)
 
@@ -77,20 +86,21 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
 
         preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
         for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
-            _ = self.acc_metric(pred, label, lang)
+            _ = self.acc_metrics(pred, label, lang)
 
         return loss
 
-    def inference_epoch_end(self, outputs):
-        losses = [x['loss'] for x in outputs]
-        averaged_loss = average_losses_across_data_parallel_group(losses)
+    def inference_epoch_end(self, outputs, mode):
+        averaged_loss, _ = super().inference_epoch_end(outputs, mode)
         acc_result = self.acc_metrics.compute()
-        self.log('validation_loss', averaged_loss)
-        self.log('validation_acc', acc_result['acc'])
+        self.log(f'{mode}_loss', averaged_loss)
+        self.log(f'{mode}_acc', acc_result['acc'])
         for lang in self.cfg.eval_languages:
             self.log(f'{lang}_acc', acc_result[lang])
+            logging.info(f"{mode} {lang} accuracy: {acc_result[lang]} total: {acc_result[lang+'_total']}")
+        logging.info(f"{mode} accuracy: {acc_result['acc']}")
         self.acc_metrics.reset()
-        return averaged_loss[0], acc_result
+        return averaged_loss, acc_result
 
     def validation_step(self, batch, batch_idx):
         return self.inference_step(batch, batch_idx)
@@ -99,6 +109,12 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         return self.inference_step(batch, batch_idx)
 
     def setup(self, stage=None):
+        # This is just to keep the parent class happy since we override its setup() method.
+        self.init_consumed_samples = 0
+
+        if stage == 'predict':
+            return
+
         # NOTE: PTL uses the same stage string "test" for both testing and validation.
         self.build_train_valid_test_datasets(test_only=stage == 'test')
         self.setup_test_data()
@@ -120,22 +136,10 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         )
 
     def validation_epoch_end(self, outputs):
-        val_loss, val_acc = self.inference_epoch_end(outputs)
-        self.log('val_loss', val_loss, prog_bar=True)
-        self.log('val_acc', val_acc['acc'], prog_bar=True)
-        for lang in self.cfg.eval_languages:
-            logging.info(f"Validation {lang} accuracy: {val_acc[lang]} total: {val_acc[lang+'_total']}")
-        logging.info(f'Validation loss: {val_loss}')
-        logging.info(f"Validation accuracy: {val_acc['acc']}")
+        val_loss, val_acc = self.inference_epoch_end(outputs, 'validation')
 
     def test_epoch_end(self, outputs):
-        test_loss, test_acc = self.inference_epoch_end(outputs)
-        self.log('test_loss', test_loss, prog_bar=True)
-        self.log('test_acc', test_acc['acc'], prog_bar=True)
-        for lang in self.cfg.eval_languages:
-            logging.info(f"Test {lang} accuracy: {test_acc[lang]} total: {test_acc[lang+'_total']}")
-        logging.info(f'Test loss: {test_loss}')
-        logging.info(f"Test accuracy: {test_acc['acc']}")
+        test_loss, test_acc = self.inference_epoch_end(outputs, 'test')
 
     def build_train_valid_test_datasets(self, test_only=False):
         logging.info('Building XNLI datasets.')
