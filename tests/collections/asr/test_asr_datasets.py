@@ -164,6 +164,7 @@ class TestASRDatasets:
             count += 1
         assert count == 32
 
+    @pytest.mark.pleasefixme
     @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
     @pytest.mark.unit
     def test_dali_char_dataset(self, test_data_dir):
