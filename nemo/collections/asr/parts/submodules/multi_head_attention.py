@@ -193,6 +193,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             q_keep_size = q_length - self.cache_drop_size
 
             # cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :].clone()
+            #print(q_keep_size, cache_next_length, q_length, self.cache_drop_size)
             cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
             cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
 

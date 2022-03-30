@@ -179,7 +179,7 @@ class ConformerConvolution(nn.Module):
         if conv_context_size is None or (
             conv_context_size[0] == (kernel_size - 1) // 2 and conv_context_size[1] == (kernel_size - 1) // 2
         ):
-            self.depthwise_conv = nn.Conv1d(
+            self.depthwise_conv = CausalConv1D(
                 in_channels=d_model,
                 out_channels=d_model,
                 kernel_size=kernel_size,

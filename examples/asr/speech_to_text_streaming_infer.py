@@ -48,6 +48,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         with autocast():
+            processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
             with torch.no_grad():
                 (
                     pred_out_offline,
@@ -56,8 +57,8 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     cache_last_time_next,
                     best_hyp,
                 ) = asr_model.stream_step(
-                    processed_signal=streaming_buffer.buffer,
-                    processed_signal_length=streaming_buffer.streams_length,
+                    processed_signal=processed_signal,
+                    processed_signal_length=processed_signal_length,
                     return_transcribtion=True,
                 )
         final_offline_tran = extract_transcribtions(transcribed_texts)
@@ -106,7 +107,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
         pred_out_stream_cat = torch.cat(pred_out_stream)
         pred_out_offline_cat = torch.cat(pred_out_offline)
         if pred_out_stream_cat.size() == pred_out_offline_cat.size():
-            diff_num = torch.sum(pred_out_stream_cat != pred_out_stream_cat).cpu().numpy()
+            diff_num = torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
             logging.info(
                 f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
             )
@@ -163,6 +164,13 @@ def main():
         except:
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
+    # asr_model.encoder.setup_streaming_params(
+    #     chunk_size=72*4,
+    #     shift_size=72*4,
+    #     cache_drop_size=0,
+    #     pre_encode_cache_size=8,
+    #     valid_out_len=18,
+    # )
     asr_model.encoder.setup_streaming_params(
         chunk_size=72,
         shift_size=72,
@@ -210,7 +218,7 @@ def main():
     asr_model = asr_model.to(args.device)
     asr_model.eval()
 
-    streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=False)
+    streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=args.online_normalization)
     if args.audio_file is not None:
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             args.audio_file, stream_id=-1
@@ -238,6 +246,7 @@ def main():
                 sample['audio_filepath'], stream_id=-1
             )
             all_refs_text.append(sample["text"])
+            print(sample["audio_filepath"])
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(
                     f"Starting to stream samples from {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."

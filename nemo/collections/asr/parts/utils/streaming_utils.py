@@ -1249,9 +1249,7 @@ class FramewiseStreamingAudioBuffer:
                 else:
                     zeros_pads = None
 
-                audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
-                added_len = cache_pre_encode.size(-1)
-
+                chunk_lengths = self.streams_length - self.buffer_idx
                 if self.online_normalization:
                     audio_chunk, x_mean, x_std = normalize_batch(
                         x=audio_chunk,
@@ -1261,11 +1259,15 @@ class FramewiseStreamingAudioBuffer:
                     # print(x_mean)
                     # print(x_std)
 
-                if zeros_pads is not None:
-                    audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
-                    added_len = zeros_pads.size(-1)
+                audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
+                added_len = cache_pre_encode.size(-1)
 
-            chunk_lengths = self.streams_length - self.buffer_idx + added_len
+                if zeros_pads is not None:
+                    # TODO: check here when zero_pads is not None and added_len is alreasy non-zero
+                    audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
+                    added_len += zeros_pads.size(-1)
+
+            chunk_lengths = chunk_lengths + added_len
             chunk_lengths = torch.clamp(chunk_lengths, min=0, max=audio_chunk.size(-1))
 
             self.buffer_idx += shift_size
@@ -1374,3 +1376,13 @@ class FramewiseStreamingAudioBuffer:
             input_signal=audio_signal, length=audio_signal_len
         )
         return processed_signal, processed_signal_length
+
+    def get_all_audios(self):
+        processed_signal = self.buffer
+        if self.online_normalization:
+            processed_signal, x_mean, x_std = normalize_batch(
+                x=processed_signal,
+                seq_len=torch.tensor(self.streams_length),
+                normalize_type=self.model_normalize_type,
+            )
+        return processed_signal, self.streams_length

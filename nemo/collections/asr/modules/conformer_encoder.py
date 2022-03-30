@@ -344,7 +344,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         length = length.to(audio_signal.device)
         if max_audio_length > self.max_audio_length:
             self.set_max_audio_length(max_audio_length)
-
+        #print(audio_signal.shape)
         if length is None:
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
@@ -402,6 +402,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
 
         pad_mask = ~pad_mask
         att_mask = ~att_mask
+
+        #print(audio_signal.shape)
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
