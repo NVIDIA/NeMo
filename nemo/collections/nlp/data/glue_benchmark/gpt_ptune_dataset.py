@@ -21,11 +21,10 @@ import csv
 import functools
 import json
 import re
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
-from sympy import substitution
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
