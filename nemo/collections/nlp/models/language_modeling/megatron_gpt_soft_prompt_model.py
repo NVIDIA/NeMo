@@ -37,6 +37,18 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
 )
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate, 
+    get_computeprob_response,
+    get_default_length_params,
+    get_default_sampling_params,
+)
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+    TextGeneration,
+)
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
@@ -50,7 +62,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronGPTPSoftPromptModel']
 
-class MegatronGPTPSoftPromptModel(MegatronBaseModel):
+class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
@@ -112,11 +124,11 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
 
         # Prompt tuning stores soft prompts in the prompt table and tunes their weight directly
         if self.soft_prompt_style in ['prompt-tuning', 'inference']:
-            self.soft_token_source = 'prompt-table'
+            self.soft_prompt_source = 'prompt-table'
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         elif self.soft_prompt_style == 'p-tuning':
-            self.soft_token_source = 'prompt-encoder'    
+            self.soft_prompt_source = 'prompt-encoder'    
         else:
             raise ValueError(
                 f"\nSoft prompt style '{cfg.soft_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
@@ -245,11 +257,19 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                 pin_memory=True,
             )
 
-    def build_soft_prompt_dataset(self, dataset_paths, batch_size, drop_last, shuffle, num_workers, pin_memory):
+    def build_soft_prompt_dataset(
+        self, 
+        dataset_paths, 
+        batch_size, 
+        drop_last, 
+        shuffle, 
+        num_workers, 
+        pin_memory
+    ):
         dataset = GPTSoftPromptDataset(
-            dataset_paths=dataset_paths,
+            datasets=dataset_paths,
             tokenizer=self.tokenizer,
-            soft_token_source=self.soft_token_source,
+            soft_prompt_source=self.soft_prompt_source,
             task_templates=self.task_templates,
             total_soft_tokens=self.total_soft_tokens,
             pseudo_token=self.pseudo_token,
@@ -257,13 +277,13 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
             max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos=self.cfg.data.get('add_bos', False),
-            add_eos=self.cfg.data.get('add_eos', True)
+            add_eos=self.cfg.data.get('add_eos', True),
         )
 
         dataloader = torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
-            batch_size=self.cfg.batch_size,
+            batch_size=batch_size,
             drop_last=drop_last,
             shuffle=shuffle,
             num_workers=num_workers,
@@ -272,7 +292,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
 
         return dataset, dataloader
 
-    def soft_prompt_forward(self, input_ids, labels, attention_mask, position_ids, taskname_ids):
+    def forward(self, input_ids, position_ids, attention_mask, taskname_ids, labels=None, **extra_arg):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
         GPT style models. Bypasses the vocab token preprocessing done
@@ -291,6 +311,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                 encoder_input=encoder_input, 
                 attention_mask=attention_mask, 
                 labels=labels,
+                **extra_arg
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.float_type):
@@ -300,6 +321,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
                 encoder_input=encoder_input, 
                 attention_mask=attention_mask, 
                 labels=labels,
+                **extra_arg
             )
 
         return output
@@ -323,11 +345,11 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Get virtual token embeddings from the prompt table or prompt encoder
-        if self.soft_token_source == 'prompt-table':
+        if self.soft_prompt_source == 'prompt-table':
             virtual_token_embeddings = [self.prompt_table(task_id_num) for task_id_num in taskname_ids]
             virtual_token_embeddings = torch.stack(virtual_token_embeddings)
 
-        elif self.soft_token_source == 'prompt-encoder':
+        elif self.soft_prompt_source == 'prompt-encoder':
             taskname_embeddings = self.word_embeddings(taskname_ids)
             virtual_token_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
 
@@ -346,8 +368,8 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         return input_embeds
 
     def training_step(self, batch, batch_idx):
-        input_ids, labels, loss_mask, attention_mask, position_ids, taskname_ids = batch
-        output = self.soft_prompt_forward(input_ids, labels, attention_mask, position_ids, taskname_ids)
+        input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+        output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels=labels)
         output_tensor, encoder_hidden_states = output
         loss = self.model.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
@@ -370,10 +392,10 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        input_ids, labels, loss_mask, attention_mask, position_ids, taskname_ids = batch
+        input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
         
         with torch.no_grad():
-            output = self.soft_prompt_forward(input_ids, labels, attention_mask, position_ids, taskname_ids)
+            output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels)
             output_tensor, encoder_hidden_states = output
             loss = self.model.loss_func(loss_mask, output_tensor)
             self.log('validation_loss', loss)
@@ -440,6 +462,97 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel):
 
         return tasks
 
+    
+    def get_forward_output_only_func(self):
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            if len(batch) == 4:
+                batch = [x.cuda() for x in batch]
+                tokens, attention_mask, position_ids, task_ids = batch
+            else:
+                (
+                    tokens,
+                    attention_mask,
+                    position_ids,
+                    task_ids,
+                    set_inference_key_value_memory,
+                    inference_max_sequence_len,
+                ) = batch
+
+                tokens = tokens.cuda()
+                attention_mask = attention_mask.cuda()
+                position_ids = position_ids.cuda()
+                task_ids = task_ids.cuda()
+                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids **extra_arg)
+            
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
+
+    def generate(
+        self,
+        inputs: Union[List[str], torch.Tensor, List[dict]],
+        length_params: LengthParam,
+        sampling_params: SamplingParam = None,
+    ): 
+
+        # check whether the DDP is initialized
+        if parallel_state.is_unitialized():
+
+            class RequestDataSet(Dataset):
+                def __init__(self, sentences):
+                    super().__init__()
+                    self.sentences = sentences
+
+                def __len__(self):
+                    return len(self.sentences)
+
+                def __getitem__(self, idx):
+                    return self.sentences[idx]
+
+            # TODO, this is a little hacky. need to handle this nicely in the future
+            # run empty predict to initialize the DDP
+            ds = RequestDataSet([""])
+            request_dl = DataLoader(dataset=ds, batch_size=1)
+            self.trainer.predict(self, request_dl)
+
+        # set the default sampling params if it is None.
+        # default do greedy sampling
+        if sampling_params is None:
+            sampling_params = get_default_sampling_params()
+
+        # set the default length params if it is None.
+        # default do greedy sampling
+        if length_params is None:
+            length_params = get_default_length_params()
+
+        # TODO: Preprocess inputs to be what they need to be for the generate code
+        dataset = GPTSoftPromptDataset(
+            datasets=inputs,
+            tokenizer=self.tokenizer,
+            soft_prompt_source=self.soft_prompt_source,
+            task_templates=self.task_templates,
+            total_soft_tokens=self.total_soft_tokens,
+            pseudo_token=self.pseudo_token,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos=sampling_params["add_BOS"],
+            add_eos=False,
+        )
+        task_ids, processed_inputs = dataset.get_all_examples()
+
+        # Call same generate code as in MegatronGPT
+        return megatron_gpt_generate(self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids)
+
     @classmethod
-    def list_available_models(cls):
-        pass
+        def list_available_models(cls):
+            pass
+
+    

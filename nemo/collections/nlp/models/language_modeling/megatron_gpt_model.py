@@ -34,7 +34,12 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_no
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate, 
+    get_computeprob_response,
+    get_default_length_params,
+    get_default_sampling_params,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
@@ -95,7 +100,7 @@ def _get_params_for_weight_decay_optimization(
 
 class MegatronGPTModel(NLPModel, TextGeneration):
     """
-    Megatron GPT pretraining and prompt tuning
+    Megatron GPT pretraining
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -720,8 +725,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
         if self.megatron_amp_o2:
             # grep fp32 master parameters for gradient clipping
-            if self.use_soft_prompts:
-                raise NotImplementedError("Prompt tuning is not implemented for amp_o2")
             parameters = self._optimizer.get_parameters()
         else:
             parameters = self.get_parameters()
@@ -742,7 +745,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-    ) -> OutputType:
+    ): 
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
@@ -767,70 +770,14 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         # set the default sampling params if it is None.
         # default do greedy sampling
         if sampling_params is None:
-            sampling_params: SamplingParam = {
-                "use_greedy": True,
-                "temperature": 1.0,
-                "top_k": 0,
-                "top_p": 1.0,
-                "repetition_penalty": 1.0,
-                "add_BOS": True,
-                "all_probs": False,
-                "compute_logprob": False,
-            }
+            sampling_params = get_default_sampling_params()
 
         # set the default length params if it is None.
         # default do greedy sampling
         if length_params is None:
-            length_params: LengthParam = {"min_length": 0, "max_length": 30}
+            length_params = get_default_length_params()
 
-        # reproduce the old compute_prob method
-        # a very special case
-        if sampling_params['compute_logprob']:
-            # need to overwrite some configuration, make it immutable
-            sampling_params = sampling_params.copy()
-            length_params = length_params.copy()
-            length_params['max_length'] = 1
-            sampling_params['all_probs'] = True
-            sampling_params["add_BOS"] = False
-            sampling_params['use_greedy'] = True
-            response = generate(
-                self.cuda(),
-                inputs=inputs,
-                tokens_to_generate=length_params['max_length'],
-                all_probs=sampling_params['all_probs'],
-                temperature=sampling_params['temperature'],
-                add_BOS=sampling_params['add_BOS'],
-                top_k=sampling_params['top_k'],
-                top_p=sampling_params['top_p'],
-                greedy=sampling_params['use_greedy'],
-                repetition_penalty=sampling_params['repetition_penalty'],
-                min_tokens_to_generate=length_params['min_length'],
-            )
-            compute_prob_response = get_computeprob_response(self.tokenizer, response, inputs)
-            return compute_prob_response
-
-        if isinstance(inputs, (list, tuple)):
-            if isinstance(inputs[0], (str, torch.Tensor)):
-                output = generate(
-                    self.cuda(),
-                    inputs=inputs,
-                    tokens_to_generate=length_params['max_length'],
-                    all_probs=sampling_params['all_probs'],
-                    temperature=sampling_params['temperature'],
-                    add_BOS=sampling_params['add_BOS'],
-                    top_k=sampling_params['top_k'],
-                    top_p=sampling_params['top_p'],
-                    greedy=sampling_params['use_greedy'],
-                    repetition_penalty=sampling_params['repetition_penalty'],
-                    min_tokens_to_generate=length_params['min_length'],
-                )
-                return output
-            elif isinstance(inputs[0], dict):
-                raise NotImplementedError("json object not implemented")
-            else:
-                raise NotImplementedError("unknown type is not implemented")
-        else:
-            raise NotImplementedError("unknown type is not implemented")
+        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params)
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
@@ -855,55 +802,8 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 inference_config['inputs'] = batch
                 return generate(self, **inference_config)
 
-    def init_new_prompts(self):
-        for idx, tag in enumerate(self.cfg.new_prompt_tags):
-            init_method = self.cfg.new_prompt_init_methods[idx]
-
-            if init_method == "text":
-                init_text = self.cfg.new_prompt_init_text[idx]
-                self.init_prompt_from_text(tag, init_text)
-
-            elif init_method == 'random':
-                self.init_prompt_from_random(tag)
-
-            else:
-                raise AttributeError(
-                    f'\n Soft prompt init method {init_method} is not recognized\
-                                        please use text or random'
-                )
-
-    def init_prompt_from_random(self, prompt_tag):
-        prompt_id = self._get_next_prompt_id()
-        self.model._init_prompt_from_random(prompt_tag, prompt_id)
-        self._add_prompt_tag(prompt_tag, prompt_id)
-
-    def init_prompt_from_text(self, prompt_tag, init_text):
-        prompt_id = self._get_next_prompt_id()
-        init_token_ids = self.tokenizer.text_to_ids(init_text)
-        self.model._init_prompt_from_text(prompt_tag, prompt_id, init_token_ids)
-        self._add_prompt_tag(prompt_tag, prompt_id)
-
-    def get_prompt_table(self):
-        if hasattr(self, 'prompt_table'):
-            return self.prompt_table
-
     def list_available_models(self):
         return None
-
-    def _get_next_prompt_id(self):
-        self.next_prompt_id += 1
-        return self.next_prompt_id
-
-    def _add_prompt_tag(self, prompt_tag, prompt_id):
-        if not hasattr(self, 'prompt_table'):
-            raise AttributeError('Please set "use_soft_prompts" in cfg to True')
-
-        self.prompt_table.add((prompt_tag, prompt_id))
-        self.prompts_to_tune.add(prompt_tag)
-
-        # Add new prompt tag to cfg for loading prompt table at inference
-        with open_dict(self.cfg):
-            self.cfg.existing_prompt_tags = list(self.prompt_table)
 
     def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
         """Pad vocab size so it is divisible by model parallel size and
@@ -968,8 +868,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         Args:
             request:
                 * tokens: List of "buckets" with unpadded tokens of the same length
-                * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
-                                    specifying the prompt tag to use (optional)
             positions: List with initial prompts positions
         Returns:
             response: A python list of tuples
@@ -993,46 +891,20 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=1,
             )
-            # For prompt tuned GPT models
-            if self.use_soft_prompts:
-                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                    raise ValueError('compute_logprobs method is not yet supported for pipeline with soft prompts')
-                prompt_tags = request["prompt_tags"][idx]
-                prompt_tags_to_ids = dict(self.prompt_table)
-                prompt_ids = torch.tensor([prompt_tags_to_ids[tag] for tag in prompt_tags])
-            else:
-                prompt_ids = None
 
-            if self.use_soft_prompts:
-                batch_size = len(tokens_cut)
-                full_length = len(tokens_cut[0]) + self.num_prompt_tokens
-                # Get postion ids for text after soft prompt
-                position_ids = torch.arange(
-                    start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
-                )
-                position_ids = position_ids.unsqueeze(0).expand_as(tokens_cut).clone()
-                # Make attention mask starting with first token in soft prompt
-                attention_mask = torch.tril(
-                    torch.ones((batch_size, full_length, full_length), device=self.device)
-                ).view(batch_size, 1, full_length, full_length)
-                attention_mask = attention_mask < 0.5
-
-            else:
-                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-                    data=tokens_cut,
-                    eod_token=self.tokenizer.eos_id,
-                    reset_position_ids=self.cfg.get('reset_position_ids', False),
-                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
-                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
-                )
+            attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                data=tokens_cut,
+                eod_token=self.tokenizer.eos_id,
+                reset_position_ids=self.cfg.get('reset_position_ids', False),
+                reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+            )
 
             # we repeat attention mask to work with apex fwd/bwd function
             attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
-            if self.use_soft_prompts:
-                batch = [tokens_cut, attention_mask_repeat, position_ids, prompt_ids]
-            else:
-                batch = [tokens_cut, attention_mask_repeat, position_ids]
+            batch = [tokens_cut, attention_mask_repeat, position_ids]
             tensor_shape = [tokens_cut.shape[1], micro_batch_size, self.cfg.hidden_size]
+
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=self.get_forward_output_only_func(),

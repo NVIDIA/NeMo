@@ -19,7 +19,11 @@ import torch.nn.functional as F
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam,
+    OutputType,
+    SamplingParam,
+)
 from nemo.utils import AppState
 
 try:
@@ -36,6 +40,78 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ["get_computeprob_response", "generate"]
 
+def get_default_sampling_params():
+    # default do greedy sampling
+    sampling_params: SamplingParam = {
+        "use_greedy": True,
+        "temperature": 1.0,
+        "top_k": 0,
+        "top_p": 1.0,
+        "repetition_penalty": 1.0,
+        "add_BOS": True,
+        "all_probs": False,
+        "compute_logprob": False,
+    }
+
+    return sampling_params
+
+def get_default_length_params():
+    # default do greedy sampling
+    length_params: LengthParam = {"min_length": 0, "max_length": 30}
+
+    return length_params
+
+def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, task_ids=None):
+    # reproduce the old compute_prob method
+    # a very special case
+    if sampling_params['compute_logprob']:
+        # need to overwrite some configuration, make it immutable
+        sampling_params = sampling_params.copy()
+        length_params = length_params.copy()
+        length_params['max_length'] = 1
+        sampling_params['all_probs'] = True
+        sampling_params["add_BOS"] = False
+        sampling_params['use_greedy'] = True
+        response = generate(
+            model,
+            inputs=inputs,
+            task_ids=task_ids,
+            tokens_to_generate=length_params['max_length'],
+            all_probs=sampling_params['all_probs'],
+            temperature=sampling_params['temperature'],
+            add_BOS=sampling_params['add_BOS'],
+            top_k=sampling_params['top_k'],
+            top_p=sampling_params['top_p'],
+            greedy=sampling_params['use_greedy'],
+            repetition_penalty=sampling_params['repetition_penalty'],
+            min_tokens_to_generate=length_params['min_length'],
+        )
+        compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
+        return compute_prob_response
+
+    if isinstance(inputs, (list, tuple)):
+        if isinstance(inputs[0], (str, torch.Tensor)):
+            output = generate(
+                model,
+                inputs=inputs,
+                task_ids=task_ids,
+                tokens_to_generate=length_params['max_length'],
+                all_probs=sampling_params['all_probs'],
+                temperature=sampling_params['temperature'],
+                add_BOS=sampling_params['add_BOS'],
+                top_k=sampling_params['top_k'],
+                top_p=sampling_params['top_p'],
+                greedy=sampling_params['use_greedy'],
+                repetition_penalty=sampling_params['repetition_penalty'],
+                min_tokens_to_generate=length_params['min_length'],
+            )
+            return output
+        elif isinstance(inputs[0], dict):
+            raise NotImplementedError("json object not implemented")
+        else:
+            raise NotImplementedError("unknown type is not implemented")
+    else:
+        raise NotImplementedError("unknown type is not implemented")
 
 def get_computeprob_response(tokenizer, response, inputs):
     compute_prob_response = {}
@@ -209,6 +285,7 @@ def receive_generate_info():
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
+    task_ids = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
 
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, 0)
@@ -217,6 +294,7 @@ def receive_generate_info():
     return (
         context_length_tensor,
         context_tokens_tensor,
+        task_ids,
         tokens_to_generate,
         all_probs,
         temperature,
@@ -232,6 +310,7 @@ def synced_generate(
     model,
     context_tokens_tensor,
     context_length_tensor,
+    task_ids,
     tokens_to_generate,
     all_probs,
     temperature,
@@ -260,6 +339,7 @@ def synced_generate(
             model,
             context_tokens_tensor,
             context_length_tensor,
+            task_ids,
             attention_mask,
             position_ids,
             tokens_to_generate,
@@ -313,6 +393,7 @@ def synced_generate(
 def generate(
     model,
     inputs=None,
+    task_ids=None,
     tokens_to_generate=0,
     all_probs=False,
     temperature=1.0,
@@ -327,6 +408,7 @@ def generate(
     Args:
         model (NLPModel): text generative model
         inputs (Union[tuple, List[str]]): if it is a tuple, it is assumed to be (context_tokens_tensor, context_length_tensor). Otherwise it it a list of prompt text strings
+        task_ids (Tensor): TODO (optional, used for generating with p-tuned/prompt-tuned models)
         tokens_to_generate (int): The maximum length of the tokens to be generated.
         all_probs (bool): Return the log prob for all the tokens
         temperature (float): sampling temperature
@@ -357,6 +439,7 @@ def generate(
         send_generate_info(
             context_tokens_tensor,
             context_length_tensor,
+            task_ids,
             tokens_to_generate,
             all_probs,
             temperature,
@@ -370,6 +453,7 @@ def generate(
         (
             context_length_tensor,
             context_tokens_tensor,
+            task_ids, 
             tokens_to_generate,
             all_probs,
             temperature,
@@ -384,6 +468,7 @@ def generate(
         model,
         context_tokens_tensor,
         context_length_tensor,
+        task_ids,
         tokens_to_generate,
         all_probs,
         temperature,
@@ -469,6 +554,7 @@ def sample_sequence_batch(
     model,
     context_tokens,
     context_lengths,
+    task_ids,
     attention_mask,
     position_ids,
     tokens_to_generate,
@@ -533,7 +619,11 @@ def sample_sequence_batch(
                 [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
             )
             len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
-            batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+            if task_ids[0] == None:
+                batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+            else:
+                batch = [tokens2use, attention_mask_repeat, positions2use, task_ids, setkey_value_array, len_array]
+
             tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
