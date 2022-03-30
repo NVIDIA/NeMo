@@ -149,10 +149,12 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], filepath: _PATH, storage_options: Optional[Any] = None
+    ) -> None:
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
-        return super().save_checkpoint(checkpoint, filepath)
+        return super().save_checkpoint(checkpoint, filepath, storage_options)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
