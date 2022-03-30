@@ -90,8 +90,16 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
         predicted_token_ids, _ = self.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10)
 
-        preds = predicted_token_ids.cpu().numpy().tolist()
+        preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
+        for _, (pred, label) in enumerate(zip(preds_text, labels_text)):
+            _ = self.acc_metric(pred, label)
+
+        return loss
+    
+    def preds_and_labels_to_text(self, preds, labels):
+        preds = preds.cpu().numpy().tolist()
         labels = labels.cpu().numpy().tolist()
+        preds_text, labels_text = [], []
         for _, (pred, label) in enumerate(zip(preds, labels)):
             if self.tokenizer.eos_id in pred:
                 idx = pred.index(self.tokenizer.eos_id)
@@ -103,9 +111,10 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 label = [id for id in label if id not in self.tokenizer.special_token_to_id.values()]
             pred = self.tokenizer.ids_to_text(pred)
             label = self.tokenizer.ids_to_text(label)
-            _ = self.acc_metric(pred, label)
-
-        return loss
+            preds_text.append(pred)
+            labels_text.append(label)
+        
+        return preds_text, labels_text
 
     def inference_epoch_end(self, outputs, mode):
         # Parent class will handle logging of the loss.
@@ -136,7 +145,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             "Testing is not supported for GLUE because the test data does not have labels. To evaluate on the validation dataset, call trainer.validate(model)"
         )
 
-    def build_megatron_data_loader(self, dataset, micro_batch_size, global_batch_size, shuffle, num_workers, pin_memory, drop_last, check_validation_interval):
+    def build_data_loader(self, dataset, micro_batch_size, global_batch_size, shuffle, num_workers, pin_memory, drop_last, check_validation_interval):
         """Buld dataloader given an input dataset."""
 
         if dataset is None:
@@ -168,7 +177,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
         )
 
     def setup_training_data(self):
-        self._train_dl = self.build_megatron_data_loader(
+        self._train_dl = self.build_data_loader(
             self._train_ds,
             micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
             global_batch_size=self.cfg.data.train_ds.global_batch_size,
@@ -180,7 +189,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
         )
 
     def setup_validation_data(self):
-        self._validation_dl = self.build_megatron_data_loader(
+        self._validation_dl = self.build_data_loader(
             self._validation_ds,
             micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             global_batch_size=self.cfg.data.validation_ds.global_batch_size,

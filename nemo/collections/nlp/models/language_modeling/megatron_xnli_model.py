@@ -71,28 +71,17 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
     def inference_step(self, batch, batch_idx):
         loss = self.model.validation_step(batch, batch_idx)
 
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, langs = self.process_batch(batch)
+        tokens_enc, _, _, labels, enc_mask, _, langs = self.process_batch(batch)
 
-        predicted_token_ids, log_probs = self.model.decode(
+        predicted_token_ids, _ = self.model.decode(
             tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10
         )
 
-        preds = predicted_token_ids.cpu().numpy().tolist()
-        labels = labels.cpu().numpy().tolist()
-        for i, (pred, label, lang) in enumerate(zip(preds, labels, langs)):
-            if self.model.tokenizer.eos_id in pred:
-                idx = pred.index(self.model.tokenizer.eos_id)
-                pred = pred[:idx]
+        preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
+        for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
+            _ = self.acc_metric(pred, label, lang)
 
-            # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
-            if hasattr(self.model.tokenizer, 'special_token_to_id'):
-                pred = [id for id in pred if id not in self.model.tokenizer.special_token_to_id.values()]
-                label = [id for id in label if id not in self.model.tokenizer.special_token_to_id.values()]
-            pred = self.model.tokenizer.ids_to_text(pred)
-            label = self.model.tokenizer.ids_to_text(label)
-            _ = self.acc_metrics(pred, label, lang)
-
-        return {'loss': loss}
+        return loss
 
     def inference_epoch_end(self, outputs):
         losses = [x['loss'] for x in outputs]
@@ -120,13 +109,16 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         self.setup_validation_data()
         self.setup_training_data()
 
-    def setup_test_data(self, test_data_config=None):
-        self._test_dl = self.build_pretraining_data_loader(
+    def setup_test_data(self):
+        self._test_dl = self.build_data_loader(
             self._test_ds,
-            self.cfg.data.validation_ds.batch_size,
-            shuffle=self.cfg.data.validation_ds.shuffle,
-            num_workers=self.cfg.data.validation_ds.num_workers,
-            pin_memory=self.cfg.data.validation_ds.pin_memory,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            shuffle=self.cfg.data.test_ds.shuffle,
+            num_workers=self.cfg.data.test_ds.num_workers,
+            pin_memory=self.cfg.data.test_ds.pin_memory,
+            drop_last=self.cfg.data.test_ds.drop_last,
+            check_validation_interval=False
         )
 
     def validation_epoch_end(self, outputs):
