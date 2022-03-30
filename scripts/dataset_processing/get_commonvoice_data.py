@@ -46,7 +46,6 @@ from typing import List
 import sox
 from sox import Transformer
 from tqdm import tqdm
-from os.path import exists
 
 parser = argparse.ArgumentParser(description='Downloads and processes Mozilla Common Voice dataset.')
 parser.add_argument("--data_root", default='CommonVoice_dataset/', type=str, help="Directory to store the dataset.")
@@ -112,7 +111,7 @@ def process_files(csv_file, data_root, num_workers):
         audio_path = os.path.join(audio_clips_path, file_path)
         output_wav_path = os.path.join(wav_dir, file_name + '.wav')
 
-        if not exists(output_wav_path):
+        if not os.path.exists(output_wav_path):
             tfm = Transformer()
             tfm.rate(samplerate=args.sample_rate)
             tfm.channels(n_channels=args.n_channels)
