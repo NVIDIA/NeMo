@@ -540,7 +540,7 @@ shared by multiple users in the same ACE by setting the permissions of the `bign
 To run the data preparation pipeline for T5 models, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_t5_pile run_data_preparation=True \
-run_training=False run_conversion=False run_finetuning=False    run_evaluation=False run_finetuning=False \
+run_training=False run_conversion=False run_finetuning=False run_evaluation=False run_finetuning=False \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
 base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
 data_preparation.vocab_save_dir=/mount/data/bpe >> /results/data_t5_log.txt 2>&1
@@ -608,7 +608,7 @@ python3 main.py
 To train a 126M GPT-3 model on Base Command Platform cluster on 8 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/126m run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
 training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
@@ -644,10 +644,10 @@ python3 main.py
 To train a 5B GPT-3 model on Base Command Platform cluster on 20 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/5b run_training=True \
-run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
-training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
@@ -679,7 +679,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/20b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
-training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
@@ -710,7 +710,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/40b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
-training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
@@ -741,7 +741,7 @@ python3 /opt/bignlp/bignlp-scripts/main.py training=gpt3/175b run_training=True 
 run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile_gpt3 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
 training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.json \
-training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt
+training.model.tokenizer.merge_file=/mount/data/bpe/merges.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
@@ -814,7 +814,7 @@ To train a 3B model on Base Command Platform cluster on 20 nodes, use the comman
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/3b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
 data_dir=/mount/data/the_pile_t5 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
-training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas).
