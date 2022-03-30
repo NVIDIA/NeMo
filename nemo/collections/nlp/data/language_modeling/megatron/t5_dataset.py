@@ -212,6 +212,7 @@ class T5Dataset(MegatronDataset):
 
         # Padding.
         tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = self.pad_and_convert_to_numpy(
+            tokens=tokens,
             output_tokens=output_tokens,
             masked_positions=masked_positions,
             masked_labels=masked_labels,
@@ -231,7 +232,7 @@ class T5Dataset(MegatronDataset):
         return train_sample
 
     def pad_and_convert_to_numpy(
-        self, output_tokens, masked_positions, masked_labels, masked_spans=None, np_rng=None,
+        self, tokens, output_tokens, masked_positions, masked_labels, masked_spans=None, np_rng=None,
     ):
         """Pad sequences and convert them to numpy."""
         sentinel_tokens = collections.deque(self.sentinel_tokens)
