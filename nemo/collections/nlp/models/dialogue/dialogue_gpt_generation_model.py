@@ -45,6 +45,8 @@ class DialogueGPTGenerationModel(NLPModel):
         self.data_prepared = False
 
         self.setup_tokenizer(cfg.tokenizer)
+        self.tokenizer.tokenizer.pad_token = self.tokenizer.tokenizer.eos_token
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         if self.cfg.library == "huggingface":

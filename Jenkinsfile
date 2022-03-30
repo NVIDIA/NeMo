@@ -838,12 +838,12 @@ pipeline {
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
             model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
             model.dataset.dialogues_example_dir=answer_extender \
+            model.library=huggingface \
             model.dataset.task=ms_marco \
             model.dataset.debug_mode=True \
             trainer.val_check_interval=0.0 \
             trainer.devices=[0] \
             model.dataset.use_cache=false \
-            model.tokenizer.special_tokens={pad_token:"endoftext"} \
             model.tokenizer.tokenizer_name=gpt2 \
             model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
             model.language_model.pretrained_model_name=gpt2 \
@@ -860,6 +860,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
             model.dataset.dialogues_example_dir=answer_extender_s2s \
             model.dataset.task=ms_marco \
+            model.library=huggingface \
             model.dataset.debug_mode=True \
             trainer.max_steps=1 \
             trainer.max_epochs=1 \

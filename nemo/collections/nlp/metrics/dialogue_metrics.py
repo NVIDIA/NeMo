@@ -76,8 +76,6 @@ class DialogueGenerationMetrics(object):
         Known issue that it doesn't hand edge case of None or '' 
         https://github.com/mjpost/sacrebleu/issues/161
         """
-        print('generated_field', generated_field)
-        print('ground_truth_field', ground_truth_field)
         valid_indices = [i for i in range(len(generated_field)) if generated_field[i] and ground_truth_field[i]]
         generated_field = [generated_field[i] for i in valid_indices]
         ground_truth_field = [ground_truth_field[i] for i in valid_indices]
