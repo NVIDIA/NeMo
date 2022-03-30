@@ -57,7 +57,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
     @property
     def _build_train_valid_test_datasets_kwargs(self):
         """allows child classes to add kwargs to dataset building"""
-        return {}
+        return dict(
+            max_seq_length_dec=self._cfg.data.seq_length_dec,
+        )
 
     def _build_vocab(self):
         self._add_special_tokens_to_tokenizer()
@@ -138,7 +140,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             splits_string=self._cfg.data.splits_string,
             train_valid_test_num_samples=train_valid_test_num_samples,
             max_seq_length=self._cfg.data.seq_length,
-            max_seq_length_dec=self._cfg.data.seq_length_dec,
             masked_lm_prob=self._cfg.data.masked_lm_prob,
             short_seq_prob=self._cfg.data.short_seq_prob,
             seed=self._cfg.seed,
