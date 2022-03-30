@@ -42,7 +42,7 @@ model:
   micro_batch_size: 4
   global_batch_size: 8 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1
-  pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
+  pipeline_model_parallel_size: 1
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   pipeline_model_parallel_split_rank: 0 # rank at which decoder starts.
 
