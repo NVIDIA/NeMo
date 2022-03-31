@@ -19,9 +19,10 @@ model:
   skip_nan_grad: false
 
   model_defaults:
-    enc_hidden: ${model.encoder.proj_size}
+    enc_hidden: 640
     pred_hidden: 2048
     joint_hidden: 640
+    proj_size: 640
 
   train_ds:
     manifest_filepath: ???
@@ -90,7 +91,7 @@ model:
     feat_in: ${model.preprocessor.features}
     n_layers: 8
     d_model: 2048
-    proj_size: 640 # you may set it if you need different output size other than the default d_model
+    proj_size: ${model.model_defaults.proj_size} # you may set it if you need different output size other than the default d_model
     rnn_type: "lstm" # it can be lstm, gru or rnn
     bidirectional: true # need to set it to false if you want to make the model causal
 
@@ -113,7 +114,7 @@ model:
       pred_rnn_layers: 2
       t_max: null
       dropout: 0.2
-      proj_size: ${model.encoder.proj_size}
+      proj_size: ${model.model_defaults.proj_size}
 
   joint:
     _target_: nemo.collections.asr.modules.RNNTJoint
