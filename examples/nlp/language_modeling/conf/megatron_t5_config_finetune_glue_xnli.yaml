@@ -11,7 +11,7 @@ trainer:
   max_epochs: 3
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 300
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
@@ -43,6 +43,8 @@ model:
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   resume_from_checkpoint: null
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
+  hidden_dropout: 0.1 # Override dropout prob from pretraining
+  attention_dropout: 0.1 # Override attention dropout prob from pretraining 
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance.
 
   data:
