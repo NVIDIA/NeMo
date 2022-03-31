@@ -38,19 +38,26 @@ class RangeFst(GraphFst):
         self.graph = time + delete_space + pynini.cross("-", " to ") + delete_space + time
         date_year = (NEMO_DIGIT ** 4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
         self.graph |= date_year + delete_space + pynini.cross("-", " to ") + delete_space + date_year
+
+        cardinal = cardinal.graph
+        # this will use year for for 4-digit cardinal
+        up_to_three_morfive_digits = (NEMO_DIGIT ** (1, 3)) | (NEMO_DIGIT ** (5, ...))
+        up_to_three_morfive_digits = pynini.compose(up_to_three_morfive_digits, cardinal)
+        range_graph = (
+            up_to_three_morfive_digits
+            + delete_space
+            + pynini.cross("-", " to ")
+            + delete_space
+            + up_to_three_morfive_digits
+        )
+        range_graph |= cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
+        for x in [" x ", "x"]:
+            range_graph |= cardinal + pynini.closure(pynini.cross(x, pynini.union(" by ", " times ")) + cardinal, 1)
+        for x in ["*", " * "]:
+            range_graph |= cardinal + pynini.closure(pynini.cross(x, " times ") + cardinal, 1)
+
         if not deterministic:
-            cardinal = cardinal.graph
             range_graph = cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
-            up_to_three_morfive_digits = (NEMO_DIGIT ** (1, 3)) | (NEMO_DIGIT ** (5, ...))
-            up_to_three_morfive_digits = pynini.compose(up_to_three_morfive_digits, cardinal)
-            range_graph |= (
-                up_to_three_morfive_digits
-                + delete_space
-                + pynini.cross("-", " to ")
-                + delete_space
-                + up_to_three_morfive_digits
-            )
-            range_graph |= cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
 
             # supports "No. 12" -> "Number 12"
             range_graph |= (
@@ -63,14 +70,9 @@ class RangeFst(GraphFst):
                 range_graph |= cardinal + pynini.closure(pynini.cross(x, " plus ") + cardinal, 1)
             for x in ["/", " / "]:
                 range_graph |= cardinal + pynini.closure(pynini.cross(x, " divided by ") + cardinal, 1)
-            for x in [" x ", "x"]:
-                range_graph |= cardinal + pynini.closure(
-                    pynini.cross(x, pynini.union(" by ", " times ")) + cardinal, 1
-                )
-            for x in ["*", " * "]:
-                range_graph |= cardinal + pynini.closure(pynini.cross(x, pynini.union(" times ")) + cardinal, 1)
-            self.graph |= range_graph
-            self.graph = self.graph.optimize()
+
+        self.graph |= range_graph
+        self.graph = self.graph.optimize()
         graph = pynutil.insert("value: \"") + convert_space(self.graph).optimize() + pynutil.insert("\"")
         graph = self.add_tokens(graph)
         self.fst = graph.optimize()

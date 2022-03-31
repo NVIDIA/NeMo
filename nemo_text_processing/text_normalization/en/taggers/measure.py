@@ -61,7 +61,7 @@ class MeasureFst(GraphFst):
         self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True, lm: bool = False,
     ):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
-        cardinal_graph = cardinal.graph | cardinal.get_range_graph(date_format_for_four_digits=False)
+        cardinal_graph = cardinal.graph | self.get_range(cardinal.graph)
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
         graph_unit |= pynini.compose(
@@ -245,6 +245,24 @@ class MeasureFst(GraphFst):
 
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+    def get_range(self, cardinal: GraphFst):
+        """
+        Returns range forms for measure tagger
+
+        Args:
+            cardinal: cardinal GraphFst
+        """
+        range_graph = cardinal + pynini.cross(pynini.union("-", " - "), " to ") + cardinal
+
+        for x in [" x ", "x"]:
+            range_graph |= cardinal + pynini.cross(x, " by ") + cardinal
+            if not self.deterministic:
+                range_graph |= cardinal + pynini.cross(x, " times ") + cardinal
+
+        for x in ["*", " * "]:
+            range_graph |= cardinal + pynini.cross(x, " times ") + cardinal
+        return range_graph.optimize()
 
     def get_address_graph(self, cardinal, lm=False):
         """

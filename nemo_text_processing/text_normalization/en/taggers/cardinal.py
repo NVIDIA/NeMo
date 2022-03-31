@@ -87,8 +87,6 @@ class CardinalFst(GraphFst):
                 1,
             )
 
-        self.range_graph = self.get_range_graph()
-
         serial_graph = self.get_serial_graph()
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
@@ -116,45 +114,9 @@ class CardinalFst(GraphFst):
                 | cardinal_with_leading_zeros
             )
 
-        final_graph |= self.range_graph
-
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
-
-    def get_range_graph(self, date_format_for_four_digits=True):
-        """
-        TODO: do we still need it with range tagger?
-        """
-        if date_format_for_four_digits:
-            # use hundreds graph for 4 digit numbers
-            graph = (
-                get_four_digit_year_graph()
-                | (
-                    pynini.compose(pynini.closure(NEMO_DIGIT, 1, 3), self.graph)
-                    | pynini.compose(pynini.closure(NEMO_DIGIT, 5), self.graph)
-                )
-            ).optimize()
-        else:
-            graph = self.graph.optimize()
-
-        if self.deterministic:
-            range_graph = graph + (pynini.cross("-", " to ") | pynini.cross(" - ", " to ")) + graph
-        else:
-            # to add default cardinal form with "thousands" and "hundreds" for 4-digit numbers to the options
-            graph |= pynutil.add_weight(self.graph, 0.0001)
-            graph.optimize()
-
-            range_graph = (
-                (
-                    pynutil.add_weight(pynini.accep("from "), -0.0001)
-                    | pynini.closure(pynutil.add_weight(pynutil.insert("from "), 0.0001), 0, 1)
-                )
-                + graph
-                + (pynini.cross("-", " to ") | pynini.cross(" - ", " to "))
-                + graph
-            )
-        return range_graph.optimize()
 
     def get_serial_graph(self):
         """
