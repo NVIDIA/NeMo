@@ -34,12 +34,11 @@ class VerbalizeFinalFst(GraphFst):
             for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, lm: bool = False, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
         verbalize = VerbalizeFst(deterministic=deterministic).fst
         word = WordFst(deterministic=deterministic).fst
-        # if lm:
-        #     verbalize = pynutil.insert("< ") + verbalize + pynutil.insert(" >")
+
         types = verbalize | word
         graph = (
             pynutil.delete("tokens")

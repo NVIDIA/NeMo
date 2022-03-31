@@ -93,7 +93,6 @@ class TelephoneFst(GraphFst):
         graph = plurals._priority_union(country_code + number_part + extension, graph, NEMO_SIGMA).optimize()
         graph = plurals._priority_union(number_part + extension, graph, NEMO_SIGMA).optimize()
 
-
         # ip
         digit_to_str_graph = pynini.compose(
             NEMO_DIGIT ** (1, 3), digit + pynini.closure(pynutil.insert(" ") + digit)

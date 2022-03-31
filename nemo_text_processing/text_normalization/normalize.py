@@ -102,10 +102,7 @@ class Normalizer:
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        if lang == "de":
-            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic, lm=lm)
-        else:
-            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
         self.lang = lang
 
