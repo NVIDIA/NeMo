@@ -32,7 +32,6 @@ from nemo.collections.nlp.data.dialogue.sgd.prediction_utils import write_predic
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import NeuralType
@@ -54,7 +53,6 @@ class SGDQAModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.data_prepared = False
         super().__init__(cfg=cfg, trainer=trainer)
-
         self.encoder = SGDEncoder(hidden_size=self.bert_model.config.hidden_size, dropout=self._cfg.encoder.dropout)
         self.decoder = SGDDecoder(embedding_dim=self.bert_model.config.hidden_size)
         self.loss = SGDDialogueStateLoss(reduction="mean")
