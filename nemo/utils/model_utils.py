@@ -615,4 +615,3 @@ def inject_model_parallel_rank(filepath):
         return filepath
     else:
         return filepath
-
