@@ -54,8 +54,7 @@ class DialogueGPTClassificationModel(NLPModel):
         self.eval_mode = cfg.eval_mode
         self.data_prepared = False
 
-        self.setup_tokenizer(cfg.tokenizer)
-        super().__init__(cfg=cfg, trainer=trainer)
+        super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
