@@ -54,6 +54,7 @@ parser.add_argument("--num_workers", default=multiprocessing.cpu_count(), type=i
 parser.add_argument('--sample_rate', default=16000, type=int, help='Sample rate')
 parser.add_argument('--n_channels', default=1, type=int, help='Number of channels for output wav files')
 parser.add_argument("--log", dest="log", action="store_true", default=False)
+parser.add_argument("--cleanup", dest="cleanup", action="store_true", default=False)
 parser.add_argument(
     '--files_to_process',
     nargs='+',
@@ -163,8 +164,9 @@ def main():
         tar = tarfile.open(target_file)
         tar.extractall(target_unpacked_dir)
         tar.close()
-        logging.info("removing tar archive to save space")
-        os.remove(target_file)
+        if cleanup:
+            logging.info("removing tar archive to save space")
+            os.remove(target_file)
 
     folder_path = os.path.join(target_unpacked_dir, args.version + f'/{args.language}/')
 
