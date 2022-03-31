@@ -155,7 +155,7 @@ class NLPDDPPlugin(DDPPlugin):
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
-        if app_state.data_parallel_rank == 0:
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
             self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
@@ -191,7 +191,7 @@ class NLPDDPPlugin(DDPPlugin):
         app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
-        if app_state.data_parallel_rank == 0:
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
             logging.info(f'Removing checkpoint: {filepath}')
             self.checkpoint_io.remove_checkpoint(filepath)
 
