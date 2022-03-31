@@ -113,6 +113,7 @@ class MnliProcessor(DataProcessor):
 
 class XNLIProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
+
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
 
