@@ -264,6 +264,7 @@ class ModelPT(LightningModule, Model):
         return_config: bool = False,
         save_restore_connector: SaveRestoreConnector = None,
         trainer: Optional[Trainer] = None,
+        megatron_legacy: Optional[bool] = False,
     ):
         """
         Restores model instance (weights and configuration) from .nemo file.
@@ -280,6 +281,7 @@ class ModelPT(LightningModule, Model):
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
             save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+            megatron_legacy: Optional param to indicate if the NLP model was trained on NeMo < 1.5.0
 
             Example:
                 ```
@@ -303,7 +305,7 @@ class ModelPT(LightningModule, Model):
 
         cls.update_save_restore_connector(save_restore_connector)
         instance = cls._save_restore_connector.restore_from(
-            cls, restore_path, override_config_path, map_location, strict, return_config, trainer
+            cls, restore_path, override_config_path, map_location, strict, return_config, trainer, megatron_legacy
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector

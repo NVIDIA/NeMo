@@ -162,7 +162,7 @@ class MegatronT5GLUEModel(MegatronT5FineTuneModel):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         tokens_loss = itemgetter("tokens_loss")(
-            self.model(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+            self.model(tokens_enc, tokens_dec, enc_mask, dec_mask, token_type_ids=None, lm_labels=labels,)
         )
 
         loss = self.model.loss_func(loss_mask, tokens_loss)

@@ -36,10 +36,13 @@ import warnings
 from dataclasses import dataclass
 from typing import Optional
 
+import pytorch_lightning as pl
 import torch
+from omegaconf import OmegaConf, open_dict
 
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable, typecheck
+from nemo.core.config import TrainerConfig
 from nemo.utils.export_utils import forward_method, parse_input_example, verify_runtime
 
 try:
@@ -57,6 +60,14 @@ def get_args(argv):
     parser.add_argument("out", help="Location to write result to")
     parser.add_argument("--autocast", action="store_true", help="Use autocast when exporting")
     parser.add_argument("--runtime-check", action="store_true", help="Runtime check of exported net result")
+    parser.add_argument(
+        "--megatron-legacy", action="store_true", help="Export NLP models with Megatron-Bert trained on Nemo < 1.5.0"
+    )
+    parser.add_argument(
+        "--megatron-checkpoint",
+        type=str,
+        help="Path of the MegatronBert nemo checkpoint converted from MegatronLM using megatron_lm_ckpt_to_nemo.py file (Not NLP model checkpoint)",
+    )
     parser.add_argument("--verbose", default=None, help="Verbose level for logging, numeric")
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
@@ -89,11 +100,39 @@ def nemo_export(argv):
     nemo_in = args.source
     out = args.out
 
+    # Create a PL trainer object which is required for restoring Megatron models
+    cfg_trainer = TrainerConfig(
+        gpus=1,
+        accelerator="ddp",
+        num_nodes=1,
+        # Need to set the following two to False as ExpManager will take care of them differently.
+        logger=False,
+        checkpoint_callback=False,
+    )
+    trainer = pl.Trainer(cfg_trainer)
+
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
         with torch.inference_mode():
-            # Restore instance from .nemo file using generic model restore_from
-            model = ModelPT.restore_from(restore_path=nemo_in)
+            # If the megatron based NLP model was trained on NeMo < 1.5, then we need to update the lm_checkpoint on the model config
+            if args.megatron_legacy:
+                if args.megatron_checkpoint:
+                    model_cfg = ModelPT.restore_from(
+                        restore_path=nemo_in, trainer=trainer, megatron_legacy=args.megatron_legacy, return_config=True
+                    )
+                    OmegaConf.set_struct(model_cfg, True)
+                    with open_dict(model_cfg):
+                        model_cfg.language_model.lm_checkpoint = args.megatron_checkpoint
+                    model = ModelPT.restore_from(
+                        restore_path=nemo_in,
+                        trainer=trainer,
+                        megatron_legacy=args.megatron_legacy,
+                        override_config_path=model_cfg,
+                    )
+                else:
+                    logging.error("Megatron checkpoint path must be provided if megatron_legacy is selected")
+            else:
+                model = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
     except Exception as e:
         logging.error(
             "Failed to restore model from NeMo file : {}. Please make sure you have the latest NeMo package installed with [all] dependencies.".format(

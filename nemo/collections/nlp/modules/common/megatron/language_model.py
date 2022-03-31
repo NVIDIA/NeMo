@@ -227,7 +227,7 @@ class Embedding(MegatronModule):
         # Initialize the token-type embeddings.
         self.init_method(self.tokentype_embeddings.weight)
 
-    def forward(self, input_ids, position_ids, tokentype_ids=None, separate_embeddings=False):
+    def forward(self, input_ids, position_ids, token_type_ids=None, separate_embeddings=False):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
@@ -237,9 +237,9 @@ class Embedding(MegatronModule):
             return words_embeddings, position_embeddings
 
         embeddings = words_embeddings + position_embeddings
-        if tokentype_ids is not None:
+        if token_type_ids is not None:
             assert self.tokentype_embeddings is not None
-            embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
+            embeddings = embeddings + self.tokentype_embeddings(token_type_ids)
         else:
             assert self.tokentype_embeddings is None
 
@@ -363,7 +363,7 @@ class PromptEmbedding(MegatronModule):
 
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
-    def forward(self, tokentype_ids=None):
+    def forward(self, token_type_ids=None):
         # Embeddings.
         device = next(self.prompt_embeddings.parameters()).device
         prompt_embeddings = self.prompt_embeddings(self.ids.to(device))
@@ -705,7 +705,7 @@ class TransformerLanguageModel(MegatronModule):
         dec_position_ids=None,
         dec_attn_mask=None,
         enc_dec_attn_mask=None,
-        tokentype_ids=None,
+        token_type_ids=None,
         layer_past=None,
         get_key_value=False,
         pooling_sequence_index=0,
@@ -717,7 +717,7 @@ class TransformerLanguageModel(MegatronModule):
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
-            embedding_output = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
+            embedding_output = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
 
             # Soft prompts
             if self.use_soft_prompts and prompt_ids != None:
