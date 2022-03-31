@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer import tensor_parallel
     from apex.transformer.enums import AttnMaskType, LayerType
 
     HAVE_APEX = True

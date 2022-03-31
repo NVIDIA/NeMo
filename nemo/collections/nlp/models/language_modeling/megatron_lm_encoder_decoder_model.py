@@ -14,11 +14,9 @@
 
 import os
 import re
-from operator import itemgetter
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 import torch
-import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
