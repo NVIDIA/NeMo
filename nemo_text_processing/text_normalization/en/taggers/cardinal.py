@@ -21,7 +21,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
     insert_space,
-    plurals,
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_four_digit_year_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
@@ -29,7 +28,6 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path
 try:
     import pynini
     from pynini.lib import pynutil
-    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -125,6 +123,9 @@ class CardinalFst(GraphFst):
         self.fst = final_graph.optimize()
 
     def get_range_graph(self, date_format_for_four_digits=True):
+        """
+        TODO: do we still need it with range tagger?
+        """
         if date_format_for_four_digits:
             # use hundreds graph for 4 digit numbers
             graph = (

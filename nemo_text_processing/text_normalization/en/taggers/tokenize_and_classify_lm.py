@@ -96,7 +96,7 @@ class ClassifyFst(GraphFst):
             os.makedirs(cache_dir, exist_ok=True)
             whitelist_file = os.path.basename(whitelist) if whitelist else ""
             far_file = os.path.join(
-                cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic{whitelist_file}.far"
+                cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic{whitelist_file}_lm.far"
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
@@ -147,7 +147,7 @@ class ClassifyFst(GraphFst):
             v_time_graph = vTime(deterministic=True).fst
             v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic, lm=True).fst
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
-            v_roman_graph = vRoman(deterministic=deterministic, lm=True).fst
+            v_roman_graph = vRoman(deterministic=deterministic).fst
 
             time_final = pynini.compose(time_graph, v_time_graph)
 

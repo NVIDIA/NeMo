@@ -152,3 +152,6 @@ Tuesday (two twenty seconds) at five p m.
 ~12"
 twelve inches
 twelve"
+~Sam I
+Sam first
+Sam the first
