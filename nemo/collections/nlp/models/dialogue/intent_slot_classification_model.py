@@ -52,22 +52,7 @@ class IntentSlotClassificationModel(NLPModel):
             # Update configuration of data_desc.
             self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
 
-        # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # Initialize Bert model
-        self.bert_model = get_lm_model(
-            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
-            if self.cfg.language_model.config
-            else None,
-            checkpoint_file=self.cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-        )
-
-        # Enable setup methods.
-        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
 
         # Initialize Classifier.
         self._reconfigure_classifier()
