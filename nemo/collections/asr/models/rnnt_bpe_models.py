@@ -179,7 +179,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             cfg.joint.num_classes = len(vocabulary)
             cfg.joint.vocabulary = ListConfig(list(vocabulary))
             cfg.joint.jointnet.encoder_hidden = cfg.model_defaults.enc_hidden
-            cfg.joint.jointnet.pred_hidden = cfg.decoder.prednet.get('proj_size', cfg.model_defaults.pred_hidden)
+            cfg.joint.jointnet.pred_hidden = cfg.model_defaults.pred_hidden
 
         super().__init__(cfg=cfg, trainer=trainer)
 
