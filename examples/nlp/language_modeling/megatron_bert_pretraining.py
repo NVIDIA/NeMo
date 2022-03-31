@@ -24,7 +24,6 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-from nemo.utils.model_utils import uninject_model_parallel_rank
 
 
 @hydra_runner(config_path="conf", config_name="megatron_bert_config")
