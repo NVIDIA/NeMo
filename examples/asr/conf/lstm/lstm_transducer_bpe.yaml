@@ -1,4 +1,4 @@
-# It contains the default values for training an RNN-Transducer (RNNT) ASR model, large size (~170M for bidirectional and ~130M for unidirectional) with Transducer loss and sub-word encoding.
+# It contains the default values for training an LSTM-Transducer ASR model, large size (~170M for bidirectional and ~130M for unidirectional) with Transducer loss and sub-word encoding.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
@@ -7,10 +7,10 @@
 # Followed the architecture suggested in the following paper:
 # 'STREAMING END-TO-END SPEECH RECOGNITION FOR MOBILE DEVICES' by Yanzhang He et al. (https://arxiv.org/pdf/1811.06621.pdf)
 
-# You may find more info about RNN-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#rnn-transducer
-# Pre-trained models of RNN-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+# You may find more info about LSTM-Transducer here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#lstm-transducer
+# Pre-trained models of LSTM-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 
-name: "RNN-Transducer-BPE"
+name: "LSTM-Transducer-BPE"
 
 model:
   sample_rate: 16000

@@ -1,4 +1,4 @@
-# It contains the default values for training an RNN-CTC ASR model, large size (~170M for bidirectional and ~130M for unidirectional) with CTC loss and sub-word encoding.
+# It contains the default values for training an LSTM-CTC ASR model, large size (~170M for bidirectional and ~130M for unidirectional) with CTC loss and sub-word encoding.
 
 # Architecture and training config:
 # Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
@@ -7,10 +7,10 @@
 # Followed the architecture suggested in the following paper:
 # 'STREAMING END-TO-END SPEECH RECOGNITION FOR MOBILE DEVICES' by Yanzhang He et al. (https://arxiv.org/pdf/1811.06621.pdf)
 
-# You may find more info about RNN-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#rnn-transducer
-# Pre-trained models of RNN-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+# You may find more info about LSTM-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#lstm-transducer
+# Pre-trained models of LSTM-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 
-name: "RNN-CTC-BPE"
+name: "LSTM-CTC-BPE"
 
 model:
   sample_rate: 16000

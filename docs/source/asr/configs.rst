@@ -511,10 +511,10 @@ Conformer-Transducer
 
 Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
 
-RNN-Transducer
-~~~~~~~~~~~~~~
+LSTM-Transducer and LSTM-CTC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The config files for RNN-Transducer (RNNT) and RNN-CTC models can be found at ``<NeMo_git_root>/examples/asr/conf/rnn/rnn_transducer_bpe.yaml`` and ``<NeMo_git_root>/examples/asr/conf/rnn/rnn_ctc_bpe.yaml`` respectively.
+The config files for LSTM-Transducer and LSTM-CTC models can be found at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml`` and ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_ctc_bpe.yaml`` respectively.
 Most of the of the configs of are similar to other ctc or transducer models. The main difference is the encoder part.
 The encoder section includes the details about the RNN-based encoder architecture. You may find more information in the
 config files and also :doc:`nemo.collections.asr.modules.RNNEncoder<./api.html#nemo.collections.asr.modules.RNNEncoder>`.
