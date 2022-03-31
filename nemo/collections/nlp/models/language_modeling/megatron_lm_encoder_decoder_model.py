@@ -141,7 +141,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         decoder_input_ids,
         encoder_attn_mask,
         decoder_attn_mask,
-        tokentype_ids=None,
+        token_type_ids=None,
         lm_labels=None,
         enc_hidden_states=None,
         enc_output_mask=None,
@@ -153,7 +153,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dec_input_ids=decoder_input_ids,
             enc_attn_mask=encoder_attn_mask,
             dec_attn_mask=decoder_attn_mask,
-            tokentype_ids=tokentype_ids,
+            token_type_ids=token_type_ids,
             labels=lm_labels,
             enc_hidden_states=enc_hidden_states,
             enc_output_mask=enc_output_mask,
@@ -213,7 +213,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         tokens_loss = itemgetter("tokens_loss")(
-            self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+            self(tokens_enc, tokens_dec, enc_mask, dec_mask, token_type_ids=None, lm_labels=labels,)
         )
 
         loss = self.loss_func(loss_mask, tokens_loss)
@@ -243,7 +243,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
 
         tokens_loss = itemgetter("tokens_loss")(
-            self(tokens_enc, tokens_dec, enc_mask, dec_mask, tokentype_ids=None, lm_labels=labels,)
+            self(tokens_enc, tokens_dec, enc_mask, dec_mask, token_type_ids=None, lm_labels=labels,)
         )
         loss = self.loss_func(loss_mask, tokens_loss)
         reduced_loss = average_losses_across_data_parallel_group([loss])
@@ -415,7 +415,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_input_ids=None,
                 encoder_attn_mask=enc_mask,
                 decoder_attn_mask=None,
-                tokentype_ids=None,
+                token_type_ids=None,
                 lm_labels=None,
                 enc_hidden_states=None,
                 enc_output_mask=None,
@@ -434,7 +434,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     decoder_input_ids=predicted_tokens_dec,
                     encoder_attn_mask=enc_mask,
                     decoder_attn_mask=dec_mask,
-                    tokentype_ids=None,
+                    token_type_ids=None,
                     lm_labels=None,
                     enc_hidden_states=encoder_hidden_states,
                     enc_output_mask=enc_output_mask,
