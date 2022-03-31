@@ -45,7 +45,7 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
         if len(global_batch[0]) == 6:
             return super().process_global_batch(global_batch)
-        
+
         # For validation data (XNLI), we need to process the global batch and and then deal with language info separately.
         else:
             assert len(global_batch[0]) == 7
@@ -57,7 +57,9 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
                 labels_tensor,
                 enc_mask_tensor,
                 dec_mask_tensor,
-            ) = super().process_global_batch([{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch])
+            ) = super().process_global_batch(
+                [{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch]
+            )
             for micro_batch in global_batch:
                 langs_list.extend(micro_batch['lang'])
             return (
@@ -78,7 +80,9 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
             processed_batch.append(micro_batch)
 
         # Call the parent's parent because the parent inference step will compute accuracy metrics.
-        loss = super(MegatronT5GLUEModel, self).validation_step(processed_batch, batch_idx, reconfigure_microbatch_size=True)
+        loss = super(MegatronT5GLUEModel, self).validation_step(
+            processed_batch, batch_idx, reconfigure_microbatch_size=True
+        )
 
         tokens_enc, _, _, labels, enc_mask, _, langs = self.process_global_batch(batch)
 
