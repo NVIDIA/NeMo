@@ -16,7 +16,10 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
-from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import TextToTextGLUEDataset, TextToTextXNLIDataset
+from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
+    TextToTextGLUEDataset,
+    TextToTextXNLIDataset,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.utils import AppState, logging
 
@@ -57,7 +60,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self.setup_test_data()
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
-    
+
     def process_global_batch(self, global_batch):
         """Process a list of microbatches into a global batch."""
         # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
@@ -128,7 +131,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
         # Remainder of the code is to run the decoding loop, and compute accuracies.
         if batch_has_lang_information:
-            tokens_enc, _, _, labels, enc_mask, _, langs = self.process_global_batch(batch)        
+            tokens_enc, _, _, labels, enc_mask, _, langs = self.process_global_batch(batch)
         else:
             tokens_enc, _, _, labels, enc_mask, _ = self.process_global_batch(batch)
 
@@ -270,7 +273,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             drop_last=self.cfg.data.test_ds.drop_last,
             check_validation_interval=False,
         )
-    
+
     def _build_dataset(self, data_cfg):
         if data_cfg.task_name == 'xnli':
             dataset = TextToTextXNLIDataset(
@@ -292,22 +295,16 @@ class MegatronT5GLUEModel(MegatronT5Model):
     def build_train_valid_test_datasets(self, stage):
         logging.info('Building GLUE/XNLI datasets.')
         if stage != 'test':
-            self._validation_ds = self._build_dataset(
-                self.cfg.data.validation_ds
-            )
+            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds)
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
 
         if stage != 'validation':
             if hasattr(self.cfg.data, 'test_ds'):
-                self._test_ds = self._build_dataset(
-                    self.cfg.data.test_ds
-                )
+                self._test_ds = self._build_dataset(self.cfg.data.test_ds)
                 logging.info(f'Length of test dataset: {len(self._test_ds)}')
 
         if stage == 'validation' or stage == 'test':
             return
-        self._train_ds = self._build_dataset(
-            self.cfg.data.train_ds
-        )
+        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Finished building GLUE/XNLI datasets.')

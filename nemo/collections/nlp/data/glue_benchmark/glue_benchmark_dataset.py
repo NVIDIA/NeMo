@@ -103,7 +103,7 @@ class GLUEDataset(Dataset):
         task_name: str,
         tokenizer: TokenizerSpec,
         max_seq_length: str,
-        use_cache: bool = True, 
+        use_cache: bool = True,
         compute_features: bool = True,
     ):
         """
@@ -521,6 +521,7 @@ class TextToTextXNLIDataset(TextToTextGLUEDataset):
 
     def __len__(self):
         return len(self.features)
+
 
 class InputFeatures(object):
     """A single set of features of data.
