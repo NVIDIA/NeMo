@@ -109,7 +109,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         model = PretrainedModelInfo(
             pretrained_model_name="stt_en_conformer_transducer_large_ls",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large_ls",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large/versions/1.8.0/files/stt_en_conformer_transducer_large_ls.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large_ls/versions/1.8.0/files/stt_en_conformer_transducer_large_ls.nemo",
         )
         results.append(model)
 
