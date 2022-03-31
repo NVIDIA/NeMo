@@ -37,26 +37,14 @@ from nemo.utils import logging
 
 
 class IntentSlotClassificationModel(NLPModel):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
         self.max_seq_length = cfg.language_model.max_seq_length
-
-        # Setup tokenizer.
-        self.setup_tokenizer(cfg.tokenizer)
+        # init superclass
         self.cfg = cfg
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
-            # Disable setup methods.
-            IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
             # Set default values of data_desc.
             self._set_defaults_data_desc(cfg)
         else:
@@ -150,7 +138,7 @@ class IntentSlotClassificationModel(NLPModel):
         """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
 
         self.classifier = SequenceTokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=self.hidden_size,
             num_intents=len(self.cfg.data_desc.intent_labels),
             num_slots=len(self.cfg.data_desc.slot_labels),
             dropout=self.cfg.classifier_head.fc_dropout,
@@ -211,14 +199,17 @@ class IntentSlotClassificationModel(NLPModel):
         self.data_dir = data_dir
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if self._cfg.tokenizer.get('library', '') == 'megatron':
+            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
         intent_logits, slot_logits = self.classifier(hidden_states=hidden_states)
         return intent_logits, slot_logits
 
