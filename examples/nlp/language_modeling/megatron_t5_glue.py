@@ -104,7 +104,8 @@ def main(cfg) -> None:
 
     trainer.fit(model)
     trainer.validate(model)
-
+    if hasattr(cfg.model.data, 'test_ds'):
+        trainer.test(model)
 
 if __name__ == '__main__':
     main()
