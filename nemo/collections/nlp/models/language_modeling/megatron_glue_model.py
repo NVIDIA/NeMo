@@ -142,9 +142,6 @@ class MegatronT5GLUEModel(MegatronT5Model):
         if not batch_has_lang_information:
             langs = [None] * len(preds_text)
 
-        import ipdb
-
-        ipdb.set_trace()
         for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
             _ = self.acc_metric(pred, label, lang)
 
