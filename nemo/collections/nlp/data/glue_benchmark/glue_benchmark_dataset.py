@@ -36,13 +36,13 @@ from nemo.collections.nlp.data.glue_benchmark.data_processors import (
     Sst2Processor,
     StsbProcessor,
     WnliProcessor,
-    XNlIProcessor,
+    XNLIProcessor,
 )
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils import logging
 
-__all__ = ['GLUEDataset']
+__all__ = ['GLUEDataset', 'TextToTextGLUEDataset', 'TextToTextXNLIDataset']
 
 processors = {
     "cola": ColaProcessor,
@@ -55,7 +55,7 @@ processors = {
     "qnli": QnliProcessor,
     "rte": RteProcessor,
     "wnli": WnliProcessor,
-    "xnli": XNlIProcessor,
+    "xnli": XNLIProcessor,
 }
 output_modes = {
     "cola": "classification",
@@ -103,7 +103,7 @@ class GLUEDataset(Dataset):
         task_name: str,
         tokenizer: TokenizerSpec,
         max_seq_length: str,
-        use_cache: bool = True,
+        use_cache: bool = True, 
         compute_features: bool = True,
     ):
         """
@@ -475,7 +475,7 @@ class TextToTextGLUEDataset(GLUEDataset):
         return features
 
 
-class TextToTextXNlIDataset(TextToTextGLUEDataset):
+class TextToTextXNLIDataset(TextToTextGLUEDataset):
     """XNLI Dataset in a text-to-text format."""
 
     def __init__(
@@ -519,6 +519,8 @@ class TextToTextXNlIDataset(TextToTextGLUEDataset):
                 lang_filtered_features.append(features[ex_index] + [language])
         return lang_filtered_features
 
+    def __len__(self):
+        return len(self.features)
 
 class InputFeatures(object):
     """A single set of features of data.

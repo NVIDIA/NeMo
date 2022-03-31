@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -862,8 +862,7 @@ class ParallelTransformer(MegatronModule):
                     num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
                 ), 'num_layers must be divisible by pipeline_model_parallel_size'
                 num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
-        else:
-            num_layers = num_layers
+
         return num_layers
 
     def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask):

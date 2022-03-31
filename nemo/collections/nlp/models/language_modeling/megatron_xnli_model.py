@@ -17,7 +17,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextGLUEDataset,
-    TextToTextXNlIDataset,
+    TextToTextXNLIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.utils import logging
@@ -30,15 +30,6 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
         super().__init__(cfg=cfg, trainer=trainer)
         self.cfg = cfg
         self.acc_metrics = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
-
-    def process_micro_batch(self, batch):
-        """Process a microbatch."""
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = super().process_micro_batch(batch)
-        if 'lang' in batch:
-            lang = batch['lang']
-            return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask, lang
-        else:
-            return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
     def process_global_batch(self, global_batch):
         """Process a list of microbatches into a global batch."""
@@ -147,7 +138,7 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
 
     def build_train_valid_test_datasets(self, test_only=False):
         logging.info('Building XNLI datasets.')
-        self._test_ds = TextToTextXNlIDataset(
+        self._test_ds = TextToTextXNLIDataset(
             self.cfg.data.test_ds.file_path,
             task_name=self.cfg.data.test_ds.task_name,
             tokenizer=self.tokenizer,
@@ -162,7 +153,7 @@ class MegatronT5XNLIModel(MegatronT5GLUEModel):
             tokenizer=self.tokenizer,
             max_seq_length=self.cfg.data.train_ds.max_seq_length,
         )
-        self._validation_ds = TextToTextXNlIDataset(
+        self._validation_ds = TextToTextXNLIDataset(
             self.cfg.data.validation_ds.file_path,
             task_name=self.cfg.data.validation_ds.task_name,
             tokenizer=self.tokenizer,

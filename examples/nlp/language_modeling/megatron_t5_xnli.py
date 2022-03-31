@@ -18,7 +18,7 @@ from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
-from nemo.collections.nlp.models.language_modeling.megatron_xnli_model import MegatronT5XNLIModel
+from nemo.collections.nlp.models.language_modeling.megatron_xnli_model import MegatronT5GLUEModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -81,7 +81,7 @@ def main(cfg) -> None:
             trainer.callbacks[idx] = StatelessTimer(cfg.trainer.max_time,)
 
     # Get the T5 Base configuration.
-    t5_cfg = MegatronT5XNLIModel.restore_from(
+    t5_cfg = MegatronT5GLUEModel.restore_from(
         restore_path=cfg.model.restore_from_path, trainer=trainer, return_config=True
     )
 
@@ -97,12 +97,12 @@ def main(cfg) -> None:
         t5_cfg.optim = cfg.model.optim
         t5_cfg.eval_languages = cfg.model.eval_languages
 
-    model = MegatronT5XNLIModel.restore_from(
+    model = MegatronT5GLUEModel.restore_from(
         restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
     )
 
     trainer.fit(model)
-    trainer.validate(model)
+    trainer.test(model)
 
 
 if __name__ == '__main__':
