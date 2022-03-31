@@ -529,7 +529,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                     m.cache_drop_size = streaming_cfg.cache_drop_size
                     streaming_cfg.last_time_num += 1
 
-        self.export_cache_support = False
+        #self.export_cache_support = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
         if device is None:

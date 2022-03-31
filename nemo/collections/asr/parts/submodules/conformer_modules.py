@@ -198,6 +198,8 @@ class ConformerConvolution(nn.Module):
                 groups=d_model,
                 bias=True,
             )
+
+        self.norm_type = norm_type
         if norm_type == 'batch_norm':
             self.batch_norm = nn.BatchNorm1d(d_model)
         elif norm_type == 'layer_norm':
@@ -223,7 +225,9 @@ class ConformerConvolution(nn.Module):
         else:
             x = self.depthwise_conv(x)
 
-        if isinstance(self.batch_norm, nn.LayerNorm):
+        #print(self.batch_norm)
+        #if isinstance(self.batch_norm, nn.LayerNorm):
+        if self.norm_type == "layer_norm":
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
             x = x.transpose(1, 2)
