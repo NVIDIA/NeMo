@@ -83,7 +83,6 @@ class ASRModel(ModelPT, ABC):
                 self.zero_grad()
 
 
-
 class ExportableEncDecModel(Exportable):
     """
     Simple utiliy mix-in to export models that consist of encoder/decoder pair 

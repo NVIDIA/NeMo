@@ -89,16 +89,16 @@ class RNNEncoder(NeuralModule, Exportable):
 
     def __init__(
         self,
-        feat_in,
-        n_layers,
-        d_model,
-        proj_size=-1,
-        rnn_type='lstm',
-        bidirectional=True,
-        subsampling='striding',
-        subsampling_factor=4,
-        subsampling_conv_channels=-1,
-        dropout=0.2,
+        feat_in: int,
+        n_layers: int,
+        d_model: int,
+        proj_size: int = -1,
+        rnn_type: str = 'lstm',
+        bidirectional: bool = True,
+        subsampling: str = 'striding',
+        subsampling_factor: int = 4,
+        subsampling_conv_channels: int = -1,
+        dropout: float = 0.2,
     ):
         super().__init__()
 
@@ -149,7 +149,6 @@ class RNNEncoder(NeuralModule, Exportable):
             self.layers.append(nn.LayerNorm(proj_size))
             self.layers.append(nn.Dropout(p=dropout))
             self._feat_out = proj_size
-
 
     @typecheck()
     def forward(self, audio_signal, length=None):
