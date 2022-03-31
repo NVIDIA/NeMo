@@ -95,6 +95,8 @@ def main(cfg) -> None:
         t5_cfg.data = cfg.model.data
         t5_cfg.precision = cfg.trainer.precision
         t5_cfg.optim = cfg.model.optim
+        t5_cfg.micro_batch_size = cfg.model.data.train_ds.micro_batch_size
+        t5_cfg.global_batch_size = cfg.model.data.train_ds.global_batch_size
 
     model = MegatronT5GLUEModel.restore_from(
         restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg

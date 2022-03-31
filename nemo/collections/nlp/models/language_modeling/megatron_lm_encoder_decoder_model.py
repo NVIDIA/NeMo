@@ -796,7 +796,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=micro_batch_size,
+            global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size(),
             micro_batch_size=micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
