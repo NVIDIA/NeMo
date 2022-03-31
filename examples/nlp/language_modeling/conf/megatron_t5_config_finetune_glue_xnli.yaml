@@ -11,7 +11,7 @@ trainer:
   max_epochs: 3
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 9
+  val_check_interval: 100
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
@@ -36,9 +36,7 @@ exp_manager:
     save_best_model: True
 
 model:
-  restore_from_path: /raid/Data/NMT/Models/t5_220m/refactored/bf16_O1/megatron_t5--val_loss-1.47-step-999999-fp16-consumed_samples-2047944704.0.nemo
-  # restore_from_path: /raid/Data/NMT/Models/t5_220m/megatron_t5_tp_1_pp_2.nemo
-  # restore_from_path: ??? # Path to a trained T5 .nemo file
+  restore_from_path: ???
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 2
   pipeline_model_parallel_split_rank: 1
@@ -49,8 +47,8 @@ model:
 
   data:
     train_ds:
-      task_name: 'rte'
-      file_path: /raid/Data/GLUE/RTE/train.tsv # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
+      task_name: 'mnli'
+      file_path: ??? # Path to the TSV file for MNLI train ex: '/raid/Data/GLUE/MNLI/train.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: True
@@ -61,7 +59,7 @@ model:
 
     validation_ds:
       task_name: 'xnli'
-      file_path: /raid/Data/XNLI-1.0/xnli.dev.tsv # Path to the TSV file for XNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      file_path: ??? # Path to the TSV file for XNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: False
@@ -72,7 +70,7 @@ model:
 
     test_ds:
       task_name: 'xnli'
-      file_path: /raid/Data/XNLI-1.0/xnli.test.tsv # Path to the TSV file for XNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+      file_path: ??? # Path to the TSV file for XNLI dev ex: '/raid/Data/GLUE/MNLI/dev_matched.tsv'
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: False
