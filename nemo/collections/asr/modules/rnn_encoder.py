@@ -98,7 +98,7 @@ class RNNEncoder(NeuralModule, Exportable):
         subsampling='striding',
         subsampling_factor=4,
         subsampling_conv_channels=-1,
-        dropout=0.1,
+        dropout=0.2,
     ):
         super().__init__()
 
@@ -150,11 +150,6 @@ class RNNEncoder(NeuralModule, Exportable):
             self.layers.append(nn.Dropout(p=dropout))
             self._feat_out = proj_size
 
-        if proj_size > 0 and self._feat_out != proj_size:
-            self.out_proj = nn.Linear(self._feat_out, proj_size)
-            self._feat_out = proj_size
-        else:
-            self.out_proj = None
 
     @typecheck()
     def forward(self, audio_signal, length=None):
@@ -173,13 +168,9 @@ class RNNEncoder(NeuralModule, Exportable):
             audio_signal = self.pre_encode(audio_signal)
 
         for lth, layer in enumerate(self.layers):
-            if isinstance(layer, torch.nn.Dropout) or isinstance(layer, torch.nn.LayerNorm):
-                audio_signal = layer(audio_signal)
-            else:
-                audio_signal, _ = layer(audio_signal)
-
-        if self.out_proj is not None:
-            audio_signal = self.out_proj(audio_signal)
+            audio_signal = layer(audio_signal)
+            if isinstance(audio_signal, tuple):
+                audio_signal, _ = audio_signal
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
         return audio_signal, length
