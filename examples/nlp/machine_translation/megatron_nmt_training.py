@@ -22,6 +22,7 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
 from nemo.core.config import hydra_runner
@@ -83,7 +84,48 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    model = MegatronNMTModel(cfg.model, trainer)
+    if hasattr(cfg.model, 'pretrained_model_path'):
+        if not hasattr(cfg.model, 'pretrained_model_type'):
+            raise ValueError(f"Pretrained model type must be in [T5, BART].")
+
+        assert cfg.model.pretrained_model_type in ['T5', 'BART']
+        if cfg.model.pretrained_model_type == 'T5':
+            pretrained_cfg = MegatronT5Model.restore_from(
+                cfg.model.pretrained_model_path, trainer=trainer, return_config=True
+            )
+        else:
+            raise NotImplementedError("BART not implemented yet.")
+        OmegaConf.set_struct(pretrained_cfg, True)
+        with open_dict(pretrained_cfg):
+            pretrained_cfg.masked_softmax_fusion = False
+            # Set tokenizer paths:
+            pretrained_cfg.encoder_tokenizer = pretrained_cfg.tokenizer
+            pretrained_cfg.decoder_tokenizer = pretrained_cfg.tokenizer
+
+            # Pre-trained models should use the legacy sentencepiece tokenizer ex: mT5
+            pretrained_cfg.encoder_tokenizer.sentencepiece_legacy = True
+            pretrained_cfg.decoder_tokenizer.sentencepiece_legacy = True
+
+            # Override dropout
+            pretrained_cfg.hidden_dropout = cfg.model.hidden_dropout
+            pretrained_cfg.attention_dropout = cfg.model.attention_dropout
+
+            # Override precision
+            pretrained_cfg.precision = cfg.model.precision # Set above from trainer.precision
+
+            # Override data and global/micro batch size.
+            pretrained_cfg.train_ds = cfg.model.train_ds
+            pretrained_cfg.validation_ds = cfg.model.validation_ds
+            pretrained_cfg.test_ds = cfg.model.test_ds
+
+            pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
+            pretrained_cfg.global_batch_size = cfg.model.global_batch_size
+
+            pretrained_cfg.target = "nemo.collections.nlp.models.machine_translation.megatron_nmt_model.MegatronNMTModel"
+
+        model = MegatronNMTModel.restore_from(cfg.model.pretrained_model_path, trainer=trainer, override_config_path=pretrained_cfg)
+    else:
+        model = MegatronNMTModel(cfg.model, trainer)
     if cfg.do_training:
         trainer.fit(model)
 

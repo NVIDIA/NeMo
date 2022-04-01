@@ -117,6 +117,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             decoder_model_name=None,
             decoder_r2l=self._cfg.decoder_tokenizer.get('r2l', False),
             special_tokens=self.special_tokens,
+            encoder_sentencepiece_legacy=self._cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
+            decoder_sentencepiece_legacy=self._cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
         )
 
         # Set up pre and post processors as well.
