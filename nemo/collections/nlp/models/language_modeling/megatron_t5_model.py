@@ -121,10 +121,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
     def build_train_valid_test_datasets(self):
         logging.info(f'Building {self.model_name} datasets.')
-        if self._cfg.data.seq_length_dec < self._cfg.data.seq_length * self._cfg.data.masked_lm_prob:
-            raise ValueError(
-                f"Cannot have decoder max sequence length ({self._cfg.data.seq_length_dec}) less than encoder sequence length ({self._cfg.data.seq_length}) * masked_lm_prob ({self._cfg.data.masked_lm_prob})"
-            )
         global_batch_size = self._cfg.global_batch_size
         eval_iters = (self.trainer.max_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
