@@ -45,7 +45,7 @@ def extract_transcribtions(hyps):
     return transcribtions
 
 
-def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
+def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, onnx_model=None):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         with autocast():
@@ -61,6 +61,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     processed_signal=processed_signal,
                     processed_signal_length=processed_signal_length,
                     return_transcribtion=True,
+                    onnx_model=None
                 )
         final_offline_tran = extract_transcribtions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
@@ -92,6 +93,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     previous_pred_out=pred_out_stream,
                     drop_extra_pre_encoded=True, #True if step_num > 0 else False,
                     return_transcribtion=True,
+                    onnx_model=onnx_model
                 )
         if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
             cache_last_channel = cache_last_channel[
@@ -172,13 +174,13 @@ def main():
     #     pre_encode_cache_size=8,
     #     valid_out_len=18,
     # )
-    asr_model.encoder.setup_streaming_params(
-        chunk_size=72,
-        shift_size=72,
-        cache_drop_size=0,
-        pre_encode_cache_size=5,
-        valid_out_len=18,
-    )
+    # asr_model.encoder.setup_streaming_params(
+    #     chunk_size=72,
+    #     shift_size=72,
+    #     cache_drop_size=0,
+    #     pre_encode_cache_size=5,
+    #     valid_out_len=18,
+    # )
     logging.info(asr_model.encoder.streaming_cfg)
     # asr_model.encoder.setup_streaming_params(
     #     chunk_size=[69, 72],
@@ -203,10 +205,10 @@ def main():
         def autocast():
             yield
 
-    # if args.onnx_model is not None:
-    #     onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
-    # else:
-    #     onnx_model = None
+    if args.onnx_model is not None:
+        onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
+    else:
+        onnx_model = None
 
     if hasattr(asr_model, "decoding"):
         decoding_cfg = asr_model.cfg.decoding
@@ -258,6 +260,7 @@ def main():
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
+                    onnx_model=onnx_model
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:

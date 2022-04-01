@@ -1218,14 +1218,14 @@ class FramewiseStreamingAudioBuffer:
 
             audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
 
+
+            zeros_pads = None
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
-                init_cache_pre_encode = torch.zeros(
+                cache_pre_encode = torch.zeros(
                     (audio_chunk.size(0), self.input_features, self.streaming_cfg.pre_encode_cache_size[0]),
                     device=audio_chunk.device,
                     dtype=audio_chunk.dtype,
                 )
-                audio_chunk = torch.cat((init_cache_pre_encode, audio_chunk), dim=-1)
-                added_len = init_cache_pre_encode.size(-1)
             else:
                 if isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size[1]
@@ -1246,29 +1246,30 @@ class FramewiseStreamingAudioBuffer:
                         device=audio_chunk.device,
                         dtype=audio_chunk.dtype,
                     )
-                else:
-                    zeros_pads = None
 
-                chunk_lengths = self.streams_length - self.buffer_idx
-                if self.online_normalization:
-                    audio_chunk, x_mean, x_std = normalize_batch(
-                        x=audio_chunk,
-                        seq_len=torch.tensor([audio_chunk.size(-1)]),
-                        normalize_type=self.model_normalize_type,
-                    )
-                    # print(x_mean)
-                    # print(x_std)
+                #added_len = cache_pre_encode.size(-1)
 
-                audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
-                added_len = cache_pre_encode.size(-1)
+            added_len = cache_pre_encode.size(-1)
+            audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
 
-                if zeros_pads is not None:
-                    # TODO: check here when zero_pads is not None and added_len is alreasy non-zero
-                    audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
-                    added_len += zeros_pads.size(-1)
+            if self.online_normalization:
+                # TODO: FIX for batches
+                audio_chunk, x_mean, x_std = normalize_batch(
+                    x=audio_chunk,
+                    seq_len=torch.tensor([audio_chunk.size(-1)]),
+                    normalize_type=self.model_normalize_type,
+                )
+                # print(x_mean)
+                # print(x_std)
 
-            chunk_lengths = chunk_lengths + added_len
-            chunk_lengths = torch.clamp(chunk_lengths, min=0, max=audio_chunk.size(-1))
+            if zeros_pads is not None:
+                # TODO: check here when zero_pads is not None and added_len is already non-zero
+                audio_chunk = torch.cat((zeros_pads, audio_chunk), dim=-1)
+                added_len += zeros_pads.size(-1)
+
+            max_chunk_lengths = self.streams_length - self.buffer_idx
+            max_chunk_lengths = max_chunk_lengths + added_len
+            chunk_lengths = torch.clamp(max_chunk_lengths, min=0, max=audio_chunk.size(-1))
 
             self.buffer_idx += shift_size
             self.step += 1

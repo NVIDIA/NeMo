@@ -364,8 +364,9 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
             )
             if self.streaming_cfg.drop_extra_pre_encoded:
                 audio_signal = audio_signal[:, 2:, :]
-                length = length - 2
-                length = torch.clamp(length, min=0)
+                # TODO: find a better solution
+                length = (length - 2).float()
+                length = torch.clip(length, min=0).int()
 
         else:
             audio_signal = self.pre_encode(x=audio_signal)
@@ -452,7 +453,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         return mask
 
     def setup_streaming_params(
-        self, chunk_size=None, shift_size=None, cache_drop_size=None, pre_encode_cache_size=None, valid_out_len=None,
+        self, chunk_size=None, shift_size=None, cache_drop_size=None, pre_encode_cache_size=None, valid_out_len=None, drop_extra_pre_encoded=False
     ):
         MAX_LOOK_AHEAD = 10000
         streaming_cfg = FramewiseStreamingConfig()
@@ -507,7 +508,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             streaming_cfg.valid_out_len = valid_out_len
 
-        streaming_cfg.drop_extra_pre_encoded = False
+        streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
         if pre_encode_cache_size is None:
             streaming_cfg.pre_encode_cache_size = [0, self.subsampling_factor + 1]
         else:

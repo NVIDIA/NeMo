@@ -661,6 +661,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
         return_transcribtion=True,
+        onnx_model=None
     ):
         (
             encoded,
@@ -675,6 +676,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             cache_last_time=cache_last_time,
             valid_out_len=valid_out_len,
             drop_extra_pre_encoded=drop_extra_pre_encoded,
+            onnx_model=onnx_model
         )
 
         log_probs = self.decoder(encoder_output=encoded)
