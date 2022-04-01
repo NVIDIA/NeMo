@@ -538,16 +538,9 @@ class ASR_DIAR_OFFLINE(object):
             total_riva_dict[uniq_id] = riva_dict
             prev_speaker = speaker
 
-        string_out = self.print_sentences(sentences, self.params)
-
-        # add sentences to json array
-        self.add_sentences_to_dict(riva_dict, sentences)
-
-        if self.params['break_lines']:
-            string_out = self.break_lines(string_out)
         gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
         riva_dict['transcription'] = ' '.join(word_seq_list)
-        self.write_and_log(uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict)
+        self.write_and_log(uniq_id, riva_dict, audacity_label_words, gecko_dict, sentences)
         return total_riva_dict
 
     def get_realignment_ranges(self, k, word_seq_len):
@@ -971,10 +964,18 @@ class ASR_DIAR_OFFLINE(object):
                 return_string_out.append(org_chunk)
         return '\n'.join(return_string_out)
 
-    def write_and_log(self, uniq_id, riva_dict, string_out, audacity_label_words, gecko_dict):
+    def write_and_log(self, uniq_id, riva_dict, audacity_label_words, gecko_dict, sentences):
         """
         Write output files and display logging messages.
         """
+        # print the sentences in the .txt output
+        string_out = self.print_sentences(sentences, self.params)
+        if self.params['break_lines']:
+            string_out = self.break_lines(string_out)
+
+        # add sentences to the json array
+        self.add_sentences_to_dict(riva_dict, sentences)
+
         ROOT = self.root_path
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}.json', riva_dict)
         dump_json_to_file(f'{ROOT}/pred_rttms/{uniq_id}_gecko.json', gecko_dict)
