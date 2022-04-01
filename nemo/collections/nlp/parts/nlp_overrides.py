@@ -28,7 +28,7 @@ from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.trainer.connectors.data_connector import DataConnector
+from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import (
     AbstractDataFetcher,
@@ -572,28 +572,11 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             pass
 
 
-class NLPDataConnector(DataConnector):
-    """ Override PTL DataConnector. Used to select custom data fetcher."""
+class GlobalBatchFitLoop(FitLoop):
+    """ Override PTL FitLoop. Used to select globa batch data fetcher."""
 
-    def __init__(
-        self,
-        trainer: "pl.Trainer",
-        multiple_trainloader_mode: str = "max_size_cycle",
-        train_data_fetcher: Optional[AbstractDataFetcher] = None,
-        validate_data_fetcher: Optional[AbstractDataFetcher] = None,
-        test_data_fetcher: Optional[AbstractDataFetcher] = None,
-    ):
-
-        if not HAVE_APEX:
-            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
-
-        super().__init__(
-            trainer,
-            multiple_trainloader_mode=multiple_trainloader_mode,
-            train_data_fetcher=train_data_fetcher,
-            validate_data_fetcher=validate_data_fetcher,
-            test_data_fetcher=test_data_fetcher,
-        )
+    def __init__(self, min_epochs: int = 0, max_epochs: int = 1000,) -> None:
+        super().__init__(min_epochs, max_epochs)
 
     def _select_data_fetcher(self) -> AbstractDataFetcher:
         if self.trainer.sanity_checking:
