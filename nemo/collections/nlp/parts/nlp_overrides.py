@@ -22,13 +22,13 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Unio
 
 import pytorch_lightning as pl
 import torch
+from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from pytorch_lightning.utilities.fetching import (
     AbstractDataFetcher,
