@@ -25,6 +25,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
@@ -407,7 +411,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
-            batch = [x.cuda() for x in batch]
+            batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
             output = model(
                 encoder_input_ids,  # enc_input_ids
@@ -430,7 +434,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(batch, model):
-            batch = [x.cuda() for x in batch]
+            batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask = batch
             output = model(
                 encoder_input_ids,  # enc_input_ids
@@ -565,55 +569,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
     def process_global_batch(self, global_batch):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        text_enc_list = []
-        text_dec_list = []
-        labels_list = []
-        loss_mask_list = []
-        enc_mask_list = []
-        dec_mask_list = []
-
-        # Determine the maximum encoder and decoder sequence lengths amongst microbatches and pad each microbatch to the max seq length.
-        # NOTE: This should only happen for model finetuning where we pad dynamically. Training uses fixed training shapes.
-
-        max_enc_seq_lenth = max([micro_batch['text_enc'].shape[1] for micro_batch in global_batch])
-        max_dec_seq_lenth = max([micro_batch['text_dec'].shape[1] for micro_batch in global_batch])
-
-        for micro_batch in global_batch:
-            text_enc, text_dec, loss_mask, labels, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
-            # Check if encoder sequence length < max encoder sequence length of the global batch and pad.
-            if text_enc.shape[1] < max_enc_seq_lenth:
-                text_enc = torch.nn.functional.pad(
-                    text_enc, (0, max_enc_seq_lenth - text_enc.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
-                )
-                enc_mask = torch.nn.functional.pad(
-                    enc_mask, (0, max_enc_seq_lenth - enc_mask.shape[1], 0, 0), 'constant', 0
-                )
-            if text_dec.shape[1] < max_dec_seq_lenth:
-                text_dec = torch.nn.functional.pad(
-                    text_dec, (0, max_dec_seq_lenth - text_dec.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
-                )
-                dec_mask = torch.nn.functional.pad(
-                    dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
-                )
-            text_enc_list.append(text_enc)
-            text_dec_list.append(text_dec)
-            labels_list.append(labels)
-            loss_mask_list.append(loss_mask)
-            enc_mask_list.append(enc_mask)
-            dec_mask_list.append(dec_mask)
-
-        # Concatenate to (num_microbatches x micro_batch_size x seq_len)
-        tokens_enc_tensor = torch.concat(text_enc_list, dim=0)
-        tokens_dec_tensor = torch.concat(text_dec_list, dim=0)
-        labels_tensor = torch.concat(labels_list, dim=0)
-        loss_mask_tensor = torch.concat(loss_mask_list, dim=0)
-        enc_mask_tensor = torch.concat(enc_mask_list, dim=0)
-        dec_mask_tensor = torch.concat(dec_mask_list, dim=0)
-
-        return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor
+        return [
+            global_batch["text_enc"],
+            global_batch["text_dec"],
+            global_batch["loss_mask"],
+            global_batch["labels"],
+            global_batch["enc_mask"],
+            global_batch["dec_mask"],
+        ]
 
     def build_train_valid_test_datasets(self):
         raise NotImplementedError("Please implement this method in child-class")
@@ -624,25 +587,33 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if dataset is None:
             return None
 
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
-        if self._cfg.data.dataloader_type == 'single':
-            batch_sampler = MegatronPretrainingSampler(
-                total_samples=len(dataset),
-                consumed_samples=consumed_samples,
-                micro_batch_size=self._cfg.micro_batch_size,
-                data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
-        elif self._cfg.data.dataloader_type == 'cyclic':
-            batch_sampler = MegatronPretrainingRandomSampler(
-                total_samples=len(dataset),
-                consumed_samples=consumed_samples,
-                micro_batch_size=self._cfg.micro_batch_size,
-                data_parallel_rank=parallel_state.get_data_parallel_rank(),
-                data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            )
+        if hasattr(self._cfg.data, 'dataloader_type') and self._cfg.data.dataloader_type is not None:
+            if self._cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self._cfg.micro_batch_size,
+                    global_batch_size=self._cfg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self._cfg.get('drop_last', True),
+                )
+            elif self._cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomBatchSampler(
+                    total_samples=len(dataset),
+                    consumed_samples=consumed_samples,
+                    micro_batch_size=self._cfg.micro_batch_size,
+                    global_batch_size=self._cffg.global_batch_size,
+                    data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                    data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                    drop_last=self._cfg.get('drop_last', True),
+                )
+            else:
+                raise Exception(f'{self._cfg.dataloader_type} dataloader type is not supported.')
         else:
-            raise Exception('{} dataloader type is not supported.'.format(self._cfg.dataloader_type))
+            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
