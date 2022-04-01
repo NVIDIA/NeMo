@@ -141,7 +141,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
         if not batch_has_lang_information:
             langs = [None] * len(preds_text)
-        
+
         assert len(langs) == len(preds_text) == len(labels_text)
         for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
             _ = self.acc_metric(pred, label, lang)

@@ -82,5 +82,6 @@ def main(cfg) -> None:
     if hasattr(cfg.data, 'test_ds'):
         trainer.test(model)
 
+
 if __name__ == '__main__':
     main()
