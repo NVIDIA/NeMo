@@ -44,9 +44,8 @@ class RomanFst(GraphFst):
         default_graph = pynutil.insert("integer: \"") + default_graph + pynutil.insert("\"")
         graph_teens = pynini.string_map([x[0] for x in roman_dict[:19]]).optimize()
 
-        names = get_names()
-
         # up to five digit roman numerals with a preceding name are converted to ordinal form
+        names = get_names()
         graph = (
             pynutil.insert("key_the_ordinal: \"")
             + names
@@ -54,9 +53,9 @@ class RomanFst(GraphFst):
             + pynini.accep(" ")
             + graph_teens @ default_graph
         ).optimize()
-        key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
 
         # single symbol roman numerals with preceding key words are converted to cardinal form
+        key_words = pynini.string_map(load_labels(get_abs_path("data/roman/key_words.tsv"))).optimize()
         graph |= (
             pynutil.insert("key_cardinal: \"") + key_words + pynutil.insert("\"") + pynini.accep(" ") + default_graph
         ).optimize()
@@ -86,6 +85,7 @@ class RomanFst(GraphFst):
 
         # graph = pynutil.insert("integer: \"") + graph + pynutil.insert("\"")
         graph = self.add_tokens(graph)
+
         self.fst = graph.optimize()
 
 

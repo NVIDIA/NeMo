@@ -38,7 +38,6 @@ from nemo_text_processing.text_normalization.en.taggers.telephone import Telepho
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
-from nemo_text_processing.text_normalization.en.verbalizers.cardinal import CardinalFst as vCardinalFst
 from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst as vDateFst
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinalFst
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTimeFst
@@ -118,10 +117,8 @@ class ClassifyFst(GraphFst):
             v_time_graph = vTimeFst(deterministic=deterministic).fst
             v_ordinal_graph = vOrdinalFst(deterministic=deterministic)
             v_date_graph = vDateFst(ordinal=v_ordinal_graph, deterministic=deterministic).fst
-            v_cardinal_graph = vCardinalFst(deterministic=deterministic).fst
             time_final = pynini.compose(time_graph, v_time_graph)
             date_final = pynini.compose(date_graph, v_date_graph)
-            # cardinal_final = pynini.compose(cardinal_graph, v_cardinal_graph)
             range_graph = RangeFst(
                 time=time_final, date=date_final, cardinal=cardinal, deterministic=deterministic
             ).fst
