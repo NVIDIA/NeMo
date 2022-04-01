@@ -15,7 +15,6 @@
 import os
 import re
 from typing import Any, Dict, Optional
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler, MegatronPretrainingRandomBatchSampler
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -25,6 +24,10 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
+)
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
