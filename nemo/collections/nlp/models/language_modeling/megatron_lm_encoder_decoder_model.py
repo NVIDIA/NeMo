@@ -791,6 +791,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         app_state = AppState()
         micro_batch_size = tokens_enc.size(0)
+        # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
+        # TODO: reconfigure back to how things were before decode?
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
