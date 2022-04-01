@@ -20,9 +20,9 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.parts.nlp_overrides import (
+    GlobalBatchFitLoop,
     GradScaler,
     MegatronHalfPrecisionPlugin,
-    NLPDataConnector,
     NLPDDPPlugin,
     PipelineMixedPrecisionPlugin,
 )
@@ -61,9 +61,10 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
-    # NLPDataConnector used to provide global batches which are needed
+
+    # GlobalBatchFitLoop used to provide global batches which are needed
     # for Apex fwd/bwd functions
-    trainer._data_connector = NLPDataConnector(trainer)
+    trainer.fit_loop = GlobalBatchFitLoop(trainer.fit_loop.min_epochs, trainer.fit_loop.max_epochs)
 
     exp_manager(trainer, cfg.exp_manager)
 
