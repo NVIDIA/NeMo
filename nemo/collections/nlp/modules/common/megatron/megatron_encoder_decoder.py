@@ -127,7 +127,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                     enc_get_key_value=enc_get_key_value,
                 )
             else:
-                # print('Setting encoder hidden state with shape : ', self.encoder_hidden_state.size())
                 assert self.encoder_hidden_state is not None
                 enc_output = self.encoder_hidden_state
         else:
@@ -135,15 +134,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
 
         if self.decoder is None or output_enc_hidden_only:
             return enc_output
-
-        '''
-        print('==================================')
-        print('Dec input : ', dec_input.size())
-        print('Dec attn mask : ', dec_attn_mask.size())
-        print('Enc output : ', enc_output.size())
-        print('Enc attn mask : ', enc_attn_mask.size())
-        print('==================================')
-        '''
 
         # decoder
         dec_output = self.decode(
@@ -154,7 +144,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_layer_past=dec_layer_past,
             dec_get_key_value=dec_get_key_value,
         )
-        # print('Dec output :', dec_output.size())
 
         return dec_output, enc_output
 
