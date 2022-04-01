@@ -647,7 +647,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
-            resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+            resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
             if resume_checkpoint_path:
                 consumed_samples = int(
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
@@ -660,11 +660,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # keep a copy of init_global_step
         self.init_global_step = self.trainer.global_step
         return super().on_pretrain_routine_start()
-
-    def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds'):
-            consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
 
     def setup_validation_data(self, cfg):
         if hasattr(self, '_validation_ds'):
