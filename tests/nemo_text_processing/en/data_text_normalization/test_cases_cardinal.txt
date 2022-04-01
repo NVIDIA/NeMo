@@ -26,5 +26,4 @@ MIG-25/235212-asdg~MIG-two five/two three five two one two-asdg
 11:30EST~eleven : three zero EST
 004~zero zero four
 31/31/100~three one/three one/one zero zero
-1998/2/30~february thirtieth nineteen ninety eight
-1-8090~one to eighty ninety
+1-8090~one - eight thousand ninety
