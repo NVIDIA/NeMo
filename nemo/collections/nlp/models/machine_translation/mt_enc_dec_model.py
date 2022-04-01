@@ -549,23 +549,38 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     v = getattr(tok_model.tokenizer, n)()
                     if v < 0:
                         negative_tokens.append(f"{n}={v}")
-                import ipdb; ipdb.set_trace()
                 if negative_tokens and not legacy:
                     raise ValueError(
                         f"{tok_name}=sentencepiece has invalid negative special tokens = {negative_tokens}"
                     )
                 # If using the legacy sentencepiece tokenizer, we can add the missing tokens as "special" tokens.
                 else:
-                    for token in negative_tokens:
-                        token = token.split("=")[0]
-                        if token == "bos_id":
-                            tok_model.add_special_tokens({'bos_token': '<s>'})
-                        elif token == "eos_id":
-                            tok_model.add_special_tokens({'eos_token': '</s>'})
-                        elif token == "unk_id":
-                            tok_model.add_special_tokens({'unk_token': '<unk>'})
-                        elif token == "pad_id":
+                    # If using sentencepiece legacy, eos, bos and pad need to be set/added differently.
+                    if legacy:
+                        # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
+                        if not hasattr(tok_model, 'pad_token'):
+                            if hasattr(tok_model.tokenizer, 'pad_id') and tok_model.tokenizer.pad_id() > 0:
+                                tok_model.pad_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.pad_id())
+                            else:
+                                tok_model.add_special_tokens({'pad_token': '<pad>'})
+                        else:
                             tok_model.add_special_tokens({'pad_token': '<pad>'})
+
+                        if not hasattr(tok_model, 'bos_token'):
+                            if hasattr(tok_model.tokenizer, 'bos_id') and tok_model.tokenizer.bos_id() > 0:
+                                tok_model.bos_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.bos_id())
+                            else:
+                                tok_model.add_special_tokens({'bos_token': '<bos>'})
+                        else:
+                            tok_model.add_special_tokens({'bos_token': '<s>'})
+
+                        if not hasattr(tok_model, 'eos_token'):
+                            if hasattr(tok_model.tokenizer, 'eos_id') and tok_model.tokenizer.eos_id() > 0:
+                                tok_model.eos_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.eos_id())
+                            else:
+                                tok_model.add_special_tokens({'eos_token': '<eos>'})
+                        else:
+                            tok_model.add_special_tokens({'eos_token': '</s>'})
 
         return encoder_tokenizer, decoder_tokenizer
 

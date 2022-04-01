@@ -98,6 +98,18 @@ def main(cfg) -> None:
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.masked_softmax_fusion = False
+            # Set source and target language/multilingual
+            pretrained_cfg.src_language = cfg.model.src_language
+            pretrained_cfg.tgt_language = cfg.model.tgt_language
+            pretrained_cfg.multilingual = cfg.model.multilingual
+            pretrained_cfg.shared_tokenizer = True
+
+            # Max generation delta
+            pretrained_cfg.max_generation_delta = cfg.model.max_generation_delta
+
+            # Set label smoothing
+            pretrained_cfg.label_smoothing = cfg.model.label_smoothing
+
             # Set tokenizer paths:
             pretrained_cfg.encoder_tokenizer = pretrained_cfg.tokenizer
             pretrained_cfg.decoder_tokenizer = pretrained_cfg.tokenizer
@@ -121,7 +133,11 @@ def main(cfg) -> None:
             pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
             pretrained_cfg.global_batch_size = cfg.model.global_batch_size
 
+            # Class target for the new class being restored.
             pretrained_cfg.target = "nemo.collections.nlp.models.machine_translation.megatron_nmt_model.MegatronNMTModel"
+
+            # Optimizer overrides.
+            pretrained_cfg.optim = cfg.model.optim
 
         model = MegatronNMTModel.restore_from(cfg.model.pretrained_model_path, trainer=trainer, override_config_path=pretrained_cfg)
     else:
