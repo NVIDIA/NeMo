@@ -121,7 +121,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
                 manifests_files=manifest_filepath,
                 min_duration=data_layer_config.get("min_duration", None),
                 max_duration=data_layer_config.get("max_duration", None),
-                index_by_file_id=False,
+                index_by_file_id=True,
             )
             labels.update(collection.uniq_labels)
         labels = list(sorted(labels))
