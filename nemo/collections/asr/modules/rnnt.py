@@ -155,7 +155,6 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         hidden_hidden_bias_scale = prednet.get('hidden_hidden_bias_scale', 0.0)
         dropout = prednet.get('dropout', 0.0)
         self.random_state_sampling = random_state_sampling
-        proj_size = prednet.get("proj_size", 0)
 
         self.prediction = self._predict_modules(
             vocab_size=vocab_size,  # add 1 for blank symbol
@@ -167,7 +166,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
-            proj_size=proj_size,
+            rnn_hidden_size=prednet.get("rnn_hidden_size", -1),
         )
         self._rnnt_export = False
 
@@ -294,7 +293,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         weights_init_scale,
         hidden_hidden_bias_scale,
         dropout,
-        proj_size,
+        rnn_hidden_size,
     ):
         """
         Prepare the trainable parameters of the Prediction Network.
@@ -311,6 +310,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
                 the default behaviour.
             dropout: Whether to apply dropout to RNN.
+            rnn_hidden_size: the hidden size of the RNN, if not specified, pred_n_hidden would be used
         """
         if self.blank_as_pad:
             embed = torch.nn.Embedding(vocab_size + 1, pred_n_hidden, padding_idx=self.blank_idx)
@@ -322,7 +322,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 "embed": embed,
                 "dec_rnn": rnn.rnn(
                     input_size=pred_n_hidden,
-                    hidden_size=pred_n_hidden,
+                    hidden_size=rnn_hidden_size if rnn_hidden_size > 0 else pred_n_hidden,
                     num_layers=pred_rnn_layers,
                     norm=norm,
                     forget_gate_bias=forget_gate_bias,
@@ -330,7 +330,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                     dropout=dropout,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-                    proj_size=proj_size,
+                    proj_size=pred_n_hidden,
                 ),
             }
         )

@@ -74,9 +74,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self.cfg.joint.num_classes = len(self.cfg.labels)
             self.cfg.joint.vocabulary = self.cfg.labels
             self.cfg.joint.jointnet.encoder_hidden = self.cfg.model_defaults.enc_hidden
-            self.cfg.joint.jointnet.pred_hidden = self.cfg.model_defaults.get(
-                'proj_size', self.cfg.model_defaults.pred_hidden
-            )
+            self.cfg.joint.jointnet.pred_hidden = self.cfg.model_defaults.pred_hidden
 
         self.decoder = EncDecRNNTModel.from_config_dict(self.cfg.decoder)
         self.joint = EncDecRNNTModel.from_config_dict(self.cfg.joint)
