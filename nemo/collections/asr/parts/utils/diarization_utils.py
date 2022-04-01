@@ -500,7 +500,6 @@ class ASR_DIAR_OFFLINE(object):
         prev_speaker = speaker
         terms_list = []
 
-        # sentences
         sentences = []
         sentence = {'speaker': speaker, 'start_point': float(start_point), 'end_point': float(end_point), 'text': ''}
 
@@ -531,7 +530,7 @@ class ASR_DIAR_OFFLINE(object):
             stt_sec, end_sec = start_point, end_point
             terms_list.append({'start': stt_sec, 'end': end_sec, 'text': word, 'type': 'WORD'})
 
-            # add current work to sentence
+            # add current word to sentence
             sentence['text'] += word.strip() + ' '
 
             self.add_json_to_dict(riva_dict, word, stt_sec, end_sec, speaker)
@@ -539,7 +538,6 @@ class ASR_DIAR_OFFLINE(object):
             total_riva_dict[uniq_id] = riva_dict
             prev_speaker = speaker
 
-        # prepare
         string_out = self.print_sentences(sentences, self.params)
 
         # add sentences to json array
@@ -1027,7 +1025,6 @@ class ASR_DIAR_OFFLINE(object):
             end_point = sentence['end_point']
             text = sentence['text']
 
-            # color?
             if params['colored_text']:
                 color = self.color_palette.get(speaker, '\033[0;37m')
             else:
@@ -1043,11 +1040,11 @@ class ASR_DIAR_OFFLINE(object):
             start_point_str = datetime.fromtimestamp(start_point - datetime_offset).strftime(time_str)[:-4]
             end_point_str = datetime.fromtimestamp(end_point - datetime_offset).strftime(time_str)[:-4]
 
-            # print time?
             if params['print_time']:
                 time_str = f'[{start_point_str} - {end_point_str}] '
             else:
                 time_str = ''
+
             # string out concatenation
             string_out += f'{color}{time_str}{speaker}: {text}\n'
 
