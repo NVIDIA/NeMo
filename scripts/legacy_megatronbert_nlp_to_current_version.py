@@ -30,11 +30,6 @@ import argparse
 import logging
 import os
 import sys
-import tempfile
-import traceback
-import warnings
-from dataclasses import dataclass
-from typing import Optional
 
 import pytorch_lightning as pl
 import torch
@@ -43,7 +38,6 @@ from omegaconf import OmegaConf, open_dict
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable, typecheck
 from nemo.core.config import TrainerConfig
-from nemo.utils.export_utils import forward_method, parse_input_example, verify_runtime
 
 try:
     from contextlib import nullcontext
@@ -54,16 +48,18 @@ except ImportError:
 
 def get_args(argv):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Export NeMo models to ONNX/Torchscript",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=f"Export NLP models pretrained with Megatron Bert on NeMo < 1.5.0 to current version ",
     )
     parser.add_argument("source", help="Source .nemo file")
     parser.add_argument("out", help="Location to write result to")
     parser.add_argument("--autocast", action="store_true", help="Use autocast when exporting")
-    parser.add_argument("--runtime-check", action="store_true", help="Runtime check of exported net result")
+    parser.add_argument(
+        "--megatron-checkpoint",
+        type=str,
+        help="Path of the MegatronBert nemo checkpoint converted from MegatronLM using megatron_lm_ckpt_to_nemo.py file (Not NLP model checkpoint)",
+    )
     parser.add_argument("--verbose", default=None, help="Verbose level for logging, numeric")
-    parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
-    parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
-    parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
     parser.add_argument("--device", default="cuda", help="Device to export for")
     args = parser.parse_args(argv)
     return args
@@ -104,10 +100,22 @@ def nemo_export(argv):
     trainer = pl.Trainer(cfg_trainer)
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
+    autocast = nullcontext
     try:
         with torch.inference_mode():
-            # Restore instance from .nemo file using generic model restore_from
-            model = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
+            # If the megatron based NLP model was trained on NeMo < 1.5, then we need to update the lm_checkpoint on the model config
+            if args.megatron_checkpoint:
+                model_cfg = ModelPT.restore_from(
+                    restore_path=nemo_in, trainer=trainer, megatron_legacy=True, return_config=True
+                )
+                OmegaConf.set_struct(model_cfg, True)
+                with open_dict(model_cfg):
+                    model_cfg.language_model.lm_checkpoint = args.megatron_checkpoint
+                model = ModelPT.restore_from(
+                    restore_path=nemo_in, trainer=trainer, megatron_legacy=True, override_config_path=model_cfg,
+                )
+            else:
+                logging.error("Megatron checkpoint path must be provided if megatron_legacy is selected")
     except Exception as e:
         logging.error(
             "Failed to restore model from NeMo file : {}. Please make sure you have the latest NeMo package installed with [all] dependencies.".format(
@@ -124,38 +132,12 @@ def nemo_export(argv):
     typecheck.set_typecheck_enabled(enabled=False)
 
     try:
-        #
-        #  Add custom export parameters here
-        #
-        in_args = {}
-        if args.max_batch is not None:
-            in_args["max_batch"] = args.max_batch
-        if args.max_dim is not None:
-            in_args["max_dim"] = args.max_dim
-
-        autocast = nullcontext
         model = model.to(device=args.device)
         model.eval()
-        with torch.inference_mode():
-            input_example = model.input_module.input_example(**in_args)
         if args.autocast:
             autocast = torch.cuda.amp.autocast
         with autocast(), torch.inference_mode():
-            logging.info(f"Getting output example")
-            input_list, input_dict = parse_input_example(input_example)
-            output_example = forward_method(model)(*input_list, **input_dict)
-            logging.info(f"Exporting model with autocast={args.autocast}")
-            input_names = model.input_names
-            output_names = model.output_names
-
-            _, descriptions = model.export(
-                out,
-                check_trace=False,
-                input_example=input_example,
-                onnx_opset_version=args.onnx_opset,
-                verbose=args.verbose,
-            )
-
+            model.save_to(out)
     except Exception as e:
         logging.error(
             "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
@@ -167,9 +149,6 @@ def nemo_export(argv):
     logging.info("Successfully exported to {}".format(out))
 
     del model
-
-    if args.runtime_check:
-        verify_runtime(out, input_list, input_dict, input_names, output_names, output_example)
 
 
 if __name__ == '__main__':
