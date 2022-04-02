@@ -432,7 +432,7 @@ class TestASRDatasets:
         with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
             num_samples = 0
             with open(manifest_path, 'r') as m:
-                num_samples = m.count('\n')
+                num_samples = len(m.readlines())
 
             dataset = AudioToCharDALIDataset(
                 manifest_filepath=manifest_path,
