@@ -330,7 +330,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                     dropout=dropout,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
-                    proj_size=pred_n_hidden,
+                    proj_size=pred_n_hidden if pred_n_hidden < rnn_hidden_size else 0,
                 ),
             }
         )

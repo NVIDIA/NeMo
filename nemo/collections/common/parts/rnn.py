@@ -105,7 +105,7 @@ def rnn(
 
     if norm == "layer":
         return torch.jit.script(
-            ln_lstm(  # torch.jit.script(
+            ln_lstm(
                 input_size=input_size,
                 hidden_size=hidden_size,
                 num_layers=num_layers,
