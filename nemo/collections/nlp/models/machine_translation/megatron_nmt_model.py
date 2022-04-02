@@ -187,6 +187,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             if hasattr(self.decoder_tokenizer, 'special_token_to_id'):
                 pred = [id for id in pred if id not in self.decoder_tokenizer.special_token_to_id.values()]
                 label = [id for id in label if id not in self.decoder_tokenizer.special_token_to_id.values()]
+            
+            if hasattr(self.encoder_tokenizer, 'special_token_to_id'):
+                input = [id for id in input if id not in self.encoder_tokenizer.special_token_to_id.values()]
 
             pred = self.decoder_tokenizer.ids_to_text(pred)
             label = self.decoder_tokenizer.ids_to_text(label)

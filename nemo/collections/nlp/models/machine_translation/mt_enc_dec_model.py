@@ -260,7 +260,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 multilingual_ids.append(None)
         else:
             for lng in tgt_language:
-                multilingual_ids.append(tokenizer.token_to_id("<" + lng + ">"))
+                if f"<{lng}>" not in tokenizer.vocab:
+                    tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                multilingual_ids.append(tokenizer.token_to_id(f"<{lng}>"))
 
         if isinstance(src_language, ListConfig):
             tgt_language = [tgt_language] * len(src_language)
@@ -787,8 +789,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         else:
             sampler = pt_data.SequentialSampler(dataset)
 
-        return wd.WebLoader(dataset=dataset, batch_size=1, num_workers=cfg.get("num_workers", 2),)
-        '''
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=1,
@@ -797,7 +797,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
         )
-        '''
 
     def replace_beam_with_sampling(self, topk=500):
         self.beam_search = TopKSequenceGenerator(
