@@ -196,7 +196,7 @@ def kmeans_torch(
         selected_cluster_index: (torch.tensor)
             The assigned cluster labels from the k-means clustering.
     """
-    # Convert tensor type to float 
+    # Convert tensor type to float
     X = X.float().to(device)
     input_size = X.shape[0]
 
@@ -745,7 +745,7 @@ class NMESC:
         self.mat = mat
         self.p_value_list: torch.Tensor = torch.tensor(0)
         self.device = device
-    
+
     def NMEanalysis(self):
         """
         Subsample the input matrix to reduce the computational load.
@@ -911,7 +911,7 @@ def COSclustering(
     # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
-    
+
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32)
     elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
