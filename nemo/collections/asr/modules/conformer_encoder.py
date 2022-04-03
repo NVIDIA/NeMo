@@ -14,6 +14,7 @@
 
 import math
 from collections import OrderedDict
+from omegaconf import ListConfig
 
 import torch
 import torch.distributed
@@ -168,7 +169,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         self.export_cache_support = False
 
         if conv_context_size is not None:
-            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
+            if not isinstance(conv_context_size, ListConfig) and not isinstance(conv_context_size, str):
                 raise ValueError(
                     f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
                 )
