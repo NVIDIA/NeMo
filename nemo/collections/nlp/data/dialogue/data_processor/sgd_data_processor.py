@@ -52,6 +52,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         schemas: object,
         schema_config: Dict[str, int],
         subsample: bool = False,
+        cfg = None
     ):
         """
         Constructs DialogueSGDDataProcessor
@@ -69,6 +70,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         self._task_name = task_name
         self.schemas = schemas
         self.schema_config = schema_config
+        self.cfg = cfg
 
         train_file_range = FILE_RANGES[task_name]["train"]
         dev_file_range = FILE_RANGES[task_name]["dev"]
@@ -256,14 +258,19 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             if turn["speaker"] == "USER":
                 user_utterance = turn["utterance"]
                 user_frames = {f["service"]: f for f in turn["frames"]}
-                if turn_idx > 0:
-                    system_turn = dialog["turns"][turn_idx - 1]
+                if self.cfg.system_utterance == 'prev_turn':
+                    if turn_idx > 0:
+                        system_turn = dialog["turns"][turn_idx - 1]
+                        system_utterance = system_turn["utterance"]
+                        system_frames = {f["service"]: f for f in system_turn["frames"]}
+                    else:
+                        system_utterance = ""
+                        system_frames = {}
+                else: # takes the system utterance of the next turn 
+                    system_turn = dialog["turns"][turn_idx + 1]
                     system_utterance = system_turn["utterance"]
                     system_frames = {f["service"]: f for f in system_turn["frames"]}
-                else:
-                    system_utterance = ""
-                    system_frames = {}
-
+                    
                 turn_id = "{}-{}-{:02d}".format(dataset_split, dialog_id, turn_idx)
                 turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
                     turn_id,
@@ -365,6 +372,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 "system_slots": {slot["slot"]: slot for slot in system_frame["slots"]}
                 if system_frame is not None
                 else None,
+                "system_actions": system_frame["actions"] if system_frame is not None else None,
                 "labels": {
                     "service": service,
                     "intent": intent,

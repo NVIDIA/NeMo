@@ -42,9 +42,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueGPTClassificationModel']
 
-NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
-
-
 class DialogueGPTClassificationModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
@@ -587,7 +584,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
                 "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
                 "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
-                "NUM_TASKS": NUM_TASKS,
+                "NUM_TASKS": 1,
                 "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
             }
             all_schema_json_paths = []
@@ -603,6 +600,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 schemas=schemas,
                 schema_config=schema_config,
                 subsample=self._cfg.dataset.subsample,
+                cfg=self._cfg.dataset
             )
             if is_global_rank_zero():
                 overwrite_dial_files = not self._cfg.dataset.use_cache

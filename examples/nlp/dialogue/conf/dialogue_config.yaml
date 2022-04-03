@@ -76,8 +76,9 @@ model:
   dataset:
     task: sgd # sgd, assistant, zero_shot, ms_marco
     field: intent # intemt, slots, service
+    system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn takes the system utterance that follows the user utterance
     input_field: utterance+response # passage+utterance, utterance, response, utterance+response
-    output_field: fluent_response # response, fluent_response
+    output_field: fluent_response # response, fluent_response, system_utterance
     prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel
     target_template: default # default, with_description, with_slots
     few_shot: 0 # int ; 0 to 10, for number of examples in prompt
@@ -113,7 +114,7 @@ model:
   train_ds:
     ds_item: "train"
     prefix: train
-    batch_size: 128
+    batch_size: 16
     shuffle: true
     num_workers: 3
     drop_last: false
