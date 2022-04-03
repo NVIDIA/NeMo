@@ -904,13 +904,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         if encoder_tokenizer_library == 'byte-level':
             source_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-<<<<<<< HEAD
-            source_processor = EnJaProcessor(source_lang)
-=======
             self.source_processor = EnJaProcessor(source_lang)
         elif source_lang == 'ja-mecab':
             self.source_processor = JaMecabProcessor()
->>>>>>> 01655b8e57348db9b517f888a9dc735643936f01
         elif source_lang == 'zh':
             source_processor = ChineseProcessor()
         elif source_lang == 'hi':
@@ -923,13 +919,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         if decoder_tokenizer_library == 'byte-level':
             target_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-<<<<<<< HEAD
-            target_processor = EnJaProcessor(target_lang)
-=======
             self.target_processor = EnJaProcessor(target_lang)
         elif target_lang == 'ja-mecab':
             self.target_processor = JaMecabProcessor()
->>>>>>> 01655b8e57348db9b517f888a9dc735643936f01
         elif target_lang == 'zh':
             target_processor = ChineseProcessor()
         elif target_lang == 'hi':
