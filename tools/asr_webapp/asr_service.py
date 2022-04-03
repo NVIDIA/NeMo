@@ -178,7 +178,7 @@ def _remove_older_files_if_exists():
     without first transcribing the files already uploaded.
     """
     # remove old data store (if exists)
-    old_uuid = request.cookies.get('uuid', '')
+    old_uuid = secure_filename(request.cookies.get('uuid', ''))
     if old_uuid is not None and old_uuid != '':
         # delete old data store
         old_data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], old_uuid)
@@ -200,7 +200,7 @@ def remove_audio_files():
     However the data may not be automatically deleted if the flast server is used as is.
     """
     # Get the unique cache id from cookie
-    uuid = request.cookies.get("uuid", "")
+    uuid = secure_filename(request.cookies.get("uuid", ""))
     data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], uuid)
 
     # If the data does not exist (cache is empty), notify user
@@ -257,7 +257,7 @@ def transcribe():
     gpu_used = torch.cuda.is_available() and use_gpu_if_available
 
     # Load audio from paths
-    uuid = request.cookies.get("uuid", "")
+    uuid = secure_filename(request.cookies.get("uuid", ""))
     data_store = os.path.join(app.config[f'UPLOAD_FOLDER'], uuid)
 
     files = list(glob.glob(os.path.join(data_store, "*.wav")))
@@ -329,7 +329,7 @@ def remove_tmp_dir_at_exit():
     local storage path inside container).
     """
     try:
-        uuid = request.cookies.get("uuid", "")
+        uuid = secure_filename(request.cookies.get("uuid", ""))
 
         if uuid is not None or uuid != "":
             cache_dir = os.path.join(os.path.join(app.config[f'UPLOAD_FOLDER'], uuid))

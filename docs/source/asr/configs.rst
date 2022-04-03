@@ -41,11 +41,15 @@ An example ASR train and validation configuration should look similar to the fol
       trim_silence: True
       max_duration: 16.7
       shuffle: True
-      is_tarred: False  # If set to true, uses the tarred version of the Dataset
-      tarred_audio_filepaths: null      # Not used if is_tarred is false
-      tarred_shard_strategy: "scatter"  # Not used if is_tarred is false
       num_workers: 8
       pin_memory: true
+      # tarred datasets
+      is_tarred: false # If set to true, uses the tarred version of the Dataset
+      tarred_audio_filepaths: null     # Not used if is_tarred is false
+      shuffle_n: 2048                  # Not used if is_tarred is false
+      # bucketing params
+      bucketing_strategy: "synced_randomized"
+      bucketing_batch_size: null
 
     validation_ds:
       manifest_filepath: ???
@@ -145,6 +149,7 @@ custom tokenizers:
 
 - Google Sentencepiece tokenizers (tokenizer type of ``bpe`` in the config)
 - HuggingFace WordPiece tokenizers (tokenizer type of ``wpe`` in the config)
+- Aggregate tokenizers ((tokenizer type of ``agg`` in the config), see below)
 
 In order to build custom tokenizers, refer to the ``ASR_with_Subword_Tokenization`` notebook available in the
 ASR tutorials directory.
@@ -158,6 +163,28 @@ The following example sets up a ``SentencePiece Tokenizer`` at a path specified 
     tokenizer:
       dir: "<path to the directory that contains the custom tokenizer files>"
       type: "bpe"  # can be "bpe" or "wpe"
+
+The Aggregate (``agg``) tokenizer feature makes it possible to combine tokenizers in order to train multilingual 
+models. The config file would look like this:
+
+.. code-block:: yaml
+
+  model:
+    ...
+    tokenizer:
+      type: "agg"  # aggregate tokenizer
+      langs: 
+        en:
+          dir: "<path to the directory that contains the tokenizer files>"
+          type: "bpe"  # can be "bpe" or "wpe"
+        es:
+          dir: "<path to the directory that contains the tokenizer files>"
+          type: "bpe"  # can be "bpe" or "wpe"  
+
+In the above config file, each language is associated with its own pre-trained tokenizer, which gets assigned 
+a token id range in the order the tokenizers are listed. To train a multilingual model, one needs to populate the 
+``lang`` field in the manifest file, allowing the routing of each sample to the correct tokenizer. At inference time,
+the routing is done based on the inferred token id range.
 
 For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models. 
 All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For 
@@ -313,7 +340,7 @@ Both Jasper and QuartzNet use the ``ConvASRDecoder`` as the decoder. The decoder
 | :code:`vocabulary`      | list             | A list of the valid output characters for your model. For example, for an English dataset, this could be a    |                                 |
 |                         |                  | list of all lowercase letters, space, and apostrophe.                                                         |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
-| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                            |                                 |
+| :code:`num_classes`     | int              | Number of output classes, i.e. the length of :code:`vocabulary`.                                              |                                 |
 +-------------------------+------------------+---------------------------------------------------------------------------------------------------------------+---------------------------------+
 
 For example, a decoder config corresponding to the encoder above should look similar to the following:
@@ -351,14 +378,14 @@ While the configs for Citrinet and QuartzNet are similar, we note the additional
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 | **Parameter**             | **Datatype**     | **Description**                                                                                           | **Supported Values**              |
 +===========================+==================+===========================================================================================================+===================================+
-| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`   |
+| :code:`se`                | bool             | Whether to apply squeeze-and-excitation mechanism or not.                                                 | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int` |
+| :code:`se_context_size`   | int              | SE context size. -1 means global context.                                                                 | :code:`-1` or :code:`+ve int`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false` |
+| :code:`stride_last`       | bool             | Stride on the final repeated block or all repeated blocks.                                                | :code:`true` or :code:`false`     |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
-| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                |
-|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`            |
+| :code:`residual_mode`     | str              | Type of residual branch to construct.                                                                     | :code:`"add"` or                  |
+|                           |                  | Can be pointwise residual addition or pointwise strided residual attention                                | :code:`"stride_add"`              |
 +---------------------------+------------------+-----------------------------------------------------------------------------------------------------------+-----------------------------------+
 
 A Citrinet-512 config should look similar to the following:
@@ -484,13 +511,22 @@ Conformer-Transducer
 
 Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
 
+LSTM-Transducer and LSTM-CTC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The config files for LSTM-Transducer and LSTM-CTC models can be found at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml`` and ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_ctc_bpe.yaml`` respectively.
+Most of the of the configs of are similar to other ctc or transducer models. The main difference is the encoder part.
+The encoder section includes the details about the RNN-based encoder architecture. You may find more information in the
+config files and also :doc:`nemo.collections.asr.modules.RNNEncoder<./api.html#nemo.collections.asr.modules.RNNEncoder>`.
+
+
 Transducer Configurations
 -------------------------
 
 All CTC-based ASR model configs can be modified to support Transducer loss training. Below, we discuss the modifications required in the config to enable Transducer training. All modifications are made to the ``model`` config.
 
 Model Defaults
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 It is a subsection to the model config representing the default values shared across the entire model represented as ``model.model_defaults``.
 
@@ -667,9 +703,16 @@ The most important component at the top level is the ``strategy``. It can take o
   decoding:
     strategy: "greedy_batch"
 
+    # preserve decoding alignments
+    preserve_alignments: false
+
+    # Overrides the fused batch size after training.
+    # Setting it to -1 will process whole batch at once when combined with `greedy_batch` decoding strategy
+    fused_batch_size: Optional[int] = -1
+
     # greedy strategy config
     greedy:
-      max_symbols: 30
+      max_symbols: 10
 
     # beam strategy config
     beam:
@@ -715,23 +758,28 @@ Refer to the above paper for results and recommendations of ``fastemit_lambda``.
 Fine-tuning Configurations
 --------------------------
 
-All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the currently instantiated model. Pre-trained weights can be provided in multiple ways -
+All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the **currently instantiated model**. Note that the currently instantiated model should have parameters that match the pre-trained checkpoint (such that weights may load properly). In order to directly fine-tune a pre-existing checkpoint, please follow the tuturial : `ASR Language Fine-tuning. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>_
+
+Pre-trained weights can be provided in multiple ways -
 
 1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
 3) Providing a path to a Pytorch Lightning checkpoint file (via ``init_from_ptl_ckpt``)
+
+There are multiple ASR subtasks inside the ``examples/asr/`` directory, you can substitute the ``<subtask>`` tag below.
 
 Fine-tuning via a NeMo model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.gpus=-1 \
+        trainer.devices=-1 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +init_from_nemo_model="<path to .nemo model file>"
 
@@ -741,12 +789,13 @@ Fine-tuning via a NeMo pretrained model name
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.gpus=-1 \
+        trainer.devices=-1 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +init_from_pretrained_model="<name of pretrained checkpoint>"
 
@@ -755,11 +804,22 @@ Fine-tuning via a Pytorch Lightning checkpoint
 
 .. code-block:: sh
 
-    python examples/asr/script_to_<script_name>.py \
+    python examples/asr/<subtask>/script_to_<script_name>.py \
         --config-path=<path to dir of configs> \
         --config-name=<name of config without .yaml>) \
         model.train_ds.manifest_filepath="<path to manifest file>" \
         model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.gpus=-1 \
+        trainer.devices=-1 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"
+
+Fine-tuning Execution Flow Diagram
+----------------------------------
+
+When preparing your own training or fine-tuning scripts, please follow the execution flow diagram order for correct inference.
+
+Depending on the type of model, there may be extra steps that must be performed -
+
+* CTC Models - `Examples directory for CTC Models <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_ctc/README.md>`_
+* RNN Transducer Models - `Examples directory for Transducer Models <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_transducer/README.md>`_

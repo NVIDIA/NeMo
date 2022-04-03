@@ -16,6 +16,7 @@ from argparse import ArgumentParser
 from time import perf_counter
 from typing import List
 
+from nemo_text_processing.text_normalization.data_loader_utils import check_installation, get_installation_msg
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.token_parser import TokenParser
 
@@ -32,6 +33,9 @@ class InverseNormalizer(Normalizer):
     """
 
     def __init__(self, lang: str = 'en', cache_dir: str = None, overwrite_cache: bool = False):
+
+        if not check_installation():
+            raise ImportError(get_installation_msg())
         if lang == 'en':
             from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
@@ -58,6 +62,11 @@ class InverseNormalizer(Normalizer):
         elif lang == 'fr':
             from nemo_text_processing.inverse_text_normalization.fr.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.inverse_text_normalization.fr.verbalizers.verbalize_final import (
+                VerbalizeFinalFst,
+            )
+        elif lang == 'vi':
+            from nemo_text_processing.inverse_text_normalization.vi.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.inverse_text_normalization.vi.verbalizers.verbalize_final import (
                 VerbalizeFinalFst,
             )
 
@@ -94,7 +103,9 @@ class InverseNormalizer(Normalizer):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=['en', 'de', 'es', 'ru', 'fr'], default="en", type=str)
+    parser.add_argument(
+        "--language", help="language", choices=['en', 'de', 'es', 'ru', 'fr', 'vi'], default="en", type=str
+    )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument("--overwrite_cache", help="set to True to re-create .far grammar files", action="store_true")
     parser.add_argument(

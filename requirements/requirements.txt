@@ -1,11 +1,11 @@
-numpy>=1.18.2
+setuptools==59.5.0
+numpy>=1.21
 onnx>=1.7.0
 python-dateutil
-torch>1.7
+torch
 wrapt
 ruamel.yaml
 scikit-learn
-sentencepiece<1.0.0
 tqdm>=4.41.0
 numba
 wget

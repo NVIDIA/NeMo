@@ -35,6 +35,8 @@ class SpectrogramGenerator(ModelPT, ABC):
         A helper function that accepts raw python strings and turns them into a tensor. The tensor should have 2
         dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
         should represent either tokenized or embedded text, depending on the model.
+
+        Note that some models have `normalize` parameter in this function which will apply normalizer if it is available.
         """
 
     @abstractmethod

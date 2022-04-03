@@ -58,12 +58,12 @@ class MultiHeadAttention(nn.Module):
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
+        self.s_d_k = math.sqrt(self.d_k)
         self.h = n_head
         self.linear_q = nn.Linear(n_feat, n_feat)
         self.linear_k = nn.Linear(n_feat, n_feat)
         self.linear_v = nn.Linear(n_feat, n_feat)
         self.linear_out = nn.Linear(n_feat, n_feat)
-        self.attn = None
         self.dropout = nn.Dropout(p=dropout_rate)
 
     def forward_qkv(self, query, key, value):
@@ -100,13 +100,13 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             mask = mask.unsqueeze(1)  # (batch, 1, time1, time2)
             scores = scores.masked_fill(mask, -10000.0)
-            self.attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
+            attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
         else:
-            self.attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
+            attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
 
-        p_attn = self.dropout(self.attn)
+        p_attn = self.dropout(attn)
         x = torch.matmul(p_attn, value)  # (batch, head, time1, d_k)
-        x = x.transpose(1, 2).contiguous().view(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
+        x = x.transpose(1, 2).reshape(n_batch, -1, self.h * self.d_k)  # (batch, time1, d_model)
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
@@ -121,7 +121,7 @@ class MultiHeadAttention(nn.Module):
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
         q, k, v = self.forward_qkv(query, key, value)
-        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
+        scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
         return self.forward_attention(v, scores, mask)
 
 
@@ -157,15 +157,12 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         Args:
             x (torch.Tensor): (batch, nheads, time, 2*time-1)
         """
-        x_size = x.size()  # (b, h, t1, t2)
-        qlen = x_size[-2]
-        pos_len = x_size[-1]
-
-        # need to add a column of zeros on the left side of last two dimensions to perform the relative shifting
-        x = torch.nn.functional.pad(x, pad=(1, 0, 0, 0))  # (b, h, t1, t2+1)
-        x = x.view(*x.size()[:-2], pos_len + 1, qlen)  # (b, h, t2+1, t1)
+        b, h, qlen, pos_len = x.size()  # (b, h, t1, t2)
+        # need to add a column of zeros on the left side of last dimension to perform the relative shifting
+        x = torch.nn.functional.pad(x, pad=(1, 0))  # (b, h, t1, t2+1)
+        x = x.view(b, h, -1, qlen)  # (b, h, t2+1, t1)
         # need to drop the first row
-        x = x[:, :, 1:].view(*x_size)  # (b, h, t1, t2)
+        x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
         return x
 
     def forward(self, query, key, value, mask, pos_emb):
@@ -201,10 +198,10 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # (batch, head, time1, time2)
         matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
         matrix_bd = self.rel_shift(matrix_bd)
-        # drops extra elements in the matrix_bd if there are any left from rel_shift() to match the matrix_ac's size
+        # drops extra elements in the matrix_bd to match the matrix_ac's size
         matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
-        scores = (matrix_ac + matrix_bd) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
+        scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
 
         return self.forward_attention(v, scores, mask)
 
@@ -225,7 +222,7 @@ class PositionalEncoding(torch.nn.Module):
         self.d_model = d_model
         self.xscale = xscale
         self.dropout = torch.nn.Dropout(p=dropout_rate)
-        self.extend_pe(length=max_len)
+        self.max_len = max_len
         if dropout_rate_emb > 0:
             self.dropout_emb = nn.Dropout(dropout_rate_emb)
         else:
@@ -233,24 +230,25 @@ class PositionalEncoding(torch.nn.Module):
 
     def create_pe(self, positions):
         pos_length = positions.size(0)
-        pe = torch.zeros(pos_length, self.d_model)
+        pe = torch.zeros(pos_length, self.d_model, device=positions.device)
         div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / self.d_model)
+            torch.arange(0, self.d_model, 2, dtype=torch.float32, device=positions.device)
+            * -(math.log(10000.0) / self.d_model)
         )
         pe[:, 0::2] = torch.sin(positions * div_term)
         pe[:, 1::2] = torch.cos(positions * div_term)
         pe = pe.unsqueeze(0)
-        return pe
+        if hasattr(self, 'pe'):
+            self.pe = pe
+        else:
+            self.register_buffer('pe', pe, persistent=False)
 
-    def extend_pe(self, length):
+    def extend_pe(self, length, device):
         """Reset and extend the positional encodings if needed."""
         if hasattr(self, 'pe') and self.pe.size(1) >= length:
             return
-        positions = torch.arange(0, length, dtype=torch.float32).unsqueeze(1)
-        pe = self.create_pe(positions=positions)
-        if not hasattr(self, 'pe'):
-            self.register_buffer('pe', pe, persistent=False)
-        self.pe = pe
+        positions = torch.arange(0, length, dtype=torch.float32, device=device).unsqueeze(1)
+        self.create_pe(positions=positions)
 
     def forward(self, x: torch.Tensor):
         """Adds positional encoding.
@@ -260,10 +258,6 @@ class PositionalEncoding(torch.nn.Module):
             x+pos_emb (torch.Tensor): Its shape is (batch, time, feature_size)
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
-        self.extend_pe(length=x.size(1))
-        if self.pe.dtype != x.dtype or self.pe.device != x.device:
-            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
-
         if self.xscale:
             x = x * self.xscale
         pos_emb = self.pe[:, : x.size(1)]
@@ -284,28 +278,16 @@ class RelPositionalEncoding(PositionalEncoding):
         dropout_rate_emb (float): dropout rate for the positional embeddings
     """
 
-    def __init__(self, d_model, dropout_rate, max_len=5000, xscale=None, dropout_rate_emb=0.0):
-        super().__init__(d_model, dropout_rate, max_len, xscale=xscale)
-
-        if dropout_rate_emb > 0:
-            self.dropout_emb = nn.Dropout(dropout_rate_emb)
-        else:
-            self.dropout_emb = None
-
-        self.max_len = max_len
-
-    def extend_pe(self, length):
+    def extend_pe(self, length, device):
         """Reset and extend the positional encodings if needed."""
-        needed_size = 2 * (length - 1) + 1
+        needed_size = 2 * length - 1
         if hasattr(self, 'pe') and self.pe.size(1) >= needed_size:
             return
         # positions would be from negative numbers to positive
         # positive positions would be used for left positions and negative for right positions
-        positions = torch.arange(length - 1, -length, -1, dtype=torch.float32).unsqueeze(1)
-        pe = self.create_pe(positions=positions)
-        if not hasattr(self, 'pe'):
-            self.register_buffer('pe', pe, persistent=False)
-        self.pe = pe
+        positions = torch.arange(length - 1, -length, -1, dtype=torch.float32, device=device).unsqueeze(1)
+        self.create_pe(positions=positions)
+        self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32, device=device)
 
     def forward(self, x):
         """Compute positional encoding.
@@ -315,9 +297,6 @@ class RelPositionalEncoding(PositionalEncoding):
             x (torch.Tensor): Its shape is (batch, time, feature_size)
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
         """
-        self.extend_pe(length=x.size(1))
-        if self.pe.dtype != x.dtype or self.pe.device != x.device:
-            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
 
         if self.xscale:
             x = x * self.xscale
@@ -325,9 +304,8 @@ class RelPositionalEncoding(PositionalEncoding):
         # center_pos would be the index of position 0
         # negative positions would be used for right and positive for left tokens
         # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
-        center_pos = self.pe.size(1) // 2
-        start_pos = center_pos - x.size(1) + 1
-        end_pos = center_pos + x.size(1)
+        start_pos = self.center_pos - x.size(1)
+        end_pos = self.center_pos + x.size(1) - 1
         pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)

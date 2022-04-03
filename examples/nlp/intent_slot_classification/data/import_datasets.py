@@ -49,13 +49,13 @@ def process_atis(infold, outfold, modes=['train', 'test'], do_lower_case=False):
 
     outfiles = {}
     for mode in modes:
-        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w', encoding='utf-8')
         outfiles[mode].write('sentence\tlabel\n')
-        outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w')
+        outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w', encoding='utf-8')
 
-        queries = open(f'{infold}/atis.{mode}.query.csv', 'r').readlines()
-        intents = open(f'{infold}/atis.{mode}.intent.csv', 'r').readlines()
-        slots = open(f'{infold}/atis.{mode}.slots.csv', 'r').readlines()
+        queries = open(f'{infold}/atis.{mode}.query.csv', 'r', encoding='utf-8').readlines()
+        intents = open(f'{infold}/atis.{mode}.intent.csv', 'r', encoding='utf-8').readlines()
+        slots = open(f'{infold}/atis.{mode}.slots.csv', 'r', encoding='utf-8').readlines()
 
         for i, query in enumerate(queries):
             sentence = ids2text(query.strip().split()[1:-1], vocab)
@@ -133,8 +133,8 @@ def process_jarvis_datasets(
     slots_list = {}
     slots_list_all = {}
 
-    outfiles['dict_intents'] = open(f'{outfold}/dict.intents.csv', 'w')
-    outfiles['dict_slots'] = open(f'{outfold}/dict.slots.csv', 'w')
+    outfiles['dict_intents'] = open(f'{outfold}/dict.intents.csv', 'w', encoding='utf-8')
+    outfiles['dict_slots'] = open(f'{outfold}/dict.slots.csv', 'w', encoding='utf-8')
 
     outfiles['dict_slots'].write('O\n')
     slots_list["O"] = 0
@@ -149,11 +149,11 @@ def process_jarvis_datasets(
             logging.info(f'{mode} mode of {dataset_name}' f' is skipped as it was not found.')
             continue
 
-        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
+        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w', encoding='utf-8')
         outfiles[mode].write('sentence\tlabel\n')
-        outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w')
+        outfiles[mode + '_slots'] = open(f'{outfold}/{mode}_slots.tsv', 'w', encoding='utf-8')
 
-        queries = open(f'{infold}/{mode}.tsv', 'r').readlines()
+        queries = open(f'{infold}/{mode}.tsv', 'r', encoding='utf-8').readlines()
 
         for i, query in enumerate(queries):
             line_splits = query.strip().split("\t")

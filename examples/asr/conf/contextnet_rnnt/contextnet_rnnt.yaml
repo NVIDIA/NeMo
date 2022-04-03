@@ -33,13 +33,17 @@ model:
     trim_silence: false
     max_duration: 16.7
     shuffle: true
-    is_tarred: false
-    tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     use_start_end_token: false
     num_workers: 16
     pin_memory: true
-
+    # tarred datasets
+    is_tarred: false
+    tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
   validation_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
@@ -447,6 +451,7 @@ model:
     warprnnt_numba_kwargs:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       fastemit_lambda: 0.001  # Values can be in range [1e-4, 1e-2]. Generally, 0.001 is good start.
+      clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   optim:
     name: novograd
@@ -467,13 +472,14 @@ model:
       last_epoch: -1
 
 trainer:
-  gpus: 0 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   num_nodes: 1  # Should be set via SLURM variable `SLURM_JOB_NUM_NODES`
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: false  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations

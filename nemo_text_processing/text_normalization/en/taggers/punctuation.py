@@ -13,13 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+from unicodedata import category
+
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
 
-    PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
@@ -38,8 +41,12 @@ class PunctuationFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
 
-        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""
-        punct = pynini.union(*s)
+        s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
+
+        punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
+        punct_unicode.remove('[')
+        punct_unicode.remove(']')
+        punct = pynini.union(*s) | pynini.union(*punct_unicode)
 
         self.graph = punct
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

@@ -74,7 +74,6 @@ class TrainerConfig:
     profiler: Optional[Any] = None
     benchmark: bool = False
     deterministic: bool = False
-    reload_dataloaders_every_epoch: bool = False
     auto_lr_find: Any = False
     replace_sampler_ddp: bool = True
     detect_anomaly: bool = False
@@ -93,6 +92,9 @@ class TrainerConfig:
     reload_dataloaders_every_n_epochs: int = 0
     ipus: Optional[int] = None
     devices: Any = None
+    strategy: Any = None
+    enable_checkpointing: bool = True
+    enable_model_summary: bool = True
 
 
 # Register the trainer config.

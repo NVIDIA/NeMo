@@ -14,17 +14,17 @@
 import json
 import math
 import os
-import pickle as pkl
 from copy import deepcopy
 
 import numpy as np
+import omegaconf
+import soundfile as sf
 import torch
-from omegaconf import ListConfig
-from pyannote.core import Annotation, Segment
+from pyannote.core import Annotation, Segment, Timeline
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.nmse_clustering import COSclustering
+from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
 from nemo.utils import logging
 
 
@@ -33,64 +33,164 @@ This file contains all the utility functions required for speaker embeddings par
 """
 
 
-def audio_rttm_map(audio_file_list, rttm_file_list=None):
-    """
-    Returns a AUDIO_TO_RTTM dictionary thats maps all the unique file names with
-    audio file paths and corresponding ground truth rttm files calculated from audio
-    file list and rttm file list
-
-    Args:
-    audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional)
-    [Required if DER needs to be calculated]
-    Returns:
-    AUDIO_RTTM_MAP (dict): dictionary thats maps all the unique file names with
-    audio file paths and corresponding ground truth rttm files
-    """
-    rttm_notfound = False
-    if type(audio_file_list) in [list, ListConfig]:
-        audio_files = audio_file_list
+def get_uniqname_from_filepath(filepath):
+    "return base name from provided filepath"
+    if type(filepath) is str:
+        basename = os.path.basename(filepath).rsplit('.', 1)[0]
+        return basename
     else:
-        audio_pointer = open(audio_file_list, 'r')
-        audio_files = audio_pointer.read().splitlines()
+        raise TypeError("input must be filepath string")
 
-    if rttm_file_list:
-        if type(rttm_file_list) in [list, ListConfig]:
-            rttm_files = rttm_file_list
-        else:
-            rttm_pointer = open(rttm_file_list, 'r')
-            rttm_files = rttm_pointer.read().splitlines()
-    else:
-        rttm_notfound = True
-        rttm_files = ['-'] * len(audio_files)
 
-    assert len(audio_files) == len(rttm_files)
+def audio_rttm_map(manifest):
+    """
+    This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
+    cluster and unify time stamps
+    input: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
+
+    returns:
+    AUDIO_RTTM_MAP (dict) : A dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
+    """
 
     AUDIO_RTTM_MAP = {}
-    rttm_dict = {}
-    audio_dict = {}
-    for audio_file, rttm_file in zip(audio_files, rttm_files):
-        uniq_audio_name = audio_file.split('/')[-1].rsplit('.', 1)[0]
-        uniq_rttm_name = rttm_file.split('/')[-1].rsplit('.', 1)[0]
+    with open(manifest, 'r') as inp_file:
+        lines = inp_file.readlines()
+        logging.info("Number of files to diarize: {}".format(len(lines)))
+        for line in lines:
+            line = line.strip()
+            dic = json.loads(line)
 
-        if rttm_notfound:
-            uniq_rttm_name = uniq_audio_name
+            meta = {
+                'audio_filepath': dic['audio_filepath'],
+                'rttm_filepath': dic.get('rttm_filepath', None),
+                'duration': dic.get('duration', None),
+                'text': dic.get('text', None),
+                'num_speakers': dic.get('num_speakers', None),
+                'uem_filepath': dic.get('uem_filepath', None),
+                'ctm_filepath': dic.get('ctm_filepath', None),
+            }
 
-        audio_dict[uniq_audio_name] = audio_file
-        rttm_dict[uniq_rttm_name] = rttm_file
+            uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
-    for key, value in audio_dict.items():
-
-        AUDIO_RTTM_MAP[key] = {'audio_path': audio_dict[key], 'rttm_path': rttm_dict[key]}
-
-    assert len(rttm_dict.items()) == len(audio_dict.items())
+            if uniqname not in AUDIO_RTTM_MAP:
+                AUDIO_RTTM_MAP[uniqname] = meta
+            else:
+                raise KeyError(
+                    "file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(meta['audio_filepath'])
+                )
 
     return AUDIO_RTTM_MAP
 
 
+def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
+    """
+    Check whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
+    multiscale_weights should be all provided in omegaconf.listconfig.ListConfig type. In addition, the scales
+    should be provided in descending order, from the longest scale to the base scale (the shortest).
+
+    Example:
+        Single-scale setting:
+            parameters.window_length_in_sec=1.5
+            parameters.shift_length_in_sec=0.75
+            parameters.multiscale_weights=null
+
+        Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
+            parameters.window_length_in_sec=[1.5,1.0,0.5]
+            parameters.shift_length_in_sec=[0.75,0.5,0.25]
+            parameters.multiscale_weights=[0.33,0.33,0.33]
+    """
+    checkFloatConfig = [type(var) == float for var in (window_lengths_in_sec, shift_lengths_in_sec)]
+    checkListConfig = [
+        type(var) == type(omegaconf.listconfig.ListConfig([]))
+        for var in (window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights)
+    ]
+    if all(checkListConfig) or all(checkFloatConfig):
+
+        # If bare floating numbers are provided, convert them to list format.
+        if all(checkFloatConfig):
+            window_lengths, shift_lengths, multiscale_weights = (
+                [window_lengths_in_sec],
+                [shift_lengths_in_sec],
+                [1.0],
+            )
+        else:
+            window_lengths, shift_lengths, multiscale_weights = (
+                window_lengths_in_sec,
+                shift_lengths_in_sec,
+                multiscale_weights,
+            )
+
+        length_check = (
+            len(set([len(window_lengths), len(shift_lengths), len(multiscale_weights)])) == 1
+            and len(multiscale_weights) > 0
+        )
+        scale_order_check = (
+            window_lengths == sorted(window_lengths)[::-1] and shift_lengths == sorted(shift_lengths)[::-1]
+        )
+
+        # Check whether window lengths are longer than shift lengths
+        if len(window_lengths) > 1:
+            shift_length_check = all([w > s for w, s in zip(window_lengths, shift_lengths)]) == True
+        else:
+            shift_length_check = window_lengths[0] > shift_lengths[0]
+
+        multiscale_args_dict = {}
+        if all([length_check, scale_order_check, shift_length_check]) == True:
+            if len(window_lengths) > 1:
+                multiscale_args_dict['scale_dict'] = {
+                    k: (w, s) for k, (w, s) in enumerate(zip(window_lengths, shift_lengths))
+                }
+            else:
+                multiscale_args_dict['scale_dict'] = {0: (window_lengths[0], shift_lengths[0])}
+            multiscale_args_dict['multiscale_weights'] = multiscale_weights
+            return multiscale_args_dict
+        else:
+            raise ValueError('Multiscale parameters are not properly setup.')
+
+    elif any(checkListConfig):
+        raise ValueError(
+            'You must provide list config for all three parameters: window, shift and multiscale weights.'
+        )
+    else:
+        return None
+
+
+def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
+    """
+    The embeddings and timestamps in multiscale_embeddings_and_timestamps dictionary are
+    indexed by scale index. This function rearranges the extracted speaker embedding and
+    timestamps by unique ID to make the further processing more convenient.
+
+    Args:
+        multiscale_embeddings_and_timestamps (dict):
+            Dictionary of embeddings and timestamps for each scale.
+        multiscale_args_dict (dict):
+            Dictionary of scale information: window, shift and multiscale weights.
+
+    Returns:
+        embs_and_timestamps (dict)
+            A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
+    """
+    embs_and_timestamps = {
+        uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
+        for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
+    }
+    for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
+        embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
+        for uniq_id in embeddings.keys():
+            embs_and_timestamps[uniq_id]['multiscale_weights'] = multiscale_args_dict['multiscale_weights']
+            assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
+            embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
+                'embeddings': embeddings[uniq_id],
+                'time_stamps': time_stamps[uniq_id],
+            }
+
+    return embs_and_timestamps
+
+
 def get_contiguous_stamps(stamps):
     """
-    Return contiguous time stamps 
+    Return contiguous time stamps
     """
     lines = deepcopy(stamps)
     contiguous_stamps = []
@@ -128,17 +228,35 @@ def merge_stamps(lines):
     return overlap_stamps
 
 
-def labels_to_pyannote_object(labels):
+def labels_to_pyannote_object(labels, uniq_name=''):
     """
     converts labels to pyannote object to calculate DER and for visualization
     """
-    annotation = Annotation()
+    annotation = Annotation(uri=uniq_name)
     for label in labels:
         start, end, speaker = label.strip().split()
         start, end = float(start), float(end)
         annotation[Segment(start, end)] = speaker
 
     return annotation
+
+
+def uem_timeline_from_file(uem_file, uniq_name=''):
+    """
+    outputs pyannote timeline segments for uem file
+
+     <UEM> file format
+     UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
+    """
+    timeline = Timeline(uri=uniq_name)
+    with open(uem_file, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.strip()
+            speaker_id, channel, start_time, end_time = line.split()
+            timeline.add(Segment(float(start_time), float(end_time)))
+
+    return timeline
 
 
 def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
@@ -155,6 +273,8 @@ def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
             log = 'SPEAKER {} 1   {:.3f}   {:.3f} <NA> <NA> {} <NA> <NA>\n'.format(uniq_id, start, duration, speaker)
             f.write(log)
 
+    return filename
+
 
 def rttm_to_labels(rttm_filename):
     """
@@ -169,97 +289,72 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-def get_time_stamps(embeddings_file, reco2num, manifest_path):
+def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
     """
-    Loads embedding file and generates time stamps based on window and shift for speaker embeddings 
-    clustering.
 
+    Write cluster labels that are generated from clustering into a file.
     Args:
-    embeddings_file (str): Path to embeddings pickle file
-    reco2num (int,str): common integer number of speakers for every recording or path to 
-                        file that states unique_file id with number of speakers
-    manifest_path (str): path to manifest for time stamps matching
-    sample_rate (int): sample rate
-    window (float): window length in sec for speaker embeddings extraction
-    shift (float): shift length in sec for speaker embeddings extraction window shift
-
-    Returns:
-    embeddings (dict): Embeddings with key as unique_id
-    time_stamps (dict): time stamps list for each audio recording
-    speakers (dict): number of speaker for each audio recording
+        base_scale_idx (int): The base scale index which is the highest scale index.
+        lines_cluster_labels (list): The start and end time-stamps of each segment with the predicted cluster label.
+        out_rttm_dir (str): The path where output rttm files are saved.
     """
-    embeddings = pkl.load(open(embeddings_file, 'rb'))
-    all_uniq_files = list(embeddings.keys())
-    num_files = len(all_uniq_files)
-    logging.info("Number of files to diarize: {}".format(num_files))
-    sample = all_uniq_files[0]
-    logging.info("sample '{}' embeddings shape is {}\n".format(sample, embeddings[sample][0].shape))
-
-    speakers = {}
-    if isinstance(reco2num, int) or reco2num is None:
-        for key in embeddings.keys():
-            speakers[key] = reco2num
-    elif isinstance(reco2num, str) and os.path.exists(reco2num):
-        for key in open(reco2num).readlines():
-            key = key.strip()
-            wav_id, num = key.split()
-            speakers[wav_id] = int(num)
-    else:
-        raise TypeError("reco2num must be None, int or path to file containing number of speakers for each uniq id")
-
-    with open(manifest_path, 'r') as manifest:
-        time_stamps = {}
-        for line in manifest.readlines():
-            line = line.strip()
-            line = json.loads(line)
-            audio, offset, duration = line['audio_filepath'], line['offset'], line['duration']
-            audio = os.path.basename(audio).rsplit('.', 1)[0]
-            if audio not in time_stamps:
-                time_stamps[audio] = []
-            start = offset
-            end = start + duration
-            stamp = '{:.3f} {:.3f} '.format(start, end)
-            time_stamps[audio].append(stamp)
-
-    return embeddings, time_stamps, speakers
+    out_label_name = os.path.join(
+        out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label'
+    )
+    with open(out_label_name, 'w') as f:
+        for clus_label_line in lines_cluster_labels:
+            f.write(clus_label_line)
 
 
-def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers=8):
+def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
     """
     performs spectral clustering on embeddings with time stamps generated from VAD output
-    Args:
 
-    embeddings (dict): Embeddings with key as unique_id
-    time_stamps (dict): time stamps list for each audio recording
-    speakers (dict): number of speaker for each audio recording 
-    audio_rttm_map (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
-    out_rttm_dir (str): Path to write predicted rttms
-    max_num_speakers (int): maximum number of speakers to consider for spectral clustering. Will be ignored if speakers['key'] is not None
+    Args:
+        embs_and_timestamps (dict): This dictionary contains the following items indexed by unique IDs.
+            'embeddings' : Embeddings with key as unique_id
+            'time_stamps' : Time stamps list for each audio recording
+        AUDIO_RTTM_MAP (dict): AUDIO_RTTM_MAP for mapping unique id with audio file path and rttm path
+        out_rttm_dir (str): Path to write predicted rttms
+        clustering_params (dict): clustering parameters provided through config that contains max_num_speakers (int),
+        oracle_num_speakers (bool), max_rp_threshold(float), sparse_search_volume(int) and enhance_count_threshold (int)
 
     Returns:
-    all_reference (list[Annotation]): reference annotations for score calculation
-    all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
+        all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+        all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     """
     all_hypothesis = []
     all_reference = []
     no_references = False
+    max_num_speakers = clustering_params['max_num_speakers']
+    lines_cluster_labels = []
 
     cuda = True
     if not torch.cuda.is_available():
         logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_key in tqdm(embeddings.keys()):
-        NUM_speakers = speakers[uniq_key]
-        emb = embeddings[uniq_key]
-        emb = np.asarray(emb)
+    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
+        if clustering_params.oracle_num_speakers:
+            num_speakers = value.get('num_speakers', None)
+            if num_speakers is None:
+                raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
+        else:
+            num_speakers = None
 
         cluster_labels = COSclustering(
-            uniq_key, emb, oracle_num_speakers=NUM_speakers, max_num_speaker=max_num_speakers, cuda=cuda,
+            uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
+            oracle_num_speakers=num_speakers,
+            max_num_speaker=max_num_speakers,
+            enhanced_count_thres=clustering_params.enhanced_count_thres,
+            max_rp_threshold=clustering_params.max_rp_threshold,
+            sparse_search_volume=clustering_params.sparse_search_volume,
+            cuda=cuda,
         )
 
-        lines = time_stamps[uniq_key]
+        base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
+        lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
         assert len(cluster_labels) == len(lines)
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
@@ -268,35 +363,38 @@ def perform_clustering(embeddings, time_stamps, speakers, audio_rttm_map, out_rt
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
         if out_rttm_dir:
-            labels_to_rttmfile(labels, uniq_key, out_rttm_dir)
-        hypothesis = labels_to_pyannote_object(labels)
-        all_hypothesis.append(hypothesis)
+            labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+            lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])
+        hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
+        all_hypothesis.append([uniq_id, hypothesis])
 
-        rttm_file = audio_rttm_map[uniq_key]['rttm_path']
-        if os.path.exists(rttm_file) and not no_references:
+        rttm_file = value.get('rttm_filepath', None)
+        if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
             ref_labels = rttm_to_labels(rttm_file)
-            reference = labels_to_pyannote_object(ref_labels)
-            all_reference.append(reference)
+            reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
+            all_reference.append([uniq_id, reference])
         else:
             no_references = True
             all_reference = []
 
+    if out_rttm_dir:
+        write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
+
     return all_reference, all_hypothesis
 
 
-def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
+def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ignore_overlap=True):
     """
     calculates DER, CER, FA and MISS
 
     Args:
-    all_reference (list[Annotation]): reference annotations for score calculation
-    all_hypothesis (list[Annotation]): hypothesis annotations for score calculation
+    AUDIO_RTTM_MAP : Dictionary containing information provided from manifestpath
+    all_reference (list[uniq_name,Annotation]): reference annotations for score calculation
+    all_hypothesis (list[uniq_name,Annotation]): hypothesis annotations for score calculation
 
     Returns:
-    DER (float): Diarization Error Rate
-    CER (float): Confusion Error Rate
-    FA (float): False Alarm
-    Miss (float): Miss Detection 
+    metric (pyannote.DiarizationErrorRate): Pyannote Diarization Error Rate metric object. This object contains detailed scores of each audiofile.
+    mapping (dict): Mapping dict containing the mapping speaker label for each audio input
 
     < Caveat >
     Unlike md-eval.pl, "no score" collar in pyannote.metrics is the maximum length of
@@ -304,93 +402,122 @@ def get_DER(all_reference, all_hypothesis, collar=0.5, skip_overlap=True):
     collar in md-eval.pl, 0.5s should be applied for pyannote.metrics.
 
     """
-    metric = DiarizationErrorRate(collar=collar, skip_overlap=skip_overlap, uem=None)
+    metric = None
+    if len(all_reference) == len(all_hypothesis):
+        metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
-    mapping_dict = {}
-    for k, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
-        metric(reference, hypothesis, detailed=True)
-        mapping_dict[k] = metric.optimal_mapping(reference, hypothesis)
+        mapping_dict = {}
+        for (reference, hypothesis) in zip(all_reference, all_hypothesis):
+            ref_key, ref_labels = reference
+            _, hyp_labels = hypothesis
+            uem = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
+            if uem is not None:
+                uem = uem_timeline_from_file(uem_file=uem, uniq_name=ref_key)
+            metric(ref_labels, hyp_labels, uem=uem, detailed=True)
+            mapping_dict[ref_key] = metric.optimal_mapping(ref_labels, hyp_labels)
 
-    DER = abs(metric)
-    CER = metric['confusion'] / metric['total']
-    FA = metric['false alarm'] / metric['total']
-    MISS = metric['missed detection'] / metric['total']
+        DER = abs(metric)
+        CER = metric['confusion'] / metric['total']
+        FA = metric['false alarm'] / metric['total']
+        MISS = metric['missed detection'] / metric['total']
 
-    metric.reset()
-
-    return DER, CER, FA, MISS, mapping_dict
-
-
-def perform_diarization(
-    embeddings_file=None, reco2num=2, manifest_path=None, audio_rttm_map=None, out_rttm_dir=None, max_num_speakers=8,
-):
-    """
-    Performs diarization with embeddings generated based on VAD time stamps with recording 2 num of speakers (reco2num)
-    for spectral clustering 
-    """
-    embeddings, time_stamps, speakers = get_time_stamps(embeddings_file, reco2num, manifest_path)
-    logging.info("Performing Clustering")
-    all_reference, all_hypothesis = perform_clustering(
-        embeddings, time_stamps, speakers, audio_rttm_map, out_rttm_dir, max_num_speakers
-    )
-
-    if len(all_reference) and len(all_hypothesis):
-        DER, CER, FA, MISS, _ = get_DER(all_reference, all_hypothesis)
         logging.info(
-            "Cumulative results of all the files:  \n FA: {:.4f}\t MISS {:.4f}\t \
+            "Cumulative Results for collar {} sec and ignore_overlap {}: \n FA: {:.4f}\t MISS {:.4f}\t \
                 Diarization ER: {:.4f}\t, Confusion ER:{:.4f}".format(
-                FA, MISS, DER, CER
+                collar, ignore_overlap, FA, MISS, DER, CER
             )
         )
+
+        return metric, mapping_dict
     else:
-        logging.warning("Please check if each ground truth RTTMs was present in provided path2groundtruth_rttm_files")
-        logging.warning("Skipping calculation of Diariazation Error Rate")
+        logging.warning(
+            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+        )
+
+        return None
 
 
-def write_rttm2manifest(paths2audio_files, paths2rttm_files, manifest_file):
+def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
     """
     writes manifest file based on rttm files (or vad table out files). This manifest file would be used by 
     speaker diarizer to compute embeddings and cluster them. This function also takes care of overlap time stamps
 
     Args:
-    audio_file_list(list,str): either list of audio file paths or file containing paths to audio files (required)
-    rttm_file_list(lisr,str): either list of rttm file paths or file containing paths to rttm files (optional) 
+    AUDIO_RTTM_MAP: dict containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
+    these are used to extract oracle vad timestamps.
     manifest (str): path to write manifest file
 
     Returns:
     manifest (str): path to write manifest file
     """
-    AUDIO_RTTM_MAP = audio_rttm_map(paths2audio_files, paths2rttm_files)
 
     with open(manifest_file, 'w') as outfile:
         for key in AUDIO_RTTM_MAP:
-            f = open(AUDIO_RTTM_MAP[key]['rttm_path'], 'r')
-            audio_path = AUDIO_RTTM_MAP[key]['audio_path']
+            rttm_filename = AUDIO_RTTM_MAP[key]['rttm_filepath']
+            if rttm_filename and os.path.exists(rttm_filename):
+                f = open(rttm_filename, 'r')
+            else:
+                raise FileNotFoundError(
+                    "Requested to construct manifest from rttm with oracle VAD option or from NeMo VAD but received filename as {}".format(
+                        rttm_filename
+                    )
+                )
+
+            audio_path = AUDIO_RTTM_MAP[key]['audio_filepath']
+            if AUDIO_RTTM_MAP[key].get('duration', None):
+                max_duration = AUDIO_RTTM_MAP[key]['duration']
+            else:
+                sound = sf.SoundFile(audio_path)
+                max_duration = sound.frames / sound.samplerate
+
             lines = f.readlines()
             time_tup = (-1, -1)
             for line in lines:
                 vad_out = line.strip().split()
                 if len(vad_out) > 3:
-                    start, dur, activity = float(vad_out[3]), float(vad_out[4]), vad_out[7]
+                    start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
                 else:
-                    start, dur, activity = float(vad_out[0]), float(vad_out[1]), vad_out[2]
+                    start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
                 start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
 
-                if time_tup[0] >= 0 and start > time_tup[1]:
-                    dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-                    meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
-                    json.dump(meta, outfile)
-                    outfile.write("\n")
-                    time_tup = (start, start + dur)
+                if start == 0 and dur == 0:  # No speech segments
+                    continue
                 else:
-                    if time_tup[0] == -1:
+
+                    if time_tup[0] >= 0 and start > time_tup[1]:
+                        dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
+                        if time_tup[0] < max_duration and dur2 > 0:
+                            meta = {
+                                "audio_filepath": audio_path,
+                                "offset": time_tup[0],
+                                "duration": dur2,
+                                "label": 'UNK',
+                            }
+                            json.dump(meta, outfile)
+                            outfile.write("\n")
+                        else:
+                            logging.warning(
+                                "RTTM label has been truncated since start is greater than duration of audio file"
+                            )
                         time_tup = (start, start + dur)
                     else:
-                        time_tup = (min(time_tup[0], start), max(time_tup[1], start + dur))
+                        if time_tup[0] == -1:
+                            end_time = start + dur
+                            if end_time > max_duration:
+                                end_time = max_duration
+                            time_tup = (start, end_time)
+                        else:
+                            end_time = max(time_tup[1], start + dur)
+                            if end_time > max_duration:
+                                end_time = max_duration
+                            time_tup = (min(time_tup[0], start), end_time)
             dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-            meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
-            json.dump(meta, outfile)
-            outfile.write("\n")
+            if time_tup[0] < max_duration and dur2 > 0:
+                meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
+                json.dump(meta, outfile)
+                outfile.write("\n")
+            else:
+                logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
             f.close()
     return manifest_file
 
@@ -446,7 +573,7 @@ def get_subsegments(offset: float, window: float, shift: float, duration: float)
     input:
         offset (float): start time of audio segment
         window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift 
+        shift (float): hop length for subsegments shift
         duration (float): duration of segment
     output:
         subsegments (List[tuple[float, float]]): subsegments generated for the segments as list of tuple of start and duration of each subsegment

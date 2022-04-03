@@ -32,6 +32,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
@@ -228,7 +229,7 @@ class BertTokenClassificationDataset(Dataset):
             ),
         )
 
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        master_device = is_global_rank_zero()
         features = None
         if master_device and (not use_cache or not os.path.exists(features_pkl)):
             if num_samples == 0:

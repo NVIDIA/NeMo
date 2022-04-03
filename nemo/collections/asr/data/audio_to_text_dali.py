@@ -14,16 +14,17 @@
 
 import math
 import operator
+import os.path
+import time
 from collections.abc import Iterator
 from typing import Callable, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor
+from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor, expand_audio_filepaths
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.utils import logging, model_utils
-from nemo.utils.decorators import experimental
 
 try:
     import nvidia.dali as dali
@@ -44,7 +45,7 @@ __all__ = [
 Below minimum version is required to access the "read_idxs" argument in
 dali.fn.readers.nemo_asr
 """
-__DALI_MINIMUM_VERSION__ = "1.4"
+__DALI_MINIMUM_VERSION__ = "1.11"
 
 DALI_INSTALLATION_MESSAGE = (
     "Could not import `nvidia.dali`.\n"
@@ -140,6 +141,7 @@ class _AudioTextDALIDataset(Iterator):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -148,6 +150,8 @@ class _AudioTextDALIDataset(Iterator):
         device: str,
         batch_size: int,
         parser: Union[str, Callable],
+        audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
+        audio_tar_index_filepaths: Optional[Union[str, List[str]]] = None,
         sample_rate: int = 16000,
         num_threads: int = 4,
         max_duration: float = 0.0,
@@ -158,12 +162,20 @@ class _AudioTextDALIDataset(Iterator):
         trim: bool = False,
         shuffle: bool = False,
         drop_last: bool = False,
+        shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
+        return_sample_id: bool = False,
     ):
         self.drop_last = drop_last  # used by lr_scheduler
+        if return_sample_id:
+            raise ValueError(
+                "Currently DALI data layers don't support returning the sample_id and return_sample_id can not be enabled."
+            )
+        self.return_sample_id = return_sample_id
+
         if not HAVE_DALI:
             raise ModuleNotFoundError(
                 f"{self} requires NVIDIA DALI to be installed. "
@@ -312,22 +324,69 @@ class _AudioTextDALIDataset(Iterator):
             self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
 
         with self.pipe:
-            audio, indices = dali.fn.readers.nemo_asr(
-                name="Reader",
-                manifest_filepaths=manifest_filepath.split(','),
-                dtype=dali.types.FLOAT,
-                downmix=True,
-                sample_rate=float(self.sample_rate),
-                min_duration=min_duration,
-                max_duration=max_duration,
-                read_sample_rate=False,
-                read_text=False,
-                read_idxs=True,
-                random_shuffle=shuffle,
-                shard_id=self.shard_id,
-                num_shards=self.num_shards,
-                pad_last_batch=True,
-            )
+            if audio_tar_filepaths is None and audio_tar_index_filepaths is None:
+                audio, indices = dali.fn.readers.nemo_asr(
+                    name="Reader",
+                    manifest_filepaths=manifest_filepath.split(','),
+                    dtype=dali.types.FLOAT,
+                    downmix=True,
+                    sample_rate=float(self.sample_rate),
+                    min_duration=min_duration,
+                    max_duration=max_duration,
+                    read_sample_rate=False,
+                    read_text=False,
+                    read_idxs=True,
+                    random_shuffle=shuffle,
+                    shard_id=self.shard_id,
+                    num_shards=self.num_shards,
+                    pad_last_batch=True,
+                )
+
+                self.is_tarred_dataset = False
+
+            elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
+                audio_tar_filepaths = expand_audio_filepaths(
+                    audio_tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=global_rank
+                )
+                audio_tar_index_filepaths = expand_audio_filepaths(
+                    audio_tar_index_filepaths,
+                    shard_strategy=shard_strategy,
+                    world_size=world_size,
+                    global_rank=global_rank,
+                )
+
+                if len(audio_tar_filepaths) != len(audio_tar_index_filepaths) and len(audio_tar_index_filepaths) != 0:
+                    raise ValueError(
+                        f"Number of filepaths provided for `audio_tar_filepaths` must match "
+                        f"`audio_tar_index_filepaths`. Got {len(audio_tar_filepaths)} audio_tar_filepaths and "
+                        f"{len(audio_tar_index_filepaths)} audio_tar_index_filepaths."
+                    )
+
+                tar_file = dali.fn.readers.webdataset(
+                    paths=audio_tar_filepaths,
+                    index_paths=audio_tar_index_filepaths,
+                    name="Reader",
+                    ext=["wav"],
+                    missing_component_behavior="error",
+                    random_shuffle=shuffle,
+                    shard_id=self.shard_id,
+                    num_shards=self.num_shards,
+                    pad_last_batch=True,
+                )
+                audio, _ = dali.fn.decoders.audio(
+                    tar_file, dtype=dali.types.FLOAT, downmix=True, sample_rate=float(self.sample_rate),
+                )
+                indices = dali.fn.get_property(tar_file, key="source_info")
+                indices = dali.fn.pad(indices)
+
+                self.is_tarred_dataset = True
+
+            else:
+                raise RuntimeError(
+                    "When using DALI datasets, either `audio_tar_filepaths` "
+                    "and `audio_tar_index_filepaths` should either both be None (sequential dataset)"
+                    "or provided (tarred dataset)."
+                )
 
             # Extract nonsilent region, if necessary
             if trim:
@@ -348,7 +407,7 @@ class _AudioTextDALIDataset(Iterator):
             else:
                 # Additive gaussian noise (dither)
                 if self.dither > 0.0:
-                    gaussian_noise = dali.fn.normal_distribution(audio)
+                    gaussian_noise = dali.fn.random.normal(audio)
                     audio = audio + self.dither * gaussian_noise
 
                 # Preemphasis filter
@@ -395,14 +454,20 @@ class _AudioTextDALIDataset(Iterator):
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
                 spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
                 self.pipe.set_outputs(spec, spec_len, indices)
+
+        x = time.time()
         # Building DALI pipeline
         self.pipe.build()
+        y = time.time()
+
+        logging.info(f"Time for pipe.build() : {(y - x)} seconds")
 
         if has_preprocessor:
             output_names = ['processed_signal', 'processed_signal_len', 'manifest_indices']
         else:
             output_names = ['audio', 'audio_len', 'manifest_indices']
 
+        x = time.time()
         last_batch_policy = LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
         self._iter = DALIPytorchIterator(
             [self.pipe],
@@ -412,6 +477,8 @@ class _AudioTextDALIDataset(Iterator):
             dynamic_shape=True,
             auto_reset=True,
         )
+        y = time.time()
+        logging.info(f"Time for DALIPytorchIterator to initialize : {(y - x)} seconds")
 
         # TODO come up with a better solution
         class DummyDataset:
@@ -423,6 +490,7 @@ class _AudioTextDALIDataset(Iterator):
 
         self.dataset = DummyDataset(self)  # Used by NeMo
 
+        x = time.time()
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
             parser=parser,
@@ -432,7 +500,10 @@ class _AudioTextDALIDataset(Iterator):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            index_by_file_id=self.is_tarred_dataset,
         )
+        y = time.time()
+        logging.info(f"Time to build nemo manifest processor - {(y - x)} seconds")
 
     def reset(self):
         self._iter.reset()
@@ -467,8 +538,17 @@ class _AudioTextDALIDataset(Iterator):
         max_len = 0
         batch_size = manifest_indices.shape[0]
         for i, manifest_index in enumerate(manifest_indices):
-            manifest_index = manifest_index[0]
-            text, text_length = self.manifest_processor.process_text(manifest_index)
+
+            if not self.is_tarred_dataset:
+                # Loose-file dataset. Index is integer based.
+                manifest_index = manifest_index[0]
+                text, text_length = self.manifest_processor.process_text_by_id(manifest_index)
+            else:
+                # Tarred-file dataset. Index is filename based.
+                resolved_manifest_indices = manifest_index.tobytes().decode().split(":")
+                resolved_manifest_index = resolved_manifest_indices[2]  # we require just the filename segment
+                resolved_manifest_index = os.path.splitext(resolved_manifest_index)[0]  # we dont need file extension
+                text, text_length = self.manifest_processor.process_text_by_file_id(resolved_manifest_index)
 
             text_tokens_len.append(text_length)
             text_tokens.append(text)
@@ -519,6 +599,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 1.
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -528,6 +609,8 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         batch_size: int,
         labels: Union[str, List[str]],
         sample_rate: int = 16000,
+        audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
+        audio_tar_index_filepaths: Optional[Union[str, List[str]]] = None,
         num_threads: int = 4,
         max_duration: float = 0.0,
         min_duration: float = 0.0,
@@ -541,10 +624,12 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         shuffle: bool = False,
         drop_last: bool = False,
         parser: Union[str, Callable] = 'en',
+        shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
+        return_sample_id: bool = False,
     ):
         self.labels = labels
 
@@ -556,6 +641,8 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             manifest_filepath=manifest_filepath,
             device=device,
             batch_size=batch_size,
+            audio_tar_filepaths=audio_tar_filepaths,
+            audio_tar_index_filepaths=audio_tar_index_filepaths,
             sample_rate=sample_rate,
             num_threads=num_threads,
             max_duration=max_duration,
@@ -567,10 +654,12 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
             shuffle=shuffle,
             drop_last=drop_last,
             parser=parser,
+            shard_strategy=shard_strategy,
             device_id=device_id,
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
+            return_sample_id=return_sample_id,
         )
 
 
@@ -607,6 +696,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         preprocessor_cfg (DictConfig): Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
         use_start_end_token (bool): Boolean which dictates whether to add [BOS] and [EOS] tokens to beginning and
             ending of speech respectively.
+        return_sample_id (bool): whether to return the sample_id as a part of each sample (not supported yet).
     """
 
     def __init__(
@@ -616,18 +706,23 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         device: str,
         batch_size: int,
         sample_rate: int = 16000,
+        audio_tar_filepaths: Optional[Union[str, List[str]]] = None,
+        audio_tar_index_filepaths: Optional[Union[str, List[str]]] = None,
         num_threads: int = 4,
         max_duration: float = 0.0,
         min_duration: float = 0.0,
         trim: bool = False,
         shuffle: bool = False,
         drop_last: bool = False,
+        shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
         world_size: int = 1,
         preprocessor_cfg: DictConfig = None,
         use_start_end_token: bool = True,
+        return_sample_id: bool = False,
     ):
+
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
         else:
@@ -656,6 +751,8 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             device=device,
             batch_size=batch_size,
             sample_rate=sample_rate,
+            audio_tar_filepaths=audio_tar_filepaths,
+            audio_tar_index_filepaths=audio_tar_index_filepaths,
             num_threads=num_threads,
             max_duration=max_duration,
             min_duration=min_duration,
@@ -666,8 +763,10 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
             shuffle=shuffle,
             drop_last=drop_last,
             parser=TokenizerWrapper(tokenizer),
+            shard_strategy=shard_strategy,
             device_id=device_id,
             global_rank=global_rank,
             world_size=world_size,
             preprocessor_cfg=preprocessor_cfg,
+            return_sample_id=return_sample_id,
         )

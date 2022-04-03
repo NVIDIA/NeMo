@@ -37,7 +37,7 @@ def update_model_config(
     Assumes the `update_cfg` is a DictConfig (either generated manually, via hydra or instantiated via yaml/model.cfg).
     This update_cfg is then used to override the default values preset inside the ModelPT config class.
 
-    If `drop_missing_subconfigs` is set, the certain sub-configs of the ModelPT config class will be removed, iff
+    If `drop_missing_subconfigs` is set, the certain sub-configs of the ModelPT config class will be removed, if
     they are not found in the mirrored `update_cfg`. The following sub-configs are subject to potential removal:
         -   `train_ds`
         -   `validation_ds`
@@ -94,6 +94,13 @@ def update_model_config(
         if 'target' not in model_cls.model:
             with open_dict(update_cfg.model):
                 update_cfg.model.pop('target')
+
+    # Remove ModelPT artifact `nemo_version`
+    if 'nemo_version' in update_cfg.model:
+        # Assume artifact from ModelPT and pop
+        if 'nemo_version' not in model_cls.model:
+            with open_dict(update_cfg.model):
+                update_cfg.model.pop('nemo_version')
 
     model_cfg = OmegaConf.merge(model_cls, update_cfg)
 

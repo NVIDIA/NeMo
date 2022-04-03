@@ -31,8 +31,8 @@ class BertModule(NeuralModule, Exportable):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
             "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
         }
 
     @property
@@ -71,14 +71,20 @@ class BertModule(NeuralModule, Exportable):
         self.load_state_dict(model_dict)
         logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        token_type_ids = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        return tuple([input_ids, token_type_ids, attention_mask])
+        sz = (max_batch, max_dim)
+        input_ids = torch.randint(low=0, high=max_dim - 1, size=sz, device=sample.device)
+        token_type_ids = torch.randint(low=0, high=1, size=sz, device=sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=sz, device=sample.device)
+        input_dict = {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "token_type_ids": token_type_ids,
+        }
+        return tuple([input_dict])

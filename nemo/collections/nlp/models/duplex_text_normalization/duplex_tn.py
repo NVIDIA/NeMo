@@ -21,15 +21,13 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
+from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing, post_process_punct
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
-__all__ = ['DuplexTextNormalizationModel']
+__all__ = ['DuplexTextNormalizationModel', 'post_process_punct']
 
 
-@experimental
 class DuplexTextNormalizationModel(nn.Module):
     """
     DuplexTextNormalizationModel is a wrapper class that can be used to
@@ -242,6 +240,7 @@ class DuplexTextNormalizationModel(nn.Module):
         original_sents = [s for s in sents]
         # Separate into words
         if not processed:
+            sents = [input_preprocessing(x, lang=self.lang) for x in sents]
             sents = [self.decoder.processor.tokenize(x).split() for x in sents]
         else:
             sents = [x.split() for x in sents]
@@ -276,7 +275,7 @@ class DuplexTextNormalizationModel(nn.Module):
                     # detokenize the output with Moses and fix punctuation marks to match the input
                     # for interactive inference or inference from a file
                     cur_output_str = self.decoder.processor.detokenize(cur_words)
-                    cur_output_str = post_process_punct(input=original_sents[ix], nn_output=cur_output_str)
+                    cur_output_str = post_process_punct(input=original_sents[ix], normalized_text=cur_output_str)
                 final_outputs.append(cur_output_str)
             except IndexError:
                 logging.warning(f"Input sent is too long and will be skipped - {original_sents[ix]}")

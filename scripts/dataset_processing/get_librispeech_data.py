@@ -32,23 +32,46 @@ import urllib.request
 from sox import Transformer
 from tqdm import tqdm
 
-parser = argparse.ArgumentParser(description='LibriSpeech Data download')
+parser = argparse.ArgumentParser(description="LibriSpeech Data download")
 parser.add_argument("--data_root", required=True, default=None, type=str)
 parser.add_argument("--data_sets", default="dev_clean", type=str)
 parser.add_argument("--num_workers", default=4, type=int)
+parser.add_argument("--log", dest="log", action="store_true", default=False)
 args = parser.parse_args()
 
 URLS = {
-    'TRAIN_CLEAN_100': ("http://www.openslr.org/resources/12/train-clean-100.tar.gz"),
-    'TRAIN_CLEAN_360': ("http://www.openslr.org/resources/12/train-clean-360.tar.gz"),
-    'TRAIN_OTHER_500': ("http://www.openslr.org/resources/12/train-other-500.tar.gz"),
-    'DEV_CLEAN': "http://www.openslr.org/resources/12/dev-clean.tar.gz",
-    'DEV_OTHER': "http://www.openslr.org/resources/12/dev-other.tar.gz",
-    'TEST_CLEAN': "http://www.openslr.org/resources/12/test-clean.tar.gz",
-    'TEST_OTHER': "http://www.openslr.org/resources/12/test-other.tar.gz",
-    'DEV_CLEAN_2': "https://www.openslr.org/resources/31/dev-clean-2.tar.gz",
-    'TRAIN_CLEAN_5': "https://www.openslr.org/resources/31/train-clean-5.tar.gz",
+    "TRAIN_CLEAN_100": ("http://www.openslr.org/resources/12/train-clean-100.tar.gz"),
+    "TRAIN_CLEAN_360": ("http://www.openslr.org/resources/12/train-clean-360.tar.gz"),
+    "TRAIN_OTHER_500": ("http://www.openslr.org/resources/12/train-other-500.tar.gz"),
+    "DEV_CLEAN": "http://www.openslr.org/resources/12/dev-clean.tar.gz",
+    "DEV_OTHER": "http://www.openslr.org/resources/12/dev-other.tar.gz",
+    "TEST_CLEAN": "http://www.openslr.org/resources/12/test-clean.tar.gz",
+    "TEST_OTHER": "http://www.openslr.org/resources/12/test-other.tar.gz",
+    "DEV_CLEAN_2": "https://www.openslr.org/resources/31/dev-clean-2.tar.gz",
+    "TRAIN_CLEAN_5": "https://www.openslr.org/resources/31/train-clean-5.tar.gz",
 }
+
+
+def __retrieve_with_progress(source: str, filename: str):
+    """
+    Downloads source to destination
+    Displays progress bar
+    Args:
+        source: url of resource
+        destination: local filepath
+    Returns:
+    """
+    with open(filename, "wb") as f:
+        response = urllib.request.urlopen(source)
+        total = response.length
+
+        if total is None:
+            f.write(response.content)
+        else:
+            with tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024) as pbar:
+                for data in response:
+                    f.write(data)
+                    pbar.update(len(data))
 
 
 def __maybe_download_file(destination: str, source: str):
@@ -63,8 +86,10 @@ def __maybe_download_file(destination: str, source: str):
     source = URLS[source]
     if not os.path.exists(destination):
         logging.info("{0} does not exist. Downloading ...".format(destination))
-        urllib.request.urlretrieve(source, filename=destination + '.tmp')
-        os.rename(destination + '.tmp', destination)
+
+        __retrieve_with_progress(source, filename=destination + ".tmp")
+
+        os.rename(destination + ".tmp", destination)
         logging.info("Downloaded {0}.".format(destination))
     else:
         logging.info("Destination {0} exists. Skipping.".format(destination))
@@ -77,7 +102,7 @@ def __extract_file(filepath: str, data_dir: str):
         tar.extractall(data_dir)
         tar.close()
     except Exception:
-        logging.info('Not extracting. Maybe already there?')
+        logging.info("Not extracting. Maybe already there?")
 
 
 def __process_transcript(file_path: str, dst_folder: str):
@@ -105,9 +130,9 @@ def __process_transcript(file_path: str, dst_folder: str):
             duration = subprocess.check_output("soxi -D {0}".format(wav_file), shell=True)
 
             entry = {}
-            entry['audio_filepath'] = os.path.abspath(wav_file)
-            entry['duration'] = float(duration)
-            entry['text'] = transcript_text
+            entry["audio_filepath"] = os.path.abspath(wav_file)
+            entry["duration"] = float(duration)
+            entry["text"] = transcript_text
             entries.append(entry)
     return entries
 
@@ -130,7 +155,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_wo
     entries = []
 
     for root, dirnames, filenames in os.walk(data_folder):
-        for filename in fnmatch.filter(filenames, '*.trans.txt'):
+        for filename in fnmatch.filter(filenames, "*.trans.txt"):
             files.append(os.path.join(root, filename))
 
     with multiprocessing.Pool(num_workers) as p:
@@ -139,9 +164,9 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str, num_wo
         for result in tqdm(results, total=len(files)):
             entries.extend(result)
 
-    with open(manifest_file, 'w') as fout:
+    with open(manifest_file, "w") as fout:
         for m in entries:
-            fout.write(json.dumps(m) + '\n')
+            fout.write(json.dumps(m) + "\n")
 
 
 def main():
@@ -149,11 +174,14 @@ def main():
     data_sets = args.data_sets
     num_workers = args.num_workers
 
+    if args.log:
+        logging.basicConfig(level=logging.INFO)
+
     if data_sets == "ALL":
         data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360,train_other_500,test_clean,test_other"
     if data_sets == "mini":
         data_sets = "dev_clean_2,train_clean_5"
-    for data_set in data_sets.split(','):
+    for data_set in data_sets.split(","):
         logging.info("\n\nWorking on: {0}".format(data_set))
         filepath = os.path.join(data_root, data_set + ".tar.gz")
         logging.info("Getting {0}".format(data_set))
@@ -167,7 +195,7 @@ def main():
             os.path.join(data_root, data_set + ".json"),
             num_workers=num_workers,
         )
-    logging.info('Done!')
+    logging.info("Done!")
 
 
 if __name__ == "__main__":

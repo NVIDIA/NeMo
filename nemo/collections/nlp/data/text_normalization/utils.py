@@ -11,24 +11,118 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import re
 import string
+import sys
 from copy import deepcopy
-from typing import List
+from unicodedata import category
 
-import wordninja
-from nltk import word_tokenize
+import regex as re
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import constants
 from nemo.utils import logging
 
-__all__ = ['read_data_file', 'normalize_str', 'flatten', 'process_url']
+__all__ = [
+    'read_data_file',
+    'normalize_str',
+    'flatten',
+    'convert_fraction',
+    'convert_superscript',
+    'add_space_around_dash',
+]
 
 
 def flatten(l):
     """ flatten a list of lists """
     return [item for sublist in l for item in sublist]
+
+
+def add_space_around_dash(input: str):
+    """ adds space around dash between numbers and non-numbers"""
+    input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
+    input = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", input)
+    input = re.sub(r"([^\s0-9])-([0-9])", r"\1 - \2", input)
+    input = re.sub(r"([0-9])-([^\s0-9])", r"\1 - \2", input)
+    return input
+
+
+def convert_superscript(written: str):
+    """convert superscript to regular character"""
+    written = re.sub("²", "2", written)
+    written = re.sub("³", "3", written)
+    return written
+
+
+def convert_fraction(written: str):
+    """
+    converts fraction to standard form, e.g "½" -> "1/2", "1 ½" -> "1 1/2"
+    
+    Args:
+        written: written form
+    Returns:
+        written: modified form
+    """
+    written = re.sub(" ½", " 1/2", written)
+    written = re.sub(" ⅓", " 1/3", written)
+    written = re.sub(" ⅔", " 2/3", written)
+    written = re.sub(" ¼", " 1/4", written)
+    written = re.sub(" ¾", " 3/4", written)
+    written = re.sub(" ⅕", " 1/5", written)
+    written = re.sub(" ⅖", " 2/5", written)
+    written = re.sub(" ⅗", " 3/5", written)
+    written = re.sub(" ⅘", " 4/5", written)
+    written = re.sub(" ⅙", " 1/6", written)
+    written = re.sub(" ⅚", " 5/6", written)
+    written = re.sub(" ⅛", " 1/8", written)
+    written = re.sub(" ⅜", " 3/8", written)
+    written = re.sub(" ⅝", " 5/8", written)
+    written = re.sub(" ⅞", " 7/8", written)
+    written = re.sub("^½", "1/2", written)
+    written = re.sub("^⅓", "1/3", written)
+    written = re.sub("^⅔", "2/3", written)
+    written = re.sub("^¼", "1/4", written)
+    written = re.sub("^¾", "3/4", written)
+    written = re.sub("^⅕", "1/5", written)
+    written = re.sub("^⅖", "2/5", written)
+    written = re.sub("^⅗", "3/5", written)
+    written = re.sub("^⅘", "4/5", written)
+    written = re.sub("^⅙", "1/6", written)
+    written = re.sub("^⅚", "5/6", written)
+    written = re.sub("^⅛", "1/8", written)
+    written = re.sub("^⅜", "3/8", written)
+    written = re.sub("^⅝", "5/8", written)
+    written = re.sub("^⅞", "7/8", written)
+    written = re.sub("-½", "-1/2", written)
+    written = re.sub("-⅓", "-1/3", written)
+    written = re.sub("-⅔", "-2/3", written)
+    written = re.sub("-¼", "-1/4", written)
+    written = re.sub("-¾", "-3/4", written)
+    written = re.sub("-⅕", "-1/5", written)
+    written = re.sub("-⅖", "-2/5", written)
+    written = re.sub("-⅗", "-3/5", written)
+    written = re.sub("-⅘", "-4/5", written)
+    written = re.sub("-⅙", "-1/6", written)
+    written = re.sub("-⅚", "-5/6", written)
+    written = re.sub("-⅛", "-1/8", written)
+    written = re.sub("-⅜", "-3/8", written)
+    written = re.sub("-⅝", "-5/8", written)
+    written = re.sub("-⅞", "-7/8", written)
+    written = re.sub("([0-9])\s?½", "\\1 1/2", written)
+    written = re.sub("([0-9])\s?⅓", "\\1 1/3", written)
+    written = re.sub("([0-9])\s?⅔", "\\1 2/3", written)
+    written = re.sub("([0-9])\s?¼", "\\1 1/4", written)
+    written = re.sub("([0-9])\s?¾", "\\1 3/4", written)
+    written = re.sub("([0-9])\s?⅕", "\\1 1/5", written)
+    written = re.sub("([0-9])\s?⅖", "\\1 2/5", written)
+    written = re.sub("([0-9])\s?⅗", "\\1 3/5", written)
+    written = re.sub("([0-9])\s?⅘", "\\1 4/5", written)
+    written = re.sub("([0-9])\s?⅙", "\\1 1/6", written)
+    written = re.sub("([0-9])\s?⅚", "\\1 5/6", written)
+    written = re.sub("([0-9])\s?⅛", "\\1 1/8", written)
+    written = re.sub("([0-9])\s?⅜", "\\1 3/8", written)
+    written = re.sub("([0-9])\s?⅝", "\\1 5/8", written)
+    written = re.sub("([0-9])\s?⅞", "\\1 7/8", written)
+    return written
 
 
 def input_preprocessing(sent: str, lang: str):
@@ -48,12 +142,15 @@ def input_preprocessing(sent: str, lang: str):
         sent = sent.replace('=', ' equals ')
         sent = sent.replace('@', ' at ')
         sent = sent.replace('*', ' times ')
-
-    # Greek letters processing
-    if lang == constants.ENGLISH:
+        # Greek letters processing
         for jx, tok in enumerate(sent):
             if tok in constants.EN_GREEK_TO_SPOKEN:
                 sent = sent[:jx] + constants.EN_GREEK_TO_SPOKEN[tok] + sent[jx + 1 :]
+
+    sent = convert_superscript(sent)
+    sent = convert_fraction(sent)
+    sent = add_space_around_dash(sent)
+
     return sent
 
 
@@ -89,55 +186,6 @@ def read_data_file(fp: str, lang: str, max_insts: int = -1):
     return insts
 
 
-def process_url(tokens: List[str], outputs: List[str], lang: str):
-    """
-    The function is used to process the spoken form of every URL in an example.
-    E.g., "dot h_letter  _letter t_letter  _letter m_letter  _letter l_letter" ->
-          "dot h t m l"
-
-    Args:
-        tokens: The tokens of the written form
-        outputs: The expected outputs for the spoken form
-        lang: Selected language.
-    Return:
-        outputs: The outputs for the spoken form with preprocessed URLs.
-    """
-    if lang != constants.ENGLISH:
-        return outputs
-
-    for i in range(len(tokens)):
-        t, o = tokens[i], outputs[i]
-        if o != constants.SIL_WORD and '_letter' in o:
-            o_tokens = o.split(' ')
-            all_spans, cur_span = [], []
-            for j in range(len(o_tokens)):
-                if len(o_tokens[j]) == 0:
-                    continue
-                if o_tokens[j] == '_letter':
-                    all_spans.append(cur_span)
-                    all_spans.append([' '])
-                    cur_span = []
-                else:
-                    o_tokens[j] = o_tokens[j].replace('_letter', '')
-                    cur_span.append(o_tokens[j])
-            if len(cur_span) > 0:
-                all_spans.append(cur_span)
-            o_tokens = flatten(all_spans)
-
-            o = ''
-            for o_token in o_tokens:
-                if len(o_token) > 1:
-                    o += ' ' + o_token + ' '
-                else:
-                    o += o_token
-            o = o.strip()
-            o_tokens = wordninja.split(o)
-            o = ' '.join(o_tokens)
-
-            outputs[i] = o
-    return outputs
-
-
 def normalize_str(input_str):
     """ Normalize an input string """
     return input_str.strip().lower().replace("  ", " ")
@@ -148,21 +196,7 @@ def remove_puncts(input_str):
     return input_str.translate(str.maketrans('', '', string.punctuation))
 
 
-def basic_tokenize(input_str, lang):
-    """
-    The function is used to do some basic tokenization
-
-    Args:
-        input_str: The input string
-        lang: Language of the input string
-    Return: a list of tokens of the input string
-    """
-    if lang == constants.ENGLISH:
-        return word_tokenize(input_str)
-    return input_str.strip().split(' ')
-
-
-def post_process_punct(input: str, nn_output: str):
+def post_process_punct(input: str, normalized_text: str):
     """
     Post-processing of the normalized output to match input in terms of spaces around punctuation marks.
     After NN normalization, Moses detokenization puts a space after
@@ -175,35 +209,52 @@ def post_process_punct(input: str, nn_output: str):
 
     Args:
         input: input text (original input to the NN, before normalization or tokenization)
-        nn_output: output text (output of the TN NN model)
+        normalized_text: output text (output of the TN NN model)
     """
     input = [x for x in input]
-    nn_output = [x for x in nn_output]
-    punct_marks = string.punctuation
-
-    try:
-        for punct in punct_marks:
-            if input.count(punct) != nn_output.count(punct):
-                continue
+    normalized_text = [x for x in normalized_text]
+    punct_default = [x for x in string.punctuation]
+    punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
+    punct_marks = set(punct_default + punct_unicode)
+    for punct in punct_marks:
+        try:
+            equal = True
+            if input.count(punct) != normalized_text.count(punct):
+                equal = False
             idx_in, idx_out = 0, 0
             while punct in input[idx_in:]:
+                idx_out = normalized_text.index(punct, idx_out)
                 idx_in = input.index(punct, idx_in)
-                idx_out = nn_output.index(punct, idx_out)
+
+                def _is_valid(idx_out, idx_in, normalized_text, input):
+                    """Check if previous or next word match (for cases when punctuation marks are part of
+                    semiotic token, i.e. some punctuation can be missing in the normalized text)"""
+                    return (idx_out > 0 and idx_in > 0 and normalized_text[idx_out - 1] == input[idx_in - 1]) or (
+                        idx_out < len(normalized_text) - 1
+                        and idx_in < len(input) - 1
+                        and normalized_text[idx_out + 1] == input[idx_in + 1]
+                    )
+
+                if not equal and not _is_valid(idx_out, idx_in, normalized_text, input):
+                    idx_in += 1
+                    continue
+
                 if idx_in > 0 and idx_out > 0:
-                    if nn_output[idx_out - 1] == " " and input[idx_in - 1] != " ":
-                        nn_output[idx_out - 1] = ""
+                    if normalized_text[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        normalized_text[idx_out - 1] = ""
 
-                    elif nn_output[idx_out - 1] != " " and input[idx_in - 1] == " ":
-                        nn_output[idx_out - 1] += " "
+                    elif normalized_text[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        normalized_text[idx_out - 1] += " "
 
-                if idx_in < len(input) - 1 and idx_out < len(nn_output) - 1:
-                    if nn_output[idx_out + 1] == " " and input[idx_in + 1] != " ":
-                        nn_output[idx_out + 1] = ""
-                    elif nn_output[idx_out + 1] != " " and input[idx_in + 1] == " ":
-                        nn_output[idx_out] = nn_output[idx_out] + " "
+                if idx_in < len(input) - 1 and idx_out < len(normalized_text) - 1:
+                    if normalized_text[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        normalized_text[idx_out + 1] = ""
+                    elif normalized_text[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        normalized_text[idx_out] = normalized_text[idx_out] + " "
                 idx_out += 1
                 idx_in += 1
-    except:
-        logging.warning(f"Skipping post-processing of {''.join(nn_output)}")
-    nn_output = "".join(nn_output)
-    return re.sub(r' +', ' ', nn_output)
+        except:
+            logging.debug(f"Skipping post-processing of {''.join(normalized_text)} for '{punct}'")
+
+    normalized_text = "".join(normalized_text)
+    return re.sub(r' +', ' ', normalized_text)

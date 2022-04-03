@@ -3,7 +3,6 @@ un centime~0,01 €
 vingt centimes~0,20 €
 vingt-deux centimes~0,22 €
 deux dollars vingt~2,20 $
-deux dollars et vingt cents~2,20 $
 deux euros et vingt centimes~2,20 €
 vingt euros~20 €
 un franc suisse~1 CHF
@@ -12,7 +11,6 @@ un euro~1 €
 deux euro~2 €
 cinq euro et soixante~5,60 €
 cinquante centimes~0,50 €
-cinq dollars et deux cents~5,02 $
 quatre-vingt mille won~80 000 ₩
 quatre-vingt-mille won~80 000 ₩
 quatre-vingt-millions de wons~80 millions de wons

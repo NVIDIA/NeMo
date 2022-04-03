@@ -26,8 +26,10 @@ from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
+@deprecated(version="1.8", explanation="MelGanModel will be removed. Use HifiGanModel instead.")
 class MelGanModel(Vocoder):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         """NeMo Model that implement Full-band MelGAN as described in https://arxiv.org/abs/2005.05106

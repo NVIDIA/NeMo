@@ -98,8 +98,8 @@ else
   echo "Setting up conda environment for MFA (env name \"aligner\")..."
   conda create -n $ENV_NAME -c conda-forge openblas python=3.8 openfst pynini ngram baumwelch
   conda activate $ENV_NAME
-  pip install montreal-forced-aligner tgt torch
-  mfa thirdparty download
+  pip install tgt torch
+  conda install -c conda-forge montreal-forced-aligner
   echo "Conda environment \"$ENV_NAME\" set up."
 fi
 
@@ -129,7 +129,7 @@ Could not run MFA. If it could not find OpenBlas, you may need to install it man
 (e.g. sudo apt-get install libopenblas-dev)
 EOM
 
-if ! mfa download acoustic english; then
+if ! mfa model download acoustic english; then
   echo $MFA_ERROR_MSG
 fi
 mfa align --clean $LJSPEECH_BASE $G2P_DICT english $LJSPEECH_BASE/alignments

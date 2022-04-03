@@ -84,11 +84,11 @@ Creating a NeMo model is similar to any other PyTorch workflow. We start by init
 
             # instantiate a BERT based encoder
             self.bert_model = get_lm_model(
-                pretrained_model_name=cfg.language_model.pretrained_model_name,
                 config_file=cfg.language_model.config_file,
                 config_dict=cfg.language_model.config,
-                checkpoint_file=cfg.language_model.lm_checkpoint,
                 vocab_file=cfg.tokenizer.vocab_file,
+                trainer=trainer,
+                cfg=cfg,
             )
 
             # instantiate the FFN for classification
@@ -249,7 +249,8 @@ A NeMo configuration file should look similar to the following:
     # PyTorch Lightning Trainer configuration
     # any argument of the Trainer object can be set here
     trainer:
-        gpus: 1 # number of gpus per node
+        devices: 1 # number of gpus per node
+        accelerator: gpu
         num_nodes: 1 # number of nodes
         max_epochs: 10 # how many training epochs to run
         val_check_interval: 1.0 # run validation after every epoch
@@ -298,27 +299,29 @@ With NeMo and Hydra, every aspect of model training can be modified from the com
 of experiments on compute clusters or for quickly testing parameters while developing.
 
 All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ come with instructions on how to
-run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/speech_to_text.py#L24>`_
+run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/asr_ctc/speech_to_text_ctc.py#L24>`_
 for an example).
 
 With Hydra, arguments are set using the ``=`` operator:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50
 
 We can use the ``+`` operator to add arguments from the CLI:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
@@ -326,11 +329,12 @@ We can use the ``~`` operator to remove configurations:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
@@ -338,13 +342,14 @@ We can specify configuration files using the ``--config-path`` and ``--config-na
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         model.train_ds.manifest_filepath=/path/to/my/train/manifest.json \
         model.validation_ds.manifest_filepath=/path/to/my/validation/manifest.json \
         ~model.test_ds \
-        trainer.gpus=2 \
+        trainer.devices=2 \
+        trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
         +trainer.fast_dev_run=true
 
@@ -371,6 +376,8 @@ be instantiated and modified like any Python `Dataclass <https://docs.python.org
 
 .. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
 
+.. _optimization-label:
+
 Optimization
 ------------
 
@@ -389,17 +396,17 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
     
         # scheduler setup
         sched:
-        name: CosineAnnealing
+            name: CosineAnnealing
     
-        # Optional arguments
-        max_steps: null # computed at runtime or explicitly set here
-        monitor: val_loss
-        reduce_on_plateau: false
+            # Optional arguments
+            max_steps: null # computed at runtime or explicitly set here
+            monitor: val_loss
+            reduce_on_plateau: false
     
-        # scheduler config override
-        warmup_steps: 1000
-        warmup_ratio: null
-        min_lr: 1e-9:
+            # scheduler config override
+            warmup_steps: 1000
+            warmup_ratio: null
+            min_lr: 1e-9:
 
 .. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ has optimizer and scheduler configurations for
 every NeMo model. 
@@ -408,7 +415,7 @@ Optimizers can be configured from the CLI as well:
 
 .. code-block:: bash
 
-    python examples/asr/speech_to_text.py \
+    python examples/asr/asr_ctc/speech_to_text_ctc.py \
         --config-path=conf/quartznet \
         --config-name=quartznet_15x5 \
         ...
@@ -418,6 +425,8 @@ Optimizers can be configured from the CLI as well:
         model.optim.lr=.0004 \
         # modify betas 
         model.optim.betas=[.8, .5]
+
+.. _optimizers-label:
 
 Optimizers
 ~~~~~~~~~~
@@ -467,6 +476,8 @@ Register Optimizer
 To register a new optimizer to be used with NeMo, run:
 
 .. autofunction:: nemo.core.optim.optimizers.register_optimizer
+
+.. _learning-rate-schedulers-label:
 
 Learning Rate Schedulers
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -547,6 +558,7 @@ To restore a NeMo model, run:
 
 .. code-block:: Python
 
+    # Here, you should usually use the class of the model, or simply use ModelPT.restore_from() for simplicity.
     model.restore_from('/path/to/model.nemo')
 
 When using the PyTorch Lightning Trainer, a PyTorch Lightning checkpoint is created. These are mainly used within NeMo to auto-resume 
@@ -555,6 +567,32 @@ training. Since NeMo models are ``LightningModules``, the PyTorch Lightning meth
 checkpoint to be restored. For these models, the user will have to override ``load_from_checkpoint`` if they want to use it.
 
 It's highly recommended to use ``restore_from`` to load NeMo models.
+
+Restore with Modified Config
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sometimes, there may be a need to modify the model (or it's sub-components) prior to restoring a model. A common case is when
+the model's internal config must be updated due to various reasons (such as deprecation, newer versioning, support a new feature).
+As long as the model has the same parameters as compared to the original config, the parameters can once again be restored safely.
+
+In NeMo, as part of the .nemo file, the model's internal config will be preserved. This config is used during restoration, and
+as shown below we can update this config prior to restoring the model.
+
+.. code-block::
+
+    # When restoring a model, you should generally use the class of the model
+    # Obtain the config (as an OmegaConf object)
+    config = model_class.restore_from('/path/to/model.nemo', return_config=True)
+    # OR
+    config = model_class.from_pretrained('name_of_the_model', return_config=True)
+
+    # Modify the config as needed
+    config.x.y = z
+
+    # Restore the model from the updated config
+    model = model_class.restore_from('/path/to/model.nemo', override_config_path=config)
+    # OR
+    model = model_class.from_pretrained('name_of_the_model', override_config_path=config)
 
 Register Artifacts
 ------------------
@@ -600,7 +638,7 @@ The resulting .nemo file will then have the following file:
 If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
 if the ``src`` cannot be found. 
 
-
+.. _exp-manager-label:
 
 Experiment Manager
 ==================

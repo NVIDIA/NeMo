@@ -112,32 +112,25 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
         }
 
-    def _prepare_for_export(self, **kwargs):
-        self.freeze()
-
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=1):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        length = 1
-        targets = torch.full(fill_value=self.blank_idx, size=(1, length), dtype=torch.int32).to(
+        length = max_dim
+        targets = torch.full(fill_value=self.blank_idx, size=(max_batch, length), dtype=torch.int32).to(
             next(self.parameters()).device
         )
-        target_length = torch.randint(0, length, size=(1,), dtype=torch.int32).to(next(self.parameters()).device)
+        target_length = torch.randint(0, length, size=(max_batch,), dtype=torch.int32).to(
+            next(self.parameters()).device
+        )
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
-    @property
-    def disabled_deployment_input_names(self):
-        """Implement this method to return a set of input names disabled for export"""
-        return set([])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set([])
+    def _prepare_for_export(self, **kwargs):
+        self._rnnt_export = True
+        super()._prepare_for_export(**kwargs)
 
     def __init__(
         self,
@@ -173,9 +166,8 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
+            rnn_hidden_size=prednet.get("rnn_hidden_size", -1),
         )
-
-        # Flag needed for RNNT export support
         self._rnnt_export = False
 
     @typecheck()
@@ -217,7 +209,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Args:
             y: Optional torch tensor of shape [B, U] of dtype long which will be passed to the Embedding.
-                If None, creates a zero tensor of shape [B, 1, H] which mimics output of pad-token on Embedding.
+                If None, creates a zero tensor of shape [B, 1, H] which mimics output of pad-token on EmbeddiNg.
 
             state: An optional list of states for the RNN. Eg: For LSTM, it is the state list length is 2.
                 Each state must be a tensor of shape [L, B, H].
@@ -301,6 +293,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         weights_init_scale,
         hidden_hidden_bias_scale,
         dropout,
+        rnn_hidden_size,
     ):
         """
         Prepare the trainable parameters of the Prediction Network.
@@ -317,6 +310,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
                 the default behaviour.
             dropout: Whether to apply dropout to RNN.
+            rnn_hidden_size: the hidden size of the RNN, if not specified, pred_n_hidden would be used
         """
         if self.blank_as_pad:
             embed = torch.nn.Embedding(vocab_size + 1, pred_n_hidden, padding_idx=self.blank_idx)
@@ -328,7 +322,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 "embed": embed,
                 "dec_rnn": rnn.rnn(
                     input_size=pred_n_hidden,
-                    hidden_size=pred_n_hidden,
+                    hidden_size=rnn_hidden_size if rnn_hidden_size > 0 else pred_n_hidden,
                     num_layers=pred_rnn_layers,
                     norm=norm,
                     forget_gate_bias=forget_gate_bias,
@@ -336,6 +330,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                     dropout=dropout,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
+                    proj_size=pred_n_hidden if pred_n_hidden < rnn_hidden_size else 0,
                 ),
             }
         )
@@ -706,17 +701,17 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
             }
 
     def _prepare_for_export(self, **kwargs):
-        self.freeze()
         self._fuse_loss_wer = False
         self.log_softmax = False
+        super()._prepare_for_export(**kwargs)
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=8192):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        B, T, U = 1, 8192, 1
+        B, T, U = max_batch, max_dim, max_batch
         encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
         decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
         return (encoder_outputs, decoder_outputs)
@@ -725,11 +720,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
         return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
-
-    @property
-    def disabled_deployment_output_names(self):
-        """Implement this method to return a set of output names disabled for export"""
-        return set()
 
     def __init__(
         self,
@@ -1079,12 +1069,11 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
     def fuse_loss_wer(self):
         return self._fuse_loss_wer
 
-    def set_fuse_loss_wer(self, fuse_loss_wer):
+    def set_fuse_loss_wer(self, fuse_loss_wer, loss=None, metric=None):
         self._fuse_loss_wer = fuse_loss_wer
 
-        if self._fuse_loss_wer is False:
-            self._loss = None
-            self._wer = None
+        self._loss = loss
+        self._wer = metric
 
     @property
     def fused_batch_size(self):
@@ -1092,3 +1081,49 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
 
     def set_fused_batch_size(self, fused_batch_size):
         self._fused_batch_size = fused_batch_size
+
+
+class RNNTDecoderJoint(torch.nn.Module, Exportable):
+    """
+    Utility class to export Decoder+Joint as a single module
+    """
+
+    def __init__(self, decoder, joint):
+        super().__init__()
+        self.decoder = decoder
+        self.joint = joint
+
+    @property
+    def input_types(self):
+        state_type = NeuralType(('D', 'B', 'D'), ElementType())
+        mytypes = {
+            'encoder_outputs': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "targets": NeuralType(('B', 'T'), LabelsType()),
+            "target_length": NeuralType(tuple('B'), LengthsType()),
+            'input-states-1': state_type,
+            'input-states-2': state_type,
+        }
+
+        return mytypes
+
+    def input_example(self, max_batch=1, max_dim=1):
+        decoder_example = self.decoder.input_example(max_batch=max_batch, max_dim=max_dim)
+        state1, state2 = decoder_example[-1]
+        return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
+
+    @property
+    def output_types(self):
+        return {
+            "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
+            "output-states-1": NeuralType((('D', 'B', 'D')), ElementType()),
+            "output-states-2": NeuralType((('D', 'B', 'D')), ElementType()),
+        }
+
+    def forward(self, encoder_outputs, decoder_inputs, decoder_lengths, state_h, state_c):
+        decoder_outputs = self.decoder(decoder_inputs, decoder_lengths, (state_h, state_c))
+        decoder_output = decoder_outputs[0]
+        decoder_length = decoder_outputs[1]
+        state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
+        joint_output = self.joint(encoder_outputs, decoder_output)
+        return (joint_output, decoder_length, state_h, state_c)

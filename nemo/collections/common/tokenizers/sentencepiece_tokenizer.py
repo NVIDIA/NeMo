@@ -227,8 +227,32 @@ class SentencePieceTokenizer(TokenizerSpec):
             raise NameError("Use function token_to_id to retrieve special tokens other than unk, pad, bos, and eos.")
 
     @property
+    def mask_id(self):
+        if self.legacy:
+            return self.tokens_to_ids([self.mask_token])[0]
+        else:
+            raise NameError("Use function token_to_id to retrieve special tokens other than unk, pad, bos, and eos.")
+
+    @property
     def unk_id(self):
         return self.tokenizer.unk_id()
+
+    @property
+    def additional_special_tokens_ids(self):
+        """Returns a list of the additional special tokens (excluding bos, eos, pad, unk). Used to return sentinel tokens for e.g. T5."""
+        special_tokens = set(
+            [self.bos_token, self.eos_token, self.pad_token, self.mask_token, self.cls_token, self.sep_token]
+        )
+        return [v for k, v in self.special_token_to_id.items() if k not in special_tokens]
+
+    @property
+    def vocab(self):
+        main_vocab = [self.tokenizer.id_to_piece(id) for id in range(self.tokenizer.get_piece_size())]
+        special_tokens = [
+            self.id_to_special_token[self.original_vocab_size + i]
+            for i in range(self.vocab_size - self.original_vocab_size)
+        ]
+        return main_vocab + special_tokens
 
 
 def create_spt_model(

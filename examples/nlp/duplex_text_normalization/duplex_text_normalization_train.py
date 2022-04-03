@@ -142,8 +142,8 @@ def main(cfg: DictConfig) -> None:
         and cfg.decoder_model.do_training
     ):
         tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, cfg.lang)
-        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.data.test_ds.mode, cfg.lang)
-        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.inference.errors_log_fp)
+        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.mode, cfg.lang)
+        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.data.test_ds.errors_log_fp)
         print(f'\nTest results: {results}')
 
 

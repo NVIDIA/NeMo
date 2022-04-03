@@ -12,7 +12,6 @@ model:
     labels: null
     batch_size: 64
     shuffle: True
-    time_length: 8
     is_tarred: False
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
@@ -23,7 +22,6 @@ model:
     labels: null
     batch_size: 128
     shuffle: False
-    time_length: 8
 
   test_ds:
     manifest_filepath: ???
@@ -31,7 +29,6 @@ model:
     labels: null
     batch_size: 1
     shuffle: False
-    time_length: 8
     embedding_dir: '.'
 
   preprocessor:
@@ -137,14 +134,15 @@ model:
         last_epoch: -1
 
 trainer:
-  gpus: 1 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 200
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
   deterministic: True
-  checkpoint_callback: False
+  enable_checkpointing: False
   logger: False
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations

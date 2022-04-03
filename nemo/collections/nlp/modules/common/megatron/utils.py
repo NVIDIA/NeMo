@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +15,49 @@
 """Utilities for models."""
 
 import math
+from typing import Dict, List, Union
 
 import torch
-from apex.transformer import parallel_state
+import torch.nn.functional as F
+
+try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType
+    from apex.transformer.pipeline_parallel.schedules.common import listify_model
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+
+class ApexGuardDefaults(object):
+    """
+    This class can be used to replace missing classes when apex is missing.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def __getattr__(self, item):
+        return None
+
+
+def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
+    """LM logits using word embedding weights."""
+    # Parallel logits.
+    input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
+    # Matrix multiply.
+    if bias is None:
+        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
+    else:
+        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+    # Gather if needed.
+    if parallel_output:
+        return logits_parallel
+
+    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
 
 
 def init_method_normal(sigma):
@@ -102,7 +142,7 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
 
     # Position ids.
     position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
-    position_ids = position_ids.unsqueeze(0).expand_as(data)
+    position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
     # We need to clone as the ids will be modifed based on batch index.
     if reset_position_ids:
         position_ids = position_ids.clone()
@@ -135,32 +175,122 @@ def get_ltor_masks_and_position_ids(data, eod_token, reset_position_ids, reset_a
     return attention_mask, loss_mask, position_ids
 
 
-class AutocastModuleWrapper(torch.nn.Module):
-    def __init__(self, fp16=False, bf16=False):
-        super(AutocastModuleWrapper, self).__init__()
+def attn_mask_postprocess(attn_mask):
+    # [b, 1, s, s]
+    # Attn_masks for enc-dec attn and dec attn is None when trying to get just the encoder hidden states.
+    if attn_mask is None:
+        return None
+    extended_attention_mask = attn_mask.unsqueeze(1)
+    return extended_attention_mask
 
-        # TODO: @titu1994 Maybe useful to make this adaptive - prefer bf16 over fp16 when both flags are set and both dtypes are supported?
-        assert not (fp16 and bf16)
-        if fp16 or bf16:
-            self.precision = torch.float16 if fp16 else torch.bfloat16
-            self.use_autocast = True
-        else:
-            self.use_autocast = False
 
-        # class or function to autocast should be defined
-        self.func = None
+def enc_dec_extended_attention_mask(attention_mask_list):
 
-    def autocast_forward(self, *args):
+    return [attn_mask_postprocess(attn_mask) for attn_mask in attention_mask_list]
 
-        assert self.func is not None
-        if self.use_autocast:
-            if isinstance(self.func, torch.autograd.function.FunctionMeta):
-                fwd = torch.cuda.amp.custom_fwd(cast_inputs=self.precision)(self.func.apply)
+
+def build_position_ids(token_ids):
+    # Create position ids
+    seq_length = token_ids.size(1)
+    position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
+    position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
+
+    return position_ids
+
+
+def make_attention_mask_3d(source_mask, target_mask):
+    """
+    Returns a 3-dimensional (3-D) attention mask
+    :param source_block: 2-D array
+    :param target_block: 2-D array
+    """
+    mask = target_mask[:, None, :] * source_mask[:, :, None]
+    return mask
+
+
+def make_inference_attention_mask_3d(source_block, target_block, pad_id):
+    """
+    Returns a 3-dimensional (3-D) attention mask
+    :param source_block: 2-D array
+    :param target_block: 2-D array
+    """
+    # mask = (target_block[:, None, :] != pad_id) * (source_block[:, :, None] != pad_id)
+    return make_attention_mask_3d(source_block != pad_id, target_block != pad_id)
+
+
+def make_inference_history_mask_3d(block):
+    batch, length = block.shape
+    arange = torch.arange(length, device=block.device)
+    history_mask = (arange[None,] <= arange[:, None])[
+        None,
+    ]
+    history_mask = history_mask.expand(batch, length, length)
+    return history_mask
+
+
+def build_attention_mask_3d_padding(source_mask, target_mask):
+    """
+    Returns a 3D joint attention mask for Megatron given two 2D masks
+    :param source_mask - True for non-masked, else masked [batch, src length]
+    :param target_mask - True for non-masked, else masked [batch, tgt length]
+    """
+    mask = make_attention_mask_3d(source_mask, target_mask)
+    # invert mask for Megatron
+    return mask < 0.5
+
+
+def build_attention_mask_3d_causal(source_mask, target_mask):
+    """
+    Returns a 3D joint attention mask for Megatron given two 2D masks
+    :param source_mask - True for non-masked, else masked [batch, src length]
+    :param target_mask - True for non-masked, else masked [batch, tgt length]
+    """
+    causal_mask = make_inference_history_mask_3d(target_mask)
+    mask = make_attention_mask_3d(source_mask, target_mask)
+    mask = mask * causal_mask
+    # invert mask for Megatron
+    return mask < 0.5
+
+
+def build_attention_mask_3d(source_mask, target_mask, attn_mask_type):
+    """
+    Returns a 3D attention mask for Megatron given two 2D masks
+    :param source_mask - < 0.5 for non-masked, else masked [batch, src length]
+    :param target_mask - < 0.5 for non-masked, else masked [batch, tgt length]
+    :param attn_mask_type - AttnMaskType enum
+    """
+    if attn_mask_type == AttnMaskType.padding:
+        mask = build_attention_mask_3d_padding(source_mask, target_mask)
+    elif attn_mask_type == AttnMaskType.causal:
+        mask = build_attention_mask_3d_causal(source_mask, target_mask)
+    else:
+        raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
+
+    return mask
+
+
+def get_params_for_weight_decay_optimization(
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+) -> Dict[str, torch.nn.Parameter]:
+    """Divide params into with-weight-decay and without-weight-decay groups.
+
+    Layernorms and biases will have no weight decay but the rest will.
+    """
+    modules = listify_model(model)
+    weight_decay_params = {'params': []}
+    no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+    for module in modules:
+        for module_ in module.modules():
+            if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
+                no_weight_decay_params['params'].extend(
+                    [p for p in list(module_._parameters.values()) if p is not None]
+                )
             else:
-                fwd = torch.cuda.amp.custom_fwd(cast_inputs=self.precision)(self.func)
-            return fwd(*args)
-        else:
-            if isinstance(self.func, torch.autograd.function.FunctionMeta):
-                return self.func.apply(*args)
-            else:
-                return self.func(*args)
+                weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
+                )
+                no_weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
+                )
+
+    return weight_decay_params, no_weight_decay_params

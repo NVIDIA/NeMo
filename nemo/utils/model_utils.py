@@ -21,7 +21,9 @@ from typing import List, Optional, Union
 
 import wrapt
 
-from nemo.utils import logging
+import nemo
+from nemo import constants
+from nemo.utils import AppState, logging
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 
@@ -172,6 +174,15 @@ def parse_dataset_as_name(name: str) -> str:
 
     if 'dataset' in name:
         name = name.replace('dataset', '')
+
+    # Test if the manifes/dataset name was simply `manifest.yaml` or `dataset.yaml`: Invalid names.
+    if name == '':
+        raise ValueError(
+            "Provided dataset / manifest filename was `manifest.json` or `dataset.json`.\n"
+            "Such a name is invalid, since multiple datasets/manifests can share the same name,\n"
+            "thereby overriding their results during logging. Please pick a more discriptive filename \n"
+            "for the provided dataset / manifest file."
+        )
 
     if '_' != name[-1]:
         name = name + '_'
@@ -552,3 +563,55 @@ def check_lib_version(lib_name: str, checked_version: str, operator) -> (Optiona
 
     msg = f"Lib {lib_name} has not been installed. Please use pip or conda to install this package."
     return None, msg
+
+
+def resolve_cache_dir() -> Path:
+    """
+    Utility method to resolve a cache directory for NeMo that can be overriden by an environment variable.
+
+    Example:
+        NEMO_CACHE_DIR="~/nemo_cache_dir/" python nemo_example_script.py
+
+    Returns:
+        A Path object, resolved to the absolute path of the cache directory. If no override is provided,
+        uses an inbuilt default which adapts to nemo versions strings.
+    """
+    override_dir = os.environ.get(constants.NEMO_ENV_CACHE_DIR, "")
+    if override_dir == "":
+        path = Path.joinpath(Path.home(), f'.cache/torch/NeMo/NeMo_{nemo.__version__}')
+    else:
+        path = Path(override_dir).resolve()
+    return path
+
+
+def uninject_model_parallel_rank(filepath):
+    filepath = str(filepath)
+    if 'mp_rank' in filepath or 'tp_rank' in filepath:
+        dirname = os.path.dirname(os.path.dirname(filepath))
+        basename = os.path.basename(filepath)
+        filepath = os.path.join(dirname, basename)
+        return filepath
+    else:
+        return filepath
+
+
+def inject_model_parallel_rank(filepath):
+    """
+    Injects tensor/pipeline model parallel ranks into the filepath.
+    Does nothing if not using model parallelism.
+    """
+    # first make sure filepath does not have rank
+    filepath = uninject_model_parallel_rank(filepath)
+
+    app_state = AppState()
+    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+        # filepath needs to be updated to include mp_rank
+        dirname = os.path.dirname(filepath)
+        basename = os.path.basename(filepath)
+        if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
+            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
+        else:
+            filepath = f'{dirname}/tp_rank_{app_state.tensor_model_parallel_rank:02d}_pp_rank_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
+        return filepath
+    else:
+        return filepath

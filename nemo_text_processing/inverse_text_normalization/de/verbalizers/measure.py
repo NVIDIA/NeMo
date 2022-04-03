@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_CHAR, GraphFst, delete_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, delete_space
 
 try:
     import pynini
@@ -27,16 +27,17 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, e.g.
-        measure { negative: "true" cardinal { integer: "12" } units: "kg" } -> -12 kg
+        measure { cardinal { negative: "true" integer: "12" } units: "kg" } -> -12 kg
+        measure { decimal { integer_part: "1/2" } units: "kg" } -> 1/2 kg
+        measure { decimal { integer_part: "1" fractional_part: "2" quantity: "million" } units: "kg" } -> 1,2 million kg
 
     Args:
-        decimal: DecimalFst
-        cardinal: CardinalFst
-        fraction: FractionFst
+        decimal: ITN Decimal verbalizer
+        cardinal: ITN Cardinal verbalizer
     """
 
-    def __init__(self, decimal: GraphFst, cardinal: GraphFst, fraction: GraphFst):
-        super().__init__(name="measure", kind="verbalize")
+    def __init__(self, decimal: GraphFst, cardinal: GraphFst, deterministic: bool = True):
+        super().__init__(name="measure", kind="verbalize", deterministic=deterministic)
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "-"), 0, 1)
         unit = (
             pynutil.delete("units:")
@@ -64,16 +65,7 @@ class MeasureFst(GraphFst):
             + delete_space
             + pynutil.delete("}")
         )
-        graph_fraction = (
-            pynutil.delete("fraction {")
-            + delete_space
-            + optional_sign
-            + delete_space
-            + fraction.numbers
-            + delete_space
-            + pynutil.delete("}")
-        )
 
-        graph = (graph_cardinal | graph_decimal | graph_fraction) + delete_space + pynutil.insert(" ") + unit
+        graph = (graph_cardinal | graph_decimal) + delete_space + pynutil.insert(" ") + unit
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

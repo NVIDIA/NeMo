@@ -15,7 +15,7 @@
 import hashlib
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -26,15 +26,12 @@ from pytorch_lightning.utilities.migration import pl_legacy_patch
 from transformers import TRANSFORMERS_CACHE
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.modules import BertModule, MegatronBertEncoder
+from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
-from nemo.collections.nlp.modules.common.megatron.megatron_bert import (
-    get_megatron_checkpoint_version,
-    set_megatron_checkpoint_version,
-)
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import MEGATRON_CONFIG_MAP
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.parts.nlp_overrides import NLPCheckpointConnector, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import AppState, logging
@@ -50,16 +47,57 @@ class NLPModel(ModelPT, Exportable):
     """Base class for NLP Models.
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, no_lm_init=False):
+
+        self.hidden_size = None
+        self.bert_model = None
+        vocab_file = None
+        nemo_file = None
+        config_dict = None
+        config_file = None
+
+        # tokenizer needs to get initialized before the super.__init__()
+        # as dataloaders and datasets need it to process the data
+        if cfg.get('tokenizer'):
+            # Some models have their own tokenizer setup
+            if not hasattr(self, 'tokenizer') and cfg.tokenizer.get('tokenizer_name'):
+                self.setup_tokenizer(cfg.tokenizer)
+            if cfg.get('tokenizer.vocab_file'):
+                vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
+
         super().__init__(cfg, trainer)
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
-        self.set_world_size(trainer)
+
+        if cfg.get('language_model') and not no_lm_init:
+            if cfg.get('language_model.nemo_file'):
+                nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
+            if cfg.get('language_model.config'):
+                config_dict = OmegaConf.to_container(cfg.language_model.config)
+            if cfg.get('language_model.config_file'):
+                config_file = self.register_artifact('language_model.config_file', cfg.language_model.config_file)
+            self.bert_model = get_lm_model(
+                config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
+            )
+            if cfg.language_model.get('downstream'):
+                cfg.language_model.downstream = True
+
+            # Required to pull up the config for MegatronBert models
+            self.pretrained_model_name = cfg.language_model.pretrained_model_name
+
+            # register encoder config
+            self.register_bert_model()
+
+            if cfg.tokenizer.get("library", "") == 'megatron':
+                self.hidden_size = self.bert_model.cfg.hidden_size
+            else:
+                self.hidden_size = self.bert_model.config.hidden_size
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
     ):
-        """ Overrides ModelPT register_artifact default behavior. NLP models usually need artifacts that are optional."""
+        """ Overrides ModelPT register_artifact default behavior.
+        NLP models usually need artifacts that are optional."""
         return super().register_artifact(config_path, src, verify_src_exists=verify_src_exists)
 
     @rank_zero_only
@@ -67,19 +105,9 @@ class NLPModel(ModelPT, Exportable):
         """Adds encoder config to .nemo archive for Jarvis.
         """
         # check if there is an encoder, warn if not
-        if self.bert_model is None:
-            raise ValueError('Instantiate self.bert_model before registering it.')
-        else:
+        if self.bert_model is not None:
             # get encoder config and create source for artifact
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                pretrained_model_name = self.bert_model._model_name
-                encoder_config_path = pretrained_model_name + '_encoder_config'
-                encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
-                config_for_json = OmegaConf.to_container(self.bert_model.config)
-                with open(encoder_config_src, 'w', encoding='utf-8') as f:
-                    f.write(json.dumps(config_for_json, indent=2, sort_keys=True) + '\n')
-                self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
-            elif isinstance(self.bert_model, BertModule):
+            if isinstance(self.bert_model, BertModule):
                 # HuggingFace Transformer Config
                 pretrained_model_name = self.bert_model.name_or_path
                 # Some HF names have "/" in them so we replace with _
@@ -88,6 +116,24 @@ class NLPModel(ModelPT, Exportable):
                 encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
                 self.bert_model.config.to_json_file(encoder_config_src)  # name requested by jarvis team
                 self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
+            # MegatronBertModel's superclass is NLP model, hence can't check for isinstance of self.bert_modelel
+            elif hasattr(self, 'pretrained_model_name') and 'megatron' in self.pretrained_model_name:
+                if self.pretrained_model_name in MEGATRON_CONFIG_MAP:
+                    output_config = MEGATRON_CONFIG_MAP[self.pretrained_model_name]["config"]
+                    if output_config is not None:
+                        encoder_config_path = self.pretrained_model_name + '_encoder_config'
+                        encoder_config_src = os.path.join(NEMO_NLP_TMP, encoder_config_path + '.json')
+                        with open(encoder_config_src, 'w', encoding='utf-8') as f:
+                            f.write(json.dumps(output_config, indent=2, sort_keys=True) + '\n')
+                        self.register_artifact('language_model.config_file', encoder_config_src)  # for .nemo
+                    else:
+                        # No defaults as this case can be any possible hyper-parameter combination of MegatronBert config
+                        logging.info(f'For {self.pretrained_model_name}, set the config_file in the YAML file')
+                else:
+                    logging.info(
+                        f'Registering MegatronBERT model config for {self.pretrained_model_name} is not yet supported. \
+                        Please override this method if needed.'
+                    )
             else:
                 logging.info(
                     f'Registering BERT model config for {self.bert_model} is not yet supported. Please override this method if needed.'
@@ -108,7 +154,7 @@ class NLPModel(ModelPT, Exportable):
             cfg (DictConfig): Tokenizer config
         """
         vocab_file = None
-        if cfg.vocab_file:
+        if cfg.get('vocab_file'):
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
@@ -179,43 +225,6 @@ class NLPModel(ModelPT, Exportable):
                     f'Registering tokenizer vocab for {self.tokenizer} is not yet supported. Please override this method if needed.'
                 )
 
-    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        """ LightningModule hook that's used to save things in addition to model weights. """
-
-        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            checkpoint['checkpoint_version'] = get_megatron_checkpoint_version()
-        return None
-
-    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        """ LightningModule hook that's used to restore things saved with on_save_checkpoint."""
-
-        if hasattr(self, "bert_model") and isinstance(self.bert_model, MegatronBertEncoder):
-            if get_megatron_checkpoint_version():
-                assert (
-                    checkpoint['checkpoint_version'] == get_megatron_checkpoint_version()
-                ), 'checkpoint version found on_load_checkpoint different than get_megatron_checkpoint_version'
-            else:
-                set_megatron_checkpoint_version(checkpoint['checkpoint_version'])
-                logging.info(f"Setting Megatron checkpoint version: {checkpoint['checkpoint_version']}")
-        return None
-
-    @rank_zero_only
-    def register_megatron_checkpoint_version(self):
-        """ Adds checkpoint version to .nemo archive """
-        if self.has_megatron_encoder:
-            checkpoint_version = get_megatron_checkpoint_version()
-            if checkpoint_version is None:
-                raise ValueError('Unable to get megatron checkpoint version.')
-            else:
-                checkpoint_version_dict = {'checkpoint_version': checkpoint_version}
-                checkpoint_version_path = 'megatron_checkpoint_version.json'
-                checkpoint_version_src = os.path.join(NEMO_NLP_TMP, checkpoint_version_path)
-                with open(checkpoint_version_src, 'w') as f:
-                    f.write(json.dumps(checkpoint_version_dict))
-                self.register_artifact(checkpoint_version_path, checkpoint_version_src)
-        else:
-            raise ValueError('Registering Megatron checkpoint version but no Megatron encoder detected.')
-
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         return super(NLPModel, NLPModel)._unpack_nemo_file(path2file, out_folder)
@@ -233,40 +242,12 @@ class NLPModel(ModelPT, Exportable):
         return self.classifier
 
     @property
-    def has_megatron_encoder(self):
-        if hasattr(self, 'bert_model'):
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                return True
-            else:
-                return False
-        elif hasattr(self, 'encoder'):
-            if isinstance(self.encoder, MegatronEncoderModule):
-                return True
-            else:
-                return False
-        else:
-            return False
-
-    @property
     def is_model_parallel_initialized(self):
         app_state = AppState()
         if app_state.model_parallel_group is not None:
             return True
         else:
             return False
-
-    def restore_megatron_encoder_weights(self):
-        """ Model parallel weights need to be restored after DDP is initialized and 
-            model parallel ranks are known.
-        """
-        if hasattr(self, 'bert_model'):
-            if isinstance(self.bert_model, MegatronBertEncoder):
-                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.bert_model._restore_path}")
-                self.bert_model.restore_weights(self.bert_model._restore_path)
-        elif hasattr(self, 'encoder'):
-            if isinstance(self.encoder, MegatronEncoderModule):
-                logging.info(f"Restoring from pretrained model parallel checkpoint: {self.encoder.checkpoint_file}")
-                self.encoder._encoder.restore_weights(self.encoder.checkpoint_file)
 
     @classmethod
     def load_from_checkpoint(
@@ -309,30 +290,34 @@ class NLPModel(ModelPT, Exportable):
             if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
                 checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
             # override the hparams with values that were passed in
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
             # TODO: can we do this without overriding?
             config_kwargs = kwargs.copy()
             if 'trainer' in config_kwargs:
                 config_kwargs.pop('trainer')
-            checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
+            cfg.update(config_kwargs)
 
-            model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+            if cfg.get('megatron_amp_O2', False):
+                new_state_dict = {}
+                for key in checkpoint['state_dict'].keys():
+                    new_key = key.replace('model.', 'model.module.', 1)
+                    new_state_dict[new_key] = checkpoint['state_dict'][key]
+                checkpoint['state_dict'] = new_state_dict
+
+            if 'cfg' in kwargs:
+                model = cls._load_model_state(checkpoint, strict=strict, **kwargs)
+            else:
+                model = cls._load_model_state(checkpoint, strict=strict, cfg=cfg, **kwargs)
+                # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
+            if cfg.tokenizer.model is not None:
+                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
+            if cfg.tokenizer.vocab_file is not None:
+                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
+            if cfg.tokenizer.merge_file is not None:
+                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
+
             checkpoint = model
 
         finally:
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
-
-    def save_to(self, save_path: str):
-        app_state = AppState()
-        # Add NeMo rank check as well
-        if app_state.model_parallel_size is not None:
-            if app_state.model_parallel_size > 1:
-                if not isinstance(self._save_restore_connector, NLPSaveRestoreConnector):
-                    logging.warning(
-                        f"Using {self._save_restore_connector.__class__} to save a model parallel model.  Overriding with NLPSaveRestoreConnector. Make sure to subclass NLPSaveRestoreConnector."
-                    )
-                    self._save_restore_connector = NLPSaveRestoreConnector()
-            save_path = os.path.abspath(os.path.expanduser(save_path))
-            self._save_restore_connector.save_to(self, save_path)
-        else:
-            super(NLPModel, self).save_to(save_path=save_path)

@@ -19,6 +19,7 @@ import sys
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
@@ -28,17 +29,21 @@ from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
-from pytorch_lightning.utilities.types import _METRIC
+from pytorch_lightning.strategies.ddp import DDPStrategy
+from pytorch_lightning.trainer.states import RunningStage
+from pytorch_lightning.utilities.distributed import rank_zero_info
 
-from nemo.constants import NEMO_ENV_VARNAME_VERSION
+from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
+from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
+from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
 
 
 class NotFoundError(NeMoBaseException):
@@ -71,11 +76,13 @@ class CallbackParams:
     save_top_k: Optional[int] = 3
     save_weights_only: Optional[bool] = False
     mode: Optional[str] = "min"
-    every_n_val_epochs: Optional[int] = 1
+    every_n_epochs: Optional[int] = 1
     prefix: Optional[str] = None  # If None, exp_manager will attempt to handle the filepath
     postfix: str = ".nemo"
     save_best_model: bool = False
     always_save_nemo: bool = False
+    save_nemo_on_train_end: Optional[bool] = True  # Whether to automatically save .nemo file durin on_train_end hook
+    model_parallel_size: Optional[int] = None  # tensor parallel size * pipeline parallel size
 
 
 @dataclass
@@ -84,7 +91,7 @@ class StepTimingParams:
     # if True torch.cuda.synchronize() is called on start/stop
     sync_cuda: Optional[bool] = False
     # if positive, defines the size of a sliding window for computing mean
-    buffer_size: Optional[int] = -1
+    buffer_size: Optional[int] = 1
 
 
 @dataclass
@@ -132,10 +139,10 @@ class TimingCallback(Callback):
         self.timer.stop(name)
         pl_module.log(name, self.timer[name], on_step=True, on_epoch=False)
 
-    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
+    def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         self._on_batch_start("train_step_timing")
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._on_batch_end("train_step_timing", pl_module)
 
     def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx):
@@ -187,7 +194,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
             - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
-                trainer.checkpoint_connector.resume_checkpoint_path so that the trainer should auto-resume. exp_manager will move files
+                trainer._checkpoint_connector.resume_from_checkpoint_fit_path so that the trainer should auto-resume. exp_manager will move files
                 under log_dir to log_dir/run_{int}. Defaults to False. From v1.0.0, when resume_if_exists is True,
                 we would not create version folders to make it easier to find the log folder for next runs.
             - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
@@ -218,8 +225,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     # Add rank information to logger
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_gpus + local_rank
     logging.rank = global_rank
+    world_size = trainer.world_size
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -274,9 +283,19 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer._default_root_dir = log_dir
 
-    # Handle Loggers by creating file and handle DEBUG statements
-    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{int(os.environ.get("LOCAL_RANK", 0))}.txt'
-    logging.add_file_handler(log_file)
+    # Handle logging to file
+    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or world_size <= 32:
+        # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    elif world_size <= 256 and local_rank == 0:
+        # If less than 256 ranks, try to save 1 log file per "machine"
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    elif global_rank == 0:
+        # If running more than 256 ranks, only save 1 log file
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
 
     # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
     # not just global rank 0.
@@ -309,13 +328,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 copy(Path(_file), log_dir)
 
         # Create files for cmd args and git info
-        with open(log_dir / 'cmd-args.log', 'w') as _file:
+        with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
             _file.write(" ".join(sys.argv))
 
         # Try to get git hash
         git_repo, git_hash = get_git_hash()
         if git_repo:
-            with open(log_dir / 'git-info.log', 'w') as _file:
+            with open(log_dir / 'git-info.log', 'w', encoding='utf-8') as _file:
                 _file.write(f'commit hash: {git_hash}')
                 _file.write(get_git_diff())
 
@@ -352,7 +371,7 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
             "You are running multi-node training without SLURM handling the processes."
             " Please note that this is not tested in NeMo and could result in errors."
         )
-    if trainer.num_gpus > 1 and not isinstance(trainer.accelerator.training_type_plugin, DDPPlugin):
+    if trainer.num_gpus > 1 and not isinstance(trainer.strategy, DDPStrategy):
         logging.error(
             "You are running multi-gpu without ddp.Please note that this is not tested in NeMo and could result in "
             "errors."
@@ -366,7 +385,7 @@ def check_resume(
     resume_ignore_no_checkpoint: bool = False,
 ):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
-    trainer.checkpoint_connector.resume_checkpoint_path as necessary.
+    trainer._checkpoint_connector.resume_from_checkpoint_fit_path as necessary.
 
     Returns:
         log_dir (Path): the log_dir
@@ -414,15 +433,16 @@ def check_resume(
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
-        if 'mp_rank' in str(last_checkpoints[0]):
+        if 'mp_rank' in str(last_checkpoints[0]) or 'tp_rank' in str(last_checkpoints[0]):
             checkpoint = last_checkpoints[0]
+            checkpoint = uninject_model_parallel_rank(checkpoint)
         else:
             raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer.checkpoint_connector.resume_checkpoint_path = str(checkpoint)
+    trainer._checkpoint_connector.resume_from_checkpoint_fit_path = str(checkpoint)
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
@@ -641,19 +661,37 @@ def configure_loggers(
     logger_list = (
         LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
     )
-    trainer.logger_connector.configure_logger(logger_list)
+    trainer._logger_connector.configure_logger(logger_list)
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):
     """ Light wrapper around Lightning's ModelCheckpoint to force a saved checkpoint on train_end
     """
 
-    def __init__(self, always_save_nemo=False, save_best_model=False, postfix=".nemo", n_resume=False, **kwargs):
+    def __init__(
+        self,
+        always_save_nemo=False,
+        save_nemo_on_train_end=True,
+        save_best_model=False,
+        postfix=".nemo",
+        n_resume=False,
+        model_parallel_size=None,
+        **kwargs,
+    ):
         # Parse and store "extended" parameters: save_best model and postfix.
         self.always_save_nemo = always_save_nemo
+        self.save_nemo_on_train_end = save_nemo_on_train_end
         self.save_best_model = save_best_model
+        if self.save_best_model and not self.save_nemo_on_train_end:
+            logging.warning(
+                (
+                    "Found save_best_model is True and save_nemo_on_train_end is False. "
+                    "Set save_nemo_on_train_end to True to automatically save the best model."
+                )
+            )
         self.postfix = postfix
         self.previous_best_path = ""
+        self.model_parallel_size = model_parallel_size
 
         # `prefix` is deprecated
         if 'prefix' in kwargs:
@@ -665,6 +703,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         super().__init__(**kwargs)
 
         if self.save_top_k != -1 and n_resume:
+            logging.debug("Checking previous runs")
             self.nemo_topk_check_previous_run()
 
     def nemo_topk_check_previous_run(self):
@@ -673,7 +712,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             self.kth_best_model_path
             self.best_model_score
             self.best_model_path
-            self._del_model
         except AttributeError:
             raise AttributeError("Lightning's ModelCheckpoint was updated. NeMoModelCheckpoint will need an update.")
         self.best_k_models = {}
@@ -683,6 +721,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         checkpoints = list(Path(self.dirpath).rglob("*.ckpt"))
         for checkpoint in checkpoints:
+            if 'mp_rank' in str(checkpoint) or 'tp_rank' in str(checkpoint):
+                checkpoint = uninject_model_parallel_rank(checkpoint)
             checkpoint = str(checkpoint)
             if checkpoint[-10:] == '-last.ckpt':
                 continue
@@ -701,7 +741,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         ### This section should be ok as rank zero will delete all excess checkpoints, since all other ranks are
         ### instantiated after rank zero. models_to_delete should be 0 for all other ranks.
-        models_to_delete = len(best_k_models) - self.save_top_k
+        if self.model_parallel_size is not None:
+            models_to_delete = len(best_k_models) - self.model_parallel_size * self.save_top_k
+        else:
+            models_to_delete = len(best_k_models) - self.save_top_k
         logging.debug(f'Number of models to delete: {models_to_delete}')
         for _ in range(models_to_delete):
             model = best_k_models.pop(-1)
@@ -714,10 +757,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         self.best_model_score = self.best_k_models[self.best_model_path]
 
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+        # output = None
         output = super().on_save_checkpoint(trainer, pl_module, checkpoint)
         if not self.always_save_nemo:
             return output
-
         else:
             # Load the best model and then re-save it
             app_state = AppState()
@@ -751,40 +794,27 @@ class NeMoModelCheckpoint(ModelCheckpoint):
         if trainer.fast_dev_run:
             return None
 
+        # Call parent on_train_end() to save the -last checkpoint
+        super().on_train_end(trainer, pl_module)
+
         # Load the best model and then re-save it
         if self.save_best_model:
-            trainer.checkpoint_connector.restore(self.best_model_path)
+            if self.best_model_path == "":
+                logging.warning(
+                    f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
+                    "were found. Saving latest model instead."
+                )
+            else:
+                trainer._checkpoint_connector.restore(self.best_model_path)
 
-        pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
-
-    def _del_model(self, trainer: "pl.Trainer", filepath: str) -> None:
-        """ Overrides PTL method to account for model parallel checkpoints.
-            Updates checkpoint path based on model parallel rank.
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            # filepath needs to be updated to include mp_rank
-            # TODO: figure out a good way to update these filepaths
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
-
-            # each model parallel rank needs to remove its model
-            if app_state.data_parallel_rank == 0:
-                if self._fs.exists(filepath):
-                    self._fs.rm(filepath)
-                    logging.info(f"Removed model parallel checkpoint: {filepath}")
-
-        else:
-            return super()._del_model(trainer, filepath)
+        if self.save_nemo_on_train_end:
+            pl_module.save_to(save_path=os.path.join(self.dirpath, self.prefix + self.postfix))
 
     def _del_model_without_trainer(self, filepath: str) -> None:
         app_state = AppState()
-        if app_state.model_parallel_size is not None:
+        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
             # filepath needs to be updated to include mp_rank
-            dirname = os.path.dirname(filepath)
-            basename = os.path.basename(filepath)
-            filepath = f'{dirname}/mp_rank_{app_state.model_parallel_rank:02d}/{basename}'
+            filepath = inject_model_parallel_rank(filepath)
 
         # each model parallel rank needs to remove its model
         if is_global_rank_zero() or (app_state.model_parallel_size is not None and app_state.data_parallel_rank == 0):
@@ -793,61 +823,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
                 logging.info(f"Removed checkpoint: {filepath}")
             except:
                 logging.info(f"Tried to remove checkpoint: {filepath} but failed.")
-
-    def _save_last_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
-        """ Overrides PTL method to account for model parallel checkpoints.
-            Checks for data parallel rank 0 rather than global rank 0.
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            if not self.save_last:
-                return
-
-            filepath = self._format_checkpoint_name(self.CHECKPOINT_NAME_LAST, monitor_candidates)
-            filepath = os.path.join(self.dirpath, f"{filepath}{self.FILE_EXTENSION}")
-
-            trainer.save_checkpoint(filepath)
-
-            # TODO: figure out where self.last_model_path is being set
-            if self.last_model_path is not None:
-                if 'mp_rank' in self.last_model_path:
-                    last_model_path = Path(self.last_model_path)
-                    last_model_path = last_model_path.parent.parent.joinpath(last_model_path.name)
-                    self.last_model_path = str(last_model_path)
-
-            # for model parallel we need to delete models for each model parallel rank
-            if self.last_model_path and self.last_model_path != filepath and app_state.data_parallel_rank == 0:
-                self._del_model(trainer, self.last_model_path)
-
-            self.last_model_path = filepath
-
-        else:
-            return super()._save_last_checkpoint(trainer, monitor_candidates)
-
-    def _save_none_monitor_checkpoint(self, trainer: 'pl.Trainer', monitor_candidates: Dict[str, _METRIC]) -> None:
-        """ Overrides PTL method to account for model parallel checkpoints.
-            Checks for data parallel rank 0 rather than global rank 0.
-        """
-        app_state = AppState()
-        if app_state.model_parallel_size is not None:
-            if self.monitor is not None or self.save_top_k == 0:
-                return
-
-            filepath = self._get_metric_interpolated_filepath_name(monitor_candidates, trainer)
-
-            trainer.save_checkpoint(filepath)
-
-            if (
-                self.save_top_k is None
-                and self.best_model_path
-                and self.best_model_path != filepath
-                and app_state.data_parallel_rank == 0
-            ):
-                self._del_model(trainer, self.best_model_path)
-
-            self.best_model_path = filepath
-        else:
-            return super()._save_none_monitor_checkpoint(trainer, monitor_candidates)
 
 
 def configure_checkpointing(
@@ -910,7 +885,9 @@ def configure_checkpointing(
             )
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
-    checkpoint_callback.last_model_path = trainer.checkpoint_connector.resume_checkpoint_path or ""
+    checkpoint_callback.last_model_path = trainer._checkpoint_connector.resume_from_checkpoint_fit_path or ""
+    if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
+        checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
     trainer.callbacks.append(checkpoint_callback)
 
 
@@ -919,3 +896,32 @@ def check_slurm(trainer):
         return trainer.accelerator_connector.is_slurm_managing_tasks
     except AttributeError:
         return False
+
+
+class StatelessTimer(Timer):
+    """Extension of PTL timers to be per run."""
+
+    def __init__(self, duration: timedelta = None, interval: str = Interval.step, verbose: bool = True,) -> None:
+        super().__init__(duration, interval, verbose)
+
+    def on_save_checkpoint(self, trainer, pl_module, checkpoint) -> Dict[str, Any]:
+        return
+
+    def on_load_checkpoint(self, trainer, pl_module, callback_state) -> None:
+        return
+
+    def _check_time_remaining(self, trainer) -> None:
+        # Default timer only checks for train time exceeding max_time, this includes time for all stages.
+        train_duration = self.time_elapsed(RunningStage.TRAINING)
+        validation_duration = self.time_elapsed(RunningStage.VALIDATING)
+        test_duration = self.time_elapsed(RunningStage.TESTING)
+        total_duration = train_duration + validation_duration + test_duration
+        should_stop = total_duration >= self._duration
+        # should_stop = trainer.training_type_plugin.broadcast(should_stop)
+        should_stop = trainer.training_type_plugin.reduce_boolean_decision(should_stop)
+        trainer.should_stop = trainer.should_stop or should_stop
+        if should_stop and self._verbose:
+            rank_zero_info(f"Time limit reached. Signaling Trainer to stop.")
+            rank_zero_info(
+                f"Spent {timedelta(seconds=train_duration)} seconds on training, {timedelta(seconds=validation_duration)} seconds on validation and {timedelta(seconds=test_duration)} seconds on testing"
+            )

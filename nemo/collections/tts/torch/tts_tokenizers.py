@@ -14,51 +14,13 @@
 
 import abc
 import itertools
-import re
 import string
-import unicodedata
-from builtins import str as unicode
+from contextlib import contextmanager
 from typing import List
 
-# Example of parsing by groups via _words_re.
-# Groups:
-# 1st group -- valid english words,
-# 2nd group -- any substring starts from | to | (mustn't be nested), useful when you want to leave sequence unchanged,
-# 3rd group -- punctuation marks.
-# Text (first line) and mask of groups for every char (second line).
-# config file must contain |EY1 EY1|, B, C, D, E, F, and G.
-# 111111311113111131111111322222222233133133133133133111313
-_words_re = re.compile("([a-zA-Z]+(?:[a-zA-Z-']*[a-zA-Z]+)*)|(\|[^|]*\|)|([^a-zA-Z|]+)")
-
-
-def english_text_preprocessing(text):
-    text = unicode(text)
-    text = ''.join(char for char in unicodedata.normalize('NFD', text) if unicodedata.category(char) != 'Mn')
-    return text
-
-
-def english_word_tokenize(text):
-    """
-    Convert text (str) to List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
-    Word can be one of: valid english word, any substring starts from | to | (unchangeable word) or punctuation marks.
-    This function expects that unchangeable word is carefully divided by spaces (e.g. HH AH L OW).
-    Unchangeable word will be splitted by space and represented as List[str], other cases are represented as str.
-    """
-    words = _words_re.findall(text)
-    result = []
-    for word in words:
-        maybe_word, maybe_without_changes, maybe_punct = word
-
-        if maybe_word != '':
-            without_changes = False
-            result.append((maybe_word.lower(), without_changes))
-        elif maybe_punct != '':
-            without_changes = False
-            result.append((re.sub(r'\s(\d)', r'\1', maybe_punct.upper()), without_changes))
-        elif maybe_without_changes != '':
-            without_changes = True
-            result.append((maybe_without_changes[1:-1].split(" "), without_changes))
-    return result
+from nemo.collections.tts.torch.de_utils import german_text_preprocessing
+from nemo.collections.tts.torch.en_utils import english_text_preprocessing
+from nemo.utils import logging
 
 
 class BaseTokenizer(abc.ABC):
@@ -112,7 +74,117 @@ class BaseTokenizer(abc.ABC):
         return self.sep.join(self._id2token[t] for t in tokens if t not in self._util_ids)
 
 
-class EnglishCharsTokenizer(BaseTokenizer):
+class BaseCharsTokenizer(BaseTokenizer):
+    # fmt: off
+    PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
+        ',', '.', '!', '?', '-',
+        ':', ';', '/', '"', '(',
+        ')', '[', ']', '{', '}',
+    )
+    # fmt: on
+
+    def __init__(
+        self,
+        chars,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=lambda x: x,
+    ):
+        """Base class for char-based tokenizer.
+        Args:
+            chars: string that represents all possible characters.
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+        """
+
+        tokens = []
+        self.space, tokens = len(tokens), tokens + [' ']  # Space
+        tokens.extend(chars)
+        if apostrophe:
+            tokens.append("'")  # Apostrophe for saving "don't" and "Joe's"
+
+        if punct:
+            if non_default_punct_list is not None:
+                self.PUNCT_LIST = non_default_punct_list
+            tokens.extend(self.PUNCT_LIST)
+
+        super().__init__(tokens, add_blank_at=add_blank_at)
+
+        self.punct = punct
+        self.pad_with_space = pad_with_space
+
+        self.text_preprocessing_func = text_preprocessing_func
+
+    def encode(self, text):
+        """See base class."""
+        cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
+        for c in text:
+            # Add space if last one isn't one
+            if c == space and len(cs) > 0 and cs[-1] != space:
+                cs.append(c)
+            # Add next char
+            elif (c.isalnum() or c == "'") and c in tokens:
+                cs.append(c)
+            # Add punct
+            elif (c in self.PUNCT_LIST) and self.punct:
+                cs.append(c)
+            # Warn about unknown char
+            elif c != space:
+                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+
+        # Remove trailing spaces
+        while cs[-1] == space:
+            cs.pop()
+
+        if self.pad_with_space:
+            cs = [space] + cs + [space]
+
+        return [self._token2id[p] for p in cs]
+
+
+class EnglishCharsTokenizer(BaseCharsTokenizer):
+    def __init__(
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
+        text_preprocessing_func=english_text_preprocessing,
+    ):
+        """English char-based tokenizer.
+        Args:
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            apostrophe: Whether to use apostrophe or not.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Basically, it replaces all non-unicode characters with unicode ones and apply lower() function.
+        """
+        super().__init__(
+            chars=string.ascii_lowercase,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=text_preprocessing_func,
+        )
+
+
+class GermanCharsTokenizer(BaseCharsTokenizer):
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
         ',', '.', '!', '?', '-',
@@ -128,10 +200,9 @@ class EnglishCharsTokenizer(BaseTokenizer):
         add_blank_at=None,
         pad_with_space=False,
         non_default_punct_list=None,
-        text_preprocessing_func=english_text_preprocessing,
-        word_tokenize_func=english_word_tokenize,
+        text_preprocessing_func=german_text_preprocessing,
     ):
-        """English char-based tokenizer.
+        """Deutsch char-based tokenizer.
         Args:
             punct: Whether to reserve grapheme for basic punctuation or not.
             apostrophe: Whether to use apostrophe or not.
@@ -139,58 +210,20 @@ class EnglishCharsTokenizer(BaseTokenizer):
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             non_default_punct_list: List of punctuation marks which will be used instead default.
-            text_preprocessing_func: Function for preprocessing raw text.
-            word_tokenize_func: Function for tokenizing text to words.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Currently, it only applies lower() function.
         """
 
-        tokens = []
-        self.space, tokens = len(tokens), tokens + [' ']  # Space
-        tokens.extend(string.ascii_lowercase)
-        if apostrophe:
-            tokens.append("'")  # Apostrophe for saving "don't" and "Joe's"
-
-        if punct:
-            if non_default_punct_list is not None:
-                self.PUNCT_LIST = non_default_punct_list
-            tokens.extend(self.PUNCT_LIST)
-
-        super().__init__(tokens, add_blank_at=add_blank_at)
-
-        self.punct = punct
-        self.pad_with_space = pad_with_space
-
-        self.text_preprocessing_func = text_preprocessing_func
-        self.word_tokenize_func = word_tokenize_func
-
-    def encode(self, text):
-        """See base class."""
-        cs, space, tokens = [], self.tokens[self.space], set(self.tokens)
-
-        words = [
-            word[0] if isinstance(word, tuple) else word
-            for word in self.word_tokenize_func(self.text_preprocessing_func(text))
-        ]
-        for c in "".join(words):  # noqa
-            # Add space if last one isn't one
-            if c == space and len(cs) > 0 and cs[-1] != space:
-                cs.append(c)
-
-            # Add next char
-            if (c.isalnum() or c == "'") and c in tokens:
-                cs.append(c)
-
-            # Add punct
-            if (c in self.PUNCT_LIST) and self.punct:
-                cs.append(c)
-
-        # Remove trailing spaces
-        while cs[-1] == space:
-            cs.pop()
-
-        if self.pad_with_space:
-            cs = [space] + cs + [space]
-
-        return [self._token2id[p] for p in cs]
+        de_alphabet = "abcdefghijklmnopqrstuvwxyzäöüß"
+        super().__init__(
+            chars=de_alphabet,
+            punct=punct,
+            apostrophe=apostrophe,
+            add_blank_at=add_blank_at,
+            pad_with_space=pad_with_space,
+            non_default_punct_list=non_default_punct_list,
+            text_preprocessing_func=text_preprocessing_func,
+        )
 
 
 class EnglishPhonemesTokenizer(BaseTokenizer):
@@ -228,6 +261,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
+        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
     ):
         """English phoneme-based tokenizer.
         Args:
@@ -244,8 +278,14 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
              if None then no blank in labels.
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Basically, it replaces all non-unicode characters with unicode ones.
+             Note that lower() function shouldn't applied here, because text can contains phonemes (it will be handled by g2p).
         """
 
+        self.phoneme_probability = None
+        if hasattr(g2p, "phoneme_probability"):
+            self.phoneme_probability = g2p.phoneme_probability
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]  # Space
 
@@ -259,7 +299,12 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             vowels = [f'{p}{s}' for p, s in itertools.product(vowels, (0, 1, 2))]
         tokens.extend(vowels)
 
-        if chars:
+        if chars or self.phoneme_probability is not None:
+            if not chars:
+                logging.warning(
+                    "phoneme_probability was not None, characters will be enabled even though "
+                    "chars was set to False."
+                )
             tokens.extend(string.ascii_lowercase)
 
         if apostrophe:
@@ -272,18 +317,22 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
-        self.chars = chars
+        self.chars = chars if self.phoneme_probability is None else True
         self.punct = punct
         self.stresses = stresses
         self.pad_with_space = pad_with_space
 
+        self.text_preprocessing_func = text_preprocessing_func
         self.g2p = g2p
 
     def encode(self, text):
         """See base class."""
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
 
-        for p in self.g2p(text):  # noqa
+        text = self.text_preprocessing_func(text)
+        g2p_text = self.g2p(text)  # TODO: handle infer
+
+        for p in g2p_text:  # noqa
             # Remove stress
             if p.isalnum() and len(p) == 3 and not self.stresses:
                 p = p[:2]
@@ -291,14 +340,17 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             # Add space if last one isn't one
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
-
-            # Add next phoneme
-            if (p.isalnum() or p == "'") and p in tokens:
+            # Add next phoneme or char (if chars=True)
+            elif (p.isalnum() or p == "'") and p in tokens:
                 ps.append(p)
-
             # Add punct
-            if (p in self.PUNCT_LIST) and self.punct:
+            elif (p in self.PUNCT_LIST) and self.punct:
                 ps.append(p)
+            # Warn about unknown char/phoneme
+            elif p != space:
+                logging.warning(
+                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]. Original text: [{text}]. Symbol will be skipped."
+                )
 
         # Remove trailing spaces
         while ps[-1] == space:
@@ -308,3 +360,13 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             ps = [space] + ps + [space]
 
         return [self._token2id[p] for p in ps]
+
+    @contextmanager
+    def set_phone_prob(self, prob):
+        if hasattr(self.g2p, "phoneme_probability"):
+            self.g2p.phoneme_probability = prob
+        try:
+            yield
+        finally:
+            if hasattr(self.g2p, "phoneme_probability"):
+                self.g2p.phoneme_probability = self.phoneme_probability

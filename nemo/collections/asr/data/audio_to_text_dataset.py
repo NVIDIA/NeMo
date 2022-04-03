@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
+import json
+import random
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, open_dict
 from omegaconf.listconfig import ListConfig
+from pytorch_lightning.callbacks import BasePredictionWriter
 from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
@@ -77,9 +80,12 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
     Returns:
         An instance of AudioToCharDataset.
     """
+    if 'labels' not in config:
+        logging.warning(f"dataset does not have explicitly defined labels")
+
     dataset = audio_to_text.AudioToCharDataset(
         manifest_filepath=config['manifest_filepath'],
-        labels=config['labels'],
+        labels=config.get('labels', None),
         sample_rate=config['sample_rate'],
         int_values=config.get('int_values', False),
         augmentor=augmentor,
@@ -91,6 +97,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         normalize=config.get('normalize_transcripts', False),
         trim=config.get('trim_silence', False),
         parser=config.get('parser', 'en'),
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
@@ -120,6 +127,7 @@ def get_bpe_dataset(
         max_utts=config.get('max_utts', 0),
         trim=config.get('trim_silence', False),
         use_start_end_token=config.get('use_start_end_token', True),
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
@@ -137,12 +145,12 @@ def get_tarred_dataset(
 
     Args:
         config: Config of the TarredAudioToBPEDataset or TarredAudioToCharDataset.
-        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
-            Passsing None would return a char-based dataset.
         shuffle_n: How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
+        tokenizer: An instance of a TokenizerSpec object if BPE dataset is needed.
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
+            Passsing None would return a char-based dataset.
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
 
     Returns:
@@ -155,7 +163,12 @@ def get_tarred_dataset(
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
 
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
-        raise ValueError(f"manifest_filepaths and tarred_audio_filepaths need to have the same number of buckets.")
+        raise ValueError(
+            f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
+        )
+
+    if 'labels' not in config:
+        logging.warning(f"dataset does not have explicitly defined labels")
 
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
@@ -166,7 +179,7 @@ def get_tarred_dataset(
             dataset = audio_to_text.TarredAudioToCharDataset(
                 audio_tar_filepaths=tarred_audio_filepath,
                 manifest_filepath=manifest_filepath,
-                labels=config['labels'],
+                labels=config.get('labels', None),
                 sample_rate=config['sample_rate'],
                 int_values=config.get('int_values', False),
                 augmentor=augmentor,
@@ -182,6 +195,7 @@ def get_tarred_dataset(
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
                 global_rank=global_rank,
                 world_size=world_size,
+                return_sample_id=config.get('return_sample_id', False),
             )
         else:
             dataset = audio_to_text.TarredAudioToBPEDataset(
@@ -200,14 +214,12 @@ def get_tarred_dataset(
                 shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
                 global_rank=global_rank,
                 world_size=world_size,
+                return_sample_id=config.get('return_sample_id', False),
             )
 
         datasets.append(dataset)
 
-    if len(datasets) > 1:
-        return ChainDataset(datasets)
-    else:
-        return datasets[0]
+    return get_chain_dataset(datasets=datasets, ds_config=config)
 
 
 def get_dali_char_dataset(
@@ -228,6 +240,7 @@ def get_dali_char_dataset(
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
         augmentor: Optional AudioAugmentor object for augmentations on audio data.
+        preprocessor_cfg: Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
 
     Returns:
         An instance of AudioToCharDALIDataset.
@@ -239,6 +252,8 @@ def get_dali_char_dataset(
         batch_size=config['batch_size'],
         labels=config['labels'],
         sample_rate=config['sample_rate'],
+        audio_tar_filepaths=config.get('tarred_audio_filepaths', None),
+        audio_tar_index_filepaths=config.get('tarred_audio_index_filepaths', None),
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         blank_index=config.get('blank_index', -1),
@@ -247,10 +262,12 @@ def get_dali_char_dataset(
         trim=config.get('trim_silence', False),
         parser=config.get('parser', 'en'),
         shuffle=shuffle,
+        shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         device_id=device_id,
         global_rank=global_rank,
         world_size=world_size,
         preprocessor_cfg=preprocessor_cfg,
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
@@ -274,7 +291,7 @@ def get_dali_bpe_dataset(
         device_id: Index of the GPU to be used (local_rank). Only applicable when device == 'gpu'. Defaults to 0.
         global_rank: Global rank of this device.
         world_size: Global world size in the training method.
-        augmentor: Optional AudioAugmentor object for augmentations on audio data.
+        preprocessor_cfg: Preprocessor configuration. Supports AudioToMelSpectrogramPreprocessor and AudioToMFCCPreprocessor.
 
     Returns:
         An instance of AudioToCharDALIDataset.
@@ -286,20 +303,59 @@ def get_dali_bpe_dataset(
         device=device,
         batch_size=config['batch_size'],
         sample_rate=config['sample_rate'],
+        audio_tar_filepaths=config.get('tarred_audio_filepaths', None),
+        audio_tar_index_filepaths=config.get('tarred_audio_index_filepaths', None),
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
         use_start_end_token=config.get('use_start_end_token', True),
         shuffle=shuffle,
+        shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
         device_id=device_id,
         global_rank=global_rank,
         world_size=world_size,
         preprocessor_cfg=preprocessor_cfg,
+        return_sample_id=config.get('return_sample_id', False),
     )
     return dataset
 
 
+class ASRPredictionWriter(BasePredictionWriter):
+    def __init__(self, dataset, output_file: str):
+        super().__init__(write_interval="batch")
+        self.outf = open(output_file, 'w', encoding='utf-8')
+        self.dataset = dataset
+        self.samples_num = 0
+
+    def write_on_batch_end(
+        self,
+        trainer,
+        pl_module: 'LightningModule',
+        prediction: Any,
+        batch_indices: List[int],
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ):
+        for sample_id, transcribed_text in prediction:
+            item = {}
+            sample = self.dataset.get_manifest_sample(sample_id)
+            item["audio_filepath"] = sample.audio_file
+            item["duration"] = sample.duration
+            item["text"] = sample.text_raw
+            item["pred_text"] = transcribed_text
+            self.outf.write(json.dumps(item) + "\n")
+            self.samples_num += 1
+        return
+
+    def close_output_file(self):
+        self.outf.close()
+        return self.samples_num
+
+
 def convert_to_config_list(initial_list):
+    if type(initial_list) is str:
+        initial_list = initial_list.split(",")
     if initial_list is None or initial_list == []:
         raise ValueError("manifest_filepaths and tarred_audio_filepaths must not be empty.")
     if not isinstance(initial_list, ListConfig):
@@ -313,3 +369,59 @@ def convert_to_config_list(initial_list):
     if type(initial_list[0]) is not ListConfig:
         initial_list = ListConfig([initial_list])
     return initial_list
+
+
+def get_chain_dataset(datasets, ds_config):
+    if len(datasets) > 1:
+        if ds_config.get('bucketing_batch_size', None) is not None:
+            bucketing_batch_sizes = calc_bucketing_batch_sizes(ds_config, len(datasets))
+            logging.info(
+                f"Batch bucketing is enabled for {len(datasets)} buckets with adaptive batch sizes of {bucketing_batch_sizes}!"
+            )
+            for idx, dataset in enumerate(datasets):
+                datasets[idx] = audio_to_text.BucketingDataset(
+                    dataset=dataset, bucketing_batch_size=bucketing_batch_sizes[idx]
+                )
+        else:
+            logging.info(
+                f"Batch bucketing is enabled for {len(datasets)} buckets with fixed batch size of {ds_config['batch_size']}!"
+            )
+
+    if len(datasets) == 1:
+        return datasets[0]
+    bucketing_strategy = ds_config.get('bucketing_strategy', 'synced_randomized')
+    if bucketing_strategy == 'fixed_order':
+        return ChainDataset(datasets)
+    elif bucketing_strategy == 'synced_randomized':
+        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=0)
+    elif bucketing_strategy == 'fully_randomized':
+        return audio_to_text.RandomizedChainDataset(datasets=datasets, rnd_seed=random.randint(0, 30000))
+    else:
+        raise ValueError(
+            f'bucketing_strategy={bucketing_strategy} is not supported! Supported strategies are [fixed_order, fully_randomized, synced_randomized].'
+        )
+
+
+def calc_bucketing_batch_sizes(ds_config, datasets_len):
+    bucketing_batch_size = ds_config['bucketing_batch_size']
+    if ds_config['batch_size'] != 1:
+        raise ValueError(
+            f"batch_size should be set to one when bucketing_batch_size is set and adaptive bucketing is enabled (batch_size={ds_config['batch_size']}!"
+        )
+    if type(bucketing_batch_size) == int:
+        bucketing_batch_sizes = []
+        for idx in range(datasets_len):
+            scale_factor = datasets_len - idx
+            bucketing_batch_sizes.append(scale_factor * bucketing_batch_size)
+    elif isinstance(bucketing_batch_size, ListConfig) or isinstance(bucketing_batch_size, list):
+        bucketing_batch_sizes = bucketing_batch_size
+    else:
+        raise ValueError(
+            f"bucketing_batch_size should be an integer or a list (bucketing_batch_size={bucketing_batch_size})!"
+        )
+
+    if len(bucketing_batch_sizes) != datasets_len:
+        raise ValueError(
+            f"batch_size should have the same length as the number of buckets ({len(bucketing_batch_sizes)}!={datasets_len}) "
+        )
+    return bucketing_batch_sizes

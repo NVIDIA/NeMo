@@ -16,6 +16,10 @@
 import os
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_CHAR,
+    NEMO_DIGIT,
+    NEMO_NOT_SPACE,
+    NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -94,6 +98,8 @@ class ClassifyFst(GraphFst):
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode='r')['tokenize_and_classify']
+            no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
+            self.fst_no_digits = pynini.compose(self.fst, no_digits).optimize()
             logging.info(f'ClassifyFst.fst was restored from {far_file}.')
         else:
             logging.info(f'Creating ClassifyFst grammars. This might take some time...')
@@ -163,17 +169,44 @@ class ClassifyFst(GraphFst):
                 abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
                 classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
 
-            punct = pynutil.add_weight(punct_graph, weight=1.1)
+            punct_only = pynutil.add_weight(punct_graph, weight=2.1)
+            punct = pynini.closure(
+                pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                | (pynutil.insert(" ") + punct_only),
+                1,
+            )
+
             token_plus_punct = (
                 pynini.closure(punct + pynutil.insert(" "))
                 + classify_and_verbalize
                 + pynini.closure(pynutil.insert(" ") + punct)
             )
 
-            graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
+            graph = token_plus_punct + pynini.closure(
+                (
+                    pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                    | (pynutil.insert(" ") + punct + pynutil.insert(" "))
+                )
+                + token_plus_punct
+            )
+
+            graph |= punct_only + pynini.closure(punct)
             graph = delete_space + graph + delete_space
 
-            self.fst = graph.optimize()
+            remove_extra_spaces = pynini.closure(NEMO_NOT_SPACE, 1) + pynini.closure(
+                delete_extra_space + pynini.closure(NEMO_NOT_SPACE, 1)
+            )
+            remove_extra_spaces |= (
+                pynini.closure(pynutil.delete(" "), 1)
+                + pynini.closure(NEMO_NOT_SPACE, 1)
+                + pynini.closure(delete_extra_space + pynini.closure(NEMO_NOT_SPACE, 1))
+            )
+
+            graph = pynini.compose(graph.optimize(), remove_extra_spaces).optimize()
+            self.fst = graph
+            no_digits = pynini.closure(pynini.difference(NEMO_CHAR, NEMO_DIGIT))
+            self.fst_no_digits = pynini.compose(graph, no_digits).optimize()
+
             if far_file:
                 generator_main(far_file, {"tokenize_and_classify": self.fst})
                 logging.info(f'ClassifyFst grammars are saved to {far_file}.')

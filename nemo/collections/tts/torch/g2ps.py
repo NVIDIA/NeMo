@@ -14,34 +14,30 @@
 
 import abc
 import pathlib
+import random
 import re
 import time
+from typing import Optional
 
 import nltk
 import torch
 
-from nemo.collections.tts.torch.tts_tokenizers import english_text_preprocessing, english_word_tokenize
+from nemo.collections.tts.torch.en_utils import english_word_tokenize
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 
 class BaseG2p(abc.ABC):
     def __init__(
-        self,
-        phoneme_dict=None,
-        text_preprocessing_func=lambda x: x,
-        word_tokenize_func=lambda x: x,
-        apply_to_oov_word=None,
+        self, phoneme_dict=None, word_tokenize_func=lambda x: x, apply_to_oov_word=None,
     ):
         """Abstract class for creating an arbitrary module to convert grapheme words to phoneme sequences (or leave unchanged or use apply_to_oov_word).
         Args:
             phoneme_dict: Arbitrary representation of dictionary (phoneme -> grapheme) for known words.
-            text_preprocessing_func: Function for preprocessing raw text.
             word_tokenize_func: Function for tokenizing text to words.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
         """
         self.phoneme_dict = phoneme_dict
-        self.text_preprocessing_func = text_preprocessing_func
         self.word_tokenize_func = word_tokenize_func
         self.apply_to_oov_word = apply_to_oov_word
 
@@ -54,19 +50,18 @@ class EnglishG2p(BaseG2p):
     def __init__(
         self,
         phoneme_dict=None,
-        text_preprocessing_func=english_text_preprocessing,
         word_tokenize_func=english_word_tokenize,
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
         encoding='latin-1',
+        phoneme_probability: Optional[float] = None,
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
         Ignored words are left unchanged or passed through apply_to_oov_word.
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMU dict format or dictionary in CMU dict.
-            text_preprocessing_func: Function for preprocessing raw text to preprocessed text.
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
                 It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
@@ -75,6 +70,9 @@ class EnglishG2p(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
+            phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
@@ -82,11 +80,15 @@ class EnglishG2p(BaseG2p):
             else phoneme_dict
         )
 
+        if apply_to_oov_word is None:
+            logging.warning(
+                "apply_to_oov_word=None, it means that some of words will remain unchanged "
+                "if they are not handled by one of rule in self.parse_one_word(). "
+                "It is useful when you use tokenizer with set of phonemes and chars together, otherwise it can be not."
+            )
+
         super().__init__(
-            phoneme_dict=phoneme_dict,
-            text_preprocessing_func=text_preprocessing_func,
-            word_tokenize_func=word_tokenize_func,
-            apply_to_oov_word=apply_to_oov_word,
+            phoneme_dict=phoneme_dict, word_tokenize_func=word_tokenize_func, apply_to_oov_word=apply_to_oov_word,
         )
 
         self.ignore_ambiguous_words = ignore_ambiguous_words
@@ -95,6 +97,8 @@ class EnglishG2p(BaseG2p):
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )
+        self.phoneme_probability = phoneme_probability
+        self._rng = random.Random()
 
     @staticmethod
     def _parse_as_cmu_dict(phoneme_dict_path=None, encoding='latin-1'):
@@ -128,7 +132,12 @@ class EnglishG2p(BaseG2p):
                 )
                 time.sleep(60)
 
-            logging.warning("phoneme_dict_path=None, English g2p_dict will be used from nltk.corpus.cmudict.dict()")
+            logging.warning(
+                f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
+                "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
+                "You can use the latest official version of CMUDict (0.7b) with additional changes from NVIDIA directly from NeMo "
+                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.01."
+            )
 
             return nltk.corpus.cmudict.dict()
 
@@ -161,6 +170,9 @@ class EnglishG2p(BaseG2p):
         Returns parsed `word` and `status` as bool.
         `status` will be `False` if word wasn't handled, `True` otherwise.
         """
+
+        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+            return word, True
 
         # punctuation
         if re.search("[a-zA-Z]", word) is None:
@@ -200,7 +212,6 @@ class EnglishG2p(BaseG2p):
             return word, False
 
     def __call__(self, text):
-        text = self.text_preprocessing_func(text)
         words = self.word_tokenize_func(text)
 
         prons = []

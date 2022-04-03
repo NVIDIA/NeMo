@@ -41,7 +41,15 @@ class FixedPositionalEncoding(nn.Module):
     def __init__(self, hidden_size, max_sequence_length=512):
         super().__init__()
 
-        pos_enc = torch.zeros(max_sequence_length, hidden_size)
+        self._hidden_size = hidden_size
+        self._max_sequence_length = max_sequence_length
+        self._build_pos_enc(hidden_size=self._hidden_size, max_sequence_length=self._max_sequence_length)
+
+    def _build_pos_enc(self, hidden_size, max_sequence_length, device=None):
+        """
+        Builds/replaces pre-computed positional encoding.
+        """
+        pos_enc = torch.zeros(max_sequence_length, hidden_size, device=device)
         position = torch.arange(0.0, max_sequence_length).unsqueeze(1)
         coef = -math.log(10000.0) / hidden_size
         div_term = torch.exp(coef * torch.arange(0.0, hidden_size, 2))
@@ -51,6 +59,16 @@ class FixedPositionalEncoding(nn.Module):
         self.register_buffer('pos_enc', pos_enc)
 
     def forward(self, position_ids):
+        max_pos_id = position_ids.max()
+        # update positional encoding if needed
+        if max_pos_id >= self._max_sequence_length:
+            self._max_sequence_length = max_pos_id + 1
+            self._build_pos_enc(
+                hidden_size=self._hidden_size,
+                max_sequence_length=self._max_sequence_length,
+                device=position_ids.device,
+            )
+
         return torch.embedding(self.pos_enc, position_ids)
 
 
@@ -82,6 +100,7 @@ class TransformerEmbedding(nn.Module):
         super().__init__()
 
         self.max_sequence_length = max_sequence_length
+        self.learn_positional_encodings = learn_positional_encodings
         self.token_embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
         if learn_positional_encodings:
             self.position_embedding = nn.Embedding(max_sequence_length, hidden_size)
@@ -94,7 +113,8 @@ class TransformerEmbedding(nn.Module):
 
     def forward(self, input_ids, token_type_ids=None, start_pos=0):
         seq_length = input_ids.size(1)
-        if seq_length > self.max_sequence_length:
+        # we fail here only with parametric positional embedding. FixedPositionalEncoding automatically extends.
+        if self.learn_positional_encodings and (seq_length > self.max_sequence_length):
             raise ValueError(
                 f"Input sequence is longer than maximum allowed sequence length for positional encoding. "
                 f"Got {seq_length} and {self.max_sequence_length}"
@@ -102,7 +122,7 @@ class TransformerEmbedding(nn.Module):
         position_ids = torch.arange(
             start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )
-        position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
+        position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
         token_embeddings = self.token_embedding(input_ids)
         position_embeddings = self.position_embedding(position_ids)

@@ -10,8 +10,7 @@ soundfile
 sox
 kaldi-python-io
 kaldiio
-scipy
-pandas
+scipy>=0.14
 g2p_en
 pydub
 pyannote.core

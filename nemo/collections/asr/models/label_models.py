@@ -13,41 +13,44 @@
 # limitations under the License.
 
 import copy
-import json
-import os
-import pickle as pkl
+import itertools
 from typing import Dict, List, Optional, Union
 
 import librosa
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
+from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataset
+from nemo.collections.asr.data.audio_to_label_dataset import get_tarred_speech_label_dataset
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
+from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
-__all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
+__all__ = ['EncDecSpeakerLabelModel']
 
 
 class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
-    """Encoder decoder class for speaker label models.
+    """
+    Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
     performing model forward pass.
     Expects config dict for
-    * preprocessor
-    * Jasper/Quartznet Encoder
-    * Speaker Decoder
+        * preprocessor
+        * Jasper/Quartznet Encoder
+        * Speaker Decoder
     """
 
     @classmethod
@@ -58,24 +61,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             List of available pre-trained models.
         """
         result = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="speakerrecognition_speakernet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerrecognition_speakernet/versions/1.0.0rc1/files/speakerrecognition_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn models",
-        )
-        result.append(model)
 
         model = PretrainedModelInfo(
             pretrained_model_name="speakerverification_speakernet",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerverification_speakernet/versions/1.0.0rc1/files/speakerverification_speakernet.nemo",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet",
-        )
-        result.append(model)
-
-        model = PretrainedModelInfo(
-            pretrained_model_name="speakerdiarization_speakernet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/speakerdiarization_speakernet/versions/1.0.0rc1/files/speakerdiarization_speakernet.nemo",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerdiarization_speakernet, NOTE: this model would be removed for next release and use only single speakernet and ecapa_tdnn model",
         )
         result.append(model)
 
@@ -86,23 +76,57 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
         result.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="titanet_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/titanet_large/versions/v0/files/titanet-l.nemo",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large",
+        )
+        result.append(model)
+
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        self.world_size = 1
+        if trainer is not None:
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         super().__init__(cfg=cfg, trainer=trainer)
+
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
         if 'angular' in cfg.decoder and cfg.decoder['angular']:
-            logging.info("Training with Angular Softmax Loss")
+            logging.info("loss is Angular Softmax")
             scale = cfg.loss.scale
             margin = cfg.loss.margin
             self.loss = AngularSoftmaxLoss(scale=scale, margin=margin)
         else:
-            logging.info("Training with Softmax-CrossEntropy loss")
+            logging.info("loss is Softmax-CrossEntropy")
             self.loss = CELoss()
         self.task = None
         self._accuracy = TopKClassificationAccuracy(top_k=[1])
+        self.labels = None
+
+    @staticmethod
+    def extract_labels(data_layer_config):
+        labels = set()
+        manifest_filepath = data_layer_config.get('manifest_filepath', None)
+        if manifest_filepath is None:
+            logging.warning("No manifest_filepath was provided, no labels got extracted!")
+            return None
+        manifest_filepaths = convert_to_config_list(data_layer_config['manifest_filepath'])
+
+        for manifest_filepath in itertools.chain.from_iterable(manifest_filepaths):
+            collection = ASRSpeechLabel(
+                manifests_files=manifest_filepath,
+                min_duration=data_layer_config.get("min_duration", None),
+                max_duration=data_layer_config.get("max_duration", None),
+                index_by_file_id=False,
+            )
+            labels.update(collection.uniq_labels)
+        labels = list(sorted(labels))
+        logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
+        return labels
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -113,32 +137,51 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
-        self.dataset = AudioToSpeechLabelDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            featurizer=featurizer,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=False,
-            time_length=config.get('time_length', 8),
-            shift_length=config.get('shift_length', 0.75),
-        )
+        shuffle = config.get('shuffle', False)
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` was None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
 
-        if self.task == 'diarization':
-            logging.info("Setting up diarization parameters")
-            _collate_func = self.dataset.sliced_seq_collate_fn
-            batch_size = config['batch_size']
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = get_tarred_speech_label_dataset(
+                featurizer=featurizer,
+                config=config,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+            )
             shuffle = False
         else:
-            logging.info("Setting up identification parameters")
-            _collate_func = self.dataset.fixed_seq_collate_fn
-            batch_size = config['batch_size']
-            shuffle = config.get('shuffle', False)
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+                return None
 
+            dataset = AudioToSpeechLabelDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                featurizer=featurizer,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                trim=config.get('trim_silence', False),
+                normalize_audio=config.get('normalize_audio', False),
+            )
+
+        if hasattr(dataset, 'fixed_seq_collate_fn'):
+            collate_fn = dataset.fixed_seq_collate_fn
+        else:
+            collate_fn = dataset.datasets[0].fixed_seq_collate_fn
+
+        batch_size = config['batch_size']
         return torch.utils.data.DataLoader(
-            dataset=self.dataset,
+            dataset=dataset,
             batch_size=batch_size,
-            collate_fn=_collate_func,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
@@ -146,26 +189,19 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        self.labels = self.extract_labels(train_data_layer_config)
+        train_data_layer_config['labels'] = self.labels
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
-        self.task = 'identification'
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        val_data_layer_config['labels'] = self.dataset.labels
-        self.task = 'identification'
+        val_data_layer_config['labels'] = self.labels
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if hasattr(self, 'dataset'):
-            test_data_layer_params['labels'] = self.dataset.labels
-
-        if 'task' in test_data_layer_params and test_data_layer_params['task']:
-            self.task = test_data_layer_params['task'].lower()
-            self.time_length = test_data_layer_params.get('time_length', 1.5)
-            self.shift_length = test_data_layer_params.get('shift_length', 0.75)
-        else:
-            self.task = 'identification'
+            test_data_layer_params['labels'] = self.labels
 
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
@@ -194,11 +230,16 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         }
 
     @typecheck()
+    def forward_for_export(self, processed_signal, processed_signal_len):
+        encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        logits, embs = self.decoder(encoder_output=encoded, length=length)
+        return logits, embs
+
+    @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
-
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
         return logits, embs
@@ -293,17 +334,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         setup_finetune_model method sets up training data, validation data and test data with new
         provided config, this checks for the previous labels set up during training from scratch, if None,
         it sets up labels for provided finetune data from manifest files
-        Args:
-        model_config: cfg which has train_ds, optional validation_ds, optional test_ds and
-        mandatory encoder and decoder model params
-        make sure you set num_classes correctly for finetune data
-        Returns: None
-        """
-        if hasattr(self, 'dataset'):
-            scratch_labels = self.dataset.labels
-        else:
-            scratch_labels = None
 
+        Args:
+            model_config: cfg which has train_ds, optional validation_ds, optional test_ds, 
+            mandatory encoder and decoder model params. Make sure you set num_classes correctly for finetune data.
+
+        Returns: 
+            None
+        """
         logging.info("Setting up data loaders with manifests provided from model_config")
 
         if 'train_ds' in model_config and model_config.train_ds is not None:
@@ -311,8 +349,8 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         else:
             raise KeyError("train_ds is not found in model_config but you need it for fine tuning")
 
-        if self.dataset.labels is None or len(self.dataset.labels) == 0:
-            raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.dataset.labels}')
+        if self.labels is None or len(self.labels) == 0:
+            raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.labels}')
 
         if 'validation_ds' in model_config and model_config.validation_ds is not None:
             self.setup_multiple_validation_data(model_config.validation_ds)
@@ -320,21 +358,21 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         if 'test_ds' in model_config and model_config.test_ds is not None:
             self.setup_multiple_test_data(model_config.test_ds)
 
-        if scratch_labels == self.dataset.labels:  # checking for new finetune dataset labels
+        if self.labels is not None:  # checking for new finetune dataset labels
             logging.warning(
                 "Trained dataset labels are same as finetune dataset labels -- continuing change of decoder parameters"
             )
-        elif scratch_labels is None:
+        else:
             logging.warning(
                 "Either you provided a dummy manifest file during training from scratch or you restored from a pretrained nemo file"
             )
 
         decoder_config = model_config.decoder
         new_decoder_config = copy.deepcopy(decoder_config)
-        if new_decoder_config['num_classes'] != len(self.dataset.labels):
+        if new_decoder_config['num_classes'] != len(self.labels):
             raise ValueError(
                 "number of classes provided {} is not same as number of different labels in finetuning data: {}".format(
-                    new_decoder_config['num_classes'], len(self.dataset.labels)
+                    new_decoder_config['num_classes'], len(self.labels)
                 )
             )
 
@@ -348,12 +386,22 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
+        """
+        Returns the speaker embeddings for a provided audio file.
+
+        Args:
+            path2audio_file: path to audio wav file
+
+        Returns:
+            embs: speaker embeddings 
+        """
         audio, sr = librosa.load(path2audio_file, sr=None)
         target_sr = self._cfg.train_ds.get('sample_rate', 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, sr, target_sr)
         audio_length = audio.shape[0]
         device = self.device
+        audio = np.array(audio)
         audio_signal, audio_signal_len = (
             torch.tensor([audio], device=device),
             torch.tensor([audio_length], device=device),
@@ -369,50 +417,64 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         del audio_signal, audio_signal_len
         return embs
 
+    @torch.no_grad()
+    def verify_speakers(self, path2audio_file1, path2audio_file2, threshold=0.7):
+        """
+        Verify if two audio files are from the same speaker or not.
 
-class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
-    """
-    This Model class facilitates extraction of speaker embeddings from a pretrained model.
-    Respective embedding file is saved in self.embedding dir passed through cfg
-    """
+        Args:
+            path2audio_file1: path to audio wav file of speaker 1  
+            path2audio_file2: path to audio wav file of speaker 2 
+            threshold: cosine similarity score used as a threshold to distinguish two embeddings (default = 0.7)
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        super().__init__(cfg=cfg, trainer=trainer)
+        Returns:  
+            True if both audio files are from same speaker, False otherwise
+        """
+        embs1 = self.get_embedding(path2audio_file1).squeeze()
+        embs2 = self.get_embedding(path2audio_file2).squeeze()
+        # Length Normalize
+        X = embs1 / torch.linalg.norm(embs1)
+        Y = embs2 / torch.linalg.norm(embs2)
+        # Score
+        similarity_score = torch.dot(X, Y) / ((torch.dot(X, X) * torch.dot(Y, Y)) ** 0.5)
+        similarity_score = (similarity_score + 1) / 2
+        # Decision
+        if similarity_score >= threshold:
+            logging.info(" two audio files are from same speaker")
+            return True
+        else:
+            logging.info(" two audio files are from different speakers")
+            return False
 
-    def test_step(self, batch, batch_ix):
-        audio_signal, audio_signal_len, labels, slices = batch
-        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        return {'embs': embs, 'labels': labels, 'slices': slices}
+    @staticmethod
+    @torch.no_grad()
+    def get_batch_embeddings(speaker_model, manifest_filepath, batch_size=32, sample_rate=16000, device='cuda'):
 
-    def test_epoch_end(self, outputs):
-        embs = torch.cat([x['embs'] for x in outputs])
-        slices = torch.cat([x['slices'] for x in outputs])
-        emb_shape = embs.shape[-1]
-        embs = embs.view(-1, emb_shape).cpu().numpy()
-        embs = embedding_normalize(embs)
-        out_embeddings = {}
-        start_idx = 0
-        with open(self.test_manifest, 'r') as manifest:
-            for idx, line in enumerate(manifest.readlines()):
-                line = line.strip()
-                dic = json.loads(line)
-                structure = dic['audio_filepath'].split('/')[-3:]
-                uniq_name = '@'.join(structure)
-                if uniq_name in out_embeddings:
-                    raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
-                num_slices = slices[idx]
-                end_idx = start_idx + num_slices
-                out_embeddings[uniq_name] = embs[start_idx:end_idx].mean(axis=0)
-                start_idx = end_idx
+        speaker_model.eval()
+        if device == 'cuda':
+            speaker_model.to(device)
 
-        embedding_dir = os.path.join(self.embedding_dir, 'embeddings')
-        if not os.path.exists(embedding_dir):
-            os.mkdir(embedding_dir)
+        featurizer = WaveformFeaturizer(sample_rate=sample_rate)
+        dataset = AudioToSpeechLabelDataset(manifest_filepath=manifest_filepath, labels=None, featurizer=featurizer)
 
-        prefix = self.test_manifest.split('/')[-1].split('.')[-2]
+        dataloader = torch.utils.data.DataLoader(
+            dataset=dataset, batch_size=batch_size, collate_fn=dataset.fixed_seq_collate_fn,
+        )
 
-        name = os.path.join(embedding_dir, prefix)
-        pkl.dump(out_embeddings, open(name + '_embeddings.pkl', 'wb'))
-        logging.info("Saved embedding files to {}".format(embedding_dir))
+        all_logits = []
+        all_labels = []
+        all_embs = []
 
-        return {}
+        for test_batch in tqdm(dataloader):
+            if device == 'cuda':
+                test_batch = [x.to(device) for x in test_batch]
+            audio_signal, audio_signal_len, labels, _ = test_batch
+            logits, embs = speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+
+            all_logits.extend(logits.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+            all_embs.extend(embs.cpu().numpy())
+
+        all_logits, true_labels, all_embs = np.asarray(all_logits), np.asarray(all_labels), np.asarray(all_embs)
+
+        return all_embs, all_logits, true_labels, dataset.id2label

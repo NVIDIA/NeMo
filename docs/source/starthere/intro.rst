@@ -19,6 +19,8 @@ Conversational AI architectures are typically large and require a lot of data an
 for training. NeMo uses `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for easy and performant multi-GPU/multi-node
 mixed-precision training.
 
+`Pre-trained NeMo models. <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_ 
+
 .. raw:: html
 
     <div style="position: relative; padding-bottom: 3%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
@@ -132,6 +134,12 @@ Use this installation mode if you are contributing to NeMo.
 
 Docker containers
 ~~~~~~~~~~~~~~~~~
+To build a nemo container with Dockerfile from a branch,  please run 
+
+.. code-block:: bash
+    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest.
+
+
 If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.05-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
 
 .. code-block:: bash

@@ -16,7 +16,12 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.utils import AutocastModuleWrapper
+try:
+    from apex._autocast_utils import _cast_if_autocast_enabled
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 def bias_dropout_add(x, bias, residual, prob, training):
@@ -34,14 +39,12 @@ def bias_dropout_add_fused_train_(
     return bias_dropout_add(x, bias, residual, prob, True)
 
 
-class BiasDropoutAddFusedTrain(AutocastModuleWrapper):
-    def __init__(self, fp16=False, bf16=False):
-        super(BiasDropoutAddFusedTrain, self).__init__(fp16, bf16)
-
-        self.func = bias_dropout_add_fused_train_
-
-    def forward(self, x, bias, residual, prob):
-        return self.autocast_forward(x, bias, residual, prob)
+def bias_dropout_add_fused_train(x, bias, residual, prob):
+    # re-enable torch grad to enable fused optimization.
+    with torch.enable_grad():
+        args = _cast_if_autocast_enabled(x, bias, residual, prob)
+        with torch.cuda.amp.autocast(enabled=False):
+            return bias_dropout_add_fused_train_(*args)
 
 
 @torch.jit.script
@@ -52,11 +55,7 @@ def bias_dropout_add_fused_inference_(
     return bias_dropout_add(x, bias, residual, prob, False)
 
 
-class BiasDropoutAddFusedInference(AutocastModuleWrapper):
-    def __init__(self, fp16=False, bf16=False):
-        super(BiasDropoutAddFusedInference, self).__init__(fp16, bf16)
-
-        self.func = bias_dropout_add_fused_inference_
-
-    def forward(self, x, bias, residual, prob):
-        return self.autocast_forward(x, bias, residual, prob)
+def bias_dropout_add_fused_inference(x, bias, residual, prob):
+    args = _cast_if_autocast_enabled(x, bias, residual, prob)
+    with torch.cuda.amp.autocast(enabled=False):
+        return bias_dropout_add_fused_inference_(*args)

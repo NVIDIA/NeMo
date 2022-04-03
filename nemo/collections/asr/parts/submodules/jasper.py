@@ -35,7 +35,14 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish, "silu": nn.SiLU}
+jasper_activations = {
+    "hardtanh": nn.Hardtanh,
+    "relu": nn.ReLU,
+    "selu": nn.SELU,
+    "swish": Swish,
+    "silu": nn.SiLU,
+    "gelu": nn.GELU,
+}
 
 
 def tds_uniform_(tensor, mode='fan_in'):
@@ -164,12 +171,61 @@ def get_asymtric_padding(kernel_size, stride, dilation, future_context):
 
 
 @torch.jit.script
-def _se_pool_step_script(x, context_window: int):
+def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch.Tensor):
+    """
+    Calculates the masked average over padded limited context segment during inference mode.
+
+    Args:
+        x: Input tensor. Shape = [B, C, T]
+        context_window: Integer context window, must be 0 or greater.
+        mask: Mask tensor, 1 represents value index, 0 represents padded index. Shape = [B, 1, T].
+
+    Returns:
+        A tensor reduced via masked average pool over some limited context. Shape = [B, C, 1]
+    """
     timesteps = x.shape[-1]
     if timesteps < context_window:
-        y = F.adaptive_avg_pool1d(x, 1)
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
     else:
-        y = F.avg_pool1d(x, context_window, 1)  # [B, C, T - context_window + 1]
+        # << During inference prefer to use entire context >>
+        # x = x[:, :, :context_window]  # [B, C, context_window]
+        # mask = mask[:, :, :context_window]  # [B, 1, context_window]
+        #
+        # mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
+        # y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
+        # y = y / (mask + 1e-8)  # [B, C, 1]
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
+
+    return y
+
+
+@torch.jit.script
+def _se_pool_step_script_train(x: torch.Tensor, context_window: int, mask: torch.Tensor):
+    """
+    Calculates the masked average over padded limited context segment during training mode.
+    Randomly slices a segment of length `context_window` from signal+padded input tensor across all channels and
+    uses it for computing masked limited context.
+
+    Args:
+        x: Input tensor. Shape = [B, C, T]
+        context_window: Integer context window, must be 0 or greater.
+        mask: Mask tensor, 1 represents value index, 0 represents padded index. Shape = [B, 1, T].
+
+    Returns:
+        A tensor reduced via masked average pool over some limited context. Shape = [B, C, 1]
+    """
+    timesteps = x.shape[-1]
+    if timesteps < context_window:
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
+    else:
+        start_idx = torch.randint(0, timesteps - context_window, size=[1], dtype=torch.int32)[0]
+        x = x[:, :, start_idx : (start_idx + context_window)]  # [B, C, context_window]
+        mask = mask[:, :, start_idx : (start_idx + context_window)]  # [B, 1, context_window]
+
+        mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
+        y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
+        y = y / (mask + 1e-8)  # [B, C, 1]
+
     return y
 
 
@@ -276,16 +332,32 @@ class MaskedConv1d(nn.Module):
 
         if self.pad_layer is None:
             return (
-                lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
-            ) // self.conv.stride[0] + 1
+                torch.div(
+                    lens + 2 * self.conv.padding[0] - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1,
+                    self.conv.stride[0],
+                    rounding_mode='trunc',
+                )
+                + 1
+            )
         else:
             return (
-                lens + sum(self._padding) - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1
-            ) // self.conv.stride[0] + 1
+                torch.div(
+                    lens + sum(self._padding) - self.conv.dilation[0] * (self.conv.kernel_size[0] - 1) - 1,
+                    self.conv.stride[0],
+                    rounding_mode='trunc',
+                )
+                + 1
+            )
 
     def forward(self, x, lens):
         if self.use_mask:
-            x, lens = self.update_masked_length(x, lens)
+            # Generally will be called by ConvASREncoder, but kept as single gpu backup.
+            if x.size(2) > self.max_len:
+                self.update_masked_length(x.size(2), device=lens.device)
+            x = self.mask_input(x, lens)
+
+        # Update lengths
+        lens = self.get_seq_len(lens)
 
         # asymmtric pad if necessary
         if self.pad_layer is not None:
@@ -302,14 +374,19 @@ class MaskedConv1d(nn.Module):
 
         return out, lens
 
-    def update_masked_length(self, x, lens):
+    def update_masked_length(self, max_len, seq_range=None, device=None):
+        if seq_range is None:
+            self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
+            self.lens = self.lens.to(device)
+        else:
+            self.lens = seq_range
+            self.max_len = max_len
+
+    def mask_input(self, x, lens):
         max_len = x.size(2)
-        self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
-        self.lens = self.lens.to(lens.device)
-        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+        mask = self.lens[:max_len].unsqueeze(0).to(lens.device) < lens.unsqueeze(1)
         x = x * mask.unsqueeze(1).to(device=x.device)
-        lens = self.get_seq_len(lens)
-        return x, lens
+        return x
 
 
 class GroupShuffle(nn.Module):
@@ -362,7 +439,6 @@ class SqueezeExcite(nn.Module):
         self._quantize = quantize
 
         self.pool = None  # prepare a placeholder which will be updated
-        self.change_context_window(context_window=context_window)
 
         if activation is None:
             activation = nn.ReLU(inplace=True)
@@ -386,27 +462,82 @@ class SqueezeExcite(nn.Module):
             )
         self.gap = nn.AdaptiveAvgPool1d(1)
 
-    def forward(self, x):
+        # Set default context window
+        self.change_context_window(context_window=context_window)
+
+        # Set default max sequence length
+        self.set_max_len(16)
+
+    def forward(self, x, lengths):
+        return self.forward_for_export(x, lengths)
+
+    def forward_for_export(self, x, lengths):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
+        max_len = x.shape[-1]
+        if max_len > self.max_len:
+            self.set_max_len(max_len)
+        dtype = x.dtype
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
-            x = x.float()
-            y = self._se_pool_step(x)
-            y = y.transpose(1, -1)  # [B, T - context_window + 1, C]
-            y = self.fc(y)  # [B, T - context_window + 1, C]
-            y = y.transpose(1, -1)  # [B, C, T - context_window + 1]
-        if self.context_window >= 0:
-            y = F.interpolate(y, size=x.shape[-1], mode=self.interpolation_mode)
+            # Create sample mask - 1 represents value, 0 represents pad
+            mask = self.make_pad_mask(lengths, max_audio_length=max_len, device=x.device)
+            mask = ~mask  # 0 represents value, 1 represents pad
+            x = x.float()  # For stable AMP, SE must be computed at fp32.
+            x.masked_fill_(mask, 0.0)  # mask padded values explicitly to 0
+            y = self._se_pool_step(x, mask)  # [B, C, 1]
+            y = y.transpose(1, -1)  # [B, 1, C]
+            y = self.fc(y)  # [B, 1, C]
+            y = y.transpose(1, -1)  # [B, C, 1]
 
-        y = torch.sigmoid(y)
-        return x * y
+            # Note: Keep for future, in case we improve WER from doing so.
+            # if self.context_window >= 0:
+            #     y = F.interpolate(y, size=x.shape[-1], mode=self.interpolation_mode)
 
-    def _se_pool_step(self, x):
+            y = torch.sigmoid(y)
+            y = x * y
+        return y, lengths
+
+    def _se_pool_step(self, x, mask):
+        # Negate mask back to represent 1 for signal and 0 for padded timestep.
+        mask = ~mask
+
         if self.context_window < 0:
-            y = self.pool(x)
+            # [B, C, 1] - Masked Average over value + padding.
+            y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).type(x.dtype)
         else:
-            y = _se_pool_step_script(x, self.context_window)
+            # [B, C, 1] - Masked Average over value + padding with limited context.
+            # During training randomly subsegments a context_window chunk of timesteps.
+            # During inference selects only the first context_window chunk of timesteps.
+            if self.training:
+                y = _se_pool_step_script_train(x, self.context_window, mask)
+            else:
+                y = _se_pool_step_script_infer(x, self.context_window, mask)
         return y
+
+    def set_max_len(self, max_len, seq_range=None):
+        """ Sets maximum input length.
+            Pre-calculates internal seq_range mask.
+        """
+        self.max_len = max_len
+        if seq_range is None:
+            device = next(self.parameters()).device
+            seq_range = torch.arange(0, self.max_len, device=device)
+        if hasattr(self, 'seq_range'):
+            self.seq_range = seq_range
+        else:
+            self.register_buffer('seq_range', seq_range, persistent=False)
+
+    def make_pad_mask(self, seq_lens, max_audio_length, device=None):
+        """Make masking for padding."""
+        if device and self.seq_range.device != device:
+            self.seq_range = self.seq_range.to(device)
+        if self.seq_range.device != seq_lens.device:
+            seq_lens = seq_lens.to(self.seq_range.device)
+
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)  # [B, T]; bool
+        mask = mask.unsqueeze(1)  # [B, 1, T]
+
+        return mask
 
     def change_context_window(self, context_window: int):
         """
@@ -430,38 +561,6 @@ class SqueezeExcite(nn.Module):
             logging.info(f"Changing Squeeze-Excitation context window from {self.context_window} to {context_window}")
 
         self.context_window = context_window
-
-        if self.context_window < 0:
-            if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                if not isinstance(self.pool, quant_nn.QuantAdaptiveAvgPool1d(1)):
-                    self.pool = quant_nn.QuantAdaptiveAvgPool1d(1)  # context window = T
-
-            elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                raise ImportError(
-                    "pytorch-quantization is not installed. Install from "
-                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
-                )
-
-            else:
-                if not isinstance(self.pool, nn.AdaptiveAvgPool1d):
-                    self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
-        else:
-            if PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                if not isinstance(self.pool, quant_nn.QuantAvgPool1d):
-                    self.pool = quant_nn.QuantAvgPool1d(self.context_window, stride=1)
-
-            elif not PYTORCH_QUANTIZATION_AVAILABLE and self._quantize:
-                raise ImportError(
-                    "pytorch-quantization is not installed. Install from "
-                    "https://github.com/NVIDIA/TensorRT/tree/master/tools/pytorch-quantization."
-                )
-
-            else:
-                if not isinstance(self.pool, nn.AvgPool1d):
-                    self.pool = nn.AvgPool1d(self.context_window, stride=1)
-                else:
-                    # update the context window
-                    self.pool.kernel_size = _single(self.context_window)
 
 
 class JasperBlock(nn.Module):
@@ -902,7 +1001,7 @@ class JasperBlock(nn.Module):
             # if we're doing masked convolutions, we need to pass in and
             # possibly update the sequence lengths
             # if (i % 4) == 0 and self.conv_mask:
-            if isinstance(l, MaskedConv1d):
+            if isinstance(l, (MaskedConv1d, SqueezeExcite)):
                 out, lens = l(out, lens)
             else:
                 out = l(out)
