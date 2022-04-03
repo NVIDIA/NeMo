@@ -162,14 +162,17 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         self.subsampling_factor = subsampling_factor
 
         if att_context_size:
-            self.att_context_size = att_context_size
+            self.att_context_size = list(att_context_size)
         else:
             self.att_context_size = [-1, -1]
 
         self.export_cache_support = False
 
+        if isinstance(conv_context_size, ListConfig):
+            conv_context_size = list(conv_context_size)
+
         if conv_context_size is not None:
-            if not isinstance(conv_context_size, ListConfig) and not isinstance(conv_context_size, str):
+            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
                 raise ValueError(
                     f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
                 )
