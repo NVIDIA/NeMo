@@ -77,8 +77,8 @@ def main(cfg):
     asr_model = EncDecRNNTBPEModel(cfg=cfg.model, trainer=trainer)
 
     # Initialize the weights of the model from another model, if provided via config
-    asr_model.maybe_init_from_pretrained_checkpoint(cfg)
-    asr_model.save_to("/drive3/tmp/causal_model_transducer.nemo")
+    #asr_model.maybe_init_from_pretrained_checkpoint(cfg)
+    #asr_model.save_to("/drive3/tmp/causal_model_transducer.nemo")
 
     trainer.fit(asr_model)
 
