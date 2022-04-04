@@ -73,7 +73,6 @@ class SaveRestoreConnector:
         strict: bool = True,
         return_config: bool = False,
         trainer: Trainer = None,
-        megatron_legacy: Optional[bool] = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -87,7 +86,6 @@ class SaveRestoreConnector:
             strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
-            megatron_legacy: Optional param to indicate if the NLP model was trained on NeMo < 1.5.0
 
         Example:
             ```
@@ -148,14 +146,7 @@ class SaveRestoreConnector:
                 if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                     model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
-                if megatron_legacy:
-                    new_state_dict = {}
-                    for key in state_dict.keys():
-                        new_key = key.replace('bert_model.language_model', 'bert_model.model.language_model')
-                        new_key = new_key.replace('transformer', 'encoder')
-                        new_key = new_key.replace('.attention.', '.self_attention.')
-                        new_state_dict[new_key] = state_dict[key]
-                    state_dict = new_state_dict
+
                 if conf.get('megatron_amp_O2', False):
                     new_state_dict = {}
                     for key in state_dict.keys():

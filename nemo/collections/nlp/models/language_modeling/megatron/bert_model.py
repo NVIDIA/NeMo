@@ -149,6 +149,7 @@ class BertModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         add_binary_head=True,
+        megatron_legacy=False,
     ):
         super(BertModel, self).__init__()
         # args = get_args()
@@ -189,6 +190,7 @@ class BertModel(MegatronModule):
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            megatron_legacy=megatron_legacy,
         )
 
         self.initialize_word_embeddings(

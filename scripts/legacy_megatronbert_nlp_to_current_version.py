@@ -35,6 +35,7 @@ import pytorch_lightning as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core import ModelPT
 from nemo.core.config import TrainerConfig
 
@@ -94,16 +95,18 @@ def nemo_convert(argv):
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
         # If the megatron based NLP model was trained on NeMo < 1.5, then we need to update the lm_checkpoint on the model config
+        connector = NLPSaveRestoreConnector()
         model_cfg = ModelPT.restore_from(
-            restore_path=nemo_in, trainer=trainer, megatron_legacy=True, return_config=True
+            restore_path=nemo_in, save_restore_connector=connector, trainer=trainer, return_config=True
         )
         OmegaConf.set_struct(model_cfg, True)
         with open_dict(model_cfg):
             model_cfg.language_model.lm_checkpoint = args.megatron_checkpoint
-
-        # Passing megatron_legacy=True maps the state dict from older versions (Nemo < 1.5) to the latest version
+            model_cfg['megatron_legacy'] = True
+            model_cfg['masked_softmax_fusion'] = False
+            model_cfg['bias_gelu_fusion'] = False
         model = ModelPT.restore_from(
-            restore_path=nemo_in, trainer=trainer, megatron_legacy=True, override_config_path=model_cfg,
+            restore_path=nemo_in, save_restore_connector=connector, trainer=trainer, override_config_path=model_cfg,
         )
         logging.info("Model {} restored from '{}'".format(model.cfg.target, nemo_in))
 

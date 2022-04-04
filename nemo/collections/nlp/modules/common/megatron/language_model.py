@@ -75,6 +75,7 @@ def get_language_model(
     use_soft_prompts=False,
     num_prompt_tokens=10,
     existing_prompt_tags=None,
+    megatron_legacy=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -124,6 +125,7 @@ def get_language_model(
         use_soft_prompts=use_soft_prompts,
         num_prompt_tokens=num_prompt_tokens,
         existing_prompt_tags=existing_prompt_tags,
+        megatron_legacy=megatron_legacy,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -569,6 +571,7 @@ class TransformerLanguageModel(MegatronModule):
         use_soft_prompts=False,
         num_prompt_tokens=100,
         existing_prompt_tags=None,
+        megatron_legacy=False,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -644,6 +647,7 @@ class TransformerLanguageModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             masked_softmax_fusion=masked_softmax_fusion,
+            megatron_legacy=megatron_legacy,
         )
         self._encoder_key = 'encoder'
 
@@ -677,6 +681,7 @@ class TransformerLanguageModel(MegatronModule):
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 masked_softmax_fusion=masked_softmax_fusion,
+                megatron_legacy=megatron_legacy,
             )
             self._decoder_key = 'decoder'
 
