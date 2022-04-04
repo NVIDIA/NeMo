@@ -108,7 +108,7 @@ class CardinalFst(GraphFst):
             final_graph = (
                 self.graph
                 | serial_graph
-                | self.single_digits_graph
+                | pynutil.add_weight(self.single_digits_graph, 0.0001)
                 | get_four_digit_year_graph()
                 | pynutil.add_weight(single_digits_graph_with_commas, 0.0001)
                 | cardinal_with_leading_zeros

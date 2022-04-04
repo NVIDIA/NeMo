@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, convert_space
 
 try:
     import pynini
@@ -31,33 +31,43 @@ class RangeFst(GraphFst):
         for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, time: GraphFst, date: GraphFst, cardinal: GraphFst = None, deterministic: bool = True):
+    def __init__(
+        self, time: GraphFst, date: GraphFst, cardinal: GraphFst, deterministic: bool = True, lm: bool = False
+    ):
         super().__init__(name="range", kind="classify", deterministic=deterministic)
 
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
         self.graph = time + delete_space + pynini.cross("-", " to ") + delete_space + time
         date_year = (NEMO_DIGIT ** 4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
-        self.graph |= date_year + delete_space + pynini.cross("-", " to ") + delete_space + date_year
+
+        year_to_year_graph = date_year + delete_space + pynini.cross("-", " to ") + delete_space + date_year
+        self.graph |= year_to_year_graph
 
         cardinal = cardinal.graph
         # this will use year for for 4-digit cardinal
         up_to_three_morfive_digits = (NEMO_DIGIT ** (1, 3)) | (NEMO_DIGIT ** (5, ...))
         up_to_three_morfive_digits = pynini.compose(up_to_three_morfive_digits, cardinal)
-        range_graph = (
+        cardinal_to_cardinal_graph = (
             up_to_three_morfive_digits
             + delete_space
             + pynini.cross("-", " to ")
             + delete_space
             + up_to_three_morfive_digits
         )
-        range_graph |= cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
+
+        if not deterministic and not lm:
+            cardinal_to_cardinal_graph |= cardinal + delete_space + pynini.cross("-", " to ") + delete_space + cardinal
+
+        range_graph = cardinal_to_cardinal_graph | (
+            cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
+        )
         for x in [" x ", "x"]:
             range_graph |= cardinal + pynini.closure(pynini.cross(x, pynini.union(" by ", " times ")) + cardinal, 1)
         for x in ["*", " * "]:
             range_graph |= cardinal + pynini.closure(pynini.cross(x, " times ") + cardinal, 1)
 
-        if not deterministic:
-            range_graph = cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
+        if not deterministic or lm:
+            range_graph |= cardinal + delete_space + pynini.cross("-", " minus ") + delete_space + cardinal
 
             # supports "No. 12" -> "Number 12"
             range_graph |= (

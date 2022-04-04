@@ -15,6 +15,7 @@ one us dollar one cent
 ~1.24
 one point two four
 one point twenty four
+~~1/24
 january twenty four
 the twenty fourth of january
 january twenty fourth
@@ -46,8 +47,8 @@ It seemed to her that the jacket Oswald wore was darker than Commission Exhibit 
 nineteen seventy-twenty ten
 one thousand nine hundred and seventy-two thousand ten
 one thousand nine hundred and seventy-twenty ten
-from nineteen seventy to twenty ten
-from one thousand nine hundred and seventy to two thousand ten
+nineteen seventy to twenty ten
+one thousand nine hundred seventy to two thousand ten
 ~W26s
 W twenty six s
 W two six s
@@ -58,7 +59,6 @@ four oh one-ks
 four hundred one-ks
 ~The box was 25 x 7 m.
 The box was twenty five by seven meters.
-The box was twenty five by seven m.
 ~4567
 four thousand five hundred sixty seven
 four five six seven
@@ -104,7 +104,7 @@ Test
 august fifth two thousand six
 the fifth of august two thousand six
 ~2-5
-from two to five
+two to five
 two-five
 ~627
 six hundred twenty seven
@@ -139,13 +139,13 @@ Tuesday (the twenty second of february) at five p m.
 Tuesday (the twenty second of february) at five pm.
 Tuesday (two divided by twenty two) at five pm.
 Tuesday (february twenty second) at five pm.
+Tuesday (february twenty second) at five p m.
 Tuesday (february twenty two) at five p m.
 Tuesday (two/two two) at five p m.
 Tuesday (two divided by twenty two) at five p m.
 Tuesday (two twenty seconds) at five pm.
 Tuesday (two/twenty two) at five p m.
 Tuesday (two/twenty two) at five pm.
-Tuesday (february twenty second) at five p m.
 Tuesday (february twenty two) at five pm.
 Tuesday (two/two two) at five pm.
 Tuesday (two twenty seconds) at five p m.
