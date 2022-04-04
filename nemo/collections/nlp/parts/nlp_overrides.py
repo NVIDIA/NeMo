@@ -18,11 +18,11 @@ import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
-from omegaconf import DictConfig, OmegaConf
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
 
 import pytorch_lightning as pl
 import torch
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
@@ -392,7 +392,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                     model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
-                if conf.get('megatron_legacy',False):
+                if conf.get('megatron_legacy', False):
                     new_state_dict = {}
                     for key in state_dict.keys():
                         new_key = key.replace('bert_model.language_model', 'bert_model.model.language_model')
