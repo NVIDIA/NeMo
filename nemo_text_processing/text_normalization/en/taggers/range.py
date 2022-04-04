@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, convert_space
 
 try:
     import pynini
