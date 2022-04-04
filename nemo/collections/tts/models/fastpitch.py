@@ -29,6 +29,7 @@ from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types.elements import (
     Index,
     LengthsType,
@@ -537,3 +538,32 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     def forward_for_export(self, text, pitch, pace, speaker=None):
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
+
+    @classmethod
+    def from_pretrained(
+        cls, 
+        model_name: str,
+        refresh_cache: bool = False,
+        override_config_path: Optional[str] = None,
+        map_location: Optional['torch.device'] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Optional['Trainer'] = None,
+        save_restore_connector: SaveRestoreConnector = None,
+    ):
+        """Custom Fastpitch's load logic to support old checkpoint."""
+        if model_name == "tts_en_fastpitch":
+            logging.warning("Please use https://github.com/NVIDIA/NeMo/tree/main/examples/tts/conf/fastpitch_align_old.yaml \
+            as config_file to avoid using deprecated AudioToCharWithDursF0Dataset class and run into errors. \
+            Recommended usage: FastPitchModel.from_pretrained(\"tts_en_fastpitch\", override_config_path=\"/path/to/fastpitch_align_old.yaml\")")
+        model = super().from_pretrained(
+            model_name,
+            refresh_cache,
+            override_config_path,
+            map_location,
+            strict,
+            return_config,
+            trainer,
+            save_restore_connector,
+            )
+        return model
