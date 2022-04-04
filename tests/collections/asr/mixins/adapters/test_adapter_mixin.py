@@ -37,13 +37,16 @@ class DefaultModel(torch.nn.Module, AdapterModuleMixin):
         self.fc = torch.nn.Linear(50, 50)
 
     def forward(self, x):
-        ip = x
         x = self.fc(x)
 
         if self.is_adapter_available():
-            x = x + self.adapter_layer(x)
+            # For testing purposes, cache the adapter names
+            self._adapter_names = self.get_enabled_adapters()
+            # call forward over model adapters, summing them up
+            for name in self.get_enabled_adapters():
+                x = x + self.adapter_layer[name](x)
 
-        out = ip + x
+        out = x
         return out
 
     def num_params(self):
@@ -52,6 +55,15 @@ class DefaultModel(torch.nn.Module, AdapterModuleMixin):
             if p.requires_grad:
                 num += p.numel()
         return num
+
+
+def get_adapter_cfg(in_features=50, dim=100):
+    cfg = {
+        '_target_': 'nemo.collections.asr.parts.submodules.adapter_modules.LinearAdapter',
+        'in_features': in_features,
+        'dim': dim,
+    }
+    return cfg
 
 # @pytest.fixture()
 # def asr_model(test_data_dir):
@@ -102,11 +114,25 @@ class DefaultModel(torch.nn.Module, AdapterModuleMixin):
 class TestAdapterMixin:
 
     @pytest.mark.unit
-    def test_constructor(self):
+    def test_single_adapter(self):
         model = DefaultModel()
         original_num_params = model.num_params()
 
-        model.add_adapter(dim=50)
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        new_num_params = model.num_params()
+        assert new_num_params > original_num_params
+
+    @pytest.mark.unit
+    def test_multiple_adapter(self):
+        model = DefaultModel()
+        original_num_params = model.num_params()
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        new_num_params = model.num_params()
+        assert new_num_params > original_num_params
+
+        original_num_params = new_num_params
+        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
         new_num_params = model.num_params()
         assert new_num_params > original_num_params
 
@@ -118,7 +144,39 @@ class TestAdapterMixin:
         model = DefaultModel()
         origial_output = model(x)
 
-        model.add_adapter(dim=50)
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
         new_output = model(x)
 
+        assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
+
+    @pytest.mark.unit
+    def test_multi_adapter_forward(self):
+        torch.random.manual_seed(0)
+        x = torch.randn(1, 50)
+
+        model = DefaultModel()
+        origial_output = model(x)
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
+        new_output = model(x)
+
+        assert model._adapter_names == ['adapter_0', 'adapter_1']
+        assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
+
+    @pytest.mark.unit
+    def test_multi_adapter_partial_forward(self):
+        torch.random.manual_seed(0)
+        x = torch.randn(1, 50)
+
+        model = DefaultModel()
+        origial_output = model(x)
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
+
+        model.set_enabled_adapters(name='adapter_0', enabled=False)
+        new_output = model(x)
+
+        assert model._adapter_names == ['adapter_1']
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
