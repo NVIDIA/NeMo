@@ -18,7 +18,7 @@ import multiprocessing
 import os
 import shutil
 from itertools import repeat
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import IPython.display as ipd
 import librosa
@@ -797,10 +797,9 @@ def vad_tune_threshold_on_dev(
 
         except RuntimeError as e:
             print(f"Pass {param}, with error {e}")
-            pass
         except pd.errors.EmptyDataError as e1:
             print(f"Pass {param}, with error {e1}")
-            pass
+
     return best_threhsold, optimal_scores
 
 

@@ -32,15 +32,10 @@
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
 from collections import Counter
-from functools import partial
 from typing import Dict, List
 
-import numpy as np
 import torch
 from torch.linalg import eigh as eigh
-
-from nemo.utils import logging
-from nemo.utils.decorators.experimental import experimental
 
 
 @torch.jit.script
@@ -208,7 +203,6 @@ def kmeans_torch(
     while True:
         euc_dist = getEuclideanDistance(X, centers, device=device)
         if len(euc_dist.shape) <= 1:
-            selected_cluster_index = torch.zeros(input_size).int()
             break
         else:
             selected_cluster_index = torch.argmin(euc_dist, dim=1)
@@ -556,9 +550,7 @@ def getEnhancedSpeakerCount(
 
 
 @torch.jit.script
-def estimateNumofSpeakers(
-    affinity_mat, max_num_speaker: int, is_cuda: bool = False, device: torch.device = torch.device('cpu')
-):
+def estimateNumofSpeakers(affinity_mat, max_num_speaker: int, is_cuda: bool = False):
     """
     Estimate the number of speakers using eigen decomposition on the Laplacian Matrix.
 
@@ -572,9 +564,6 @@ def estimateNumofSpeakers(
         is_cuda: (bool)
             If cuda available eigh decomposition would be computed on GPUs.
 
-        device: (torch.device)
-            Torch device variable
-
     Returns:
         num_of_spk: (torch.tensor)
             The estimated number of speakers
@@ -585,13 +574,9 @@ def estimateNumofSpeakers(
         lambda_gap: (torch.tensor)
             The gap between the lambda values from eigendecomposition
     """
-    if not is_cuda:
-        device = torch.device('cpu')
-
     laplacian = getLaplacian(affinity_mat)
     lambdas, _ = eigDecompose(laplacian, is_cuda)
     lambdas = torch.sort(lambdas)[0]
-
     lambda_gap = getLamdaGaplist(lambdas)
     num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
     return num_of_spk, lambdas, lambda_gap

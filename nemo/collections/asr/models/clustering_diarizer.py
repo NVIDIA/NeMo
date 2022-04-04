@@ -18,7 +18,6 @@ import pickle as pkl
 import shutil
 import tarfile
 import tempfile
-from collections import defaultdict
 from copy import deepcopy
 from typing import List, Optional
 
