@@ -42,22 +42,34 @@ class DialogueS2SGenerationDataset(Dataset):
         if self.cfg.debug_mode:
             self.features = self.features[:16]
 
-    @staticmethod
-    def format_actions(actions):
+    def format_actions(self, actions):
         actions_str = []
         for action in actions:
             act = action['act'].lower()
             slot = action['slot']
             value = action['values'][0] if action['values'] else ''
-            if value: 
-                action_str = '{} {} ({})'.format(act, slot, value) 
-            elif slot:
-                action_str = '{} {}'.format(act, slot)
+
+            if self.cfg.prompt_template == 'values':
+                action_str = value
+            elif self.cfg.prompt_template == 'slots_values':
+                if value:
+                    action_str = '{} ({})'.format(slot, value)
+                else:
+                    action_str = slot
+            elif self.cfg.prompt_template == 'acts_slots_values':
+                if value:
+                    action_str = '{} {} ({})'.format(act, slot, value)
+                elif slot:
+                    action_str = '{} {}'.format(act, slot)
+                else:
+                    action_str = act
             else:
-                action_str = act
+                raise ValueError(
+                    "Please set model.dataset.prompt_template to acts_slots_values, slots_values and values"
+                )
             actions_str.append(action_str)
         return ' '.join(actions_str)
-            
+
     def remove_invalid_samples(self, features):
         valid_idxs = []
         for i in range(len(features)):
@@ -121,8 +133,8 @@ class DialogueS2SGenerationDataset(Dataset):
             if field in ex:
                 ex["labels"][field] = ex[field]
 
-        ex["labels"]['system_actions'] = DialogueS2SGenerationDataset.format_actions(ex['system_actions'])
-        
+        ex["labels"]['system_actions'] = self.format_actions(ex['system_actions'])
+
         input_sentence = self.format_prompt(ex)
         output_sentence = ex["labels"][self.output_label_type]
 

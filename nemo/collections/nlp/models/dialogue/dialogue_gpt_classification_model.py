@@ -42,6 +42,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueGPTClassificationModel']
 
+
 class DialogueGPTClassificationModel(NLPModel):
     def __init__(
         self, cfg: DictConfig, trainer: Trainer = None,
@@ -600,7 +601,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 schemas=schemas,
                 schema_config=schema_config,
                 subsample=self._cfg.dataset.subsample,
-                cfg=self._cfg.dataset
+                cfg=self._cfg.dataset,
             )
             if is_global_rank_zero():
                 overwrite_dial_files = not self._cfg.dataset.use_cache

@@ -26,12 +26,12 @@ from transformers import AutoModelForSeq2SeqLM
 from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor, Schema
 from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
+from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset
 from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueS2SGenerationModel']
@@ -108,10 +108,7 @@ class DialogueS2SGenerationModel(NLPModel):
         self.log('{}_ppl'.format(mode), ppl)
 
         if mode == 'val' and self.cfg.save_model:
-            filename = '{}/val_loss-{}-answer-extender.bin'.format(
-                self.cfg.dataset.dialogues_example_dir,
-                avg_loss
-            )
+            filename = '{}/val_loss-{}-answer-extender.bin'.format(self.cfg.dataset.dialogues_example_dir, avg_loss)
             torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
@@ -258,7 +255,7 @@ class DialogueS2SGenerationModel(NLPModel):
                 schemas=schemas,
                 schema_config=schema_config,
                 subsample=self._cfg.dataset.subsample,
-                cfg=self._cfg.dataset
+                cfg=self._cfg.dataset,
             )
 
             if is_global_rank_zero():

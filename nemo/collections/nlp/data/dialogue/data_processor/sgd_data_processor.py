@@ -52,7 +52,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         schemas: object,
         schema_config: Dict[str, int],
         subsample: bool = False,
-        cfg = None
+        cfg=None,
     ):
         """
         Constructs DialogueSGDDataProcessor
@@ -266,11 +266,11 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     else:
                         system_utterance = ""
                         system_frames = {}
-                else: # takes the system utterance of the next turn 
+                else:  # takes the system utterance of the next turn
                     system_turn = dialog["turns"][turn_idx + 1]
                     system_utterance = system_turn["utterance"]
                     system_frames = {f["service"]: f for f in system_turn["frames"]}
-                    
+
                 turn_id = "{}-{}-{:02d}".format(dataset_split, dialog_id, turn_idx)
                 turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
                     turn_id,
