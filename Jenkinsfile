@@ -897,6 +897,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_answer_extender_s2s \
             model.dataset.task=sgd_generation \
+            model.dataset.task_name=debug_sample \
             model.dataset.input_field=utterance+system_actions \
             model.dataset.output_field=system_utterance \
             model.library=huggingface \
@@ -918,7 +919,6 @@ pipeline {
             rm -rf sgd_answer_extender_s2s'
           }
         }
-
       }
     }
 
