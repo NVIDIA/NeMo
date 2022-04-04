@@ -158,7 +158,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         # This returns the averaged loss across data-parallel groups.
         reduced_loss = super().validation_step(batch, batch_idx)
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_batch(batch)
+        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_global_batch_for_tarred_datasets(batch)
         predicted_tokens_ids, _ = self.decode(
             tokens_enc,
             enc_mask,
@@ -373,7 +373,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if hasattr(self, '_train_ds'):
             self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds)
 
-    def process_batch(self, batch):
+    def process_global_batch_for_tarred_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         batch = {
@@ -384,7 +384,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
             'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
         }
-        return super().process_batch(batch)
+        return self._process_global_batch_without_megatron_batch_sampler(batch)
 
     def build_train_valid_test_datasets(self):
         self._train_ds = MTEncDecModel._setup_dataset_from_config(

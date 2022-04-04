@@ -61,62 +61,11 @@ class MegatronT5GLUEModel(MegatronT5Model):
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
 
-    def _process_global_batch(self, global_batch):
-        """ Prepares the global batch for apex fwd/bwd functions.
-            Global batch is a list of micro batches.
-        """
-        text_enc_list = []
-        text_dec_list = []
-        labels_list = []
-        loss_mask_list = []
-        enc_mask_list = []
-        dec_mask_list = []
-
-        # Determine the maximum encoder and decoder sequence lengths amongst microbatches and pad each microbatch to the max seq length.
-        # NOTE: This should only happen for model finetuning where we pad dynamically. Training uses fixed training shapes.
-
-        max_enc_seq_lenth = max([micro_batch['text_enc'].shape[1] for micro_batch in global_batch])
-        max_dec_seq_lenth = max([micro_batch['text_dec'].shape[1] for micro_batch in global_batch])
-
-        for micro_batch in global_batch:
-            text_enc, text_dec, loss_mask, labels, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
-            # Check if encoder sequence length < max encoder sequence length of the global batch and pad.
-            if text_enc.shape[1] < max_enc_seq_lenth:
-                text_enc = torch.nn.functional.pad(
-                    text_enc, (0, max_enc_seq_lenth - text_enc.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
-                )
-                enc_mask = torch.nn.functional.pad(
-                    enc_mask, (0, max_enc_seq_lenth - enc_mask.shape[1], 0, 0), 'constant', 0
-                )
-            if text_dec.shape[1] < max_dec_seq_lenth:
-                text_dec = torch.nn.functional.pad(
-                    text_dec, (0, max_dec_seq_lenth - text_dec.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
-                )
-                dec_mask = torch.nn.functional.pad(
-                    dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
-                )
-            text_enc_list.append(text_enc)
-            text_dec_list.append(text_dec)
-            labels_list.append(labels)
-            loss_mask_list.append(loss_mask)
-            enc_mask_list.append(enc_mask)
-            dec_mask_list.append(dec_mask)
-
-        # Concatenate to (num_microbatches x micro_batch_size x seq_len)
-        tokens_enc_tensor = torch.concat(text_enc_list, dim=0)
-        tokens_dec_tensor = torch.concat(text_dec_list, dim=0)
-        labels_tensor = torch.concat(labels_list, dim=0)
-        loss_mask_tensor = torch.concat(loss_mask_list, dim=0)
-        enc_mask_tensor = torch.concat(enc_mask_list, dim=0)
-        dec_mask_tensor = torch.concat(dec_mask_list, dim=0)
-
-        return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor
-
     def process_global_batch(self, global_batch):
         """Process a list of microbatches into a global batch."""
         # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
         if len(global_batch[0]) == 6:
-            return self._process_global_batch(global_batch)
+            return self._process_global_batch_without_megatron_batch_sampler(global_batch)
 
         # For validation data (XNLI), we need to process the global batch and and then deal with language info separately.
         else:
@@ -129,7 +78,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 labels_tensor,
                 enc_mask_tensor,
                 dec_mask_tensor,
-            ) = self._process_global_batch(
+            ) = self._process_global_batch_without_megatron_batch_sampler(
                 [{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch]
             )
             for micro_batch in global_batch:
