@@ -524,6 +524,7 @@ class SGDQAModel(NLPModel):
             schemas=schemas,
             schema_config=schema_config,
             subsample=self._cfg.dataset.subsample,
+            cfg=self._cfg.dataset,
         )
 
         if is_global_rank_zero():

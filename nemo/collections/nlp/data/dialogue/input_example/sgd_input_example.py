@@ -52,6 +52,16 @@ class DialogueSGDInputExample(DialogueInputExample):
                         "slot": "restaurant_name",
                         "start": 34
             },
+        "system_actions": None or [{
+                "act": "INFORM",
+                "canonical_values": [
+                  "2019-03-02"
+                ],
+                "slot": "date",
+                "values": [
+                  "March 2nd"
+                ]
+              }, ...]
         "labels": {
             "service": <service>,
             "intent": <intent>,

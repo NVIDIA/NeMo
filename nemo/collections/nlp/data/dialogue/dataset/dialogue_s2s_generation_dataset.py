@@ -42,14 +42,44 @@ class DialogueS2SGenerationDataset(Dataset):
         if self.cfg.debug_mode:
             self.features = self.features[:16]
 
+    def format_actions(self, actions):
+        actions_str = []
+        for action in actions:
+            act = action['act'].lower()
+            slot = action['slot']
+            value = action['values'][0] if action['values'] else ''
+
+            if self.cfg.prompt_template == 'values':
+                action_str = value
+            elif self.cfg.prompt_template == 'slots_values':
+                if value:
+                    action_str = '{} ({})'.format(slot, value)
+                else:
+                    action_str = slot
+            elif self.cfg.prompt_template == 'acts_slots_values':
+                if value:
+                    action_str = '{} {} ({})'.format(act, slot, value)
+                elif slot:
+                    action_str = '{} {}'.format(act, slot)
+                else:
+                    action_str = act
+            else:
+                raise ValueError(
+                    "Please set model.dataset.prompt_template to acts_slots_values, slots_values and values"
+                )
+            actions_str.append(action_str)
+        return ' '.join(actions_str)
+
     def remove_invalid_samples(self, features):
         valid_idxs = []
         for i in range(len(features)):
-            features[i].data["labels"]["utterance"] = features[i].data["utterance"]
+            for field in ['utterance', 'system_utterance', 'system_actions']:
+                if field in features[i].data:
+                    features[i].data["labels"][field] = features[i].data[field]
             all_fields = self.input_label_type.split('+') + self.output_label_type.split('+')
             all_fields_non_empty = True
             for field in all_fields:
-                if not features[i].data["labels"][field] or not features[i].data["labels"][field].strip():
+                if not features[i].data["labels"][field]:
                     all_fields_non_empty = False
             if all_fields_non_empty:
                 valid_idxs.append(i)
@@ -82,7 +112,6 @@ class DialogueS2SGenerationDataset(Dataset):
             e.g. utterance: <utterance> # input_label_type = utterance
             e.g. passage: <passage> utterance: <utterance> # input_label_type = passage+utterance
         '''
-        ex["labels"]["utterance"] = ex["utterance"]
         parts = self.input_label_type.split('+')
         input_sentence = ' '.join([part + ': ' + ex["labels"][part] for part in parts])
         return input_sentence
@@ -100,6 +129,11 @@ class DialogueS2SGenerationDataset(Dataset):
             e.g. INPUT - "passage: <passage> utterance: <utterance>" OUTPUT - "<response>" # input_label_type = passage+utterance, output_label_type = response
         '''
         ex = self.features[idx].data
+        for field in ['utterance', 'system_utterance']:
+            if field in ex:
+                ex["labels"][field] = ex[field]
+
+        ex["labels"]['system_actions'] = self.format_actions(ex['system_actions'])
 
         input_sentence = self.format_prompt(ex)
         output_sentence = ex["labels"][self.output_label_type]

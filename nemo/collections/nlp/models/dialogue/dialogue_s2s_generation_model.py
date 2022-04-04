@@ -23,12 +23,16 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelForSeq2SeqLM
 
+from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor, Schema
 from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
+from nemo.collections.nlp.data.language_modeling.megatron.request_dataset import T5RequestDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueS2SGenerationModel']
 
@@ -50,7 +54,8 @@ class DialogueS2SGenerationModel(NLPModel):
             if self.cfg.language_model.lm_checkpoint:
                 self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
-            raise ValueError("Megatron Seq2Seq is not yet supported")
+            self.language_model = MegatronT5Model.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
+            self.language_model.freeze()
 
     def training_step(self, batch, batch_idx):
         input_ids, attn_masks, labels = batch
@@ -101,6 +106,10 @@ class DialogueS2SGenerationModel(NLPModel):
         self.log('bleu', bleu)
         self.log('{}_loss'.format(mode), avg_loss)
         self.log('{}_ppl'.format(mode), ppl)
+
+        if mode == 'val' and self.cfg.save_model:
+            filename = '{}/val_loss-{}-answer-extender.bin'.format(self.cfg.dataset.dialogues_example_dir, avg_loss)
+            torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
@@ -174,6 +183,8 @@ class DialogueS2SGenerationModel(NLPModel):
             }
             generated_tokens = self.language_model.generate(**param_dict)
 
+        elif self.cfg.library == 'megatron':
+            raise ValueError("Megatron is not supported by DialogueS2SGenerationModel")
         generated_field = self.process_into_structured_fields(generated_tokens)
         ground_truth_field = self.process_into_structured_fields(labels)
 
@@ -222,6 +233,34 @@ class DialogueS2SGenerationModel(NLPModel):
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
+        elif self._cfg.dataset.task == "sgd_generation":
+            schema_config = {
+                "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
+                "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
+                "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
+                "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
+                "NUM_TASKS": 1,
+                "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
+            }
+            all_schema_json_paths = []
+            for dataset_split in ['train', 'test', 'dev']:
+                all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
+            schemas = Schema(all_schema_json_paths)
+
+            self.dialogues_processor = DialogueSGDDataProcessor(
+                task_name=self._cfg.dataset.task_name,
+                data_dir=self._cfg.dataset.data_dir,
+                dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
+                tokenizer=self.tokenizer,
+                schemas=schemas,
+                schema_config=schema_config,
+                subsample=self._cfg.dataset.subsample,
+                cfg=self._cfg.dataset,
+            )
+
+            if is_global_rank_zero():
+                overwrite_dial_files = not self._cfg.dataset.use_cache
+                self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
         else:
             raise ValueError("Only ms_marco supported for Dialogue GPT Generation Model")
 
