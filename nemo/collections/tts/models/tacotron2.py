@@ -76,7 +76,7 @@ class Tacotron2Model(SpectrogramGenerator):
         self._setup_tokenizer(cfg)
         assert self.tokenizer is not None
 
-        num_tokens = len(self.tokenizer.tokens)
+        self.num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
 
@@ -102,7 +102,7 @@ class Tacotron2Model(SpectrogramGenerator):
             )
         self._parser = None
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
-        self.text_embedding = nn.Embedding(num_tokens, 512)
+        self.text_embedding = nn.Embedding(self.num_tokens, 512)
         self.encoder = instantiate(self._cfg.encoder)
         self.decoder = instantiate(self._cfg.decoder)
         self.postnet = instantiate(self._cfg.postnet)
@@ -143,14 +143,14 @@ class Tacotron2Model(SpectrogramGenerator):
         blank_id = params.get('blank_index', None) or -1
         do_normalize = params.get('normalize', True)
         self._parser = parsers.make_parser(
-            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
+            labels=self.tokenizer.tokens, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
         )
         return self._parser
 
     def parse(self, str_input: str) -> torch.tensor:
         tokens = self.parser(str_input)
         # Parser doesn't add bos and eos ids, so maunally add it
-        tokens = [len(self._cfg.labels)] + tokens + [len(self._cfg.labels) + 1]
+        tokens = [self.num_tokens] + tokens + [self.num_tokens]
         tokens_tensor = torch.tensor(tokens).unsqueeze_(0).to(self.device)
 
         return tokens_tensor
@@ -346,14 +346,10 @@ class Tacotron2Model(SpectrogramGenerator):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        # labels = self._cfg.labels
-
         dataset = instantiate(
             cfg.dataset, text_normalizer=self.normalizer,
             text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
             text_tokenizer=self.tokenizer,
-            # labels=labels, bos_id=len(labels), 
-            # eos_id=len(labels) + 1, pad_id=len(labels) + 2
         )
 
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
