@@ -107,6 +107,13 @@ class DialogueS2SGenerationModel(NLPModel):
         self.log('{}_loss'.format(mode), avg_loss)
         self.log('{}_ppl'.format(mode), ppl)
 
+        if mode == 'val' and self.cfg.save_model:
+            filename = '{}/val_loss-{}-answer-extender.bin'.format(
+                self.cfg.dataset.dialogues_example_dir,
+                avg_loss
+            )
+            torch.save(self.language_model.state_dict(), filename)
+
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
 

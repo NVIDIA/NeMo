@@ -34,6 +34,7 @@ model:
   tensor_model_parallel_size: 1
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   library: huggingface # huggingface or megatron
+  save_model: False # save validation models
 
   # megatron prompt tuning model args
   new_prompt_tags: [] # brief short name (each element is a string "<tag>")
