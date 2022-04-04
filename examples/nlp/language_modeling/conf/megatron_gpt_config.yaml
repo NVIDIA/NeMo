@@ -45,6 +45,14 @@ model:
   # gradient accumulation will be done automatically based on data_parallel_size
   micro_batch_size: 4 # limited by GPU memory
   global_batch_size: 8 # will use more micro batches to reach global batch size
+  rampup_batch_size: null # Expects a list of 3 values: starting batch size, increment, rampup samples
+  # For example:
+  #    rampup_batch_size: 16 8 300000
+  #    global_batch_size: 1024
+  # will start with global batch size 16 and over
+  # (1024 - 16) / 8 = 126 intervals will increase
+  # the batch size linearly to 1024. In each interval
+  # we will use approximately 300000 / 126 = 2380 samples
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   resume_from_checkpoint: null # manually set the checkpoint file to load from
