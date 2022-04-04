@@ -487,34 +487,53 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
             self.att_context_size[0] if self.att_context_size[0] >= 0 else MAX_LOOK_AHEAD
         )
 
+        if hasattr(self.pre_encode, "get_sampling_frames"):
+            sampling_frames = self.pre_encode.get_sampling_frames()
+        else:
+            sampling_frames = 0
         if chunk_size is None:
-            streaming_cfg.chunk_size = [
-                1 + (self.subsampling_factor * streaming_cfg.lookahead_steps),
-                self.subsampling_factor * (1 + streaming_cfg.lookahead_steps),
-            ]
+            if isinstance(sampling_frames, list):
+                streaming_cfg.chunk_size = [
+                    sampling_frames[0] + self.subsampling_factor * streaming_cfg.lookahead_steps,
+                    sampling_frames[1] + self.subsampling_factor * streaming_cfg.lookahead_steps,
+                ]
+            else:
+                streaming_cfg.chunk_size = sampling_frames * (1 + streaming_cfg.lookahead_steps)
         else:
             streaming_cfg.chunk_size = chunk_size
         if shift_size is None:
-            streaming_cfg.shift_size = [
-                1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
-                self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size),
-            ]
+            if isinstance(sampling_frames, list):
+                streaming_cfg.shift_size = [
+                    sampling_frames[0] + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    sampling_frames[1] + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                ]
+            else:
+                streaming_cfg.chunk_size = sampling_frames * (1 + streaming_cfg.lookahead_steps)
+
+            # streaming_cfg.shift_size = [
+            #     1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+            #     self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size),
+            # ]
         else:
             streaming_cfg.shift_size = shift_size
 
         if valid_out_len is None:
-            init_shift_size = streaming_cfg.shift_size[0] if isinstance(streaming_cfg.shift_size, list) else streaming_cfg.shift_size
-            shift_size = streaming_cfg.shift_size[1] if isinstance(streaming_cfg.shift_size, list) else streaming_cfg.shift_size
-            streaming_cfg.valid_out_len = [
-                (init_shift_size - 1) // self.subsampling_factor + 1,
-                shift_size // self.subsampling_factor,
-            ]
+            if isinstance(streaming_cfg.shift_size, list):
+                streaming_cfg.valid_out_len = [
+                    (streaming_cfg.shift_size - sampling_frames[0]) // self.subsampling_factor + 1,
+                    (streaming_cfg.shift_size - sampling_frames[1]) // self.subsampling_factor + 1,
+                ]
+            else:
+                streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
         else:
             streaming_cfg.valid_out_len = valid_out_len
 
         streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
         if pre_encode_cache_size is None:
-            streaming_cfg.pre_encode_cache_size = [0, self.subsampling_factor + 1]
+            if hasattr(self.pre_encode, "get_streaming_cache_size"):
+                streaming_cfg.pre_encode_cache_size = self.pre_encode.get_streaming_cache_size()
+            else:
+                streaming_cfg.pre_encode_cache_size = 0
         else:
             streaming_cfg.pre_encode_cache_size = pre_encode_cache_size
 
@@ -534,7 +553,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                     m.cache_drop_size = streaming_cfg.cache_drop_size
                     streaming_cfg.last_time_num += 1
 
-        #self.export_cache_support = False
+        self.export_cache_support = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
         if device is None:

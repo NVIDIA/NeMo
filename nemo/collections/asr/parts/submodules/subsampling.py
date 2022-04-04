@@ -50,6 +50,12 @@ class StackingSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
 
+    def get_sampling_frames(self):
+        return self.subsampling_factor
+
+    def get_streaming_cache_size(self):
+        return 0
+
     def forward(self, x, lengths):
         b, t, h = x.size()
         pad_size = self.subsampling_factor - (t % self.subsampling_factor)
@@ -171,6 +177,12 @@ class ConvSubsampling(torch.nn.Module):
         )
         self.out = torch.nn.Linear(conv_channels * int(out_length), feat_out)
         self.conv = torch.nn.Sequential(*layers)
+
+    def get_sampling_frames(self):
+        return [1, self.subsampling_factor]
+
+    def get_streaming_cache_size(self):
+        return [0, self.subsampling_factor + 1]
 
     def forward(self, x, lengths):
         lengths = calc_length(
