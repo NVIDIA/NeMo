@@ -19,7 +19,6 @@ from nemo.collections.asr.parts.submodules.jasper import jasper_activations
 
 
 class LinearAdapter(nn.Module):
-
     def __init__(self, in_features, dim, activation: str = 'swish'):
         super().__init__()
 
@@ -32,7 +31,7 @@ class LinearAdapter(nn.Module):
             nn.LayerNorm(in_features),
             nn.Linear(in_features, dim, bias=False),
             activation,
-            nn.Linear(dim, in_features, bias=False)
+            nn.Linear(dim, in_features, bias=False),
         )
         self.module[-1].weight.data *= 0
 

@@ -56,7 +56,7 @@ class AdapterModuleMixin(ABC):
             # Enable/Disable just named adapter
             AdapterModuleMixin.ADAPTER_CFG[name]['enabled'] = enabled
 
-    def get_enabled_adapters(self):
+    def get_enabled_adapters(self) -> List[str]:
         if not self.is_adapter_available():
             raise ValueError("No adapter is available to get enabled/disabled state")
 
@@ -74,16 +74,17 @@ class AdapterModuleMixin(ABC):
         for module in self.modules():  # access PT subclass method via inheritance
             for param in module.parameters():
                 param.requires_grad = False
-
             module.eval()
 
+        for module in self.modules():  # access PT subclass method via inheritance
             if hasattr(module, 'adapter_layer') and module.is_adapter_available():
                 for name, config in AdapterModuleMixin.ADAPTER_CFG.items():
                     if AdapterModuleMixin.ADAPTER_CFG[name]['enabled']:
+                        module.adapter_layer[name].train()
+
                         for param in module.adapter_layer[name].parameters():
                             param.requires_grad = True
 
-                        module.adapter_layer[name].train()
                         logging.info(f"Unfrozen adapter : {name}")
 
 

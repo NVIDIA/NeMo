@@ -180,3 +180,26 @@ class TestAdapterMixin:
 
         assert model._adapter_names == ['adapter_1']
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
+
+    @pytest.mark.unit
+    def test_forward_frozen(self):
+        model = DefaultModel()
+        original_num_params = model.num_params()
+
+        dim = 10
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(dim=dim))
+        model.freeze_non_adapter()
+
+        assert original_num_params == 2550
+
+        original_params = 0
+        adapter_params = 0
+        for name, param in model.named_parameters():
+            if 'adapter' not in name:
+                assert param.requires_grad is False
+                original_params += param.numel()
+            else:
+                assert param.requires_grad is True
+                adapter_params += param.numel()
+
+        assert original_params > adapter_params
