@@ -115,6 +115,7 @@ class TestStatelessTimer:
         if os.path.exists('./ptl_stateless_timer_check'):
             shutil.rmtree('./ptl_stateless_timer_check', ignore_errors=True)
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_stateless_timer(self):
         self.cleanup()
