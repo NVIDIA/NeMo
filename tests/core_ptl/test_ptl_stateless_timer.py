@@ -15,6 +15,7 @@
 import os
 import shutil
 
+import pytest
 import torch
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
@@ -78,56 +79,51 @@ class ExampleModel(ModelPT):
         self.log("val_loss", torch.stack(loss).mean())
 
 
-def setup_model():
-    # Stateless timer for 3 seconds.
-    # Max steps shouldn't matter for it should stop in 3 seconds based on the timer.
-    # Val check interval makes sure a checkpoint is written and can be restored from.
-    callback_params = CallbackParams()
-    callback_params.monitor = "val_loss"
-    callback_params.save_top_k = 1
-    trainer = Trainer(
-        devices=1,
-        val_check_interval=5,
-        max_steps=10000,
-        accelerator='gpu',
-        strategy='ddp',
-        logger=None,
-        callbacks=[StatelessTimer('00:00:00:03')],
-        checkpoint_callback=False,
-    )
-    exp_manager_cfg = ExpManagerConfig(
-        explicit_log_dir='./ptl_stateless_timer_check/',
-        use_datetime_version=False,
-        version="",
-        resume_ignore_no_checkpoint=True,
-        create_checkpoint_callback=True,
-        checkpoint_callback_params=callback_params,
-        resume_if_exists=True,
-    )
-    exp_manager(trainer, cfg=OmegaConf.structured(exp_manager_cfg))
-    model = ExampleModel(trainer=trainer)
-    trainer.fit(model)
-    return trainer
+class TestStatelessTimer:
+    def setup_model(self):
+        # Stateless timer for 3 seconds.
+        # Max steps shouldn't matter for it should stop in 3 seconds based on the timer.
+        # Val check interval makes sure a checkpoint is written and can be restored from.
+        callback_params = CallbackParams()
+        callback_params.monitor = "val_loss"
+        callback_params.save_top_k = 1
+        trainer = Trainer(
+            devices=1,
+            val_check_interval=5,
+            max_steps=10000,
+            accelerator='gpu',
+            strategy='ddp',
+            logger=None,
+            callbacks=[StatelessTimer('00:00:00:03')],
+            checkpoint_callback=False,
+        )
+        exp_manager_cfg = ExpManagerConfig(
+            explicit_log_dir='./ptl_stateless_timer_check/',
+            use_datetime_version=False,
+            version="",
+            resume_ignore_no_checkpoint=True,
+            create_checkpoint_callback=True,
+            checkpoint_callback_params=callback_params,
+            resume_if_exists=True,
+        )
+        exp_manager(trainer, cfg=OmegaConf.structured(exp_manager_cfg))
+        model = ExampleModel(trainer=trainer)
+        trainer.fit(model)
+        return trainer
 
+    def cleanup(self):
+        if os.path.exists('./ptl_stateless_timer_check'):
+            shutil.rmtree('./ptl_stateless_timer_check', ignore_errors=True)
 
-@rank_zero_only
-def cleanup():
-    if os.path.exists('./ptl_stateless_timer_check'):
-        shutil.rmtree('./ptl_stateless_timer_check', ignore_errors=True)
-
-
-def run_checks():
-    cleanup()
-    trainer = setup_model()
-    global_step_1 = trainer.global_step
-    trainer = setup_model()
-    global_step_2 = trainer.global_step
-    trainer = setup_model()
-    global_step_3 = trainer.global_step
-    logging.info(f"Global steps : {global_step_1}, {global_step_2}, {global_step_3}")
-    assert global_step_3 > global_step_2 > global_step_1
-    cleanup()
-
-
-if __name__ == '__main__':
-    run_checks()
+    @pytest.mark.unit
+    def test_stateless_timer(self):
+        self.cleanup()
+        trainer = self.setup_model()
+        global_step_1 = trainer.global_step
+        trainer = self.setup_model()
+        global_step_2 = trainer.global_step
+        trainer = self.setup_model()
+        global_step_3 = trainer.global_step
+        logging.info(f"Global steps : {global_step_1}, {global_step_2}, {global_step_3}")
+        assert global_step_3 > global_step_2 > global_step_1
+        self.cleanup()
