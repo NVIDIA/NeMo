@@ -36,7 +36,7 @@ class GPTSoftPromptDataset(Dataset):
         soft_prompt_source: str,
         task_templates: dict,
         total_soft_tokens: int,
-        pseudo_token: str,
+        pseudo_token,
         pad_token_id: str,
         max_seq_length: int,
         min_seq_length: int = 1,
@@ -47,8 +47,10 @@ class GPTSoftPromptDataset(Dataset):
         self.soft_prompt_source = soft_prompt_source
         self.task_templates = task_templates
         self.total_soft_tokens = total_soft_tokens
+        #self.pseudo_tokens = pseudo_tokens
+        #self.pseudo_token_ids = set(self.tokenizer.tokens_to_ids(self.pseudo_tokens))
         self.pseudo_token = pseudo_token
-        self.pseudo_token_id = self.tokenizer.token_to_id(pseudo_token)
+        self.pseudo_token_id = self.tokenizer.token_to_id(self.pseudo_token)
         self.pad_token_id = pad_token_id
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -65,7 +67,7 @@ class GPTSoftPromptDataset(Dataset):
 
         # Datasets is just a list of json dicts
         if isinstance(datasets[0], dict):
-            self.load_data(dataset)
+            self.load_data(datasets)
 
         # Datasets are a list of file path strings to .json or .jsonl files
         elif isinstance(datasets[0], str):
@@ -80,8 +82,12 @@ class GPTSoftPromptDataset(Dataset):
 
         for json_line in tqdm(dataset):
 
-            # Load the information for a single example from .json file
-            doc = json.loads(json_line)
+            #Read example dict or load the information for a single example from .json file
+            if type(json_line) == dict:
+                doc = json_line
+            else:
+                doc = json.loads(json_line)
+
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
             prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
@@ -119,7 +125,63 @@ class GPTSoftPromptDataset(Dataset):
             else:
                 skipped += 1
 
-        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short in dataset {path}')
+        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
+
+    # def load_data(self, dataset):
+    #     skipped = 0
+
+    #     for json_line in tqdm(dataset):
+
+    #         # Read example dict or load the information for a single example from .json file
+    #         if type(json_line) == dict:
+    #             doc = json_line
+    #         else:
+    #             doc = json.loads(json_line)
+            
+    #         taskname = doc["taskname"]
+    #         prompt_template = self.task_templates[taskname]["prompt_template"]
+    #         prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
+    #         input_example = prompt_template
+
+    #         assert sum(prompt_token_splits) == self.total_soft_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
+    #         assert prompt_template.count('<|SOFT_PROMPT_') == len(prompt_token_splits), "The number of '<|SOFT_PROMPT_n|>' markers and the number of prompt token splits must match"
+
+    #         # Format the input example according to the template
+    #         for field in doc.keys():
+    #             field_text = doc[field]
+    #             input_example = input_example.replace('{' + field + '}', field_text)
+
+    #         # Insert the correct number of pseudo tokens at the <|SOFT_PROMPT_n|> markers
+    #         total_inserted_tokens = 0
+    #         for idx in range(len(prompt_token_splits)):
+    #             split_start = total_inserted_tokens
+    #             split_end = total_inserted_tokens + prompt_token_splits[idx]
+    #             pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start: split_end])
+    #             input_example = input_example.replace(f'<|SOFT_PROMPT_{idx}|>', pseudo_tokens_for_split)
+    #             total_inserted_tokens = split_end
+
+    #         input_ids = self.tokenizer.text_to_ids(input_example)
+
+    #         # Add BOS/EOS if desired, adds EOS by default
+    #         if self.add_bos:
+    #             input_ids = [self.tokenizer.bos_id] + input_ids
+    #         if self.add_eos:
+    #             input_ids = input_ids + [self.tokenizer.eos_id]
+
+    #         # Skip example if the final length doesn't fit length requirements
+    #         if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
+    #             if self.soft_prompt_source == "prompt-encoder":
+    #                 taskname_id = self.tokenizer.text_to_ids(taskname)
+
+    #             elif self.soft_prompt_source == "prompt-table":
+    #                 taskname_id = self.task_templates[taskname]["task_id_num"]
+
+    #             self.examples.append((taskname_id, input_ids))
+
+    #         else:
+    #             skipped += 1
+
+    #     logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
 
     def __len__(self):
         return len(self.examples)
@@ -169,7 +231,8 @@ class GPTSoftPromptDataset(Dataset):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []
         for ids in input_ids:
-            # Loss mask where soft tokens are 0.0 and all other tokens are 1.0
+            # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
+            #loss_mask = [float(token_id not in self.pseudo_token_ids) for token_id in ids]
             loss_mask = np.where(np.array(ids) == self.pseudo_token_id, 0.0, 1.0)
             loss_mask = list(loss_mask)
 
@@ -188,10 +251,17 @@ class GPTSoftPromptDataset(Dataset):
 
         return input_ids, batch_loss_masks
 
-    def get_all_examples(self):
-        task_id_nums, input_ids = zip(self.examples)
-        input_lengths = torch.tensor([len(inputs) for inputs in input_ids])
-        task_id_nums = torch.tensor(task_id_nums)
-        input_ids = torch.tensor(input_ids)
+    def get_all_examples(self, tokens_to_generate):
+        """
+        Used for loading inference data. 
+        """
+        task_id_nums, input_ids = zip(*self.examples)
+        input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
+        task_id_nums = torch.cuda.LongTensor(task_id_nums)
+        batch_max = input_lengths.max().item()
 
+        input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max + tokens_to_generate)
+        input_ids = input_ids.cuda()
+        input_ids = torch.cuda.LongTensor(input_ids)
+        
         return task_id_nums, (input_ids, input_lengths)

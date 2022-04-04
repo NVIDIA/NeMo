@@ -48,10 +48,10 @@ class PromptTable(NeuralModule, Exportable):
                     total_soft_tokens=self.total_soft_tokens,
                 )
 
-    def forward(self, task_id_num):
+    def forward(self, task_id_num, input_ids=None):
         task_id_num = task_id_num.item()
         taskname = self.task_id_num_to_name[task_id_num]
-        return self.prompt_table[taskname]()
+        return self.prompt_table[taskname](input_ids)
 
     def remove_prompt(self, taskname):
         if taskname not in prompt_table:
@@ -163,9 +163,13 @@ class PromptEmbedding(NeuralModule, Exportable):
         self.register_buffer('indices', torch.LongTensor(list(range(self.total_soft_tokens))))
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
-    def forward(self):
+    def forward(self, input_ids=None):
         # Just get embeddings and dropout
-        prompt_embeddings = self.prompt_embeddings(self.indices)
+        if input_ids == None:
+            prompt_embeddings = self.prompt_embeddings(self.indices)
+        else:
+            prompt_embeddings = self.prompt_embeddings(input_ids)
+
         prompt_embeddings = self.embedding_dropout(prompt_embeddings)
 
         return prompt_embeddings

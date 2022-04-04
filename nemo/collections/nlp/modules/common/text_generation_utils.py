@@ -439,7 +439,6 @@ def generate(
         send_generate_info(
             context_tokens_tensor,
             context_length_tensor,
-            task_ids,
             tokens_to_generate,
             all_probs,
             temperature,
@@ -490,6 +489,9 @@ def generate(
             if not isinstance(tokenizer, TabularTokenizer):
                 words = []
                 for token in decode_token:
+                    # Skip any soft prompt pseudo tokens
+                    if token not in tokenizer.tokenizer.decoder:
+                        continue
                     word = tokenizer.tokenizer.decoder[token]
                     word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
                         'utf-8', errors='replace'
@@ -527,13 +529,35 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
+# def forward_step(model, batch, tensor_shape):
+
+#     if model.cfg.get('pipeline_model_parallel_size', 1) > 1:
+#         output_tensor = forward_backward_pipelining_without_interleaving(
+#             forward_step_func=model.get_forward_output_only_func(),
+#             batch=batch,
+#             model=model.model,
+#             forward_only=True,
+#             tensor_shape=tensor_shape,
+#             dtype=model.autocast_dtype,
+#         )
+#     else:
+#         output_tensor = forward_backward_no_pipelining(
+#             forward_step_func=model.get_forward_output_only_func(),
+#             batch=batch,
+#             model=model.model,
+#             forward_only=True,
+#             tensor_shape=tensor_shape,
+#             dtype=model.autocast_dtype,
+#         )
+#     return output_tensor
+
 def forward_step(model, batch, tensor_shape):
 
     if model.cfg.get('pipeline_model_parallel_size', 1) > 1:
         output_tensor = forward_backward_pipelining_without_interleaving(
             forward_step_func=model.get_forward_output_only_func(),
             batch=batch,
-            model=model.model,
+            model=model,
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=model.autocast_dtype,
@@ -542,7 +566,7 @@ def forward_step(model, batch, tensor_shape):
         output_tensor = forward_backward_no_pipelining(
             forward_step_func=model.get_forward_output_only_func(),
             batch=batch,
-            model=model.model,
+            model=model,
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=model.autocast_dtype,
@@ -621,10 +645,10 @@ def sample_sequence_batch(
             len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
             if task_ids[0] == None:
                 batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
             else:
                 batch = [tokens2use, attention_mask_repeat, positions2use, task_ids, setkey_value_array, len_array]
-
-            tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
+                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
 
@@ -658,6 +682,8 @@ def sample_sequence_batch(
                 # Clamp the out of vocabulary tokens.
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
 
+                # print(context_length, prev, started)
+                # print(maxlen)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
                 tokens[:, context_length] = new_tokens
 

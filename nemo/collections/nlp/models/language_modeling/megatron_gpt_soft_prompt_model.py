@@ -13,19 +13,15 @@
 # limitations under the License.
 
 from os import path
-from typing import Dict, List
+from typing import Any, Optional, List, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
+from torch.utils.data import DataLoader, Dataset
 
-# from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import GPTPTuneDataset, GPTPTuneInferenceDataset
-# from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import (
-#     make_attention_mask_3d,
-#     make_history_mask_3d,
-# )
 from nemo.collections.nlp.data.language_modeling.megatron import GPTSoftPromptDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -38,10 +34,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate, 
-    get_computeprob_response,
     get_default_length_params,
     get_default_sampling_params,
+    megatron_gpt_generate,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
@@ -54,6 +49,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import tensor_parallel
+    from apex.transformer import parallel_state
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -121,6 +117,15 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         self.pseudo_token_id = self.tokenizer.token_to_id(self.pseudo_token)
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
         self.soft_prompt_style = cfg.soft_prompt_style.lower()
+        # #self.pseudo_token_base = cfg.pseudo_token_base
+        # self.pseudo_token_base = 'PROMPT_'
+        # self.pseudo_tokens = [self.pseudo_token_base + str(i) for i in range(self.total_soft_tokens)]
+        # self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+        # self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
+        # self.pseudo_token_ids_start = self.pseudo_token_ids[0]
+        # #self.pseudo_token_ids = self.tokenizer.token_to_id(self.pseudo_token)
+        # self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        # self.soft_prompt_style = cfg.soft_prompt_style.lower()
 
         # Prompt tuning stores soft prompts in the prompt table and tunes their weight directly
         if self.soft_prompt_style in ['prompt-tuning', 'inference']:
@@ -134,6 +139,15 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
                 f"\nSoft prompt style '{cfg.soft_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
 
         self._reduced_loss_buffer = []
+
+        if self.trainer.precision == 32:
+            self.autocast_dtype = torch.float
+        elif self.trainer.precision == 16:
+            self.autocast_dtype = torch.half
+        elif self.trainer.precision == 'bf16':
+            self.autocast_dtype = torch.bfloat16
+        else:
+            raise ValueError('precision must be in [32, 16, "bf16"]')
 
     def load_task_templates(self, task_templates):
         """
@@ -155,6 +169,16 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
             
             task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
+
+        # for task in task_templates:
+        #     self.task_templates[task.taskname] = {
+        #         "prompt_template": '{text}{answer}<|SOFT_PROMPT_0|>',
+        #         "prompt_token_splits": [100],
+        #         "task_id_num": task_id_num
+        #     }
+            
+        #     task_id_num_to_name[task_id_num] = task.taskname
+        #     task_id_num += 1
 
         # Make sure tasknames and task id nums line up correctly in prompt table
         self.prompt_table.task_id_num_to_name = task_id_num_to_name
@@ -272,7 +296,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
             soft_prompt_source=self.soft_prompt_source,
             task_templates=self.task_templates,
             total_soft_tokens=self.total_soft_tokens,
-            pseudo_token=self.pseudo_token,
+            pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
             max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
@@ -292,14 +316,18 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
 
         return dataset, dataloader
 
-    def forward(self, input_ids, position_ids, attention_mask, taskname_ids, labels=None, **extra_arg):
+    def forward(self, input_ids, position_ids, attention_mask, taskname_ids, labels=None, inference=True, set_inference_key_value_memory=False, inference_max_sequence_len=None):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
         GPT style models. Bypasses the vocab token preprocessing done
         in the MegatronGPT class.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        input_embeds = self.embed_input(input_ids, taskname_ids)
+        # if inference:
+        #     input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+        # else:
+        input_embeds = self.embed_input_train(input_ids, taskname_ids)
+
         position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
         encoder_input = input_embeds + position_embeddings
 
@@ -311,7 +339,9 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
                 encoder_input=encoder_input, 
                 attention_mask=attention_mask, 
                 labels=labels,
-                **extra_arg
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
+
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.float_type):
@@ -321,12 +351,13 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
                 encoder_input=encoder_input, 
                 attention_mask=attention_mask, 
                 labels=labels,
-                **extra_arg
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
 
         return output
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor):
+    def embed_input_train(self, input_ids: Tensor, taskname_ids: Tensor):
         """
         Replaces the virtual tokens in the input_ids with embeddings 
         calculated from either the 'prompt_table' or 'prompt_encoder'. 
@@ -341,8 +372,17 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
+        #discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_ids[(input_ids == self.pseudo_token_id)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+
+        # Find the indicies where virtual tokens should be inserted
+        #virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+        virtual_token_locations = input_ids == self.pseudo_token_id
+
+        # If there are no virtual tokens, just return discrete token embeds
+        if not virtual_token_locations.any():
+            return discrete_token_embeds
 
         # Get virtual token embeddings from the prompt table or prompt encoder
         if self.soft_prompt_source == 'prompt-table':
@@ -353,10 +393,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
             taskname_embeddings = self.word_embeddings(taskname_ids)
             virtual_token_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
 
-        # Find the indicies where virtual tokens should be inserted
-        virtual_token_locations = input_ids == self.pseudo_token_id
-
-        # Create index template specifying where virtual token embeddings should be placed
+        #Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
         virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
         virtual_token_index = virtual_token_index.expand(batch_size, self.total_soft_tokens, embedding_size)
@@ -364,12 +401,55 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         # Insert virtual token embeddings where they belong amoung the discrete token embeddings
         discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
         input_embeds = discrete_token_embeds
+       
+        return input_embeds
 
+    def embed_input_inference(self, input_ids: Tensor, taskname_ids: Tensor):
+        """
+        Replaces the virtual tokens in the input_ids with embeddings 
+        calculated from either the 'prompt_table' or 'prompt_encoder'. 
+        The virtual token placeholders have the token_id 
+        `self.pseudo_token_id`.
+
+        params:
+            input_ids: the input token ids
+            taskname_ids: the NLP task tag token ids
+        returns:
+            the token embedding for the LM model.
+        """
+        batch_size, seq_length = input_ids.shape
+
+        # Replace virtual token ids with padding for forward pass through vocab embeddings
+        discrete_token_ids = input_ids.clone()
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+
+        # Find the indicies where virtual tokens should be inserted
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
+        virtual_token_locations = virtual_token_locations.unsqueeze(-1)
+        virtual_token_locations = virtual_token_locations.expand(batch_size, seq_length, self.hidden_size)
+
+        # If there are no virtual tokens, just return discrete token embeds
+        if not virtual_token_locations.any():
+            return discrete_token_embeds
+
+        # Convert virtual token vocab_id to virtual token embedding idx
+        virtual_token_ids = input_ids.clone()
+        virtual_token_ids = torch.sub(virtual_token_ids, self.pseudo_token_ids_start)
+        virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
+
+        # Only get needed virtual token embeddings from the prompt table according to virtual token ids
+        virtual_token_embeddings = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
+        virtual_token_embeddings = torch.stack(virtual_token_embeddings)
+
+        # Put virtual and discrete token embs in their correct locations for final output
+        input_embeds = torch.where(virtual_token_locations, virtual_token_embeddings, discrete_token_embeds)
+        print(input_embeds.shape)
         return input_embeds
 
     def training_step(self, batch, batch_idx):
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-        output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels=labels)
+        output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
         output_tensor, encoder_hidden_states = output
         loss = self.model.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
@@ -395,7 +475,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
         
         with torch.no_grad():
-            output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels)
+            output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
             output_tensor, encoder_hidden_states = output
             loss = self.model.loss_func(loss_mask, output_tensor)
             self.log('validation_loss', loss)
@@ -462,8 +542,10 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
 
         return tasks
 
-    
     def get_forward_output_only_func(self):
+        """
+        Used for generate method only for now.
+        """
         def fwd_output_only_func(batch, model):
             extra_arg = {}
             if len(batch) == 4:
@@ -485,8 +567,8 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
                 task_ids = task_ids.cuda()
                 extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
                 extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-
-            output_tensor = model(tokens, position_ids, attention_mask, task_ids **extra_arg)
+           
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
             
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
@@ -526,19 +608,21 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         # default do greedy sampling
         if sampling_params is None:
             sampling_params = get_default_sampling_params()
+            sampling_params['add_BOS'] = False
 
         # set the default length params if it is None.
         # default do greedy sampling
         if length_params is None:
-            length_params = get_default_length_params()
+            length_params: LengthParam = {"min_length": 0, "max_length": 512}
 
-        # TODO: Preprocess inputs to be what they need to be for the generate code
+        # Preprocess inputs to be what they need to be for the generate code
         dataset = GPTSoftPromptDataset(
             datasets=inputs,
             tokenizer=self.tokenizer,
             soft_prompt_source=self.soft_prompt_source,
             task_templates=self.task_templates,
             total_soft_tokens=self.total_soft_tokens,
+            # pseudo_tokens=self.pseudo_tokens,
             pseudo_token=self.pseudo_token,
             pad_token_id=self.pad_token_id,
             max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
@@ -546,13 +630,25 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
             add_bos=sampling_params["add_BOS"],
             add_eos=False,
         )
-        task_ids, processed_inputs = dataset.get_all_examples()
+        task_ids, processed_inputs = dataset.get_all_examples(tokens_to_generate=length_params['max_length'])
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids)
 
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None):# -> Any:
+        print("fake predict step")
+
+    def set_input_tensor(self, input_tensor):
+        """Set input tensor to be used instead of forward()'s input.
+        When doing pipeline parallelism the input from the previous
+        stage comes from communication, not from the input, so the
+        model's forward_step_func won't have it. This function is thus
+        used by internal code to bypass the input provided by the
+        forward_step_func"""
+        self.input_tensor = input_tensor
+
     @classmethod
-        def list_available_models(cls):
-            pass
+    def list_available_models(cls):
+        pass
 
     
