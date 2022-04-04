@@ -127,6 +127,10 @@ class NormalizerWithAudio(Normalizer):
         Returns:
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
+
+        assert (
+            len(text.split()) < 500
+        ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
         original_text = text
         if self.lang in ["en", "de"]:
             text = pre_process(text)
