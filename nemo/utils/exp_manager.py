@@ -903,10 +903,10 @@ class StatelessTimer(Timer):
 
     def __init__(self, duration: timedelta = None, interval: str = Interval.step, verbose: bool = True,) -> None:
         super().__init__(duration, interval, verbose)
-    
+
     # Override PTL Timer's state dict to not store elapsed time information so that we can restore and continue training.
     def state_dict(self) -> Dict[str, Any]:
         return {}
-    
+
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         return

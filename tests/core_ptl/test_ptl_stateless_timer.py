@@ -22,7 +22,8 @@ from pytorch_lightning.utilities.distributed import rank_zero_only
 
 from nemo.core import ModelPT
 from nemo.utils import logging
-from nemo.utils.exp_manager import ExpManagerConfig, exp_manager, StatelessTimer, CallbackParams
+from nemo.utils.exp_manager import CallbackParams, ExpManagerConfig, StatelessTimer, exp_manager
+
 
 class OnesDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_len):
@@ -76,6 +77,7 @@ class ExampleModel(ModelPT):
     def validation_epoch_end(self, loss):
         self.log("val_loss", torch.stack(loss).mean())
 
+
 def setup_model():
     # Stateless timer for 3 seconds.
     # Max steps shouldn't matter for it should stop in 3 seconds based on the timer.
@@ -83,17 +85,36 @@ def setup_model():
     callback_params = CallbackParams()
     callback_params.monitor = "val_loss"
     callback_params.save_top_k = 1
-    trainer = Trainer(devices=1, val_check_interval=5, max_steps=10000, accelerator='gpu', strategy='ddp', logger=None, callbacks=[StatelessTimer('00:00:00:03')], checkpoint_callback=False)
-    exp_manager_cfg = ExpManagerConfig(explicit_log_dir='./ptl_stateless_timer_check/', use_datetime_version=False, version="", resume_ignore_no_checkpoint=True, create_checkpoint_callback=True, checkpoint_callback_params=callback_params, resume_if_exists=True)
+    trainer = Trainer(
+        devices=1,
+        val_check_interval=5,
+        max_steps=10000,
+        accelerator='gpu',
+        strategy='ddp',
+        logger=None,
+        callbacks=[StatelessTimer('00:00:00:03')],
+        checkpoint_callback=False,
+    )
+    exp_manager_cfg = ExpManagerConfig(
+        explicit_log_dir='./ptl_stateless_timer_check/',
+        use_datetime_version=False,
+        version="",
+        resume_ignore_no_checkpoint=True,
+        create_checkpoint_callback=True,
+        checkpoint_callback_params=callback_params,
+        resume_if_exists=True,
+    )
     exp_manager(trainer, cfg=OmegaConf.structured(exp_manager_cfg))
     model = ExampleModel(trainer=trainer)
     trainer.fit(model)
     return trainer
 
+
 @rank_zero_only
 def cleanup():
     if os.path.exists('./ptl_stateless_timer_check'):
         shutil.rmtree('./ptl_stateless_timer_check', ignore_errors=True)
+
 
 def run_checks():
     cleanup()
