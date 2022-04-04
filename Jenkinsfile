@@ -724,7 +724,7 @@ pipeline {
         }
       }
     }
-    stage('L2: Dialogue') {
+    stage('L2: Dialogue Classification') {
       when {
         anyOf {
           branch 'main'
@@ -774,7 +774,7 @@ pipeline {
             model.test_ds.batch_size=2 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[1] \
+            trainer.devices=[0] \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=gpu \
@@ -829,6 +829,18 @@ pipeline {
             rm -rf sgd_gen_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
+      }
+    }
+
+    stage('L2: Dialogue Generation') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
           steps {
             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
@@ -909,6 +921,7 @@ pipeline {
 
       }
     }
+
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf {
