@@ -374,12 +374,12 @@ pipeline {
         stage('Speaker Diarization with ASR Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/offline_diarization_with_asr.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
-            diarizer.speaker_embeddings.parameters.window_length_in_sec='[1.5,1.0,0.5]' \
-            diarizer.speaker_embeddings.parameters.shift_length_in_sec='[0.75,0.5,0.25]' \
-            diarizer.speaker_embeddings.parameters.multiscale_weights='[1.0,1.0,1.0]' \
+            diarizer.speaker_embeddings.parameters.window_length_in_sec=1.5 \
+            diarizer.speaker_embeddings.parameters.shift_length_in_sec=0.75 \
+            diarizer.speaker_embeddings.parameters.multiscale_weights=null \
             diarizer.asr.model_path=QuartzNet15x5Base-En \
             diarizer.asr.parameters.asr_based_vad=True \
             diarizer.out_dir=examples/speaker_tasks/diarization/speaker_diarization_asr_results'
@@ -390,7 +390,7 @@ pipeline {
         stage('Speaker Diarization Inference') {
           steps {
             sh 'python examples/speaker_tasks/diarization/offline_diarization.py \
-	    diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
+            diarizer.manifest_filepath=/home/TestData/an4_diarizer/an4_manifest.json \
             diarizer.speaker_embeddings.model_path=/home/TestData/an4_diarizer/spkr.nemo \
             diarizer.speaker_embeddings.parameters.save_embeddings=True \
             diarizer.speaker_embeddings.parameters.window_length_in_sec='[1.5,1.0,0.5]' \
