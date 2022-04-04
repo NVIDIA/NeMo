@@ -896,14 +896,15 @@ pipeline {
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_answer_extender_s2s \
-            model.dataset.task=sgd_generation \
             model.dataset.task_name=debug_sample \
+            model.dataset.task=sgd_generation \
             model.dataset.input_field=utterance+system_actions \
             model.dataset.output_field=system_utterance \
-            model.library=huggingface \
+            model.dataset.use_cache=false \
             model.dataset.system_utterance=next_turn \
             model.dataset.debug_mode=True \
             model.dataset.prompt_template=slots_values \
+            model.library=huggingface \
             trainer.max_steps=1 \
             trainer.max_epochs=1 \
             model.train_ds.batch_size=2 \
@@ -912,7 +913,6 @@ pipeline {
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
             trainer.devices=[0] \
-            model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=facebook/bart-large \
             trainer.accelerator=gpu \
             exp_manager=null  && \
