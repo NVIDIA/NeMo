@@ -76,8 +76,6 @@ class ExampleModel(ModelPT):
         pass
 
     def validation_epoch_end(self, loss):
-        if not loss:
-            return
         self.log("val_loss", torch.stack(loss).mean())
 
 
