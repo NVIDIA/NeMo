@@ -481,9 +481,10 @@ def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
                     start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
                 start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
 
-                if start == 0 and dur == 0:
+                if start == 0 and dur == 0:  # No speech segments
                     continue
                 else:
+
                     if time_tup[0] >= 0 and start > time_tup[1]:
                         dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
                         if time_tup[0] < max_duration and dur2 > 0:
