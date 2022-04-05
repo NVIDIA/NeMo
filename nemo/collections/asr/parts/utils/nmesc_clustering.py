@@ -806,9 +806,7 @@ class NMESC:
                 The ratio between p_neighbors value and the maximum eigen gap value.
         """
         affinity_mat = getAffinityGraphMat(self.mat, p_neighbors)
-        est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(
-            affinity_mat, self.max_num_speaker, self.cuda
-        )
+        est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(affinity_mat, self.max_num_speaker, self.cuda)
         arg_sorted_idx = torch.argsort(lambda_gap_list[: self.max_num_speaker], descending=True)
         max_key = arg_sorted_idx[0]
         max_eig_gap = lambda_gap_list[max_key] / (max(lambdas) + self.eps)
