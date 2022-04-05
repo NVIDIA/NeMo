@@ -797,6 +797,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Load the best model and then re-save it
         if self.save_best_model:
+            # wait for all processes
+            trainer.training_type_plugin.barrier("SaveBestCheckpointConnector.resume_end")
             if self.best_model_path == "":
                 logging.warning(
                     f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
