@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.mixins.mixins import ASRBPEMixin, ASRModuleMixin, DiarizationMixin
+from nemo.collections.asr.parts.mixins.mixins import (
+    ASRBPEMixin,
+    ASRModuleMixin,
+    DiarizationMixin,
+    EncoderAdapterModelMixin,
+)
