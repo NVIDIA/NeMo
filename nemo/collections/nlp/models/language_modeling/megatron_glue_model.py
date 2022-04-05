@@ -145,7 +145,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 langs_list,
             )
 
-    def on_validation_model_eval(self):
+    def on_validation_epoch_start(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -154,9 +154,9 @@ class MegatronT5GLUEModel(MegatronT5Model):
             micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return super().on_validation_model_eval()
+        return super().on_validation_epoch_start()
 
-    def on_validation_model_train(self):
+    def on_validation_epoch_end(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -165,7 +165,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return super().on_validation_model_train()
+        return super().on_validation_epoch_end()
 
     def inference_step(self, batch, batch_idx):
         batch_has_lang_information = len(batch[0]) == 7
