@@ -502,7 +502,7 @@ def getEnhancedSpeakerCount(
     """
     Calculate the number of speakers using NME analysis with anchor embeddings.
 
-    emb (torch.tensor):
+    emb (torch.Tensor):
         The input embedding from the embedding extractor.
 
     cuda (bool):
@@ -622,6 +622,7 @@ class SpectralClustering:
         return embedding[:n_spks].T
 
 
+@torch.jit.script
 class NMESC:
     """
     Normalized Maximum Eigengap based Spectral Clustering (NME-SC)
