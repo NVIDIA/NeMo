@@ -133,7 +133,8 @@ class DialogueS2SGenerationDataset(Dataset):
             if field in ex:
                 ex["labels"][field] = ex[field]
 
-        ex["labels"]['system_actions'] = self.format_actions(ex['system_actions'])
+        if 'system_actions' in ex:
+            ex["labels"]['system_actions'] = self.format_actions(ex['system_actions'])
 
         input_sentence = self.format_prompt(ex)
         output_sentence = ex["labels"][self.output_label_type]
