@@ -33,6 +33,9 @@ class AdapterModuleMixin(ABC):
             self.adapter_layer = nn.ModuleDict()
             AdapterModuleMixin.ADAPTER_CFG = {}
 
+        if name in self.adapter_layer:
+            raise ValueError(f"Adapter with name `{name}` already exists !")
+
         adapter_enabled = cfg.pop('enabled', True)
         self.adapter_layer[name] = instantiate(cfg)
 

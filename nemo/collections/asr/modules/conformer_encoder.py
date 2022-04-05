@@ -14,6 +14,7 @@
 
 import math
 from collections import OrderedDict
+from typing import Optional, List
 
 import torch
 import torch.distributed
@@ -22,6 +23,8 @@ import torch.nn as nn
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
+from nemo.collections.asr.parts.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -308,3 +311,113 @@ class ConformerEncoder(NeuralModule, Exportable):
         mask = self.use_pad_mask
         self.use_pad_mask = on
         return mask
+
+
+class ConformerEncoderAdapter(ConformerEncoder, AdapterModuleMixin):
+    """
+    The encoder for ASR model of Conformer.
+    Based on this paper:
+    'Conformer: Convolution-augmented Transformer for Speech Recognition' by Anmol Gulati et al.
+    https://arxiv.org/abs/2005.08100
+
+    Args:
+        feat_in (int): the size of feature channels
+        n_layers (int): number of layers of ConformerBlock
+        d_model (int): the hidden size of the model
+        feat_out (int): the size of the output features
+            Defaults to -1 (means feat_out is d_model)
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
+            Defaults to striding.
+        subsampling_factor (int): the subsampling factor which should be power of 2
+            Defaults to 4.
+        subsampling_conv_channels (int): the size of the convolutions in the subsampling module
+            Defaults to -1 which would set it to d_model.
+        ff_expansion_factor (int): the expansion factor in feed forward layers
+            Defaults to 4.
+        self_attention_model (str): type of the attention layer and positional encoding
+            'rel_pos': relative positional embedding and Transformer-XL
+            'abs_pos': absolute positional embedding and Transformer
+            default is rel_pos.
+        pos_emb_max_len (int): the maximum length of positional embeddings
+            Defaulst to 5000
+        n_heads (int): number of heads in multi-headed attention layers
+            Defaults to 4.
+        xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
+            Defaults to True.
+        untie_biases (bool): whether to not share (untie) the bias weights between layers of Transformer-XL
+            Defaults to True.
+        conv_kernel_size (int): the size of the convolutions in the convolutional modules
+            Defaults to 31.
+        conv_norm_type (str): the type of the normalization in the convolutional modules
+            Defaults to 'batch_norm'.
+        dropout (float): the dropout rate used in all layers except the attention layers
+            Defaults to 0.1.
+        dropout_emb (float): the dropout rate used for the positional embeddings
+            Defaults to 0.1.
+        dropout_att (float): the dropout rate used for the attention layer
+            Defaults to 0.0.
+    """
+
+    # def __init__(
+    #     self,
+    #     feat_in,
+    #     n_layers,
+    #     d_model,
+    #     feat_out=-1,
+    #     subsampling='striding',
+    #     subsampling_factor=4,
+    #     subsampling_conv_channels=-1,
+    #     ff_expansion_factor=4,
+    #     self_attention_model='rel_pos',
+    #     n_heads=4,
+    #     att_context_size=None,
+    #     xscaling=True,
+    #     untie_biases=True,
+    #     pos_emb_max_len=5000,
+    #     conv_kernel_size=31,
+    #     conv_norm_type='batch_norm',
+    #     dropout=0.1,
+    #     dropout_emb=0.1,
+    #     dropout_att=0.0,
+    # ):
+    #     super().__init__(
+    #         feat_in=feat_in,
+    #         n_layers=n_layers,
+    #         d_model=d_model,
+    #         feat_out=feat_out,
+    #         subsampling=subsampling,
+    #         subsampling_factor=subsampling_factor,
+    #         subsampling_conv_channels=subsampling_conv_channels,
+    #         ff_expansion_factor=ff_expansion_factor,
+    #         self_attention_model=self_attention_model,
+    #         n_heads=n_heads,
+    #         att_context_size=att_context_size,
+    #         xscaling=xscaling,
+    #         untie_biases=untie_biases,
+    #         pos_emb_max_len=pos_emb_max_len,
+    #         conv_kernel_size=conv_kernel_size,
+    #         conv_norm_type=conv_norm_type,
+    #         dropout=dropout,
+    #         dropout_emb=dropout_emb,
+    #         dropout_att=dropout_att,
+    #     )
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        for conformer_layer in self.layers:  # type: AdapterModuleMixin
+            conformer_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([conformer_layer.is_adapter_available() for conformer_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for conformer_layer in self.layers:  # type: AdapterModuleMixin
+            conformer_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for conformer_layer in self.layers:  # type: AdapterModuleMixin
+            names.update(conformer_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
