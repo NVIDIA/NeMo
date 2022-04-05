@@ -21,6 +21,7 @@ from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextXNLIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging
 
 try:
@@ -360,3 +361,13 @@ class MegatronT5GLUEModel(MegatronT5Model):
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Finished building GLUE/XNLI datasets.')
+
+    def on_train_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+        print('on_train_start')
+
+    def on_validation_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+        print('on_validation_start')
