@@ -310,7 +310,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         else:
             return super().save_to(model, save_path)
 
-    def modify_state_dict(self, conf, instance, state_dict):
+    def modify_state_dict(self, conf, state_dict):
         if conf.get('megatron_legacy', False):
             new_state_dict = {}
             for key in state_dict.keys():
@@ -319,6 +319,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_key = new_key.replace('.attention.', '.self_attention.')
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
+        return state_dict
 
     def restore_from(
         self,
@@ -360,8 +361,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         if not isinstance(loaded_params, tuple):
             return loaded_params
         conf, instance, state_dict = loaded_params
-        self.modify_state_dict(conf, instance, state_dict)
+        state_dict = self.modify_state_dict(conf, state_dict)
         super().load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
 

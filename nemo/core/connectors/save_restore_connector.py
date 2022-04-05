@@ -151,17 +151,17 @@ class SaveRestoreConnector:
 
         return (conf, instance, state_dict)
 
-    def modify_state_dict(self, conf, instance, state_dict):
+    def modify_state_dict(self, conf, state_dict):
         if conf.get('megatron_amp_O2', False):
             new_state_dict = {}
             for key in state_dict.keys():
                 new_key = key.replace('model.', 'model.module.', 1)
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
+        return state_dict
 
     def load_instance_with_state_dict(self, instance, state_dict, strict):
         instance.load_state_dict(state_dict, strict=strict)
-        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         instance._set_model_restore_state(is_being_restored=False)
 
     def restore_from(
@@ -204,8 +204,9 @@ class SaveRestoreConnector:
         if not isinstance(loaded_params, tuple):
             return loaded_params
         conf, instance, state_dict = loaded_params
-        self.modify_state_dict(conf, instance, state_dict)
+        state_dict = self.modify_state_dict(conf, state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
     def extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
