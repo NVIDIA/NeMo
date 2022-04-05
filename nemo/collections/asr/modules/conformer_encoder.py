@@ -357,51 +357,6 @@ class ConformerEncoderAdapter(ConformerEncoder, AdapterModuleMixin):
         dropout_att (float): the dropout rate used for the attention layer
             Defaults to 0.0.
     """
-
-    # def __init__(
-    #     self,
-    #     feat_in,
-    #     n_layers,
-    #     d_model,
-    #     feat_out=-1,
-    #     subsampling='striding',
-    #     subsampling_factor=4,
-    #     subsampling_conv_channels=-1,
-    #     ff_expansion_factor=4,
-    #     self_attention_model='rel_pos',
-    #     n_heads=4,
-    #     att_context_size=None,
-    #     xscaling=True,
-    #     untie_biases=True,
-    #     pos_emb_max_len=5000,
-    #     conv_kernel_size=31,
-    #     conv_norm_type='batch_norm',
-    #     dropout=0.1,
-    #     dropout_emb=0.1,
-    #     dropout_att=0.0,
-    # ):
-    #     super().__init__(
-    #         feat_in=feat_in,
-    #         n_layers=n_layers,
-    #         d_model=d_model,
-    #         feat_out=feat_out,
-    #         subsampling=subsampling,
-    #         subsampling_factor=subsampling_factor,
-    #         subsampling_conv_channels=subsampling_conv_channels,
-    #         ff_expansion_factor=ff_expansion_factor,
-    #         self_attention_model=self_attention_model,
-    #         n_heads=n_heads,
-    #         att_context_size=att_context_size,
-    #         xscaling=xscaling,
-    #         untie_biases=untie_biases,
-    #         pos_emb_max_len=pos_emb_max_len,
-    #         conv_kernel_size=conv_kernel_size,
-    #         conv_norm_type=conv_norm_type,
-    #         dropout=dropout,
-    #         dropout_emb=dropout_emb,
-    #         dropout_att=dropout_att,
-    #     )
-
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
         for conformer_layer in self.layers:  # type: AdapterModuleMixin

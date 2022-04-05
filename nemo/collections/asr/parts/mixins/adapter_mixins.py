@@ -32,6 +32,8 @@ class AdapterModuleMixin(ABC):
     def add_adapter(self, name: str, cfg: DictConfig):
         if not hasattr(self, 'adapter_layer'):
             self.adapter_layer = nn.ModuleDict()
+
+        if AdapterModuleMixin.ADAPTER_CFG is None:
             AdapterModuleMixin.ADAPTER_CFG = {}
 
         if name in self.adapter_layer:
@@ -87,10 +89,10 @@ class AdapterModuleMixin(ABC):
                     if AdapterModuleMixin.ADAPTER_CFG[name]['enabled']:
                         module.adapter_layer[name].train()
 
-                        for param in module.adapter_layer[name].parameters():
+                        for pname, param in module.adapter_layer[name].named_parameters():
                             param.requires_grad = True
 
-                        adapter_names.update(name)
+                        adapter_names.add(name)
 
         for name in adapter_names:
             logging.info(f"Unfrozen adapter : {name}")
