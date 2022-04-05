@@ -720,7 +720,7 @@ class SpectrogramAugmentationConfig:
     rect_masks: int = 0
     rect_time: int = 0
     rect_freq: int = 0
-    mask_value: float = 0
+    mask_value: Any = 0
     rng: Optional[Any] = None  # random.Random() type
     use_numba_spec_augment: bool = True
 

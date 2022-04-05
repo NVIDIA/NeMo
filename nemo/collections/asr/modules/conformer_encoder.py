@@ -520,8 +520,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         if valid_out_len is None:
             if isinstance(streaming_cfg.shift_size, list):
                 streaming_cfg.valid_out_len = [
-                    (streaming_cfg.shift_size - sampling_frames[0]) // self.subsampling_factor + 1,
-                    (streaming_cfg.shift_size - sampling_frames[1]) // self.subsampling_factor + 1,
+                    (streaming_cfg.shift_size[0] - sampling_frames[0]) // self.subsampling_factor + 1,
+                    (streaming_cfg.shift_size[1] - sampling_frames[1]) // self.subsampling_factor + 1,
                 ]
             else:
                 streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor

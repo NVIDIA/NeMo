@@ -94,6 +94,8 @@ model:
     time_masks: 10 # set to zero to disable it
     freq_width: 27
     time_width: 0.05
+    mask_value: 0 # a float value or "mean"
+    use_numba_spec_augment: false
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder

@@ -21,6 +21,10 @@ from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import LengthsType, NeuralType, SpectrogramType
 
 
+def get_sample_mean(x, seq_len):
+    return
+
+
 class SpecAugment(nn.Module, Typing):
     """
     Zeroes out(cuts) random continuous horisontal or
@@ -81,14 +85,18 @@ class SpecAugment(nn.Module, Typing):
     @torch.no_grad()
     def forward(self, input_spec, length):
         sh = input_spec.shape
-
         for idx in range(sh[0]):
+            if self.mask_value == "mean":
+                mask_value = input_spec[idx][:, : length[idx]].mean()
+            else:
+                mask_value = self.mask_value
+
             for i in range(self.freq_masks):
                 x_left = self._rng.randint(0, sh[1] - self.freq_width)
 
                 w = self._rng.randint(0, self.freq_width)
 
-                input_spec[idx, x_left : x_left + w, :] = self.mask_value
+                input_spec[idx, x_left : x_left + w, :] = mask_value
 
             for i in range(self.time_masks):
                 if self.adaptive_temporal_width:
@@ -100,7 +108,7 @@ class SpecAugment(nn.Module, Typing):
 
                 w = self._rng.randint(0, time_width)
 
-                input_spec[idx, :, y_left : y_left + w] = self.mask_value
+                input_spec[idx, :, y_left : y_left + w] = mask_value
 
         return input_spec
 

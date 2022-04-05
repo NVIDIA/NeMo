@@ -89,6 +89,7 @@ class ConvSubsampling(torch.nn.Module):
         if subsampling_factor % 2 != 0:
             raise ValueError("Sampling factor should be a multiply of 2!")
         self._sampling_num = int(math.log(subsampling_factor, 2))
+        self.subsampling_factor = subsampling_factor
 
         # is_causal = False
         self.is_causal = is_causal
