@@ -622,7 +622,6 @@ class SpectralClustering:
         return embedding[:n_spks].T
 
 
-@torch.jit.script
 class NMESC:
     """
     Normalized Maximum Eigengap based Spectral Clustering (NME-SC)
@@ -808,7 +807,7 @@ class NMESC:
         """
         affinity_mat = getAffinityGraphMat(self.mat, p_neighbors)
         est_num_of_spk, lambdas, lambda_gap_list = estimateNumofSpeakers(
-            affinity_mat, self.max_num_speaker, self.cuda, device=self.device
+            affinity_mat, self.max_num_speaker, self.cuda
         )
         arg_sorted_idx = torch.argsort(lambda_gap_list[: self.max_num_speaker], descending=True)
         max_key = arg_sorted_idx[0]
