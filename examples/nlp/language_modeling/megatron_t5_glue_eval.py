@@ -20,7 +20,6 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    GlobalBatchFitLoop,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPPlugin,
@@ -60,10 +59,6 @@ def main(cfg) -> None:
         plugins.append(TorchElasticEnvironment())
 
     trainer = Trainer(plugins=plugins, **cfg.trainer)
-
-    # GlobalBatchFitLoop used to provide global batches which are needed
-    # for Apex fwd/bwd functions
-    trainer.fit_loop = GlobalBatchFitLoop(trainer.fit_loop.min_epochs, trainer.fit_loop.max_epochs)
 
     exp_manager(trainer, cfg.exp_manager)
 

@@ -20,7 +20,6 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    GlobalBatchFitLoop,
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPPlugin,
