@@ -370,4 +370,8 @@ class MegatronT5GLUEModel(MegatronT5Model):
     def on_validation_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
         self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
         print('on_validation_start')
+
+    def on_test_start(self) -> None:
+        print('on_test_start')
