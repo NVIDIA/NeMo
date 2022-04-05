@@ -179,7 +179,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             processed_batch = batch
 
         # Call parent validation step to get the loss.
-        loss = super().validation_step(processed_batch, batch_idx, reconfigure_microbatch_size=True)
+        loss = super().validation_step(processed_batch, batch_idx)
 
         # Remainder of the code is to run the decoding loop, and compute accuracies.
         if batch_has_lang_information:
