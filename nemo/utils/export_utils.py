@@ -22,6 +22,13 @@ import torch.nn as nn
 
 from nemo.utils import logging
 
+try:
+    import onnxruntime
+
+    ort_available = True
+except (ImportError, ModuleNotFoundError):
+    ort_available = False
+
 
 class ExportFormat(Enum):
     """Which format to use when exporting a Neural Module for deployment"""
@@ -93,15 +100,13 @@ def parse_input_example(input_example):
     return input_list, input_dict
 
 
-def to_onnxrt_input(input_names, input_list, input_dict):
+def to_onnxrt_input(input_names, input_dict, input_list):
     odict = {}
-    for k, v in input_dict.items():
-        odict[k] = v.cpu().numpy()
-    for i, input in enumerate(input_list):
-        if type(input) in (list, tuple):
-            odict[input_names[i]] = tuple([ip.cpu().numpy() for ip in input])
+    for k in reversed(input_names):
+        if k in input_dict:
+            odict[k] = input_dict[k].cpu().numpy()
         else:
-            odict[input_names[i]] = input.cpu().numpy()
+            odict[k] = input_list.pop().cpu().numpy()
     return odict
 
 
@@ -109,34 +114,22 @@ def verify_runtime(
     output, input_list, input_dict, input_names, output_names, output_example, check_tolerance=0.01,
 ):
     # Verify the model can be read, and is valid
+
     onnx_model = onnx.load(output)
-    try:
-        import onnxruntime
-    except (ImportError, ModuleNotFoundError):
-        logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime.\n")
+    input_names = [node.name for node in onnx_model.graph.input]
+
+    global ort_available
+    if not ort_available:
+        logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
         onnx.checker.check_model(onnx_model, full_check=True)
         return
 
     onnx_session_opt = onnxruntime.SessionOptions()
     onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-
-    providers = [
-        (
-            'CUDAExecutionProvider',
-            {
-                'device_id': 0,
-                'arena_extend_strategy': 'kNextPowerOfTwo',
-                'gpu_mem_limit': 16 * 1024 * 1024 * 1024,
-                'cudnn_conv_algo_search': 'EXHAUSTIVE',
-                # 'do_copy_in_default_stream': True,
-            },
-        )
-    ]
-
     sess = onnxruntime.InferenceSession(
         onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
     )
-    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_list, input_dict))
+    ort_out = sess.run(output_names, to_onnxrt_input(input_names, input_dict, input_list))
     all_good = True
 
     for i, out in enumerate(ort_out[0]):
@@ -148,12 +141,14 @@ def verify_runtime(
                 logging.info(f"onnxruntime results mismatch! PyTorch(expected):\n{expected}\nONNXruntime:\n{tout}")
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
+    return all_good
 
 
 apex_available = True
 
 try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.BatchNorm2d]:
         """
@@ -163,7 +158,11 @@ try:
         Returns:
            Equivalent LayerNorm module
         """
-        if not apex_available or not isinstance(n, FusedLayerNorm):
+        if (
+            not isinstance(n, FusedLayerNorm)
+            and not isinstance(n, FastLayerNorm)
+            and not isinstance(n, MixedFusedLayerNorm)
+        ):
             return None
 
         dev = next(n.parameters()).device
@@ -173,7 +172,11 @@ try:
         mod.load_state_dict(n_state)
         return mod
 
-    default_Apex_replacements = {"FusedLayerNorm": replace_FusedLayerNorm}
+    default_Apex_replacements = {
+        "FusedLayerNorm": replace_FusedLayerNorm,
+        "MixedFusedLayerNorm": replace_FusedLayerNorm,
+        "FastLayerNorm": replace_FusedLayerNorm,
+    }
 
 except Exception as e:
     default_Apex_replacements = {}
@@ -262,9 +265,9 @@ def replace_modules(
 
 default_replacements = {
     "BatchNorm1d": wrap_module(nn.BatchNorm1d, CastToFloat),
+    "BatchNorm2d": wrap_module(nn.BatchNorm2d, CastToFloat),
+    "LayerNorm": wrap_module(nn.LayerNorm, CastToFloat),
 }
-
-default_replacements.update(default_Apex_replacements)
 
 
 def replace_for_export(model: nn.Module) -> nn.Module:
@@ -277,4 +280,5 @@ def replace_for_export(model: nn.Module) -> nn.Module:
     Returns:
         model, possibly modified in-place
     """
+    replace_modules(model, default_Apex_replacements)
     replace_modules(model, default_replacements)

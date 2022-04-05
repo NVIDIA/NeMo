@@ -161,7 +161,7 @@ python offline_diarization_with_asr.py \
 #### Output folders
 
 The above script will create a folder named `./demo_asr_output/`.
-In `./demo_asr_output/`, you can check the results as below.
+For example, in `./demo_asr_output/`, you can check the results as below.
 
 ```bash
 ./asr_with_diar
@@ -171,10 +171,16 @@ In `./demo_asr_output/`, you can check the results as below.
     └── my_audio1.rttm
     └── my_audio1_gecko.json
 │
-└── ...
+└── speaker_outputs
+    └── oracle_vad_manifest.json
+    └── subsegments_scale2_cluster.label
+    └── subsegments_scale0.json
+    └── subsegments_scale1.json
+    └── subsegments_scale2.json
+... 
 ```
 
-`*.json` files contains word-by-word json output with speaker label and time stamps. We also provide json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with ASR output.
+`my_audio1.json` file contains word-by-word json output with speaker label and time stamps. We also provide json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with ASR output.
 
 Example: `./demo_asr_output/pred_rttms/my_audio1.json`
 ```bash
@@ -205,7 +211,7 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.json`
         },
 ```
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; `*.txt` files contain transcription with speaker labels and corresponding time.
+`*.txt` files in `pred_rttms` folder contain transcriptions with speaker labels and corresponding time.
 
 Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
 ```
@@ -215,6 +221,13 @@ Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
 [00:13.97 - 00:15.78] speaker_1: but it's the fourth of july mm
 [00:16.90 - 00:21.80] speaker_0: so yeahg people still work tomorrow do you have to work tomorrow did you drive off yesterday
 ```
+ 
+In `speaker_outputs` folder we have three kinds of files as follows:
+ 
+ - `oracle_vad_manifest.json` file contains oracle VAD labels that are extracted from RTTM files.
+ - `subsegments_scale<scale_index>.json` is a manifest file for subsegments, which includes segment-by-segment start and end time with original wav file path. In multi-scale mode, this file is generated for each `<scale_index>`.
+ - `subsegments_scale<scale_index>_cluster.label` file contains the estimated cluster labels for each segment. This file is only generated for the base scale index in multi-scale diarization mode.
+ 
  
 ### Optional Features for Speech Recognition with Speaker Diarization
  

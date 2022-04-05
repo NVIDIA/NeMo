@@ -58,7 +58,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the PTune TextClassifier model."""
-        super().__init__(cfg=cfg, trainer=trainer)
+        super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
@@ -154,14 +154,32 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
 
         queries_for_embedding[(queries == self.pseudo_token_id)] = self.pad_token_id
         raw_embeds = self.embeddings(queries_for_embedding)
+        dtype = self.model.model.language_model.encoder.layers[0].dtype
+        if dtype == torch.float32:
+            replace_embeds = self.prompt_encoder(enc_taskname=None)
+        else:
+            with torch.autocast(device_type="cuda", dtype=dtype):
+                replace_embeds = self.prompt_encoder(enc_taskname=None)
 
-        blocked_indices = (
-            (queries == self.pseudo_token_id).nonzero().reshape((bz, self.spell_length, 2))[:, :, 1]
-        )  # bz
-        replace_embeds = self.prompt_encoder()
-        for bidx in range(bz):
-            for i in range(self.prompt_encoder.spell_length):
-                raw_embeds[bidx, blocked_indices[bidx, i], :] = replace_embeds[i, :]
+        blocked_indices = queries == self.pseudo_token_id
+        raw_embeds = raw_embeds.clone().type(dtype)
+        # find the index to the psedo-tokens
+        index = blocked_indices.nonzero().reshape((bz, -1, 2))[:, :, 1][:, :, None]
+
+        _, seq, _ = index.shape
+        _, _, emb = raw_embeds.shape
+        index = index.expand(bz, seq, emb)
+
+        _, replace_seq, replace_emb = replace_embeds.shape
+        replace_embeds = replace_embeds.expand(bz, replace_seq, replace_emb)
+        # scatter the psedo-token embeddings to the raw embeddings
+        raw_embeds.scatter_(1, index, replace_embeds)
+        # slow version of above scatter logics
+        # for bidx in range(bz):
+        #     position = blocked_indices[bidx].nonzero()[:, 0]
+        #     for i in range(len(position)):
+        #         raw_embeds[bidx, position[i], :] = replace_embeds[bidx, i, :]
+
         return raw_embeds
 
     def get_query(self, x_h, prompt_tokens, x_t=None):
@@ -189,18 +207,15 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
         return torch.tensor(returned_label).to(self.device)
 
     def get_prediction(self, batch_size, label_position, logits):
-        pred_ids = torch.argsort(logits, dim=2, descending=True)
         top10 = []
         returned_pred = []
         for i in range(batch_size):
-            top10.append([])
-            pred_seq = pred_ids[i, label_position[i, 0]].tolist()
-            for pred in pred_seq:
-                if pred in self.allowed_vocab_ids:
-                    top10[-1].append(pred)
-                    if len(top10[-1]) >= 10:
-                        break
-            pred = top10[-1][0]
+            array = []
+            for allowed_id in self.allowed_vocab_ids:
+                pred_p = logits[i, label_position[i, 0], allowed_id]
+                array.append((pred_p, allowed_id))
+            sorted_array = sorted(array, key=lambda x: x[0], reverse=True)
+            pred = sorted_array[0][1]
             returned_pred.append(self.allowed_vocab[pred])
         return top10, torch.tensor(returned_pred).to(self.device)
 

@@ -459,7 +459,7 @@ def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
         for line in list_file_pbar:
             audio_file = line.split('|')[0]
             speech = sf.read(audio_file)[0].astype(np.float32)
-            spec_clean = np.ascontiguousarray(librosa.stft(speech, **kwargs_stft))
+            spec_clean = np.ascontiguousarray(librosa.stft(y=speech, **kwargs_stft))
             mag_clean = np.ascontiguousarray(np.abs(spec_clean)[..., np.newaxis])
             signal_power = np.mean(np.abs(speech) ** 2)
 
@@ -472,7 +472,7 @@ def setup_noise_augmented_dataset(files_list, num_snr, kwargs_stft, dest, desc):
                 snr = librosa.db_to_power(snr_db)
                 noise_power = signal_power / snr
                 noisy = speech + np.sqrt(noise_power) * np.random.randn(len(speech))
-                spec_noisy = librosa.stft(noisy, **kwargs_stft)
+                spec_noisy = librosa.stft(y=noisy, **kwargs_stft)
                 spec_noisy = np.ascontiguousarray(spec_noisy)
                 T_x = spec_noisy.shape[1]
                 x = spec_noisy.view(dtype=np.float32).reshape((*spec_noisy.shape, 2))

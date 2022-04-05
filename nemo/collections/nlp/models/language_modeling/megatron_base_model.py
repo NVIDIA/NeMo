@@ -41,7 +41,10 @@ class MegatronBaseModel(NLPModel):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(cfg, trainer=trainer)
+        # this prevents base constructor from initializing tokenizer
+        self.tokenizer = None
+
+        super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
@@ -52,10 +55,25 @@ class MegatronBaseModel(NLPModel):
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_loss_buffer = []
 
+        if cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
+                raise ValueError(
+                    f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
+                )
+
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
             local_rank=trainer.local_rank,
             tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            seed=self._cfg.get('seed', 1234),
+            pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
+            pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
+            micro_batch_size=cfg.get('micro_batch_size'),
+            global_batch_size=cfg.get('global_batch_size'),
+            seed=self.cfg.get('seed', 1234),
+            apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
+
+    def _enable_nvidia_optimizations(self):
+        # by default, this method do nothing
+        pass

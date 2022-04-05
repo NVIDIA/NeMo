@@ -64,7 +64,7 @@ def resample_file(resampled_dir, filepath, ext, sample_rate):
 
         try:
             # Check if the file is readable
-            librosa.load(filepath)
+            librosa.load(path=filepath)
 
             # if it is, force input format and try again
             transform.set_input_format(file_type=ext)
