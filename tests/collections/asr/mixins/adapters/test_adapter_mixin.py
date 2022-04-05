@@ -21,23 +21,23 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data import audio_to_text
-from nemo.collections.asr.models import configs
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.core import NeuralModule
 from nemo.collections.common import tokenizers
 from nemo.utils.config_utils import assert_dataclass_signature_match
 from nemo.collections.asr.parts.mixins.adapter_mixins import AdapterModuleMixin
 
 
-class DefaultModel(torch.nn.Module, AdapterModuleMixin):
+class DefaultModel(NeuralModule, AdapterModuleMixin):
 
     def __init__(self):
         super().__init__()
 
         self.fc = torch.nn.Linear(50, 50)
+        self.bn = torch.nn.BatchNorm1d(50)
 
     def forward(self, x):
         x = self.fc(x)
+        x = self.bn(x)
 
         if self.is_adapter_available():
             # For testing purposes, cache the adapter names
@@ -140,7 +140,7 @@ class TestAdapterMixin:
     @pytest.mark.unit
     def test_forward_linear_pre(self):
         torch.random.manual_seed(0)
-        x = torch.randn(1, 50)
+        x = torch.randn(2, 50)
 
         model = DefaultModel()
         origial_output = model(x)
@@ -153,7 +153,7 @@ class TestAdapterMixin:
     @pytest.mark.unit
     def test_forward_linear_post(self):
         torch.random.manual_seed(0)
-        x = torch.randn(1, 50)
+        x = torch.randn(2, 50)
 
         model = DefaultModel()
         origial_output = model(x)
@@ -166,7 +166,7 @@ class TestAdapterMixin:
     @pytest.mark.unit
     def test_multi_adapter_forward(self):
         torch.random.manual_seed(0)
-        x = torch.randn(1, 50)
+        x = torch.randn(2, 50)
 
         model = DefaultModel()
         origial_output = model(x)
@@ -181,7 +181,7 @@ class TestAdapterMixin:
     @pytest.mark.unit
     def test_multi_adapter_partial_forward(self):
         torch.random.manual_seed(0)
-        x = torch.randn(1, 50)
+        x = torch.randn(2, 50)
 
         model = DefaultModel()
         origial_output = model(x)
@@ -202,9 +202,10 @@ class TestAdapterMixin:
 
         dim = 10
         model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(dim=dim))
-        model.freeze_non_adapter()
+        model.freeze()
+        model.unfreeze_enabled_adapters()
 
-        assert original_num_params == 2550
+        assert original_num_params == 2650
 
         original_params = 0
         adapter_params = 0
@@ -215,5 +216,9 @@ class TestAdapterMixin:
             else:
                 assert param.requires_grad is True
                 adapter_params += param.numel()
+
+        for mname, module in model.named_modules():
+            if isinstance(module, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)):
+                assert module.track_running_stats is False
 
         assert original_params > adapter_params

@@ -72,14 +72,21 @@ class AdapterModuleMixin(ABC):
 
         return enabled_adapters
 
-    def freeze_non_adapter(self) -> None:
+    def unfreeze_enabled_adapters(self, freeze_batchnorm: bool = True) -> None:
         r"""
         Freeze all params for inference.
         """
-        for module in self.modules():  # access PT subclass method via inheritance
-            for param in module.parameters():
-                param.requires_grad = False
-            module.eval()
+        if freeze_batchnorm:
+            for mname, module in self.named_modules():
+                if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
+                    if hasattr(module, 'weight'):
+                        module.weight.requires_grad_(False)
+                    if hasattr(module, 'bias'):
+                        module.bias.requires_grad_(False)
+                    module.eval()
+                    module.track_running_stats = False  # prevent running stats from updated during finetuning
+
+                    logging.info(f"Froze module {mname}: {module}")
 
         adapter_names = set([])
         for module in self.modules():  # access PT subclass method via inheritance
@@ -90,6 +97,12 @@ class AdapterModuleMixin(ABC):
 
                         for pname, param in module.adapter_layer[name].named_parameters():
                             param.requires_grad = True
+
+                        # unfreeze batch norm if any
+                        for mname, module in module.adapter_layer[name].named_modules():
+                            if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
+                                module.track_running_stats = True  # prevent running stats from updated during finetuning
+                                logging.info(f"Unfroze adapter module {mname}: {module}")
 
                         adapter_names.add(name)
 
