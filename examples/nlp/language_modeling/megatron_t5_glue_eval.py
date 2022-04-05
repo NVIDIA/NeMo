@@ -19,11 +19,7 @@ from pytorch_lightning.plugins.environments.torchelastic_environment import Torc
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
-from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPPlugin,
-)
+from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
