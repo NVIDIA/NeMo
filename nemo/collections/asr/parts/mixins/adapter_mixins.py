@@ -27,14 +27,13 @@ from nemo.utils import logging
 
 
 class AdapterModuleMixin(ABC):
-    ADAPTER_CFG: dict
 
     def add_adapter(self, name: str, cfg: DictConfig):
         if not hasattr(self, 'adapter_layer'):
             self.adapter_layer = nn.ModuleDict()
 
-        if AdapterModuleMixin.ADAPTER_CFG is None:
-            AdapterModuleMixin.ADAPTER_CFG = {}
+        if not hasattr(self, 'ADAPTER_CFG') or self.ADAPTER_CFG is None:
+            self.ADAPTER_CFG = OmegaConf.create({})
 
         if name in self.adapter_layer:
             raise ValueError(f"Adapter with name `{name}` already exists !")
@@ -43,7 +42,7 @@ class AdapterModuleMixin(ABC):
         self.adapter_layer[name] = instantiate(cfg)
 
         cfg['enabled'] = adapter_enabled
-        AdapterModuleMixin.ADAPTER_CFG[name] = cfg
+        self.ADAPTER_CFG[name] = cfg
 
     def is_adapter_available(self) -> bool:
         if hasattr(self, 'adapter_layer'):
@@ -56,19 +55,19 @@ class AdapterModuleMixin(ABC):
 
         # If name is None, enable/disable all adapters.
         if name is None:
-            for name, config in AdapterModuleMixin.ADAPTER_CFG.items():
-                AdapterModuleMixin.ADAPTER_CFG[name]['enabled'] = enabled
+            for name, config in self.ADAPTER_CFG.items():
+                self.ADAPTER_CFG[name]['enabled'] = enabled
         else:
             # Enable/Disable just named adapter
-            AdapterModuleMixin.ADAPTER_CFG[name]['enabled'] = enabled
+            self.ADAPTER_CFG[name]['enabled'] = enabled
 
     def get_enabled_adapters(self) -> List[str]:
         if not self.is_adapter_available():
             raise ValueError("No adapter is available to get enabled/disabled state")
 
         enabled_adapters = []
-        for name, config in AdapterModuleMixin.ADAPTER_CFG.items():
-            if AdapterModuleMixin.ADAPTER_CFG[name]['enabled']:
+        for name, config in self.ADAPTER_CFG.items():
+            if self.ADAPTER_CFG[name]['enabled']:
                 enabled_adapters.append(name)
 
         return enabled_adapters
@@ -85,8 +84,8 @@ class AdapterModuleMixin(ABC):
         adapter_names = set([])
         for module in self.modules():  # access PT subclass method via inheritance
             if hasattr(module, 'adapter_layer') and module.is_adapter_available():
-                for name, config in AdapterModuleMixin.ADAPTER_CFG.items():
-                    if AdapterModuleMixin.ADAPTER_CFG[name]['enabled']:
+                for name, config in self.ADAPTER_CFG.items():
+                    if self.ADAPTER_CFG[name]['enabled']:
                         module.adapter_layer[name].train()
 
                         for pname, param in module.adapter_layer[name].named_parameters():
@@ -106,7 +105,7 @@ class EncoderAdapterModelMixin(AdapterModuleMixin):
 
         if 'adapters' in self.cfg:
             # Set the global config of adapters
-            AdapterModuleMixin.ADAPTER_CFG = self.cfg.adapters
+            self._update_adapter_cfg(self.cfg.adapters)
 
             for adapter_name, adapter_cfg in self.cfg.adapters.items():
                 self.add_adapter(name=adapter_name, cfg=adapter_cfg)
@@ -127,7 +126,7 @@ class EncoderAdapterModelMixin(AdapterModuleMixin):
             self.cfg.adapters[name] = OmegaConf.create(cfg)
 
             # Set the global config of adapters
-            AdapterModuleMixin.ADAPTER_CFG = self.cfg.adapters
+            self._update_adapter_cfg(self.cfg.adapters)
 
             self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
 
@@ -160,3 +159,8 @@ class EncoderAdapterModelMixin(AdapterModuleMixin):
 
         if not isinstance(self.encoder, AdapterModuleMixin):
             raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')
+
+    def _update_adapter_cfg(self, cfg: DictConfig):
+        for module in self.modules():  # access PT subclass method via inheritance
+            if isinstance(module, AdapterModuleMixin):
+                module.ADAPTER_CFG = cfg

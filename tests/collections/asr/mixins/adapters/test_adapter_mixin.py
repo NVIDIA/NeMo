@@ -57,11 +57,12 @@ class DefaultModel(torch.nn.Module, AdapterModuleMixin):
         return num
 
 
-def get_adapter_cfg(in_features=50, dim=100):
+def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
     cfg = {
         '_target_': 'nemo.collections.asr.parts.submodules.adapter_modules.LinearAdapter',
         'in_features': in_features,
         'dim': dim,
+        'norm_position': norm_pos,
     }
     return cfg
 
@@ -137,7 +138,7 @@ class TestAdapterMixin:
         assert new_num_params > original_num_params
 
     @pytest.mark.unit
-    def test_forward(self):
+    def test_forward_linear_pre(self):
         torch.random.manual_seed(0)
         x = torch.randn(1, 50)
 
@@ -145,6 +146,19 @@ class TestAdapterMixin:
         origial_output = model(x)
 
         model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        new_output = model(x)
+
+        assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
+
+    @pytest.mark.unit
+    def test_forward_linear_post(self):
+        torch.random.manual_seed(0)
+        x = torch.randn(1, 50)
+
+        model = DefaultModel()
+        origial_output = model(x)
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(norm_pos='post'))
         new_output = model(x)
 
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5

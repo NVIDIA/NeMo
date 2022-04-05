@@ -19,7 +19,7 @@ from nemo.collections.asr.parts.submodules.jasper import jasper_activations
 
 
 class LinearAdapter(nn.Module):
-    def __init__(self, in_features, dim, activation: str = 'swish'):
+    def __init__(self, in_features, dim, activation: str = 'swish', norm_position="pre"):
         super().__init__()
 
         activation = jasper_activations[activation]()
@@ -27,13 +27,26 @@ class LinearAdapter(nn.Module):
         if hasattr(activation, 'inplace'):
             activation.inplace = True
 
-        self.module = nn.Sequential(
-            nn.LayerNorm(in_features),
-            nn.Linear(in_features, dim, bias=False),
-            activation,
-            nn.Linear(dim, in_features, bias=False),
-        )
-        self.module[-1].weight.data *= 0
+        assert norm_position in ['pre', 'post']
+
+        if norm_position == 'pre':
+            self.module = nn.Sequential(
+                nn.LayerNorm(in_features),
+                nn.Linear(in_features, dim, bias=False),
+                activation,
+                nn.Linear(dim, in_features, bias=False),
+            )
+            self.module[-1].weight.data *= 0
+
+        elif norm_position == 'post':
+            self.module = nn.Sequential(
+                nn.Linear(in_features, dim, bias=False),
+                activation,
+                nn.Linear(dim, in_features, bias=False),
+                nn.LayerNorm(in_features),
+            )
+            self.module[-1].weight.data *= 0
+            self.module[-1].bias.data *= 0
 
     def forward(self, x):
         return self.module(x)
