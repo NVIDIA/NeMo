@@ -80,6 +80,7 @@ class AdapterModuleMixin(ABC):
                 param.requires_grad = False
             module.eval()
 
+        adapter_names = set([])
         for module in self.modules():  # access PT subclass method via inheritance
             if hasattr(module, 'adapter_layer') and module.is_adapter_available():
                 for name, config in AdapterModuleMixin.ADAPTER_CFG.items():
@@ -89,7 +90,10 @@ class AdapterModuleMixin(ABC):
                         for param in module.adapter_layer[name].parameters():
                             param.requires_grad = True
 
-                        logging.info(f"Unfrozen adapter : {name}")
+                        adapter_names.update(name)
+
+        for name in adapter_names:
+            logging.info(f"Unfrozen adapter : {name}")
 
 
 class EncoderAdapterModelMixin(AdapterModuleMixin):
@@ -109,18 +113,21 @@ class EncoderAdapterModelMixin(AdapterModuleMixin):
         self._check_valid_model_with_adapter_support()
 
         with open_dict(self.cfg):
-            if 'adapters' in self.cfg and name in self.cfg.adapters:
-                raise ValueError(f"Adapter with name {name} already exists in this model !")
+            # if 'adapters' in self.cfg and name in self.cfg.adapters:
+            #     raise ValueError(f"Adapter with name {name} already exists in this model !")
+
+            if 'adapters' not in self.cfg:
+                self.cfg.adapters = OmegaConf.create({})
 
             if 'enabled' not in cfg:
                 cfg['enabled'] = True
 
             self.cfg.adapters[name] = OmegaConf.create(cfg)
 
-        # Set the global config of adapters
-        AdapterModuleMixin.ADAPTER_CFG = self.cfg.adapters
+            # Set the global config of adapters
+            AdapterModuleMixin.ADAPTER_CFG = self.cfg.adapters
 
-        self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
+            self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
 
     def is_adapter_available(self) -> bool:
         self._check_valid_model_with_adapter_support()
@@ -137,7 +144,7 @@ class EncoderAdapterModelMixin(AdapterModuleMixin):
             else:
                 self.cfg.adapters[name]['enabled'] = enabled
 
-        self.encoder.set_enabled_adapters(name=name, enabled=enabled)
+            self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
         self._check_valid_model_with_adapter_support()

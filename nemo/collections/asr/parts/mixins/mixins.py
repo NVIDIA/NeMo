@@ -363,7 +363,7 @@ class ASRBPEMixin(ABC):
                     self.artifacts.pop(akey)
 
 
-class ASRModuleMixin(ABC, EncoderAdapterModelMixin):
+class ASRModuleMixin(EncoderAdapterModelMixin):
     """
     ASRModuleMixin is a mixin class added to ASR models in order to add methods that are specific
     to a particular instantiation of a module inside of an ASRModel.
