@@ -110,7 +110,8 @@ def write_vad_infer_manifest(file, args_func):
     window_length_in_sec = args_func['window_length_in_sec']
     filepath = file['audio_filepath']
     in_duration = file['duration']
-    in_offset = file['offset']
+    in_offset = file.get('offset', 0)
+
 
     try:
         sr = 16000
@@ -625,43 +626,48 @@ def vad_tune_threshold_on_dev(
     params_grid = get_parameter_grid(params)
 
     for param in params_grid:
-        # perform binarization, filtering accoring to param and write to rttm-like table
-        vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
+        try:
 
-        # add reference and hypothesis to metrics
-        for filename in paired_filenames:
-            groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
-            vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
-            reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
-            metric(reference, hypothesis)  # accumulation
+            # perform binarization, filtering accoring to param and write to rttm-like table
+            vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
 
-        # delete tmp table files
-        shutil.rmtree(vad_table_dir, ignore_errors=True)
+            # add reference and hypothesis to metrics
+            for filename in paired_filenames:
+                groundtruth_RTTM_file = groundtruth_RTTM_dict[filename]
+                vad_table_filepath = os.path.join(vad_table_dir, filename + ".txt")
+                reference, hypothesis = vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_file)
+                metric(reference, hypothesis)  # accumulation
 
-        report = metric.report(display=False)
-        DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-        FA = report.iloc[[-1]][('false alarm', '%')].item()
-        MISS = report.iloc[[-1]][('miss', '%')].item()
+            # delete tmp table files
+            shutil.rmtree(vad_table_dir, ignore_errors=True)
 
-        assert (
-            focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
-        ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
-        all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
-        logging.info(f"parameter {param}, {all_perf[str(param)] }")
+            report = metric.report(display=False)
+            DetER = report.iloc[[-1]][('detection error rate', '%')].item()
+            FA = report.iloc[[-1]][('false alarm', '%')].item()
+            MISS = report.iloc[[-1]][('miss', '%')].item()
 
-        score = all_perf[str(param)][focus_metric + ' (%)']
+            assert (
+                focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
+            ), "Metric we care most should be only in 'DetER', 'FA'or 'MISS'!"
+            all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
+            logging.info(f"parameter {param}, {all_perf[str(param)] }")
 
-        del report
-        metric.reset()  # reset internal accumulator
+            score = all_perf[str(param)][focus_metric + ' (%)']
 
-        # save results for analysis
-        with open(result_file + ".txt", "a", encoding='utf-8') as fp:
-            fp.write(f"{param}, {all_perf[str(param)] }\n")
+            del report
+            metric.reset()  # reset internal accumulator
 
-        if score < min_score:
-            best_threhsold = param
-            optimal_scores = all_perf[str(param)]
-            min_score = score
+            # save results for analysis
+            with open(result_file + ".txt", "a", encoding='utf-8') as fp:
+                fp.write(f"{param}, {all_perf[str(param)] }\n")
+
+            if score < min_score:
+                best_threhsold = param
+                optimal_scores = all_perf[str(param)]
+                min_score = score
+        except pd.errors.EmptyDataError as e:
+            print(param, e)
+            pass
 
     return best_threhsold, optimal_scores
 
@@ -748,16 +754,16 @@ def plot(
     FRAME_LEN = 0.01
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
-    dur = librosa.get_duration(y=audio, sr=sample_rate)
+    if not duration:
+        duration = librosa.get_duration(y=audio, sr=sample_rate)
 
-    time = np.arange(offset, offset + dur, FRAME_LEN)
     frame = np.loadtxt(path2_vad_pred)
-    frame = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
+    frame = frame[int(offset / FRAME_LEN) : int((offset + duration) / FRAME_LEN)]
 
     len_pred = len(frame)
     ax1 = plt.subplot()
     ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
-    ax1.set_xlim([0, int(dur) + 1])
+    ax1.set_xlim([0, int(duration) + 1])
     ax1.tick_params(axis='y', labelcolor='b')
     ax1.set_ylabel('Signal')
     ax1.set_ylim([-1, 1])
@@ -774,19 +780,24 @@ def plot(
     if per_args:
         speech_segments = binarization(prob, per_args)
         speech_segments = filtering(speech_segments, per_args)
+        # TODO should have been sorted in filtering in production branch
+        speech_segments = [list(i) for i in speech_segments]
+        speech_segments.sort(key=lambda x: x[0])
+
         pred = gen_pred_from_speech_segments(speech_segments, prob)
 
     if path2ground_truth_label:
-        label = extract_labels(path2ground_truth_label, time)
-        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
+        label = extract_labels(path2ground_truth_label, offset, duration)
+        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label/energy')
 
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred')
+    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred/neural')
     ax2.plot(np.arange(len_pred) * FRAME_LEN, prob, 'g--', label='speech prob')
     ax2.tick_params(axis='y', labelcolor='r')
+    ax2.set_title(path2audio_file)
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
     ax2.set_ylim([-0.1, 1.1])
-    return ipd.Audio(audio, rate=16000)
+    return ipd.Audio(audio, rate=16000), speech_segments # TODO
 
 
 def gen_pred_from_speech_segments(speech_segments, prob, shift_length_in_sec=0.01):
@@ -804,24 +815,36 @@ def gen_pred_from_speech_segments(speech_segments, prob, shift_length_in_sec=0.0
     return pred
 
 
-def extract_labels(path2ground_truth_label, time):
+def extract_labels(path2ground_truth_label, offset, duration, FRAME_LEN=0.01):
     """
     Extract groundtruth label for given time period.
     path2ground_truth_label (str): path of groundtruth label file 
     time (list) : a list of array represent time period.
     """
 
-    data = pd.read_csv(path2ground_truth_label, sep=" ", delimiter=None, header=None)
-    data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
-    labels = []
-    for pos in time:
-        line = data[(data["start"] <= pos) & (data["start"] + data["dur"] > pos)]
-        if len(line) >= 1:
-            labels.append(1)
-        else:
-            labels.append(0)
-    return labels
 
+    # 
+    # TODO verify old implementation
+
+    if path2ground_truth_label.endswith(".pt"):
+        time = torch.zeros(int((duration-offset)/0.01))
+        data = torch.load(path2ground_truth_label)
+        for i in data:
+            time[int(i[0]/0.01): int(i[1]/0.01)] = 1
+        labels = time
+        
+    else:
+        time = np.arange(offset, offset + duration, FRAME_LEN)
+        data = pd.read_csv(path2ground_truth_label, sep=" ", delimiter=None, header=None)
+        data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+        labels = []
+        for pos in time:
+            line = data[(data["start"] <= pos) & (data["start"] + data["dur"] > pos)]
+            if len(line) >= 1:
+                labels.append(1)
+            else:
+                labels.append(0)
+    return labels
 
 def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec, manifest_vad_input, out_dir):
     """
