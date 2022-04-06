@@ -22,7 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron import GPTSoftPromptDataset
+from nemo.collections.nlp.data.language_modeling.megatron import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
@@ -56,25 +56,25 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-__all__ = ['MegatronGPTPSoftPromptModel']
+__all__ = ['MegatronGPTPPromptLearningModel']
 
-class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
+class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
-    Prompt Tuning initalizes soft prompt embeddings directly from a copy of
+    Prompt Tuning initalizes virtual prompt embeddings directly from a copy of
     certain token embeddings from the the pretrained GPT model's vocabulary
     and directly tunes these embedding weights. The token embeddings used in 
     initalization are specified by the user in the config file. The model can 
-    be prompt-tuned for multiple tasks at once. Soft prompts are stored in a 
-    prompt table and can be added or deleted without disrupting soft prompts 
+    be prompt-tuned for multiple tasks at once. virtual prompts are stored in a 
+    prompt table and can be added or deleted without disrupting virtual prompts 
     for other tasks. 
 
-    P-tuning initializes an LSTM encoder model that generates soft prompt
+    P-tuning initializes an LSTM encoder model that generates virtual prompt
     embeddings for every task. Each task shares the same encoder. After ptuning
-    is compelete, the learned soft prompts can be saved to the prompt table
+    is compelete, the learned virtual prompts can be saved to the prompt table
     using add_ptuned_prompts_to_prompt_table(). Thus, if a user wants to add a 
-    new soft prompt via p-tuning, they do not need to retrain on all previous 
+    new virtual prompt via p-tuning, they do not need to retrain on all previous 
     tasks. This gives p-tuning the same task flexiblity as prompt-tuning.
     """
 
@@ -97,46 +97,39 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         self.float_type = self.model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.model.cfg.hidden_size
         self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
-        self.total_soft_tokens = self.cfg.total_soft_tokens
+        self.total_virtual_tokens = self.cfg.total_virtual_tokens
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         
-        # Prompt table stores all task embeddings, p-tuning soft prompts get added to the table after training
+        # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
         self.prompt_table = PromptTable(
             existing_tasks=self.existing_tasks,
-            total_soft_tokens=self.total_soft_tokens,
+            total_virtual_tokens=self.total_virtual_tokens,
             hidden_size=self.hidden_size,
         )
 
-        # Load templates for assiging soft prompt token positions
+        # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates) 
 
-        # Setup special tokens 
-        self.pseudo_token = cfg.pseudo_token
-        self.tokenizer.add_special_tokens({'additional_special_tokens': [self.pseudo_token]})
-        self.pseudo_token_id = self.tokenizer.token_to_id(self.pseudo_token)
+        # Prepare pseudo token ids for virtual/virtual prompt tokens
+        self.pseudo_token_base = cfg.pseudo_token_base
+        self.pseudo_tokens = [self.pseudo_token_base + str(i) for i in range(self.total_virtual_tokens)]
+        self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+        self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
+        self.pseudo_token_ids_start = self.pseudo_token_ids[0]
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.soft_prompt_style = cfg.soft_prompt_style.lower()
-        # #self.pseudo_token_base = cfg.pseudo_token_base
-        # self.pseudo_token_base = 'PROMPT_'
-        # self.pseudo_tokens = [self.pseudo_token_base + str(i) for i in range(self.total_soft_tokens)]
-        # self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
-        # self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        # self.pseudo_token_ids_start = self.pseudo_token_ids[0]
-        # #self.pseudo_token_ids = self.tokenizer.token_to_id(self.pseudo_token)
-        # self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        # self.soft_prompt_style = cfg.soft_prompt_style.lower()
+        self.virtual_prompt_style = cfg.virtual_prompt_style.lower()
 
-        # Prompt tuning stores soft prompts in the prompt table and tunes their weight directly
-        if self.soft_prompt_style in ['prompt-tuning', 'inference']:
-            self.soft_prompt_source = 'prompt-table'
+        # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
+        if self.virtual_prompt_style in ['prompt-tuning', 'inference']:
+            self.virtual_prompt_source = 'prompt-table'
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
-        elif self.soft_prompt_style == 'p-tuning':
-            self.soft_prompt_source = 'prompt-encoder'    
+        elif self.virtual_prompt_style == 'p-tuning':
+            self.virtual_prompt_source = 'prompt-encoder'    
         else:
             raise ValueError(
-                f"\nSoft prompt style '{cfg.soft_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
+                f"\nvirtual prompt style '{cfg.virtual_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
 
         self._reduced_loss_buffer = []
 
@@ -170,39 +163,12 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
             task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
 
-        # for task in task_templates:
-        #     self.task_templates[task.taskname] = {
-        #         "prompt_template": '{text}{answer}<|SOFT_PROMPT_0|>',
-        #         "prompt_token_splits": [100],
-        #         "task_id_num": task_id_num
-        #     }
-            
-        #     task_id_num_to_name[task_id_num] = task.taskname
-        #     task_id_num += 1
-
         # Make sure tasknames and task id nums line up correctly in prompt table
         self.prompt_table.task_id_num_to_name = task_id_num_to_name
 
-    def setup(self, stage=None):
-            if stage == 'predict':
-                return
-
-            self.setup_test_data()
-            if stage == 'test':
-                return
-
-            if self.soft_prompt_style.lower() == 'prompt-tuning':
-                self.init_new_prompts()
-            elif self.soft_prompt_style.lower() == 'p-tuning':
-                self.init_prompt_encoder()
-
-            self.setup_training_data()
-            self.setup_validation_data()
-            self.freeze_existing_soft_prompt_params()
-
     def init_new_prompts(self):
         """
-        Initialize new soft prompts to be tuned using prompt tuning 
+        Initialize new virtual prompts to be tuned using prompt tuning 
         """
         for idx, taskname in enumerate(self.new_tasks):
             init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
@@ -217,7 +183,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
 
             else:
                 raise AttributeError(
-                    f'\nSoft prompt init method {init_method} is not recognized\
+                    f'\nvirtual prompt init method {init_method} is not recognized\
                                         please use one of text or random'
                 )
 
@@ -226,14 +192,34 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         Init the prompt encoder needed for p-tuning on a new task
         """
         self.prompt_encoder = PromptEncoder(
-                total_soft_tokens=self.total_soft_tokens,
+                total_virtual_tokens=self.total_virtual_tokens,
                 hidden_size=self.hidden_size,
                 lstm_dropout=self.cfg.p_tuning.dropout,
                 num_layers=self.cfg.p_tuning.num_layers,
             )
 
-    def freeze_existing_soft_prompt_params(self):
-        """Freeze params of existing soft prompts that should not be tuned more
+    def add_ptuned_prompts_to_prompt_table(self):
+        """
+        Adds all newly p-tuned virtual prompts to the prompt table 
+        for inference. p-tuned virtual prompts WILL NOT be further
+        tuned once added to the prompt table. After p-tuned prompts
+        are added to the prompt table, the prompt encoder weights
+        are removed from the model to avoid needing to load unnecessary
+        weights during inference or future p-tuning/prompt-tuning.
+        """
+        # Save p-tuned prompts to prompt table
+        for taskname in self.new_tasks:
+            device = next(self.word_embeddings.parameters()).device
+            tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
+            taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
+            virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
+            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, virtual_prompt_embeddings)
+            
+        # Remove prompt encoder from model
+        self.prompt_encoder = None
+
+    def freeze_existing_virtual_prompt_params(self):
+        """Freeze params of existing virtual prompts that should not be tuned more
         """
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
         for taskname in self.prompt_table.prompt_table.keys():
@@ -248,85 +234,38 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         for params in self.word_embeddings.parameters():
             params.requires_grad = False
 
-    def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
-            self._train_ds, self._train_dl = self.build_soft_prompt_dataset(
-                dataset_paths=self.cfg.data.train_ds,
-                batch_size=self.cfg.batch_size,
-                drop_last=True,
-                shuffle=True,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
+    def get_model_tasks(self):
+        """
+        For user to inspect which tasks the model has been
+        p-tuned/prompt-tuned to preform.
+        """
+        tasks = {}
+        for taskname in self.prompt_table.prompt_table.keys():
+            tasks[taskname] = self.task_templates[taskname].copy()
 
-    def setup_validation_data(self, validation_data_config=None):
-        if self.cfg.data.get('validation_ds', None):
-            self._validation_ds, self._validation_dl = self.build_soft_prompt_dataset(
-                dataset_paths=self.cfg.data.validation_ds,
-                batch_size=self.cfg.batch_size,
-                drop_last=True,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
+        return tasks
 
-    def setup_test_data(self, test_data_config=None):
-        if self.cfg.data.get('test_ds', None):
-            self._test_ds, self._test_dl = self.build_soft_prompt_dataset(
-                dataset_paths=self.cfg.data.test_ds,
-                batch_size=self.cfg.batch_size,
-                drop_last=False,
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-            )
-
-    def build_soft_prompt_dataset(
-        self, 
-        dataset_paths, 
-        batch_size, 
-        drop_last, 
-        shuffle, 
-        num_workers, 
-        pin_memory
+    def forward(
+            self, 
+            input_ids, 
+            position_ids, 
+            attention_mask, 
+            taskname_ids, 
+            labels=None, 
+            inference=True, 
+            set_inference_key_value_memory=False, 
+            inference_max_sequence_len=None
     ):
-        dataset = GPTSoftPromptDataset(
-            datasets=dataset_paths,
-            tokenizer=self.tokenizer,
-            soft_prompt_source=self.soft_prompt_source,
-            task_templates=self.task_templates,
-            total_soft_tokens=self.total_soft_tokens,
-            pseudo_tokens=self.pseudo_tokens,
-            pad_token_id=self.pad_token_id,
-            max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
-            min_seq_length=self.cfg.data.get('min_seq_length', 1),
-            add_bos=self.cfg.data.get('add_bos', False),
-            add_eos=self.cfg.data.get('add_eos', True),
-        )
-
-        dataloader = torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=dataset.collate_fn,
-            batch_size=batch_size,
-            drop_last=drop_last,
-            shuffle=shuffle,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-        )
-
-        return dataset, dataloader
-
-    def forward(self, input_ids, position_ids, attention_mask, taskname_ids, labels=None, inference=True, set_inference_key_value_memory=False, inference_max_sequence_len=None):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
         GPT style models. Bypasses the vocab token preprocessing done
         in the MegatronGPT class.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        # if inference:
-        #     input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-        # else:
-        input_embeds = self.embed_input_train(input_ids, taskname_ids)
+        if inference:
+            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+        else:
+            input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
         position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
         encoder_input = input_embeds + position_embeddings
@@ -372,31 +311,29 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
-        #discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        discrete_token_ids[(input_ids == self.pseudo_token_id)] = self.pad_token_id
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
-        #virtual_token_locations = input_ids >= self.pseudo_token_ids_start
-        virtual_token_locations = input_ids == self.pseudo_token_id
+        virtual_token_locations = input_ids >= self.pseudo_token_ids_start
 
         # If there are no virtual tokens, just return discrete token embeds
         if not virtual_token_locations.any():
             return discrete_token_embeds
 
         # Get virtual token embeddings from the prompt table or prompt encoder
-        if self.soft_prompt_source == 'prompt-table':
+        if self.virtual_prompt_source == 'prompt-table':
             virtual_token_embeddings = [self.prompt_table(task_id_num) for task_id_num in taskname_ids]
             virtual_token_embeddings = torch.stack(virtual_token_embeddings)
 
-        elif self.soft_prompt_source == 'prompt-encoder':
+        elif self.virtual_prompt_source == 'prompt-encoder':
             taskname_embeddings = self.word_embeddings(taskname_ids)
             virtual_token_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
 
         #Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
         virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(batch_size, self.total_soft_tokens, embedding_size)
+        virtual_token_index = virtual_token_index.expand(batch_size, self.total_virtual_tokens, embedding_size)
 
         # Insert virtual token embeddings where they belong amoung the discrete token embeddings
         discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
@@ -444,7 +381,6 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
 
         # Put virtual and discrete token embs in their correct locations for final output
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeddings, discrete_token_embeds)
-        print(input_embeds.shape)
         return input_embeds
 
     def training_step(self, batch, batch_idx):
@@ -498,7 +434,7 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.soft_prompt_style.lower() == "p-tuning" and self.cfg.p_tuning.save_tuned_prompts_to_prompt_table:
+        if self.virtual_prompt_style.lower() == "p-tuning" and self.cfg.p_tuning.save_tuned_prompts_to_prompt_table:
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
@@ -511,36 +447,90 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         self.save_to(save_path=self.cfg.nemo_path)
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
-    def add_ptuned_prompts_to_prompt_table(self):
-        """
-        Adds all newly p-tuned soft prompts to the prompt table 
-        for inference. p-tuned soft prompts WILL NOT be further
-        tuned once added to the prompt table. After p-tuned prompts
-        are added to the prompt table, the prompt encoder weights
-        are removed from the model to avoid needing to load unnecessary
-        weights during inference or future p-tuning/prompt-tuning.
-        """
-        # Save p-tuned prompts to prompt table
-        for taskname in self.new_tasks:
-            device = next(self.word_embeddings.parameters()).device
-            tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
-            taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
-            soft_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
-            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, soft_prompt_embeddings)
-            
-        # Remove prompt encoder from model
-        self.prompt_encoder = None
+    def setup(self, stage=None):
+        if stage == 'predict':
+            return
 
-    def get_model_tasks(self):
-        """
-        For user to inspect which tasks the model has been
-        p-tuned/prompt-tuned to preform.
-        """
-        tasks = {}
-        for taskname in self.existing_tasks:
-            tasks[taskname] = self.task_templates[taskname].copy()
+        self.setup_test_data()
+        if stage == 'test':
+            return
 
-        return tasks
+        if self.virtual_prompt_style.lower() == 'prompt-tuning':
+            self.init_new_prompts()
+        elif self.virtual_prompt_style.lower() == 'p-tuning':
+            self.init_prompt_encoder()
+
+        self.setup_training_data()
+        self.setup_validation_data()
+        self.freeze_existing_virtual_prompt_params()
+
+    def setup_training_data(self, training_data_config=None):
+        if self.cfg.data.get('train_ds', None):
+            self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.train_ds,
+                batch_size=self.cfg.batch_size,
+                drop_last=True,
+                shuffle=True,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def setup_validation_data(self, validation_data_config=None):
+        if self.cfg.data.get('validation_ds', None):
+            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.validation_ds,
+                batch_size=self.cfg.batch_size,
+                drop_last=True,
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def setup_test_data(self, test_data_config=None):
+        if self.cfg.data.get('test_ds', None):
+            self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
+                dataset_paths=self.cfg.data.test_ds,
+                batch_size=self.cfg.batch_size,
+                drop_last=False,
+                shuffle=False,
+                num_workers=self.cfg.data.num_workers,
+                pin_memory=True,
+            )
+
+    def build_virtual_prompt_dataset(
+        self, 
+        dataset_paths, 
+        batch_size, 
+        drop_last, 
+        shuffle, 
+        num_workers, 
+        pin_memory
+    ):
+        dataset = GPTPromptLearningDataset(
+            datasets=dataset_paths,
+            tokenizer=self.tokenizer,
+            virtual_prompt_source=self.virtual_prompt_source,
+            task_templates=self.task_templates,
+            total_virtual_tokens=self.total_virtual_tokens,
+            pseudo_tokens=self.pseudo_tokens,
+            pad_token_id=self.pad_token_id,
+            max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            add_bos=self.cfg.data.get('add_bos', False),
+            add_eos=self.cfg.data.get('add_eos', True),
+        )
+
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            drop_last=drop_last,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+
+        return dataset, dataloader
 
     def get_forward_output_only_func(self):
         """
@@ -548,25 +538,21 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         """
         def fwd_output_only_func(batch, model):
             extra_arg = {}
-            if len(batch) == 4:
-                batch = [x.cuda() for x in batch]
-                tokens, attention_mask, position_ids, task_ids = batch
-            else:
-                (
-                    tokens,
-                    attention_mask,
-                    position_ids,
-                    task_ids,
-                    set_inference_key_value_memory,
-                    inference_max_sequence_len,
-                ) = batch
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                task_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
 
-                tokens = tokens.cuda()
-                attention_mask = attention_mask.cuda()
-                position_ids = position_ids.cuda()
-                task_ids = task_ids.cuda()
-                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+            tokens = tokens.cuda()
+            attention_mask = attention_mask.cuda()
+            position_ids = position_ids.cuda()
+            task_ids = task_ids.cuda()
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
            
             output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
             
@@ -608,22 +594,18 @@ class MegatronGPTPSoftPromptModel(MegatronBaseModel, TextGeneration):
         # default do greedy sampling
         if sampling_params is None:
             sampling_params = get_default_sampling_params()
-            sampling_params['add_BOS'] = False
 
-        # set the default length params if it is None.
-        # default do greedy sampling
         if length_params is None:
-            length_params: LengthParam = {"min_length": 0, "max_length": 512}
+            length_params = get_default_length_params()
 
         # Preprocess inputs to be what they need to be for the generate code
-        dataset = GPTSoftPromptDataset(
+        dataset = GPTPromptLearningDataset(
             datasets=inputs,
             tokenizer=self.tokenizer,
-            soft_prompt_source=self.soft_prompt_source,
+            virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
-            total_soft_tokens=self.total_soft_tokens,
-            # pseudo_tokens=self.pseudo_tokens,
-            pseudo_token=self.pseudo_token,
+            total_virtual_tokens=self.total_virtual_tokens,
+            pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
             max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),

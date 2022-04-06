@@ -1,4 +1,4 @@
-name: megatron_soft_prompt_gpt
+name: megatron_virtual_prompt_gpt
 
 trainer:
   devices: 1
@@ -39,30 +39,30 @@ exp_manager:
 
 model:
   seed: 1234
-  nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  nemo_path: ${name}.nemo # .nemo filename and path to where the model and associated artifacts should be saved
   lm_finetune: False # whether fine tune the language model
-  pseudo_token: '[PROMPT]' # pseudo prompt tokens
-  soft_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
-  max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
-  total_soft_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
+  pseudo_token: 'PROMPT_' # pseudo prompt tokens
+  virtual_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
+  encoder_seq_length: 2048 
+  total_virtual_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   batch_size: 16
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path: megatron_5B_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
-  existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for. Needed when a restore path is given
+  language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
+  existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
   new_tasks: ['squad'] # List of new tasknames to be prompt-tuned
 
   task_templates: # Add more as needed
     - taskname: 'boolq'
-      prompt_template: '<|SOFT_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}'
-      prompt_token_splits: [100] # number of tokens at each soft prompt location, must add to total_soft_tokens
+      prompt_template: '<|VIRTUAL_PROMPT_0|> Context: {context} Question: {question} Answer: {answer}' # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+      prompt_token_splits: [100] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
     - taskname: 'piqa'
-      prompt_template: '<|SOFT_PROMPT_0|> {question} <|SOFT_PROMPT_1|> Choose from: {answer_choices} Answer: {answer}'
+      prompt_template: '<|VIRTUAL_PROMPT_0|> {question} <|VIRTUAL_PROMPT_1|> Choose from: {answer_choices} Answer: {answer}'
       prompt_token_splits: [70, 30]
     - taskname: 'intent-and-slot'
-      prompt_template: '<|SOFT_PROMPT_0|> intent options: {intent_options} <|SOFT_PROMPT_1|> slot options: {slot_options} <|SOFT_PROMPT_2|> {utterance} <|SOFT_PROMPT_3|> intent: {intent} slot: {slot}' 
+      prompt_template: '<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} <|VIRTUAL_PROMPT_3|> intent: {intent} slot: {slot}' 
       prompt_token_splits: [25, 25, 25, 25]
 
   prompt_tuning: # Prompt tunin specific params

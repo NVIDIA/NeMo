@@ -39,7 +39,9 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_computeprob_response,
     get_default_length_params,
     get_default_sampling_params,
+    megatron_gpt_generate,
 )
+
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,

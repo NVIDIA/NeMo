@@ -1,7 +1,7 @@
-name: megatron_gpt_1.3B_prompt_tune
+name: megatron_gpt_125M_prompt_tune
 
 trainer:
-  devices: 2
+  devices: 1
   accelerator: gpu
   num_nodes: 1
   precision: 16
@@ -41,30 +41,36 @@ model:
   seed: 1234
   nemo_path: ${name}.nemo # .nemo filename and path to where the model and associated artifacts should be saved
   lm_finetune: False # whether fine tune the language model
-  pseudo_token: '[PROMPT]' # pseudo prompt tokens
-  soft_prompt_style: 'prompt-tuning' # either 'prompt-tuning' or 'p-tuning'
-  max_decode_length: null # max number of tokens length to decode, if set null, it will be inferred from data
-  total_soft_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
-  tensor_model_parallel_size: 2 # intra-layer model parallelism
+  pseudo_token: 'PROMPT_' # pseudo prompt tokens
+  virtual_prompt_style: 'prompt-tuning' # either 'prompt-tuning' or 'p-tuning'
+  encoder_seq_length: 1024 # max number of tokens length to decode, if set null, it will be inferred from data
+  total_virtual_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
+  tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   batch_size: 2
 
-  restore_path: models/megatron_gpt_1.3B_prompt_tune.nemo # Path to an existing p-tuned/prompt tuned model you wish to add new tasks to or run inference with
-  existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for. Needed when a restore path is given
-  language_model_path: models/megatron_1.3B_gpt_tensor_parallel_2.nemo # Path to the GPT language model .nemo file
-  new_tasks: ['squad'] # List of new tasknames to be prompt-tuned
+  #restore_path: models/megatron_gpt_125M_prompt_tune.nemo # Path to an existing p-tuned/prompt tuned model you wish to add new tasks to or run inference with
+  #existing_tasks: ['squad', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for. Needed when a restore path is given
+  #existing_tasks: ['boolq']
+  #existing_tasks: ['squad']
+  language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file
+  #new_tasks: ['boolq'] # List of new tasknames to be prompt-tuned
+  #new_tasks: ['squad', 'intent_and_slot']
+  new_tasks: ['squad']
+  #new_tasks: []
 
   task_templates: # Add more as needed
-    - taskname: 'boolq'
-      prompt_template: '<|SOFT_PROMPT_0|>{text}{answer}'
-      prompt_token_splits: [100] # number of tokens at each soft prompt location, must add to total_soft_tokens
-    - taskname: 'intent_and_slot'
-      prompt_template: '<|SOFT_PROMPT_0|>{text}{answer}'
-      prompt_token_splits: [100] # number of tokens at each soft prompt location, must add to total_soft_tokens
+    # - taskname: 'boolq'
+    #   prompt_template: '<|SOFT_PROMPT_0|>{text}{answer}'
+    #   prompt_token_splits: [100] # number of tokens at each soft prompt location, must add to total_soft_tokens
     - taskname: 'squad'
-      prompt_template: '<|SOFT_PROMPT_0|>{text}{answer}'
+      prompt_template: '<|VIRTUAL_PROMPT_0|>{text}{answer}'
       prompt_token_splits: [100] # number of tokens at each soft prompt location, must add to total_soft_tokens
-
+    # - taskname: 'intent_and_slot'
+    #   prompt_template: '<|SOFT_PROMPT_0|>{text}{answer}'
+    #   prompt_token_splits: [100] # number of tokens at each soft prompt location, must add to total_soft_tokens
+    
+    
   prompt_tuning:
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
@@ -81,6 +87,8 @@ model:
     # validation_ds: [data/debug_intent_and_slot_val.jsonl]
     train_ds: [data/debug_squad_train.jsonl]
     validation_ds: [data/debug_squad_val.jsonl]
+    # train_ds: [data/debug_squad_train.jsonl, data/debug_intent_and_slot_train.jsonl]
+    # validation_ds: [data/debug_squad_val.jsonl, data/debug_intent_and_slot_val.jsonl]
     add_eos: True
     shuffle: True
     num_workers: 1

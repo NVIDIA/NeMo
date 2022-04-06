@@ -529,35 +529,21 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
-# def forward_step(model, batch, tensor_shape):
-
-#     if model.cfg.get('pipeline_model_parallel_size', 1) > 1:
-#         output_tensor = forward_backward_pipelining_without_interleaving(
-#             forward_step_func=model.get_forward_output_only_func(),
-#             batch=batch,
-#             model=model.model,
-#             forward_only=True,
-#             tensor_shape=tensor_shape,
-#             dtype=model.autocast_dtype,
-#         )
-#     else:
-#         output_tensor = forward_backward_no_pipelining(
-#             forward_step_func=model.get_forward_output_only_func(),
-#             batch=batch,
-#             model=model.model,
-#             forward_only=True,
-#             tensor_shape=tensor_shape,
-#             dtype=model.autocast_dtype,
-#         )
-#     return output_tensor
-
 def forward_step(model, batch, tensor_shape):
+
+    # Should call MegatronGPTPPromptLearningModel's forward method
+    if hasattr(model, 'prompt_table'):
+        forward_model = model
+
+    # Should to call GPTModel's forward method
+    else:
+        forward_model = model.model
 
     if model.cfg.get('pipeline_model_parallel_size', 1) > 1:
         output_tensor = forward_backward_pipelining_without_interleaving(
             forward_step_func=model.get_forward_output_only_func(),
             batch=batch,
-            model=model,
+            model=forward_model,
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=model.autocast_dtype,
@@ -566,7 +552,7 @@ def forward_step(model, batch, tensor_shape):
         output_tensor = forward_backward_no_pipelining(
             forward_step_func=model.get_forward_output_only_func(),
             batch=batch,
-            model=model,
+            model=forward_model,
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=model.autocast_dtype,
@@ -667,7 +653,7 @@ def sample_sequence_batch(
                 # make sure it won't sample outside the vocab_size range
                 logits[:, tokenizer.vocab_size :] = -float('Inf')
 
-                if extra.get('greedy', False):  # args.greedy:
+                if extra.get('greedy', False):
                     prev = torch.argmax(logits, dim=-1).view(-1)
                 else:
                     logits = logits.float()
@@ -679,12 +665,17 @@ def sample_sequence_batch(
                     prev = torch.multinomial(log_probs, num_samples=1).view(-1)
                 started = context_lengths <= context_length
 
-                # Clamp the out of vocabulary tokens.
+                # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-
-                # print(context_length, prev, started)
-                # print(maxlen)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
+
+                # Replace special soft prompt token ids with unk token ids
+                if hasattr(model, 'pseudo_token_ids_start'):
+                    pseudo_token_ids_start = model.pseudo_token_ids_start
+                    new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
+                    tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
+
+                # Insert either new predicted or next prompt token
                 tokens[:, context_length] = new_tokens
 
                 if output_logits is None:

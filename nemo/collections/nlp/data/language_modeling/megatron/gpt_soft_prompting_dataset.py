@@ -6,7 +6,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software
+# Unless required by applicable law or agreed to in writing, virtualware
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
@@ -22,10 +22,10 @@ from nemo.collections.nlp.modules.common.megatron.utils import build_position_id
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ["GPTSoftPromptDataset"]
+__all__ = ['GPTPromptLearningDataset']
 
 
-class GPTSoftPromptDataset(Dataset):
+class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning GPT models.
     """
@@ -33,10 +33,10 @@ class GPTSoftPromptDataset(Dataset):
         self,
         datasets,
         tokenizer,
-        soft_prompt_source: str,
+        virtual_prompt_source: str,
         task_templates: dict,
-        total_soft_tokens: int,
-        pseudo_token,
+        total_virtual_tokens: int,
+        pseudo_tokens,
         pad_token_id: str,
         max_seq_length: int,
         min_seq_length: int = 1,
@@ -44,13 +44,11 @@ class GPTSoftPromptDataset(Dataset):
         add_eos: bool = True,
     ):
         self.tokenizer = tokenizer
-        self.soft_prompt_source = soft_prompt_source
+        self.virtual_prompt_source = virtual_prompt_source
         self.task_templates = task_templates
-        self.total_soft_tokens = total_soft_tokens
-        #self.pseudo_tokens = pseudo_tokens
-        #self.pseudo_token_ids = set(self.tokenizer.tokens_to_ids(self.pseudo_tokens))
-        self.pseudo_token = pseudo_token
-        self.pseudo_token_id = self.tokenizer.token_to_id(self.pseudo_token)
+        self.total_virtual_tokens = total_virtual_tokens
+        self.pseudo_tokens = pseudo_tokens
+        self.pseudo_token_ids = set(self.tokenizer.tokens_to_ids(self.pseudo_tokens))
         self.pad_token_id = pad_token_id
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -60,8 +58,8 @@ class GPTSoftPromptDataset(Dataset):
 
         assert min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert max_seq_length > 0, "Max sequence length should be greater than 0"
-        assert total_soft_tokens > 0, "There should be at least one soft prompt token"
-        assert total_soft_tokens < max_seq_length, "Soft prompt tokens should not exceed max sequence length"
+        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
+        assert total_virtual_tokens < max_seq_length, "virtual prompt tokens should not exceed max sequence length"
 
         logging.info("Loading and tokenizing dataset ... ")
 
@@ -82,28 +80,34 @@ class GPTSoftPromptDataset(Dataset):
 
         for json_line in tqdm(dataset):
 
-            #Read example dict or load the information for a single example from .json file
+            # Read example dict or load the information for a single example from .json file
             if type(json_line) == dict:
                 doc = json_line
             else:
                 doc = json.loads(json_line)
-
+            
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
             prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
             input_example = prompt_template
 
-            assert sum(prompt_token_splits) == self.total_soft_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
-            assert prompt_template.count('<|SOFT_PROMPT_') == len(prompt_token_splits), "The number of '<|SOFT_PROMPT_n|>' markers and the number of prompt token splits must match"
+            assert sum(prompt_token_splits) == self.total_virtual_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
+            assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(prompt_token_splits), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
             # Format the input example according to the template
             for field in doc.keys():
                 field_text = doc[field]
                 input_example = input_example.replace('{' + field + '}', field_text)
 
-            # Insert the correct number of pseudo tokens at the <|SOFT_PROMPT_n|> markers
+            # Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers
+            total_inserted_tokens = 0
             for idx in range(len(prompt_token_splits)):
-                input_example = input_example.replace(f'<|SOFT_PROMPT_{idx}|>', self.pseudo_token * prompt_token_splits[idx])
+                split_start = total_inserted_tokens
+                split_end = total_inserted_tokens + prompt_token_splits[idx]
+                pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start: split_end])
+                input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
+                total_inserted_tokens = split_end
+
             input_ids = self.tokenizer.text_to_ids(input_example)
 
             # Add BOS/EOS if desired, adds EOS by default
@@ -114,10 +118,10 @@ class GPTSoftPromptDataset(Dataset):
 
             # Skip example if the final length doesn't fit length requirements
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
-                if self.soft_prompt_source == "prompt-encoder":
+                if self.virtual_prompt_source == "prompt-encoder":
                     taskname_id = self.tokenizer.text_to_ids(taskname)
 
-                elif self.soft_prompt_source == "prompt-table":
+                elif self.virtual_prompt_source == "prompt-table":
                     taskname_id = self.task_templates[taskname]["task_id_num"]
 
                 self.examples.append((taskname_id, input_ids))
@@ -126,62 +130,6 @@ class GPTSoftPromptDataset(Dataset):
                 skipped += 1
 
         logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
-
-    # def load_data(self, dataset):
-    #     skipped = 0
-
-    #     for json_line in tqdm(dataset):
-
-    #         # Read example dict or load the information for a single example from .json file
-    #         if type(json_line) == dict:
-    #             doc = json_line
-    #         else:
-    #             doc = json.loads(json_line)
-            
-    #         taskname = doc["taskname"]
-    #         prompt_template = self.task_templates[taskname]["prompt_template"]
-    #         prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
-    #         input_example = prompt_template
-
-    #         assert sum(prompt_token_splits) == self.total_soft_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
-    #         assert prompt_template.count('<|SOFT_PROMPT_') == len(prompt_token_splits), "The number of '<|SOFT_PROMPT_n|>' markers and the number of prompt token splits must match"
-
-    #         # Format the input example according to the template
-    #         for field in doc.keys():
-    #             field_text = doc[field]
-    #             input_example = input_example.replace('{' + field + '}', field_text)
-
-    #         # Insert the correct number of pseudo tokens at the <|SOFT_PROMPT_n|> markers
-    #         total_inserted_tokens = 0
-    #         for idx in range(len(prompt_token_splits)):
-    #             split_start = total_inserted_tokens
-    #             split_end = total_inserted_tokens + prompt_token_splits[idx]
-    #             pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start: split_end])
-    #             input_example = input_example.replace(f'<|SOFT_PROMPT_{idx}|>', pseudo_tokens_for_split)
-    #             total_inserted_tokens = split_end
-
-    #         input_ids = self.tokenizer.text_to_ids(input_example)
-
-    #         # Add BOS/EOS if desired, adds EOS by default
-    #         if self.add_bos:
-    #             input_ids = [self.tokenizer.bos_id] + input_ids
-    #         if self.add_eos:
-    #             input_ids = input_ids + [self.tokenizer.eos_id]
-
-    #         # Skip example if the final length doesn't fit length requirements
-    #         if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
-    #             if self.soft_prompt_source == "prompt-encoder":
-    #                 taskname_id = self.tokenizer.text_to_ids(taskname)
-
-    #             elif self.soft_prompt_source == "prompt-table":
-    #                 taskname_id = self.task_templates[taskname]["task_id_num"]
-
-    #             self.examples.append((taskname_id, input_ids))
-
-    #         else:
-    #             skipped += 1
-
-    #     logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
 
     def __len__(self):
         return len(self.examples)
@@ -195,13 +143,13 @@ class GPTSoftPromptDataset(Dataset):
         taskname_ids, input_ids = zip(*batch)
 
         # Pad taskname_ids to be the same length for the prompt encoder
-        if self.soft_prompt_source == "prompt-encoder":
+        if self.virtual_prompt_source == "prompt-encoder":
             max_taskname_length = max(len(ids) for ids in taskname_ids)
             taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
             taskname_ids = torch.tensor(taskname_ids)
             
         # Task ids are just used for a look up embeddings for prompt-table
-        elif self.soft_prompt_source == "prompt-table":
+        elif self.virtual_prompt_source == "prompt-table":
             taskname_ids = torch.tensor(taskname_ids)
 
         batch_max = max(len(ids) for ids in input_ids)
@@ -232,9 +180,7 @@ class GPTSoftPromptDataset(Dataset):
         batch_loss_masks = []
         for ids in input_ids:
             # Loss mask where virtual tokens are 0.0 and all other tokens are 1.0
-            #loss_mask = [float(token_id not in self.pseudo_token_ids) for token_id in ids]
-            loss_mask = np.where(np.array(ids) == self.pseudo_token_id, 0.0, 1.0)
-            loss_mask = list(loss_mask)
+            loss_mask = [float(token_id not in self.pseudo_token_ids) for token_id in ids]
 
             # Pad to max length
             input_length = len(ids)

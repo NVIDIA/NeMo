@@ -20,7 +20,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling import MegatronGPTPSoftPromptModel
+from nemo.collections.nlp.models.language_modeling import MegatronGPTPPromptLearningModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
@@ -63,7 +63,7 @@ def main(cfg) -> None:
         == cfg.model.tensor_model_parallel_size * cfg.model.pipeline_model_parallel_size
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
-    model = MegatronGPTPSoftPromptModel.restore_from(cfg.model.restore_path, trainer=trainer)
+    model = MegatronGPTPPromptLearningModel.restore_from(cfg.model.restore_path, trainer=trainer)
     model.freeze()
 
     # has to turn off activations_checkpoint_method for inference
