@@ -61,10 +61,6 @@ def main():
         precision=args.precision,
     )
 
-    # GlobalBatchFitLoop used to provide global batches which are needed
-    # for Apex fwd/bwd functions
-    trainer.fit_loop = GlobalBatchFitLoop(trainer.fit_loop.min_epochs, trainer.fit_loop.max_epochs)
-
     app_state = AppState()
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
         app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
