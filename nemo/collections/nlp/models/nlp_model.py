@@ -55,6 +55,7 @@ class NLPModel(ModelPT, Exportable):
         nemo_file = None
         config_dict = None
         config_file = None
+        self.tokenizer = None
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
@@ -65,7 +66,6 @@ class NLPModel(ModelPT, Exportable):
             if cfg.get('tokenizer.vocab_file'):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
-        super().__init__(cfg, trainer)
         # handles model parallel save and restore logic
         self._save_restore_connector = NLPSaveRestoreConnector()
 
@@ -76,9 +76,11 @@ class NLPModel(ModelPT, Exportable):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
             if cfg.get('language_model.config_file'):
                 config_file = self.register_artifact('language_model.config_file', cfg.language_model.config_file)
-            self.bert_model = get_lm_model(
+            bert_model = get_lm_model(
                 config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
             )
+            if self.tokenizer is None:
+                self.tokenizer = bert_model.tokenizer
             if cfg.language_model.get('downstream'):
                 cfg.language_model.downstream = True
 
@@ -89,9 +91,12 @@ class NLPModel(ModelPT, Exportable):
             self.register_bert_model()
 
             if cfg.tokenizer.get("library", "") == 'megatron':
-                self.hidden_size = self.bert_model.cfg.hidden_size
+                self.hidden_size = bert_model.cfg.hidden_size
             else:
-                self.hidden_size = self.bert_model.config.hidden_size
+                self.hidden_size = bert_model.config.hidden_size
+        super().__init__(cfg, trainer)
+        if cfg.get('language_model') and not no_lm_init:
+            self.bert_model = bert_model
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = False,
@@ -156,12 +161,16 @@ class NLPModel(ModelPT, Exportable):
         vocab_file = None
         if cfg.get('vocab_file'):
             vocab_file = self.register_artifact(config_path='tokenizer.vocab_file', src=cfg.vocab_file)
-        self.tokenizer = get_tokenizer(
-            tokenizer_name=cfg.tokenizer_name,
-            vocab_file=vocab_file,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
-            tokenizer_model=self.register_artifact(config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model),
-        )
+        # only load tokenizer if vocab_file and tokenizer_model is not None
+        if cfg.tokenizer_name or vocab_file or cfg.tokenizer_model:
+            self.tokenizer = get_tokenizer(
+                tokenizer_name=cfg.tokenizer_name,
+                vocab_file=vocab_file,
+                special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+                tokenizer_model=self.register_artifact(
+                    config_path='tokenizer.tokenizer_model', src=cfg.tokenizer_model
+                ),
+            )
 
         if vocab_file is None:
             # when there is no vocab file we try to get the vocab from the tokenizer and register it

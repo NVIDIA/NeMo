@@ -103,9 +103,10 @@ def get_lm_model(
         if cfg.language_model.get('downstream'):
             model = MegatronBertModel(cfg=cfg, trainer=trainer)
         # For finetuning on a downstream task dataset for the first time
-        else:
+        elif cfg.language_model.get("lm_checkpoint"):
             model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
-
+        else:
+            model = MegatronBertModel.from_pretrained(cfg.language_model.get('pretrained_model_name'), trainer=trainer)
         # remove the headers that are only revelant for pretraining
         model.model.lm_head = Identity()
         model.model.binary_head = Identity()
