@@ -13,7 +13,9 @@ sup_data_path: null
 sup_data_types: null
 
 checkpoint_path: 'vits_full/VITS/2022-03-25_17-41-47/checkpoints/VITS--loss_gen_all\=37.8252-epoch\=7719-last.ckpt'
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
+# checkpoint_path: 'checkpoints/vits-epoch=7719.ckpt'
+
+honeme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
 
@@ -192,7 +194,7 @@ model:
 
 trainer:
   num_nodes: 1
-  devices: 1
+  devices: 2
   accelerator: gpu
   strategy: ddp
   precision: 16
@@ -206,16 +208,16 @@ trainer:
   check_val_every_n_epoch: 5
 
 exp_manager:
-  exp_dir: vits_full
+  exp_dir: ../exps/vits_full20
   name: ${name}
-  create_tensorboard_logger: false
+  create_tensorboard_logger: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: loss_gen_all
     mode: min
-  create_wandb_logger: true
+  create_wandb_logger: false
   wandb_logger_kwargs:
-    name: vits_full
+    name: vits_full20
     project: ${name}
     entity: nvidia
   resume_if_exists: false
