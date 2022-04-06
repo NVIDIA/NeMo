@@ -21,6 +21,7 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
+from nemo.collections.asr.models import ASRModel
 from nemo.core import NeuralModule
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
@@ -147,7 +148,7 @@ class TestAdapterMixin:
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    def test_forward_frozen(self):
+    def test_forward_unfrozen_adapters(self):
         model = DefaultModel()
         original_num_params = model.num_params()
 
@@ -173,3 +174,19 @@ class TestAdapterMixin:
                 assert module.track_running_stats is False
 
         assert original_params > adapter_params
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_constructor_pretrained(self):
+        # TODO: make proper config and assert correct number of weights
+        # Check to/from config_dict:
+        cfg = ASRModel.from_pretrained('stt_en_citrinet_256', map_location='cpu', return_config=True)
+        cfg.encoder._target_ = cfg.encoder._target_ + 'Adapter'  # convension to load Adapter supported model.
+        model = ASRModel.from_pretrained('stt_en_citrinet_256', override_config_path=cfg)
+
+        assert isinstance(model, AdapterModuleMixin)
+        assert hasattr(model, 'encoder')
+        assert isinstance(model.encoder, AdapterModuleMixin)
+
+        model.add_adapter('adapter_0', cfg=get_adapter_cfg(dim=cfg.encoder.jasper[0].filters))
+        assert model.is_adapter_available()
