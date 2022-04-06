@@ -83,7 +83,6 @@ class NLPModel(ModelPT, Exportable):
                 self.tokenizer = bert_model.tokenizer
             if cfg.language_model.get('downstream'):
                 cfg.language_model.downstream = True
-
             # Required to pull up the config for MegatronBert models
             self.pretrained_model_name = cfg.language_model.pretrained_model_name
 

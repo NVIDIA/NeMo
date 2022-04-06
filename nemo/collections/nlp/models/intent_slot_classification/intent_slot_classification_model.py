@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ntpath
 import os
 from typing import Dict, List, Optional
 
-import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -33,7 +33,6 @@ from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 
@@ -100,8 +99,8 @@ class IntentSlotClassificationModel(NLPModel):
                 {'intent_labels_file': 'intent_labels.csv', 'slot_labels_file': 'slot_labels.csv'}
             )
 
-        slot_labels_file = os.path.join(data_dir, cfg.class_labels.slot_labels_file)
-        intent_labels_file = os.path.join(data_dir, cfg.class_labels.intent_labels_file)
+        slot_labels_file = os.path.join(data_dir, ntpath.basename(cfg.class_labels.slot_labels_file))
+        intent_labels_file = os.path.join(data_dir, ntpath.basename(cfg.class_labels.intent_labels_file))
         self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
         self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
 
@@ -187,12 +186,11 @@ class IntentSlotClassificationModel(NLPModel):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        if self._cfg.tokenizer.get('library', '') == 'megatron':
-            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
-        else:
-            hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-            )
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        if isinstance(hidden_states, tuple):
+            hidden_states = hidden_states[0]
 
         intent_logits, slot_logits = self.classifier(hidden_states=hidden_states)
         return intent_logits, slot_logits
