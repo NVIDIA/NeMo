@@ -143,7 +143,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-        # print(f"Add encoder {add_encoder} and decoder {add_decoder}, pre_process {pre_process}, post_process {post_process}")
+
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
             decoder_arch=self.cfg.decoder_arch,
@@ -192,7 +192,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         output_enc_hidden_only=False,
         enc_input=None,
     ):
-        ret_dict = self.enc_dec_model(
+        output_tensor = self.enc_dec_model(
             enc_input_ids=encoder_input_ids,
             dec_input_ids=decoder_input_ids,
             enc_attn_mask=encoder_attn_mask,
@@ -205,7 +205,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             enc_input=enc_input,
         )
 
-        return ret_dict
+        return output_tensor
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""

@@ -49,7 +49,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
         self.init_consumed_samples = 0
-
+        self.init_global_step = 0
         if stage == 'predict':
             return
 
@@ -289,6 +289,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
+            shuffle=shuffle
         )
 
     def setup_training_data(self):
