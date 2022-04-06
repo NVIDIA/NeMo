@@ -18,11 +18,13 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     delete_extra_space,
     delete_space,
+    NEMO_SIGMA
 )
 
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -97,7 +99,6 @@ class DateFst(GraphFst):
             + delete_space
         )
 
-        final_graph = (graph_mdy | year | graph_dmy) + delete_space + optional_preserve_order
-
+        final_graph = (plurals._priority_union(graph_mdy,graph_dmy, NEMO_SIGMA) | year) + delete_space + optional_preserve_order
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()

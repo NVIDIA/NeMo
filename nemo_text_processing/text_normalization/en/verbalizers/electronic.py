@@ -25,6 +25,7 @@ from nemo_text_processing.text_normalization.en.utils import get_abs_path
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -75,14 +76,10 @@ class ElectronicFst(GraphFst):
 
         # nvidia.com
         common_server_common_domain = (
-            server_common + insert_space + pynini.compose(pynini.accep(".") + NEMO_SIGMA, domain_common)
+            server_common + insert_space + domain_common
         )
         common_server_common_domain |= (
-            server_common
-            + insert_space
-            + pynini.compose(
-                pynini.accep(".") + NEMO_SIGMA,
-                domain_common + pynini.closure(insert_space + pynini.cross(".", "dot ") + default_chars_symbols),
+            common_server_common_domain + pynini.closure(insert_space + pynini.cross(".", "dot ") + default_chars_symbols,
             )
         )
 
@@ -96,16 +93,14 @@ class ElectronicFst(GraphFst):
             default_server_common_domain_input,
             default_chars_symbols
             + insert_space
-            + pynini.compose(pynini.accep(".") + NEMO_SIGMA, domain_common)
+            + domain_common
             + pynini.closure(insert_space + (chars | graph_symbols)),
         ).optimize()
 
         # nvidia.unknown
         common_server_default_domain_input = (
             pynini.project(server_common, "input")
-            + pynini.compose(
-                pynini.accep(".") + NEMO_SIGMA, pynini.difference(NEMO_SIGMA, pynini.project(domain_common, "input"))
-            ).optimize()
+            + pynini.difference(NEMO_SIGMA, pynini.project(domain_common, "input")).optimize()
         )
         common_server_default_domain = pynini.compose(
             common_server_default_domain_input,
@@ -126,9 +121,7 @@ class ElectronicFst(GraphFst):
             + pynini.compose(pynini.accep(".") + NEMO_SIGMA, default_chars_symbols),
         ).optimize()
 
-        domain = (
-            common_server_common_domain | default_domain | default_server_common_domain | common_server_default_domain
-        ).optimize()
+        domain = plurals._priority_union(common_server_common_domain, plurals._priority_union(default_server_common_domain| common_server_default_domain, default_domain, NEMO_SIGMA), NEMO_SIGMA).optimize()
 
         domain = (
             pynutil.delete("domain:")
