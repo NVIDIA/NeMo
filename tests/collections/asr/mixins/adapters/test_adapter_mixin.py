@@ -26,7 +26,6 @@ from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
 
 class DefaultModel(NeuralModule, AdapterModuleMixin):
-
     def __init__(self):
         super().__init__()
 
@@ -66,7 +65,6 @@ def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
 
 
 class TestAdapterMixin:
-
     @pytest.mark.unit
     def test_single_adapter(self):
         model = DefaultModel()

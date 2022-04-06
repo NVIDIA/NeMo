@@ -26,8 +26,8 @@ from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, S
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.module import NeuralModule
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ['ConformerEncoder']

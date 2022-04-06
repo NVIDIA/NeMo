@@ -37,8 +37,8 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
 )
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.module import NeuralModule
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import List, Optional
+
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
