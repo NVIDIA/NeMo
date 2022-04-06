@@ -32,6 +32,7 @@ from transformers import AutoModelWithLMHead
 
 from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor, Schema
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -610,8 +611,12 @@ class DialogueGPTClassificationModel(NLPModel):
             self.dialogues_processor = DialogueAssistantDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
+        elif self._cfg.dataset.task == 'design':
+            self.dialogues_processor = DialogueDesignDataProcessor(
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+            )
         else:
-            raise ValueError("Only sgd, assistant, zero_shot supported for Dialogue GPT Classification Model")
+            raise ValueError("Only sgd, assistant, zero_shot, design supported for Dialogue GPT Classification Model")
 
         self.data_prepared = True
 

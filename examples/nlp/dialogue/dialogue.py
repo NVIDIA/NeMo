@@ -136,7 +136,7 @@ def main(cfg: DictConfig) -> None:
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         if cfg.model.dataset.task == 'sgd':
             model_class = SGDQAModel
-        elif cfg.model.dataset.task == 'zero_shot':
+        elif cfg.model.dataset.task in ['zero_shot', 'design']:
             model_class = ZeroShotIntentModel
         else:
             model_class = IntentSlotClassificationModel

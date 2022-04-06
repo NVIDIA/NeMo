@@ -52,6 +52,8 @@ class DialogueGPTGenerationModel(NLPModel):
         if self.cfg.library == "huggingface":
             self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
+            if self.cfg.language_model.lm_checkpoint:
+                self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
             self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
             # 1 corresponds to intent slot; 0 corresponds to squad
@@ -122,6 +124,10 @@ class DialogueGPTGenerationModel(NLPModel):
         self.log('bleu', bleu)
         self.log('{}_loss'.format(mode), avg_loss)
         self.log('{}_ppl'.format(mode), ppl)
+
+        if mode == 'val' and self.cfg.save_model:
+            filename = '{}/val_loss-{}-answer-extender.bin'.format(self.cfg.dataset.dialogues_example_dir, avg_loss)
+            torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')

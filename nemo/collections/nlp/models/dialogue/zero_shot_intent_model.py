@@ -22,6 +22,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_zero_shot_intent_dataset import DialogueZeroShotIntentDataset
 from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
     ZeroShotIntentInferenceDataset,
@@ -54,7 +55,15 @@ class ZeroShotIntentModel(TextClassificationModel):
             self.classification_report = original_model.classification_report
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split) -> 'torch.utils.data.DataLoader':
-        self.data_processor = DialogueAssistantDataProcessor(self.cfg.data_dir, self.tokenizer)
+        if self._cfg.dataset.task == "ms_marco":
+            self.data_processor = DialogueAssistantDataProcessor(self.cfg.data_dir, self.tokenizer)
+        elif self._cfg.dataset.task == "design":
+            self.data_processor = DialogueDesignDataProcessor(
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+            )
+        else:
+            raise ValueError("Only ms_marco and design supported for Zero Shot Intent Model")
+
         dataset = DialogueZeroShotIntentDataset(
             dataset_split,
             self.data_processor,
