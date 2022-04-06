@@ -22,7 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron import GPTPromptLearningDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import (
