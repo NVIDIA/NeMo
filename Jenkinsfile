@@ -871,8 +871,6 @@ pipeline {
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
-            model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
-            model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
             model.dataset.dialogues_example_dir=answer_extender \
             model.library=huggingface \
             model.dataset.task=ms_marco \
