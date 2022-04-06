@@ -55,14 +55,14 @@ class ZeroShotIntentModel(TextClassificationModel):
             self.classification_report = original_model.classification_report
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split) -> 'torch.utils.data.DataLoader':
-        if self._cfg.dataset.task == "ms_marco":
+        if self._cfg.dataset.task == "zero_shot":
             self.data_processor = DialogueAssistantDataProcessor(self.cfg.data_dir, self.tokenizer)
         elif self._cfg.dataset.task == "design":
             self.data_processor = DialogueDesignDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
         else:
-            raise ValueError("Only ms_marco and design supported for Zero Shot Intent Model")
+            raise ValueError("Only zero_shot and design supported for Zero Shot Intent Model")
 
         dataset = DialogueZeroShotIntentDataset(
             dataset_split,
