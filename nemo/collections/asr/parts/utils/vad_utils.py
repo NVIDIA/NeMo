@@ -112,8 +112,8 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
     split_duration = args_func['split_duration']
     window_length_in_sec = args_func['window_length_in_sec']
     filepath = file['audio_filepath']
-    in_duration = file['duration']
-    in_offset = file['offset']
+    in_duration = file.get('duration', None)
+    in_offset = file.get('offset', 0)
 
     try:
         sr = 16000
@@ -332,7 +332,7 @@ def generate_overlap_vad_seq_per_tensor(
     return preds
 
 
-def generate_overlap_vad_seq_per_file(frame_filepath: str, per_args: Dict[str, float]) -> str:
+def generate_overlap_vad_seq_per_file(frame_filepath: str, per_args: dict) -> str:
     """
     A wrapper for generate_overlap_vad_seq_per_tensor.
     """
@@ -562,12 +562,39 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
     return speech_segments
 
 
+def prepare_gen_segment_table(sequence: torch.Tensor, per_args: dict) -> Tuple[str, dict]:
+    """
+    Preparing for generating segment table. 
+    """
+    out_dir = per_args.get('out_dir', None)
+
+    # calculate onset offset based on scale selection
+    per_args['onset'], per_args['offset'] = cal_vad_onset_offset(
+        per_args.get('scale', 'absolute'), per_args['onset'], per_args['offset'], sequence
+    )
+
+    # cast 'filter_speech_first' for torch.jit.script
+    if 'filter_speech_first' in per_args:
+        if per_args['filter_speech_first']:
+            per_args['filter_speech_first'] = 1.0
+        else:
+            per_args['filter_speech_first'] = 0.0
+
+    per_args_float: Dict[str, float] = {}
+    for i in per_args:
+        if type(per_args[i]) == float or type(per_args[i]) == int:
+            per_args_float[i] = per_args[i]
+
+    return out_dir, per_args_float
+
+
 @torch.jit.script
 def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
     """
     See discription in generate_overlap_vad_seq.
     Use this for single instance pipeline. 
     """
+
     shift_length_in_sec = per_args['shift_length_in_sec']
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
@@ -587,25 +614,8 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     """
     A wrapper for generate_vad_segment_table_per_tensor
     """
-    out_dir = per_args['out_dir']
     sequence, name = load_tensor_from_file(pred_filepath)
-
-    # calculate onset offset based on scale selection
-    per_args['onset'], per_args['offset'] = cal_vad_onset_offset(
-        per_args.get('scale', 'absolute'), per_args['onset'], per_args['offset'], sequence
-    )
-
-    # cast 'filter_speech_first' for torch.jit.script
-    if 'filter_speech_first' in per_args:
-        if per_args['filter_speech_first']:
-            per_args['filter_speech_first'] = 1.0
-        else:
-            per_args['filter_speech_first'] = 0.0
-
-    per_args_float: Dict[str, float] = {}
-    for i in per_args:
-        if type(per_args[i]) == float or type(per_args[i]) == int:
-            per_args_float[i] = per_args[i]
+    out_dir, per_args_float = prepare_gen_segment_table(sequence, per_args)
 
     preds = generate_vad_segment_table_per_tensor(sequence, per_args_float)
     save_name = name + ".txt"
@@ -880,7 +890,7 @@ def plot(
         path2_vad_pred (str): path to vad prediction file,
         path2ground_truth_label(str): path to groundtruth label file.
         threshold (float): threshold for prediction score (from 0 to 1).
-        per_args(dict): a dict that stores the thresholds for postprocessing. 
+        per_args(dict): a dict that stores the thresholds for postprocessing.
     """
     plt.figure(figsize=[20, 2])
     FRAME_LEN = 0.01
@@ -890,10 +900,9 @@ def plot(
 
     time = np.arange(offset, offset + dur, FRAME_LEN)
     frame, _ = load_tensor_from_file(path2_vad_pred)
+    frame_snipt = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
 
-    frame = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
-
-    len_pred = len(frame)
+    len_pred = len(frame_snipt)
     ax1 = plt.subplot()
     ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
     ax1.set_xlim([0, int(dur) + 1])
@@ -902,25 +911,27 @@ def plot(
     ax1.set_ylim([-1, 1])
     ax2 = ax1.twinx()
 
-    prob = frame
     if threshold and per_args:
         raise ValueError("threshold and per_args cannot be used at same time!")
     if not threshold and not per_args:
         raise ValueError("One and only one of threshold and per_args must have been used!")
 
     if threshold:
-        pred = np.where(prob >= threshold, 1, 0)
+        pred_snipt = np.where(frame_snipt >= threshold, 1, 0)
     if per_args:
-        speech_segments = binarization(prob, per_args)
-        speech_segments = filtering(speech_segments, per_args)
-        pred = gen_pred_from_speech_segments(speech_segments, prob)
+        _, per_args_float = prepare_gen_segment_table(
+            frame, per_args
+        )  # take whole frame here for calculating onset and offset
+        speech_segments = generate_vad_segment_table_per_tensor(frame, per_args_float)
+        pred = gen_pred_from_speech_segments(speech_segments, frame)
+        pred_snipt = pred[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
 
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, time)
         ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
 
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred')
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, prob, 'g--', label='speech prob')
+    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred_snipt, 'b', label='pred')
+    ax2.plot(np.arange(len_pred) * FRAME_LEN, frame_snipt, 'g--', label='speech prob')
     ax2.tick_params(axis='y', labelcolor='r')
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
