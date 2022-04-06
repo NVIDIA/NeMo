@@ -289,7 +289,6 @@ class MegatronT5GLUEModel(MegatronT5Model):
             num_workers=num_workers,
             pin_memory=pin_memory,
             drop_last=drop_last,
-            shuffle=shuffle
         )
 
     def setup_training_data(self):
