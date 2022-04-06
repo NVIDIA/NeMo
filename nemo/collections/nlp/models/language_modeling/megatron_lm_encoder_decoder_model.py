@@ -845,11 +845,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         """
         app_state = AppState()
+
+        # The complete method only works with global batch = micro batch size = data parallel size = 1.
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=1,
-            micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
+            micro_batch_size=1,
             data_parallel_size=1,
         )
         app_state = AppState()
