@@ -18,8 +18,8 @@ from typing import List
 
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+from nemo.collections.asr.parts.mixins.asr_adapter_mixins import EncoderAdapterModelMixin
 from nemo.collections.asr.parts.utils import asr_module_utils
-from nemo.collections.asr.parts.mixins.adapter_mixins import EncoderAdapterModelMixin
 from nemo.collections.common import tokenizers
 from nemo.utils import logging
 

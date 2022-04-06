@@ -14,7 +14,7 @@
 
 import math
 from collections import OrderedDict
-from typing import Optional, List
+from typing import List, Optional
 
 import torch
 import torch.distributed
@@ -24,10 +24,10 @@ from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLay
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
-from nemo.collections.asr.parts.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 
 __all__ = ['ConformerEncoder']
@@ -357,6 +357,7 @@ class ConformerEncoderAdapter(ConformerEncoder, AdapterModuleMixin):
         dropout_att (float): the dropout rate used for the attention layer
             Defaults to 0.0.
     """
+
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
         for conformer_layer in self.layers:  # type: AdapterModuleMixin

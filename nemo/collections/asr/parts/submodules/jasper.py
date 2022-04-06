@@ -22,6 +22,7 @@ from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.utils import logging
 
@@ -563,7 +564,7 @@ class SqueezeExcite(nn.Module):
         self.context_window = context_window
 
 
-class JasperBlock(nn.Module):
+class JasperBlock(nn.Module, AdapterModuleMixin):
     """
     Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
     such as `QuartzNet` and `Citrinet`.
@@ -1031,6 +1032,21 @@ class JasperBlock(nn.Module):
 
         # compute the output
         out = self.mout(out)
+
+        # Support ASR Adapters
+        if self.is_adapter_available():
+            # Check for all available and enabled adapters
+            adapter_names = self.get_enabled_adapters()
+
+            if len(adapter_names) > 0:
+                out = out.transpose(1, 2)  # (B, T, C)
+
+                # Call the adapters
+                for adapter_name in adapter_names:
+                    out = out + self.adapter_layer[adapter_name](out)
+
+                out = out.transpose(1, 2)  # (B, C, T)
+
         if self.res is not None and self.dense_residual:
             return xs + [out], lens
 

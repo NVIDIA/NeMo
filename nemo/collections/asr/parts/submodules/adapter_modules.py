@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict, Optional
+
 import torch
 from torch import nn as nn
 
@@ -19,7 +21,7 @@ from nemo.collections.asr.parts.submodules.jasper import jasper_activations
 
 
 class LinearAdapter(nn.Module):
-    def __init__(self, in_features, dim, activation: str = 'swish', norm_position="pre"):
+    def __init__(self, in_features, dim, activation: str = 'swish', norm_position="post"):
         super().__init__()
 
         activation = jasper_activations[activation]()

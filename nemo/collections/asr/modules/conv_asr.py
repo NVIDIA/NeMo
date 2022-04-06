@@ -38,6 +38,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,
@@ -850,6 +851,29 @@ class SpeakerDecoder(NeuralModule, Exportable):
         out = self.final(pool)
 
         return out, embs[-1].squeeze(-1)
+
+
+class ConvASREncoderAdapter(ConvASREncoder, AdapterModuleMixin):
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        for jasper_block in self.encoder[:-1]:  # type: AdapterModuleMixin
+            jasper_block.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([jasper_block.is_adapter_available() for jasper_block in self.encoder[:-1]])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for jasper_block in self.encoder[:-1]:  # type: AdapterModuleMixin
+            jasper_block.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for jasper_block in self.encoder[:-1]:  # type: AdapterModuleMixin
+            names.update(jasper_block.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
 
 
 @dataclass

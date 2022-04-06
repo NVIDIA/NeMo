@@ -22,9 +22,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.core import NeuralModule
-from nemo.collections.common import tokenizers
-from nemo.utils.config_utils import assert_dataclass_signature_match
-from nemo.collections.asr.parts.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
 
 class DefaultModel(NeuralModule, AdapterModuleMixin):
@@ -65,51 +63,6 @@ def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
         'norm_position': norm_pos,
     }
     return cfg
-
-# @pytest.fixture()
-# def asr_model(test_data_dir):
-#     preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
-#     encoder = {
-#         '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
-#         'feat_in': 64,
-#         'activation': 'relu',
-#         'conv_mask': True,
-#         'jasper': [
-#             {
-#                 'filters': 1024,
-#                 'repeat': 1,
-#                 'kernel': [1],
-#                 'stride': [1],
-#                 'dilation': [1],
-#                 'dropout': 0.0,
-#                 'residual': False,
-#                 'separable': True,
-#                 'se': True,
-#                 'se_context_size': -1,
-#             }
-#         ],
-#     }
-#
-#     decoder = {
-#         '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-#         'feat_in': 1024,
-#         'num_classes': -1,
-#         'vocabulary': None,
-#     }
-#
-#     tokenizer = {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'}
-#
-#     modelConfig = DictConfig(
-#         {
-#             'preprocessor': DictConfig(preprocessor),
-#             'encoder': DictConfig(encoder),
-#             'decoder': DictConfig(decoder),
-#             'tokenizer': DictConfig(tokenizer),
-#         }
-#     )
-#
-#     model_instance = EncDecCTCModelBPE(cfg=modelConfig)
-#     return model_instance
 
 
 class TestAdapterMixin:

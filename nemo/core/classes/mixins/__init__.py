@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.mixins.asr_adapter_mixins import EncoderAdapterModelMixin
-from nemo.collections.asr.parts.mixins.mixins import (
-    ASRBPEMixin,
-    ASRModuleMixin,
-    DiarizationMixin,
-    EncoderAdapterModelMixin,
-)
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
