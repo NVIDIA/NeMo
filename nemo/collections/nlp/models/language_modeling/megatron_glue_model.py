@@ -227,7 +227,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
         else:
             averaged_loss = super().test_epoch_end(outputs)
         accuracy = self.acc_metric.compute()
-        self.log(f'{mode}_loss', averaged_loss)
+        # Loss is logged in the parent epoch end class.
         self.log(f'{mode}_acc', accuracy['acc'])
         if hasattr(self.cfg, 'eval_languages'):
             for lang in self.cfg.eval_languages:

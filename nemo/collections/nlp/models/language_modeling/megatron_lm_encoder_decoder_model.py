@@ -514,6 +514,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
+        if not outputs:
+            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -523,7 +525,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('test_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-        self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step), rank_zero_only=True)
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            rank_zero_only=True,
+        )
+
+        return averaged_loss
 
     def loss_func(self, loss_mask, tokens_loss):
         """
