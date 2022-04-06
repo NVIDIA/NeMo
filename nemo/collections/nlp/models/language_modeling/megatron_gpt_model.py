@@ -256,8 +256,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if rampup_batch_size:
             num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
             num_microbatch_calculator.update(
-                consumed_samples=self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-                consistency_check=True,
+                consumed_samples=consumed_samples, consistency_check=True,
             )
 
         return loss_mean

@@ -47,8 +47,11 @@ model:
   global_batch_size: 8 # will use more micro batches to reach global batch size
   rampup_batch_size: null # Expects a list of 3 values: starting batch size, increment, rampup samples
   # For example:
-  #    rampup_batch_size: 16 8 300000
-  #    global_batch_size: 1024
+  # global_batch_size: 1024
+  # rampup_batch_size:
+  #   - 16
+  #   - 8
+  #   - 300000
   # will start with global batch size 16 and over
   # (1024 - 16) / 8 = 126 intervals will increase
   # the batch size linearly to 1024. In each interval
