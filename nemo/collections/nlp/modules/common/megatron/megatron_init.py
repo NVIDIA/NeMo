@@ -48,6 +48,7 @@ def initialize_model_parallel_for_nemo(
     pipeline_model_parallel_split_rank=None,
     micro_batch_size=None,
     global_batch_size=None,
+    rampup_batch_size=None,
     seed=1234,
     apex_transformer_log_level=30,
 ):
@@ -93,7 +94,7 @@ def initialize_model_parallel_for_nemo(
                 global_batch_size=global_batch_size,
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=app_state.data_parallel_size,
-                rampup_batch_size=None,
+                rampup_batch_size=rampup_batch_size,
             )
         else:
             if isinstance(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, ConstantNumMicroBatches):

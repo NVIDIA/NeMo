@@ -58,7 +58,11 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        get_num_microbatches,
+        _reconfigure_microbatch_calculator,
+    )
+    import apex.transformer.pipeline_parallel.utils
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -242,13 +246,19 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         lr = self._optimizer.param_groups[0]['lr']
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
-        # TODO: make sure compute_consumed_samples works for pipeline parallelism
+        self.log('num_micro_batches', get_num_microbatches(), prog_bar=False, rank_zero_only=True)
+        consumed_samples = self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
-            prog_bar=True,
-            rank_zero_only=True,
+            'consumed_samples', consumed_samples, prog_bar=True, rank_zero_only=True,
         )
+
+        rampup_batch_size = self.cfg.get('rampup_batch_size', None)
+        if rampup_batch_size:
+            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            num_microbatch_calculator.update(
+                consumed_samples=self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+                consistency_check=True,
+            )
 
         return loss_mean
 

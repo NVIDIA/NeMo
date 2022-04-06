@@ -78,6 +78,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
             micro_batch_size=cfg.get('micro_batch_size'),
             global_batch_size=cfg.get('global_batch_size'),
+            rampup_batch_size=cfg.get('rampup_batch_size', None),
             seed=self.cfg.get('seed', 1234),
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
