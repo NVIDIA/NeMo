@@ -75,12 +75,9 @@ class ElectronicFst(GraphFst):
         ).optimize()
 
         # nvidia.com
-        common_server_common_domain = (
-            server_common + insert_space + domain_common
-        )
-        common_server_common_domain |= (
-            common_server_common_domain + pynini.closure(insert_space + pynini.cross(".", "dot ") + default_chars_symbols,
-            )
+        common_server_common_domain = server_common + insert_space + domain_common
+        common_server_common_domain |= common_server_common_domain + pynini.closure(
+            insert_space + pynini.cross(".", "dot ") + default_chars_symbols,
         )
 
         # unknown.com
@@ -121,7 +118,13 @@ class ElectronicFst(GraphFst):
             + pynini.compose(pynini.accep(".") + NEMO_SIGMA, default_chars_symbols),
         ).optimize()
 
-        domain = plurals._priority_union(common_server_common_domain, plurals._priority_union(default_server_common_domain| common_server_default_domain, default_domain, NEMO_SIGMA), NEMO_SIGMA).optimize()
+        domain = plurals._priority_union(
+            common_server_common_domain,
+            plurals._priority_union(
+                default_server_common_domain | common_server_default_domain, default_domain, NEMO_SIGMA
+            ),
+            NEMO_SIGMA,
+        ).optimize()
 
         domain = (
             pynutil.delete("domain:")
