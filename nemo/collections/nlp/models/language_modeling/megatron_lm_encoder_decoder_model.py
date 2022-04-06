@@ -751,7 +751,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             rank=app_state.global_rank,
             rampup_batch_size=None,
             global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=global_batch_per_gpu, # Make sure that there is no "grad acc" while decoding.
+            micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         predicted_tokens_dec = (
