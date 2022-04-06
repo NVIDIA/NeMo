@@ -32,7 +32,7 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.enums import AttnMaskType, AttnType, LayerType
+    from apex.transformer.enums import AttnMaskType, AttnType, LayerType, ModelType
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
     from apex.transformer.utils import divide as safe_divide
 
@@ -41,7 +41,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
     # fake missing classes with None attributes
-    AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -172,6 +172,7 @@ class ParallelAttention(MegatronModule):
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        megatron_legacy=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -182,6 +183,7 @@ class ParallelAttention(MegatronModule):
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
+        self.megatron_legacy = megatron_legacy
 
         if kv_channels is None:
             assert (
@@ -263,6 +265,40 @@ class ParallelAttention(MegatronModule):
             device=torch.cuda.current_device(),
         )
 
+    def _transpose_last_dim(self, mixed_layer, num_splits, num_splits_first):
+        input_shape = mixed_layer.size()
+        if num_splits_first:
+            """[s, b, num_splits * np * hn]
+            -->(view) [s, b, num_splits, np, hn]
+            -->(tranpose) [s, b, np, num_splits, hn]
+            -->(view) [s, b, np * num_splits * hn] """
+
+            intermediate_shape = input_shape[:-1] + (
+                num_splits,
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+            )
+
+            mixed_layer = mixed_layer.view(*intermediate_shape)
+            mixed_layer = mixed_layer.transpose(-2, -3).contiguous()
+        else:
+            """[s, b, np * hn * num_splits]
+            -->(view) [s, b, np, hn, num_splits]
+            -->(tranpose) [s, b, np, num_splits, hn]
+            -->(view) [s, b, np * num_splits * hn] """
+
+            intermediate_shape = input_shape[:-1] + (
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+                num_splits,
+            )
+
+            mixed_layer = mixed_layer.view(*intermediate_shape)
+            mixed_layer = mixed_layer.transpose(-1, -2).contiguous()
+        mixed_layer = mixed_layer.view(*input_shape)
+
+        return mixed_layer
+
     def forward(
         self,
         hidden_states,
@@ -310,6 +346,8 @@ class ParallelAttention(MegatronModule):
                 self.num_attention_heads_per_partition,
                 3 * self.hidden_size_per_attention_head,
             )
+            if self.megatron_legacy:
+                mixed_x_layer = self._transpose_last_dim(mixed_x_layer, 3, True)
             mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
             # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
@@ -500,6 +538,7 @@ class ParallelTransformerLayer_(MegatronModule):
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         activation='gelu',
+        megatron_legacy=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -535,6 +574,7 @@ class ParallelTransformerLayer_(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
+            megatron_legacy=megatron_legacy,
         )
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
@@ -558,6 +598,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
+                megatron_legacy=megatron_legacy,
             )
             # Layernorm on the attention output.
             self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
@@ -741,6 +782,8 @@ class ParallelTransformer(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         activation='gelu',
+        model_type=ModelType.encoder_or_decoder,
+        megatron_legacy=False,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -755,17 +798,20 @@ class ParallelTransformer(MegatronModule):
         self.post_process = post_process
         self.input_tensor = None
         self.self_attn_mask_type = self_attn_mask_type
+        self.model_type = model_type
 
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
 
-        # Number of layers.
-        assert (
-            num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
-        ), 'num_layers must be divisible by pipeline_model_parallel_size'
-        self.num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
+        if self.model_type == ModelType.encoder_or_decoder:
+            assert (
+                num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+            ), 'num_layers must be divisible by pipeline_model_parallel_size'
 
+        # TODO: Add similar assert for encoder-decoder.
+
+        self.num_layers = self.get_num_layers(num_layers)
         # Transformer layers.
         def build_layer(layer_number):
             return ParallelTransformerLayer(
@@ -791,12 +837,14 @@ class ParallelTransformer(MegatronModule):
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 activation=activation,
+                megatron_legacy=megatron_legacy,
             )
 
-        if parallel_state.get_virtual_pipeline_model_parallel_rank() is not None:
+        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
                 'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
             )
+            assert self.model_type != ModelType.encoder_or_decoder
             # Number of layers in each model chunk is the number of layers in the stage,
             # divided by the number of model chunks in a stage.
             self.num_layers = self.num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
@@ -813,7 +861,18 @@ class ParallelTransformer(MegatronModule):
             ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
-            offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+            if (
+                self.model_type == ModelType.encoder_and_decoder
+                and parallel_state.get_pipeline_model_parallel_world_size() > 1
+            ):
+                pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
+                if layer_type == LayerType.encoder:
+                    offset = pipeline_rank * self.num_layers
+                else:
+                    num_ranks_in_enc = parallel_state.get_pipeline_model_parallel_split_rank()
+                    offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
+            else:
+                offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
@@ -823,6 +882,31 @@ class ParallelTransformer(MegatronModule):
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
+
+    def get_num_layers(self, num_layers):
+        """Compute the number of transformer layers resident on the current rank."""
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if self.model_type == ModelType.encoder_and_decoder:
+                assert parallel_state.get_pipeline_model_parallel_split_rank() is not None
+                num_ranks_in_encoder = parallel_state.get_pipeline_model_parallel_split_rank()
+                num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder
+                assert (
+                    num_layers % num_ranks_in_encoder == 0
+                ), 'num_layers must be divisible by number of ranks given to encoder'
+                assert (
+                    num_layers % num_ranks_in_decoder == 0
+                ), 'num_layers must be divisible by number of ranks given to decoder'
+                if parallel_state.is_pipeline_stage_before_split():
+                    num_layers = num_layers // num_ranks_in_encoder
+                else:
+                    num_layers = num_layers // num_ranks_in_decoder
+            else:
+                assert (
+                    num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0
+                ), 'num_layers must be divisible by pipeline_model_parallel_size'
+                num_layers = num_layers // parallel_state.get_pipeline_model_parallel_world_size()
+
+        return num_layers
 
     def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask):
         """Forward method with activation checkpointing."""

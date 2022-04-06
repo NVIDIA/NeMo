@@ -17,6 +17,7 @@ import re
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
@@ -34,6 +35,11 @@ from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_no
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_ltor_masks_and_position_ids,
+    get_params_for_weight_decay_optimization,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate, 
     get_computeprob_response,
@@ -41,7 +47,6 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
@@ -51,53 +56,22 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
-    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
-    from apex.transformer.pipeline_parallel.schedules.common import (
-        build_model,
-        listify_model,
-    )
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.pipeline_parallel.schedules.common import build_model
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
-
-def _get_params_for_weight_decay_optimization(
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
-) -> Dict[str, torch.nn.Parameter]:
-    """Divide params into with-weight-decay and without-weight-decay groups.
-
-    Layernorms and biases will have no weight decay but the rest will.
-    """
-    modules = listify_model(model)
-    weight_decay_params = {'params': []}
-    no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
-    for module in modules:
-        for module_ in module.modules():
-            if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
-                no_weight_decay_params['params'].extend(
-                    [p for p in list(module_._parameters.values()) if p is not None]
-                )
-            else:
-                weight_decay_params['params'].extend(
-                    [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
-                )
-                no_weight_decay_params['params'].extend(
-                    [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
-                )
-
-    return weight_decay_params, no_weight_decay_params
 
 
 class MegatronGPTModel(NLPModel, TextGeneration):
@@ -110,8 +84,9 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             raise ImportError(
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(cfg, trainer=trainer)
-        self.cfg = cfg
+        # this prevents base constructor from initializing tokenizer
+        self.tokenizer = None
+        super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
 
@@ -220,7 +195,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = _get_params_for_weight_decay_optimization([self.model])
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
         """
@@ -494,6 +469,8 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         return loss_mean
 
     def validation_epoch_end(self, outputs):
+        if not outputs:
+            return
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss
             averaged_loss = torch.stack(outputs).mean()
@@ -615,7 +592,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        resume_checkpoint_path = self.trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
         if resume_checkpoint_path:
             try:
                 init_consumed_samples = int(
@@ -959,3 +936,20 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             response[index] = item
 
         return response
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        result = []
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="megatron_gpt_345m",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_gpt_345m/versions/1/files/megatron_gpt_345m.nemo",
+                description="345M parameter GPT generative Megatron model.",
+            )
+        )
+        return result

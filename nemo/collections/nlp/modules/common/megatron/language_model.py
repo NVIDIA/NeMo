@@ -29,7 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer import tensor_parallel
     from apex.transformer.enums import AttnMaskType, LayerType
 
     HAVE_APEX = True
@@ -72,6 +72,7 @@ def get_language_model(
     persist_layer_norm=False,
     openai_gelu=False,
     onnx_safe=False,
+    megatron_legacy=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -118,6 +119,7 @@ def get_language_model(
         persist_layer_norm=persist_layer_norm,
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
+        megatron_legacy=megatron_legacy,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -207,6 +209,16 @@ class Embedding(MegatronModule):
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
 
+    def zero_parameters(self):
+        """Zero out all parameters in embedding."""
+        self.word_embeddings.weight.data.fill_(0)
+        self.word_embeddings.weight.shared = True
+        self.position_embeddings.weight.data.fill_(0)
+        self.position_embeddings.weight.shared = True
+        if self.num_tokentypes > 0:
+            self.tokentype_embeddings.weight.data.fill_(0)
+            self.tokentype_embeddings.weight.shared = True
+
     def add_tokentype_embeddings(self, num_tokentypes):
         """Add token-type embedding. This function is provided so we can add
         token-type embeddings in case the pretrained model does not have it.
@@ -221,15 +233,14 @@ class Embedding(MegatronModule):
         # Initialize the token-type embeddings.
         self.init_method(self.tokentype_embeddings.weight)
 
-    def forward(self, input_ids, position_ids, tokentype_ids=None):
+    def forward(self, input_ids, position_ids, token_type_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
         embeddings = words_embeddings + position_embeddings
-        
-        if tokentype_ids is not None:
+        if token_type_ids is not None:
             assert self.tokentype_embeddings is not None
-            embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
+            embeddings = embeddings + self.tokentype_embeddings(token_type_ids)
         else:
             assert self.tokentype_embeddings is None
 
@@ -340,6 +351,7 @@ class TransformerLanguageModel(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
+        megatron_legacy=False,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -403,14 +415,12 @@ class TransformerLanguageModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             masked_softmax_fusion=masked_softmax_fusion,
+            megatron_legacy=megatron_legacy,
         )
         self._encoder_key = 'encoder'
 
         # Decoder
         if self.add_decoder:
-            assert (
-                parallel_state.get_pipeline_model_parallel_world_size() == 1
-            ), 'pipeline parallelism is not supported in the presence of decoder'
             self.decoder = ParallelTransformer(
                 layer_type=LayerType.decoder,
                 self_attn_mask_type=self.decoder_attn_mask_type,
@@ -436,6 +446,7 @@ class TransformerLanguageModel(MegatronModule):
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 masked_softmax_fusion=masked_softmax_fusion,
+                megatron_legacy=megatron_legacy,
             )
             self._decoder_key = 'decoder'
 
@@ -463,7 +474,7 @@ class TransformerLanguageModel(MegatronModule):
         dec_position_ids=None,
         dec_attn_mask=None,
         enc_dec_attn_mask=None,
-        tokentype_ids=None,
+        token_type_ids=None,
         layer_past=None,
         get_key_value=False,
         pooling_sequence_index=0,
@@ -475,7 +486,7 @@ class TransformerLanguageModel(MegatronModule):
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
-            encoder_input = self.embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
+            encoder_input = self.embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
         else:
             pass
 

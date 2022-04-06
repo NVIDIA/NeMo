@@ -161,7 +161,7 @@ class GPTModel(MegatronModule):
         position_ids,
         attention_mask,
         labels=None,
-        tokentype_ids=None,
+        token_type_ids=None,
         layer_past=None,
         get_key_value=False,
         forward_method_parallel_output=None,
