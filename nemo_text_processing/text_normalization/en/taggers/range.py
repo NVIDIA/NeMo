@@ -26,9 +26,15 @@ except (ModuleNotFoundError, ImportError):
 
 class RangeFst(GraphFst):
     """
-    time: time FST
-    deterministic: if True will provide a single transduction option,
+    This class is a composite class of two other class instances
+    
+    Args:
+        time: composed tagger and verbalizer
+        date: composed tagger and verbalizer
+        cardinal: tagger
+        deterministic: if True will provide a single transduction option,
         for False multiple transduction are generated (used for audio-based normalization)
+        lm: whether to use for hybrid LM
     """
 
     def __init__(
@@ -38,21 +44,23 @@ class RangeFst(GraphFst):
 
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
         self.graph = time + delete_space + pynini.cross("-", " to ") + delete_space + time
+        # only 4 digit year for date
         date_year = (NEMO_DIGIT ** 4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
 
         year_to_year_graph = date_year + delete_space + pynini.cross("-", " to ") + delete_space + date_year
         self.graph |= year_to_year_graph
 
         cardinal = cardinal.graph
-        # this will use year for for 4-digit cardinal
-        up_to_three_morfive_digits = (NEMO_DIGIT ** (1, 3)) | (NEMO_DIGIT ** (5, ...))
-        up_to_three_morfive_digits = pynini.compose(up_to_three_morfive_digits, cardinal)
+        # cardinal ----
+        # excluding 4-digit cardinal
+        up_to_three_or_five_digits = (NEMO_DIGIT ** (1, 3)) | (NEMO_DIGIT ** (5, ...))
+        up_to_three_or_five_digits = pynini.compose(up_to_three_or_five_digits, cardinal)
         cardinal_to_cardinal_graph = (
-            up_to_three_morfive_digits
+            up_to_three_or_five_digits
             + delete_space
             + pynini.cross("-", " to ")
             + delete_space
-            + up_to_three_morfive_digits
+            + up_to_three_or_five_digits
         )
 
         if not deterministic and not lm:
@@ -82,7 +90,8 @@ class RangeFst(GraphFst):
                 range_graph |= cardinal + pynini.closure(pynini.cross(x, " divided by ") + cardinal, 1)
 
         self.graph |= range_graph
+        # ---- cardinal
+
         self.graph = self.graph.optimize()
-        graph = pynutil.insert("value: \"") + convert_space(self.graph).optimize() + pynutil.insert("\"")
-        graph = self.add_tokens(graph)
+        graph = pynutil.insert("name: \"") + convert_space(self.graph).optimize() + pynutil.insert("\"")
         self.fst = graph.optimize()

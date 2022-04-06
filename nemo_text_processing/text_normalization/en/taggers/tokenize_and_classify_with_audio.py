@@ -50,10 +50,10 @@ from nemo_text_processing.text_normalization.en.verbalizers.fraction import Frac
 from nemo_text_processing.text_normalization.en.verbalizers.measure import MeasureFst as vMeasure
 from nemo_text_processing.text_normalization.en.verbalizers.money import MoneyFst as vMoney
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinal
-from nemo_text_processing.text_normalization.en.verbalizers.range import RangeFst as vRangeFst
 from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
+from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWord
 
 from nemo.utils import logging
 
@@ -155,7 +155,7 @@ class ClassifyFst(GraphFst):
             range_graph = RangeFst(
                 time=time_final, date=date_final, cardinal=CardinalFst(deterministic=True), deterministic=deterministic
             ).fst
-            v_range_graph = vRangeFst(deterministic=deterministic).fst
+            v_word_graph = vWord(deterministic=deterministic).fst
 
             classify_and_verbalize = (
                 pynutil.add_weight(whitelist_graph, 1.01)
@@ -170,7 +170,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
                 | pynutil.add_weight(word_graph, 100)
                 | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
-                | pynutil.add_weight(pynini.compose(range_graph, v_range_graph), 1.1)
+                | pynutil.add_weight(pynini.compose(range_graph, v_word_graph), 1.1)
             ).optimize()
 
             if not deterministic:

@@ -132,7 +132,7 @@ class NormalizerWithAudio(Normalizer):
             len(text.split()) < 500
         ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
         original_text = text
-        if self.lang in ["en", "de"]:
+        if self.lang in ["en"]:
             text = pre_process(text)
 
         text = text.strip()
@@ -143,7 +143,7 @@ class NormalizerWithAudio(Normalizer):
         text = pynini.escape(text)
 
         if self.lm:
-            if self.lang not in ["en", "de"]:
+            if self.lang not in ["en"]:
                 raise ValueError(f"{self.lang} is not supported in LM mode")
 
             if self.lang == "en":
@@ -155,40 +155,6 @@ class NormalizerWithAudio(Normalizer):
                 tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
                 tagged_texts.sort(key=lambda x: x[1])
                 tagged_texts, weights = list(zip(*tagged_texts))
-            elif self.lang == "de":
-                lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
-                lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
-                tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
-                tagged_texts.sort(key=lambda x: x[1])
-                tagged_texts, tagger_weights = list(zip(*tagged_texts))
-                normalized_texts = []
-                weights = []
-
-                def get_verbalized_text(tagged_text, weight):
-                    lattice = rewrite.rewrite_lattice(tagged_text, self.verbalizer.fst)
-                    lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
-                    tagged_texts = [(x[1], float(x[2]) + weight) for x in lattice.paths().items()]
-                    tagged_texts.sort(key=lambda x: x[1])
-                    tagged_texts, weights = list(zip(*tagged_texts))
-                    return tagged_texts, weights
-
-                for tagged_text, weight in zip(tagged_texts, tagger_weights):
-
-                    self.parser(tagged_text)
-                    tokens = self.parser.parse()
-                    tags_reordered = self.generate_permutations(tokens)
-                    for tagged_text_reordered in tags_reordered:
-                        try:
-                            tagged_text_reordered = pynini.escape(tagged_text_reordered)
-                            norm, w = get_verbalized_text(tagged_text_reordered, weight=weight)
-                            normalized_texts.extend(norm)
-                            weights.extend(w)
-                            if verbose:
-                                print(tagged_text_reordered)
-
-                        except pynini.lib.rewrite.Error:
-                            continue
-
         else:
             if n_tagged == -1:
                 if self.lang == "en":
@@ -370,7 +336,9 @@ def parse_args():
         type=str,
     )
     parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
-    parser.add_argument("--lm", action="store_true", help="Set to True for WFST+LM")
+    parser.add_argument(
+        "--lm", action="store_true", help="Set to True for WFST+LM. Only available for English right now."
+    )
     parser.add_argument("--batch_size", default=200, type=int, help="Number of examples for each process")
     return parser.parse_args()
 

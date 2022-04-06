@@ -49,10 +49,10 @@ from nemo_text_processing.text_normalization.en.verbalizers.fraction import Frac
 from nemo_text_processing.text_normalization.en.verbalizers.measure import MeasureFst as vMeasure
 from nemo_text_processing.text_normalization.en.verbalizers.money import MoneyFst as vMoney
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinal
-from nemo_text_processing.text_normalization.en.verbalizers.range import RangeFst as vRangeFst
 from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
+from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWord
 
 from nemo.utils import logging
 
@@ -118,7 +118,7 @@ class ClassifyFst(GraphFst):
             fraction = FractionFst(deterministic=True, cardinal=cardinal)
             fraction_graph = fraction.fst
 
-            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=True, lm=True)
+            measure = MeasureFst(cardinal=cardinal, decimal=decimal, fraction=fraction, deterministic=True)
             measure_graph = measure.fst
             date = DateFst(cardinal=cardinal, deterministic=True, lm=True)
             date_graph = date.fst
@@ -170,7 +170,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(whitelist_graph, sem_w)
             ).optimize()
 
-            roman_graph = RomanFst(deterministic=deterministic).fst
+            roman_graph = RomanFst(deterministic=deterministic, lm=True).fst
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), sem_w)
 
@@ -178,8 +178,8 @@ class ClassifyFst(GraphFst):
             range_graph = RangeFst(
                 time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
             ).fst
-            v_range_graph = vRangeFst(deterministic=deterministic).fst
-            classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_range_graph), sem_w)
+            v_word_graph = vWord(deterministic=deterministic).fst
+            classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_word_graph), sem_w)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, word_w)
 

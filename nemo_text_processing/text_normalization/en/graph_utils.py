@@ -180,7 +180,7 @@ class GraphFst:
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, name: str, kind: str, deterministic: bool = True, lm: bool = False):
+    def __init__(self, name: str, kind: str, deterministic: bool = True):
         self.name = name
         self.kind = str
         self._fst = None

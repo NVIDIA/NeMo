@@ -57,9 +57,7 @@ class MeasureFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(
-        self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True, lm: bool = False,
-    ):
+    def __init__(self, cardinal: GraphFst, decimal: GraphFst, fraction: GraphFst, deterministic: bool = True):
         super().__init__(name="measure", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph | self.get_range(cardinal.graph)
 
@@ -203,7 +201,7 @@ class MeasureFst(GraphFst):
             pynutil.insert("fraction { ") + fraction.graph + delete_space + pynutil.insert(" } ") + unit_plural
         )
 
-        address = self.get_address_graph(cardinal, lm=lm)
+        address = self.get_address_graph(cardinal)
         address = (
             pynutil.insert("units: \"address\" cardinal { integer: \"")
             + address
@@ -248,7 +246,7 @@ class MeasureFst(GraphFst):
 
     def get_range(self, cardinal: GraphFst):
         """
-        Returns range forms for measure tagger
+        Returns range forms for measure tagger, e.g. 2-3, 2x3, 2*2
 
         Args:
             cardinal: cardinal GraphFst
@@ -264,7 +262,7 @@ class MeasureFst(GraphFst):
             range_graph |= cardinal + pynini.cross(x, " times ") + cardinal
         return range_graph.optimize()
 
-    def get_address_graph(self, cardinal, lm=False):
+    def get_address_graph(self, cardinal):
         """
         Finite state transducer for classifying serial.
             The serial is a combination of digits, letters and dashes, e.g.:

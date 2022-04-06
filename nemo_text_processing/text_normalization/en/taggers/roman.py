@@ -36,7 +36,7 @@ class RomanFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="roman", kind="classify", deterministic=deterministic)
 
         roman_dict = load_labels(get_abs_path("data/roman/roman_to_spoken.tsv"))
@@ -60,14 +60,24 @@ class RomanFst(GraphFst):
             pynutil.insert("key_cardinal: \"") + key_words + pynutil.insert("\"") + pynini.accep(" ") + default_graph
         ).optimize()
 
-        # two digit roman numerals up to 49
-        roman_to_cardinal = pynini.compose(
-            pynini.closure(NEMO_ALPHA, 2),
-            (
-                pynutil.insert("default_cardinal: \"default\" ")
-                + (pynini.string_map([x[0] for x in roman_dict[:50]]).optimize()) @ default_graph
-            ),
-        )
+        if deterministic:
+            # two digit roman numerals up to 49
+            roman_to_cardinal = pynini.compose(
+                pynini.closure(NEMO_ALPHA, 2),
+                (
+                    pynutil.insert("default_cardinal: \"default\" ")
+                    + (pynini.string_map([x[0] for x in roman_dict[:50]]).optimize()) @ default_graph
+                ),
+            )
+        elif not lm:
+            # two or more digit roman numerals
+            roman_to_cardinal = pynini.compose(
+                pynini.closure(NEMO_ALPHA, 2),
+                (
+                    pynutil.insert("default_cardinal: \"default\" ")
+                    + (pynini.string_map([x[0] for x in roman_dict[:50]]).optimize()) @ default_graph
+                ),
+            )
 
         # convert three digit roman or up with suffix to ordinal
         roman_to_ordinal = pynini.compose(

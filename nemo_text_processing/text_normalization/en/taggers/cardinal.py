@@ -109,7 +109,7 @@ class CardinalFst(GraphFst):
                 self.graph
                 | serial_graph
                 | pynutil.add_weight(self.single_digits_graph, 0.0001)
-                | get_four_digit_year_graph()
+                | get_four_digit_year_graph()  # allows e.g. 4567 be pronouced as forty five sixty seven
                 | pynutil.add_weight(single_digits_graph_with_commas, 0.0001)
                 | cardinal_with_leading_zeros
             )
