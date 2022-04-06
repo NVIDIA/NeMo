@@ -13,7 +13,7 @@ trainer:
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
-  checkpoint_callback: false  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
 
 model:
@@ -108,4 +108,4 @@ exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: "MultiLabelIntentSlot"  # The name of your model
   create_tensorboard_logger: False  # Whether you want exp_manger to create a tb logger
-  create_checkpoint_callback: False  # Whether you want exp_manager to create a modelcheckpoint callback
+  enable_checkpointing: False  # Provided by exp_manager
