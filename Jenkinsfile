@@ -829,6 +829,17 @@ pipeline {
             rm -rf sgd_gen_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
+      }
+    }
+    stage('L2: Dialogue Generation') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
         stage('Design Intent classification using ZeroShotIntentModel') {
           steps {
             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
@@ -854,18 +865,6 @@ pipeline {
             rm -rf design_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
-      }
-    }
-
-    stage('L2: Dialogue Generation') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
           steps {
             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
