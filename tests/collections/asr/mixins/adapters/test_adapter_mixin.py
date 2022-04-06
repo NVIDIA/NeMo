@@ -178,7 +178,6 @@ class TestAdapterMixin:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor_pretrained(self):
-        # TODO: make proper config and assert correct number of weights
         # Check to/from config_dict:
         cfg = ASRModel.from_pretrained('stt_en_citrinet_256', map_location='cpu', return_config=True)
         cfg.encoder._target_ = cfg.encoder._target_ + 'Adapter'  # convension to load Adapter supported model.
@@ -188,5 +187,9 @@ class TestAdapterMixin:
         assert hasattr(model, 'encoder')
         assert isinstance(model.encoder, AdapterModuleMixin)
 
-        model.add_adapter('adapter_0', cfg=get_adapter_cfg(dim=cfg.encoder.jasper[0].filters))
+        model.add_adapter('adapter_0', cfg=get_adapter_cfg(in_features=cfg.encoder.jasper[0].filters, dim=5))
         assert model.is_adapter_available()
+
+        model.freeze()
+        model.unfreeze_enabled_adapters()
+        assert model.num_weights < 1e5
