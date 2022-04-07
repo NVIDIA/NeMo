@@ -62,8 +62,6 @@ class NLPModel(ModelPT, Exportable):
             # Some models have their own tokenizer setup
             if not hasattr(self, 'tokenizer') and cfg.tokenizer.get('tokenizer_name'):
                 self.setup_tokenizer(cfg.tokenizer)
-            else:
-                self.tokenizer = None
             if cfg.get('tokenizer.vocab_file'):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
@@ -81,7 +79,9 @@ class NLPModel(ModelPT, Exportable):
                 config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
             )
             # set the tokenizer if it is not initialized explicitly
-            if self.tokenizer is None and hasattr(bert_model, 'tokenizer'):
+            if ((hasattr(self, 'tokenizer') and self.tokenizer is None) or not hasattr(self, 'tokenizer')) and hasattr(
+                bert_model, 'tokenizer'
+            ):
                 self.tokenizer = bert_model.tokenizer
             if cfg.language_model.get('downstream'):
                 cfg.language_model.downstream = True
