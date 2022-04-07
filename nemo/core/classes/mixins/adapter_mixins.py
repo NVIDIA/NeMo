@@ -23,7 +23,37 @@ from nemo.utils import logging
 
 
 class AdapterModuleMixin(ABC):
+    """ Generic Adapter Mixin that can augment any torch.nn.Module with Adapter module support.
+
+    This mixin class adds a hierarchical way to add any type of Adapter modules to a pre-existing module.
+    Since Models are inherently also nn.Module, this mixin can be attached to any Model or Module.
+    This mixin class adds several utility methods which are utilized or overridden as necessary.
+
+    An Adapter module is any Pytorch nn.Module that possess a few properties :
+
+    - It's input and output dimension are the same, while the hidden dimension need not be the same.
+    - The final layer of the Adapter module is zero-initialized, so that the residual connection to the adapter
+        yields the original output.
+
+    This mixin adds the following instance variables to the class this inherits it:
+
+        -   `adapter_layer`: A torch.nn.ModuleDict(), whose keys are the names of the adapter (globally unique),
+                and values are the Adapter nn.Module().
+        -   `adapter_cfg`: A OmegaConf DictConfig object that holds the config of the adapters that are initialized.
+
+    **Note**: This module is **not** responsible for maintaining its config. Subclasses must ensure config is updated
+        or preserved as needed. It is the responsibility of the subclasses to propagate the most up to date config to
+        lower layers.
+    """
+
     def add_adapter(self, name: str, cfg: DictConfig):
+        """
+        Add an Adapter module to this module.
+
+        Args:
+            name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
+            cfg: A DictConfig that contains at the bare minimum `__target__` to instantiate a new Adapter module.
+        """
         if not hasattr(self, 'adapter_layer'):
             self.adapter_layer = nn.ModuleDict()
 
@@ -40,11 +70,35 @@ class AdapterModuleMixin(ABC):
         self.adapter_cfg[name] = cfg
 
     def is_adapter_available(self) -> bool:
+        """
+        Checks if any Adapter module has been instantiated.
+
+        Returns:
+            bool, determining if any Adapter module has been instantiated. Returns true even if the adapters are
+            enabled or disabled, false only if no adapters exist.
+        """
         if hasattr(self, 'adapter_layer'):
             return self.adapter_layer is not None and len(self.adapter_layer) > 0
         return False
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        """
+        Updated the internal adapter config, determining if an adapter (or all adapters) are either
+        enabled or disabled.
+
+        A common user pattern would be to disable all adapters (either after adding them, or restoring a model
+        with pre-existing adapters) and then simply enable one of the adapters.
+
+        .. code::
+
+            model.set_enabled_adapters(enabled=False)
+            model.set_enabled_adapters(name=<some adapter name>, enabled=True)
+
+        Args:
+            name: Optional str. If a str name is given, the config will be updated to the value of `enabled`.
+                If no name is given, then all adapters will be enabled/disabled.
+            enabled: Bool, determines if the adapter(s) will be enabled/disabled.
+        """
         if not self.is_adapter_available():
             raise ValueError("No adapter is available to enable/disable")
 
@@ -57,6 +111,12 @@ class AdapterModuleMixin(ABC):
             self.adapter_cfg[name]['enabled'] = enabled
 
     def get_enabled_adapters(self) -> List[str]:
+        """
+        Returns a list of all enabled adapters.
+
+        Returns:
+            A list of str names of each enabled adapter(s).
+        """
         if not self.is_adapter_available():
             raise ValueError("No adapter is available to get enabled/disabled state")
 
@@ -68,8 +128,21 @@ class AdapterModuleMixin(ABC):
         return enabled_adapters
 
     def unfreeze_enabled_adapters(self, freeze_batchnorm: bool = True) -> None:
-        r"""
-        Freeze all params for inference.
+        """
+        Utility method to unfreeze only the enabled Adapter module(s).
+
+        A common user pattern is to freeze all the modules (including all the adapters), and then
+        unfreeze just the required adapters.
+
+        .. code::
+
+            model.freeze()
+            model.unfreeze_enabled_adapters()
+
+        Args:
+            freeze_batchnorm: An optional (and recommended) practice of freezing the updates to the moving average
+                buffers of any and all BatchNorm*D layers. This is necessary to ensure that disabling all adapters
+                will precisely yield the original (base) model's outputs.
         """
         if freeze_batchnorm:
             for mname, module in self.named_modules():
