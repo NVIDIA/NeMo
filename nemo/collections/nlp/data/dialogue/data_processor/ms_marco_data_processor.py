@@ -31,7 +31,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
        https://msmarco.blob.core.windows.net/msmarco/eval_v2.1_public.json.gz
     """
 
-    def __init__(self, data_dir: str, tokenizer: object):
+    def __init__(self, data_dir: str, tokenizer: object, debug_mode=False):
         """
         Constructs DialogueMSMarcoDataProcessor
         Args:
@@ -40,6 +40,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
         """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
+        self.debug_mode = debug_mode
 
     def open_json(self, filename):
         """
@@ -80,6 +81,9 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
 
         elif dataset_split == "test":
             idxs = list(range(len(raw_examples['answers'])))
+
+        if self.debug_mode:
+            idxs = idxs[:64]
 
         for i in idxs:
             utterance = raw_examples['query'][str(i)]

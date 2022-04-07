@@ -256,7 +256,7 @@ class DialogueS2SGenerationModel(NLPModel):
 
         if self._cfg.dataset.task == "ms_marco":
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, debug_mode=self.cfg.dataset.debug_mode
             )
         elif self._cfg.dataset.task == "sgd_generation":
             schema_config = {

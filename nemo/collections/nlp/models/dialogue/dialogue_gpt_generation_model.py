@@ -323,7 +323,7 @@ class DialogueGPTGenerationModel(NLPModel):
 
         if self._cfg.dataset.task == "ms_marco":
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, debug_mode=self.cfg.dataset.debug_mode
             )
         else:
             raise ValueError("Only ms_marco supported for Dialogue GPT Generation Model")
